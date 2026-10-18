@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b111b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Command" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<title>Everborn Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230b0f17' stroke='%2322d3ee' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%2322d3ee'/%3E%3C/svg%3E" />
+</head>
+<body>
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name">EVERBORN <b>COMMAND</b></span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="command" class="active">Command</button>
+      <button data-view="projects">Projects</button>
+      <button data-view="credits">Credits</button>
+      <button data-view="subscriptions">Subscriptions</button>
+      <button data-view="settings">Settings</button>
+      <button data-view="setup" id="tab-setup">Setup</button>
+    </nav>
+    <div class="top-right">
+      <div class="pill" id="budget-pill" title="API spend this month vs budget"><span class="pill-k">Month</span><span id="budget-val">$0.00</span></div>
+      <div class="pill" id="conn-pill"><span class="dot grey" id="conn-dot"></span><span id="conn-txt">connecting</span></div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </header>
+
+  <div id="update-bar" class="update-bar" style="display:none"></div>
+  <main class="view" id="view"></main>
+
+  <aside class="feed" id="feed">
+    <div class="feed-head">
+      <span>Live feed</span>
+      <button class="ghost" id="feed-clear" title="Clear">clear</button>
+    </div>
+    <div class="feed-list" id="feed-list"></div>
+  </aside>
+
+  <footer class="strip" id="strip"></footer>
+  <nav class="mobile-nav" id="mobile-nav">
+    <button data-view="command"><i>◎</i>Command</button>
+    <button data-view="projects"><i>▦</i>Projects</button>
+    <button data-view="credits"><i>$</i>Credits</button>
+    <button data-view="subscriptions"><i>↻</i>Subs</button>
+    <button data-feed><i>≡</i>Feed</button>
+    <button data-view="settings"><i>⚙</i>Settings</button>
+  </nav>
+</div>
+<div id="gate" class="gate" style="display:none"></div>
+<div id="toasts" class="toasts"></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

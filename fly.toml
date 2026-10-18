@@ -1,0 +1,39 @@
+# Fly.io config for the Everborn Command hosted hub. See docs/hosted-hub.md for the runbook.
+# Cheapest useful shape: one shared-cpu-1x / 256 MB machine (about $1.94/month if it never
+# stops; less with auto-stop), the free <app>.fly.dev subdomain, no volume (data is in Supabase).
+app = "everborn-command"
+primary_region = "sjc"   # San Jose: closest to Sacramento and to Supabase West US (Oregon)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  CC_MODE = "hosted"
+  PORT = "8080"
+  # CC_HUB_URL is set with `fly secrets set` alongside the other secrets so one command covers all.
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Stop the machine when nobody is connected and start it on the next request (a few seconds).
+  # If you rely on off-peak scheduled missions running while no browser is open, set
+  # min_machines_running = 1 instead (always on, about $2/month).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

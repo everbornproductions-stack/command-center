@@ -1,0 +1,27 @@
+{
+  "name": "everborn-command-center",
+  "version": "0.1.0",
+  "description": "Everborn Command Center: one console for every AI you pay for. Council, missions, credits, projects.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "electron": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "qrcode-generator": "^2.0.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@cloudflare/containers": "^0.3.7",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "author": "Everborn Productions <everbornproductions@gmail.com>",
+  "homepage": "https://everbornproductions.com/command-center/"
+}

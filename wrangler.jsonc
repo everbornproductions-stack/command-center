@@ -1,0 +1,26 @@
+// Cloudflare Workers + Containers config for the hosted hub. Runbook: docs/hosted-hub.md.
+// Requires the Workers Paid plan ($5/month). Deploy with: npx wrangler deploy
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "everborn-command",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+
+  // the hub container: built from ./Dockerfile, one instance, smallest size (1/16 vCPU, 256 MiB)
+  "containers": [
+    { "class_name": "Hub", "image": "./Dockerfile", "max_instances": 1, "instance_type": "lite" }
+  ],
+  "durable_objects": { "bindings": [{ "class_name": "Hub", "name": "HUB" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
+
+  // the hub's address; Cloudflare creates the DNS record in the everbornproductions.com zone on deploy
+  "routes": [{ "pattern": "command.everbornproductions.com", "custom_domain": true }],
+
+  // non-secret settings (secrets go in with `wrangler secret put NAME`)
+  "vars": {
+    "CC_SUPABASE_URL": "https://ezbpstloczzdlcxwliwu.supabase.co",
+    "CC_HUB_URL": "https://command.everbornproductions.com",
+    "CC_OWNER_EMAILS": "everbornproductions@gmail.com"
+  }
+}

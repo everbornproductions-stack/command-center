@@ -1,0 +1,38 @@
+appId: com.everborn.command
+productName: Everborn Command
+copyright: Copyright © 2026 Everborn Productions
+directories:
+  output: dist
+  buildResources: build
+files:
+  - electron/**
+  - server/**
+  - web/**
+  - package.json
+  - "!data/**"
+  - "!dist/**"
+  - "!docs/**"
+  - "!supabase/**"
+  - "!release/**"
+  - "!Start Command Center.cmd"
+  - "!**/*.map"
+asar: true
+compression: normal
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: "EverbornCommand-${version}-${arch}-${os}.${ext}"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Everborn Command
+  artifactName: "EverbornCommand-Setup-${version}.${ext}"
+portable:
+  artifactName: "EverbornCommand-Portable-${version}.${ext}"

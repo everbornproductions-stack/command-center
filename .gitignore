@@ -1,0 +1,15 @@
+data/
+node_modules/
+dist/
+release/*.exe
+.env
+*.env
+.env.*
+*.pem
+*.key
+*password*
+*secret*
+*.sqlite
+*.db
+*.mp4
+*.zip

@@ -1,0 +1,16 @@
+node_modules
+data
+dist
+build
+electron
+docs
+supabase
+.claude
+*.cmd
+*.md
+.dockerignore
+Dockerfile
+fly.toml
+worker
+wrangler.jsonc
+.wrangler
