@@ -8,6 +8,7 @@ files:
   - electron/**
   - server/**
   - web/**
+  - extension/**
   - package.json
   - "!data/**"
   - "!dist/**"
@@ -17,6 +18,9 @@ files:
   - "!Start Command Center.cmd"
   - "!**/*.map"
 asar: true
+# the browser extension (Phase 24) is loaded unpacked by Chrome / Edge, so it must sit outside app.asar
+asarUnpack:
+  - extension/**
 compression: normal
 win:
   target:

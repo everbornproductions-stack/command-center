@@ -34,7 +34,9 @@ import { observe } from "./brain.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
-import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";let lastScan = null, lastKeys = null;
+import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
+import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
+let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
 const MODE = HOSTED ? "hosted" : "local";
@@ -446,7 +448,14 @@ const server = http.createServer(async (req, res) => {
     // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
-    if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);    const gate = localGate(req, url);
+    if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
+    // browser extension (Phase 24): exempt from the session token only; the Host pin stays, web origins are
+    // refused and the pairing code is checked instead (server/plugins/extension.js)
+    if (isExtensionHook(url.pathname)) {
+      if (!HOSTED && !hostOk(req)) return json(res, 421, { error: `wrong host: use http://127.0.0.1:${PORT}/`, code: "host" });
+      return await extensionHook(req, res, url, json);
+    }
+    const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
