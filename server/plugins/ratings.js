@@ -5,23 +5,27 @@ import { rate } from "../brain.js";
 export const id = "ratings";
 const KIND = "ratings.log";
 
+// One rating, from the thumbs or from another feature (Phase 17 "Pick winner"): logged, and taught to both routers.
+export function saveRating(h, { missionId, kind, provider, model, capability, up, note }) {
+  const d = h.doc(KIND, () => ({ items: [] }));
+  const item = { ts: Date.now(), missionId, kind: kind || null, provider, model, capability: capability || "writing", up: !!up, note: String(note || "").slice(0, 300) };
+  d.items = d.items.filter((x) => !(x.missionId === missionId && x.model === model)); // one rating per run per model
+  d.items.unshift(item);
+  d.items = d.items.slice(0, 2000);
+  h.putDoc(KIND, d);
+  // teach the router: a thumbs-up counts like winning a council round for that capability; a thumbs-down like losing one
+  recordOutcome(model, item.capability, item.up);
+  // learning router (Phase 28): the thumb lands on the task type the model did in that run (no note text is kept there)
+  rate({ runId: missionId, provider, model, capability: item.capability, up: item.up });
+  h.emit("log", { text: `${up ? "👍" : "👎"} ${model} for ${item.capability}${note ? `: ${String(note).slice(0, 60)}` : ""}` });
+  return item;
+}
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/ratings/, "");
   if (req.method === "POST" && (p === "" || p === "/")) {
-    const { missionId, kind, provider, model, capability, up, note } = body;
-    if (!missionId || !model) return h.json(res, 400, { error: "missionId and model required" });
-    const d = h.doc(KIND, () => ({ items: [] }));
-    const item = { ts: Date.now(), missionId, kind: kind || null, provider, model, capability: capability || "writing", up: !!up, note: String(note || "").slice(0, 300) };
-    d.items = d.items.filter((x) => !(x.missionId === missionId && x.model === model)); // one rating per run per model
-    d.items.unshift(item);
-    d.items = d.items.slice(0, 2000);
-    h.putDoc(KIND, d);
-    // teach the router: a thumbs-up counts like winning a council round for that capability; a thumbs-down like losing one
-    recordOutcome(model, item.capability, item.up);
-    // learning router (Phase 28): the thumb lands on the task type the model did in that run (no note text is kept there)
-    rate({ runId: missionId, provider, model, capability: item.capability, up: item.up });
-    h.emit("log", { text: `${up ? "👍" : "👎"} ${model} for ${item.capability}${note ? `: ${String(note).slice(0, 60)}` : ""}` });
-    return h.json(res, 200, item);
+    if (!body.missionId || !body.model) return h.json(res, 400, { error: "missionId and model required" });
+    return h.json(res, 200, saveRating(h, body));
   }
   if (req.method === "GET" && p === "/summary") {
     const items = h.doc(KIND, () => ({ items: [] })).items;

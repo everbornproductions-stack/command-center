@@ -30,6 +30,10 @@ try {
   check((await owner.api("/mission", { method: "POST", body: { goal: "Plan a one-week social campaign for a small bakery.", mode: "economy", budgetUsd: 1 } })).status === 202, "mission accepted");
   const mission = await waitFor(owner, done("mission"), "mission to finish", 180000);
   check(!!mission, `mission finished (${mission?.tasks} tasks, $${mission?.cost})`);
+  const cmp = await owner.api("/compare", { method: "POST", body: { prompt: "Name a new bakery in three words.", columns: [{ provider: "demo-nova", model: "nova-lite" }, { provider: "demo-atlas", model: "atlas-pro" }, { provider: "demo-sage", model: "sage-mini" }] } });
+  check(cmp.status === 202, "side-by-side accepted");
+  let cr = null; for (let i = 0; i < 120 && cr?.status !== "done"; i++) { await sleep(500); cr = (await owner.api(`/compare/${cmp.json?.id}`)).json; }
+  check(cr?.status === "done" && cr.columns.every((c) => c.status === "done" && c.cost > 0 && c.ms > 0), `side-by-side finished (3 columns, $${cr?.cost})`);
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 
