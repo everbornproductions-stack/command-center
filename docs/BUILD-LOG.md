@@ -26,3 +26,16 @@ PHASE 8 DONE (built by Grok Bot)
 2026-10-18 20:35 PT (Grok Bot): v0.3.2 shipped outside the phase chain: updater in the Electron main process (electron/updater.cjs) with a launch prompt that works without the engine or UI, engine watchdog (electron/watchdog.cjs) with native Restart / Install update dialog, tray Check for updates, local engine-down page (electron/offline.html), Restart engine panel in the web UI after 15 s of reconnecting, second launch focuses the open window.
 
 2026-10-18 20:45 PT (Grok Bot): v0.3.2 also fixes the reload loop (safeReload, no service worker in the desktop app, caches cleared on version change, loop breaker), trims keys, keeps provider error wording (credits / workspace / key rejected) and adds the optional Anthropic workspace ID. Locked decisions are in docs/DECISIONS.md (read first). Plan: Phases 26 (Smart fallback), 28 (Learning router), 27 (Built-in browser helper) added, Phase 12 expanded with agent cards; run order 1, 15, 16, 26, 28, 25, 12, 27, 13, 17-24, 14, 2-11.
+
+## 2026-10-19 03:55 PT: Phase 1 (First impression), finished by Claude
+
+Already committed before this session: colour themes (fda7415), brand kit (42e1a86), onboarding tour (f39f4c4). This session added the last piece.
+
+- Guided API-key setup: `server/plugins/keysetup.js` (GET /api/keysetup, POST start / skip / complete / reset / save), `web/features/keysetup.js` (step-by-step overlay, Settings panel, `window.CC.keysetup.open()` which the tour's last stop already calls), one-line mount in `web/features/index.js`, README row.
+- Per provider: why you would want it, the numbered steps on the provider's site, "Open the key page" link, what the key looks like, paste, Test and save. The server runs the existing health check as the test call and only then keeps the key: green and amber (real key, no credits, with the billing link) are sealed in the vault; "Key rejected" and "Could not reach" keep nothing and put the previous key back untouched (workspace ID and custom headers included). A key pasted into the wrong step is pointed at the right one (paste detection, decision 10). Demo AIs retire after the first real key as before (decision 11).
+- Keys are never logged, never echoed, never written outside the vault; only the masked form is shown. Kling takes access and secret keys; Anthropic keeps the optional workspace ID.
+- Commits: fbb75e1 (feature and tests), plus this log entry.
+- Tests: npm test 80/80 pass (test/keysetup.test.js adds 4: guides and order, verdict, and a server run against local mock providers for rejected / working / out-of-credits / unreachable keys, progress file, key never in a response or the log); npm run smoke 16/16 pass. Both run in a temp data dir with mocks; no real URL or key.
+- Not verified: the overlay and Settings panel were syntax-checked (node --check) and exercised through the API tests, not clicked through in a browser; no real provider was called. `.claude/launch.json` has an uncommitted change from another session and was left alone.
+
+PHASE 1 DONE
