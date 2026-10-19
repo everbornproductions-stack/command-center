@@ -693,3 +693,80 @@ PHASE 22 DONE
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 23 DONE
+
+## Phase 24: Smaller extras (2026-10-19, about 07:40 local / 14:40 UTC)
+- Checked first:
+  - Nothing for Phase 24 was committed yet, so all four items were built in this session.
+  - No conflict with docs/DECISIONS.md. Two locked areas got additions only, nothing reverted or reworked:
+    - electron/main.cjs: the quick-launcher window, a tray item and `will-quit` cleanup. appId, setName, single instance, own server, updater and reload guard are untouched; test/decisions.test.js and test/desktop-update.test.js pass.
+    - server/plugins/workspaces.js (Phase 8): a sign-in-rule check on switching and a "locked" view. Roles, invites, sharing and usage are unchanged; test/workspaces.test.js passes.
+- Shared files got small changes only:
+  - server/index.js: price source per model, quick.html token injection, the extension hook (exempt from the session token only, Host pin kept), /api/sso/start, `sso` in /api/config, workspace keys loaded per hub user, and Settings keys editing your own key only (`getOwnSecret`).
+  - server/registry.js: `modelPrice()` reads your own price, then live, then built-in; plus `clearPricing` and `priceSource`.
+  - server/vault.js: a scoped resolver asked first (workspace keys), plus `getOwnSecret`.
+  - server/hosted.js and server/auth.js: how the session signed in (`amr`) and the account's identities.
+  - server/plugins/receipt.js: the flagship is picked at the price in use.
+  - web/app.js: the "Continue with Google / Microsoft" buttons on the hub sign-in page.
+  - web/features/index.js: five feature ids added.
+  - electron/desk-preload.cjs: quickDone and quickHide.
+  - electron-builder.yml: `extension/**` in files and asarUnpack.
+  - test/helpers.js: the live-price feed points at the local stub.
+  - test/smoke.mjs: 6 new checks.
+- Features:
+  - **Global hotkey quick launcher** (desktop):
+    - Default Alt+Space, changed in Settings > Quick launcher by pressing the keys. A small always-on-top box sends one order to this app's own server as a Chat or Council, then brings the main window forward.
+    - electron/hotkey.cjs never takes a shortcut Windows or another app already holds: `register()` false means it is left alone with a note.
+    - It refuses OS combinations (Alt+Tab, Ctrl+Alt+Delete, Cmd+Space and others) without trying, and requires a modifier.
+    - It releases only its own shortcut, on change, on off and on quit.
+  - **Chrome / Edge extension** (extension/, Manifest V3, load unpacked):
+    - Right-click page, selection or link, or the popup with a note.
+    - Host permissions are 127.0.0.1 and localhost only.
+    - Paired with a code shown once; only its SHA-256 is kept. Unpair works.
+    - /api/ext/* accepts only the pairing code. It refuses web origins, keeps the Host pin, takes JSON only, and limits wrong codes to 20 and sends to 30 a minute.
+    - The default is "Put it in Marching orders" (nothing runs until Send). "Ask now" and "Council" run with the ledger, caps and tier limits.
+  - **Live model pricing:**
+    - List prices from the OpenRouter models API, once a day (an hour after a failure), with the last good table kept on the PC.
+    - Matched by vendor prefix (dots and dashes alike, -latest). Groq, custom, demo and variable routes are left alone.
+    - Feeds the router, ledger estimates and savings receipts through `modelPrice()`. Your own price always wins.
+    - Settings > Model prices: built-in, live, yours and in use; Refresh now; on/off.
+  - **Team SSO for the hosted hub:**
+    - "Continue with Google / Microsoft" through Supabase Auth's Google and Azure providers, turned on with CC_SSO_PROVIDERS. /api/sso/start redirects only back to the hub.
+    - Per-workspace rule (owner or admin, Studio): providers and email domains. A session that does not meet it sees the workspace locked, cannot switch to it and gets none of its keys. The owner is never locked out.
+  - **Per-workspace API keys:**
+    - Owner or admin, Studio. Used only for calls made while that workspace is active.
+    - Desktop: in the DPAPI vault. Hub: workspace_secrets, AES-256-GCM bound to `ws:<id>:<provider>`. Owner, admin and member can use them; viewers use their own keys.
+    - The sign-in rule is re-checked on every call. Keys are shown masked only.
+  - docs/extras.md (with Chris's setup steps for SSO), README rows, hub env vars in docs/hosted-hub.md.
+- Commits:
+  - d4e19ab Phase 24: live model pricing from the OpenRouter models API (...)
+  - 1c305fd Phase 24: global hotkey quick launcher (...). In this commit, two lines of server/index.js were joined (still valid JavaScript); 9cce51f restored them.
+  - 9cce51f Phase 24: Chrome / Edge extension (...)
+  - 4ddbb4e Phase 24: Team SSO (Google and Microsoft) for the hosted hub and per-workspace API keys (...)
+  - fda464c Phase 24 docs: docs/extras.md, README feature rows, hub env vars
+- Tests:
+  - npm test: 178 tests, 176 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips as before). The count includes another session's uncommitted test/publish.test.js, which passes.
+    - One earlier full run had a single failure: the grokbot test's 60-second wait for a plain council, which timed out under load. That test passed alone (3/3), and the next full run passed.
+  - New tests:
+    - test/pricing.test.js (3): fixture matching; a fixture list served by a local mock updates the router's cost, the ledger estimate and the receipt; your price wins and survives a refresh; off means built-in; a failed refresh says "Could not reach OpenRouter" and keeps the last table; nothing secret on disk.
+    - test/hotkey.test.js (6): registration against a stand-in for globalShortcut (default, taken shortcut left alone, OS combinations, change, off, unregister on quit); main-process wiring; route without a desktop; quick.html gets the token and calls no outside URL.
+    - test/extension.test.js (4): manifest only on loopback; the code shown once with only its hash stored; no code, wrong code, unpaired code or the session token alone gives 401; web origin 403, wrong host 421, non-JSON 415; draft starts nothing; chat and council run on the demo AIs and are in the ledger; 429 after too many wrong codes.
+    - test/teams.test.js (4):
+      - Local: the mock provider sees the workspace key only while that workspace is active; Personal and other workspaces get your own key; removed or deleted workspace means your own key again; Studio gate.
+      - Hosted, with a Supabase and identity-provider stand-in: the mocked OIDC round trip (authorize, IdP, callback, back to the hub with a session); no open redirect; rule setting by role; ciphertext-only rows; magic-link and wrong-domain sessions refused; the owner never locked; a Google session of the member uses the team key; the same member's emailed-link session never does; viewers do not.
+  - npm run smoke: all checks pass, including 6 new ones: live prices on, quick launcher default, extension accepted only with its code, workspace key masked, and workspace keys gated for Free.
+  - Both suites ran in temp data folders with local mocks. No real key, account, Supabase project, OpenRouter call or other outside URL was used.
+- Not verified:
+  - The desktop quick launcher was not opened: the Electron GUI cannot start in an agent run. main.cjs was syntax-checked and its wiring checked by tests. The real `globalShortcut` behaviour on Windows (including whether Alt+Space is free on Chris's PC) is untried.
+  - The extension was not loaded into a real Chrome or Edge, and has no icon (copying the app icon was not permitted in this run, so Chrome shows its default). The popup and worker were syntax-checked only.
+  - The live OpenRouter feed was never called. Its real model ids for the 2026 model names in the registry are a guess, so some models may show "not listed" until the registry's ids match OpenRouter's.
+  - SSO against real Google, Microsoft and Supabase Auth was not tried. The amr and identities handling follows Supabase's documented token shape.
+  - supabase/workspace-keys.sql and supabase/team-sso.sql were not run on any database, so the SQL itself is untested; only its rules were mirrored by the stand-in.
+  - The Settings panels (pricing, hotkey, extension, workspace keys, team sign-in) and the hub sign-in buttons were syntax-checked but not opened in a browser.
+- Chris decides:
+  - Whether to set up Google and Microsoft OAuth clients and turn on CC_SSO_PROVIDERS.
+  - Whether and when to run the two migration files.
+  - Whether to publish the extension to the Chrome Web Store (it is load-unpacked only now).
+  - Whether workspace keys and SSO rules stay Studio-only (they are now).
+- Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). Nothing was pushed (Chris pushes).
+
+PHASE 24 DONE
