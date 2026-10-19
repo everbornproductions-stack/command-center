@@ -1,9 +1,12 @@
 // Instagram publishing through the Meta Graph API (Instagram Content Publishing).
-// Needs: a long-lived Page access token with instagram_basic + instagram_content_publish, and the IG user id.
+// Needs: a long-lived Page access token with instagram_basic + instagram_content_publish, and the IG user id
+// (pasted, or from "Connect Instagram" in Settings > Publishing, server/publish/oauth.js).
 // Media must be a public URL (image JPEG, or MP4 for reels). Two steps: create container → publish.
+import { API } from "./oauth.js";
 export const id = "instagram";
 export const name = "Instagram";
-const G = "https://graph.facebook.com/v21.0";
+const G = () => API.meta(); // CC_META_GRAPH_URL points tests at a local mock
+const opts = (body) => ({ method: "POST", body, signal: AbortSignal.timeout(30000), redirect: "error" });
 
 export function ready(secret) { return !!(secret?.key && secret?.igUserId); }
 
@@ -17,10 +20,10 @@ export function preview({ text, mediaUrl, mediaType }) {
 }
 
 export async function post(secret, { text, mediaUrl, mediaType }) {
-  const base = `${G}/${secret.igUserId}`;
+  const base = `${G()}/${encodeURIComponent(secret.igUserId)}`;
   const params = new URLSearchParams({ access_token: secret.key, caption: text || "" });
   if (mediaType === "video") { params.set("media_type", "REELS"); params.set("video_url", mediaUrl); } else params.set("image_url", mediaUrl);
-  let r = await fetch(`${base}/media`, { method: "POST", body: params });
+  let r = await fetch(`${base}/media`, opts(params));
   let j = await r.json().catch(() => ({}));
   if (!r.ok || !j.id) throw new Error(`Instagram container: ${j.error?.message || r.status}`);
   const creation = j.id;
@@ -28,12 +31,12 @@ export async function post(secret, { text, mediaUrl, mediaType }) {
   if (mediaType === "video") {
     for (let i = 0; i < 40; i++) {
       await new Promise((s) => setTimeout(s, 5000));
-      const st = await fetch(`${G}/${creation}?fields=status_code&access_token=${encodeURIComponent(secret.key)}`).then((x) => x.json()).catch(() => ({}));
+      const st = await fetch(`${G()}/${encodeURIComponent(creation)}?fields=status_code&access_token=${encodeURIComponent(secret.key)}`, { redirect: "error" }).then((x) => x.json()).catch(() => ({}));
       if (st.status_code === "FINISHED") break;
       if (st.status_code === "ERROR") throw new Error("Instagram could not process the video");
     }
   }
-  r = await fetch(`${base}/media_publish`, { method: "POST", body: new URLSearchParams({ access_token: secret.key, creation_id: creation }) });
+  r = await fetch(`${base}/media_publish`, opts(new URLSearchParams({ access_token: secret.key, creation_id: creation })));
   j = await r.json().catch(() => ({}));
   if (!r.ok || !j.id) throw new Error(`Instagram publish: ${j.error?.message || r.status}`);
   return { id: j.id, url: `https://www.instagram.com/p/${j.id}/` };

@@ -1,9 +1,11 @@
-// Posting hooks: send a finished deliverable to Instagram, the GoHighLevel social planner, or a
-// Drive-synced folder. Always preview first; nothing leaves without an explicit confirm.
+// Posting hooks (Phase 7 integrations): send a finished deliverable to Instagram, the HighLevel social
+// planner, Slack, or Google Drive (API upload when connected, else a Drive-synced folder). Always preview
+// first; nothing leaves without an explicit confirm. Each service is connected with the person's own
+// OAuth app (server/publish/oauth.js) or a pasted token; tokens live in the vault.
 //
 // Contract (stable; README and docs reference it):
 //   GET  /api/publish/channels      readiness per channel
-//   POST /api/publish/preview       { channel, title, text, mediaUrl?, mediaType?, mediaJobId?, when?, accountIds?, projectId?, missionId? }
+//   POST /api/publish/preview       { channel, title, text, mediaUrl?, mediaType?, mediaJobId?, when?, accountIds?, channelId?, channelName?, projectId?, missionId? }
 //                                   -> { channel, summary, problems, ready, dryRun, previewId, media }
 //   POST /api/publish/post          { previewId, confirmed: true } -> history entry
 //                                   Posts exactly what was previewed (the stored payload, not the request body).
@@ -11,22 +13,31 @@
 //                                   A real post is refused while the preview lists problems; a dry run is always allowed.
 //   GET  /api/publish/history       newest first
 //   POST /api/publish/prefs         { driveFolder }
-//   POST /api/publish/keys          { channel: instagram|ghl, token, igUserId | locationId }
+//   POST /api/publish/keys          { channel: instagram|ghl|slack, token, igUserId | locationId }
 //   GET  /api/publish/ghl-accounts
+//   GET  /api/publish/slack-channels
+//   GET  /api/publish/connect                       the four OAuth connectors (no secrets)
+//   POST /api/publish/connect/<google|meta|ghl|slack>/client   { clientId?, clientSecret? }
+//   POST /api/publish/connect/<k>/start             { origin } -> { url } (the page opens it)
+//   POST /api/publish/connect/<k>/finish            { code, state }
+//   DELETE /api/publish/connect/<k>                 removes the token from the vault
 // Every post (posted, dry run or failed) is written to the history doc, the live feed and the ledger (cost 0).
 import * as instagram from "../publish/meta.js";
 import * as ghl from "../publish/ghl.js";
 import * as drive from "../publish/drive.js";
+import * as slack from "../publish/slack.js";
+import * as OA from "../publish/oauth.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
-const CH = { instagram, ghl, drive };
+const CH = { instagram, ghl, drive, slack };
+const CONNECTOR = { instagram: "meta", ghl: "ghl", drive: "google", slack: "slack" }; // channel -> oauth connector
 export const PREVIEW_TTL_MS = 30 * 60 * 1000;
 const previews = new Map(); // previewId -> { userId, channel, payload, problems, ready, createdAt }
 
 function prefs(h) { return h.doc(PREFS, () => ({ driveFolder: "" })); }
-function secretFor(h, ch) { return ch === "instagram" ? h.getSecret("meta") : ch === "ghl" ? h.getSecret("ghl") : null; }
-function readyFor(h, ch) { return ch === "drive" ? drive.ready(prefs(h), h.HOSTED) : CH[ch].ready(secretFor(h, ch)); }
+const secretFor = (h, ch) => h.getSecret(OA.CONNECTORS[CONNECTOR[ch]].vault);
+function readyFor(h, ch) { return ch === "drive" ? drive.ready(prefs(h), h.HOSTED, secretFor(h, ch)) : CH[ch].ready(secretFor(h, ch)); }
 const userOf = (h) => h.ctx()?.userId ?? "local";
 const isVideo = (s) => /\.(mp4|mov|webm)(\?|$)/i.test(s || "");
 function sweep() { const now = Date.now(); for (const [k, v] of previews) if (now - v.createdAt > PREVIEW_TTL_MS) previews.delete(k); }
@@ -49,11 +60,13 @@ export function buildPayload(body, media) {
   const pl = {
     channel: body.channel,
     title: String(body.title || "Deliverable").slice(0, 120),
-    text: String(body.text || "").slice(0, body.channel === "instagram" ? 2200 : 5000),
+    text: String(body.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
     mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
     mediaType: body.mediaType === "video" ? "video" : "image",
     when: body.when ? Number(new Date(body.when)) || null : null,
     accountIds: Array.isArray(body.accountIds) ? body.accountIds.map(String).slice(0, 20) : [],
+    channelId: typeof body.channelId === "string" ? body.channelId.trim().slice(0, 24) : null,
+    channelName: typeof body.channelName === "string" ? body.channelName.replace(/[^\w.-]/g, "").slice(0, 80) : null,
     projectId: body.projectId || null,
     missionId: body.missionId || null,
     mediaJobId: media?.jobId || null,
@@ -69,31 +82,37 @@ export function buildPayload(body, media) {
 }
 
 function previewOf(h, pl, media) {
-  const pv = pl.channel === "drive" ? drive.preview(pl, prefs(h)) : CH[pl.channel].preview(pl);
+  const pv = pl.channel === "drive" ? drive.preview(pl, prefs(h), secretFor(h, "drive"), h.HOSTED) : CH[pl.channel].preview(pl);
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
   if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
+  if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
   return { ...pv, problems };
 }
 
 function logPost(h, entry) {
   const name = CH[entry.channel].name;
-  h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${name}${entry.error ? ` · ${entry.error}` : ""}${entry.result?.url ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
+  h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${name}${entry.error ? ` · ${entry.error}` : ""}${/^https:\/\//.test(entry.result?.url || "") ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
   // a ledger note for every post: zero cost, so the Credits tab and weekly report can see what went out
   try { h.recordCredits({ provider: entry.channel, units: 0, cost: 0, note: `${entry.status} · ${name} · ${entry.title}`.slice(0, 160), project: entry.projectId }); } catch (e) { console.error("[publish] ledger", e.message); }
 }
 
+function channelList(h) {
+  const pr = prefs(h), con = Object.fromEntries(OA.view().map((c) => [c.id, c]));
+  const how = (ch, paste) => { const c = con[CONNECTOR[ch]]; return c.connected ? `Connected: ${c.account || c.name}` : c.viaPaste ? "Pasted token" : paste; };
+  return [
+    { id: "instagram", name: "Instagram", ready: readyFor(h, "instagram"), connector: "meta", needs: how("instagram", "Connect Instagram, or paste a Page token + IG user id") },
+    { id: "ghl", name: "HighLevel social planner", ready: readyFor(h, "ghl"), connector: "ghl", needs: how("ghl", "Connect HighLevel, or paste a private integration token + location id") },
+    { id: "slack", name: "Slack", ready: readyFor(h, "slack"), connector: "slack", needs: how("slack", "Connect Slack (or paste a bot token)") },
+    { id: "drive", name: "Google Drive", ready: readyFor(h, "drive"), connector: "google", needs: con.google.connected ? `Connected: uploads to the "Command AI" folder` : h.HOSTED ? "Connect Google Drive" : "Connect Google Drive, or choose a Drive-synced folder", folder: pr.driveFolder || "" },
+  ];
+}
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
-  if (req.method === "GET" && p === "/channels") {
-    const pr = prefs(h);
-    return h.json(res, 200, [
-      { id: "instagram", name: "Instagram", ready: instagram.ready(h.getSecret("meta")), needs: "Page access token + IG user id" },
-      { id: "ghl", name: "GoHighLevel social planner", ready: ghl.ready(h.getSecret("ghl")), needs: "Private integration token + location id" },
-      { id: "drive", name: "Drive folder", ready: drive.ready(pr, h.HOSTED), needs: h.HOSTED ? "Not available in hosted mode yet" : "A Drive-synced folder path", folder: pr.driveFolder || "" },
-    ]);
-  }
+  const seg = p.split("/").filter(Boolean);
+  if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h));
   if (req.method === "POST" && p === "/preview") {
     if (!CH[body.channel]) return h.json(res, 400, { error: "unknown channel" });
     sweep();
@@ -117,23 +136,49 @@ export async function routes(req, res, url, body, h) {
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
-    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, when: pl.when, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
+    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {
       if (!ready) { entry.status = "dry-run"; entry.note = "No credentials for this channel: recorded, not sent."; }
-      else { const r = pv.channel === "drive" ? await drive.post(pl, prefs(h)) : await ch.post(secretFor(h, pv.channel), pl); entry.status = "posted"; entry.result = r; }
+      else {
+        const sec = await OA.fresh(CONNECTOR[pv.channel]); // refreshes an expiring OAuth token first
+        const r = pv.channel === "drive" ? await drive.post(pl, prefs(h), sec) : await ch.post(sec, pl);
+        if (r.folderId && r.folderId !== prefs(h).driveFolderId) h.putDoc(PREFS, { ...prefs(h), driveFolderId: r.folderId });
+        delete r.folderId;
+        entry.status = "posted"; entry.result = r;
+      }
     } catch (e) { entry.status = "failed"; entry.error = e.message; }
     const d = h.doc(HIST, () => ({ items: [] })); d.items.unshift(entry); d.items = d.items.slice(0, 500); h.putDoc(HIST, d);
     logPost(h, entry);
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));
-  if (req.method === "POST" && p === "/prefs") { const pr = { ...prefs(h), ...(body.driveFolder !== undefined ? { driveFolder: String(body.driveFolder).trim() } : {}) }; h.putDoc(PREFS, pr); return h.json(res, 200, pr); }
+  if (req.method === "POST" && p === "/prefs") { const pr = { ...prefs(h), ...(body.driveFolder !== undefined ? { driveFolder: String(body.driveFolder).trim() } : {}) }; h.putDoc(PREFS, pr); return h.json(res, 200, { driveFolder: pr.driveFolder }); }
   if (req.method === "POST" && p === "/keys") {
-    if (body.channel === "instagram") await h.setSecret("meta", { key: body.token, igUserId: String(body.igUserId || "").trim() });
-    else if (body.channel === "ghl") await h.setSecret("ghl", { key: body.token, locationId: String(body.locationId || "").trim() });
+    const token = String(body.token || "").trim();
+    if (body.channel === "instagram") await h.setSecret("meta", token ? { key: token, igUserId: String(body.igUserId || "").trim() } : null);
+    else if (body.channel === "ghl") await h.setSecret("ghl", token ? { key: token, locationId: String(body.locationId || "").trim() } : null);
+    else if (body.channel === "slack") await h.setSecret("slack", token ? { key: token } : null);
     else return h.json(res, 400, { error: "unknown channel" });
     return h.json(res, 200, { ok: true });
   }
-  if (req.method === "GET" && p === "/ghl-accounts") { const s = h.getSecret("ghl"); if (!ghl.ready(s)) return h.json(res, 200, []); try { return h.json(res, 200, await ghl.accounts(s)); } catch (e) { return h.json(res, 500, { error: e.message }); } }
+  if (req.method === "GET" && p === "/ghl-accounts") { const s = secretFor(h, "ghl"); if (!ghl.ready(s)) return h.json(res, 200, []); try { return h.json(res, 200, await ghl.accounts(await OA.fresh("ghl"))); } catch (e) { return h.json(res, e.status === 409 ? 409 : 500, { error: e.message }); } }
+  if (req.method === "GET" && p === "/slack-channels") { const s = secretFor(h, "slack"); if (!slack.ready(s)) return h.json(res, 200, []); try { return h.json(res, 200, await slack.channels(s)); } catch (e) { return h.json(res, e.status === 409 ? 409 : 500, { error: e.message }); } }
+
+  // OAuth connectors (Settings > Publishing)
+  if (seg[0] === "connect") {
+    try {
+      if (req.method === "GET" && !seg[1]) return h.json(res, 200, OA.view());
+      const k = seg[1];
+      if (!OA.CONNECTORS[k]) return h.json(res, 400, { error: "unknown connector" });
+      if (req.method === "POST" && seg[2] === "client") return h.json(res, 200, await OA.setClient(k, { clientId: body?.clientId, clientSecret: body?.clientSecret }));
+      if (req.method === "POST" && seg[2] === "start") {
+        const origin = String(body?.origin || "").replace(/\/$/, "");
+        if (!/^https?:\/\/[^\s/]+$/.test(origin)) return h.json(res, 400, { error: "origin required" });
+        return h.json(res, 200, OA.start(k, { redirectUri: `${origin}/` }));
+      }
+      if (req.method === "POST" && seg[2] === "finish") return h.json(res, 200, await OA.finish({ code: body?.code, state: body?.state }));
+      if (req.method === "DELETE" && !seg[2]) return h.json(res, 200, await OA.disconnect(k));
+    } catch (e) { return h.json(res, e.status || 500, { error: e.message, code: e.code }); }
+  }
   return false;
 }

@@ -98,7 +98,7 @@ test("Drive folder: copies the deliverable and only the media job's file; ledger
   assert.ok(names.includes("mj-test.mp4"));
   assert.ok(!names.includes("settings.json"), "a path sent by the browser is never copied");
   assert.equal(fs.readFileSync(path.join(outDir, "mj-test.mp4"), "utf8"), "fake-mp4");
-  assert.ok(ledger().some((e) => e.kind === "credits" && e.provider === "drive" && /posted · Drive folder/.test(e.note)));
+  assert.ok(ledger().some((e) => e.kind === "credits" && e.provider === "drive" && /posted · Google Drive/.test(e.note)));
 
   const past = await s.api("/publish/preview", { method: "POST", body: { channel: "ghl", text: "x", accountIds: ["a1"], when: Date.now() - 60000 } });
   assert.ok(past.json.problems.some((p) => /in the past/.test(p)));
