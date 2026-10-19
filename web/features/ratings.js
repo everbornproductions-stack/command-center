@@ -28,7 +28,7 @@ async function render(el, run) {
     ${list.map((c) => { const r = existing.find((x) => x.model === c.model); return `<div class="row small" style="padding:4px 0" data-model="${esc(c.model)}" data-provider="${esc(c.provider)}" data-cap="${esc(c.capability || cap)}">
       <span class="dot" style="background:${pcolor(c.provider)}"></span><span style="flex:1">${esc(c.label)}</span>
       <button class="ghost" data-up title="Good">${r?.up ? "👍" : "👍🏻"}</button><button class="ghost" data-down title="Not good">${r && !r.up ? "👎" : "👎🏻"}</button>
-      <span class="chip ${r ? (r.up ? "green" : "red") : ""}" style="min-width:52px;justify-content:center">${r ? (r.up ? "good" : "poor") : "—"}</span></div>`; }).join("")}
+      <span class="chip ${r ? (r.up ? "green" : "red") : ""}" style="min-width:52px;justify-content:center">${r ? (r.up ? "good" : "poor") : "not rated"}</span></div>`; }).join("")}
     <input type="text" id="rt-note" placeholder="optional: what was good or wrong" style="margin-top:6px"></div>`;
   el.querySelectorAll("[data-model]").forEach((row) => {
     const send = async (up) => { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: row.dataset.provider, model: row.dataset.model, capability: row.dataset.cap, up, note: el.querySelector("#rt-note").value } }); toast(up ? "Thanks. The router will favour it for this kind of work." : "Noted. The router will lean away from it for this."); render(el, run); } catch (e) { toast(e.message, true); } };

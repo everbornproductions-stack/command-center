@@ -668,6 +668,15 @@ async function openRun(id) {
 }
 
 // ----- Credits -----
+// One skills-matrix cell: the score, then what council votes and the person's own ratings each changed (R4).
+const signed = (n) => (n > 0 ? `+${n}` : String(n));
+function skillCell(m, c, best) {
+  const vv = m.caps[c] || 0, lead = vv === best;
+  const council = m.learned?.council?.[c], human = m.learned?.human?.[c];
+  const parts = [council != null ? `council ${signed(council)}` : "", human != null ? `you ${signed(human)}` : ""].filter(Boolean);
+  const title = parts.length ? `baseline ${m.base?.[c] ?? vv}; ${parts.join("; ")}` : "baseline";
+  return `<div class="cell" style="background:${lead ? "#113b3a" : "#0d1420"};color:${lead ? "var(--green)" : "#c7d0dd"};text-align:center" title="${esc(title)}">${vv}${parts.length ? `<div class="dim" style="font-size:10px;line-height:1.2">${parts.map(esc).join("<br>")}</div>` : ""}</div>`;
+}
 function renderCredits(v) {
   const L = S.ledger || { month: 0, today: 0, calls: 0, byProvider: {}, series: [], recent: [] };
   const max = Math.max(0.01, ...L.series.map((d) => d.v));
@@ -693,12 +702,12 @@ function renderCredits(v) {
       </tbody></table></div>
   </div>
   <div class="grid cols-2" style="margin-top:16px">
-    <div class="panel"><h3>Who's best at what <span class="right">baseline + what the council taught us</span></h3>
+    <div class="panel"><h3>Who's best at what <span class="right">baseline + council votes + your ratings</span></h3>
       <div class="skillgrid" style="grid-template-columns: 170px repeat(${caps.length}, 1fr)">
         <div class="cell hd"></div>${caps.map((c) => `<div class="cell hd" style="text-align:center">${c}</div>`).join("")}
-        ${allModels.map((m) => `<div class="cell hd" style="color:${m.color}">${esc(m.name)}</div>${caps.map((c) => { const vv = m.caps[c] || 0; const lead = vv === bestPer[c]; const learned = m.base && m.base[c] !== vv; return `<div class="cell" style="background:${lead ? "#113b3a" : "#0d1420"};color:${lead ? "var(--green)" : "#c7d0dd"}" title="${learned ? `learned: was ${m.base[c]}` : ""}">${vv}${learned ? "*" : ""}</div>`; }).join("")}`).join("")}
+        ${allModels.map((m) => `<div class="cell hd" style="color:${m.color}">${esc(m.name)}</div>${caps.map((c) => skillCell(m, c, bestPer[c])).join("")}`).join("")}
       </div>
-      ${allModels.length ? `<div class="dim small" style="margin-top:8px">* adjusted by council results. Run councils to teach the router.</div>` : `<div class="empty">Add API keys to see the matrix.</div>`}
+      ${allModels.length ? `<div class="dim small" style="margin-top:8px">Under each score: <b>council</b> is what council votes added or took away, <b>you</b> is what your thumbs up / down did. Each counts after 2 signals.</div>` : `<div class="empty">Add API keys to see the matrix.</div>`}
     </div>
     <div class="grid">
       <div class="panel"><h3>Log media credits <span class="right">Kling · Suno · Flow · Sync</span></h3>

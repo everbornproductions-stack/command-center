@@ -12,27 +12,53 @@ import { adjust } from "./brain.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
-export function learnedCaps(modelId, base) {
-  const out = { ...base };
+// What was learned on top of the baseline, kept apart by source: council votes (wins / rounds) and the
+// person's own thumbs up / down (R4). Each source moves a capability only after 2 signals.
+export function learnedDeltas(modelId) {
+  const out = { council: {}, human: {} };
   const s = skills()[modelId];
   if (!s) return out;
   for (const cap of CAPABILITIES) {
     const r = s[cap];
-    if (r && r.total >= 2) {
-      // shift baseline by up to ±12 points depending on win rate vs expected 1/N
-      const rate = r.wins / r.total;
-      out[cap] = Math.max(0, Math.min(100, (base[cap] || 50) + Math.round((rate - 0.35) * 30)));
-    }
+    if (!r) continue;
+    // shift by up to about ±20 points depending on win rate vs expected 1/N
+    if (r.total >= 2) out.council[cap] = Math.round((r.wins / r.total - 0.35) * 30);
+    // shift by up to ±12 points: all thumbs up +12, all down -12
+    const n = (r.up || 0) + (r.down || 0);
+    if (n >= 2) out.human[cap] = Math.round(((r.up || 0) / n - 0.5) * 24);
   }
   return out;
 }
 
+export function learnedCaps(modelId, base) {
+  const out = { ...base };
+  const d = learnedDeltas(modelId);
+  for (const cap of CAPABILITIES) {
+    const delta = (d.council[cap] || 0) + (d.human[cap] || 0);
+    if (cap in d.council || cap in d.human) out[cap] = Math.max(0, Math.min(100, (base[cap] || 50) + delta));
+  }
+  return out;
+}
+
+// One council round for a model (won or lost).
 export function recordOutcome(modelId, capability, won) {
   const sk = skills();
   sk[modelId] ||= {};
   const r = (sk[modelId][capability] ||= { wins: 0, total: 0 });
   r.total++;
   if (won) r.wins++;
+  putDoc("skills", sk);
+}
+
+// One human rating (R4). `prev` ({ capability, up }) is the earlier thumb on the same run and model,
+// which this one replaces, so changing your mind never counts twice.
+export function recordHuman(modelId, capability, up, prev = null) {
+  const sk = skills();
+  sk[modelId] ||= {};
+  const row = (cap) => { const r = (sk[modelId][cap] ||= { wins: 0, total: 0 }); r.up ||= 0; r.down ||= 0; return r; };
+  if (prev && CAPABILITIES.includes(prev.capability)) { const o = row(prev.capability); if (prev.up) o.up = Math.max(0, o.up - 1); else o.down = Math.max(0, o.down - 1); }
+  const r = row(capability);
+  if (up) r.up++; else r.down++;
   putDoc("skills", sk);
 }
 export const skillTable = () => skills();
