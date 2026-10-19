@@ -20,3 +20,5 @@ In-app updates (Chris's priority, not a numbered phase), built by Grok Bot: 60fe
 - Not verified: hosted mode against the real tables (needs workspaces.sql applied and a second signed-in email); the UI was syntax-checked and covered by API tests, not clicked through in a browser.
 
 PHASE 8 DONE (built by Grok Bot)
+
+2026-10-18 20:05 PT (Grok Bot): v0.3.1 hotfix shipped outside the phase chain: installed app no longer attaches to a foreign server on port 4747 (root cause of 'fetch failed' key checks), Google Gemini card, custom providers with presets, paste-any-key detection, demo AIs retire after the first real key, clear network vs key errors. Added Phase 25 (Subscriptions and services page) to BUILD-PLAN, run order after 16.
