@@ -1009,3 +1009,11 @@ PHASE 5 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 6 DONE
+
+## 2026-10-19 15:00 PT: chain paused for release v0.4.1, then resumed (Grok Bot)
+- CC-Build-Chain disabled at 14:10. Phase 5 had already started (14:05) and Phase 6 started straight after it, so the chain script was stopped while Phase 6's claude kept running; it finished at 14:42 and its commits were pushed by hand (d961479..2390f60). No claude run was interrupted.
+- PR #7 (connect with API key or MCP) was NOT merged: it conflicts with Phase 6's media rework (server/plugins/media.js, web/features/media.js; the job engine moved to server/media-jobs.js). It needs a rebase onto main.
+- server/cloud-defaults.json now ships the publishable licence key (never the service key), so fresh installs can check licences.
+- npm test 243 tests, 241 pass, 0 fail, 2 skipped (one earlier run had 1 flaky failure that did not repeat); npm run smoke all pass.
+- Released v0.4.1 (Phases 2-6 + licence key) on command-center-releases with installer, blockmap and latest.yml.
+- Chain re-enabled and started; it resumes at Phase 7 (Phases up to 6 are DONE in this log).
