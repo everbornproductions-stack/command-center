@@ -56,6 +56,8 @@ const LOCAL_ORIGINS = new Set([`http://127.0.0.1:${PORT}`, `http://localhost:${P
 const PUBLIC_API = new Set(["/api/health", "/api/config"]);
 const hasBody = (req) => Number(req.headers["content-length"] || 0) > 0 || !!req.headers["transfer-encoding"];
 const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
+// the one raw upload: an export zip for the history import (not a CORS-safelisted type, so still preflighted)
+const isZipUpload = (req, url) => req.method === "POST" && url.pathname === "/api/history/preview" && /^application\/(zip|x-zip-compressed|octet-stream)\b/i.test(String(req.headers["content-type"] || ""));
 function tokenOk(presented) {
   if (!LOCAL_TOKEN) return true;
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
@@ -269,7 +271,8 @@ async function api(req, res, url) {
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
-  const body = method === "POST" || method === "PUT" || method === "PATCH" ? await readBody(req) : {};
+  // a raw zip upload (history import, Phase 23) is streamed by its plugin, not read as JSON here
+  const body = (method === "POST" || method === "PUT" || method === "PATCH") && !isZipUpload(req, url) ? await readBody(req) : {};
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
@@ -448,7 +451,7 @@ const server = http.createServer(async (req, res) => {
     const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
-    if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());
     if (url.pathname === "/api/pair/qr.svg") return pairQr(res, url);

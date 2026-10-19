@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Tagline ideas for a bakery",
+    "create_time": 1760000000.123,
+    "update_time": 1760000600.5,
+    "id": "6800a1b2-0000-4000-8000-000000000001",
+    "current_node": "n5",
+    "mapping": {
+      "root": { "id": "root", "message": null, "parent": null, "children": ["n0"] },
+      "n0": { "id": "n0", "message": { "id": "n0", "author": { "role": "system" }, "create_time": null, "content": { "content_type": "text", "parts": [""] }, "metadata": { "is_visually_hidden_from_conversation": true } }, "parent": "root", "children": ["n1"] },
+      "n1": { "id": "n1", "message": { "id": "n1", "author": { "role": "user" }, "create_time": 1760000001.0, "content": { "content_type": "text", "parts": ["Give me three taglines for a sourdough bakery called Crumb & Co."] }, "metadata": {} }, "parent": "n0", "children": ["n2"] },
+      "n2": { "id": "n2", "message": { "id": "n2", "author": { "role": "assistant" }, "create_time": 1760000005.0, "content": { "content_type": "text", "parts": ["1. Slow dough, fast smiles.\n2. Wild yeast, warm hearts.\n3. Crumb & Co: worth the wait."] }, "metadata": { "model_slug": "gpt-4o" } }, "parent": "n1", "children": ["n3a", "n3"] },
+      "n3a": { "id": "n3a", "message": { "id": "n3a", "author": { "role": "user" }, "create_time": 1760000100.0, "content": { "content_type": "text", "parts": ["DROPPED BRANCH: an edit that was replaced"] }, "metadata": {} }, "parent": "n2", "children": [] },
+      "n3": { "id": "n3", "message": { "id": "n3", "author": { "role": "user" }, "create_time": 1760000200.0, "content": { "content_type": "multimodal_text", "parts": [{ "content_type": "image_asset_pointer", "asset_pointer": "file-service://file-abc" }, "Make the second one punchier, here is our logo."] }, "metadata": {} }, "parent": "n2", "children": ["n4"] },
+      "n4": { "id": "n4", "message": { "id": "n4", "author": { "role": "tool" }, "create_time": 1760000201.0, "content": { "content_type": "text", "parts": ["tool output that is not shown"] }, "metadata": {} }, "parent": "n3", "children": ["n5"] },
+      "n5": { "id": "n5", "message": { "id": "n5", "author": { "role": "assistant" }, "create_time": 1760000210.0, "content": { "content_type": "text", "parts": ["Wild yeast. Warmer hearts. Crumb & Co."] }, "metadata": { "model_slug": "gpt-4o" } }, "parent": "n4", "children": [] }
+    }
+  },
+  {
+    "title": "Fix a Python loop",
+    "create_time": 1761000000,
+    "update_time": 1761000300,
+    "id": "6800a1b2-0000-4000-8000-000000000002",
+    "current_node": "b2",
+    "mapping": {
+      "b0": { "id": "b0", "message": null, "parent": null, "children": ["b1"] },
+      "b1": { "id": "b1", "message": { "id": "b1", "author": { "role": "user" }, "create_time": 1761000001, "content": { "content_type": "text", "parts": ["Why does for i in range(len(x)) feel clumsy?"] }, "metadata": {} }, "parent": "b0", "children": ["b2"] },
+      "b2": { "id": "b2", "message": { "id": "b2", "author": { "role": "assistant" }, "create_time": 1761000009, "content": { "content_type": "code", "language": "python", "text": "for i, item in enumerate(x):\n    print(i, item)" }, "metadata": { "model_slug": "o3" } }, "parent": "b1", "children": [] }
+    }
+  },
+  { "title": "Not a conversation", "id": "broken-no-mapping" }
+]

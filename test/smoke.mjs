@@ -2,6 +2,7 @@
 // unpackaged), turns demo mode on, runs one Single, one Council and one Mission against the three
 // pretend AIs, then starts a Free copy and checks the gates. No real keys, no spend, no data/ access.
 import { startServer } from "./helpers.js";
+import { chatgptZip } from "./history-helpers.js";
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -106,6 +107,17 @@ try {
   check(st.json.subscriptionsLocked === true && st.json.subscriptions.length === 0, "subscriptions locked in state");
   check((await free.api("/cloud", { method: "POST", body: { url: "", anonKey: "" } })).status === 400, "empty cloud refused");
   check((await free.api("/state", { noToken: true })).status === 401, "no token → 401");
+  // history import and sync (Phase 23): an export zip imports with its chats; a bad file is refused clearly; sync is off by default
+  const upZip = async (buf) => { const r = await fetch(`${free.base}/api/history/preview`, { method: "POST", headers: { "content-type": "application/zip", "x-cc-token": free.token }, body: buf }); return { status: r.status, json: await r.json().catch(() => null) }; };
+  const hpv = await upZip(chatgptZip());
+  check(hpv.status === 200 && hpv.json?.source === "chatgpt" && hpv.json.conversations === 2, "ChatGPT export zip read (preview, nothing filed yet)");
+  const himp = await free.api("/history/import", { method: "POST", body: { token: hpv.json?.token, projectId: "" } });
+  const hlist = (await free.api("/missions")).json.filter((m) => m.kind === "imported");
+  check(himp.json?.added === 2 && hlist.some((m) => m.title === "Tagline ideas for a bakery"), "imported chats are in the run history");
+  const hbad = await upZip(Buffer.from("not a zip"));
+  check(hbad.status === 400 && /not a zip file/.test(hbad.json?.error || ""), "a bad export file is refused with a clear message");
+  const hsync = (await free.api("/history/sync")).json;
+  check(hsync?.enabled === false && (await free.api("/history/sync/setup", { method: "POST", body: { passphrase: "a long enough passphrase" } })).status === 400, "sync is off by default and needs a cloud project");
 } catch (e) { check(false, e.message); } finally { await free.stop(); }
 
 log(failures ? `${failures} check(s) FAILED` : "all smoke checks passed");

@@ -1,0 +1,33 @@
+[
+  {
+    "uuid": "c1a2b3c4-0000-4000-8000-00000000000a",
+    "name": "Quarterly plan outline",
+    "created_at": "2026-09-01T14:00:00.000000Z",
+    "updated_at": "2026-09-01T14:20:00.000000Z",
+    "project_uuid": "p-0001",
+    "account": { "uuid": "acct-1" },
+    "chat_messages": [
+      { "uuid": "m1", "sender": "human", "text": "Outline a quarterly plan for a two-person studio.", "content": [{ "type": "text", "text": "Outline a quarterly plan for a two-person studio." }], "created_at": "2026-09-01T14:00:05.000000Z", "attachments": [{ "file_name": "goals.txt", "extracted_content": "grow" }], "files": [] },
+      { "uuid": "m2", "sender": "assistant", "text": "", "content": [{ "type": "text", "text": "Month 1: pipeline. Month 2: delivery. Month 3: review and pricing." }, { "type": "tool_use", "name": "web_search", "input": {} }], "created_at": "2026-09-01T14:00:30.000000Z", "attachments": [], "files": [] },
+      { "uuid": "m3", "sender": "human", "text": "Shorter, please. Ünïcode check: café, 東京, emoji 🍞.", "content": [], "created_at": "2026-09-01T14:10:00.000000Z", "attachments": [], "files": [] },
+      { "uuid": "m4", "sender": "assistant", "text": "Pipeline, delivery, review.", "content": [{ "type": "text", "text": "Pipeline, delivery, review." }], "created_at": "2026-09-01T14:10:20.000000Z", "attachments": [], "files": [] }
+    ]
+  },
+  {
+    "uuid": "c1a2b3c4-0000-4000-8000-00000000000b",
+    "name": "",
+    "created_at": "2026-09-05T09:00:00Z",
+    "updated_at": "2026-09-05T09:01:00Z",
+    "chat_messages": [
+      { "uuid": "x1", "sender": "human", "text": "Say hi", "content": [{ "type": "text", "text": "Say hi" }], "created_at": "2026-09-05T09:00:01Z", "attachments": [], "files": [] },
+      { "uuid": "x2", "sender": "assistant", "text": "Hi!", "content": [{ "type": "text", "text": "Hi!" }], "created_at": "2026-09-05T09:00:02Z", "attachments": [], "files": [] }
+    ]
+  },
+  {
+    "uuid": "c1a2b3c4-0000-4000-8000-00000000000c",
+    "name": "Empty chat",
+    "created_at": "2026-09-06T09:00:00Z",
+    "updated_at": "2026-09-06T09:00:00Z",
+    "chat_messages": []
+  }
+]

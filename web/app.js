@@ -72,7 +72,9 @@ async function apiHeaders() {
 }
 async function api(path, opts = {}) {
   const headers = await apiHeaders();
-  const r = await fetch(HUB + "/api" + path, { headers, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  // opts.raw: a File or Blob sent as is (history import zip), with opts.contentType
+  const { raw, contentType, ...rest } = opts;
+  const r = await fetch(HUB + "/api" + path, { headers: raw ? { ...headers, "content-type": contentType || "application/zip" } : headers, ...rest, body: raw || (opts.body ? JSON.stringify(opts.body) : undefined) });
   if (r.status === 401 && CONFIG.mode === "hosted") { signOut(false, "Signed out. Sign in again."); throw new Error("Sign in required"); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || r.statusText);
