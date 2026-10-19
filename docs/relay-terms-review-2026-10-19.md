@@ -44,8 +44,11 @@ OpenRouter free models (https://openrouter.ai/docs/api_reference/limits): `:free
 - Offering "use your Claude subscription in Meldmind".
 
 ## Recommended compliant design ("Hand off" mode)
+
+Status: APPROVED by Chris on 2026-10-19 as part of Phase 26. The build spec is section 4 of `docs/PLAN-ADDITIONS-2026-10-19.md`; Sign in with ChatGPT is not pursued now.
+
 1. When credits run out, first offer official fallbacks: a cheaper model on the user's other keys, Gemini API free tier (with the data-use notice), OpenRouter free models, and later Sign in with ChatGPT if approved.
 2. Otherwise offer "Continue in ChatGPT / Claude / Gemini / Grok": Meldmind builds a compact handoff prompt (summary plus the last turns, with a size meter), copies it to the clipboard, and opens the provider's normal chat page in the user's default browser.
-3. The user pastes, sends and reads in the official page. A "Paste reply" box in Meldmind lets them paste the answer back; it is saved to the thread tagged "via ChatGPT web (manual)".
+3. The user pastes, sends and reads in the official page, then copies the reply with the site's copy button. A "Grab reply" button reads the clipboard only on that click; the reply is saved to the thread tagged "via ChatGPT web (manual)".
 4. No browser control, no page reading, no cookie access, no hidden windows. Label the feature as a manual handoff, and never imply provider affiliation.
 5. Counts for the Money saved tracker as $0 API cost, marked "manual".

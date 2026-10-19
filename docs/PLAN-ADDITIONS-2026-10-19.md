@@ -26,7 +26,22 @@ These items add to `docs/BUILD-PLAN.md` and `docs/roadmap.md`. They are kept in 
 - Show the method next to the number ("estimated, based on token counts and list prices") so it is never presented as an exact invoice figure.
 - Done looks like: every completed run stores actual and baseline cost; the header shows the running total; the Credits tab shows the breakdown; a test with fixed token counts produces the expected savings.
 
-## 4. Relay mode is on hold
+## 4. Relay mode: APPROVED (part of Phase 26, Smart fallback)
 
-- "Relay mode" (when API credits run out, hand the conversation to the user's own signed-in ChatGPT, Claude, Gemini or Grok web chat) is ON HOLD pending a terms review. Do not build automated driving or reading of those web chats.
-- See `docs/relay-terms-review-2026-10-19.md` for the findings and the compliant design that is allowed to go ahead once Chris approves it.
+Chris approved relay mode on 2026-10-19 as a compliant two-click manual handoff. Terms findings are in `docs/relay-terms-review-2026-10-19.md`.
+
+Flow when API credits run out:
+1. Official free fallbacks first: Gemini API free tier (show a data-use notice: on unpaid quota Google may use prompts and replies to improve its products, and human reviewers may read them), OpenRouter `:free` models, or a cheaper model on another key the user already has.
+2. If the user still wants a specific assistant, show "Continue in ChatGPT / Claude / Gemini / Grok". Click 1 copies a compact handoff prompt (summary plus recent turns, with a size meter) to the clipboard and opens that provider's normal chat page in the user's default browser.
+3. The user pastes and sends in the provider's page, then copies the reply with the site's own copy button.
+4. Click 2, "Grab reply", reads the clipboard only at that moment, shows a preview, and saves the reply to the thread tagged "manual" (for example "via ChatGPT web, manual"). It counts as $0 API cost in the Money saved tracker, marked manual.
+
+Hard rules:
+- Never automate, inject into, read, or scrape the provider page. No browser control, no DOM access, no extensions for this.
+- No cookies, session tokens, or consumer OAuth tokens are read, stored, or used.
+- No hidden or background windows; the page opens in the user's normal default browser.
+- The clipboard is read only on the "Grab reply" click, never polled or watched.
+- No endorsement or affiliation claims; label the feature as a manual handoff.
+- Sign in with ChatGPT plan usage is not pursued now.
+
+Done looks like: with credits at zero, the fallback picker appears; free fallbacks work with the notice shown; "Continue in ..." copies the prompt and opens the right URL; "Grab reply" saves the clipboard text tagged manual; a test confirms the clipboard is untouched until the click.
