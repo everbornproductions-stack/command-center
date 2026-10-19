@@ -1,15 +1,88 @@
 // Posting hooks: send a finished deliverable to Instagram, the GoHighLevel social planner, or a
 // Drive-synced folder. Always preview first; nothing leaves without an explicit confirm.
+//
+// Contract (stable; README and docs reference it):
+//   GET  /api/publish/channels      readiness per channel
+//   POST /api/publish/preview       { channel, title, text, mediaUrl?, mediaType?, mediaJobId?, when?, accountIds?, projectId?, missionId? }
+//                                   -> { channel, summary, problems, ready, dryRun, previewId, media }
+//   POST /api/publish/post          { previewId, confirmed: true } -> history entry
+//                                   Posts exactly what was previewed (the stored payload, not the request body).
+//                                   A preview is good for one post within 30 minutes, for the same user.
+//                                   A real post is refused while the preview lists problems; a dry run is always allowed.
+//   GET  /api/publish/history       newest first
+//   POST /api/publish/prefs         { driveFolder }
+//   POST /api/publish/keys          { channel: instagram|ghl, token, igUserId | locationId }
+//   GET  /api/publish/ghl-accounts
+// Every post (posted, dry run or failed) is written to the history doc, the live feed and the ledger (cost 0).
 import * as instagram from "../publish/meta.js";
 import * as ghl from "../publish/ghl.js";
 import * as drive from "../publish/drive.js";
 
 export const id = "publish";
-const HIST = "publish.history", PREFS = "publish.prefs";
+const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
 const CH = { instagram, ghl, drive };
+export const PREVIEW_TTL_MS = 30 * 60 * 1000;
+const previews = new Map(); // previewId -> { userId, channel, payload, problems, ready, createdAt }
 
 function prefs(h) { return h.doc(PREFS, () => ({ driveFolder: "" })); }
 function secretFor(h, ch) { return ch === "instagram" ? h.getSecret("meta") : ch === "ghl" ? h.getSecret("ghl") : null; }
+function readyFor(h, ch) { return ch === "drive" ? drive.ready(prefs(h), h.HOSTED) : CH[ch].ready(secretFor(h, ch)); }
+const userOf = (h) => h.ctx()?.userId ?? "local";
+const isVideo = (s) => /\.(mp4|mov|webm)(\?|$)/i.test(s || "");
+function sweep() { const now = Date.now(); for (const [k, v] of previews) if (now - v.createdAt > PREVIEW_TTL_MS) previews.delete(k); }
+
+// A finished media job (server/plugins/media.js) attached to a post. Its outputs are local file paths
+// (local mode) or provider URLs (hosted mode). Only these paths can ever be copied by the Drive channel.
+export function mediaFromJob(jobs, jobId) {
+  if (!jobId) return null;
+  const j = (jobs || []).find((x) => x.id === jobId);
+  if (!j) return { error: "Media job not found" };
+  if (j.status === "dry-run") return { jobId, kind: j.kind, dryRun: true, urls: [], files: [], error: "That media job was a dry run and has no output to attach" };
+  if (j.status !== "done" || !j.outputs?.length) return { jobId, kind: j.kind, urls: [], files: [], error: "That media job has not finished" };
+  const urls = j.outputs.filter((o) => /^https?:\/\//i.test(o));
+  const files = j.outputs.filter((o) => !/^https?:\/\//i.test(o));
+  return { jobId, kind: j.kind, urls, files };
+}
+
+// Normalise what the browser sent into the payload that will be posted, with the media job resolved.
+export function buildPayload(body, media) {
+  const pl = {
+    channel: body.channel,
+    title: String(body.title || "Deliverable").slice(0, 120),
+    text: String(body.text || "").slice(0, body.channel === "instagram" ? 2200 : 5000),
+    mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
+    mediaType: body.mediaType === "video" ? "video" : "image",
+    when: body.when ? Number(new Date(body.when)) || null : null,
+    accountIds: Array.isArray(body.accountIds) ? body.accountIds.map(String).slice(0, 20) : [],
+    projectId: body.projectId || null,
+    missionId: body.missionId || null,
+    mediaJobId: media?.jobId || null,
+    files: [],
+  };
+  if (media && !media.error) {
+    if (!pl.mediaUrl && media.urls[0]) pl.mediaUrl = media.urls[0];
+    if (media.kind === "video") pl.mediaType = "video";
+    if (pl.channel === "drive") pl.files = media.files.slice(0, 10);
+  }
+  if (pl.mediaUrl && isVideo(pl.mediaUrl)) pl.mediaType = "video";
+  return pl;
+}
+
+function previewOf(h, pl, media) {
+  const pv = pl.channel === "drive" ? drive.preview(pl, prefs(h)) : CH[pl.channel].preview(pl);
+  const problems = [...pv.problems];
+  if (media?.error) problems.unshift(media.error);
+  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
+  if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
+  return { ...pv, problems };
+}
+
+function logPost(h, entry) {
+  const name = CH[entry.channel].name;
+  h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${name}${entry.error ? ` · ${entry.error}` : ""}${entry.result?.url ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
+  // a ledger note for every post: zero cost, so the Credits tab and weekly report can see what went out
+  try { h.recordCredits({ provider: entry.channel, units: 0, cost: 0, note: `${entry.status} · ${name} · ${entry.title}`.slice(0, 160), project: entry.projectId }); } catch (e) { console.error("[publish] ledger", e.message); }
+}
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
@@ -22,22 +95,35 @@ export async function routes(req, res, url, body, h) {
     ]);
   }
   if (req.method === "POST" && p === "/preview") {
-    const ch = CH[body.channel]; if (!ch) return h.json(res, 400, { error: "unknown channel" });
-    const pv = body.channel === "drive" ? drive.preview(body, prefs(h)) : ch.preview(body);
-    const ready = body.channel === "drive" ? drive.ready(prefs(h), h.HOSTED) : ch.ready(secretFor(h, body.channel));
-    return h.json(res, 200, { ...pv, ready, dryRun: !ready });
+    if (!CH[body.channel]) return h.json(res, 400, { error: "unknown channel" });
+    sweep();
+    const media = mediaFromJob(h.doc(JOBS, () => ({ items: [] })).items, body.mediaJobId);
+    const pl = buildPayload(body, media);
+    const pv = previewOf(h, pl, media);
+    const ready = readyFor(h, pl.channel);
+    const previewId = "pv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, createdAt: Date.now() });
+    const mediaOut = media && !media.error ? { jobId: media.jobId, kind: media.kind, url: pl.mediaUrl, files: pl.files.length } : null;
+    return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut });
   }
   if (req.method === "POST" && p === "/post") {
-    const ch = CH[body.channel]; if (!ch) return h.json(res, 400, { error: "unknown channel" });
-    if (!body.confirmed) return h.json(res, 400, { error: "preview and confirm first" });
-    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: body.channel, title: String(body.title || "").slice(0, 120), text: String(body.text || "").slice(0, 2200), mediaUrl: body.mediaUrl || null, when: body.when || null, projectId: body.projectId || null, missionId: body.missionId || null, status: "pending" };
-    const ready = body.channel === "drive" ? drive.ready(prefs(h), h.HOSTED) : ch.ready(secretFor(h, body.channel));
+    if (!CH[body.channel] && body.channel !== undefined) return h.json(res, 400, { error: "unknown channel" });
+    if (body.confirmed !== true) return h.json(res, 400, { error: "preview and confirm first", code: "confirm_required" });
+    sweep();
+    const pv = previews.get(String(body.previewId || ""));
+    if (!pv || pv.userId !== userOf(h)) return h.json(res, 409, { error: "Preview first (or the preview expired); nothing was sent", code: "preview_required" });
+    if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
+    const ready = readyFor(h, pv.channel);
+    if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
+    previews.delete(String(body.previewId)); // one preview, one post
+    const pl = pv.payload, ch = CH[pv.channel];
+    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, when: pl.when, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {
       if (!ready) { entry.status = "dry-run"; entry.note = "No credentials for this channel: recorded, not sent."; }
-      else { const r = body.channel === "drive" ? await drive.post(body, prefs(h)) : await ch.post(secretFor(h, body.channel), body); entry.status = "posted"; entry.result = r; }
+      else { const r = pv.channel === "drive" ? await drive.post(pl, prefs(h)) : await ch.post(secretFor(h, pv.channel), pl); entry.status = "posted"; entry.result = r; }
     } catch (e) { entry.status = "failed"; entry.error = e.message; }
     const d = h.doc(HIST, () => ({ items: [] })); d.items.unshift(entry); d.items = d.items.slice(0, 500); h.putDoc(HIST, d);
-    h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${CH[body.channel].name}${entry.error ? ` · ${entry.error}` : ""}${entry.result?.url ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
+    logPost(h, entry);
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));
