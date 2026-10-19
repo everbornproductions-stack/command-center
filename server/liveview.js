@@ -33,6 +33,7 @@ const STATUS_STEP = {
   planning: "Planning", scheduled: "Queued for later", running: "Working", assembling: "Assembling the deliverable",
   review: "QA check", processing: "Generating", queued: "Queued", done: "Done", "done-with-errors": "Done, with errors",
   failed: "Failed", aborted: "Stopped", cancelled: "Cancelled", "dry-run": "Dry run, nothing spent",
+  awaiting_ok: "Waiting for your OK", declined: "Not made (you said no)",
 };
 
 const round6 = (n) => Math.round((Number(n) || 0) * 1e6) / 1e6;

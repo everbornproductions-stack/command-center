@@ -23,7 +23,7 @@ export function token(secret) {
 
 export function estimate(params) {
   const d = Number(params.duration) || defaults.duration;
-  const rate = price[params.model] || price.default;
+  const rate = price[params.model || defaults.model] || price.default; // priced as the model start() will run
   return { seconds: d, usd: +(d * rate).toFixed(3), credits: Math.round(d * 10), note: `${d}s × $${rate}/s (direct-API resource-pack rate; consumer plan credits ≈ ${Math.round(d * 10)})` };
 }
 

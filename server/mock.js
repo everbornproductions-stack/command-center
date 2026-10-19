@@ -134,6 +134,17 @@ function demoLibraryAnswer(model, u) {
   return `## ${topic}\n\nFrom your library: ${first} [${m[1]}]\n\nThat passage comes from **${m[2].replace(/ \(library: .*\)$/, "")}**. Click the [${m[1]}] chip to see the excerpt.\n\n*Demo mode: **${model}** is a pretend AI that quotes the best excerpt; real AIs read every excerpt and cite each fact.*`;
 }
 
+// Media steps (Phase 6): when the goal asks for the file itself ("make a video ...", "generate an image ...",
+// "produce a voice-over ..."), the demo plan adds one media step so the estimate and dry run can be watched.
+function demoMediaTask(u) {
+  const goal = u.replace(/^GOAL:\s*/i, "").split("\n")[0];
+  const m = goal.match(/\b(?:generate|render|make|create|produce)\s+(?:a|an|the|one)?\s*(?:short\s+)?(video|clip|image|picture|photo|voice-?over|narration)\b/i);
+  if (!m) return [];
+  const w = m[1].toLowerCase();
+  const kind = /video|clip/.test(w) ? "video" : /voice|narration/.test(w) ? "voice" : "image";
+  return [{ id: "t5", title: `Make the ${kind === "voice" ? "voice-over" : kind}`, capability: "media", difficulty: 1, needWeb: false, deps: [kind === "voice" ? "t2" : "t3"], instructions: `Generate the ${kind} for: ${goal.slice(0, 160)}`, deliverable: `The ${kind} file`, media: { kind, prompt: `${goal.slice(0, 200)} (demo prompt)` } }];
+}
+
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
@@ -146,6 +157,7 @@ function answerFor(model, system, user, messages = []) {
     { id: "t2", title: "Draft the core content", capability: "writing", difficulty: 2, needWeb: false, deps: ["t1"], instructions: "Write the main copy using the strongest angle.", deliverable: "Draft copy" },
     { id: "t3", title: "Creative hooks and visuals", capability: "creative", difficulty: 2, needWeb: false, deps: ["t1"], instructions: "Propose 5 hooks and a visual direction.", deliverable: "Hooks and visual notes" },
     { id: "t4", title: "Schedule and checklist", capability: "analysis", difficulty: 1, needWeb: false, deps: ["t2", "t3"], instructions: "Turn the pieces into a dated schedule with a go-live checklist.", deliverable: "Schedule table" },
+    ...demoMediaTask(u),
   ], assembly: "One document: audience, hooks, copy, schedule." });
   if (/strict judge/.test(sys)) { const letters = [...u.matchAll(/### Answer ([A-J])/g)].map((m) => m[1]); const scores = {}; letters.forEach((l, i) => { scores[l] = 6 + ((l.charCodeAt(0) + model.length + i) % 4); }); const best = letters.sort((a, b) => scores[b] - scores[a])[0]; return JSON.stringify({ scores, best, notes: Object.fromEntries(letters.map((l) => [l, "demo note"])), disagreement: "Answers differ on how aggressive the hook should be." }); }
   if (/You QA another AI/.test(sys)) return JSON.stringify({ pass: model !== "sage-mini", score: 8, issues: model === "sage-mini" ? ["missing a call to action"] : [], fix: model === "sage-mini" ? "Add a one-line call to action at the end." : null });

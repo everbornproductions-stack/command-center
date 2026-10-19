@@ -18,8 +18,10 @@ import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import * as MEDIA from "./media-jobs.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
+const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
 const saveDoc = (m) => ctx().store.saveMission(m, missionSummary(m));
 
@@ -89,6 +91,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   context = withMemory(context, projectId);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
   const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER) };
+  live.set(id, mission);
   let lib = null; // knowledge-library excerpts for this mission (Phase 18)
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
@@ -133,8 +136,8 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
       const r = await completeFallback({
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
         system: `You are the chief of staff for a small creative/marketing business. Break the goal into ${Math.min(maxTasks, 6)} or fewer concrete tasks that different AI specialists can do independently, with dependencies where one needs another's output. Reply with JSON only:
-{"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
-Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${agentLine}`,
+{"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
+Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${agentLine}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
       }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const ms = Date.now() - s0;
@@ -167,6 +170,14 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         mission.tasks.push({ ...t, capability: "agent", needs, agent: true, status: "queued", provider: MA.id, model: MA.id, agentName: `${MA.name} · ${needs.map((x) => MA.TAG_LABEL[x]).join(", ") || (MA.id === GROKBOT ? "its own computer" : "its own window")}`, estCost: 0, output: null, review: null, cost: 0 });
         continue;
       }
+      // a media step (R2): a video, image or voice file through a media provider; the estimate is shown and a
+      // paid one waits for the person's OK (no key: a dry run with a placeholder file)
+      const media = t.capability === "media" ? mediaPlan(t) : null;
+      if (media) {
+        mission.tasks.push({ ...t, capability: "media", media, status: "queued", provider: media.provider, model: media.provider, agentName: `${media.providerName} · ${media.kind}${media.dryRun ? " (dry run)" : ""}`, estCost: 0, output: null, review: null, cost: 0 });
+        continue;
+      }
+      if (t.capability === "media") t.capability = "creative"; // not a kind a media provider makes: a text AI writes the brief
       if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
       const ranked = rank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) });
       // spread the load: prefer a provider not already carrying 2 tasks when scores are close
@@ -182,11 +193,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const est = mission.tasks.reduce((a, t) => a + t.estCost, 0) * (qa ? 1.6 : 1.1);
     mission.estimatedCost = +est.toFixed(4);
     const agentTasks = mission.tasks.filter((t) => t.agent).length;
-    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).join(", ")}. Estimated $${est.toFixed(3)}.`);
+    const mediaTasks = mission.tasks.filter((t) => t.media);
+    const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
+    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to economy mode.`);
       for (const t of mission.tasks) {
-        if (t.agent) continue;
+        if (t.agent || t.media) continue;
         const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "economy", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
@@ -240,6 +253,28 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
     };
+    // A media step: the job is made with its estimate. A dry run (no key) runs at once and saves a placeholder;
+    // a paid one waits for the person's OK on the Media tab, and its file is added to this mission once it is
+    // made (mediaFinished at the end of this file). Dependents go on with the step's note.
+    const mediaTask = async (t) => {
+      t.status = "running"; t.startedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      const inputs = t.deps.map((d) => outputs[d]).filter(Boolean).join("\n\n");
+      // voice speaks the script it was handed; video and image use the planner's prompt
+      const words = t.media.kind === "voice" && inputs ? inputs.replace(/[#*>`|_]/g, "").replace(/\s+/g, " ").trim() : (t.media.prompt || t.instructions || t.title);
+      try {
+        const job = MEDIA.createJob({ provider: t.media.provider, kind: t.media.kind, params: { prompt: words.slice(0, MEDIA.MAX_PROMPT), text: words.slice(0, MEDIA.MAX_PROMPT) }, projectId, missionId: id, missionTaskId: t.id, approve: false, origin: "mission" });
+        t.media.jobId = job.id; t.media.usd = job.estimate?.usd ?? t.media.usd;
+        const fin = job.status === "awaiting_ok" ? null : await MEDIA.awaitJob(job.id, 60000);
+        mediaOnTask(t, fin || MEDIA.getJob(job.id) || job);
+        if (t.output) outputs[t.id] = t.output;
+        if (t.cost) spend({ cost: t.cost });
+      } catch (err) { t.status = "failed"; t.error = err.message; }
+      if (t.status !== "failed") done.add(t.id);
+      t.finishedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      update();
+    };
     while (done.size < mission.tasks.length) {
       if (ctl.signal.aborted) throw new Error("Mission aborted");
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
@@ -252,6 +287,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       await Promise.all(wave.map(async (t) => {
         if (t.agent) return agentTask(t);
+        if (t.media) return mediaTask(t);
         const agent = `${id}:${t.id}`;
         t.status = "running"; t.startedAt = Date.now();
         emit("task.update", { missionId: id, task: pubTask(t) });
@@ -374,13 +410,18 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     }
 
     // ---- 4. Assemble ----
-    const finished = mission.tasks.filter((t) => t.output);
-    const waiting = mission.tasks.filter((t) => t.status === "waiting");
-    if (!finished.length && !waiting.length) throw new Error("Every task failed.");
-    const pendingNote = waiting.length ? `\n\n---\n**Still waiting on ${MA.name}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "";
-    if (!finished.length) mission.deliverable = pendingNote.trim();
+    // media steps are files, not text: they skip the assembler and get their own section at the end
+    const finished = mission.tasks.filter((t) => t.output && !t.media);
+    const madeMedia = mission.tasks.filter((t) => t.media && t.output && t.status === "done");
+    const waiting = mission.tasks.filter((t) => t.status === "waiting" && !t.media);
+    const waitingMedia = mission.tasks.filter((t) => t.status === "waiting" && t.media);
+    if (!finished.length && !madeMedia.length && !waiting.length && !waitingMedia.length) throw new Error("Every task failed.");
+    const pendingNote = (waiting.length ? `\n\n---\n**Still waiting on ${MA.name}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "")
+      + (waitingMedia.length ? `\n\n---\n**Media waiting for your OK:** ${waitingMedia.map((t) => `"${t.title}" (${t.media.providerName} ${t.media.kind}, about $${t.media.usd})`).join(", ")}. Approve it on the Media tab; nothing is spent until you do, and the file is added to this mission when it is made.` : "");
+    const mediaNote = madeMedia.length ? `\n\n${madeMedia.map((t) => mediaSection(t)).join("\n\n")}` : "";
+    if (!finished.length) mission.deliverable = (mediaNote + pendingNote).trim();
     else await assemble(plan, planner);
-    if (finished.length && pendingNote) mission.deliverable = (mission.deliverable || "") + pendingNote;
+    if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     mission.status = mission.tasks.some((t) => t.status === "failed") ? "done-with-errors" : "done";
   } catch (err) {
     mission.status = ctl.signal.aborted ? "aborted" : "failed";
@@ -388,6 +429,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     log(`Mission ${mission.status}: ${err.message}`);
   } finally {
     running.delete(id);
+    live.delete(id);
     mission.finishedAt = Date.now();
     update();
     log(`Mission ${mission.status} in ${((mission.finishedAt - t0) / 1000).toFixed(0)}s, $${mission.cost.toFixed(4)}.`);
@@ -397,7 +439,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
   return mission;
 
   async function assemble(plan, planner) {
-    const finished = mission.tasks.filter((t) => t.output);
+    const finished = mission.tasks.filter((t) => t.output && !t.media);
     mission.status = "assembling"; update();
     const asm = { ...(pick({ capability: "writing", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" }) || planner) };
     mission.assembler = { provider: asm.provider, model: asm.model };
@@ -433,7 +475,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, media: t.media || null };
 }
 export function publicMission(m) {
   return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
@@ -465,3 +507,45 @@ async function lateResult(job) {
   emit("grokbot.late", { runId: m.id, kind: "mission", mission: publicMission(m), agent: AID });
   emit("log", { text: `${ANAME} ${t.status === "done" ? "finished" : "could not finish"} "${t.title}"; the mission was updated.`, missionId: m.id });
 }
+
+// ---- media steps (R2): a video, image or voice file made by a media provider ----
+const MEDIA_LINE = `\nA step that must produce a finished video clip, image or voice-over file (not a script, brief or prompt for one) gets capability "media" and "media": {"kind": "video|image|voice", "prompt": "what to generate, under 80 words"}; for voice, put it after the step that writes the words (deps) and the file speaks that step's output. Use "media" only when the goal asks for the file itself. Its cost is shown first and a paid one waits for the person's OK.`;
+function mediaPlan(t) {
+  const kind = String(t.media?.kind || "").toLowerCase();
+  if (!MEDIA.KINDS.includes(kind)) return null;
+  try {
+    const provider = MEDIA.chooseProvider(kind);
+    const prompt = String(t.media?.prompt || t.instructions || t.title || "").slice(0, MEDIA.MAX_PROMPT);
+    const est = MEDIA.estimate({ provider, kind, params: { prompt, text: prompt } });
+    return { kind, prompt, provider, providerName: est.providerName, usd: est.usd, note: est.estimate.note || "", dryRun: est.dryRun, jobId: null, status: null, files: [] };
+  } catch { return null; }
+}
+// a job's state onto its task: made (or a dry run, or declined) is done, still waiting is waiting
+function mediaOnTask(t, job) {
+  t.media.status = job.status; t.media.usd = job.estimate?.usd ?? t.media.usd; t.media.dryRun = !!job.dryRun;
+  t.media.files = MEDIA.publicJob(job).files;
+  t.output = MEDIA.resultLine(job);
+  if (job.status === "failed") { t.status = "failed"; t.error = job.error || "media job failed"; }
+  else if (["awaiting_ok", "queued", "processing"].includes(job.status)) t.status = "waiting";
+  else { t.status = "done"; t.error = null; }
+  if (job.status === "done" && !job.dryRun) t.cost = +(Number(job.estimate?.usd) || 0).toFixed(5);
+}
+const mediaSection = (t) => `## ${t.title}\n\n${t.output}`;
+// a job that was waiting for the person's OK finished: its file lands on the task and in the deliverable
+MEDIA.onJobFinished(async (job) => {
+  if (job.origin !== "mission" || !job.missionId) return;
+  const inFlight = live.get(job.missionId);
+  const m = inFlight || await ctx().store.getMission(job.missionId);
+  const t = m?.tasks?.find((x) => x.media?.jobId === job.id);
+  if (!t || t.status !== "waiting") return; // a dry run or a quick job is handled by the step itself
+  mediaOnTask(t, job);
+  t.late = true; t.finishedAt = Date.now();
+  if (t.cost) m.cost = +((m.cost || 0) + t.cost).toFixed(5);
+  emit("task.update", { missionId: m.id, task: pubTask(t) });
+  if (inFlight) return; // the mission is still going: its own save and deliverable pick this up
+  if (t.status === "done") m.deliverable = `${m.deliverable || ""}\n\n${mediaSection(t)}`.trim();
+  if (m.status === "done" && t.status === "failed") m.status = "done-with-errors";
+  save(m);
+  emit("mission.update", { mission: publicMission(m) });
+  emit("log", { text: `${t.media.providerName} ${t.media.kind} for "${t.title}" ${t.status === "done" ? (job.status === "declined" ? "was not made (you said no)" : "is ready") : "could not be made"}; the mission was updated.`, missionId: m.id });
+});
