@@ -636,3 +636,60 @@ PHASE 21 DONE
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 22 DONE
+
+## Phase 23: ChatGPT and Claude history import, optional encrypted sync (2026-10-19, about 14:10 local)
+- Checked first: nothing for Phase 23 was committed yet, so the whole phase was built in this session. There is no conflict with docs/DECISIONS.md and no locked item was touched.
+- Shared files got small changes only:
+  - server/index.js: one exempt path. A raw zip body is allowed on POST /api/history/preview only. application/zip is not a CORS-safelisted type, so it is still preflighted, and the session token is still required. Every other route still returns 415 for a non-JSON body (tested).
+  - web/app.js: api() can send a File as the body.
+  - web/features/index.js: adds "history" to the feature list.
+- Features:
+  - History import (History tab, desktop only):
+    - Reads the ChatGPT or Claude export zip on this PC, picked in the file picker or typed as its location. Nothing is uploaded. The app's data folder and relative paths are refused.
+    - Own zip reader with no dependency: stored and deflate, zip64, one folder level, __MACOSX ignored.
+    - ChatGPT: keeps the visible thread from current_node. Edited branches, hidden system turns and tool turns are dropped. Images show as [image], code is fenced and the model slug is kept.
+    - Claude: reads content blocks, attachments and tool use. A conversation linked in projects.json goes into a project of that name.
+    - A preview comes first (counts, date range, newest titles). Then the person files the chats under a new project per source, an existing project or none. When the tier allows no more projects, the chats are filed without a project and a note says so.
+    - Each chat is saved as a run of kind "imported" with its title, dates and every message, plus a Markdown transcript, so the normal run view opens it.
+    - Ids come from the source's own ids: importing the same export again adds nothing, and a newer export updates only the chats that changed.
+    - Bad files get clear messages: not a zip, empty, cut off, damaged, password protected, no conversations.json, invalid JSON, not the ChatGPT or Claude format.
+  - Optional encrypted sync (off by default):
+    - Key: PBKDF2-SHA256 (600k rounds) from a passphrase of at least 10 characters, with a random salt per sync space.
+    - Each chat is sealed with AES-256-GCM, with the AAD bound to an HMAC item id, so chat ids are not visible either.
+    - Push, pull and delete need a token. The server keeps only its SHA-256.
+    - web/sync-crypto.js is shared, so the phone (hosted hub) unlocks chats in its browser and the hub server never sees them.
+    - The desktop pushes single-AI and imported chats and pulls other devices' chats every 10 minutes or on Sync now. Pulled chats are never echoed back. Chats made on this PC always win.
+    - The key (not the passphrase) is kept in the vault, or in memory if "remember" is off. Turn off forgets it and can also empty the cloud copy.
+    - supabase/sync.sql is a migration file only and was NOT run: RLS on with no policies, plus four security-definer functions.
+  - docs/history.md.
+- Commits:
+  - 3f2f689 Phase 23: ChatGPT and Claude history import, optional encrypted sync (...)
+- Tests:
+  - npm test: 161 tests, 159 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips as before). The count includes another session's uncommitted test/publish.test.js, which passes.
+  - New test/history.test.js, 5 tests, with fixture exports in test/fixtures/history/ zipped at test time by test/history-helpers.js:
+    - ChatGPT zip: titles, ms dates from fractional seconds, message order and text, model, dropped branch, system and tool turns. Re-import is unchanged; a newer chat updates only that chat.
+    - Claude zip (stored and deflated entries, folder prefix, __MACOSX junk): ISO dates, content blocks, attachments, Unicode, project names, an empty chat skipped, and the tier-limit note.
+    - Nine bad files, each refused with a 400, its own code and a plain message.
+    - Sync against an in-process stand-in for the four Supabase functions:
+      - Nothing the server holds contains the passphrase, titles, text, chat ids or model names, in the clear or base64-decoded. Item ids are 40-hex HMACs. Only a token hash is stored.
+      - A second client with the same code and passphrase pulls every chat with its text intact. A chat made there comes back. Nothing echoes.
+      - A wrong passphrase is refused (401). A wrong-passphrase key cannot open a blob and its token is refused. A blob moved to another row does not open. An unknown code is refused. Turn off with delete empties the space.
+    - The real server in demo mode with a local Supabase stand-in:
+      - Raw zip upload, preview and import into a project.
+      - No token gives 401. A bad zip gives 400. text/plain or zip bodies on other routes still give 415. The data folder and relative paths are refused. A preview is used once (410).
+      - Free tier "new project" import gives the note.
+      - Sync is off by default. Between two app copies, a wrong passphrase gives 401, and the right one pulls the chats.
+  - npm run smoke: all checks pass, including 4 new ones: a ChatGPT zip is previewed, the imported chats are in the run history, a bad file is refused clearly, and sync is off by default and needs a cloud project.
+  - Both suites ran in temp data folders with local mocks. No real key, account, Supabase project or URL was used.
+- Not verified:
+  - The History tab and the phone unlock page were syntax-checked (node --check) but not opened in a browser, the desktop app or on a phone. The browser side uses the same web/sync-crypto.js as the tested Node side, but WebCrypto in a mobile browser was not tried.
+  - Real export zips were not tried; the fixtures follow the current documented shapes. ChatGPT and Claude change their export formats now and then.
+  - supabase/sync.sql has not been run on any database, so the SQL itself is untested. Only its behaviour was mirrored by the stand-in.
+  - Very large exports (hundreds of MB) were not tried. The whole zip is read into memory (limits: 512 MB upload, 1 GB by path).
+- Chris decides:
+  - whether and when to run supabase/sync.sql on a Supabase project;
+  - whether sync should be a paid-tier feature (it is ungated now);
+  - the 600k PBKDF2 rounds.
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 23 DONE
