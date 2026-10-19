@@ -32,7 +32,7 @@ Chris approved relay mode on 2026-10-19 as a compliant two-click manual handoff.
 
 Flow when API credits run out:
 1. Official free fallbacks first: Gemini API free tier (show a data-use notice: on unpaid quota Google may use prompts and replies to improve its products, and human reviewers may read them), OpenRouter `:free` models, or a cheaper model on another key the user already has.
-2. If the user still wants a specific assistant, show "Continue in ChatGPT / Claude / Gemini / Grok". Click 1 copies a compact handoff prompt (summary plus recent turns, with a size meter) to the clipboard and opens that provider's normal chat page in the user's default browser.
+2. If the user still wants a specific assistant, show "Continue in ChatGPT / Claude / Gemini / Grok / Antigravity" (any target in the handoff registry below). Click 1 copies a compact handoff prompt (summary plus recent turns, with a size meter) to the clipboard and opens that provider's normal chat page in the user's default browser.
 3. The user pastes and sends in the provider's page, then copies the reply with the site's own copy button.
 4. Click 2, "Grab reply", reads the clipboard only at that moment, shows a preview, and saves the reply to the thread tagged "manual" (for example "via ChatGPT web, manual"). It counts as $0 API cost in the Money saved tracker, marked manual.
 
@@ -42,6 +42,17 @@ Hard rules:
 - No hidden or background windows; the page opens in the user's normal default browser.
 - The clipboard is read only on the "Grab reply" click, never polled or watched.
 - No endorsement or affiliation claims; label the feature as a manual handoff.
-- Sign in with ChatGPT plan usage is not pursued now.
+- Sign in with ChatGPT: Chris applied through the OpenAI interest form on 2026-10-19 and is on the waitlist. Nothing is built for it until OpenAI approves the app.
+
+Google targets (Gemini web app and Antigravity):
+- Gemini web app (https://gemini.google.com) and Google Antigravity are handoff targets like the others: Meldmind copies the context and opens the official page or app, nothing more.
+- Google bans third-party use of Antigravity and Gemini CLI logins. Antigravity Terms section 6: "Using third party software, tools, or services to access the Service (e.g. using OpenClaw with Antigravity OAuth) is a breach of this Agreement" and may lead to suspension of "Antigravity and/or Gemini CLI accounts" (https://antigravity.google/terms/). Gemini CLI team: using third-party tools "to harvest or piggyback on Gemini CLI's OAuth authentication" is a violation (https://github.com/google-gemini/gemini-cli/discussions/20632).
+- So Meldmind never reads, stores, proxies, or reuses Antigravity or Gemini CLI tokens, and never calls their backends. For API access to Gemini, use the user's own Gemini API key.
+
+Standing rule (Chris, 2026-10-19): every AI or app that Meldmind cannot use directly (no API, MCP, or official sign-in) must always offer the two-click handoff.
+- Handoff registry: a list of targets, each with a name, the official URL (or app launch link), and an optional note (for example "paste into a new chat"). Ships with ChatGPT, Claude, Gemini, Grok, and Antigravity.
+- Users can add, edit, and remove their own targets in Settings. Only http(s) URLs or registered app links are accepted, opened in the default browser or the official app.
+- When a provider in the app has no usable API key, MCP server, or official sign-in, its menu shows "Continue in <name>" automatically.
+- The same hard rules apply to every target, built-in or user-added.
 
 Done looks like: with credits at zero, the fallback picker appears; free fallbacks work with the notice shown; "Continue in ..." copies the prompt and opens the right URL; "Grab reply" saves the clipboard text tagged manual; a test confirms the clipboard is untouched until the click.

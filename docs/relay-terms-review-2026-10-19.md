@@ -45,7 +45,7 @@ OpenRouter free models (https://openrouter.ai/docs/api_reference/limits): `:free
 
 ## Recommended compliant design ("Hand off" mode)
 
-Status: APPROVED by Chris on 2026-10-19 as part of Phase 26. The build spec is section 4 of `docs/PLAN-ADDITIONS-2026-10-19.md`; Sign in with ChatGPT is not pursued now.
+Status: APPROVED by Chris on 2026-10-19 as part of Phase 26. The build spec is section 4 of `docs/PLAN-ADDITIONS-2026-10-19.md`; Sign in with ChatGPT: applied via the OpenAI interest form on 2026-10-19 (waitlist). Antigravity and the Gemini web app are added as handoff targets; Google bans third-party use of Antigravity and Gemini CLI logins (https://antigravity.google/terms/ section 6), so Meldmind only opens the official app or page and copies context.
 
 1. When credits run out, first offer official fallbacks: a cheaper model on the user's other keys, Gemini API free tier (with the data-use notice), OpenRouter free models, and later Sign in with ChatGPT if approved.
 2. Otherwise offer "Continue in ChatGPT / Claude / Gemini / Grok": Meldmind builds a compact handoff prompt (summary plus the last turns, with a size meter), copies it to the clipboard, and opens the provider's normal chat page in the user's default browser.
