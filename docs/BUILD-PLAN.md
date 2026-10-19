@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25, 26 and 28 were added on 2026-10-18 as high priority, 28 right after 26, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -119,6 +119,13 @@ The router learns from every job which model is best at what, for the price, per
 - Local first: stored in the user's data (hosted: their own rows). Export and delete with the rest of their data.
 - Later stage (separate, opt-in only): aggregate anonymous, opt-in track records across users to train a small routing model of our own. Nothing is shared without an explicit opt-in.
 - Tests: simulated job histories that change the ranking, thumbs and council scores weighting, cost and latency in the score, the reset, and a check that no prompt text or secrets are stored.
+
+### Phase 29 (HIGH PRIORITY, added 2026-10-18 by Chris): Live project view (effort: M, about 1 session)
+Every project and mission shows, in real time, who is working on it and what it costs.
+- Per project / mission: which AI or agent is working right now (models, Grok Bot, the browser helper), the current step, and credits / cost used so far, updating live over the WebSocket.
+- An "Open in <service>" link wherever the provider has a page for that job: for example the Kling task page for a video, and the usage dashboards of OpenAI, Anthropic and xAI for API spend. Links open in the person's browser; no scraping, no sign-in by the app.
+- Note: chats made through the APIs do not appear in the claude.ai, grok.com or ChatGPT history, so the app itself is the place to watch the work. Say this in the UI where people would look for it.
+- Tests: mocked mission events drive the live view (step, agent, running cost), and the link builder for each provider; no real URLs fetched.
 
 ### Phase 25 (HIGH PRIORITY, added 2026-10-18 by Chris): Subscriptions and services page (effort: L, about 2 sessions)
 One page that shows every paid AI service, what is left, what it costs this month and when it renews. Builds on the existing subscriptions tracker (server/subscriptions.js) and the spend caps and alerts plugin.

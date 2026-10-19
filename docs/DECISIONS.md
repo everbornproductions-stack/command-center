@@ -72,7 +72,7 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
     - Built by Grok Bot: server/plugins/workspaces.js, web/features/workspaces.js, supabase/workspaces.sql (migration file only, never run on the live DB).
     - Do not rebuild it.
 14. **Run order:**
-    - 1, 15, 16, 26, 28, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11.
+    - 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11.
     - Phases already marked `PHASE N DONE` are skipped.
     - Phase 14 (Mac build) cannot be verified without a Mac: if a step needs one, write `PHASE 14 BLOCKED` with the reason.
 15. **Grok Bot agent (Phase 12) spec stays as written in BUILD-PLAN:**
@@ -91,6 +91,8 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 
 
 18. **Learning router (Phase 28) is the app's own brain:** it saves council scores, thumbs up / down, cost, latency and task type per model per user (no prompt content beyond the task type, never secrets or personal data), picks the best model per task for the price from that track record, and shows a per-user "Who's best at what" view. Training a small model of our own later uses only aggregated, opt-in data.
+
+19. **Live project view (Phase 29):** every project and mission shows live which AI or agent is working, the current step, and credits / cost so far, with "Open in <service>" links where the provider has a page for the job (Kling task page, OpenAI / Anthropic / xAI usage dashboards). API chats do not appear in claude.ai, grok.com or ChatGPT history, so the app is the place to watch work.
 
 ## Rules (always)
 - Never deploy the hub or anything else. Never touch Square or billing, never charge money.
