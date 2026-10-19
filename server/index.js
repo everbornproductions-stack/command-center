@@ -34,8 +34,7 @@ import { observe } from "./brain.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
-import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
-let lastScan = null, lastKeys = null;
+import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
 const MODE = HOSTED ? "hosted" : "local";
@@ -447,8 +446,7 @@ const server = http.createServer(async (req, res) => {
     // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
-    if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
-    const gate = localGate(req, url);
+    if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);    const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
@@ -465,7 +463,7 @@ const server = http.createServer(async (req, res) => {
     let file = url.pathname === "/" ? "/index.html" : url.pathname;
     file = path.normalize(path.join(WEB_DIR, file));
     if (!file.startsWith(WEB_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
-    if (path.basename(file) === "index.html") {
+    if (path.basename(file) === "index.html" || path.relative(WEB_DIR, file) === "quick.html") { // quick.html: the desktop quick launcher (Phase 24)
       const html = indexHtml(file);
       res.writeHead(200, { "content-type": MIME[".html"], "cache-control": "no-store", "content-length": Buffer.byteLength(html) });
       return res.end(html);

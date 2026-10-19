@@ -1,7 +1,7 @@
 // Command AI desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -10,6 +10,7 @@ const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
+const { createHotkey } = require("./hotkey.cjs");
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
 let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free one from 4747 up)
 const INSTANCE = crypto.randomBytes(12).toString("hex");
@@ -119,7 +120,38 @@ function setupIpc() {
   handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); return updater.install(); });
   handle("upd:later", () => { updater && updater.later(); if (updateWin && !updateWin.isDestroyed()) updateWin.close(); return true; });
   handle("engine:state", () => ({ port: PORT, stuck: !!(watchdog && watchdog.stuck), reason: watchdog ? watchdog.reason : null }));
+  handle("quick:hide", () => { hideQuick(); return true; });
+  handle("quick:done", (o) => { hideQuick(); if (o && o.open) focusWindow(); return true; });
 }
+
+// Quick launcher (Phase 24): a small always-on-top box opened by the global hotkey (default Alt+Space,
+// set in Settings). It loads quick.html from this app's own server and sends one order there. The hotkey
+// is only taken when nobody else holds it (electron/hotkey.cjs) and is given back on quit.
+let quickWin = null;
+const hotkey = createHotkey({ globalShortcut, onTrigger: () => toggleQuick(), log: (...a) => log(...a) });
+function hideQuick() { if (quickWin && !quickWin.isDestroyed()) quickWin.hide(); }
+function toggleQuick() {
+  if (!serverStarted) { focusWindow(); return; }
+  if (quickWin && !quickWin.isDestroyed() && quickWin.isVisible()) { hideQuick(); return; }
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const w = 640, hgt = 150;
+  if (!quickWin || quickWin.isDestroyed()) {
+    quickWin = new BrowserWindow({
+      width: w, height: hgt, frame: false, resizable: false, movable: true, minimizable: false, maximizable: false, fullscreenable: false,
+      alwaysOnTop: true, skipTaskbar: true, show: false, transparent: true, title: "Command AI quick launcher",
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
+    });
+    quickWin.loadURL(`http://127.0.0.1:${PORT}/quick.html`);
+    quickWin.on("blur", hideQuick);
+    quickWin.on("closed", () => { quickWin = null; });
+    quickWin.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    quickWin.webContents.on("will-navigate", (e) => e.preventDefault());
+  }
+  quickWin.setBounds({ x: Math.round(area.x + (area.width - w) / 2), y: Math.round(area.y + area.height * 0.22), width: w, height: hgt });
+  quickWin.show(); quickWin.focus();
+}
+// the server's hotkey plugin reads and changes the shortcut through this (same process)
+globalThis.__ccHotkey = { desktop: true, apply: (cfg) => { const st = hotkey.apply(cfg); rebuildTrayMenu(); return st; }, get state() { return hotkey.state; } };
 
 // Engine watchdog: if the local server stops answering for 15 s, tell the window (it shows a
 // "Restart engine" panel) and offer Restart / Install update in a native dialog, once per outage.
@@ -234,6 +266,7 @@ function trayTemplate() {
   const st = updater ? updater.state : null;
   const items = [
     { label: "Open Command AI", click: focusWindow },
+    { label: hotkey.state.registered ? `Quick launcher (${hotkey.state.accelerator})` : "Quick launcher", enabled: serverStarted, click: toggleQuick },
     { label: "Open in browser", click: () => shell.openExternal(`http://localhost:${PORT}/`) },
     { label: `Data folder`, click: () => shell.openPath(process.env.CC_DATA_DIR) },
     { type: "separator" },
@@ -257,6 +290,8 @@ function createTray() {
 }
 
 app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
+// give the quick-launcher shortcut back on quit (only the one this app registered)
+app.on("will-quit", () => { try { hotkey.dispose(); globalShortcut.unregisterAll(); } catch {} });
 app.on("window-all-closed", () => { if (quittingForUpdate) app.quit(); /* otherwise keep serving in the tray */ });
 app.on("activate", () => { if (!win) createWindow(); });
 

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command AI quick launcher</title>
+<!-- Quick launcher (Phase 24): opened by the global hotkey in the desktop app. Sends one order to this
+     app's own local server (the session token is injected into this page like index.html); nothing goes anywhere else. -->
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; color: #e6edf3; overflow: hidden; }
+  .card { box-sizing: border-box; height: 100%; padding: 12px 14px; background: #0d131d; border: 1px solid #263244; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  input { flex: 1; background: #090d14; color: inherit; border: 1px solid #263244; border-radius: 8px; padding: 10px 12px; font-size: 16px; outline: none; }
+  input:focus { border-color: #4e8cff; }
+  button { background: #162033; color: inherit; border: 1px solid #263244; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+  button.on { background: #1f3a66; border-color: #4e8cff; }
+  .hint { font-size: 11px; color: #8b98a9; margin-left: auto; }
+  .msg { font-size: 12px; min-height: 16px; color: #8b98a9; }
+  .msg.err { color: #f87171; }
+  .brand { font-size: 11px; letter-spacing: .08em; color: #8b98a9; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="row"><span class="brand">COMMAND AI</span><span class="hint">Enter to send · Esc to close</span></div>
+  <form id="f" class="row"><input id="q" autocomplete="off" spellcheck="true" placeholder="Ask anything, or give marching orders" /></form>
+  <div class="row">
+    <button type="button" data-mode="chat" class="on" title="The best AI for the job answers">Chat</button>
+    <button type="button" data-mode="council" title="Several AIs answer and judge each other">Council</button>
+    <button type="button" id="open" style="margin-left:auto">Open Command AI</button>
+  </div>
+  <div id="msg" class="msg"></div>
+</div>
+<script>
+  const TOKEN = document.querySelector('meta[name="cc-token"]')?.content || "";
+  const desk = window.ccDesktop || null;
+  let mode = "chat";
+  const q = document.getElementById("q"), msg = document.getElementById("msg");
+  const say = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.mode; document.querySelectorAll("[data-mode]").forEach((x) => x.classList.toggle("on", x === b)); q.focus();
+  }));
+  document.getElementById("open").addEventListener("click", () => desk?.quickDone({ open: true }));
+  addEventListener("keydown", (e) => { if (e.key === "Escape") { q.value = ""; say(""); desk?.quickHide(); } });
+  addEventListener("focus", () => q.focus());
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const prompt = q.value.trim(); if (!prompt) return;
+    say("Sending…");
+    try {
+      const r = await fetch(mode === "council" ? "/api/council" : "/api/chat", { method: "POST", headers: { "content-type": "application/json", "x-cc-token": TOKEN }, body: JSON.stringify(mode === "council" ? { prompt, lite: true } : { prompt }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      q.value = ""; say("");
+      desk?.quickDone({ open: true });
+    } catch (err) { say(err.message, true); }
+  });
+  q.focus();
+</script>
+</body>
+</html>

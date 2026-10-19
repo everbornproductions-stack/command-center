@@ -13,4 +13,7 @@ contextBridge.exposeInMainWorld("ccDesktop", {
   logReload: (reason) => ipcRenderer.invoke("app:log-reload", String(reason || "").slice(0, 200)),
   onUpdate: (f) => { ipcRenderer.on("upd:state", (_e, s) => f(s)); },
   onEngine: (f) => { ipcRenderer.on("engine:status", (_e, s) => f(s)); },
+  // quick launcher (Phase 24): close it, and optionally bring the main window forward
+  quickDone: (o) => ipcRenderer.invoke("quick:done", { open: !!(o && o.open) }),
+  quickHide: () => ipcRenderer.invoke("quick:hide"),
 });
