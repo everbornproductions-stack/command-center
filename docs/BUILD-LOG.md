@@ -375,3 +375,53 @@ PHASE 17 DONE
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 18 DONE
+
+## Phase 19: Custom agents and a prompt library (2026-10-19, about 11:40 local)
+Nothing for this phase was committed before this session; all of it was built here. No locked decision in docs/DECISIONS.md was touched.
+- Agents (Agents tab): name, description, model (any keyed model, or Auto so the router picks per job), instructions, tools, knowledge libraries and up to 8 starter prompts. Create, edit (version counter), run, delete.
+  - A run is one single chat through the existing runChat: the instructions become the system prompt, and the run is tagged with the agent. Ledger, spend caps, smart fallback, the learning router and library citations work as for any chat. runChat gained optional system / agent / agentId / toolAllow / runId inputs; a plain chat is unchanged.
+  - Tools (Phase 16): off, every tool switched on in Settings > Tools, or a chosen few. The few are an allow-list applied on top of the person's own on/off switches, and write tools still ask for an OK. Small additive change: chatWithTools takes `run.allow` and fallbackChat passes it through.
+  - Libraries (Phase 18): stored in the libraries' existing "agent" attachments, so the Libraries tab shows them and a run gets the agent's libraries plus the chat's and the workspace's. Deleting an agent detaches them; its prompts then run on their own.
+- Prompt library: saved prompts with {{variables}}. A small form asks for every value. Every variable is required: the server refuses fill and run with a value missing (400, with the missing names). Substitution is one pass, so a value is never expanded again. A prompt can be tied to an agent, and the agent can be changed per run. "Put in orders box" hands the filled text to the Command view for a council or a mission. The Command view has a row of saved prompts and agents.
+- Export / import: one JSON file (`command-ai/agents`, version 1) with agents and prompts and no keys. Import checks every item before adding any and gives new ids. A prompt's link to its agent is remapped. Names stay unique. A model, library or tool server this copy does not have is dropped with a note.
+- Sharing to a workspace (Studio, like the workspaces): a snapshot of the agent or prompt.
+  - Owner, admin and member may run it or copy it into their own list, and may update or remove what they shared. Owner and admin may manage anything. A viewer can only look: run, copy and remove are refused with 403.
+  - Local mode keeps the owner's side in a document. Hosted mode uses the table `workspace_agents` with RLS through `ws_role()`, in `supabase/agents.sql`. That is a migration file only and was NOT run against the live database. docs/hosted-hub.md has a short section on it.
+- Marketplace (Phase 10 is not built): "List" saves a listing draft with a category, a one-line promise and the bundle (no library links). There is no price and nothing is published. Following marketplace.md's trust rules, instructions that ask for keys or passwords to be revealed or sent, override instructions, or switch off checks are refused.
+- Demo mode: the pretend AI starts its answer with "Speaking as your custom agent **name**", so you can see the instructions arriving without a key.
+- Commits: e69f781 (feature, tests, smoke checks, README row, hosted-hub note), plus this log entry.
+- Tests: npm test 141/141 pass. The count includes test/publish.test.js, which is another session's uncommitted work. `test/agents.test.js` adds 5 tests:
+  - pure checks: {{variables}} (order, required, blank counts as missing, one pass); the share permission table; the listing scan.
+  - running server with the demo AIs:
+    - validation;
+    - create, edit, run on demo-nova (the instructions reach the model, one ledger line per run with matching cost);
+    - an Auto agent;
+    - tools off, a chosen one (only word_count offered, never the clock) and all (clock called), using the demo MCP server;
+    - library attachment and detachment;
+    - prompts with missing and filled variables, run with and without the agent;
+    - export, delete everything, import: agents and prompts equal, new ids, the prompt-to-agent link remapped, the library link restored, and a second export equal to the first;
+    - a foreign file with an unknown model, library and tool, dropped with 3 notes;
+    - share to a local workspace, run and copy the shared items, unshare;
+    - listing draft (no price, nothing published) and a risky agent refused;
+    - delete.
+  - hosted hub against a local stand-in for Supabase Auth and PostgREST that plays out the RLS of agents.sql:
+    - the owner shares an agent and a prompt;
+    - the member sees them (use yes, edit and remove no), copies the agent into their own list, and cannot remove the owner's item; their own share is refused on Free (402);
+    - the viewer sees them read-only: run, prompt run, copy and remove are all 403, and nothing was copied;
+    - an outsider sees nothing (copy is 404);
+    - the owner's update reaches the member, and the owner's removal hides it.
+  - No em-dashes in the new files.
+- npm run smoke: all checks pass, including these new ones:
+  - an agent created and run, with its instructions in the answer;
+  - a prompt with a missing variable refused, and its variables substituted when filled;
+  - export, delete, then import back.
+- Both suites ran in temp data folders with local mocks. No real key, account or URL was used.
+- Not verified:
+  - The Agents tab, its dialogs (run, fill, share, listing), the editors, export download and import picker, and the Command row were syntax-checked (node --check). They were not opened in a browser or the desktop app.
+  - Hosted sharing against the real Supabase tables: agents.sql has not been applied.
+  - Running a shared agent on a hosted hub with real keys. A shared agent's libraries are dropped for other people, because the index is a local file.
+  - Real (non-demo) models following agent instructions.
+  - Not tier-gated beyond sharing: the plan does not say whether Free should be limited in how many agents or prompts it has. Chris decides.
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 19 DONE
