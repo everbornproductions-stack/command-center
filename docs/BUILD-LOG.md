@@ -813,3 +813,6 @@ PHASE 24 DONE
 - Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). My scratch file `cc-mac-sim.tmp.cjs` was deleted. Nothing was pushed (Chris pushes).
 
 PHASE 14 BLOCKED: everything that can be done on Windows is finished and committed (Mac menu, tray, engine import, unsigned-Mac updates, draft-only workflow, tests), but the plan's step "check that the app runs on a Mac" (server start, Keychain vault, tray, window, data folder) and the Mac build itself need a real Mac or the macOS runner, which this PC does not have; signing and notarization also need the Apple Developer account Chris has not decided on.
+
+## 2026-10-19 09:58 PT: chain paused by Grok Bot (health check)
+- CC-Build-Chain task disabled while Grok Bot merges Cursor PRs #3 (onboarding once), #4 (Phase 29 live project view) and #5 (voice tap-to-talk) and publishes a release. The chain had already stopped at 07:48 on the Phase 14 BLOCKED line (needs a real Mac). Other sessions' uncommitted publish files and cc-names.tmp.mjs are left alone.
