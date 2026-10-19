@@ -49,6 +49,6 @@ not in the install folder, so updating or reinstalling keeps it.
 
 ## Mac (unsigned for now)
 
-- GitHub Actions workflow **Mac build** (`.github/workflows/mac-build.yml`) builds `Command-AI-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
+- GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Command-AI-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
 - One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
 - TODO (needs an Apple Developer account, $99/year): signing and notarization. Until then Mac users right-click the app and choose Open the first time, and the in-app update button cannot install on Mac (Apple only allows signed apps to self-update); they download the new .dmg instead.

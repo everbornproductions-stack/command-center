@@ -1,0 +1,46 @@
+# Mac build for Command AI: unsigned .dmg and .zip, uploaded to the public releases repo.
+# Runs on manual dispatch (Actions tab > Mac build > Run workflow) or when a v* tag is pushed.
+# Needs one repo secret: RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
+# on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
+# never built into the app.
+# TODO (needs an Apple Developer account, $99/year): code signing and notarization. Until then macOS
+# Gatekeeper blocks the first open (right-click > Open), and in-app updates do not work on Mac
+# (Squirrel.Mac only installs signed builds). See docs/RELEASING.md.
+name: Mac build
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  mac:
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"   # unsigned until the Apple account exists
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build unsigned dmg and zip
+        run: npx electron-builder --mac dmg zip --x64 --arm64 --publish never
+      - name: Upload to the releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "RELEASES_TOKEN secret is not set; skipping upload. Files are in the workflow artifacts."; exit 0; fi
+          V=$(node -p "require('./package.json').version")
+          R=everbornproductions-stack/command-center-releases
+          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --title "Command AI v$V" --notes "Mac build (unsigned)."
+          gh release upload "v$V" --repo "$R" --clobber dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: command-ai-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac.yml
