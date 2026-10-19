@@ -113,6 +113,7 @@ function setupIpc() {
   const handle = (ch, f) => ipcMain.handle(ch, async (e, ...a) => { if (!trustedSender(e)) throw new Error("not allowed"); return f(...a); });
   handle("app:restart", () => restartApp("asked from the window"));
   handle("app:open-log", () => shell.openPath(userData));
+  handle("app:log-reload", (reason) => { log("renderer:", reason); return true; });
   handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
   handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
   handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); return updater.install(); });
@@ -181,11 +182,45 @@ function createWindow() {
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
   else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
   // the engine page failed to load (engine gone): show the local "Restart engine" page instead
+  watchReloads(win);
   win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); showOffline(`the window could not load the engine (${desc})`); } });
   // external links open in the system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { shell.openExternal(url); return { action: "deny" }; } return { action: "allow" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { e.preventDefault(); shell.openExternal(url); } });
   win.on("closed", () => { win = null; });
+}
+
+// Reload-loop breaker: every main-frame load of the engine page is logged; more than 6 in 60 s means
+// something is looping, so stop and show the local engine page with Restart / Check for updates.
+const loads = [];
+function watchReloads(w) {
+  w.webContents.on("did-start-navigation", (details) => {
+    const url = (details && details.url) || "";
+    if (!details || !details.isMainFrame || !url.startsWith("http://127.0.0.1")) return;
+    const t = Date.now(); loads.push(t); while (loads.length && t - loads[0] > 60000) loads.shift();
+    log(`window load #${loads.length} in 60 s: ${url.replace(/\?.*$/, "")}`);
+    if (loads.length > 6) { log("reload loop detected; showing the engine page instead"); loads.length = 0; setImmediate(() => showOffline("the window kept reloading (reload loop stopped)")); }
+  });
+  w.webContents.on("render-process-gone", (_e, d) => log("window process gone:", d && d.reason, d && d.exitCode));
+  w.webContents.on("unresponsive", () => log("window unresponsive"));
+}
+app.on("child-process-gone", (_e, d) => log("child process gone:", d && d.type, d && d.reason));
+
+// After an update (or the first run of this build), drop service workers and HTTP / script caches left
+// by an older version or by another program that once answered on the same port. Keys and settings
+// live in the data folder and are not touched.
+async function clearStaleWebState() {
+  const marker = path.join(userData, "web-state-version.txt");
+  let prev = null; try { prev = fs.readFileSync(marker, "utf8").trim(); } catch {}
+  if (prev === app.getVersion()) return;
+  try {
+    const { session } = require("electron");
+    await session.defaultSession.clearStorageData({ storages: ["serviceworkers", "cachestorage"] });
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearCodeCaches({}).catch(() => {});
+    log(`cleared old service workers and caches (was ${prev || "none"}, now ${app.getVersion()})`);
+  } catch (e) { log("could not clear web caches:", e && e.message); }
+  try { fs.writeFileSync(marker, app.getVersion()); } catch {}
 }
 
 function showOffline(reason) { if (win && !win.isDestroyed()) win.loadFile(path.join(__dirname, "offline.html"), { query: { reason: String(reason || "") } }); }
@@ -238,6 +273,7 @@ app.whenReady().then(async () => {
   try { ok = await startServer(); } catch (e) { failReason = (e && e.message || String(e)).split("\n")[0]; log("server failed:", e && e.stack || e); }
   log(ok ? `server ready on ${PORT} (demo ${process.env.CC_DEMO_PORT})` : "server did not answer");
   setupWatchdog();
+  await clearStaleWebState();
   if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within 20 seconds`);
   createWindow();
   rebuildTrayMenu();

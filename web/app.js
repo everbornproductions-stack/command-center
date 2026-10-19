@@ -113,6 +113,18 @@ function md(src) {
   return s;
 }
 
+// ---------------- reload guard (v0.3.2) ----------------
+// Every automatic reload goes through here: at most one per reason per session, and each one is
+// written to the desktop app's main log. This is what stops a "restart loop".
+function safeReload(reason, { manual = false } = {}) {
+  const key = "cc.reload." + reason.replace(/[^a-z]+/gi, "-").slice(0, 40);
+  if (!manual && sessionStorage.getItem(key)) { window.ccDesktop?.logReload?.(`blocked repeat reload: ${reason}`); return false; }
+  sessionStorage.setItem(key, String(Date.now()));
+  window.ccDesktop?.logReload?.(`${manual ? "reload (clicked)" : "auto reload"}: ${reason}`);
+  location.reload();
+  return true;
+}
+
 // ---------------- engine down panel (v0.3.2) ----------------
 // After about 15 s of "reconnecting", stop spinning: say why and offer "Restart engine" (desktop app)
 // or "Try again" (browser / phone). The desktop main process also offers this in a dialog and the tray.
@@ -160,10 +172,13 @@ function connect() {
     const ev = JSON.parse(m.data);
     if (ev.type === "auth.error") {
       if (CONFIG.mode === "hosted") return signOut(false, ev.error || "Sign in again.");
-      // local: the server was relaunched with a new token; reload once to pick it up
-      const last = Number(sessionStorage.getItem("cc.reload") || 0);
-      if (Date.now() - last > 10000) { sessionStorage.setItem("cc.reload", String(Date.now())); location.reload(); }
-      else { $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reload the page"; }
+      // local: the server was relaunched with a new token; reload ONCE per session to pick it up.
+      // A second mismatch means the page itself is stale: stop and show the engine panel (no loop).
+      if (safeReload("session token changed (engine restarted)")) return;
+      $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reload the page";
+      try { ws.onclose = null; ws.close(); } catch {}
+      downSince = Date.now() - ENGINE_TIMEOUT_MS - 1; desktopReason = "this window's session does not match the engine; use Restart engine";
+      engineDown(true);
       return;
     }
     handle(ev);
@@ -738,6 +753,7 @@ function renderSettings(v) {
     ${!p.hasApi ? `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>` : `<div class="row" style="margin-top:10px">
       ${p.noKey ? `<span class="small dim" style="flex:1">No key needed (runs on this PC)</span>` : `<input type="password" placeholder="${p.keyed ? `saved: ${p.masked}` : p.keyHint || "API key"}" data-key="${p.id}" style="flex:1" autocomplete="off">`}
       ${p.id === "kling" ? `<input type="password" placeholder="secret key" data-secret="${p.id}" style="flex:1" autocomplete="off">` : ""}
+      ${p.id === "anthropic" ? `<input type="text" placeholder="workspace ID (optional)" value="${esc(p.workspaceId || "")}" data-ws="${p.id}" style="width:170px;font-family:var(--mono)" autocomplete="off" title="Only for keys that must name a workspace. Sent as anthropic-workspace-id on every Claude request.">` : ""}
       ${p.noKey ? "" : `<button class="btn sm" data-save-key="${p.id}">Save &amp; test</button>`}
       ${p.keyed ? `<button class="btn sm" data-test="${p.id}">Test</button><button class="btn sm danger" data-rm-key="${p.id}">Remove</button>` : ""}
     </div>`}
@@ -797,11 +813,13 @@ function renderSettings(v) {
   </div>`;
   $$("[data-save-key]", v).forEach((b) => b.addEventListener("click", async () => {
     const id = b.dataset.saveKey; const key = $(`[data-key="${id}"]`, v).value.trim(); const secret = $(`[data-secret="${id}"]`, v)?.value.trim();
-    if (!key) return toast("Paste the key first", true);
-    const sug = await suggestKey(key);
+    const wsEl = $(`[data-ws="${id}"]`, v); const workspaceId = wsEl ? wsEl.value.trim() : undefined;
+    const wsOnly = !key && wsEl && P(id)?.keyed && workspaceId !== (P(id)?.workspaceId || "");
+    if (!key && !wsOnly) return toast("Paste the key first", true);
+    const sug = key ? await suggestKey(key) : null;
     if (sug && sug.provider !== id && sug.confidence === "high" && confirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`)) return saveKeyAs(sug, key);
     b.disabled = true; b.textContent = "Testing…";
-    try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret } }); keyToast(id, r); await refresh(); }
+    try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
@@ -893,18 +911,32 @@ async function openCustomForm(editId, pre = {}) {
 $("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.view = b.dataset.view; S.openProject = null; render(); });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
 $("#mobile-nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; } S.view = b.dataset.view; S.openProject = null; render(); });
-// PWA: when a new service worker takes over (new version deployed), offer a refresh instead of reloading under the person
+// PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
+// click activates it, and the page then reloads once. The desktop app never uses a service worker:
+// old workers and caches from earlier versions (or another program on the same port) are removed,
+// because a stale worker there caused a reload loop in v0.3.1.
+let swRefreshing = false;
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register("/sw.js").then((reg) => { setInterval(() => reg.update().catch(() => {}), 3600 * 1000); }).catch(() => {});
-  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController) showRefreshPrompt(); });
+  if (window.ccDesktop?.desktop) {
+    navigator.serviceWorker.getRegistrations().then((rs) => Promise.all(rs.map((r) => r.unregister()))).catch(() => {});
+    if (window.caches) caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("cc-shell-")).map((k) => caches.delete(k)))).catch(() => {});
+  } else {
+    navigator.serviceWorker.register("/sw.js").then((reg) => {
+      const offer = (w) => { if (w && navigator.serviceWorker.controller) showRefreshPrompt(w); };
+      if (reg.waiting) offer(reg.waiting);
+      reg.addEventListener("updatefound", () => { const w = reg.installing; w?.addEventListener("statechange", () => { if (w.state === "installed") offer(w); }); });
+      setInterval(() => reg.update().catch(() => {}), 3600 * 1000);
+    }).catch(() => {});
+    // reload only when the person asked for it, and only once
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (swRefreshing) { swRefreshing = false; safeReload("new version activated", { manual: true }); } });
+  }
 }
-function showRefreshPrompt() {
+function showRefreshPrompt(worker) {
   if ($("#sw-refresh")) return;
   const d = document.createElement("div"); d.id = "sw-refresh"; d.className = "update-bar"; d.setAttribute("role", "status");
   d.innerHTML = `<span>↑</span><div><b>New version available</b></div><button class="btn sm primary" style="margin-left:auto" id="sw-refresh-go">Refresh</button><button class="ghost small" id="sw-refresh-later">later</button>`;
   const bar = $("#update-bar"); if (bar) bar.after(d); else document.body.prepend(d);
-  $("#sw-refresh-go").addEventListener("click", () => location.reload());
+  $("#sw-refresh-go").addEventListener("click", () => { if (worker) { swRefreshing = true; worker.postMessage({ type: "SKIP_WAITING" }); setTimeout(() => { if (swRefreshing) safeReload("refresh clicked", { manual: true }); }, 3000); } else safeReload("refresh clicked", { manual: true }); });
   $("#sw-refresh-later").addEventListener("click", () => d.remove());
 }
 let installPrompt = null;
