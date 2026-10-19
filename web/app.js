@@ -113,6 +113,37 @@ function md(src) {
   return s;
 }
 
+// ---------------- engine down panel (v0.3.2) ----------------
+// After about 15 s of "reconnecting", stop spinning: say why and offer "Restart engine" (desktop app)
+// or "Try again" (browser / phone). The desktop main process also offers this in a dialog and the tray.
+const ENGINE_TIMEOUT_MS = 15000;
+let downSince = 0, desktopReason = null;
+window.ccDesktop?.onEngine?.((st) => { desktopReason = st.reason || null; if (st.stuck) engineDown(true); });
+async function engineReason() {
+  if (desktopReason) return desktopReason;
+  try { const r = await fetch(`${HUB || ""}/api/health`, { cache: "no-store", signal: AbortSignal.timeout(4000) }); return r.ok ? "the live connection keeps dropping, although the engine answers" : `the engine answered HTTP ${r.status}`; }
+  catch { return HUB ? `the hub at ${HUB} cannot be reached (offline, or the hub is down)` : `the local engine at ${location.host} is not answering (it stopped or never started)`; }
+}
+async function engineDown(on) {
+  let el = document.getElementById("engine-down");
+  if (!on) { downSince = 0; desktopReason = null; el?.remove(); return; }
+  const secs = Math.round((Date.now() - (downSince || Date.now())) / 1000);
+  const reason = await engineReason();
+  if (!downSince && !desktopReason) return; // came back while we were asking
+  if (!el) { el = document.createElement("div"); el.id = "engine-down"; el.setAttribute("role", "alertdialog"); el.style.cssText = "position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(5,8,13,.78)"; document.body.appendChild(el); }
+  const desk = !!window.ccDesktop?.restart;
+  el.innerHTML = `<div class="panel" style="max-width:520px;padding:24px">
+    <h3 style="margin:0 0 8px">Command AI's engine is not responding</h3>
+    <div class="small muted">Still trying to reconnect${secs ? ` (${secs} s)` : ""}. Reason: <span class="mono" id="ed-reason"></span></div>
+    <div class="row" style="margin-top:14px;gap:8px">${desk ? `<button class="btn primary" id="ed-restart">Restart engine</button><button class="btn" id="ed-update">Check for updates</button>` : `<button class="btn primary" id="ed-retry">Try again</button>`}<button class="btn" id="ed-wait" style="margin-left:auto">Keep waiting</button></div>
+    <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
+  $("#ed-reason", el).textContent = reason;
+  $("#ed-restart", el)?.addEventListener("click", () => { $("#ed-msg", el).textContent = "Restarting..."; window.ccDesktop.restart(); });
+  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `v${st.version} is available: use Install now in the update window.` : st?.error ? `Could not check: ${st.error}` : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
+  $("#ed-retry", el)?.addEventListener("click", () => { el.remove(); clearTimeout(wsTimer); connect(); });
+  $("#ed-wait", el).addEventListener("click", () => { el.remove(); downSince = Date.now(); });
+}
+
 // ---------------- websocket ----------------
 let ws, wsTimer;
 function connect() {
@@ -122,8 +153,9 @@ function connect() {
     if (CONFIG.mode === "hosted") { const t = await ensureFreshToken(); if (!t) return; ws.send(JSON.stringify({ type: "auth", token: t })); }
     else ws.send(JSON.stringify({ type: "auth", token: TOKEN })); // local: per-launch session token
     $("#conn-dot").className = "dot green"; $("#conn-txt").textContent = "live";
+    engineDown(false);
   };
-  ws.onclose = (e) => { if (e.code === 4401 || e.code === 4403) return; $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reconnecting"; clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); };
+  ws.onclose = (e) => { if (e.code === 4401 || e.code === 4403) return; $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reconnecting"; downSince ||= Date.now(); clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); if (Date.now() - downSince > ENGINE_TIMEOUT_MS) engineDown(true); else setTimeout(() => { if (downSince && Date.now() - downSince > ENGINE_TIMEOUT_MS) engineDown(true); }, ENGINE_TIMEOUT_MS + 200); };
   ws.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.type === "auth.error") {

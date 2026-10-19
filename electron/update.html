@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Command AI update</title>
+<style>
+  body { margin: 0; background: #090d14; color: #e6edf6; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  .wrap { padding: 22px 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #8b98ab; font-size: 12px; margin-bottom: 12px; }
+  .notes { color: #c3cddb; font-size: 13px; max-height: 92px; overflow: auto; margin-bottom: 14px; white-space: pre-wrap; }
+  .bar { height: 8px; background: #1a2333; border-radius: 5px; overflow: hidden; display: none; margin: 4px 0 12px; }
+  .bar i { display: block; height: 100%; width: 0; background: #22d3ee; transition: width .2s; }
+  .row { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
+  .msg { flex: 1; font-size: 12px; color: #8b98ab; }
+  .err { color: #f87171; }
+  button { font: inherit; padding: 7px 16px; border-radius: 7px; border: 1px solid #2a3547; background: #131a26; color: #e6edf6; cursor: pointer; }
+  button.primary { background: #22d3ee; color: #04121a; border-color: #22d3ee; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+</style></head>
+<body><div class="wrap">
+  <h1 id="title">Command AI update</h1>
+  <div class="sub" id="sub">an Everborn product</div>
+  <div class="notes" id="notes"></div>
+  <div class="bar" id="bar"><i id="fill"></i></div>
+  <div class="row"><span class="msg" id="msg"></span><button id="later">Later</button><button id="install" class="primary">Install now</button></div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  function show(s) {
+    if (s.version) $("title").textContent = `Command AI v${s.version} is ready`;
+    $("sub").textContent = `You have v${s.current}. Your settings, keys and history are kept.`;
+    if (s.notes) $("notes").textContent = s.notes;
+    const busy = s.phase === "downloading" || s.phase === "downloaded";
+    $("bar").style.display = busy ? "block" : "none";
+    $("fill").style.width = `${s.percent || 0}%`;
+    $("install").disabled = busy; $("later").disabled = busy;
+    $("install").textContent = busy ? "Installing..." : "Install now";
+    $("msg").className = "msg" + (s.error ? " err" : "");
+    $("msg").textContent = s.error ? `Update failed: ${s.error}. Try again.` : s.phase === "downloading" ? `Downloading ${s.percent || 0}%` : s.phase === "downloaded" ? "Restarting into the new version..." : "";
+  }
+  window.ccDesktop.onUpdate(show);
+  window.ccDesktop.updateState().then(show);
+  $("install").onclick = () => { $("install").disabled = true; window.ccDesktop.installUpdate().catch(() => {}); };
+  $("later").onclick = () => { window.ccDesktop.later().then(() => window.close()); };
+</script>
+</body></html>

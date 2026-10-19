@@ -91,7 +91,7 @@ test("installer config keeps user data and publishes to a public releases feed",
   assert.match(yml, /repo:\s*command-center-releases/);
   assert.doesNotMatch(yml, /^\s*(token|private)\s*:/im, "never embed a token");
   assert.ok(pkg.dependencies["electron-updater"], "electron-updater ships with the app");
-  const main = fs.readFileSync(path.join(ROOT, "electron", "main.cjs"), "utf8");
+  const main = fs.readFileSync(path.join(ROOT, "electron", "updater.cjs"), "utf8"); // the main-process update controller (v0.3.2)
   assert.match(main, /autoDownload = false/);
   assert.match(main, /autoInstallOnAppQuit = false/);
 });

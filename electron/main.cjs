@@ -1,13 +1,15 @@
 // Command AI desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Command AI"
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
+const { createUpdateController } = require("./updater.cjs");
+const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
 let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free one from 4747 up)
 const INSTANCE = crypto.randomBytes(12).toString("hex");
@@ -24,6 +26,8 @@ process.env.CC_PACKAGED = isPackaged ? "1" : "0";
 
 let win = null, tray = null, serverStarted = false;
 
+// One copy only: a second launch focuses the window that is already open (Windows shows several
+// "Command AI.exe" processes per copy: main, GPU, network and window helpers; that is normal).
 const single = app.requestSingleInstanceLock();
 if (!single) { app.quit(); process.exit(0); }
 
@@ -60,33 +64,96 @@ function exposeSafeStorage() {
   };
 }
 
-// In-app updates (installed builds only). electron-updater reads the GitHub Releases feed named in
-// electron-builder.yml (publish: github). Nothing downloads until the person clicks "Update and restart"
-// in the app; then the installer runs silently and relaunches. App data in %APPDATA%\Everborn Command is
-// outside the install folder, so updates and reinstalls keep settings, keys and history.
-let quittingForUpdate = false;
-function exposeUpdater() {
-  if (!isPackaged || process.env.CC_NO_AUTO_UPDATE === "1") return;
+// In-app updates (installed builds only), run from the main process by electron/updater.cjs so they
+// work even when the local server or the web UI does not. On launch the app checks GitHub Releases
+// before the engine starts and shows "Command AI vX.Y.Z is ready" (Install now / Later). Install now
+// downloads with a progress bar, then the installer runs silently and relaunches. App data in
+// %APPDATA%\Everborn Command is outside the install folder, so updates and reinstalls keep it.
+let quittingForUpdate = false, updater = null, updateWin = null;
+const sendAll = (channel, payload) => { for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send(channel, payload); } catch {} } };
+function setupUpdater() {
+  if (updater || !isPackaged || process.env.CC_NO_AUTO_UPDATE === "1") return;
   let autoUpdater;
   try { ({ autoUpdater } = require("electron-updater")); } catch (e) { log("updater unavailable:", e && e.message); return; }
-  autoUpdater.autoDownload = false;          // download only on click
-  autoUpdater.autoInstallOnAppQuit = false;  // install only on click
-  autoUpdater.allowPrerelease = false;
   autoUpdater.logger = { info: (m) => log("updater:", m), warn: (m) => log("updater warn:", m), error: (m) => log("updater error:", m), debug: () => {} };
-  const listeners = [];
-  const send = (ev) => { for (const f of listeners) { try { f(ev); } catch {} } };
-  const notes = (info) => { const n = info && info.releaseNotes; if (!n) return ""; const t = Array.isArray(n) ? n.map((x) => x.note || "").join(" ") : String(n); return t.replace(/<[^>]+>/g, " ").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim().slice(0, 300); };
-  autoUpdater.on("update-available", (info) => send({ type: "available", version: info.version, notes: notes(info) }));
-  autoUpdater.on("update-not-available", (info) => send({ type: "none", version: info && info.version }));
-  autoUpdater.on("download-progress", (p) => send({ type: "progress", percent: p.percent }));
-  autoUpdater.on("update-downloaded", () => send({ type: "downloaded" }));
-  autoUpdater.on("error", (e) => send({ type: "error", message: (e && e.message || String(e)).split("\n")[0] }));
-  globalThis.__ccUpdater = {
-    onEvent: (f) => listeners.push(f),
-    async check() { const r = await autoUpdater.checkForUpdates(); const i = r && r.updateInfo; return i ? { version: i.version, notes: notes(i) } : null; },
-    download: () => autoUpdater.downloadUpdate(),
-    install() { quittingForUpdate = true; log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
-  };
+  updater = createUpdateController({
+    autoUpdater, log, currentVersion: app.getVersion(),
+    ui: {
+      state: (st) => {
+        sendAll("upd:state", st);
+        if (win) { try { win.setProgressBar(st.phase === "downloading" ? (st.percent || 0) / 100 : -1); } catch {} }
+        rebuildTrayMenu();
+      },
+      prompt: () => showUpdateWindow(),
+      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Command AI", message: "Could not check for updates", detail: st.error }); else dialog.showMessageBox({ type: "info", title: "Command AI", message: `You have the newest version (v${app.getVersion()}).` }); },
+      beforeQuit: () => { quittingForUpdate = true; },
+    },
+  });
+  globalThis.__ccUpdater = updater.bridge; // Settings > Check for updates keeps working through the server
+  setInterval(() => updater.check({ prompt: true }).catch(() => {}), 4 * 3600 * 1000).unref();
+}
+function showUpdateWindow() {
+  if (updateWin && !updateWin.isDestroyed()) { updateWin.show(); updateWin.focus(); return; }
+  updateWin = new BrowserWindow({
+    width: 480, height: 300, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+    parent: win && !win.isDestroyed() ? win : undefined, modal: false, show: false, autoHideMenuBar: true,
+    title: "Command AI update", backgroundColor: "#090d14", icon: path.join(ROOT, "web", "icons", "icon-512.png"),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
+  });
+  updateWin.setMenu(null);
+  updateWin.loadFile(path.join(__dirname, "update.html"));
+  updateWin.once("ready-to-show", () => { updateWin.show(); updateWin.focus(); });
+  updateWin.on("closed", () => { updateWin = null; if (updater && !quittingForUpdate && updater.state.phase === "available") updater.later(); }); // closing it means Later
+}
+function restartApp(reason) { log(`restarting app${reason ? ` (${reason})` : ""}`); app.relaunch(); app.exit(0); }
+
+// IPC from the app window and the local pages only (never from another site)
+function trustedSender(e) { const u = e.senderFrame && e.senderFrame.url || ""; return u.startsWith("file://") || u.startsWith(`http://127.0.0.1:${PORT}/`) || u.startsWith(`http://localhost:${PORT}/`); }
+function setupIpc() {
+  const handle = (ch, f) => ipcMain.handle(ch, async (e, ...a) => { if (!trustedSender(e)) throw new Error("not allowed"); return f(...a); });
+  handle("app:restart", () => restartApp("asked from the window"));
+  handle("app:open-log", () => shell.openPath(userData));
+  handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
+  handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
+  handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); return updater.install(); });
+  handle("upd:later", () => { updater && updater.later(); if (updateWin && !updateWin.isDestroyed()) updateWin.close(); return true; });
+  handle("engine:state", () => ({ port: PORT, stuck: !!(watchdog && watchdog.stuck), reason: watchdog ? watchdog.reason : null }));
+}
+
+// Engine watchdog: if the local server stops answering for 15 s, tell the window (it shows a
+// "Restart engine" panel) and offer Restart / Install update in a native dialog, once per outage.
+let watchdog = null, engineDialogOpen = false;
+function setupWatchdog() {
+  watchdog = createWatchdog({
+    thresholdMs: 15000,
+    probe: async () => {
+      try {
+        const ctl = AbortSignal.timeout(4000);
+        const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: ctl });
+        if (!r.ok) return { ok: false, reason: `the engine answered HTTP ${r.status}` };
+        return isOurServer(await r.json(), INSTANCE) ? true : { ok: false, reason: `another program is answering on port ${PORT}` };
+      } catch (e) { return { ok: false, reason: describeProbeError(e, PORT) }; }
+    },
+    onStuck: (reason) => { log("engine stuck:", reason); sendAll("engine:status", { stuck: true, reason }); rebuildTrayMenu(); offerEngineDialog(reason); },
+    onRecovered: () => { log("engine answering again"); sendAll("engine:status", { stuck: false, reason: null }); rebuildTrayMenu(); },
+  });
+  setInterval(() => watchdog.tick().catch(() => {}), 3000).unref();
+}
+async function offerEngineDialog(reason) {
+  if (engineDialogOpen || quittingForUpdate) return;
+  engineDialogOpen = true;
+  try {
+    const st = updater ? await updater.check().catch(() => updater.state) : null;
+    const canUpdate = !!(st && st.version);
+    const buttons = ["Restart app", canUpdate ? `Install update v${st.version}` : "Check for updates", "Wait"];
+    const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+      type: "warning", title: "Command AI", buttons, defaultId: 0, cancelId: 2, noLink: true,
+      message: "Command AI's engine is not responding",
+      detail: `Reason: ${reason}.\n\nRestarting usually fixes this. Your settings, keys and history are kept.`,
+    });
+    if (response === 0) restartApp("engine stuck");
+    else if (response === 1) { if (canUpdate) { showUpdateWindow(); updater.install().catch(() => {}); } else if (updater) updater.check({ manual: true }); else dialog.showMessageBox({ type: "info", title: "Command AI", message: "Updates work in the installed app." }); }
+  } finally { engineDialogOpen = false; }
 }
 
 async function startServer() {
@@ -99,7 +166,6 @@ async function startServer() {
   delete process.env.PORT; // the server prefers PORT over CC_PORT
   if (!process.env.CC_DEMO_PORT || !(await require("./ports.cjs").isFree(Number(process.env.CC_DEMO_PORT)))) process.env.CC_DEMO_PORT = String(await pickFreePort(PORT + 52, { avoid: [PORT] }));
   exposeSafeStorage();
-  exposeUpdater();
   await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
   serverStarted = await waitForServer();
   return serverStarted;
@@ -110,32 +176,48 @@ function createWindow() {
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
     backgroundColor: "#090d14", title: "Command AI", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
-  win.loadURL(`http://127.0.0.1:${PORT}/`);
+  if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
+  else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
+  // the engine page failed to load (engine gone): show the local "Restart engine" page instead
+  win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); showOffline(`the window could not load the engine (${desc})`); } });
   // external links open in the system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { shell.openExternal(url); return { action: "deny" }; } return { action: "allow" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { e.preventDefault(); shell.openExternal(url); } });
   win.on("closed", () => { win = null; });
 }
 
+function showOffline(reason) { if (win && !win.isDestroyed()) win.loadFile(path.join(__dirname, "offline.html"), { query: { reason: String(reason || "") } }); }
+function focusWindow() { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } else createWindow(); }
+
+function trayTemplate() {
+  const st = updater ? updater.state : null;
+  const items = [
+    { label: "Open Command AI", click: focusWindow },
+    { label: "Open in browser", click: () => shell.openExternal(`http://localhost:${PORT}/`) },
+    { label: `Data folder`, click: () => shell.openPath(process.env.CC_DATA_DIR) },
+    { type: "separator" },
+  ];
+  if (st && st.version) items.push({ label: st.phase === "downloading" ? `Downloading update ${st.percent || 0}%` : `Install update v${st.version}`, enabled: st.phase !== "downloading", click: () => { showUpdateWindow(); updater.install().catch(() => {}); } });
+  items.push({ label: "Check for updates", enabled: !!updater, click: () => updater && updater.check({ manual: true }) });
+  items.push({ label: watchdog && watchdog.stuck ? "Restart app (engine not responding)" : "Restart app", click: () => restartApp("tray") });
+  items.push({ type: "separator" }, { label: `Command AI v${app.getVersion()}`, enabled: false }, { label: "Quit", click: () => app.quit() });
+  return items;
+}
+function rebuildTrayMenu() { if (tray) { try { tray.setContextMenu(Menu.buildFromTemplate(trayTemplate())); } catch {} } }
+
 function createTray() {
   try {
     const img = nativeImage.createFromPath(path.join(ROOT, "web", "icons", "icon-512.png")).resize({ width: 16, height: 16 });
     tray = new Tray(img);
     tray.setToolTip("Command AI, an Everborn product");
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: "Open Command AI", click: () => { if (win) win.show(); else createWindow(); } },
-      { label: "Open in browser", click: () => shell.openExternal(`http://localhost:${PORT}/`) },
-      { label: `Data folder`, click: () => shell.openPath(process.env.CC_DATA_DIR) },
-      { type: "separator" },
-      { label: "Quit", click: () => app.quit() },
-    ]));
-    tray.on("double-click", () => { if (win) win.show(); else createWindow(); });
+    tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
+    tray.on("double-click", focusWindow);
   } catch {}
 }
 
-app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } else createWindow(); });
+app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
 app.on("window-all-closed", () => { if (quittingForUpdate) app.quit(); /* otherwise keep serving in the tray */ });
 app.on("activate", () => { if (!win) createWindow(); });
 
@@ -147,10 +229,18 @@ process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);
-  let ok = false;
-  try { ok = await startServer(); } catch (e) { log("server failed:", e && e.stack || e); }
-  log(ok ? `server ready on ${PORT} (demo ${process.env.CC_DEMO_PORT})` : "server did not answer");
+  setupIpc();
+  // updates first: they must work even if the engine below fails to start
+  try { setupUpdater(); } catch (e) { log("updater setup failed:", e && e.stack || e); }
   createTray();
+  const launchCheck = updater ? updater.check({ prompt: true }).catch((e) => log("launch update check failed:", e && e.message)) : null;
+  let ok = false, failReason = null;
+  try { ok = await startServer(); } catch (e) { failReason = (e && e.message || String(e)).split("\n")[0]; log("server failed:", e && e.stack || e); }
+  log(ok ? `server ready on ${PORT} (demo ${process.env.CC_DEMO_PORT})` : "server did not answer");
+  setupWatchdog();
+  if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within 20 seconds`);
   createWindow();
-  if (!ok) dialog.showErrorBox("Command AI", `The local server did not start on port ${PORT}. Details: ${LOG}`);
+  rebuildTrayMenu();
+  if (updateWin && !updateWin.isDestroyed() && win) { try { updateWin.setParentWindow(win); } catch {} }
+  if (!ok) { await launchCheck; if (!updateWin) offerEngineDialog(watchdog.reason); }
 });
