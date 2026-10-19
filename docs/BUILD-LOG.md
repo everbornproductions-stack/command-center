@@ -1056,3 +1056,37 @@ Marketplace phase built by Cursor cloud agent in PR (pending merge). Phase 10: l
 - Chain re-enabled and started; it resumes at Phase 8 and skips Phase 10.
 
 PHASE 10 DONE (built by Cursor cloud agent, PR #8)
+
+## 2026-10-19 22:30 PT: Phase 9 (Growth: feature-flagged, placeholder pricing)
+- Started after PHASE 8 DONE (Grok Bot) and PHASE 10 DONE (PR #8). No Phase 9 commits existed and no trial, managed-plan or referral code was in the tree. No conflict with docs/DECISIONS.md: decision 11 (demo AIs leave on the first real key) now ignores managed pool keys, so it still needs the person's own key; nothing locked was changed.
+- All three parts are OFF unless the host sets a flag (CC_TRIAL=1, CC_MANAGED=1, CC_REFERRALS=1). With every flag off the routes answer 404 flag_off, the panel shows nothing, and tiers, keys and routing work exactly as before. Every amount is a PLACEHOLDER in one object (server/growth.js PLACEHOLDER): trial 14 days and $5 credits, referral $5 for the friend and $5 for the referrer, managed usage at cost + 10%, managed limit $25 per person per month. No charge, no Square, no payment service, nothing sent.
+- Free trial with credits (CC_TRIAL):
+  - "Start free trial" (Settings > Plan, trial and credits) once per install, only on the Free tier. It gives the Pro limits (missions, scheduler, unlimited councils and projects) through a hook in licenseState (reason "trial", never owner) plus $5 of credits in the credit ledger.
+  - Counter: a "Free trial: N days left" chip in Command and the licence message "Free trial: Pro for N more days. Nothing is charged."
+  - Gating: when the days run out the copy is back on Free and every existing 402 gate applies again; a second trial is refused (409).
+  - Upgrade prompt: 3 days before the end, after the end, and when credits run out with the managed plan on. "Upgrade to Pro" only opens the licence key field in Settings.
+- "No keys needed" managed plan (CC_MANAGED):
+  - The key pool exists only in the host's environment: CC_MANAGED_POOL lists providers and an env var name each (CC_POOL_OPENAI=key1,key2). Only built-in text providers count. A pool key is never in a file, the vault, git, a reply to the page (shown as "managed by Everborn"), a log line or a health check.
+  - A new last step in vault.getSecret: workspace key, then your own key, then the environment, then the pool. The pool is used only when the person turned the plan on, has no key of their own for that provider, is under the monthly limit, and has credits or a paid licence (not a trial).
+  - Metering only: every ledger line made with the pool is tagged managed. The plugin meters calls, tokens and cost per person per month, takes the cost from the credits first (one credit line per day), and counts the rest as "would be billed" at the placeholder markup. A call that finishes after the credits run out is still metered.
+  - The key-save restore (Settings key setup) never copies a pool key into the vault.
+- Referral rewards (CC_REFERRALS):
+  - Each install gets a code (REF-XXXXXXXX) and a link (https://everbornproductions.com/command-center/?ref=CODE). Copy link sends nothing.
+  - Use a friend's code: own code, a malformed code and a second code are refused. The licence server confirms it (rpc redeem_referral) before the welcome credit is added. Without a licence server, or if it cannot be reached, the code stays pending and nothing is added.
+  - "Check now" asks the licence server (rpc referral_stats) how many friends were confirmed. One reward credit is added per confirmed friend, never twice.
+  - Credit ledger: every trial, referral and managed-usage line with the balance, in the same panel.
+- Commits:
+  - 5c3a765 Phase 9: growth, feature-flagged with placeholder amounts, nothing charged: free trial, "No keys needed" managed plan, referral rewards; Settings panel and Command counter; tests with a local mock API and licence stub
+  - One commit, not one per feature: the three parts share one module (server/growth.js), one credit ledger and one panel, so they could not be committed apart without untested in-between states.
+- Tests:
+  - New: test/growth.test.js (7). Flags off: routes refused, the pool is not used even when it is configured, tier unchanged. Trial: start once, Pro limits, counter and message, missions open, no second trial, an ended trial is back on Free with 402 and the prompt, the "ends in 2 days" prompt, no trial over a paid licence (licence stub). Managed: a local mock OpenAI-compatible API and a made-up pool key; not used before opt-in or with no allowance; after the trial, calls carry the pool key, the provider shows "managed by Everborn", the health check does not call the API, ledger lines are tagged, usage is metered and paid from credits; a large job drains the credits to 0, the overflow is metered, the pool stops and the next chat does not call it; your own key then comes first and is not metered; the pool key is in no reply, data file or server log; no pool means the plan cannot be turned on. Referrals: code and link, own, malformed and rejected codes add nothing, a confirmed code adds the welcome credit with the expected rpc body, a second code is refused, rewards are added once; without a licence server the code stays pending. Page code: registered, hidden with every flag off, no payment link, no em-dashes.
+  - npm test: 259 tests, 257 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips). npm run smoke: all checks pass. Run on the committed tree, apart from the one README line added just before the commit. Node 24.21.0. Temp data dirs, mocks only, no real key or URL.
+- Not verified:
+  - The live licence server has no redeem_referral or referral_stats function yet. They were only run against the test stub, and no Supabase migration was written or run. Until Chris adds them, codes stay pending and no referral credit is ever added.
+  - Trial and credit state lives in the user's own data (data folder locally, the user's documents on the hub). Someone who edits or deletes that folder can reset their trial. Real enforcement needs the licence server to record trials per device and email. Not built.
+  - The managed plan suits the hosted hub, where the pool lives in the host's secret store. A desktop install would need an Everborn gateway in front of the pool so no key reaches a PC. Not built, not deployed.
+  - One pool key per person (picked by a hash of the user id). A rate-limited pool key is handled by the existing smart fallback, not by switching to another pool key. One call can take the credits slightly below what it actually cost; the overflow is metered as "would be billed".
+  - The panel, the Command chip and the upgrade button were syntax-checked and their routes tested, not clicked through in a browser or the desktop app.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 9 DONE
