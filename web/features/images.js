@@ -17,13 +17,14 @@ async function blob(id, i = 0) {
 function fillThumbs(root) {
   root.querySelectorAll("img[data-img]").forEach((img) => { const [id, i] = img.dataset.img.split(":"); blob(id, Number(i)).then((u) => { img.src = u; }).catch(() => { img.alt = "missing"; }); });
 }
-const provOptions = (op, sel) => st.providers.filter((p) => p.ops.includes(op)).map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}${p.keyed ? "" : " (no key)"}${p.capped ? " (at cap)" : ""}</option>`).join("");
+const ready = (p) => p.ready != null ? p.ready : p.keyed;
+const provOptions = (op, sel) => st.providers.filter((p) => p.ops.includes(op)).map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}${ready(p) ? (p.keyed ? "" : " (MCP)") : " (no key)"}${p.capped ? " (at cap)" : ""}</option>`).join("");
 const modelOptions = (pid, op) => { const p = st.providers.find((x) => x.id === pid); return (p?.models || []).filter((m) => op === "generate" || !p.editModel || m.edit).map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join(""); };
 
 // ---------- the form ----------
 function formHtml(pre = {}) {
   const op = pre.op || "generate";
-  const first = st.providers.find((p) => p.ops.includes(op) && p.keyed) || st.providers.find((p) => p.ops.includes(op));
+  const first = st.providers.find((p) => p.ops.includes(op) && ready(p)) || st.providers.find((p) => p.ops.includes(op));
   return `<div class="panel" id="im-form"><h3>Make an image <span class="right">your own keys · price first · nothing spends until you click Generate</span></h3>
     <div class="row"><div class="seg" id="im-op">${Object.keys(OP_LABEL).map((k) => `<button data-op="${k}" class="${k === op ? "on" : ""}">${OP_LABEL[k]}</button>`).join("")}</div>
       <select id="im-prov" style="width:auto">${provOptions(op, first?.id)}</select><select id="im-model" style="width:auto">${modelOptions(first?.id, op)}</select></div>
@@ -70,9 +71,10 @@ function wireForm(root, after) {
     try {
       const e = await api("/images/estimate", { method: "POST", body: choice() });
       st.est = e;
-      const warn = !e.keyed ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
+      const can = e.ready != null ? e.ready : e.keyed;
+      const warn = !can ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
       $("#im-est-out").innerHTML = `about <b>${money(e.usd, 3)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
-      $("#im-go").disabled = !e.keyed || e.capped || e.wouldExceed;
+      $("#im-go").disabled = !(e.ready != null ? e.ready : e.keyed) || e.capped || e.wouldExceed;
     } catch (er) { toast(er.message, true); }
   });
   $("#im-go").addEventListener("click", async () => {
@@ -133,14 +135,14 @@ CC.register({
   // in chat: the orders box text becomes the prompt; the price shows before the Generate click
   command: { order: 30, async render(el) {
     await loadProviders();
-    const keyedOnes = st.providers.filter((p) => p.keyed);
+    const keyedOnes = st.providers.filter((p) => ready(p));
     el.innerHTML = `<div class="row small" style="margin-top:8px;gap:6px"><span class="dim">Image from these orders:</span><select id="imc-prov" style="width:auto">${provOptions("generate", keyedOnes[0]?.id)}</select><button class="btn sm" id="imc-est">Price</button><span id="imc-out"></span><button class="btn sm primary" id="imc-go" disabled>Generate</button></div><div id="imc-new" class="row" style="gap:6px;flex-wrap:wrap"></div>`;
     let est = null;
     const prompt = () => (document.getElementById("orders")?.value || "").trim();
     el.querySelector("#imc-prov").addEventListener("change", () => { est = null; el.querySelector("#imc-go").disabled = true; el.querySelector("#imc-out").textContent = ""; });
     el.querySelector("#imc-est").addEventListener("click", async () => {
       if (!prompt()) return toast("Type the orders first", true);
-      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); el.querySelector("#imc-out").innerHTML = est.keyed ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 3)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !est.keyed || est.capped || est.wouldExceed; }
+      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); const can = est.ready != null ? est.ready : est.keyed; el.querySelector("#imc-out").innerHTML = can ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 3)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !can || est.capped || est.wouldExceed; }
       catch (e) { toast(e.message, true); }
     });
     el.querySelector("#imc-go").addEventListener("click", async () => {

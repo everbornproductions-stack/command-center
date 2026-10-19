@@ -225,3 +225,19 @@ Customers never see Supabase or callback / webhook plumbing. Docs only until a l
 - Once our hosted server exists, the results callback URL auto-fills from that server. Until then the app keeps the current local callback.
 - Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
 - Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.
+
+## Planned, not in the run order (Chris, 2026-10-19)
+
+These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start them until Chris adds them to the run order above. They are not phases, and the chain must not build them.
+
+### Welcome email
+- On sign-up or license redeem, send a plain welcome email.
+- Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
+- No income or results claims.
+- Nothing sends until this is in the run order and the person has actually signed up or redeemed a license. Do not touch Square or billing.
+
+### Use your own Supabase
+- Optional advanced setting named "Use your own Supabase", for power users and companies.
+- Bring-your-own project URL and publishable key. Off by default. Never part of normal onboarding.
+- Customers never need to create a Supabase account by default. The normal app uses Everborn's Supabase.
+- Separate from the licence server connection already in Settings. Do not change that connection, and do not touch Square or billing.

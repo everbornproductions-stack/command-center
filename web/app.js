@@ -870,8 +870,25 @@ function renderSettings(v) {
     <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
       <span class="chip ${p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.status?.detail || "")}">${esc(p.status?.detail || "no key")}</span></div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
-    ${p.links?.keys && !p.keyed ? `<div class="row small" style="margin-top:8px"><a class="btn sm" href="${esc(p.links.keys)}" target="_blank" rel="noopener">Get a ${esc(p.name)} API key</a><span class="dim">then paste it below</span></div>` : ""}
-    ${!p.hasApi ? `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>` : `<div class="row" style="margin-top:10px">
+    ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
+    ${p.connect?.both ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn sm ${p.connect.active === "key" ? "primary" : ""}" data-conn="key" data-prov="${p.id}">Connect with API key</button>
+      <button type="button" class="btn sm ${p.connect.active === "mcp" ? "primary" : ""}" data-conn="mcp" data-prov="${p.id}">Connect with MCP</button>
+      <button type="button" class="btn sm" data-conn-test="${p.id}">Test connection</button>
+      <span class="small dim">Active: ${p.connect.active === "mcp" ? "MCP" : "API key"}${p.connect.key?.configured && p.connect.mcp?.configured ? " · both set up, the other is the fallback" : ""}</span>
+    </div>
+    <div class="dim small" style="margin-top:4px">${esc(p.connect.note || "")} ${p.connect.key?.configured ? `API key saved (${esc(p.connect.key.masked || "")}).` : "No API key yet."} ${p.connect.mcp?.configured ? `MCP: ${esc(p.connect.mcp.name || "connected")}.` : "No MCP server yet."}</div>
+    <div id="conn-mcp-${p.id}" style="margin-top:8px;${p.connect.active === "mcp" ? "" : "display:none"}">
+      <div class="row" style="gap:8px">
+        <select data-conn-transport="${p.id}" style="width:auto"><option value="http" ${p.connect.mcp?.transport === "http" ? "selected" : ""}>Remote HTTP</option><option value="sse" ${p.connect.mcp?.transport === "sse" ? "selected" : ""}>Remote SSE</option><option value="stdio" ${p.connect.mcp?.transport === "stdio" ? "selected" : ""}>Local command</option></select>
+        <input data-conn-target="${p.id}" placeholder="https://server/mcp or a start command" value="${esc(p.connect.mcp?.url || "")}" style="flex:1" autocomplete="off">
+        <button type="button" class="btn sm" data-conn-save="${p.id}">Save MCP</button>
+      </div>
+      <input type="password" data-conn-headers="${p.id}" placeholder="Header (optional): Authorization: Bearer ..." style="width:100%;margin-top:6px" autocomplete="off">
+      <div class="dim small" style="margin-top:4px">The header is sealed in the vault with your other MCP secrets. This is the same Tools connection, not a second one.</div>
+    </div>` : ""}
+    ${p.links?.keys && !p.keyed && (p.hasApi || p.connect?.both) ? `<div class="row small" style="margin-top:8px"><a class="btn sm" href="${esc(p.links.keys)}" target="_blank" rel="noopener">Get a ${esc(p.name)} API key</a><span class="dim">then paste it below</span></div>` : ""}
+    ${!p.hasApi && !p.connect?.both ? `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>` : `<div class="row" style="margin-top:10px">
       ${p.noKey ? `<span class="small dim" style="flex:1">No key needed (runs on this PC)</span>` : `<input type="password" placeholder="${p.keyed ? `saved: ${p.masked}` : p.keyHint || "API key"}" data-key="${p.id}" style="flex:1" autocomplete="off">`}
       ${p.id === "kling" ? `<input type="password" placeholder="secret key" data-secret="${p.id}" style="flex:1" autocomplete="off">` : ""}
       ${p.id === "anthropic" ? `<input type="text" placeholder="workspace ID (optional)" value="${esc(p.workspaceId || "")}" data-ws="${p.id}" style="width:170px;font-family:var(--mono)" autocomplete="off" title="Only for keys that must name a workspace. Sent as anthropic-workspace-id on every Claude request.">` : ""}
@@ -886,6 +903,7 @@ function renderSettings(v) {
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
+        <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
         ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
@@ -945,6 +963,32 @@ function renderSettings(v) {
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
   $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`)) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
+  $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {
+    try { await api("/connect/active", { method: "POST", body: { provider: b.dataset.prov, mode: b.dataset.conn } }); await refresh(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  $$("[data-conn-test]", v).forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.connTest; const mode = P(id)?.connect?.active || "key";
+    b.disabled = true;
+    try { const r = await api("/connect/test", { method: "POST", body: { provider: id, mode } }); toast(`${pname(id)}: ${r.detail}`, !r.ok); await refresh(); }
+    catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
+  $$("[data-conn-save]", v).forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.connSave;
+    const transport = $(`[data-conn-transport="${id}"]`, v).value;
+    const target = $(`[data-conn-target="${id}"]`, v).value.trim();
+    const headers = $(`[data-conn-headers="${id}"]`, v).value.trim();
+    if (!target) return toast(transport === "stdio" ? "Type the start command" : "Paste the MCP server address", true);
+    const body = { provider: id, transport };
+    if (transport === "stdio") {
+      const parts = target.match(/"[^"]*"|'[^']*'|\S+/g)?.map((a) => a.replace(/^["']|["']$/g, "")) || [];
+      body.command = parts[0] || ""; body.args = parts.slice(1);
+    } else body.url = target;
+    if (headers) body.headers = headers;
+    b.disabled = true;
+    try { const r = await api("/connect/mcp", { method: "POST", body }); toast(r.ok ? `${pname(id)}: MCP connected` : (r.error || "Saved, could not reach the server"), !r.ok); await refresh(); }
+    catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
   $$("[data-price]", v).forEach((b) => b.addEventListener("click", async () => { const row = b.closest(".mrow"); await api("/pricing", { method: "POST", body: { model: row.dataset.model, in: Number($("[data-in]", row).value), out: Number($("[data-out]", row).value) } }); toast("Price saved"); }));
   $("#s-save").addEventListener("click", async () => { S.settings = await api("/settings", { method: "POST", body: { budgetMonthly: Number($("#s-budget").value), defaultMode: $("#s-mode").value, missionBudget: Number($("#s-mcap").value) } }); renderBudget(); toast("Saved"); });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
@@ -1152,7 +1196,8 @@ function renderSetup(v) {
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. Everything below runs on this PC only; nothing is uploaded anywhere.</div></div></div>
+          <div class="muted">Three optional steps. Everything below runs on this PC only; nothing is uploaded anywhere.</div>
+          <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
@@ -1178,11 +1223,12 @@ function renderSetup(v) {
     const linked = p?.keyed;
     return `<div class="route" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border-left:3px solid ${p?.color || "#4b5563"}">
       <div><b>${esc(e.name)}</b> <span class="dim small">· ${fmtN(e.visits)} visits · last ${ago(e.lastVisit)} ago · ${esc(e.profiles.join(", "))}</span>
-        <div class="small" style="margin-top:4px">${linked ? `<span class="chip green">linked ✓</span>` : k ? `<span class="chip violet">key found on this PC (${esc(k.source)}, ${esc(k.masked)})</span>` : p?.hasApi ? `<span class="chip">needs an API key</span>` : `<span class="chip">no public API · tracked by credits</span>`}</div></div>
+        <div class="small" style="margin-top:4px">${linked || p?.connect?.mcp?.configured ? `<span class="chip green">linked ✓</span>` : k ? `<span class="chip violet">key found on this PC (${esc(k.source)}, ${esc(k.masked)})</span>` : p?.connect?.both ? `<span class="chip">API key or MCP</span>` : p?.hasApi ? `<span class="chip">needs an API key</span>` : `<span class="chip">no public API · tracked by credits</span>`}${p?.connect?.council ? `<div class="dim" style="margin-top:4px">${esc(p.connect.note)}</div>` : ""}${p?.connect?.both ? `<div class="dim" style="margin-top:4px">Active: ${p.connect.active === "mcp" ? "MCP" : "API key"}. Switch any time.</div>` : ""}</div></div>
       <div class="row" style="justify-content:flex-end">
         ${!linked && k ? `<button class="btn sm primary" data-import="${e.provider}">Import key</button>` : ""}
-        ${!linked && p?.hasApi ? `<button class="btn sm" data-open="${e.provider}">Open key page</button><input type="password" placeholder="paste key" data-paste="${e.provider}" style="width:170px;padding:5px 8px"><button class="btn sm" data-savek="${e.provider}">Save</button>` : ""}
-        ${p && !p.hasApi ? `<button class="btn sm" data-track='${esc(JSON.stringify({ name: e.name, provider: e.provider, url: e.url, visits: e.visits }))}'>Track credits</button>` : ""}
+        ${!linked && (p?.hasApi || p?.connect?.both) ? `<button class="btn sm" data-open="${e.provider}">Open key page</button><input type="password" placeholder="paste key" data-paste="${e.provider}" style="width:170px;padding:5px 8px"><button class="btn sm" data-savek="${e.provider}">Save</button>` : ""}
+        ${p?.connect?.both ? `<button class="btn sm" data-setup-mcp="${e.provider}">Connect with MCP</button><button class="btn sm" data-setup-key="${e.provider}">Connect with API key</button>` : ""}
+        ${p && !p.hasApi && !p.connect?.both ? `<button class="btn sm" data-track='${esc(JSON.stringify({ name: e.name, provider: e.provider, url: e.url, visits: e.visits }))}'>Track credits</button>` : ""}
       </div></div>`; }).join("");
   const toolRows = (scan?.tools || []).map((e) => `<label class="row small" style="padding:4px 0"><input type="checkbox" data-tool='${esc(JSON.stringify({ name: e.name, url: e.url, visits: e.visits }))}'> <b>${esc(e.name)}</b> <span class="dim">· ${fmtN(e.visits)} visits · ${esc(e.cat)}</span></label>`).join("");
   const folder = r.folder || [];
@@ -1201,6 +1247,8 @@ function renderSetup(v) {
     ${st.bookmarks ? `<div id="su-extras"></div>` : ""}
     <div class="row"><button class="btn" id="su-back">← Back</button><button class="btn primary" id="su-done" style="margin-left:auto">Finish setup</button></div></div>`;
   $$("[data-import]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/import-keys", { method: "POST", body: { providers: [b.dataset.import] } }); toast(r2.imported.length ? `${pname(b.dataset.import)} linked` : "Nothing imported", !r2.imported.length); await refresh(); }));
+  $$("[data-setup-mcp]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupMcp, { mode: "mcp" })));
+  $$("[data-setup-key]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupKey, { mode: "key" })));
   $$("[data-open]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/open", { method: "POST", body: { provider: b.dataset.open } }); toast(`Opened ${r2.url}`); }));
   wireAnyKey(v);
   renderExtras("setup", "#su-extras");

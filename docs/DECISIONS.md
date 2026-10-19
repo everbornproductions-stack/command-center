@@ -1,6 +1,8 @@
 # Locked decisions: do not undo
 
-Chris approved everything below on 2026-10-18. It is shipped and in use, and it must not be reverted, renamed, reworked or "cleaned up" by any build phase, refactor or agent.
+Chris approved items 1 to 20 on 2026-10-18. They are shipped and in use, and they must not be reverted, renamed, reworked or "cleaned up" by any build phase, refactor or agent.
+
+Items dated 2026-10-19 that say "not built yet" are locked specs. Do not build them until Chris adds them to the run order, and do not rewrite the spec. Do not change the meaning of items 1 to 20.
 
 If a phase in docs/BUILD-PLAN.md seems to need a change to one of these items, do not make the change. Write `PHASE N BLOCKED: <reason, naming the decision>` in docs/BUILD-LOG.md and stop, so Chris can decide.
 
@@ -103,6 +105,27 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
     - At most once every 24 hours, in the background, the app compares providers, models and vault keys with the saved history and integrates only what is new. A small notice says "New: X added". It does not open setup.
     - Settings keeps a manual "Run setup again".
 
+21. **API key or MCP, for services that offer both.** Approved by Chris on 2026-10-19. Shipped.
+    - Kling, ElevenLabs, Sync.so, fal.ai and Replicate can be connected with an API key or with an MCP server.
+    - Each of those Settings cards has **Connect with API key**, **Connect with MCP**, which one is active, and **Test connection**. The same choice is in the guided key setup. The person can switch any time. Both can stay saved.
+    - A job uses the active connection. If both are set up and the active one fails, the other runs the job.
+    - Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.
+    - This reuses the Phase 1 vault and guided key setup, and the Phase 16 MCP client. It does not add a second vault or a second MCP client. Phase 13 is bookmarks.
+    - Onboarding still runs once. Saving a key or an MCP server does not open setup again.
+
+22. **Welcome email.** Approved by Chris on 2026-10-19. Not built yet.
+    - On sign-up or license redeem, send a plain welcome email.
+    - The email explains their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
+    - No income or results claims.
+    - Do not build this until Chris adds it to the run order. Do not rewrite this spec.
+
+23. **Use your own Supabase.** Approved by Chris on 2026-10-19. Not built yet.
+    - An optional advanced setting for power users and companies: a bring-your-own project URL and publishable key.
+    - Off by default. Never part of normal onboarding.
+    - Customers never need to create a Supabase account by default. The normal app uses Everborn's Supabase.
+    - This is separate from the licence server connection in Settings. It must not touch Square or billing.
+    - Do not build this until Chris adds it to the run order. Do not rewrite this spec.
+
 ## Rules (always)
 - Never deploy the hub or anything else. Never touch Square or billing, never charge money.
 - Never use real API keys. Tests use mocks on local ports and never call a real URL.
@@ -114,8 +137,8 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 
 The lock at the top of this file does not cover this section. These notes are the plan. They do not override decision 16 or any other locked item. Leaving a "planned" item unbuilt is not a regression.
 
-21. **Pro prompts (Phase 30) and intent auto-detect (Phase 31).** The pack is ROLE / CONTEXT / COMMAND / FORMAT, filled from the Business Profile, and it halts when a required fact is missing. Safety marks unverified numbers [VERIFY], keeps outbound text as drafts, and strips SSNs, dates of birth, and account numbers. SCF mode adds CROA and RESPA. Intent match is a keyword heuristic plus one cheap router call when the heuristic is unsure. The learning router stores the template id and a count only. The top navigation is grouped menus. "Open live view" is at the bottom-right of the Live Ops panel, and Live stays in the Work menu.
-22. **Model-version alerts (Phase 32) are planned and not built.** Watch providers for a new model version (for example Kling 4.0), notify the person, and offer a one-click switch.
-23. **Bring your own apps (Phase 33) is planned and not built.** (1) API / OAuth connectors under Connect, HighLevel first (contacts, invoices, workflows as council tools). (2) Any user MCP server by URL (Zapier, Make, and similar). (3) Custom webhook / API tools (URL, auth header, input schema). Send, charge, and modify actions need a confirmation click. Keys stay in the vault and are never logged.
-24. **Phase 26 extension is planned and not built.** Decision 16 is unchanged: skip a provider that is out of credits, rate limited, or refusing the key; send the work to the next-best model; retry the same model through OpenRouter when a key exists; prefer known free tiers for small jobs; switch back when credits return; ledger and spend caps on every call. A later pass adds this order on top: (1) an alternate API route (OpenRouter, including a free tier the app already knows about); (2) MCP where the provider's own app offers it; (3) an opt-in relay mode that copies the full context into the person's already signed-in ChatGPT or Claude web page through the extension or the browser helper and reads the reply back into the council. Relay is slower, carries a terms-of-service caution, is off by default, and shows a relay tag on the live map when it is on.
-25. **Hide hosted plumbing (Phase 34) is planned and not built.** Customers never see Supabase or callback / webhook plumbing. Decision 15 is unchanged: the handoff is still a webhook, a sender key stored as a secret, a configurable header, and a per-job callback. The hosted Supabase URL and the publishable key ship built in. Once our hosted server exists, the results callback URL auto-fills from that server. Grok Bot and other agent handoff fields are prefilled where the app already knows the value. Those fields stay hidden unless the optional "Use your own Supabase" switch is on (off by default) or an Advanced toggle is on. Nothing in this note deploys a hub or sends a job without a click.
+24. **Pro prompts (Phase 30) and intent auto-detect (Phase 31).** The pack is ROLE / CONTEXT / COMMAND / FORMAT, filled from the Business Profile, and it halts when a required fact is missing. Safety marks unverified numbers [VERIFY], keeps outbound text as drafts, and strips SSNs, dates of birth, and account numbers. SCF mode adds CROA and RESPA. Intent match is a keyword heuristic plus one cheap router call when the heuristic is unsure. The learning router stores the template id and a count only. The top navigation is grouped menus. "Open live view" is at the bottom-right of the Live Ops panel, and Live stays in the Work menu.
+25. **Model-version alerts (Phase 32) are planned and not built.** Watch providers for a new model version (for example Kling 4.0), notify the person, and offer a one-click switch.
+26. **Bring your own apps (Phase 33) is planned and not built.** (1) API / OAuth connectors under Connect, HighLevel first (contacts, invoices, workflows as council tools). (2) Any user MCP server by URL (Zapier, Make, and similar). (3) Custom webhook / API tools (URL, auth header, input schema). Send, charge, and modify actions need a confirmation click. Keys stay in the vault and are never logged.
+27. **Phase 26 extension is planned and not built.** Decision 16 is unchanged: skip a provider that is out of credits, rate limited, or refusing the key; send the work to the next-best model; retry the same model through OpenRouter when a key exists; prefer known free tiers for small jobs; switch back when credits return; ledger and spend caps on every call. A later pass adds this order on top: (1) an alternate API route (OpenRouter, including a free tier the app already knows about); (2) MCP where the provider's own app offers it; (3) an opt-in relay mode that copies the full context into the person's already signed-in ChatGPT or Claude web page through the extension or the browser helper and reads the reply back into the council. Relay is slower, carries a terms-of-service caution, is off by default, and shows a relay tag on the live map when it is on.
+28. **Hide hosted plumbing (Phase 34) is planned and not built.** Customers never see Supabase or callback / webhook plumbing. Decision 15 is unchanged: the handoff is still a webhook, a sender key stored as a secret, a configurable header, and a per-job callback. The hosted Supabase URL and the publishable key ship built in. Once our hosted server exists, the results callback URL auto-fills from that server. Grok Bot and other agent handoff fields are prefilled where the app already knows the value. Those fields stay hidden unless the optional "Use your own Supabase" switch is on (off by default) or an Advanced toggle is on. Nothing in this note deploys a hub or sends a job without a click.
