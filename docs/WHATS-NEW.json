@@ -24,5 +24,15 @@
       "Publishing shows a preview first. Nothing posts until you confirm.",
       "This note shows once after an update. Take the tour again any time from the Settings menu."
     ]
+  },
+  "0.4.2": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Connect Google Drive, Instagram, HighLevel and Slack with your own sign-in, in Settings, Publishing. Every post, schedule or save shows a preview and waits for your click.",
+      "Services that offer both, such as Kling, can connect with an API key or an MCP server.",
+      "Marketplace: browse and install signed templates, or share one of your own pipelines.",
+      "Steadier app: clearer error messages, empty screens that say what to do next, keyboard and screen reader fixes, and a user guide.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
   }
 }
