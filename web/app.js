@@ -325,9 +325,13 @@ function render() {
 function ensureFeatureTabs() {
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (!$(`#tabs button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.textContent = f.tab.label; $("#tabs").insertBefore(b, $("#tabs button[data-view=settings]")); }
-    if (!$(`#mobile-nav button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; $("#mobile-nav").insertBefore(b, $("#mobile-nav button[data-view=settings]")); }
+    // phones: feature tabs go into a "More" sheet instead of crowding the bottom bar
+    let more = $("#mobile-more");
+    if (!more) { more = document.createElement("div"); more.id = "mobile-more"; more.className = "mobile-more"; document.body.appendChild(more); const mb = document.createElement("button"); mb.dataset.more = "1"; mb.innerHTML = `<i>⋯</i>More`; mb.addEventListener("click", () => more.classList.toggle("open")); $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]")); }
+    if (!$(`#mobile-more button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.openProject = null; render(); }); more.appendChild(b); }
   }
-  $$("#tabs button, #mobile-nav button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === S.view));
+  $$("#tabs button, #mobile-nav button[data-view], #mobile-more button").forEach((b) => b.classList.toggle("active", b.dataset.view === S.view));
+  $("#mobile-more")?.classList.remove("open");
 }
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
@@ -488,9 +492,13 @@ async function sendOrders() {
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
   $("#go").disabled = true;
   try {
-    if (mode === "single") await api("/chat", { method: "POST", body: { prompt, projectId } });
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, lite: costMode === "economy" } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now" } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    // project memory (brand voice, offers, never-say list) rides along when a project is selected
+    let memory = "";
+    if (projectId) { try { memory = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
+    const withMemory = memory ? `${prompt}\n\n${memory}` : prompt;
+    if (mode === "single") await api("/chat", { method: "POST", body: { prompt: withMemory, projectId } });
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt: withMemory, projectId, qa, lite: costMode === "economy" } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, context: memory, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now" } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) { toast(e.message, true); }
   finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }

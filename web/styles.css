@@ -276,3 +276,10 @@ table.tbl tr:hover td { background: #0f172299; }
 .gate-card input { background: #0a0f18; border: 1px solid var(--line-2); border-radius: 10px; padding: 9px 11px; }
 body.hosted #tab-setup { display: none; }
 @media (max-width: 760px) { .gate-card { padding: 20px 16px; } .gate-card form { flex-direction: column; align-items: stretch; } }
+
+/* phone: feature tabs live behind a More button so the bottom bar stays usable */
+.mobile-more { display: none; position: fixed; left: 8px; right: 8px; bottom: calc(56px + var(--strip-h) + 8px); z-index: 40; background: #0d1420; border: 1px solid var(--line-2); border-radius: 14px; padding: 8px; grid-template-columns: repeat(3, 1fr); gap: 6px; box-shadow: 0 16px 40px #000a; }
+.mobile-more.open { display: grid; }
+.mobile-more button { background: #111a28; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 10px 6px; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mobile-more button i { font-style: normal; font-size: 18px; }
+.mobile-more button.active { border-color: var(--accent); color: var(--accent-2); }

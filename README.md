@@ -50,6 +50,26 @@ One tile per AI at the bottom. Light colours: **green** key works and no inciden
 - If a provider fails mid-task, the task is re-assigned to the next-best AI from a different vendor.
 - Prices live in `data/pricing.json` (editable in Settings) because providers change them.
 
+
+## What else is in the box (built 2026-10-18)
+
+| Feature | Where |
+|---|---|
+| Pipelines: saved missions with the steps pre-decided (Instagram week, music video from a song, client site launch; save your own from any mission) | Pipelines tab |
+| Rate the result: thumbs up/down per AI under every deliverable, feeds the router | under the deliverable |
+| Project memory: brand voice, offers, never-say list, facts; injected into every prompt for that project; import from HQ client files | Settings → Project memory |
+| Savings receipt: this run vs all-on-the-flagship, with a PNG export for Reels; running total in Command | under the deliverable |
+| Media actions: Kling, ElevenLabs, Runway, fal.ai through their APIs, estimate first, dry run without keys | Media tab, Settings → Media API keys |
+| Posting hooks: Instagram (Graph API), GoHighLevel social planner, Drive-synced folder; preview + confirm on every post | under the deliverable, Publish tab |
+| Weekly report: spend by AI, low credits, renewals, what shipped, keep/downgrade/cancel; Monday 07:00 or Run now; email via Resend | Reports tab |
+| Spend caps + alerts: per-AI monthly cap, amber at 80%, hard stop at 100% (router skips it), renewal and red-light alerts; in-app, email, Web Push | Settings → Spend caps & alerts |
+| Live-share link: read-only, expiring page mirroring one run for clients or recordings | under the deliverable |
+| Voice orders: hold-to-talk mic on Marching Orders (Chrome, Edge, desktop app) | Command |
+| Shared workspaces (Studio tier) | Teams tab (hosted mode) |
+| Pipeline marketplace | design only: docs/marketplace.md |
+
+Features are plugins: `server/plugins/<id>.js` + `web/features/<id>.js` (see docs/plugin-api.md).
+
 ## Saving credits automatically
 
 - **Off-peak scheduler**: pick "Off-peak" under *When* and the mission is queued for the next discount window (DeepSeek publishes 50% off outside its peak hours; rules are in `data/pricing-rules.json` and listed on the Credits tab). Preview route tells you when waiting would save 20% or more.
