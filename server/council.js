@@ -1,14 +1,14 @@
 // Council mode: the same question goes to several AIs at once. They then review each other's
 // answers anonymously, a chair writes the verdict, and the router learns who won.
 import { PROVIDERS } from "./registry.js";
-import { complete, extractJson, streamChat } from "./providers.js";
+import { extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
-import { chatWithTools } from "./mcp.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback } from "./fallback.js";
 
 const LETTERS = "ABCDEFGHIJ";
 
@@ -31,7 +31,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   chair ||= rank({ ...cls, mode: "quality" }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
-  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [] };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [] };
+  const mode = lite ? "economy" : "balanced";
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -43,14 +44,22 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
   await Promise.all(members.map(async (m, i) => {
-    const agent = `${id}:${m.provider}`;
+    let agent = `${id}:${m.provider}`;
     emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
     const s = Date.now();
     let text = "", usage = null, citations = null;
     try {
-      // MCP tools (Phase 16) ride along for members that can call them
-      for await (const ev of chatWithTools({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools })) {
+      // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
+      // another model when this member's provider is out of credits, rate limited or refusing its key
+      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: members.filter((x) => x !== m) })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
+        else if (ev.type === "fallback") {
+          text = ""; council.fallbacks.push(fallbackRecord(ev));
+          const next = `${id}:${ev.to.provider}`;
+          announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "answer" });
+          agent = next; m.provider = ev.to.provider; m.model = ev.to.model; m.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
+          emit("council.update", { council: pub(council) });
+        }
         else if (ev.type === "tool" && ev.phase === "done") { council.toolCalls.push({ by: m.provider, tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("council.update", { council: pub(council) }); }
         else if (ev.type === "done") { usage = ev.usage; citations = ev.citations || null; }
       }
@@ -64,7 +73,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.searchEngine = council.searchEngine || web.name;
         council.cost += recordNative(m.provider, citations, { missionId: id });
       }
-      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, letter: LETTERS[i] };
+      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, letter: LETTERS[i], standIn: m.standIn || null };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err.status);
@@ -86,18 +95,19 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       for (const other of good) if (other !== reviewer) emit("agent.msg", { from: reviewer.provider, to: other.provider, missionId: id, text: `reviewing answer ${other.letter}` });
       const s = Date.now();
       try {
-        const r = await complete({
+        // a small job: a stand-in (free tier first) takes over if the reviewer's provider fails (Phase 26)
+        const r = await completeFallback({
           provider: reviewer.provider, model: reviewer.model, maxTokens: 700,
           system: `You are a strict judge. Several anonymous answers to the same question follow. Score each 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"scores": {"A": n, ...}, "best": "A", "notes": {"A": "<=20 words", ...}, "disagreement": "<=30 words on where the answers conflict, or 'none'"}`,
           messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}` }],
-        });
+        }, { missionId: id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy" }, { onFallback: (ev) => { council.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: agent, role: "review" }); } });
         const ms = Date.now() - s;
-        noteCall(reviewer.provider, true, ms);
-        const e = recordCall({ provider: reviewer.provider, model: reviewer.model, usage: r.usage, missionId: id, role: "review", ms });
+        noteCall(r.provider, true, ms);
+        const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "review", ms });
         council.cost += e.cost;
         const j = extractJson(r.text) || {};
-        council.reviews[reviewer.model] = { provider: reviewer.provider, scores: j.scores || {}, best: j.best, notes: j.notes || {}, disagreement: j.disagreement || "", cost: e.cost };
-        emit("agent.done", { agent, provider: reviewer.provider, model: reviewer.model, missionId: id, ms, cost: e.cost });
+        council.reviews[reviewer.model] = { provider: r.provider, model: r.model, scores: j.scores || {}, best: j.best, notes: j.notes || {}, disagreement: j.disagreement || "", cost: e.cost, standIn: r.fallback ? { for: reviewer.provider, forModel: reviewer.model, reason: r.fallback[r.fallback.length - 1].reason, via: r.via } : null };
+        emit("agent.done", { agent, provider: r.provider, model: r.model, missionId: id, ms, cost: e.cost });
       } catch (err) {
         noteCall(reviewer.provider, false, Date.now() - s, err.status);
         emit("agent.error", { agent, provider: reviewer.provider, model: reviewer.model, missionId: id, error: err.message });
@@ -127,7 +137,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
 
   // ---- Round 3: chair verdict ----
   {
-    const agent = `${id}:${chair.provider}:chair`;
+    let agent = `${id}:${chair.provider}:chair`;
     emit("agent.start", { agent, provider: chair.provider, model: chair.model, role: "chair", missionId: id, label: `${PROVIDERS[chair.provider].name} writing the verdict` });
     for (const a of good) if (a.provider !== chair.provider) emit("agent.msg", { from: a.provider, to: chair.provider, missionId: id, text: `answer ${a.letter} to chair` });
     const s = Date.now();
@@ -136,12 +146,19 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const disagreements = Object.values(council.reviews).map((r) => r.disagreement).filter((d) => d && d.toLowerCase() !== "none");
       const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
       let text = "";
-      for await (const ev of streamChat({
+      for await (const ev of fallbackChat({
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
         messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}` }],
-      })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode: "quality" })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
+        else if (ev.type === "fallback") {
+          text = ""; council.fallbacks.push(fallbackRecord(ev));
+          const next = `${id}:${ev.to.provider}:chair`;
+          announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "chair" });
+          agent = next; chair.provider = ev.to.provider; chair.model = ev.to.model; chair.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
+          emit("council.update", { council: pub(council) });
+        }
         else if (ev.type === "done") {
           const ms = Date.now() - s;
           noteCall(chair.provider, true, ms);

@@ -4,8 +4,9 @@
 import { CAPABILITIES, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc } from "./store.js";
-import { complete, extractJson } from "./providers.js";
+import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
+import { troubled, freeNow, completeFallback } from "./fallback.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -50,12 +51,16 @@ export function availableModels() {
 }
 
 // mode: quality | balanced | economy
-export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date() }) {
+export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
   const costWeight = { quality: 0.15, balanced: 0.5, economy: 1.1 }[mode] ?? 0.5;
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web));
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
   const capped = doc("alerts.state", () => null)?.stop || [];
   if (capped.length && list.some((m) => !capped.includes(m.provider))) list = list.filter((m) => !capped.includes(m.provider));
+  // smart fallback (Phase 26): a provider that is out of credits, rate limited, refusing its key or unreachable
+  // is skipped for new work while another is available; it comes back on the next good health check or call
+  const skip = troubled();
+  if (Object.keys(skip).length && list.some((m) => !skip[m.provider])) list = list.filter((m) => !skip[m.provider]);
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
@@ -70,7 +75,11 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     let health = 0, warnings = [];
     if (m.status === "amber") { health += 12; warnings.push(m.statusDetail || "amber"); }
     if (m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 5) { health += 8; warnings.push(`only $${m.balance.left} left`); }
-    return { ...m, estCost: +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality, healthPenalty: health, warnings, score: +(q - penalty - health).toFixed(1) };
+    // small jobs (classify, QA, titles) go to a free tier the person has while its allowance lasts (Phase 26)
+    const free = small && freeNow(m.provider, m.model);
+    const bonus = free ? 40 : 0;
+    const skipReason = skip[m.provider]?.reason || null;
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality, healthPenalty: health, warnings, free, skipped: skipReason, score: +(q - penalty - health + bonus).toFixed(1) };
   });
   return scored.sort((a, b) => b.score - a.score);
 }
@@ -103,8 +112,8 @@ export function pick(opts) {
 
 // Which model is cheap and available for housekeeping (classification, planning helpers)?
 export function cheapest(needQuality = 70) {
-  const list = rank({ capability: "fast", difficulty: 1, mode: "economy" }).filter((m) => (m.caps.reasoning || 0) >= needQuality);
-  return list[0] || rank({ mode: "economy" })[0] || null;
+  const list = rank({ capability: "fast", difficulty: 1, mode: "economy", small: true }).filter((m) => (m.caps.reasoning || 0) >= needQuality);
+  return list[0] || rank({ mode: "economy", small: true })[0] || null;
 }
 
 const KEYWORDS = {
@@ -135,12 +144,13 @@ export async function classify(prompt, { onCall } = {}) {
   if (!m) return h;
   try {
     const t0 = Date.now();
-    const r = await complete({
+    // a small job: free tiers first, and a stand-in if the cheap model's provider is out of credits (Phase 26)
+    const r = await completeFallback({
       provider: m.provider, model: m.model, maxTokens: 200,
       system: `Classify the user's request. Reply with JSON only: {"capability": one of ${JSON.stringify(CAPABILITIES.filter((c) => c !== "fast"))}, "difficulty": 1|2|3 (1 trivial, 2 normal, 3 hard/long), "needWeb": boolean (true only if the answer depends on live/current information), "summary": "<=8 words"}`,
       messages: [{ role: "user", content: prompt.slice(0, 4000) }],
-    });
-    onCall?.({ provider: m.provider, model: m.model, usage: r.usage, ms: Date.now() - t0, role: "classify" });
+    }, { role: "classify", small: true, cls: { capability: "fast", difficulty: 1 }, mode: "economy", tools: false });
+    onCall?.({ provider: r.provider, model: r.model, usage: r.usage, ms: Date.now() - t0, role: "classify" });
     const j = extractJson(r.text);
     if (j?.capability && CAPABILITIES.includes(j.capability)) {
       return { capability: j.capability, difficulty: Math.min(3, Math.max(1, Number(j.difficulty) || 2)), needWeb: !!j.needWeb, summary: j.summary || "", source: m.model };

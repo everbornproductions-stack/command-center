@@ -19,11 +19,15 @@ function append(e) {
 
 export function recordCall({ provider, model, usage, missionId, taskId, role, ms, estimated }) {
   const exact = typeof usage.cost === "number";
-  const cost = exact ? usage.cost : estimateCostAt(model, usage.input, usage.output);
+  // Phase 26: a call within a free-tier allowance costs nothing; a model reached through OpenRouter
+  // without an exact bill is priced as the model it stands in for (usage.priceModel)
+  const free = !!usage.free;
+  const cost = free ? 0 : exact ? usage.cost : estimateCostAt(usage.priceModel || model, usage.input, usage.output);
   return append({
     ts: Date.now(), kind: "call", provider, model, actualModel: usage.actualModel || null,
-    inTok: usage.input, outTok: usage.output, cost: +cost.toFixed(6), exact,
-    estimated: !exact && (!!estimated || !!usage.estimated), missionId: missionId || null, taskId: taskId || null, role: role || null, ms: ms || null,
+    inTok: usage.input, outTok: usage.output, cost: +cost.toFixed(6), exact: exact && !free,
+    estimated: !exact && !free && (!!estimated || !!usage.estimated), missionId: missionId || null, taskId: taskId || null, role: role || null, ms: ms || null,
+    free, fallback: usage.fallback || null,
   });
 }
 

@@ -5,14 +5,14 @@
 //    sub-agents (one per task). A different AI QA-reviews each deliverable when qa is on.
 // 4. An assembler compiles the final deliverable.
 import { PROVIDERS } from "./registry.js";
-import { complete, extractJson, streamChat } from "./providers.js";
+import { complete, extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { classify, pick, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
-import { chatWithTools } from "./mcp.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback } from "./fallback.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -77,11 +77,13 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const ctl = new AbortController();
   running.set(id, ctl);
   const t0 = Date.now();
-  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [] };
+  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [] };
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
   const explicitSearch = typeof search === "boolean" ? search : undefined;
+  // smart fallback (Phase 26): every hop is kept on the mission and announced in the feed
+  const stoodIn = (ev, agent, role, taskId = null) => { mission.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, taskId, agentFrom: agent, agentTo: agent, role }); };
 
   try {
     update();
@@ -104,18 +106,18 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     const s0 = Date.now();
     let plan;
     try {
-      const r = await complete({
+      const r = await completeFallback({
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
         system: `You are the chief of staff for a small creative/marketing business. Break the goal into ${Math.min(maxTasks, 6)} or fewer concrete tasks that different AI specialists can do independently, with dependencies where one needs another's output. Reply with JSON only:
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
 Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
-      });
+      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const ms = Date.now() - s0;
-      noteCall(planner.provider, true, ms);
-      spend(recordCall({ provider: planner.provider, model: planner.model, usage: r.usage, missionId: id, role: "plan", ms }));
+      noteCall(r.provider, true, ms);
+      spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "plan", ms }));
       plan = extractJson(r.text);
-      emit("agent.done", { agent: pAgent, provider: planner.provider, model: planner.model, missionId: id, ms });
+      emit("agent.done", { agent: pAgent, provider: r.provider, model: r.model, missionId: id, ms });
     } catch (err) {
       noteCall(planner.provider, false, Date.now() - s0, err.status);
       emit("agent.error", { agent: pAgent, provider: planner.provider, model: planner.model, missionId: id, error: err.message });
@@ -187,13 +189,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const s = Date.now();
         let text = "";
         try {
-          // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first
-          for await (const ev of chatWithTools({
+          // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
+          // Smart fallback (Phase 26): a specialist whose provider is out of credits, rate limited or refusing
+          // its key is replaced (same model via OpenRouter first, then the next-best model) and the task says so.
+          for await (const ev of fallbackChat({
             provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal,
             system: `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`,
             messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }],
-          }, { missionId: id, taskId: t.id, tools })) {
+          }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) } })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
+            else if (ev.type === "fallback") {
+              text = ""; stoodIn(ev, agent, "work", t.id);
+              t.provider = ev.to.provider; t.model = ev.to.model; t.agentName = `${ev.to.providerName} · ${t.capability} (for ${ev.from.providerName})`; t.retried = true; t.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
+              emit("task.update", { missionId: id, task: pubTask(t) }); update();
+            }
             else if (ev.type === "tool" && ev.phase === "done") { mission.toolCalls.push({ taskId: t.id, by: t.provider, tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); t.toolCalls = (t.toolCalls || 0) + 1; update(); }
             else if (ev.type === "done") {
               const ms = Date.now() - s;
@@ -232,28 +241,31 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 
         // ---- QA by a different AI ----
         if (t.status === "review") {
-          const reviewer = rank({ capability: "analysis", difficulty: 2, mode: mode === "quality" ? "balanced" : "economy", exclude: [t.model] }).find((m) => m.provider !== t.provider) || rank({ capability: "analysis", mode: "economy" })[0];
+          // QA is a small job: free tiers first (Phase 26)
+          const reviewer = rank({ capability: "analysis", difficulty: 2, mode: mode === "quality" ? "balanced" : "economy", exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || rank({ capability: "analysis", mode: "economy", small: true })[0];
           if (reviewer) {
             const ragent = `${id}:${t.id}:qa`;
             emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
             emit("agent.start", { agent: ragent, provider: reviewer.provider, model: reviewer.model, role: "qa", missionId: id, taskId: t.id, label: `${reviewer.providerName} checking "${t.title}"` });
             const s3 = Date.now();
             try {
-              const r = await complete({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: ctl.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}\n\nOUTPUT TO CHECK:\n${t.output.slice(0, 12000)}` }] });
+              const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: ctl.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}\n\nOUTPUT TO CHECK:\n${t.output.slice(0, 12000)}` }] },
+                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy", avoid: [{ provider: t.provider, model: t.model }] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
               const ms = Date.now() - s3;
-              noteCall(reviewer.provider, true, ms);
-              const e = recordCall({ provider: reviewer.provider, model: reviewer.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
+              noteCall(r.provider, true, ms);
+              const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
               spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
               const j = extractJson(r.text) || { pass: true, score: null, issues: [] };
-              t.review = { provider: reviewer.provider, model: reviewer.model, pass: j.pass !== false, score: j.score ?? null, issues: j.issues || [], fix: j.fix || null };
-              emit("agent.done", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, ms, cost: e.cost });
+              t.review = { provider: r.provider, model: r.model, pass: j.pass !== false, score: j.score ?? null, issues: j.issues || [], fix: j.fix || null };
+              emit("agent.done", { agent: ragent, provider: r.provider, model: r.model, missionId: id, taskId: t.id, ms, cost: e.cost });
               if (!t.review.pass && t.review.fix && !ctl.signal.aborted) {
-                emit("agent.msg", { from: reviewer.provider, to: t.provider, missionId: id, text: `revise: ${t.review.fix.slice(0, 60)}` });
+                emit("agent.msg", { from: r.provider, to: t.provider, missionId: id, text: `revise: ${t.review.fix.slice(0, 60)}` });
                 const s4 = Date.now();
                 try {
-                  const r2 = await complete({ provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal, system: `Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${t.review.fix}\nISSUES: ${(t.review.issues || []).join("; ")}` }] }, (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }));
-                  noteCall(t.provider, true, Date.now() - s4);
-                  const e2 = recordCall({ provider: t.provider, model: t.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
+                  const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal, system: `Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${t.review.fix}\nISSUES: ${(t.review.issues || []).join("; ")}` }] },
+                    { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
+                  noteCall(r2.provider, true, Date.now() - s4);
+                  const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
                   spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
                   t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
                 } catch (err3) { noteCall(t.provider, false, Date.now() - s4, err3.status); }
@@ -278,7 +290,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const finished = mission.tasks.filter((t) => t.output);
     if (!finished.length) throw new Error("Every task failed.");
     mission.status = "assembling"; update();
-    const asm = pick({ capability: "writing", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" }) || planner;
+    const asm = { ...(pick({ capability: "writing", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" }) || planner) };
     mission.assembler = { provider: asm.provider, model: asm.model };
     const aAgent = `${id}:assembler`;
     emit("agent.start", { agent: aAgent, provider: asm.provider, model: asm.model, role: "assemble", missionId: id, label: `${asm.providerName} assembling the deliverable` });
@@ -286,12 +298,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const s5 = Date.now();
     let text = "";
     try {
-      for await (const ev of streamChat({
+      for await (const ev of fallbackChat({
         provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
         system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}` }],
-      })) {
+      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
+        else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
         else if (ev.type === "done") {
           const ms = Date.now() - s5;
           noteCall(asm.provider, true, ms);
@@ -320,10 +333,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, toolCalls: t.toolCalls || 0 };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, toolCalls: t.toolCalls || 0 };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, toolCalls: m.toolCalls || [] };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [] };
 }
 function save(m) {
   saveDoc(m);

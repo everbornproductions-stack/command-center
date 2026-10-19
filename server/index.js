@@ -28,7 +28,7 @@ import { licenseState, activate as activateLicense, redeem as redeemPromo, reche
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
-import { chatWithTools } from "./mcp.js";
+import { fallbackChat, fallbackRecord, announce as announceFallback } from "./fallback.js";
 let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
@@ -175,14 +175,15 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", 
 // ---------- single-AI chat (streams through the event bus) ----------
 async function runChat({ prompt, provider, model, projectId, search, tools }) {
   const id = "s-" + Date.now().toString(36);
+  let cls = null;
   if (!provider || !model) {
-    const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
+    cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     const best = rank({ ...cls, mode: settings().defaultMode })[0];
     if (!best) throw new Error("No AI available. Add a key in Settings.");
     provider = best.provider; model = best.model;
   }
-  const agent = `${id}:${provider}`;
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [] };
+  let agent = `${id}:${provider}`;
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [] };
   emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
   const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
@@ -191,9 +192,18 @@ async function runChat({ prompt, provider, model, projectId, search, tools }) {
   const s = Date.now();
   let text = "";
   try {
-    // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first
-    for await (const ev of chatWithTools({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] }, { missionId: id, tools })) {
+    // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
+    // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
+    // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
+    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] }, { missionId: id, tools, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
+      else if (ev.type === "fallback") {
+        text = ""; m.fallbacks.push(fallbackRecord(ev));
+        const next = `${id}:${ev.to.provider}`;
+        announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "answer" });
+        agent = next; provider = ev.to.provider; model = ev.to.model; m.provider = provider; m.model = model; m.via = ev.via || null;
+        emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
+      }
       else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } }); }
       else if (ev.type === "done") {
         const ms = Date.now() - s;
