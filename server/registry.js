@@ -132,6 +132,15 @@ export const PROVIDERS = {
     links: { app: "https://elevenlabs.io/app", console: "https://elevenlabs.io/app/settings/api-keys", billing: "https://elevenlabs.io/app/subscription", status: "https://status.elevenlabs.io" },
     statusApi: "https://status.elevenlabs.io/api/v2/status.json",
   },
+  // image generation (Phase 21): Flux through Replicate or fal; keys in the vault, spend in the ledger and caps
+  replicate: {
+    id: "replicate", name: "Replicate", vendor: "Replicate", color: "#EA580C", kind: "media", api: null, keyEnv: "REPLICATE_API_TOKEN", keyHint: "r8_…", unit: "images",
+    links: { app: "https://replicate.com", console: "https://replicate.com/account/api-tokens", billing: "https://replicate.com/account/billing", keys: "https://replicate.com/account/api-tokens", status: null },
+  },
+  fal: {
+    id: "fal", name: "fal.ai", vendor: "fal", color: "#8B5CF6", kind: "media", api: null, keyEnv: "FAL_KEY", keyHint: "key id:secret", unit: "images",
+    links: { app: "https://fal.ai", console: "https://fal.ai/dashboard/keys", billing: "https://fal.ai/dashboard/billing", keys: "https://fal.ai/dashboard/keys", status: null },
+  },
   cursor: {
     id: "cursor", name: "Cursor", vendor: "Anysphere", color: "#E5E7EB", kind: "tool", api: null, unit: "requests",
     links: { app: "https://cursor.com", console: "https://cursor.com/dashboard", billing: "https://cursor.com/settings", status: "https://status.cursor.com" },

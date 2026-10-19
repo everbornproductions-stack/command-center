@@ -122,7 +122,7 @@ async function pushAll(h, payload) {
 
 // ---------- events ----------
 export function onEvent(ev, h) {
-  if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search")) {
+  if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search" || ev.entry?.kind === "image")) {
     const { changes } = recompute(h);
     for (const c of changes) {
       const name = nameOf(c.pid);

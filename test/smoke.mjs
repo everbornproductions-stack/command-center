@@ -74,6 +74,14 @@ try {
   check(v2?.versions?.length === 2 && v2.versions[0].content.includes("Rye"), "artifact edit is version 2, version 1 kept");
   const exf = await owner.raw({ path: `/api/artifacts/${arts?.items?.[0]?.id}/export?v=1`, headers: { "x-cc-token": owner.token } });
   check(exf.status === 200 && /attachment; filename="menu-v1\.html"/.test(exf.headers["content-disposition"] || "") && exf.text.includes("Rye"), "artifact exported as a file");
+  // image generation (Phase 21): price first, then a demo image saved to the gallery with its prompt
+  check((await owner.api("/images", { method: "POST", body: { provider: "demo-image", prompt: "A rye loaf on a table" } })).status === 409, "image refused before the price is shown");
+  const iest = (await owner.api("/images/estimate", { method: "POST", body: { provider: "demo-image", n: 2 } })).json;
+  const img = (await owner.api("/images", { method: "POST", body: { provider: "demo-image", prompt: "A rye loaf on a table", n: 2, estimate: iest?.usd } })).json;
+  check(img?.files?.length === 2 && (await owner.api("/images")).json.items[0]?.params?.prompt === "A rye loaf on a table", "demo images saved to the gallery with the prompt");
+  check((await owner.api("/state")).json.ledger.recent.filter((e) => e.kind === "image").length === 2, "one ledger line per image");
+  const imgv = (await owner.api("/images/estimate", { method: "POST", body: { provider: "openai", op: "variation" } })).json;
+  check(imgv?.keyed === false && /Add your OpenAI key/.test(imgv.keyMessage || ""), "no OpenAI key: a clear add-a-key message");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 

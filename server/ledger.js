@@ -48,6 +48,12 @@ export function recordEmbedding({ provider, model, tokens, cost, estimated, miss
   return append({ ts: Date.now(), kind: "call", provider, model, actualModel: null, inTok: Number(tokens) || 0, outTok: 0, cost: +Number(cost || 0).toFixed(9), exact: false, estimated: !!estimated, missionId: missionId || null, taskId: null, role: role || "embed", ms: ms || null, free: false, fallback: null, inputs: Number(inputs) || 0 });
 }
 
+// One generated image (Phase 21): provider = the image provider's id, cost = the per-image price shown in
+// the estimate, op = generate | edit | variation. No prompt text is stored.
+export function recordImage({ provider, model, op, cost, ms, missionId, project }) {
+  return append({ ts: Date.now(), kind: "image", provider, model: model || null, op: op || "generate", images: 1, cost: +Number(cost || 0).toFixed(6), missionId: missionId || null, project: project || null, role: "image", ms: ms || null });
+}
+
 export function summary() {
   const entries = ctx().ledger;
   const now = new Date();

@@ -994,7 +994,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
