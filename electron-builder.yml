@@ -33,6 +33,16 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Everborn Command
+  # updates and uninstall keep %APPDATA%\Everborn Command (settings, vault, ledger, projects)
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
   artifactName: "EverbornCommand-Setup-${version}.${ext}"
 portable:
   artifactName: "EverbornCommand-Portable-${version}.${ext}"
+# In-app updates: electron-updater reads releases from this PUBLIC repo (the source repo is private,
+# and no token is ever embedded in the app). See docs/RELEASING.md.
+publish:
+  - provider: github
+    owner: everbornproductions-stack
+    repo: command-center-releases
+    releaseType: release

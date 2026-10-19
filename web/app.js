@@ -167,6 +167,7 @@ function handle(ev) {
     case "council.update": onCouncil(ev.council); return;
     case "ledger.entry": if (S.ledger && ev.entry.kind === "call") { S.ledger.month += ev.entry.cost; S.ledger.today += ev.entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[ev.entry.provider]; if (b) { b.month += ev.entry.cost; b.today += ev.entry.cost; b.calls++; } renderBudget(); renderStrip(); } return;
     case "log": pushFeed(ev); return;
+    case "update.state": S.update = ev.update; renderUpdateBar(); renderUpdateBox(); return;
   }
 }
 
@@ -300,10 +301,39 @@ function renderBudget() {
 // ---------------- views ----------------
 function renderUpdateBar() {
   const u = S.update, bar = $("#update-bar"); if (!bar) return;
-  if (!u?.available) { bar.style.display = "none"; return; }
+  if (!u?.available || S.updateDismissed === u.latest) { bar.style.display = "none"; return; }
   bar.style.display = "";
-  bar.innerHTML = `<span>⬆</span><div><b>Update available: v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}</div><a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a><button class="ghost small" id="upd-later">later</button>`;
-  $("#upd-later").addEventListener("click", () => { bar.style.display = "none"; });
+  const busy = u.phase === "downloading" || u.phase === "installing";
+  const action = u.desktop
+    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
+    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
+  bar.innerHTML = `<span>↑</span><div><b>Update available: v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+  $("#upd-go")?.addEventListener("click", installUpdate);
+  $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
+}
+// Settings: current version, Check for updates, and the install button when one is waiting
+function updateBoxHtml() {
+  const u = S.update || {};
+  const busy = u.phase === "downloading" || u.phase === "installing";
+  const status = u.phase === "downloading" ? `Downloading v${esc(u.latest)}: ${u.progress ?? 0}%`
+    : u.phase === "installing" ? "Installing; the app restarts in a moment"
+    : u.available ? `Update available: v${esc(u.latest)}`
+    : u.checkedAt && !u.error ? "You are on the latest version" : "";
+  return `Version <b>v${esc(S.version || u.current || "")}</b> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
+    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
+    + (status ? ` <span class="dim">${status}</span>` : "")
+    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
+}
+function renderUpdateBox() {
+  const box = $("#s-upd-box"); if (!box) return;
+  box.innerHTML = updateBoxHtml();
+  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version", !!S.update.error); });
+  $("#s-upd-go")?.addEventListener("click", installUpdate);
+}
+async function installUpdate() {
+  try { S.update = await api("/update/install", { method: "POST" }); toast("Downloading the update; the app restarts when it is ready"); }
+  catch (e) { toast(e.message, true); }
+  renderUpdateBar(); renderUpdateBox();
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 function render() {
@@ -695,7 +725,7 @@ function renderSettings(v) {
         </div>
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run first-time setup again</a> · `}v${esc(S.version || "")} <a href="#" id="s-upd">check for updates</a>${S.update?.error ? ` <span class="dim">(last check failed: ${esc(S.update.error)})</span>` : ""}</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run first-time setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -750,7 +780,7 @@ function renderSettings(v) {
   $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
   $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
-  $("#s-upd").addEventListener("click", async (e) => { e.preventDefault(); S.update = await api("/update/check", { method: "POST" }); renderUpdateBar(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version"); render(); });
+  renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
   renderExtras("settings", "#settings-extras");
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
@@ -762,7 +792,20 @@ async function refresh() { applyState(await api("/state")); renderStrip(); rende
 $("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.view = b.dataset.view; S.openProject = null; render(); });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
 $("#mobile-nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; } S.view = b.dataset.view; S.openProject = null; render(); });
-if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+// PWA: when a new service worker takes over (new version deployed), offer a refresh instead of reloading under the person
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("/sw.js").then((reg) => { setInterval(() => reg.update().catch(() => {}), 3600 * 1000); }).catch(() => {});
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController) showRefreshPrompt(); });
+}
+function showRefreshPrompt() {
+  if ($("#sw-refresh")) return;
+  const d = document.createElement("div"); d.id = "sw-refresh"; d.className = "update-bar"; d.setAttribute("role", "status");
+  d.innerHTML = `<span>↑</span><div><b>New version available</b></div><button class="btn sm primary" style="margin-left:auto" id="sw-refresh-go">Refresh</button><button class="ghost small" id="sw-refresh-later">later</button>`;
+  const bar = $("#update-bar"); if (bar) bar.after(d); else document.body.prepend(d);
+  $("#sw-refresh-go").addEventListener("click", () => location.reload());
+  $("#sw-refresh-later").addEventListener("click", () => d.remove());
+}
 let installPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; const b = document.createElement("button"); b.className = "btn sm"; b.textContent = "Install app"; b.style.marginLeft = "4px"; b.onclick = async () => { installPrompt.prompt(); await installPrompt.userChoice; b.remove(); }; $(".top-right").prepend(b); });
 setInterval(() => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }, 1000);

@@ -1,5 +1,6 @@
-// Offline shell: static files cached, API always live.
-const CACHE = "cc-shell-v2";
+// Offline shell: static files cached, API always live. The server stamps the app version into
+// CACHE, so each release installs a new worker and the page offers "New version available, Refresh".
+const CACHE = "cc-shell-__CC_VERSION__";
 const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/graph.js", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });

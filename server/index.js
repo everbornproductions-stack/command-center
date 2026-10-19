@@ -23,7 +23,7 @@ import { loadProjects, listProjects, saveProject, deleteProject, addLink, remove
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
-import { updateState, checkForUpdate, startUpdateLoop, VERSION } from "./update.js";
+import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
@@ -318,6 +318,8 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/setup/done") { const s = saveSettings({ ...settings(), onboarded: true }); return json(res, 200, s); }
   if (method === "POST" && p === "/update/check") return json(res, 200, await checkForUpdate());
+  if (method === "GET" && p === "/update") return json(res, 200, updateState());
+  if (method === "POST" && p === "/update/install") { try { return json(res, 202, await installUpdate()); } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, update: updateState() }); } }
   if (method === "POST" && p === "/license") { try { return json(res, 200, body.code ? await redeemPromo(body.code, body.email) : await activateLicense(body.key)); } catch (e) { return json(res, 400, { error: e.message }); } }
   if (method === "POST" && p === "/license/recheck") return json(res, 200, await recheckLicense());
   if (method === "POST" && p === "/cloud") {
@@ -396,6 +398,12 @@ const server = http.createServer(async (req, res) => {
       const html = indexHtml(file);
       res.writeHead(200, { "content-type": MIME[".html"], "cache-control": "no-store", "content-length": Buffer.byteLength(html) });
       return res.end(html);
+    }
+    if (path.relative(WEB_DIR, file) === "sw.js") {
+      // the version is stamped into the service worker so every release installs a new one (PWA "refresh" prompt)
+      const js = fs.readFileSync(file, "utf8").replace(/__CC_VERSION__/g, VERSION);
+      res.writeHead(200, { "content-type": MIME[".js"] || "text/javascript", "cache-control": "no-cache", "content-length": Buffer.byteLength(js) });
+      return res.end(js);
     }
     res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache" });
     fs.createReadStream(file).pipe(res);

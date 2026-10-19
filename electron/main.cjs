@@ -55,11 +55,41 @@ function exposeSafeStorage() {
   };
 }
 
+// In-app updates (installed builds only). electron-updater reads the GitHub Releases feed named in
+// electron-builder.yml (publish: github). Nothing downloads until the person clicks "Update and restart"
+// in the app; then the installer runs silently and relaunches. App data in %APPDATA%\Everborn Command is
+// outside the install folder, so updates and reinstalls keep settings, keys and history.
+let quittingForUpdate = false;
+function exposeUpdater() {
+  if (!isPackaged || process.env.CC_NO_AUTO_UPDATE === "1") return;
+  let autoUpdater;
+  try { ({ autoUpdater } = require("electron-updater")); } catch (e) { log("updater unavailable:", e && e.message); return; }
+  autoUpdater.autoDownload = false;          // download only on click
+  autoUpdater.autoInstallOnAppQuit = false;  // install only on click
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.logger = { info: (m) => log("updater:", m), warn: (m) => log("updater warn:", m), error: (m) => log("updater error:", m), debug: () => {} };
+  const listeners = [];
+  const send = (ev) => { for (const f of listeners) { try { f(ev); } catch {} } };
+  const notes = (info) => { const n = info && info.releaseNotes; if (!n) return ""; const t = Array.isArray(n) ? n.map((x) => x.note || "").join(" ") : String(n); return t.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300); };
+  autoUpdater.on("update-available", (info) => send({ type: "available", version: info.version, notes: notes(info) }));
+  autoUpdater.on("update-not-available", (info) => send({ type: "none", version: info && info.version }));
+  autoUpdater.on("download-progress", (p) => send({ type: "progress", percent: p.percent }));
+  autoUpdater.on("update-downloaded", () => send({ type: "downloaded" }));
+  autoUpdater.on("error", (e) => send({ type: "error", message: (e && e.message || String(e)).split("\n")[0] }));
+  globalThis.__ccUpdater = {
+    onEvent: (f) => listeners.push(f),
+    async check() { const r = await autoUpdater.checkForUpdates(); const i = r && r.updateInfo; return i ? { version: i.version, notes: notes(i) } : null; },
+    download: () => autoUpdater.downloadUpdate(),
+    install() { quittingForUpdate = true; log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
+  };
+}
+
 async function startServer() {
   if (serverStarted) return true;
   // Already running (e.g. the launcher script)? Just use it.
   try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok) { serverStarted = true; return true; } } catch {}
   exposeSafeStorage();
+  exposeUpdater();
   await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
   serverStarted = await waitForServer();
   return serverStarted;
@@ -96,7 +126,7 @@ function createTray() {
 }
 
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } else createWindow(); });
-app.on("window-all-closed", () => { /* keep serving in the tray */ });
+app.on("window-all-closed", () => { if (quittingForUpdate) app.quit(); /* otherwise keep serving in the tray */ });
 app.on("activate", () => { if (!win) createWindow(); });
 
 const LOG = path.join(userData, "everborn-command.log");
