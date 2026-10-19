@@ -1,0 +1,9 @@
+{
+  "id": "g-low",
+  "note": "Fake data only. An unknown sender with a price and nothing else: kept as a low-confidence suggestion.",
+  "from": "Studio Billing <billing@acme-voice.example>",
+  "subject": "Payment receipt (fixture subject L1)",
+  "date": "Thu, 15 Oct 2026 12:00:00 +0000",
+  "text": "Thank you for your payment of $15.00.\nFIXTURE-BODY-MARKER-L1",
+  "expect": { "serviceId": null, "service": "Studio", "price": 15, "low": true, "maxConfidence": 0.59 }
+}

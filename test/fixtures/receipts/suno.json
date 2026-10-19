@@ -1,0 +1,9 @@
+{
+  "id": "g-suno",
+  "note": "Fake data only. Suno receipt with a billing period instead of a renewal sentence.",
+  "from": "Suno <invoice+statements@suno.com>",
+  "subject": "Your receipt from Suno (fixture subject S1)",
+  "date": "Sun, 25 Oct 2026 18:00:00 +0000",
+  "text": "Receipt #0000-0000\nPremier Plan\nMonthly\nOct 25, 2026 – Nov 25, 2026\nAmount paid $30.00\nFIXTURE-BODY-MARKER-S1",
+  "expect": { "serviceId": "suno", "plan": "Premier", "price": 30, "cycle": "monthly", "renews": "2026-11-25", "minConfidence": 0.75 }
+}

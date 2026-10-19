@@ -1,0 +1,9 @@
+{
+  "id": "g-noprice",
+  "note": "Fake data only. A known sender but no price or renewal date: a parse failure, not a guess.",
+  "from": "OpenAI <noreply@openai.com>",
+  "subject": "Welcome to ChatGPT (fixture subject W1)",
+  "date": "Thu, 15 Oct 2026 14:00:00 +0000",
+  "text": "Thanks for joining ChatGPT. Here are some tips to get started.\nFIXTURE-BODY-MARKER-W1",
+  "expect": { "fail": true, "reason": "No price" }
+}

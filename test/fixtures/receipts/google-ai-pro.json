@@ -1,0 +1,9 @@
+{
+  "id": "g-google-ai-pro",
+  "note": "Fake data only. HTML receipt from Google Payments for Google AI Pro with Flow.",
+  "from": "Google Payments <payments-noreply@google.com>",
+  "subject": "Your Google AI Pro subscription receipt (fixture subject G1)",
+  "date": "Tue, 20 Oct 2026 09:12:00 +0000",
+  "html": "<html><head><style>td{color:#333}</style></head><body><table><tr><td>Google AI Pro (2 TB)</td><td>Includes Gemini, Flow and Whisk</td></tr><tr><td>Billing</td><td>Monthly</td></tr><tr><td>Tax</td><td>$0.00</td></tr><tr><td><b>Total</b></td><td>&#36;19.99</td></tr></table><p>Your subscription will renew on November 20, 2026.</p><p>Sam Example, FIXTURE-BODY-MARKER-G1</p></body></html>",
+  "expect": { "serviceId": "google-ai", "plan": "Google AI Pro", "price": 19.99, "cycle": "monthly", "renews": "2026-11-20", "minConfidence": 0.8 }
+}

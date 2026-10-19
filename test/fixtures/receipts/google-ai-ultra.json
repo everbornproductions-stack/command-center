@@ -1,0 +1,9 @@
+{
+  "id": "g-google-ai-ultra",
+  "note": "Fake data only. Plain-text Google AI Ultra receipt with Flow.",
+  "from": "Google <payments-noreply@google.com>",
+  "subject": "Google AI Ultra: payment received (fixture subject G2)",
+  "date": "Sat, 03 Oct 2026 15:40:00 +0000",
+  "text": "Thanks for your purchase.\nGoogle AI Ultra with Flow and Veo\n$249.99/month\nAmount charged: $249.99\nNext billing date: Dec 3, 2026\nFIXTURE-BODY-MARKER-G2",
+  "expect": { "serviceId": "google-ai", "plan": "Google AI Ultra", "price": 249.99, "cycle": "monthly", "renews": "2026-12-03", "minConfidence": 0.8 }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "g-fail",
+  "note": "Fake data only. Not a receipt: the parser must refuse it.",
+  "from": "Pat Friend <pat@example.com>",
+  "subject": "Lunch on Friday? (fixture subject F1)",
+  "date": "Thu, 15 Oct 2026 13:00:00 +0000",
+  "text": "Want to grab lunch? It is my turn, I still owe you $12.\nFIXTURE-BODY-MARKER-F1",
+  "expect": { "fail": true, "reason": "Not a receipt" }
+}

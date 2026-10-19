@@ -155,7 +155,7 @@ function startMission(opts) {
   const { runAt, ...rest } = opts;
   return runMission(rest);
 }
-function saveSubscriptionGated(s) { guard("subscriptions"); return saveSubscription(s); }
+function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
 
 function fullState() {
   const c = ctx();
@@ -320,7 +320,7 @@ async function api(req, res, url) {
   if (method === "DELETE" && seg[0] === "projects" && seg[2] === "links") return json(res, 200, removeLink(seg[1], url.searchParams.get("category"), url.searchParams.get("url")));
 
   if (seg[0] === "subscriptions" && method !== "GET") { try { guard("subscriptions"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code, locked: true }); } }
-  if (method === "POST" && p === "/subscriptions") return json(res, 200, saveSubscription(body));
+  if (method === "POST" && p === "/subscriptions") { try { return json(res, 200, saveSubscription(body)); } catch (e) { return json(res, e.status || 400, { error: e.message }); } }
   if (method === "DELETE" && seg[0] === "subscriptions" && seg[1]) return json(res, 200, deleteSubscription(seg[1]));
   if (method === "POST" && p === "/credits") { recordCredits(body); return json(res, 200, { ok: true }); }
   if (method === "POST" && p === "/rules") { if (!Array.isArray(body.rules)) return json(res, 400, { error: "rules[]" }); saveRules(body.rules); return json(res, 200, rulesView()); }

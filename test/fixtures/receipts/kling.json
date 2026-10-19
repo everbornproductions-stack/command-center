@@ -1,0 +1,9 @@
+{
+  "id": "g-kling",
+  "note": "Fake data only. Kling yearly membership.",
+  "from": "Kling AI <noreply@klingai.com>",
+  "subject": "Kling AI order confirmation (fixture subject K1)",
+  "date": "Mon, 12 Oct 2026 02:05:00 +0000",
+  "text": "Hi Sam Example,\nYour Standard membership is active.\nBilling cycle: Annual\nAmount paid: US$79.20\nValid until 2027-10-12\nFIXTURE-BODY-MARKER-K1",
+  "expect": { "serviceId": "kling", "plan": "Standard", "price": 79.2, "cycle": "yearly", "renews": "2027-10-12", "monthly": 6.6, "minConfidence": 0.8 }
+}

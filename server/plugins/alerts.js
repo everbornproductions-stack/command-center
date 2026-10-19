@@ -136,11 +136,33 @@ export function onEvent(ev, h) {
   }
 }
 
-function renewalSweep(h) {
-  const soon = h.subscriptionView().filter((s) => s.daysLeft != null && s.daysLeft >= 0 && s.daysLeft <= 3);
-  for (const s of soon) notify(h, `renew:${s.id}:${s.renews}`, `${s.name} renews in ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"}`, s.monthly != null ? `$${s.monthly} on ${s.renews}` : `on ${s.renews}`, "amber");
-  const low = h.subscriptionView().filter((s) => s.signal === "low");
+// Other plugins (services, Phase 25) raise alerts through the same channels and the same 12 h dedupe.
+export const raise = (h, key, title, body, level = "amber") => notify(h, key, title, body, level);
+
+// Renewal reminders (Phase 25): each row says how many days ahead it wants a reminder (remindDays,
+// default 3) and gets exactly one per renewal date (alerts.reminded), in-app, by push and email per the
+// prefs, plus a "services.reminder" event the page turns into a desktop notification. Returns what was sent.
+const REMINDED = "alerts.reminded"; // { "<subId>:<date>": ts }
+export function renewalSweep(h) {
+  const sent = [];
+  const done = h.doc(REMINDED, () => ({}));
+  const view = h.subscriptionView();
+  for (const s of view.filter((x) => x.nextRenewal && x.daysLeft != null && x.daysLeft >= 0 && x.daysLeft <= x.remindDays)) {
+    const key = `${s.id}:${s.nextRenewal}`;
+    if (done[key]) continue;
+    done[key] = Date.now();
+    const title = s.daysLeft === 0 ? `${s.name} renews today` : `${s.name} renews in ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"}`;
+    const body = `${s.price != null ? `$${s.price}${s.cycle && s.cycle !== "monthly" ? ` (${s.cycle})` : ""} on ` : "on "}${s.nextRenewal}${s.plan && s.plan !== "UNKNOWN" ? `, ${s.plan}` : ""}`;
+    notify(h, `renew:${key}`, title, body, "amber");
+    h.emit("services.reminder", { id: s.id, name: s.name, title, body, daysLeft: s.daysLeft, renews: s.nextRenewal });
+    sent.push({ id: s.id, name: s.name, daysLeft: s.daysLeft, renews: s.nextRenewal, title });
+  }
+  const cutoff = Date.now() - 400 * 86400000;
+  for (const [k, ts] of Object.entries(done)) if (ts < cutoff) delete done[k];
+  h.putDoc(REMINDED, done);
+  const low = view.filter((s) => s.signal === "low");
   for (const s of low) notify(h, `low:${s.id}:${monthKey()}`, `${s.name} credits running low`, s.why || "", "amber");
+  return sent;
 }
 
 export async function routes(req, res, url, body, h) {
@@ -150,9 +172,10 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "POST" && p === "/prefs") { const prefs = { ...h.doc(PREFS, () => ({})), ...(body.email !== undefined ? { email: String(body.email).trim() } : {}), ...(body.emailOn !== undefined ? { emailOn: !!body.emailOn } : {}), ...(body.pushOn !== undefined ? { pushOn: !!body.pushOn } : {}) }; h.putDoc(PREFS, prefs); return h.json(res, 200, prefs); }
   if (req.method === "POST" && p === "/subscribe") { if (!body.endpoint || !body.keys?.p256dh) return h.json(res, 400, { error: "bad subscription" }); const d = h.doc(SUBS, () => ({ subs: [] })); if (!d.subs.some((s) => s.endpoint === body.endpoint)) d.subs.push({ endpoint: body.endpoint, keys: body.keys, addedAt: Date.now() }); h.putDoc(SUBS, d); return h.json(res, 200, { devices: d.subs.length }); }
   if (req.method === "POST" && p === "/test") { await notify(h, `test:${Date.now()}`, "Test alert", "If you can read this on your phone, push works.", "amber"); return h.json(res, 200, { ok: true }); }
-  if (req.method === "POST" && p === "/sweep") { renewalSweep(h); return h.json(res, 200, { ok: true }); }
+  if (req.method === "POST" && p === "/sweep") { const sent = renewalSweep(h); return h.json(res, 200, { ok: true, sent }); }
   return false;
 }
 
-// renewal sweep twice a day
+// renewal sweep shortly after start, then twice a day
+setTimeout(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 20000).unref();
 setInterval(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 12 * 3600 * 1000).unref();

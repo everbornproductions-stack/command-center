@@ -203,7 +203,7 @@ function handle(ev) {
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
     }
-    case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view)) render(); return;
+    case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view) && !window.CC?.byKind?.("tab").some((f) => f.id === S.view)) render(); return;
     case "provider.status": { const p = P(ev.provider); if (p) p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance }; renderStrip(); graph?.setStatus(ev.provider, ev.status); pushFeed(ev); return; }
     case "agent.start": onAgentStart(ev); pushFeed(ev); return;
     case "agent.delta": onAgentDelta(ev); return;
@@ -406,7 +406,7 @@ function ensureFeatureTabs() {
     // phones: feature tabs go into a "More" sheet instead of crowding the bottom bar
     let more = $("#mobile-more");
     if (!more) { more = document.createElement("div"); more.id = "mobile-more"; more.className = "mobile-more"; document.body.appendChild(more); const mb = document.createElement("button"); mb.dataset.more = "1"; mb.innerHTML = `<i>⋯</i>More`; mb.addEventListener("click", () => more.classList.toggle("open")); $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]")); }
-    if (!$(`#mobile-more button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.openProject = null; render(); }); more.appendChild(b); }
+    if (!$(`#mobile-more button[data-view="${f.id}"]`) && !$(`#mobile-nav button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.openProject = null; render(); }); more.appendChild(b); }
   }
   $$("#tabs button, #mobile-nav button[data-view], #mobile-more button").forEach((b) => b.classList.toggle("active", b.dataset.view === S.view));
   $("#mobile-more")?.classList.remove("open");
@@ -987,7 +987,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 

@@ -1,0 +1,9 @@
+{
+  "id": "g-midjourney",
+  "note": "Fake data only. Midjourney yearly plan.",
+  "from": "Midjourney <billing@midjourney.com>",
+  "subject": "Midjourney Receipt (fixture subject M1)",
+  "date": "Sun, 18 Oct 2026 20:20:00 +0000",
+  "text": "Pro Plan - Yearly\nPrice: $576.00 / year\nTotal: $576.00\nRenewal date: 18 October 2027\nFIXTURE-BODY-MARKER-M1",
+  "expect": { "serviceId": "midjourney", "plan": "Pro", "price": 576, "cycle": "yearly", "renews": "2027-10-18", "monthly": 48, "minConfidence": 0.85 }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "g-chatgpt-plus",
+  "note": "Fake data only. ChatGPT Plus receipt.",
+  "from": "OpenAI <noreply@tm.openai.com>",
+  "subject": "Your ChatGPT Plus receipt (fixture subject C1)",
+  "date": "Wed, 14 Oct 2026 11:30:00 +0000",
+  "text": "ChatGPT Plus Subscription\nQty 1  $20.00\nTotal $20.00\nAmount paid $20.00\nBilled monthly. Your next billing date is 2026-11-14.\nFIXTURE-BODY-MARKER-C1",
+  "expect": { "serviceId": "chatgpt", "plan": "ChatGPT Plus", "price": 20, "cycle": "monthly", "renews": "2026-11-14", "minConfidence": 0.85 }
+}
