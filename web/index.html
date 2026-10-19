@@ -17,14 +17,15 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230b0f17' stroke='%2322d3ee' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%2322d3ee'/%3E%3C/svg%3E" />
 </head>
 <body>
+<a class="skip-link" href="#view">Skip to content</a>
 <div id="app" class="app">
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark"></span>
+      <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-name">COMMAND <b>AI</b></span><span class="brand-tag small dim" title="by Everborn Productions">an Everborn product</span>
     </div>
-    <nav class="tabs" id="tabs">
-      <button data-view="command" class="active">Command</button>
+    <nav class="tabs" id="tabs" aria-label="Main">
+      <button data-view="command" class="active" aria-current="page">Command</button>
       <button data-view="projects">Projects</button>
       <button data-view="credits">Credits</button>
       <button data-view="subscriptions">Subscriptions</button>
@@ -33,34 +34,34 @@
     </nav>
     <div class="top-right">
       <div class="pill" id="budget-pill" title="API spend this month vs budget"><span class="pill-k">Month</span><span id="budget-val">$0.00</span></div>
-      <div class="pill" id="conn-pill"><span class="dot grey" id="conn-dot"></span><span id="conn-txt">connecting</span></div>
-      <div class="clock" id="clock"></div>
+      <div class="pill" id="conn-pill" role="status" aria-label="Connection to the engine"><span class="dot grey" id="conn-dot" aria-hidden="true"></span><span id="conn-txt">connecting</span></div>
+      <div class="clock" id="clock" aria-hidden="true"></div>
     </div>
   </header>
 
-  <div id="update-bar" class="update-bar" style="display:none"></div>
-  <main class="view" id="view"></main>
+  <div id="update-bar" class="update-bar" role="region" aria-label="Update" style="display:none"></div>
+  <main class="view" id="view" tabindex="-1"></main>
 
-  <aside class="feed" id="feed">
+  <aside class="feed" id="feed" aria-label="Live feed">
     <div class="feed-head">
       <span>Live feed</span>
-      <button class="ghost" id="feed-clear" title="Clear">clear</button>
+      <button class="ghost" id="feed-clear" title="Clear the live feed">clear</button>
     </div>
-    <div class="feed-list" id="feed-list"></div>
+    <div class="feed-list" id="feed-list" role="log" aria-live="off"></div>
   </aside>
 
-  <footer class="strip" id="strip"></footer>
-  <nav class="mobile-nav" id="mobile-nav">
-    <button data-view="command"><i>◎</i>Command</button>
-    <button data-view="projects"><i>▦</i>Projects</button>
-    <button data-view="credits"><i>$</i>Credits</button>
-    <button data-view="subscriptions"><i>↻</i>Subs</button>
-    <button data-feed><i>≡</i>Feed</button>
-    <button data-view="settings"><i>⚙</i>Settings</button>
+  <footer class="strip" id="strip" aria-label="Status of your AIs"></footer>
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Main">
+    <button data-view="command"><i aria-hidden="true">◎</i>Command</button>
+    <button data-view="projects"><i aria-hidden="true">▦</i>Projects</button>
+    <button data-view="credits"><i aria-hidden="true">$</i>Credits</button>
+    <button data-view="subscriptions"><i aria-hidden="true">↻</i>Subs</button>
+    <button data-feed><i aria-hidden="true">≡</i>Feed</button>
+    <button data-view="settings"><i aria-hidden="true">⚙</i>Settings</button>
   </nav>
 </div>
 <div id="gate" class="gate" style="display:none"></div>
-<div id="toasts" class="toasts"></div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

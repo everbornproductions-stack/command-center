@@ -4,6 +4,8 @@
 
 One console for every AI you pay for. Give marching orders once; the console picks the right AI for each part, lets them check each other's work, shows you who is working and who is talking to whom in real time, and keeps score of what everything costs.
 
+**Using the app:** read the [user guide](docs/USER-GUIDE.md). **What changed:** [release notes](docs/RELEASE-NOTES.md).
+
 Runs on your PC. Your API keys never leave it (sealed with Windows DPAPI, or the OS keychain through the desktop app on macOS and Linux). Zero markup: you pay the providers directly.
 
 The local server only answers its own window: it binds 127.0.0.1, pins the `Host` and `Origin` headers to the loopback address, requires `application/json` on every write, and issues a fresh session token on each launch that the page must send with every API call and as the first WebSocket message. A web page you happen to visit cannot read your console or start work on your keys.
@@ -100,7 +102,8 @@ Features are plugins: `server/plugins/<id>.js` + `web/features/<id>.js` (see doc
 
 ## Updates
 
-The app checks `https://everbornproductions.com/command-center/latest.json` on start and every 6 hours (override with `CC_UPDATE_FEED`). When the version there is newer than `package.json`, a banner appears with the notes and a download link. To ship an update: bump the version, publish the new build, and upload `release/latest.json` with the new version, notes and URL. Electron packaging later turns the banner into a one-click install.
+- **Desktop app:** the updater runs in the Electron main process (electron/updater.cjs) and reads the public `everbornproductions-stack/command-center-releases` repo. On launch it shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**; nothing downloads before that click. The tray has Check for updates, Install update and Restart app. Shipping a release: docs/RELEASING.md.
+- **Browser and hosted hub:** the server checks `https://everbornproductions.com/command-center/latest.json` on start and every 6 hours (override with `CC_UPDATE_FEED`) and shows a banner with the notes and a download link when it is newer than `package.json`.
 
 ## Where things live
 
@@ -121,14 +124,22 @@ server/discover.js     setup wizard: history scan, key detection, AI bookmark fo
 server/update.js       update checker (release/latest.json is the feed template)
 web/                   the UI (no build step)
 data/                  your data: vault, ledger, projects, subscriptions, missions, pricing, skills
-docs/                  market research, provider API research, product brief
+docs/                  user guide, release notes, build plan and log, locked decisions, research
 ```
 
 The optional HQ adapter reads `<CC_HQ_DIR>/hq/state.json` (task board, decisions waiting on you) and `<CC_HQ_DIR>/studio/credit-log.csv` (Kling/Flow generations). It is only active when `CC_HQ_DIR` is set (a run from source also picks up a sibling `hq/` folder when one exists; installed builds never guess). New installs start with one empty project and three generic subscription rows; `docs/owner-seed.example.json` shows the import shape for a fuller set.
 
+## Accessibility and error states
+
+- Keyboard: a "Skip to content" link, a visible focus ring on every control, and Enter or Space on the clickable status tiles, project cards and run rows.
+- Screen readers: labelled navigation, the open tab marked as current, run-mode and priority choices marked as pressed, a polite live region for messages and an alert for errors.
+- Reduced motion: the shell's blinking and pulsing stop when the system asks; the live flow map keeps its own calmer fallback (decision 19).
+- Errors: a network failure says the engine or hub cannot be reached, an error answer without a message names the HTTP status, an unhandled failure in a click handler still shows a message, and a tab that fails to render offers Try again.
+- The server says "port in use" and exits with code 1 when its port is taken; the demo AIs move to a free port when theirs is taken. Scripts and styles carry an ETag (304 when unchanged); HTML is never cached.
+
 ## Not yet built (see docs/product-brief.md)
 
-Media generation from inside the console (Kling/Runway/ElevenLabs API calls), Electron packaging and installer, accounts/licensing, cloud sync, OpenRouter cost pass-through from `usage.cost`, always-on schedules (desktop schedules exist; see docs/schedules.md).
+Always-on schedules (desktop schedules exist; see docs/schedules.md), a code-signed Windows build, the Mac build (Phase 14, needs a Mac), real pricing and payments for the trial, managed plan and marketplace (placeholders behind flags), and the licence-server functions for referrals.
 
 ## Hosted hub (phone, PC off)
 

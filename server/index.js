@@ -581,7 +581,7 @@ const server = http.createServer(async (req, res) => {
     // static
     let file = url.pathname === "/" ? "/index.html" : url.pathname;
     file = path.normalize(path.join(WEB_DIR, file));
-    if (!file.startsWith(WEB_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
+    if ((file !== WEB_DIR && !file.startsWith(WEB_DIR + path.sep)) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
     if (path.basename(file) === "index.html" || path.relative(WEB_DIR, file) === "quick.html") { // quick.html: the desktop quick launcher (Phase 24)
       const html = indexHtml(file);
       res.writeHead(200, { "content-type": MIME[".html"], "cache-control": "no-store", "content-length": Buffer.byteLength(html) });
@@ -593,8 +593,13 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": MIME[".js"] || "text/javascript", "cache-control": "no-cache", "content-length": Buffer.byteLength(js) });
       return res.end(js);
     }
-    res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache" });
-    fs.createReadStream(file).pipe(res);
+    // Performance (Phase 11): "no-cache" still revalidates every time, so an ETag lets the browser keep its copy
+    // (304, no body) until the file changes. Updates still show at once; HTML and sw.js above are never cached.
+    const st = fs.statSync(file);
+    const etag = path.extname(file) === ".html" ? undefined : `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    if (etag && req.headers["if-none-match"] === etag) { res.writeHead(304, { etag, "cache-control": "no-cache" }); return res.end(); }
+    res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache", ...(etag ? { etag } : {}), "content-length": st.size });
+    fs.createReadStream(file).on("error", () => res.destroy()).pipe(res);
   } catch (e) {
     console.error(e);
     json(res, 500, { error: e.message });
@@ -674,6 +679,14 @@ async function initContext() {
   await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, runChat, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
   pluginsReady = true;
   tryDailyCheck();
+  // A taken port is a clear message and exit code 1, not a stack trace. The desktop app picks a free port
+  // and then trusts only its own instance id (decision 6), so it never mistakes another server for this one.
+  // ws re-emits the HTTP server's errors on wss; that copy is handled here, so it is ignored there.
+  wss.on("error", () => {});
+  server.on("error", (e) => {
+    console.error(e.code === "EADDRINUSE" ? `Command AI could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Command AI server error: ${e.message}`);
+    process.exit(1);
+  });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
     console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);

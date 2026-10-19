@@ -239,10 +239,20 @@ export async function startDemo() {
     res.end();
   });
   const srv = server;
-  await new Promise((resolve, reject) => {
-    srv.once("error", (e) => { server = null; reject(new Error(e.code === "EADDRINUSE" ? `demo port ${PORT} in use (another Command Center running?)` : `demo server: ${e.message}`)); });
-    srv.listen(PORT, "127.0.0.1", resolve);
+  const listen = (port) => new Promise((resolve, reject) => {
+    const onErr = (e) => reject(e);
+    srv.once("error", onErr);
+    srv.listen(port, "127.0.0.1", () => { srv.off("error", onErr); resolve(); });
   });
+  // The usual port can be taken (another program, or a parallel test run). Then any free loopback port
+  // will do: the pretend providers are pointed at wherever the demo server actually listens.
+  try { await listen(PORT); }
+  catch (e) {
+    if (e.code !== "EADDRINUSE") { server = null; throw new Error(`demo server: ${e.message}`); }
+    try { await listen(0); } catch (e2) { server = null; throw new Error(`demo port ${PORT} in use and no other port free: ${e2.message}`); }
+  }
+  const port = srv.address().port;
+  for (const d of DEMO) if (PROVIDERS[d.id]) PROVIDERS[d.id].baseUrl = `http://127.0.0.1:${port}/v1`;
 }
 
 export async function stopDemo() {

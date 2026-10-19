@@ -74,23 +74,55 @@ async function api(path, opts = {}) {
   const headers = await apiHeaders();
   // opts.raw: a File or Blob sent as is (history import zip), with opts.contentType
   const { raw, contentType, ...rest } = opts;
-  const r = await fetch(HUB + "/api" + path, { headers: raw ? { ...headers, "content-type": contentType || "application/zip" } : headers, ...rest, body: raw || (opts.body ? JSON.stringify(opts.body) : undefined) });
+  const r = await apiFetch(HUB + "/api" + path, { headers: raw ? { ...headers, "content-type": contentType || "application/zip" } : headers, ...rest, body: raw || (opts.body ? JSON.stringify(opts.body) : undefined) });
   if (r.status === 401 && CONFIG.mode === "hosted") { signOut(false, "Signed out. Sign in again."); throw new Error("Sign in required"); }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw new Error(httpError(r, j));
   return j;
 }
+// Error states: never a bare "Failed to fetch" or an empty message. A network failure names the engine
+// (or the hub) and what to do; an error answer without a message names the HTTP status.
+async function apiFetch(url, opts) {
+  try { return await fetch(url, opts); }
+  catch (e) {
+    if (e?.name === "AbortError") throw e;
+    throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Command AI's engine. Check that the app is still running, then try again.");
+  }
+}
+function httpError(r, j) { return j?.error || (r.status === 404 ? "Not found (404)" : `Request failed (HTTP ${r.status}${r.statusText ? " " + r.statusText : ""})`); }
 // Fetch a non-JSON API response (download, QR image) with the same auth headers; returns a blob: URL.
 async function apiBlobUrl(path) {
-  const r = await fetch(HUB + "/api" + path, { headers: await apiHeaders() });
-  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || r.statusText); }
+  const r = await apiFetch(HUB + "/api" + path, { headers: await apiHeaders() });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(httpError(r, j)); }
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
 function toast(msg, err = false) {
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
+  if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
 }
+// A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
+// The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
+const lastUnhandled = new Map();
+window.addEventListener("unhandledrejection", (e) => {
+  const err = e.reason;
+  if (!err || err.name === "AbortError") return;
+  const msg = String(err.message || err);
+  console.warn("[unhandled]", err);
+  if (Date.now() - (lastUnhandled.get(msg) || 0) < 10000) return;
+  lastUnhandled.set(msg, Date.now());
+  toast(msg, true);
+});
+// Keyboard: anything drawn as a clickable card or row (role="button", not a real <button>) opens with Enter or Space.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const el = e.target;
+  if (!(el instanceof HTMLElement) || el.getAttribute("role") !== "button" || /^(BUTTON|A|INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+  e.preventDefault(); el.click();
+});
+// Segmented choices (Single / Council / Mission and the like) tell screen readers which one is on.
+function markSeg(box) { if (box) $$("button", box).forEach((x) => x.setAttribute("aria-pressed", String(x.classList.contains("on")))); }
 
 // ---------------- markdown (small, safe) ----------------
 function md(src) {
@@ -292,6 +324,7 @@ function pushFeed(ev) {
   S.feed.push(ev); if (S.feed.length > 80) S.feed.shift();
   const list = $("#feed-list"); if (!list) return;
   const node = feedNode(ev); if (!node) return;
+  list.querySelector(".feed-empty")?.remove();
   list.appendChild(node);
   while (list.children.length > 80) list.firstChild.remove();
   list.scrollTop = list.scrollHeight;
@@ -317,6 +350,7 @@ function feedNode(ev) {
 function renderFeed() {
   const list = $("#feed-list"); list.innerHTML = "";
   for (const ev of S.feed) { const n = feedNode(ev); if (n) list.appendChild(n); }
+  if (!list.children.length) list.innerHTML = `<div class="empty feed-empty">Quiet for now. When your AIs start, finish or hand work to each other, it shows up here.</div>`;
   list.scrollTop = list.scrollHeight;
 }
 
@@ -344,8 +378,9 @@ function renderStrip() {
     const active = S.activeByProvider[p.id] > 0;
     if (active) badge = `${S.activeByProvider[p.id]} working`;
     const stLight = p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
-    return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}">
-      <div class="top"><span class="light ${stLight}"></span><span class="name">${esc(p.name)}</span></div>
+    const lightWord = { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight;
+    return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
+      <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
       <div class="meter"><i style="width:${meter.toFixed(0)}%;background:${p.color}"></i></div>
       ${badge ? `<span class="badge">${badge}</span>` : ""}
@@ -397,14 +432,16 @@ async function installUpdate() {
   renderUpdateBar(); renderUpdateBox();
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
+// The active tab is marked for screen readers as well as by colour.
+function markTabs() { $$("#tabs button, #mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
 function render() {
-  $$("#tabs button, #mobile-nav button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === S.view));
+  markTabs();
   $("#feed")?.classList.remove("open");
   const v = $("#view");
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; } return; }
+  if (ft) { try { ft.tab.render(v); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -421,7 +458,7 @@ function ensureFeatureTabs() {
     if (!more) { more = document.createElement("div"); more.id = "mobile-more"; more.className = "mobile-more"; document.body.appendChild(more); const mb = document.createElement("button"); mb.dataset.more = "1"; mb.innerHTML = `<i>⋯</i>More`; mb.addEventListener("click", () => more.classList.toggle("open")); $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]")); }
     if (!$(`#mobile-more button[data-view="${f.id}"]`) && !$(`#mobile-nav button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.openProject = null; render(); }); more.appendChild(b); }
   }
-  $$("#tabs button, #mobile-nav button[data-view], #mobile-more button").forEach((b) => b.classList.toggle("active", b.dataset.view === S.view));
+  markTabs();
   $("#mobile-more")?.classList.remove("open");
 }
 function renderExtras(kind, sel, ...args) {
@@ -441,19 +478,19 @@ function renderCommand(v) {
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
-        <textarea id="orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="Marching orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <label class="lbl">How to run it</label>
-        <div class="seg" id="run-mode">
+        <div class="seg" id="run-mode" role="group" aria-label="How to run it">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
         </div>
         <label class="lbl">Priority</label>
-        <div class="seg" id="cost-mode">
+        <div class="seg" id="cost-mode" role="group" aria-label="Priority">
           ${["quality", "balanced", "economy"].map((m) => `<button data-m="${m}" class="${(S.costMode || S.settings.defaultMode) === m ? "on" : ""}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
         </div>
         <label class="lbl">When</label>
-        <div class="seg" id="when-mode">
+        <div class="seg" id="when-mode" role="group" aria-label="When">
           <button data-m="now" class="${(S.whenMode || "now") === "now" ? "on" : ""}">Now</button>
           <button data-m="offpeak" class="${S.whenMode === "offpeak" ? "on" : ""}" title="Queue the mission for the next discount window (e.g. DeepSeek off-peak, 50% off)">Off-peak</button>
         </div>
@@ -462,7 +499,7 @@ function renderCommand(v) {
           <label class="row small" style="gap:6px;margin-left:auto">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label>
         </div>
         <label class="lbl">Project</label>
-        <select id="proj">${projectOptions(S.project)}</select>
+        <select id="proj" aria-label="Project">${projectOptions(S.project)}</select>
         <div id="route" class="route" style="margin-top:10px;display:none"></div>
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
@@ -492,15 +529,16 @@ function renderCommand(v) {
   graph.setProviders([...textKeyed, ...textGrey, ...agents, ...media]);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0) graph.activate(pid, "working");
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); });
-  $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); });
-  $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); });
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); });
+  $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
+  $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
+  ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
   $("#proj").addEventListener("change", (e) => { S.project = e.target.value; localStorage.setItem("cc.project", S.project); });
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
   $("#preview").addEventListener("click", previewRoute);
-  $("#copy").addEventListener("click", () => { navigator.clipboard.writeText(S.live.deliverable || $("#out-md").innerText); toast("Copied"); });
+  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
   $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
   renderOps();
   renderExtras("command", "#cmd-extras");
@@ -608,18 +646,18 @@ function renderProjects(v) {
       <div class="pcards">${S.projects.map((p) => {
         const runs = S.missions.filter((m) => m.projectId === p.id);
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
-        return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}">
+        return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
           <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
-        </div>`; }).join("")}</div>
+        </div>`; }).join("") || `<div class="empty">No projects yet. Click + New project to group links, runs and files for one client or campaign.</div>`}</div>
     </div>
     <div class="grid">
       <div class="panel"><h3>Waiting on you <span class="right">HQ board</span></h3>
         ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       <div class="panel"><h3>Recent runs</h3>
-        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
       </div>
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
@@ -643,7 +681,7 @@ function renderProjectDetail(v, p) {
     <div class="grid">
       <div class="panel"><h3>Open HQ tasks <span class="right">${tasks.length}</span></h3>${tasks.slice(0, 15).map((t) => `<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="mono dim">${t.id}</span> ${esc(t.title)} <span class="chip">${t.status.replace(/_/g, " ")}</span>${t.owner ? ` <span class="dim">${t.owner}</span>` : ""}</div>`).join("") || `<div class="dim small">None.</div>`}</div>
       ${projCredits.length ? `<div class="panel"><h3>Media credits (HQ log)</h3>${projCredits.map(([k, val]) => `<div class="row small"><span>${esc(k)}</span><span class="mono" style="margin-left:auto">${fmtN(val)}</span></div>`).join("")}</div>` : ""}
-      <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
+      <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
@@ -749,14 +787,14 @@ function renderSubscriptions(v) {
   <table class="tbl"><thead><tr><th>Service</th><th>Plan</th><th>$/month</th><th>Renews</th><th>Credits left</th><th>Burn / day</th><th>Signal</th><th></th></tr></thead><tbody>
   ${S.subscriptions.map((s) => `<tr data-id="${s.id}">
     <td><span class="dot ${s.live?.status || ""}" style="${s.live ? "" : `background:${pcolor(s.provider)}`}"></span> <a href="${esc(s.url || "#")}" target="_blank" rel="noopener">${esc(s.name)}</a><div class="dim small">${esc(s.notes || "")}</div></td>
-    <td><input type="text" data-f="plan" value="${esc(s.plan || "")}" style="width:150px;padding:4px 6px"></td>
-    <td><input type="number" data-f="monthly" value="${s.monthly ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px;padding:4px 6px"></td>
-    <td><input type="date" data-f="renews" value="${s.renews || ""}" style="width:140px;padding:4px 6px"></td>
-    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
+    <td><input type="text" data-f="plan" aria-label="${esc(s.name)} plan" value="${esc(s.plan || "")}" style="width:150px;padding:4px 6px"></td>
+    <td><input type="number" data-f="monthly" aria-label="${esc(s.name)} dollars per month" value="${s.monthly ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px;padding:4px 6px"></td>
+    <td><input type="date" data-f="renews" aria-label="${esc(s.name)} renews on" value="${s.renews || ""}" style="width:140px;padding:4px 6px"></td>
+    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
     <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
-    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)">✕</button></td>
-  </tr>`).join("")}
+    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">✕</button></td>
+  </tr>`).join("") || `<tr><td colspan="8" class="dim">Nothing tracked yet. Click + Add, or use Setup to find the AI tools you already pay for.</td></tr>`}
   </tbody></table>
   <div class="dim small" style="margin-top:8px">Prices marked "?" are unknown; the grey "~" placeholder is the public list price, used only for the estimate. Credits left update automatically for services with a balance API (OpenRouter, DeepSeek, ElevenLabs) and from logged generations otherwise.</div></div>`;
   $$("tr[data-id]", v).forEach((tr) => {
@@ -968,7 +1006,8 @@ function showRefreshPrompt(worker) {
 }
 let installPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; const b = document.createElement("button"); b.className = "btn sm"; b.textContent = "Install app"; b.style.marginLeft = "4px"; b.onclick = async () => { installPrompt.prompt(); await installPrompt.userChoice; b.remove(); }; $(".top-right").prepend(b); });
-setInterval(() => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }, 1000);
+// the clock shows minutes, so the page is only touched when the minute changes
+setInterval(() => { const c = $("#clock"), t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); if (c && c.textContent !== t) c.textContent = t; }, 1000);
 
 // ----- sign-in gate (hosted mode) -----
 function renderGate(message = "") {
@@ -979,12 +1018,12 @@ function renderGate(message = "") {
     <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name">COMMAND <b>AI</b></span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${unreachable ? "" : `<label class="lbl">Email</label>
-    <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" required placeholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
+    <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
     ${(CONFIG.sso || []).length ? `<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">${CONFIG.sso.map((p) => `<button class="btn" type="button" data-sso="${esc(p.id)}" style="flex:1">Continue with ${esc(p.name)}</button>`).join("")}</div>
     <div class="small muted" style="margin-top:6px">Your team may ask you to use your work Google or Microsoft account.</div>` : ""}`}
     <div class="dim small" style="text-align:center;margin-top:16px">Command AI, an Everborn product by Everborn Productions</div>
-    <div id="gate-msg" class="small" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
+    <div id="gate-msg" class="small" role="status" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
     <details style="margin-top:14px"><summary class="small muted" style="cursor:pointer">Hub address</summary>
       <div class="row" style="margin-top:8px"><input type="text" id="gate-hub" value="${esc(hubAddress())}" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="gate-hub-save">Use</button>${HUB ? `<button class="btn sm" id="gate-hub-reset">Reset</button>` : ""}</div></details>
   </div>`;
@@ -999,7 +1038,7 @@ function renderGate(message = "") {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.msg || j.error_description || j.message || `HTTP ${r.status}`);
       $("#gate-msg").style.color = "var(--green)"; $("#gate-msg").textContent = `Link sent to ${email}. Open it on this device (check spam if it takes a minute).`;
-    } catch (err) { $("#gate-msg").style.color = "var(--red)"; $("#gate-msg").textContent = err.message; b.disabled = false; b.textContent = "Email me a sign-in link"; }
+    } catch (err) { $("#gate-msg").style.color = "var(--red)"; $("#gate-msg").textContent = err instanceof TypeError ? "Could not reach the sign-in service. Check the connection and try again." : err.message; b.disabled = false; b.textContent = "Email me a sign-in link"; }
   });
   // Google / Microsoft sign-in (Phase 24): the hub sends the browser to Supabase Auth and back here with the session
   $$("[data-sso]", g).forEach((b) => b.addEventListener("click", () => {

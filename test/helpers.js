@@ -58,10 +58,25 @@ export async function startStub({ rpc = () => ({ ok: false, tier: "free", status
 }
 
 // Start server/index.js in a child process. Returns helpers bound to that instance.
-export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
+// Test files run in parallel, so a port that was free a moment ago can be taken by another test's
+// server or mock before this child binds it. The child then exits, and a plain health check would get
+// an answer from the OTHER test's server (the Phase 11 ECONNRESET flake when that test shut it down).
+// So each child gets its own instance id, only a health answer echoing it counts (as the desktop app
+// does, decision 6), and a lost race is retried on new ports.
+export async function startServer(opts = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try { return await startServerOnce(opts); }
+    catch (e) { lastErr = e; if (!e.portRace) throw e; }
+  }
+  throw lastErr;
+}
+
+async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   const dir = dataDir || tmpDir();
   const port = await freePort();
   const demoPort = await freePort();
+  const instance = env.CC_INSTANCE || `test-${process.pid}-${port}-${Math.random().toString(36).slice(2, 10)}`;
   const stub = await startStub(cloud || {});
   const defaultsFile = path.join(dir, "cloud-defaults.test.json");
   // the shipped defaults are replaced by a stub so no test ever talks to the real project
@@ -74,6 +89,7 @@ export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
+    CC_INSTANCE: instance,
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
@@ -86,10 +102,16 @@ export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
   let up = false;
   while (Date.now() - t0 < 20000 && !up) {
     if (child.exitCode !== null) break;
-    try { const r = await raw({ port, path: "/api/health" }); up = r.status === 200; } catch {}
+    try { const r = await raw({ port, path: "/api/health" }); up = r.status === 200 && r.json?.instance === instance; } catch {}
     if (!up) await new Promise((r) => setTimeout(r, 150));
   }
-  if (!up) { child.kill(); await stub.close(); throw new Error("server did not start:\n" + log); }
+  if (!up) {
+    child.kill(); await stub.close();
+    const err = new Error("server did not start:\n" + log);
+    err.portRace = /EADDRINUSE|port \d+ in use/i.test(log);
+    if (err.portRace && !dataDir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
+    throw err;
+  }
 
   let token = "";
   const home = await raw({ port, path: "/" });

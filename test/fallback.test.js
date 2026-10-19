@@ -159,7 +159,7 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     await s.api("/chat", { method: "POST", body: { prompt: "Another tagline.", provider: "xai", model: "grok-4.3" } });
     run = await waitRun(s, finished("single", t0 - 1), "pre-empted single");
     full = (await s.api(`/missions/${run.id}`)).json;
-    assert.equal(full.status, "done"); assert.equal(m.calls("xai", from).length, 0, "no call to a provider known to be out of credits");
+    assert.equal(full.status, "done", `${full.error || ""} ${JSON.stringify(full.fallbacks || [])}\n--- server log tail ---\n${s.log.slice(-1500)}`); assert.equal(m.calls("xai", from).length, 0, "no call to a provider known to be out of credits");
     assert.equal(full.fallbacks[0].kind, "credits"); assert.match(full.fallbacks[0].reason, /skipped/);
     // the router leaves it out of auto-picks as well
     const route = (await s.api(`/route?prompt=${encodeURIComponent("Write a short tagline")}`)).json;
