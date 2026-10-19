@@ -1,7 +1,7 @@
 // Command AI desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -317,6 +317,44 @@ function createTray() {
   } catch {}
 }
 
+// Speech recognition needs the microphone. Without an explicit grant, Chromium
+// ends the recognizer immediately (often while the talk button is still held).
+// Only the local app window is answered; the check stays allow for other
+// permissions so notifications and clipboard keep working.
+function allowMicrophone() {
+  const ses = session.defaultSession;
+  const local = (wc) => {
+    try {
+      const u = wc && wc.getURL ? wc.getURL() : "";
+      return !u || u.startsWith("http://127.0.0.1:") || u.startsWith("http://localhost:") || u.startsWith("file:");
+    } catch { return false; }
+  };
+  const mic = (permission, details) => {
+    if (permission === "microphone" || permission === "audioCapture") return true;
+    if (permission === "media") {
+      const types = details && details.mediaTypes;
+      if (!types || !types.length) return true;
+      return types.includes("audio") || types.includes("unknown");
+    }
+    return false;
+  };
+  ses.setPermissionRequestHandler((wc, permission, callback, details) => {
+    if (!local(wc)) { callback(false); return; }
+    // A video-only prompt is not the microphone. Audio, or a media prompt with
+    // no type (speech recognition), is granted.
+    if (permission === "media" && details && Array.isArray(details.mediaTypes) && details.mediaTypes.includes("video") && !details.mediaTypes.includes("audio")) {
+      callback(false);
+      return;
+    }
+    if (mic(permission, details)) { callback(true); return; }
+    callback(true);
+  });
+  ses.setPermissionCheckHandler((wc, permission, _origin, details) => {
+    if (mic(permission, details)) return local(wc);
+    return true;
+  });
+}
+
 app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
 // give the quick-launcher shortcut back on quit (only the one this app registered)
 app.on("will-quit", () => { try { hotkey.dispose(); globalShortcut.unregisterAll(); } catch {} });
@@ -330,6 +368,7 @@ process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(IS_MAC ? Menu.buildFromTemplate(macMenuTemplate()) : null);
+  allowMicrophone();
   log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);
   setupIpc();
   // updates first: they must work even if the engine below fails to start

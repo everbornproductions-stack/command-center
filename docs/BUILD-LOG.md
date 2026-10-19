@@ -813,3 +813,13 @@ PHASE 24 DONE
 - Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). My scratch file `cc-mac-sim.tmp.cjs` was deleted. Nothing was pushed (Chris pushes).
 
 PHASE 14 BLOCKED: everything that can be done on Windows is finished and committed (Mac menu, tray, engine import, unsigned-Mac updates, draft-only workflow, tests), but the plan's step "check that the app runs on a Mac" (server start, Keychain vault, tray, window, data folder) and the Mac build itself need a real Mac or the macOS runner, which this PC does not have; signing and notarization also need the Apple Developer account Chris has not decided on.
+
+## 2026-10-19: Voice orders, hold stays down and tap to talk (Cursor cloud agent)
+
+- The Hold to talk button stopped on `mouseleave` (and on mouseup / touchend only), so a press ended as soon as the pointer slid off the button, and a re-render or a lost pointer dropped the release. The speech recognizer also ends itself on a pause or its own timeout. A hold now captures the pointer, ignores leave / cancel / blur / lost capture, and restarts the recognizer until the button or key is actually released.
+- Tap to talk is the default: tap once to start, tap again to stop, with a Recording indicator and timer. Stop on silence is optional and never cuts a hold short. Settings > Voice orders switches back to hold to talk. The choice is stored on the settings document (`settings.voice`).
+- The desktop shell grants the local window microphone access so speech recognition is not cut off by a missing media permission.
+- Demo mode on macOS and Linux registers the pretend AIs before saving their in-memory demo keys, so demo can start without an OS keychain. Tests outside Windows load a test-only keychain stand-in (`test/vault-preload.cjs`); the app itself still refuses to save real keys in plain Node.
+- Tests: test/voice.test.js. npm test 191 pass, 1 skipped (Pyodide is not installed here; the real-browser artifacts test ran), npm run smoke all checks pass. No real key, no network provider, temp data dir only.
+
+FIX voice-toggle DONE (built by Cursor cloud agent)

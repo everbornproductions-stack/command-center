@@ -76,7 +76,11 @@ export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
     ...env,
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
-  const child = spawn(process.execPath, [path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+  // Outside Windows, pretend the desktop keychain is available so tests can seal
+  // keys. The app itself still refuses to save keys in plain Node (see server/vault.js).
+  const entry = path.join(ROOT, "server", "index.js");
+  const args = process.platform === "win32" ? [entry] : ["--require", path.join(ROOT, "test", "vault-preload.cjs"), entry];
+  const child = spawn(process.execPath, args, { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   child.stdout.on("data", (c) => (log += c));
   child.stderr.on("data", (c) => (log += c));
