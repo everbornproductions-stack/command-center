@@ -160,3 +160,84 @@ Nothing for this phase was committed before this session; all of it was built he
 - `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 12 DONE
+
+## 2026-10-19 03:38 PT: Phase 27 (Built-in browser helper), built by Claude
+
+Nothing for this phase was committed before this session; all of it was built here. Checked against docs/DECISIONS.md: it carries out decision 17 (an in-app browser window driven by the cheapest capable AI, Gmail / Drive through the person's own Google sign-in, an explicit OK before any send, post, delete or purchase) and the hub-card part of decision 15 (the Browser helper card is now real: live light, activity feed, results in the council). No locked item was changed: the updater, single instance, own server, reload guard, appId and data folder are untouched; electron/main.cjs only gained one line that registers the helper window. Phase 12's behaviour is kept: when Grok Bot is set up it still takes these jobs, and its tests pass unchanged.
+
+- Core: `server/browser.js`. Text reader: `server/browser-reader.js`. Google: `server/google.js`. Routes: `server/plugins/browser.js` at `/api/browser`. Desktop window: `electron/browser-helper.cjs`, `electron/browser-bar.html`, `electron/browser-bar-preload.cjs`. UI: `web/features/browser.js`. Demo page: `web/browser-demo.html`. Docs: `docs/browser-helper.md`. README row added.
+- Driving: the cheapest capable AI (`cheapest()`), or a model picked in Settings, reads the page as text plus numbered links, buttons, fields and forms (DOM reading, no screenshots).
+  - It answers with one JSON action per step: open, click, type, submit, back, scroll, ask, gmail_search / read / send, drive_search / read, done, fail.
+  - Every call goes through smart fallback, is in the ledger (role `browse`, booked to the job, council or mission) and is inside the spend caps.
+  - Limits per job: steps (12) and spend ($0.25). One job runs at a time.
+  - The prompt says page text is data, not instructions.
+- The window (desktop app):
+  - A separate window with its own session (`persist:cc-browser-helper`), never the person's main browser profile. All permission requests are refused, downloads are blocked, and pop-ups open in the same view.
+  - The page is read and driven from an isolated world, so the site's scripts cannot see or move the element references. Clicks are real mouse events at the element.
+  - A bar on top shows the task, steps and cost, the action log, the OK / No question and Stop. Only the bar's own webContents can answer. Closing the window stops the job.
+- The text reader is used without the desktop app (and in the tests): fetch with a cookie jar per job, links, forms (GET / POST), no JavaScript. Neither driver is available on the hosted hub.
+- Explicit OK (`assess()`), always showing exactly what will happen:
+  - Any form submit: the page, the button, method and address, and every field with its value; hidden fields are shown, passwords never.
+  - Clicks or addresses that read as send / post / delete / purchase.
+  - Every email: To, Subject, the full body.
+  - `ask` for things only the person can do, such as signing in or a captcha.
+  - A No goes back to the AI. No answer within 10 minutes stops the job with nothing done.
+- Refused outright:
+  - Typing into password fields. The typed text is never repeated in the log or to the AI.
+  - Card and bank fields.
+  - Square hosts, and billing / payment-method pages.
+  - Command AI's own address (except the demo page).
+  - Anything that is not http(s).
+  - Sending mail without the send permission.
+- Google:
+  - OAuth with PKCE S256, with the person's own client ID and secret.
+  - Scopes: `gmail.readonly` and `drive.readonly` by default; `gmail.send` only when ticked. A grant wider than requested is refused and nothing is kept.
+  - The client secret and tokens are in the vault (`google-helper`). Tokens are refreshed; "sign in again" answers 409.
+  - Reads are GET only. Gmail search / read and Drive search / read (Docs, Sheets and Slides exported as text). Send builds a plain-text MIME message, only after the OK.
+  - The return from Google is `?code&state=bh-...` on the app page.
+- Councils and missions: `server/agents.js` now picks at most one outside agent per job.
+  - Grok Bot when it is set up and fits. Otherwise the helper takes the parts that need a website, Gmail or Drive, never plain text work.
+  - Once Grok Bot is set up (connection saved or mock on), the helper joins only when asked: "Browser helper: Always" in Command, or naming it.
+  - council.js and mission.js were made agent-agnostic. The same seat, scoring, chair packet, learning-router credit and late-result handling now serve both agents. Grok Bot-only wording (paste by hand) stays Grok Bot's.
+  - `/council` and `/mission` take `browser: true / false`, and `/route` returns `browserHelper` advice.
+- Hub card:
+  - Light: grey (off / no AI / hosted), green (ready, working), amber (waiting for an OK), red (the last job failed; a job you stopped does not count).
+  - Also shows what it is doing now and an activity feed of its action log.
+  - Events: `browser.job`, `browser.step`, `external.handoff` (agent `browser-helper`, for the Phase 29 live view) and `provider.status`.
+- UI:
+  - Command has "Browser helper: when needed / Always / Never", Send to Browser helper (a click), and each open job with its live log, the OK / No box and Stop.
+  - A floating OK box appears on every view while the helper waits.
+  - The deliverable shows this run's helper jobs.
+  - Settings > Integrations > Browser helper: on, automatic hand-off, the window or the text reader, limits, waits, the model, and Google (client, the three scopes, Connect / Disconnect). "Try it on the demo page" is there too.
+  - web/app.js passes the choice with councils and missions.
+- Demo mode: the pretend AI (server/mock.js) opens the address in the task, fills in a contact form, clicks its button (which asks for the OK) and reports. It works with no keys on the built-in demo page.
+- Commits: e18b00b (feature and tests), plus this log entry.
+- Tests: npm test 119/119 pass. `test/browser.test.js` adds 5:
+  - the page reader: title, text, links, buttons, fields, forms, hidden fields, labels, selects, and password / card flags; scripts and comments are ignored;
+  - `assess()`: every refusal, and every kind of OK with its exact lines;
+  - read-only scopes, the window's isolation settings in the source, and no em-dashes;
+  - the running server against one local mock playing xAI (a scripted AI), a small website and Google. It covers:
+    - before any AI (grey, 409) and readiness with the text reader and the cheapest AI;
+    - settings validation;
+    - a click job that browses, fills in a form, waits for the OK with the exact fields and address, sends nothing before it, then sends once exactly as shown, with a cookie jar;
+    - a wrong or second answer refused (409);
+    - the action log, history, steps and cost; 6 ledger entries for 6 steps; external.handoff and browser.step events; the card light (amber while waiting, green, red after a failure);
+    - No (nothing sent, the AI told);
+    - refusals: password and card fields, Square, billing and this app. The password page is the only one fetched, and the typed password appears nowhere;
+    - ask, then Stop; the step limit;
+    - Google: client ID first; scopes and PKCE in the sign-in address; a forged state; a wider grant refused with nothing kept; connect; Gmail search / read and Drive search / read with GET only and the person's token; send refused while read-only; connect with send; the email OK lines; one send with the exact MIME;
+    - a council where the helper takes a seat, is peer-scored, reaches the chair, is credited in brain.json, and has its calls booked to the council; a council with browser: false;
+    - a mission whose browsing step goes to the helper while the next step uses its result;
+    - Grok Bot set up (mock) taking the Gmail council instead; switched off (409, grey); disconnect;
+    - no client secret, token or key in the log, any API reply, any data file or the sealed vault;
+  - demo mode with no keys: the demo page is served, and the demo job asks for the OK with the filled-in fields, then finishes after it.
+- npm run smoke: 16/16 pass. Both suites ran in temp data dirs with mocks; no real account, URL or key was used.
+- Not verified:
+  - The desktop window, its bar, the isolated-world page script (snapshot, real mouse clicks, insertText, select, requestSubmit), the Settings and Command panels and the floating OK box were syntax-checked (node --check). Only the window's isolation settings were checked by test, in the source. None of it was opened in Electron or a browser. Electron 44's BaseWindow / WebContentsView, `executeJavaScriptInIsolatedWorld` and `navigationHistory` were used from their documented APIs. A first run in the desktop app will confirm them.
+  - Real Google sign-in was not run: it needs an OAuth client the person registers (Desktop app, Gmail API and Drive API enabled). The loopback redirect to the app page is the same one Phase 25 uses, and it is equally unconfirmed.
+  - Real websites were not driven. How well the cheapest model drives real pages is unknown, and the risk words are keyword-based. Every form submit still asks no matter what, so a missed word can only cost an extra OK question, never a silent send.
+  - A page that lies about a button's label can mislead the OK summary. It cannot act without the click.
+  - The hosted hub refuses the helper by design.
+- `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 27 DONE
