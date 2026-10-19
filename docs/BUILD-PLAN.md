@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25 and 26 were added on 2026-10-18 as high priority, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25, 26 and 28 were added on 2026-10-18 as high priority, 28 right after 26, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -110,6 +110,15 @@ For every customer: a job never fails just because one provider is out of credit
 - Small jobs (short classify / summarize / title tasks) prefer free tiers where the user has them (for example the Gemini free allowance), never exceeding a free limit the app knows about.
 - A provider switches back automatically when its credits or limit return (next successful health check or call); no manual reset needed.
 - Every fallback call goes to the ledger and respects spend caps. Tests: mocked providers returning 402 / 403-credits / 429 / 401 / network errors, OpenRouter retry, free-tier pick, and recovery; no real URLs or keys.
+
+### Phase 28 (HIGH PRIORITY, core, added 2026-10-18 by Chris): Learning router, the app's own brain (effort: L, about 2 sessions)
+The router learns from every job which model is best at what, for the price, per user.
+- Save per model per user: council scores, the person's thumbs up / down, cost, latency, success or failure, and the task type (capability and difficulty from the classifier). No prompt or answer content beyond the task type; never secrets, keys or personal data.
+- The router uses this track record (with the registry's base scores as the starting point) to pick the best model per task for the person's priority (quality / balanced / economy), improving with each job; works together with Phase 26 smart fallback.
+- A per-user "Who's best at what" view: per task type, the top models with win rate, average score, cost per job and speed, and how many jobs the ranking is based on. The person can reset it.
+- Local first: stored in the user's data (hosted: their own rows). Export and delete with the rest of their data.
+- Later stage (separate, opt-in only): aggregate anonymous, opt-in track records across users to train a small routing model of our own. Nothing is shared without an explicit opt-in.
+- Tests: simulated job histories that change the ranking, thumbs and council scores weighting, cost and latency in the score, the reset, and a check that no prompt text or secrets are stored.
 
 ### Phase 25 (HIGH PRIORITY, added 2026-10-18 by Chris): Subscriptions and services page (effort: L, about 2 sessions)
 One page that shows every paid AI service, what is left, what it costs this month and when it renews. Builds on the existing subscriptions tracker (server/subscriptions.js) and the spend caps and alerts plugin.

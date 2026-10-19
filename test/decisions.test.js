@@ -10,7 +10,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 
 test("DECISIONS.md exists, is referenced first in CLAUDE.md, and lists every locked item", () => {
   const d = read("docs", "DECISIONS.md");
-  for (const s of ["Command AI", "an Everborn product", "com.everborn.command", "Everborn Command", "command-center-releases", "Command-AI-Setup-${version}.${ext}", "Install now", "requestSingleInstanceLock", "instance id", "4747", "Phase 8", "Google Gemini", "Add custom provider", "Ollama", "AIza", "Demo", "Key rejected (401)", "Could not reach", "safeReload", "1, 15, 16, 26, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11", "Smart fallback (Phase 26)", "Built-in browser helper (Phase 27)", "agent cards on the hub", "Grok Bot agent", "Square", "real API keys", "click"]) assert.ok(d.includes(s), `DECISIONS.md mentions ${s}`);
+  for (const s of ["Command AI", "an Everborn product", "com.everborn.command", "Everborn Command", "command-center-releases", "Command-AI-Setup-${version}.${ext}", "Install now", "requestSingleInstanceLock", "instance id", "4747", "Phase 8", "Google Gemini", "Add custom provider", "Ollama", "AIza", "Demo", "Key rejected (401)", "Could not reach", "safeReload", "1, 15, 16, 26, 28, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11", "Learning router (Phase 28)", "Smart fallback (Phase 26)", "Built-in browser helper (Phase 27)", "agent cards on the hub", "Grok Bot agent", "Square", "real API keys", "click"]) assert.ok(d.includes(s), `DECISIONS.md mentions ${s}`);
   assert.doesNotMatch(d, /\u2014/, "no em-dashes");
   const c = read("CLAUDE.md");
   assert.match(c.split("\n").slice(0, 4).join("\n"), /Read docs\/DECISIONS\.md first/);
@@ -38,7 +38,7 @@ test("locked: own server with launch-ID handshake, single instance, main-process
 
 test("locked: run order is the same in DECISIONS.md and BUILD-PLAN.md; Phase 8 is DONE", () => {
   const plan = read("docs", "BUILD-PLAN.md");
-  assert.match(plan, /Run order: 1, 15, 16, 26, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11\b/);
+  assert.match(plan, /Run order: 1, 15, 16, 26, 28, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11\b/);
   assert.match(read("docs", "BUILD-LOG.md"), /^\s*PHASE 8 DONE/m);
 });
 

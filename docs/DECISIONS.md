@@ -72,7 +72,7 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
     - Built by Grok Bot: server/plugins/workspaces.js, web/features/workspaces.js, supabase/workspaces.sql (migration file only, never run on the live DB).
     - Do not rebuild it.
 14. **Run order:**
-    - 1, 15, 16, 26, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11.
+    - 1, 15, 16, 26, 28, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11.
     - Phases already marked `PHASE N DONE` are skipped.
     - Phase 14 (Mac build) cannot be verified without a Mac: if a step needs one, write `PHASE 14 BLOCKED` with the reason.
 15. **Grok Bot agent (Phase 12) spec stays as written in BUILD-PLAN:**
@@ -89,6 +89,8 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 16. **Smart fallback (Phase 26) is core and applies to every customer:** out-of-credits, rate-limited or key-rejected providers are skipped automatically, work goes to the next-best model by speed / quality / cost, the same model is retried through OpenRouter first when an OpenRouter key exists, small jobs use free tiers (such as the Gemini free allowance), and providers switch back when credits return. Every call is in the ledger and within spend caps.
 17. **Built-in browser helper (Phase 27)** for customers without Grok Bot: an in-app browser window driven by the cheapest capable AI, plus Gmail / Drive through the person's own Google sign-in. An explicit OK is required before any send, post, delete or purchase.
 
+
+18. **Learning router (Phase 28) is the app's own brain:** it saves council scores, thumbs up / down, cost, latency and task type per model per user (no prompt content beyond the task type, never secrets or personal data), picks the best model per task for the price from that track record, and shows a per-user "Who's best at what" view. Training a small model of our own later uses only aggregated, opt-in data.
 
 ## Rules (always)
 - Never deploy the hub or anything else. Never touch Square or billing, never charge money.
