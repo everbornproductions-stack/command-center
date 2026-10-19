@@ -54,6 +54,8 @@ const css = `
 .lv-reduced .lv-halo, .lv-reduced .lv-spin, .lv-reduced .lv-stream, .lv-reduced .lv-edge, .lv-reduced .lv-glow-stroke, .lv-reduced .lv-node { animation: none !important; }
 .lv-reduced .lv-particle, .lv-reduced .lv-dot, .lv-reduced .lv-stream { display: none !important; }
 .lv-reduced .lv-node.lv-live .lv-halo { opacity: .4; }
+.lv-ops-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+.lv-ops-foot .btn { font-weight: 600; }
 `;
 if (!document.getElementById("lv-style")) { const style = document.createElement("style"); style.id = "lv-style"; style.textContent = css; document.head.appendChild(style); }
 
@@ -315,10 +317,23 @@ function cmdInner(view) {
   const handLinks = (p?.runs || []).flatMap((r) => r.handoffs || []).filter((h) => h.link?.url);
   const openRow = handLinks.map((h) => `<a class="btn sm" href="${esc(h.link.url)}" target="_blank" rel="noopener" title="${esc(h.name || "Open")}">Open</a>`).join("");
   return `<div class="route" style="margin-top:8px">
-    <div class="row small" style="gap:8px"><b>Live</b><span style="flex:1">${esc(line)}</span><button class="btn sm" type="button" id="lv-open">Open live view</button></div>
+    <div class="row small" style="gap:8px"><b>Live</b><span style="flex:1">${esc(line)}</span></div>
     ${linksHtml(p?.links || [])}
     ${openRow ? `<div class="row small" style="gap:8px;margin-top:6px">${openRow}</div>` : ""}
   </div>`;
+}
+function mountOpsButton() {
+  const ops = document.querySelector(".panel.ops");
+  if (!ops) return;
+  let foot = ops.querySelector(".lv-ops-foot");
+  if (!foot) {
+    foot = document.createElement("div");
+    foot.className = "lv-ops-foot";
+    ops.appendChild(foot);
+  }
+  if (foot.querySelector("#lv-open")) return;
+  foot.innerHTML = `<button class="btn sm primary" type="button" id="lv-open">Open live view</button>`;
+  foot.querySelector("#lv-open").addEventListener("click", () => { selected = S.project || ""; go("liveview"); });
 }
 function delivInner(view, runId) {
   const run = (view?.runs || []).find((r) => r.id === runId);
@@ -329,7 +344,7 @@ function wire(root) {
   if (!root) return;
   root.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.proj === "*" ? "*" : b.dataset.proj; paint(); }));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { S.view = "projects"; S.openProject = b.dataset.open; window.CC.render(); }));
-  root.querySelector("#lv-open")?.addEventListener("click", () => { selected = S.project || ""; go("liveview"); });
+  mountOpsButton();
 }
 function paint() {
   if (!cache) return;
@@ -416,6 +431,7 @@ CC.register({
   } },
   command: { order: 8, render(el) {
     el.innerHTML = `<div id="lv-cmd"></div>`;
+    mountOpsButton();
     if (cache) { const box = el.querySelector("#lv-cmd"); box.innerHTML = cmdInner(cache); wire(box); }
     else ensure();
   } },

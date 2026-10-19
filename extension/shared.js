@@ -1,4 +1,4 @@
-// Shared by the popup and the background worker. Talks only to Command AI on this computer
+// Shared by the popup and the background worker. Talks only to Meldmind on this computer
 // (http://127.0.0.1:<port>), with the pairing code made in the app. Nothing is sent anywhere else.
 export const PORTS = Array.from({ length: 10 }, (_, i) => 4747 + i); // the app uses the first free port from 4747 up
 const MAX_TEXT = 50000;
@@ -13,7 +13,7 @@ export const forget = () => chrome.storage.local.remove(["code", "port", "name"]
 // "cce.<port>.<secret>" as shown in the app; the port is a hint, the secret is the pairing
 export function parseCode(raw) {
   const m = String(raw || "").trim().match(/^cce\.(\d{2,5})\.([A-Za-z0-9_-]{30,60})$/);
-  if (!m) throw new Error("That is not a Command AI pairing code. Copy it again from Settings > Browser extension.");
+  if (!m) throw new Error("That is not a Meldmind pairing code. Copy it again from Settings > Browser extension.");
   return { port: Number(m[1]), secret: m[2], code: m[0] };
 }
 
@@ -36,12 +36,12 @@ export async function ping(code, hint) {
     try { const j = await call(port, code, "ping"); await save({ port, name: j.name || "" }); return { ...j, port }; }
     catch (e) { if (e.status === 401 || e.status === 429) refused = e; }
   }
-  throw refused || new Error("Command AI is not running on this PC (or it was started on an unusual port). Open the app and try again.");
+  throw refused || new Error("Meldmind is not running on this PC (or it was started on an unusual port). Open the app and try again.");
 }
 
 export async function send(payload) {
   const s = await settings();
-  if (!s.code) throw new Error("Pair the extension first: click its icon and paste the code from Command AI > Settings > Browser extension.");
+  if (!s.code) throw new Error("Pair the extension first: click its icon and paste the code from Meldmind > Settings > Browser extension.");
   const body = { action: s.action, ...payload, text: String(payload.text || "").slice(0, MAX_TEXT) };
   try { return await call(s.port, s.code, "send", body); }
   catch (e) {

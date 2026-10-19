@@ -338,6 +338,9 @@ test("UI and server sources: no em-dash, no fetch of a provider page, reduced mo
   assert.match(ui, /lv-pulse/);
   assert.match(ui, /claude\.ai/);
   assert.match(ui, /Open in /);
+  assert.match(ui, /lv-ops-foot/);
+  assert.match(ui, /justify-content: flex-end/);
+  assert.doesNotMatch(ui, /<b>Live<\/b>[\s\S]{0,180}Open live view/);
   assert.match(plugin, /external\.handoff/);
   assert.doesNotMatch(server, /\bfetch\s*\(/);
   assert.doesNotMatch(plugin, /\bfetch\s*\(/);

@@ -429,7 +429,7 @@ export async function oauthStart(id, { redirectUri }) {
   let clientId = s.clientId || s.oauth?.clientId || null, clientSecret = sec.oauth?.clientSecret || null;
   if (!clientId) {
     if (!disc.registrationEndpoint) throw err(400, `${new URL(disc.issuer).host} does not offer dynamic client registration. Ask the service for a client ID and enter it on the server's card.`, "client_id");
-    const reg = await fetchJsonOk(disc.registrationEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Command AI", client_uri: "https://everbornproductions.com/command-center/", redirect_uris: [redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none", scope: disc.scopes?.join(" ") || undefined }) });
+    const reg = await fetchJsonOk(disc.registrationEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Meldmind", client_uri: "https://everbornproductions.com/command-center/", redirect_uris: [redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none", scope: disc.scopes?.join(" ") || undefined }) });
     if (!reg.client_id) throw err(400, "Registration did not return a client_id.");
     clientId = reg.client_id; clientSecret = reg.client_secret || null;
   }

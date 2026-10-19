@@ -8,8 +8,9 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 
 ## Product and installer
 1. **Name and tagline.**
-   - The product is **Command AI**, with the tagline **"an Everborn product"** (by Everborn Productions) everywhere a user looks: window title, installer, tray, header and docs.
-   - The internal and repo names stay "Everborn Command Center" / `command-center`.
+   - The user-facing product name is **Meldmind**, with the tagline **"an Everborn product"** (by Everborn Productions) everywhere a user looks: window title, installer, tray, header and docs. Where a subtitle fits, also show **"Take command of all your AIs."**
+   - The name is provisional, pending attorney trademark review before public launch (Cisco MINDMELD risk). The previous display name was Command AI.
+   - The internal and repo names stay "Everborn Command Center" / `command-center`. The appId, the user-data folder, and the updater feed stay as in items 2 and 3, so existing installs keep their keys, settings and history and still auto-update.
    - No em-dashes in any user-facing text.
    - Tests: `test/update.test.js` (branding), `test/desktop-update.test.js`.
 2. **appId and data folder never change.**
@@ -19,11 +20,11 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 3. **Updates.**
    - electron-updater uses the GitHub provider and reads the PUBLIC repo `everbornproductions-stack/command-center-releases`.
    - The source repo stays private, and no token is ever embedded in the app.
-   - Artifact names use dashes, no spaces: `Command-AI-Setup-${version}.${ext}`.
+   - Artifact names use dashes, no spaces: `Meldmind-Setup-${version}.${ext}`. The feed file stays `latest.yml` in `everbornproductions-stack/command-center-releases`.
    - Releases follow docs/RELEASING.md: draft, upload, verify size, publish, then check that `latest.yml` shows the new version.
 4. **Launch update prompt and main-process updater.**
    - The updater lives in the Electron main process (electron/updater.cjs). It never depends on the local server or the web UI.
-   - On launch it checks for updates and shows "Command AI vX.Y.Z is ready" with **Install now** (progress bar, then restart) and **Later**.
+   - On launch it checks for updates and shows "Meldmind vX.Y.Z is ready" with **Install now** (progress bar, then restart) and **Later**.
    - Nothing downloads before that click.
    - The tray has Check for updates, Install update and Restart app.
    - The engine watchdog (electron/watchdog.cjs) offers Restart app / Install update after about 15 s without an answer.
@@ -31,7 +32,7 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
    - So a broken build can always update itself.
 5. **Single instance.**
    - `app.requestSingleInstanceLock()` is used, and a second launch focuses the open window.
-   - Several "Command AI.exe" processes for one copy (main, GPU, network, window) are normal.
+   - Several "Meldmind.exe" processes for one copy (main, GPU, network, window) are normal. The Windows process name follows productName. The user-data folder name does not.
 6. **The app always runs its own server.**
    - It starts its own local engine on the first free port from 4747 up.
    - It trusts only a server that echoes this launch's random instance id (`CC_INSTANCE`, `/api/health` → `instance`).
@@ -108,3 +109,13 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 - Never read or commit anything in `data\` (including data\supabase-db-password.txt).
 - Never put passwords, SSNs or client data into git.
 - Nothing posts, sends or publishes without an explicit click by the person.
+
+## Plan notes (not locked, not a change to the decisions above)
+
+The lock at the top of this file does not cover this section. These notes are the plan. They do not override decision 16 or any other locked item. Leaving a "planned" item unbuilt is not a regression.
+
+21. **Pro prompts (Phase 30) and intent auto-detect (Phase 31).** The pack is ROLE / CONTEXT / COMMAND / FORMAT, filled from the Business Profile, and it halts when a required fact is missing. Safety marks unverified numbers [VERIFY], keeps outbound text as drafts, and strips SSNs, dates of birth, and account numbers. SCF mode adds CROA and RESPA. Intent match is a keyword heuristic plus one cheap router call when the heuristic is unsure. The learning router stores the template id and a count only. The top navigation is grouped menus. "Open live view" is at the bottom-right of the Live Ops panel, and Live stays in the Work menu.
+22. **Model-version alerts (Phase 32) are planned and not built.** Watch providers for a new model version (for example Kling 4.0), notify the person, and offer a one-click switch.
+23. **Bring your own apps (Phase 33) is planned and not built.** (1) API / OAuth connectors under Connect, HighLevel first (contacts, invoices, workflows as council tools). (2) Any user MCP server by URL (Zapier, Make, and similar). (3) Custom webhook / API tools (URL, auth header, input schema). Send, charge, and modify actions need a confirmation click. Keys stay in the vault and are never logged.
+24. **Phase 26 extension is planned and not built.** Decision 16 is unchanged: skip a provider that is out of credits, rate limited, or refusing the key; send the work to the next-best model; retry the same model through OpenRouter when a key exists; prefer known free tiers for small jobs; switch back when credits return; ledger and spend caps on every call. A later pass adds this order on top: (1) an alternate API route (OpenRouter, including a free tier the app already knows about); (2) MCP where the provider's own app offers it; (3) an opt-in relay mode that copies the full context into the person's already signed-in ChatGPT or Claude web page through the extension or the browser helper and reads the reply back into the council. Relay is slower, carries a terms-of-service caution, is off by default, and shows a relay tag on the live map when it is on.
+25. **Hide hosted plumbing (Phase 34) is planned and not built.** Customers never see Supabase or callback / webhook plumbing. Decision 15 is unchanged: the handoff is still a webhook, a sender key stored as a secret, a configurable header, and a per-job callback. The hosted Supabase URL and the publishable key ship built in. Once our hosted server exists, the results callback URL auto-fills from that server. Grok Bot and other agent handoff fields are prefilled where the app already knows the value. Those fields stay hidden unless the optional "Use your own Supabase" switch is on (off by default) or an Advanced toggle is on. Nothing in this note deploys a hub or sends a job without a click.

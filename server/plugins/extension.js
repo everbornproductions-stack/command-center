@@ -85,7 +85,7 @@ export function buildPrompt({ kind, url, title, text, note }) {
 export async function handleHook(req, res, url, send) {
   if (HOSTED) return send(res, 404, { error: "The browser extension works with the desktop app." });
   const origin = req.headers.origin;
-  if (origin && !extOrigin(origin)) return send(res, 403, { error: "only the Command AI browser extension may call this", code: "origin" });
+  if (origin && !extOrigin(origin)) return send(res, 403, { error: "only the Meldmind browser extension may call this", code: "origin" });
   if (origin) { res.setHeader("access-control-allow-origin", origin); res.setHeader("vary", "origin"); }
   if (req.method === "OPTIONS") {
     res.setHeader("access-control-allow-methods", "GET,POST"); res.setHeader("access-control-allow-headers", "authorization, content-type"); res.setHeader("access-control-max-age", "600");
@@ -100,11 +100,11 @@ export async function handleHook(req, res, url, send) {
     const p = secret ? findPairing(secret) : null;
     if (!p) {
       if (!allow("bad", LIMITS.badPerMinute)) return send(res, 429, { error: "too many wrong pairing codes; wait a minute" });
-      return send(res, 401, { error: "pairing code not recognised: pair the extension again in Command AI > Settings > Browser extension", code: "pairing" });
+      return send(res, 401, { error: "pairing code not recognised: pair the extension again in Meldmind > Settings > Browser extension", code: "pairing" });
     }
     if (route === "ping") {
       if (req.method !== "GET") return send(res, 405, { error: "GET only" });
-      return send(res, 200, { ok: true, app: "Command AI", tagline: "an Everborn product", version: H?.VERSION || null, name: p.name, port: port() });
+      return send(res, 200, { ok: true, app: "Meldmind", tagline: "an Everborn product", version: H?.VERSION || null, name: p.name, port: port() });
     }
     if (req.method !== "POST") return send(res, 405, { error: "POST only" });
     if (!/^application\/json\b/i.test(String(req.headers["content-type"] || ""))) return send(res, 415, { error: "content-type must be application/json" });

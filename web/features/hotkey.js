@@ -21,7 +21,7 @@ async function renderSettings(el) {
   if (window.CC.S.mode === "hosted") { el.innerHTML = ""; return; }
   const light = !d.desktop ? "" : d.registered ? `<span class="chip green">ready: press ${esc(d.accelerator)} anywhere</span>` : d.enabled ? `<span class="chip amber">not active</span>` : `<span class="chip">off</span>`;
   el.innerHTML = `<div class="panel"><h3>Quick launcher <span class="right">${light}</span></h3>
-    <div class="small muted">A global shortcut opens a small box over any app: type a question or orders, Enter sends it to Command AI (Chat or Council) and the app shows the answer. The default is ${esc(d.default)}. A shortcut that Windows or another app already uses is never taken over; pick another one then. The shortcut is released when Command AI quits.</div>
+    <div class="small muted">A global shortcut opens a small box over any app: type a question or orders, Enter sends it to Meldmind (Chat or Council) and the app shows the answer. The default is ${esc(d.default)}. A shortcut that Windows or another app already uses is never taken over; pick another one then. The shortcut is released when Meldmind quits.</div>
     ${d.desktop ? "" : `<div class="dim small" style="margin-top:6px">${esc(d.reason)}</div>`}
     <div class="row small" style="gap:10px;margin-top:10px;flex-wrap:wrap">
       <label class="row" style="gap:6px"><input type="checkbox" id="hk-on" ${d.enabled ? "checked" : ""}> On</label>

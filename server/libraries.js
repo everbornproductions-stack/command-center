@@ -47,8 +47,8 @@ export const EMBEDDERS = {
 };
 
 const bad = (msg, status = 400, code) => Object.assign(new Error(msg), { status, code });
-const gone = () => bad("Knowledge libraries live in the desktop app for now (the index is a file on your PC). Open Command AI on your computer to use them.", 501, "hosted");
-const need = () => { if (HOSTED) throw gone(); if (!DatabaseSync) throw bad("Knowledge libraries need a newer runtime (node:sqlite). Update Command AI.", 501, "sqlite"); };
+const gone = () => bad("Knowledge libraries live in the desktop app for now (the index is a file on your PC). Open Meldmind on your computer to use them.", 501, "hosted");
+const need = () => { if (HOSTED) throw gone(); if (!DatabaseSync) throw bad("Knowledge libraries need a newer runtime (node:sqlite). Update Meldmind.", 501, "sqlite"); };
 const capped = () => doc("alerts.state", () => undefined)?.stop || []; // read only; the alerts plugin owns it
 const nameOf = (pid) => PROVIDERS[pid]?.name || pid;
 const tokensOf = (chars) => Math.ceil(Number(chars || 0) / 4);

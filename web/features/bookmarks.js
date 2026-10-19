@@ -39,7 +39,7 @@ function html() {
   const m = st.models?.models.find((x) => `${x.provider}/${x.model}` === st.model);
   const pickRow = `<div class="opts">
       <select id="bm-src">${v.sources.length ? v.sources.map((x) => `<option value="${esc(x.browser)}|${esc(x.profile)}" ${`${x.browser}|${x.profile}` === st.src ? "selected" : ""}>${esc(x.browserName)} · ${esc(x.name)}${x.kind === "firefox" ? " (import file only)" : ""}</option>`).join("") : `<option value="">No Chrome, Edge, Brave or Firefox bookmarks found</option>`}</select>
-      <label class="row small" style="gap:6px"><input type="checkbox" id="bm-allow" ${st.allow ? "checked" : ""}> Allow Command AI to read this browser's bookmarks</label>
+      <label class="row small" style="gap:6px"><input type="checkbox" id="bm-allow" ${st.allow ? "checked" : ""}> Allow Meldmind to read this browser's bookmarks</label>
       <button class="btn sm" id="bm-read" ${!src || !st.allow || st.busy ? "disabled" : ""}>${st.busy === "read" ? "Reading…" : "Read bookmarks"}</button></div>`;
   let body = "";
   if (d) {
@@ -63,9 +63,9 @@ function html() {
       <div class="opts small"><label class="row" style="gap:6px"><input type="radio" name="bm-where" value="bar" ${st.where === "bar" ? "checked" : ""}> on the bookmarks bar</label>
         <label class="row" style="gap:6px"><input type="radio" name="bm-where" value="other" ${st.where === "other" ? "checked" : ""}> under Other bookmarks</label>
         <label class="row" style="gap:6px"><input type="checkbox" id="bm-empty" ${st.removeEmpty ? "checked" : ""}> remove folders this leaves empty</label></div>
-      ${d.canApply && d.kind !== "demo" ? `<div class="warn small">Close ${esc(d.browserName)} completely before you apply: it rewrites its bookmarks file while it runs. Command AI checks and will not apply while it is open. The original file is backed up first (next to it and in the app data folder) and Undo puts it back.</div>` : ""}
+      ${d.canApply && d.kind !== "demo" ? `<div class="warn small">Close ${esc(d.browserName)} completely before you apply: it rewrites its bookmarks file while it runs. Meldmind checks and will not apply while it is open. The original file is backed up first (next to it and in the app data folder) and Undo puts it back.</div>` : ""}
       ${d.synced ? `<div class="warn small">This profile syncs bookmarks with an account. The browser may put the old layout back or bring duplicates from the cloud. The import file is the safer choice. <label class="row" style="gap:6px;margin-top:4px"><input type="checkbox" id="bm-synced" ${st.allowSynced ? "checked" : ""}> Apply anyway</label></div>` : ""}
-      ${d.kind === "firefox" ? `<div class="warn small">Firefox's bookmark database cannot be rewritten safely, so you get an import file: Firefox, Bookmarks, Manage bookmarks, Import and Backup, Import Bookmarks from HTML. It adds an "Organized by Command AI" folder; your old bookmarks stay as they are.</div>` : ""}
+      ${d.kind === "firefox" ? `<div class="warn small">Firefox's bookmark database cannot be rewritten safely, so you get an import file: Firefox, Bookmarks, Manage bookmarks, Import and Backup, Import Bookmarks from HTML. It adds an "Organized by Meldmind" folder; your old bookmarks stay as they are.</div>` : ""}
       <div class="opts">${d.canApply ? `<button class="btn primary" id="bm-apply" ${st.busy ? "disabled" : ""}>${st.busy === "apply" ? "Applying…" : `Apply ${kept} bookmarks to ${esc(d.browserName)}`}</button>` : ""}
         <button class="btn sm" id="bm-export" ${st.busy ? "disabled" : ""}>Download import file</button><button class="btn sm" id="bm-cancel">Cancel</button></div>`;
   }

@@ -233,7 +233,7 @@ const portablePrompt = (p) => ({ ref: p.id, name: p.name, description: p.descrip
 export function exportBundle({ agents, prompts } = {}) {
   const pickA = Array.isArray(agents) ? agentsDoc().list.filter((a) => agents.includes(a.id)) : agentsDoc().list;
   const pickP = Array.isArray(prompts) ? promptsDoc().list.filter((p) => prompts.includes(p.id)) : promptsDoc().list;
-  return { format: FORMAT, version: FORMAT_VERSION, app: "Command AI", exportedAt: new Date().toISOString(), agents: pickA.map(portableAgent), prompts: pickP.map(portablePrompt) };
+  return { format: FORMAT, version: FORMAT_VERSION, app: "Meldmind", exportedAt: new Date().toISOString(), agents: pickA.map(portableAgent), prompts: pickP.map(portablePrompt) };
 }
 function uniqueName(name, taken) {
   if (!taken.has(name)) return name;
@@ -242,8 +242,8 @@ function uniqueName(name, taken) {
 }
 export function importBundle(data) {
   if (typeof data === "string") { try { data = JSON.parse(data); } catch { throw err(400, "That file is not JSON."); } }
-  if (!data || data.format !== FORMAT) throw err(400, "That is not a Command AI agents file.");
-  if (Number(data.version) > FORMAT_VERSION) throw err(400, "That file comes from a newer Command AI. Update the app, then import it.");
+  if (!data || data.format !== FORMAT) throw err(400, "That is not a Meldmind agents file.");
+  if (Number(data.version) > FORMAT_VERSION) throw err(400, "That file comes from a newer Meldmind. Update the app, then import it.");
   const inA = Array.isArray(data.agents) ? data.agents : [], inP = Array.isArray(data.prompts) ? data.prompts : [];
   if (!inA.length && !inP.length) throw err(400, "The file has no agents or prompts.");
   if (agentsDoc().list.length + inA.length > LIMITS.items || promptsDoc().list.length + inP.length > LIMITS.items) throw err(400, `${LIMITS.items} agents and ${LIMITS.items} prompts at most.`);

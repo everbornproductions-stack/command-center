@@ -1130,3 +1130,26 @@ PHASE 9 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes). Nothing deployed, no Square, billing, real keys or data/ touched.
 
 PHASE 11 DONE
+## 2026-10-19: Pro prompts, grouped nav, and the Meldmind name (Cursor cloud agent)
+
+- Phase 30: Pro prompts pack. Each template is ROLE / CONTEXT / COMMAND / FORMAT, filled from the Business Profile, and it halts when a required fact is missing. Safety marks unverified numbers [VERIFY], keeps outbound text as drafts, and strips SSNs, dates of birth, and account numbers. SCF mode adds CROA and RESPA. "Save this as a reusable prompt" stores a custom prompt and does not send it. Friday Coach, Monday Chief of Staff, Friday team check-in, and Daily sundown install as paused chat schedules. Desktop schedules only run while the app is open.
+- Phase 31: intent auto-detect is a keyword heuristic plus one cheap router call when the heuristic is unsure. A chip can be removed. The learning router stores the template id and a count only.
+- The top bar is grouped menus (Work, Create, Business, Connect, Settings). Every existing destination stays reachable. "Open live view" is at the bottom-right of the Live Ops panel. Live stays in the Work menu.
+- User-facing product name is Meldmind. Tagline stays "an Everborn product". Where a subtitle fits, the line is "Take command of all your AIs." The name is provisional, pending attorney trademark review before public launch (Cisco MINDMELD risk). appId `com.everborn.command`, `app.setName("Everborn Command")`, and the updater feed (`command-center-releases`, `latest.yml`) are unchanged, so existing installs keep keys, settings, and history and still auto-update. Installer names are `Meldmind-Setup-<version>.exe` and the matching Mac and portable artifacts.
+- Planned and not built: Phase 32 model-version alerts, Phase 33 bring your own apps, the Phase 26 relay extension (decision 16 unchanged), and Phase 34 hide hosted plumbing (decision 15 unchanged). Phase 34 would ship the hosted Supabase URL and publishable key built in, auto-fill the results callback from our hosted server once it exists, prefill Grok Bot and agent handoff fields where possible, and hide those fields unless "Use your own Supabase" (off by default) or an Advanced toggle is on.
+- Tests after rebase onto main (through Phase 5): npm test 250 tests, 248 pass, 0 fail, 2 skipped. npm run smoke all checks passed. No real key. Temp data dir only. Smoke does not assert the product name. The served page title is Meldmind and the tagline is in the header HTML. Project memory stays on the server, and the weekly report still does not email itself.
+- Not verified here: a packaged installer, a real auto-update against command-center-releases, Alt+Space (that hotkey is the desktop shell; the nav test ignores Alt), and a full click-through of every menu. Phase 14 stays BLOCKED (needs a Mac).
+
+PHASE 30 DONE (built by Cursor cloud agent)
+PHASE 31 DONE (built by Cursor cloud agent)
+
+## 2026-10-19: Onboarding tour and What's new (Cursor cloud agent)
+
+- The tour now walks the current app: Meldmind, the dropdown menus, Council, Pro prompts and auto-detect, Open live view at the bottom-right of Live Ops, API keys and MCP, pipelines, scheduled agents, and the publishing preview. The sample run on the demo AIs is unchanged.
+- What's new reads `docs/WHATS-NEW.json` and shows once per `package.json` version. The seen version is stored in the data folder (`whatsnew.state.json`), so it survives the desktop cache clear. It waits until first-run setup is finished, then the tour invite. Settings menu: Take the tour again. Resetting the tour does not show the note again.
+- Releasing and the build-plan rules now require a What's new entry for the new version and a tour update for any new user-facing feature. A test fails when the package version has no entry. The installer keeps `docs/WHATS-NEW.json`.
+- A stylesheet string in the nav module was shadowing `CSS.escape`, so adding a menu item after startup threw and a render could fail. Menu items now call `globalThis.CSS.escape`.
+- Rebased onto main at v0.4.1 (through Phase 6). `package.json` stays 0.4.1. The What's new entry for 0.4.1 covers the name, menus, Pro prompts, live view, project files, and paid media steps that wait for Approve. The tour has a Files in this project step. The Phase 6 error that said "Update Command AI" now says Meldmind.
+- Tests after that rebase: npm test 257 tests, 255 pass, 0 fail, 2 skipped. npm run smoke all checks passed. No real key. Temp data dir only.
+- Checked in a browser: first-run setup is not covered by What's new. After Skip, the note shows 8 bullets and the tour invite stays hidden until Got it. All 14 tour steps appear. After a reload the note and the invite stay gone. Settings, Take the tour again, opens the welcome step.
+- Not verified: a packaged installer reading `docs/WHATS-NEW.json` from inside the app archive, and a real auto-update. Phase 14 stays BLOCKED (needs a Mac). Phase 34 stays planned, not built.

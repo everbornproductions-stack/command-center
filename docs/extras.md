@@ -16,7 +16,7 @@ Four small features. Each works in demo mode, and none of them sends or spends a
 
 - **Install:** open `chrome://extensions` (or `edge://extensions`), switch on Developer mode, click "Load unpacked" and pick the `extension` folder. Settings > Browser extension shows its exact path. In the installed app the folder sits next to `app.asar` (`app.asar.unpacked\extension`).
 - **Pair:** Settings > Browser extension > Pair a browser shows a code once (`cce.<port>.<secret>`). Paste it into the extension's popup. The app keeps only the SHA-256 of the secret. Unpair revokes the code at once (up to ten browsers).
-- **Use it:** right-click "Send page / selection / link to Command AI", or open the popup to add a note ("turn this into three captions"). The popup sets what a send does:
+- **Use it:** right-click "Send page / selection / link to Meldmind", or open the popup to add a note ("turn this into three captions"). The popup sets what a send does:
   - **Put it in Marching orders** (the default): the text waits in Command (a chip under the orders box, or the box itself when it is empty). Nothing runs until you press Send.
   - **Ask now** or **Council**: the run starts at once, because you clicked Send in the extension. The ledger, spend caps and tier limits apply as usual.
 - **Safety:**

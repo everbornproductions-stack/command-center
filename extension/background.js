@@ -1,12 +1,12 @@
-// Right-click menu: "Send page to Command AI", "Send selection to Command AI", "Send link to Command AI".
+// Right-click menu: "Send page to Meldmind", "Send selection to Meldmind", "Send link to Meldmind".
 // What happens (put it in Marching orders, ask now, or a council) is set in the popup. Only this PC's app is called.
 import { send, grabPage } from "./shared.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "cc-page", title: "Send page to Command AI", contexts: ["page"] });
-    chrome.contextMenus.create({ id: "cc-selection", title: "Send selection to Command AI", contexts: ["selection"] });
-    chrome.contextMenus.create({ id: "cc-link", title: "Send link to Command AI", contexts: ["link"] });
+    chrome.contextMenus.create({ id: "cc-page", title: "Send page to Meldmind", contexts: ["page"] });
+    chrome.contextMenus.create({ id: "cc-selection", title: "Send selection to Meldmind", contexts: ["selection"] });
+    chrome.contextMenus.create({ id: "cc-link", title: "Send link to Meldmind", contexts: ["link"] });
   });
 });
 
@@ -29,7 +29,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
     badge(tabId, "OK", "#16a34a");
   } catch (e) {
-    console.warn("Command AI:", e.message);
+    console.warn("Meldmind:", e.message);
     badge(tabId, "!", "#dc2626");
   }
 });

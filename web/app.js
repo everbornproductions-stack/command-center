@@ -1,9 +1,11 @@
 import { AgentGraph } from "/graph.js";
+import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS } from "./nav.js";
 
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
   view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null,
+  navMenu: "", navFocus: "",
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
 const $ = (s, r = document) => r.querySelector(s);
@@ -77,7 +79,13 @@ async function api(path, opts = {}) {
   const r = await apiFetch(HUB + "/api" + path, { headers: raw ? { ...headers, "content-type": contentType || "application/zip" } : headers, ...rest, body: raw || (opts.body ? JSON.stringify(opts.body) : undefined) });
   if (r.status === 401 && CONFIG.mode === "hosted") { signOut(false, "Signed out. Sign in again."); throw new Error("Sign in required"); }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(httpError(r, j));
+  if (!r.ok) {
+    const err = new Error(httpError(r, j));
+    if (j?.code) err.code = j.code;
+    if (j?.missing) err.missing = j.missing;
+    if (j?.questions) err.questions = j.questions;
+    throw err;
+  }
   return j;
 }
 // Error states: never a bare "Failed to fetch" or an empty message. A network failure names the engine
@@ -179,7 +187,7 @@ async function engineDown(on) {
   if (!el) { el = document.createElement("div"); el.id = "engine-down"; el.setAttribute("role", "alertdialog"); el.style.cssText = "position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(5,8,13,.78)"; document.body.appendChild(el); }
   const desk = !!window.ccDesktop?.restart;
   el.innerHTML = `<div class="panel" style="max-width:520px;padding:24px">
-    <h3 style="margin:0 0 8px">Command AI's engine is not responding</h3>
+    <h3 style="margin:0 0 8px">Meldmind's engine is not responding</h3>
     <div class="small muted">Still trying to reconnect${secs ? ` (${secs} s)` : ""}. Reason: <span class="mono" id="ed-reason"></span></div>
     <div class="row" style="margin-top:14px;gap:8px">${desk ? `<button class="btn primary" id="ed-restart">Restart engine</button><button class="btn" id="ed-update">Check for updates</button>` : `<button class="btn primary" id="ed-retry">Try again</button>`}<button class="btn" id="ed-wait" style="margin-left:auto">Keep waiting</button></div>
     <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
@@ -334,7 +342,7 @@ function feedNode(ev) {
   const t = new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   let who = "", txt = "", cls = "", color = "";
   switch (ev.type) {
-    case "log": who = "Command"; txt = ev.text; cls = ev.level === "error" ? "err" : ""; color = "#22d3ee"; break;
+    case "log": who = "Meldmind"; txt = ev.text; cls = ev.level === "error" ? "err" : ""; color = "#22d3ee"; break;
     case "agent.start": who = pname(ev.provider); txt = ev.label || `${ev.role} started`; color = pcolor(ev.provider); break;
     case "agent.done": who = pname(ev.provider); txt = `done in ${((ev.ms || 0) / 1000).toFixed(1)}s${ev.cost != null ? ` · ${money(ev.cost, 4)}` : ""}`; color = pcolor(ev.provider); break;
     case "agent.error": who = pname(ev.provider); txt = ev.error; cls = "err"; color = pcolor(ev.provider); break;
@@ -403,7 +411,7 @@ function renderUpdateBar() {
   const action = u.desktop
     ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
     : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: Command AI v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+  bar.innerHTML = `<span>↑</span><div><b>Update available: Meldmind v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -415,7 +423,7 @@ function updateBoxHtml() {
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
     : u.available ? `Update available: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
-  return `<b>Command AI</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
+  return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
     + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
     + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
@@ -433,7 +441,7 @@ async function installUpdate() {
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
-function markTabs() { $$("#tabs button, #mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
 function render() {
   markTabs();
   $("#feed")?.classList.remove("open");
@@ -449,15 +457,56 @@ function render() {
   else if (S.view === "settings") renderSettings(v);
   else if (S.view === "setup") renderSetup(v);
 }
-// Feature tabs register themselves (web/features/*.js); buttons are added once to both navs.
+// Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
+// Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
+function knownViews() {
+  const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
+  for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
+  for (const f of window.CC?.byKind?.("tab") || []) have.add(f.id);
+  const ordered = NAV_ORDER.filter((id) => have.has(id));
+  for (const id of have) if (!ordered.includes(id)) ordered.push(id);
+  return ordered;
+}
+function ensureMobileMore() {
+  let more = $("#mobile-more");
+  if (more) return more;
+  more = document.createElement("div");
+  more.id = "mobile-more";
+  more.className = "mobile-more";
+  document.body.appendChild(more);
+  const mb = document.createElement("button");
+  mb.dataset.more = "1";
+  mb.innerHTML = `<i>⋯</i>More`;
+  mb.addEventListener("click", () => more.classList.toggle("open"));
+  $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]"));
+  return more;
+}
 function ensureFeatureTabs() {
+  const root = $("#tabs");
+  if (root && root.dataset.nav !== "1") installNav(root, knownViews());
   for (const f of window.CC?.byKind?.("tab") || []) {
-    if (!$(`#tabs button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.textContent = f.tab.label; $("#tabs").insertBefore(b, $("#tabs button[data-view=settings]")); }
-    // phones: feature tabs go into a "More" sheet instead of crowding the bottom bar
-    let more = $("#mobile-more");
-    if (!more) { more = document.createElement("div"); more.id = "mobile-more"; more.className = "mobile-more"; document.body.appendChild(more); const mb = document.createElement("button"); mb.dataset.more = "1"; mb.innerHTML = `<i>⋯</i>More`; mb.addEventListener("click", () => more.classList.toggle("open")); $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]")); }
-    if (!$(`#mobile-more button[data-view="${f.id}"]`) && !$(`#mobile-nav button[data-view="${f.id}"]`)) { const b = document.createElement("button"); b.dataset.view = f.id; b.innerHTML = `<i>${f.tab.icon || "✦"}</i>${esc(f.tab.short || f.tab.label)}`; b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.openProject = null; render(); }); more.appendChild(b); }
+    placeNavItem(root, f.id, f.tab?.label || f.id);
+    if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
+    const more = ensureMobileMore();
+    const gid = groupFor(f.id);
+    let group = more.querySelector(`[data-mgroup="${gid}"]`);
+    if (!group) {
+      const label = document.createElement("div");
+      label.className = "mobile-more-label";
+      label.textContent = GROUPS[gid]?.label || gid;
+      group = document.createElement("div");
+      group.className = "mobile-more-group";
+      group.dataset.mgroup = gid;
+      more.append(label, group);
+    }
+    const b = document.createElement("button");
+    b.dataset.view = f.id;
+    b.innerHTML = `<i>${f.tab?.icon || "✦"}</i>${esc(f.tab?.short || f.tab?.label || f.id)}`;
+    b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.navMenu = gid; S.openProject = null; render(); });
+    group.appendChild(b);
   }
+  markNav(root, S.view, S.navMenu);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
 }
@@ -624,15 +673,22 @@ async function sendOrders() {
   const mode = S.cmdMode || "mission", costMode = S.costMode || S.settings.defaultMode;
   const qa = $("#qa").checked, budgetUsd = Number($("#budget").value) || 2, projectId = $("#proj").value || null;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
+  const pp = window.CC?.promptPack;
+  if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
   $("#go").disabled = true;
   try {
+    const usePack = !!(pp?.templateId && !pp.removed);
+    const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
-    if (mode === "single") await api("/chat", { method: "POST", body: { prompt, projectId } });
+    if (mode === "single") await api("/chat", { method: "POST", body: { prompt, projectId, ...packBody } });
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
+    else toast(e.message, true);
+  }
   finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }
 }
 
@@ -829,7 +885,7 @@ function renderSettings(v) {
   v.innerHTML = `
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
-      <div class="panel"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
+      <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
         ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
@@ -910,6 +966,7 @@ function renderSettings(v) {
   $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
+  if (S.navFocus) { const el = document.querySelector(S.navFocus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); S.navFocus = ""; }
 }
 
 async function refresh() { applyState(await api("/state")); renderStrip(); renderBudget(); render(); }
@@ -973,7 +1030,28 @@ async function openCustomForm(editId, pre = {}) {
 }
 
 // ---------------- boot ----------------
-$("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.view = b.dataset.view; S.openProject = null; render(); });
+$("#tabs").addEventListener("click", (e) => {
+  const root = $("#tabs");
+  const trigger = e.target.closest(".nav-trigger");
+  if (trigger && root.contains(trigger)) {
+    const menu = trigger.closest(".nav-menu");
+    const wasOpen = menu.classList.contains("open");
+    closeNav(root);
+    if (!wasOpen) { menu.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); }
+    return;
+  }
+  const b = e.target.closest("button");
+  if (!b || !root.contains(b)) return;
+  if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  if (!b.dataset.view) return;
+  S.view = b.dataset.view;
+  S.openProject = null;
+  S.navFocus = b.dataset.focus || "";
+  S.navMenu = b.closest(".nav-menu")?.dataset.menu || groupFor(b.dataset.view);
+  closeNav(root);
+  render();
+});
+document.addEventListener("click", (e) => { const root = $("#tabs"); if (root && !root.contains(e.target)) closeNav(root); });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
 $("#mobile-nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; } S.view = b.dataset.view; S.openProject = null; render(); });
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
@@ -1015,14 +1093,14 @@ function renderGate(message = "") {
   $("#app").style.visibility = "hidden";
   const unreachable = !CONFIG.supabase;
   g.innerHTML = `<div class="gate-card">
-    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name">COMMAND <b>AI</b></span></div>
+    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind</span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
     ${(CONFIG.sso || []).length ? `<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">${CONFIG.sso.map((p) => `<button class="btn" type="button" data-sso="${esc(p.id)}" style="flex:1">Continue with ${esc(p.name)}</button>`).join("")}</div>
     <div class="small muted" style="margin-top:6px">Your team may ask you to use your work Google or Microsoft account.</div>` : ""}`}
-    <div class="dim small" style="text-align:center;margin-top:16px">Command AI, an Everborn product by Everborn Productions</div>
+    <div class="dim small" style="text-align:center;margin-top:16px">Meldmind, an Everborn product by Everborn Productions<br>Take command of all your AIs.</div>
     <div id="gate-msg" class="small" role="status" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
     <details style="margin-top:14px"><summary class="small muted" style="cursor:pointer">Hub address</summary>
       <div class="row" style="margin-top:8px"><input type="text" id="gate-hub" value="${esc(hubAddress())}" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="gate-hub-save">Use</button>${HUB ? `<button class="btn sm" id="gate-hub-reset">Reset</button>` : ""}</div></details>
@@ -1080,6 +1158,7 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
         </div>
+        <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
       </div></div>`;
     $("#su-go").addEventListener("click", async () => {
@@ -1090,6 +1169,7 @@ function renderSetup(v) {
       st.busy = false; render();
     });
     $("#su-skip").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; S.view = "settings"; render(); });
+    window.CC.mountPromptInterview?.($("#su-prompts"));
     return;
   }
   const r = st.result, scan = r.scan, keys = r.keys || {};

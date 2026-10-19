@@ -119,6 +119,22 @@ export function rate({ runId, provider, model, capability, difficulty, up } = {}
   return s;
 }
 
+// Pro prompt matches (template id and a count only). No prompt text, no inputs, no secrets.
+// Called when a template is suggested, applied, removed, or halted. Learning off records nothing.
+export function noteTemplate({ id, action } = {}) {
+  if (!learningOn()) return null;
+  const clean = String(id || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 60);
+  if (!clean) return null;
+  const act = ["suggested", "applied", "removed", "halted"].includes(action) ? action : "suggested";
+  const b = brain();
+  const bag = b.templates || (b.templates = {});
+  const row = bag[clean] || (bag[clean] = { suggested: 0, applied: 0, removed: 0, halted: 0, last: 0 });
+  row[act] += 1;
+  row.last = Date.now();
+  save(b);
+  return { id: clean, ...row };
+}
+
 // ---------- reading the record ----------
 function merged(model, cap, diff) {
   const m = brain().stats[model];
@@ -218,7 +234,9 @@ export function bestAtWhat({ mode = "balanced", top = 5 } = {}) {
 // ---------- export, reset, opt-in preview ----------
 export function exportBrain() {
   const b = brain();
-  return { app: "command-ai", kind: "learning-router", version: VERSION, exportedAt: new Date().toISOString(), since: b.since, jobs: b.jobs || 0, settings: b.settings, stats: b.stats };
+  const out = { app: "command-ai", kind: "learning-router", version: VERSION, exportedAt: new Date().toISOString(), since: b.since, jobs: b.jobs || 0, settings: b.settings, stats: b.stats };
+  if (b.templates) out.templates = b.templates;
+  return out;
 }
 export function resetBrain() {
   const prev = brain();

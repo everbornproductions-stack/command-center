@@ -67,7 +67,7 @@ function demoBrowse(u) {
     for (const l of els) {
       const m = l.match(/^\[(e\d+)\] (text|email|textarea) field "([^"]*)"/);
       if (!m || new RegExp(`type into ${m[1]}\\b`).test(steps)) continue;
-      const value = m[2] === "email" || /e-?mail/i.test(m[3]) ? "hello@example.com" : /name/i.test(m[3]) ? "Demo Helper" : "Hello from the Command AI browser helper (demo).";
+      const value = m[2] === "email" || /e-?mail/i.test(m[3]) ? "hello@example.com" : /name/i.test(m[3]) ? "Demo Helper" : "Hello from the Meldmind browser helper (demo).";
       return JSON.stringify({ action: "type", ref: m[1], text: value, why: "fill in the form" });
     }
     if (subRef) return JSON.stringify({ action: "click", ref: subRef, why: "send the form (asks you first)" });

@@ -94,7 +94,7 @@ function notionHtml() {
   const n = st.data.sources.notion;
   if (!n.connected) return `<div class="small dim">Notion is not connected. <a href="#" data-go-settings>Connect it in Settings</a> (read-only).</div>`;
   const pages = st.notion.pages;
-  return `<div class="row small" style="gap:6px"><input type="text" data-notion-q placeholder="search the pages shared with Command AI" value="${esc(st.notion.q)}" style="flex:1"><button class="btn sm" data-notion-search>Search</button></div>
+  return `<div class="row small" style="gap:6px"><input type="text" data-notion-q placeholder="search the pages shared with Meldmind" value="${esc(st.notion.q)}" style="flex:1"><button class="btn sm" data-notion-search>Search</button></div>
     ${pages ? `<div class="lib-list">${pages.length ? pages.map((p) => `<div class="row small" style="gap:6px"><input type="checkbox" data-notion-pick="${esc(p.id)}" ${st.notion.picked.has(p.id) ? "checked" : ""}><span style="flex:1">${esc(p.name)}</span>${p.modified ? `<span class="dim">${ago(new Date(p.modified).getTime())} ago</span>` : ""}</div>`).join("") : `<div class="small dim">No pages. In Notion, share pages with the integration (page menu > Connections).</div>`}</div>` : `<div class="small dim" style="margin-top:4px">Loading…</div>`}
     <button class="btn sm" data-notion-stage style="margin-top:6px" ${st.notion.picked.size ? "" : "disabled"}>Read ${st.notion.picked.size} picked</button>`;
 }
@@ -226,7 +226,7 @@ async function renderTab(view) {
   if (!view) return;
   if (!st.data) { view.innerHTML = `<div class="empty">Loading…</div>`; try { await Promise.all([load(), loadWorkspaces()]); } catch (e) { view.innerHTML = `<div class="panel"><div class="dim">${esc(e.message)}</div></div>`; return; } }
   const d = st.data;
-  if (!d.available) { view.innerHTML = `<div class="panel"><h3>Knowledge libraries</h3><div class="small muted">${d.hosted ? "Libraries live in the desktop app for now: the index is a file on your PC. Open Command AI on your computer to make and use them." : "Libraries need a newer runtime (node:sqlite). Update Command AI."}</div></div>`; return; }
+  if (!d.available) { view.innerHTML = `<div class="panel"><h3>Knowledge libraries</h3><div class="small muted">${d.hosted ? "Libraries live in the desktop app for now: the index is a file on your PC. Open Meldmind on your computer to make and use them." : "Libraries need a newer runtime (node:sqlite). Update Meldmind."}</div></div>`; return; }
   const keep = view.querySelector("[data-q]")?.value;
   view.innerHTML = `<div class="grid" style="grid-template-columns:minmax(0,1fr) 320px">
     <div class="grid" style="align-content:start">
@@ -260,7 +260,7 @@ function renderSources(el) {
     <div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" data-csave="${s.source}">Save client</button><button class="btn sm primary" data-connect="${s.source}">${s.connected ? "Connect again" : `Connect ${esc(s.name)}`}</button>${s.connected ? `<button class="btn sm danger" data-off="${s.source}" style="margin-left:auto">Disconnect</button>` : ""}</div></div>`;
   el.innerHTML = `<h3>Library sources</h3><div class="small muted">Read-only, through your own sign-in. Files are read only when you pick them in a library; the tokens stay in the vault.</div>
     ${block(g, `<div class="small dim" style="margin-top:2px">Asks Google for drive.readonly only; a wider grant is refused and nothing is kept.</div>`)}
-    ${block(n, `<div class="small dim" style="margin-top:2px">Notion has no scopes in the sign-in link, so tick Read content only when you create the integration. Command AI only ever calls Notion's read endpoints.</div>`)}`;
+    ${block(n, `<div class="small dim" style="margin-top:2px">Notion has no scopes in the sign-in link, so tick Read content only when you create the integration. Meldmind only ever calls Notion's read endpoints.</div>`)}`;
   const v = (s) => el.querySelector(s)?.value || "";
   const save = async (k) => { const body = { clientId: v(`[data-cid="${k}"]`) }; if (v(`[data-csec="${k}"]`).trim()) body.clientSecret = v(`[data-csec="${k}"]`); await api(`/libraries/${k}/client`, { method: "POST", body }); };
   el.querySelectorAll("[data-csave]").forEach((b) => b.addEventListener("click", async () => { try { await save(b.dataset.csave); await load(); renderSources(el); toast("Client saved"); } catch (e) { toast(e.message, true); } }));

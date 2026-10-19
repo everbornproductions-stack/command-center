@@ -12,7 +12,7 @@ import {
   completeRecord, shouldOpenSetup, noticeText, normalizeRecord,
 } from "../server/onboarding.js";
 
-const DEFAULTS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Command AI" };
+const DEFAULTS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind" };
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const hist = (extra = {}) => historyReasons({ settings: DEFAULTS, defaults: DEFAULTS, ...extra });
 const open = (history, record) => planOnboarding({ record, history, now: 1_700_000_000_000 });
@@ -132,7 +132,7 @@ test("the hub skips setup from the server flag, and bookmarks are not part of th
   assert.doesNotMatch(mod, /scanHistory|applyToBrowser|bookmarksHtml|detectKeys|localStorage/);
   const daily = server.slice(server.indexOf("function runDailyCheck"), server.indexOf("function fullState"));
   assert.doesNotMatch(daily, /scanHistory|applyToBrowser|bookmarksHtml|detectKeys/);
-  assert.match(server, /budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Command AI"/);
+  assert.match(server, /budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind"/);
   assert.match(read("docs", "DECISIONS.md"), /Onboarding runs once; daily background check only\./);
 });
 

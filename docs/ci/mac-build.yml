@@ -1,4 +1,4 @@
-# Mac build for Command AI: unsigned .dmg and .zip, uploaded to the public releases repo.
+# Mac build for Meldmind: unsigned .dmg and .zip, uploaded to the public releases repo.
 # Runs on manual dispatch (Actions tab > Mac build > Run workflow) or when a v* tag is pushed.
 # Needs one repo secret: RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
 # on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
@@ -39,11 +39,11 @@ jobs:
           # Never publish from here: if the Windows release is not up yet, a published Mac-only release would
           # have no latest.yml and every Windows copy would report an update error. A missing release is
           # created as a DRAFT; Chris adds the Windows files and publishes it (docs/RELEASING.md).
-          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --draft --title "Command AI v$V" --notes "Mac build (unsigned)."
+          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --draft --title "Meldmind v$V" --notes "Mac build (unsigned)."
           gh release upload "v$V" --repo "$R" --clobber dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
       - uses: actions/upload-artifact@v4
         with:
-          name: command-ai-mac
+          name: meldmind-mac
           path: |
             dist/*.dmg
             dist/*.zip

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Command AI quick launcher</title>
+<title>Meldmind quick launcher</title>
 <!-- Quick launcher (Phase 24): opened by the global hotkey in the desktop app. Sends one order to this
      app's own local server (the session token is injected into this page like index.html); nothing goes anywhere else. -->
 <style>
@@ -22,12 +22,12 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><span class="brand">COMMAND AI</span><span class="hint">Enter to send · Esc to close</span></div>
+  <div class="row"><span class="brand" title="Take command of all your AIs.">Meldmind</span><span class="hint">an Everborn product · Enter to send · Esc to close</span></div>
   <form id="f" class="row"><input id="q" autocomplete="off" spellcheck="true" placeholder="Ask anything, or give marching orders" /></form>
   <div class="row">
     <button type="button" data-mode="chat" class="on" title="The best AI for the job answers">Chat</button>
     <button type="button" data-mode="council" title="Several AIs answer and judge each other">Council</button>
-    <button type="button" id="open" style="margin-left:auto">Open Command AI</button>
+    <button type="button" id="open" style="margin-left:auto">Open Meldmind</button>
   </div>
   <div id="msg" class="msg"></div>
 </div>

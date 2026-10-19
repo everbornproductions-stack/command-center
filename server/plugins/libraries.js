@@ -57,7 +57,7 @@ export async function routes(req, res, url, body, h) {
   const m = req.method;
   try {
     if (m === "GET" && p === "/") return h.json(res, 200, overview(h));
-    if (h.HOSTED) return h.json(res, 501, { error: "Knowledge libraries live in the desktop app for now (the index is a file on your PC). Open Command AI on your computer to use them.", code: "hosted" });
+    if (h.HOSTED) return h.json(res, 501, { error: "Knowledge libraries live in the desktop app for now (the index is a file on your PC). Open Meldmind on your computer to use them.", code: "hosted" });
 
     // ---- Google Drive and Notion connections (read-only) ----
     if (seg[0] === "google" || seg[0] === "notion") {

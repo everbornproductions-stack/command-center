@@ -6,7 +6,7 @@
    - ChatGPT: Settings > Data controls > Export data.
    - Claude: Settings > Privacy > Export data.
    Each service emails you a link to a .zip.
-2. In Command AI, open the **History** tab. Pick the zip, or type where it is on this PC (handy for very large exports). Click **Read the file**.
+2. In Meldmind, open the **History** tab. Pick the zip, or type where it is on this PC (handy for very large exports). Click **Read the file**.
 3. Check the preview: how many chats and messages, the date range, the newest titles and, for Claude, the projects inside. Nothing is filed yet.
 4. Choose where the chats go: a new project per source ("Imported from ChatGPT", and one per Claude project), a project you already have, or no project. Click **Import**.
 

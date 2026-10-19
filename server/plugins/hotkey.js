@@ -16,7 +16,7 @@ function view(h) {
   return {
     desktop: !!b, default: hk.DEFAULT_ACCELERATOR, enabled: s.enabled, accelerator: s.accelerator,
     registered: !!live?.registered && live.accelerator === s.accelerator,
-    reason: b ? (live?.reason || null) : "The quick launcher works in the Command AI desktop app (a browser cannot listen for a shortcut outside its own tab).",
+    reason: b ? (live?.reason || null) : "The quick launcher works in the Meldmind desktop app (a browser cannot listen for a shortcut outside its own tab).",
   };
 }
 

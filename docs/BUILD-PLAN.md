@@ -11,6 +11,7 @@ This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and f
 5. Never deploy, never push (Chris pushes), never touch Square, real API keys, `data/`, `.env`, password files, or billing. Nothing posts, sends, emails or spends without an explicit user click; outbound integrations need user OAuth.
 6. Paid things (managed plan, trial credits, marketplace pricing) go behind a feature flag with PLACEHOLDER prices. Chris decides real pricing.
 7. At the end, append to `docs/BUILD-LOG.md`: date/time, features done, commits (hash + message), test counts (npm test pass/fail, smoke pass/fail), what is not verified, and a final line exactly `PHASE N DONE` or `PHASE N BLOCKED: <reason>`.
+8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once after each update.
 
 ## Phases
 
@@ -110,6 +111,10 @@ For every customer: a job never fails just because one provider is out of credit
 - Small jobs (short classify / summarize / title tasks) prefer free tiers where the user has them (for example the Gemini free allowance), never exceeding a free limit the app knows about.
 - A provider switches back automatically when its credits or limit return (next successful health check or call); no manual reset needed.
 - Every fallback call goes to the ledger and respects spend caps. Tests: mocked providers returning 402 / 403-credits / 429 / 401 / network errors, OpenRouter retry, free-tier pick, and recovery; no real URLs or keys.
+- Planned extension (not built; decision 16 stays as shipped). A later pass adds this order on top of the skip and next-best model above. It does not replace the ledger or the spend caps.
+  1. Alternate API route: retry the job through OpenRouter, including a free tier the app already knows about.
+  2. MCP, where that provider's own app offers a tool.
+  3. Opt-in relay mode: copy the full context into the person's already signed-in ChatGPT or Claude web page through the extension or the browser helper, then read the reply back into the council. This path is slower. It carries a terms-of-service caution. It is off by default. When it is on, the live map shows a relay tag on that node.
 
 ### Phase 28 (HIGH PRIORITY, core, added 2026-10-18 by Chris): Learning router, the app's own brain (effort: L, about 2 sessions)
 The router learns from every job which model is best at what, for the price, per user.
@@ -185,3 +190,38 @@ Every item below must respect: bring-your-own-key (the user's keys only), spend 
 - Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`.
 - TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open and in-app updates do not work on Mac.
 - Never block the Windows installer on this. In the chain after Phase 24; any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
+
+### Phase 30: Pro prompts pack (effort: L)
+A pre-loaded library of prompts the team wrote. Each template has an id, a name, a category, a description, the inputs it needs, a ROLE / CONTEXT / COMMAND / FORMAT brief, and an output format.
+- Categories: Strategy/ops, Money, Sales/clients, Content, People/hiring, Personal/coaching.
+- The page says exactly: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert."
+- Empty required facts halt and ask. The model does not invent them. Business Profile fields fill matching inputs.
+- Global instructions from the Business Profile, "How to talk to me", and "My Voice" are injected into every template. A short interview sits on welcome setup and in Settings. Speech is offered when the voice module and the browser speech API are both present.
+- "Save this as a reusable prompt" on a finished chat stores the text as a custom prompt. It does not send anything.
+- Friday Coach, Monday Chief of Staff, Friday team check-in, and Daily sundown install as paused chat schedules through the existing scheduler. Desktop schedules only run while the app is open.
+- Safety on every template: numbers, metrics, case studies, and testimonials that were not in the source are marked [VERIFY]. SCF / credit-repair mode adds CROA and RESPA (no promised results, no score-jump claims, referral rewards marked [RESPA REVIEW]). Outbound emails and messages are drafts only. Client SSNs, dates of birth, and account numbers are stripped before a prompt is built or stored.
+- One click can create the three-agent team pipeline, the two leverage pipelines, or a pipeline from a brain dump. Reel scripts can open Media with the idea filled in. Nothing is generated until Generate.
+- The top bar is grouped menus (Work, Create, Business, Connect, Settings) so every existing destination stays reachable. Live stays in the Work menu. "Open live view" sits at the bottom-right of the Live Ops panel.
+
+### Phase 31: Intent auto-detect (effort: M)
+Before a council or a chat, match the orders to a Pro prompt.
+- A keyword heuristic (no embeddings) auto-applies a strong match and only suggests a weaker one. A visible chip can be removed. A removed chip is not applied.
+- If the heuristic is unsure, one cheap classify call through the existing router may pick a template id. An unknown id is ignored.
+- The learning router records the template id and a count (suggested, applied, removed, halted). No prompt text, no inputs, no secrets.
+
+### Phase 32: Model-version alerts (planned, not built)
+Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
+
+### Phase 33: Bring your own apps (planned, not built)
+Three ways to connect the person's own tools. Docs only until a later phase.
+1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools.
+2. Add any user MCP server by URL. That covers Zapier, Make, and similar products that expose MCP.
+3. Custom webhook / API tools: a URL, an auth header, and an input schema.
+Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
+
+### Phase 34: Hide hosted plumbing (planned, not built)
+Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
+- The hosted Supabase URL and the publishable key ship built in. The app uses them. There is no setup form for those values.
+- Once our hosted server exists, the results callback URL auto-fills from that server. Until then the app keeps the current local callback.
+- Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
+- Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.

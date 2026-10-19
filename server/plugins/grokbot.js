@@ -22,7 +22,7 @@ export async function routes(req, res, url, body, h) {
       return h.json(res, job.status === "failed" ? 502 : 202, { job });
     }
     if (m === "POST" && p === "/test") {
-      const job = await dispatch({ task: "Test from Command AI: please report back with status done and the text OK. Do not open, send or change anything.", source: { kind: "click" } });
+      const job = await dispatch({ task: "Test from Meldmind: please report back with status done and the text OK. Do not open, send or change anything.", source: { kind: "click" } });
       return h.json(res, job.status === "failed" ? 502 : 202, { job });
     }
     if (m === "POST" && seg[0] === "jobs" && seg[1] && seg[2] === "result") return h.json(res, 200, { job: pasteResult(seg[1], body?.text, Array.isArray(body?.artifacts) ? body.artifacts : undefined) });

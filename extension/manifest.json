@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Command AI",
-  "short_name": "Command AI",
-  "description": "an Everborn product: send the page you are on, or a selection, to Command AI on this PC. Talks only to the app on this computer.",
+  "name": "Meldmind",
+  "short_name": "Meldmind",
+  "description": "an Everborn product: send the page you are on, or a selection, to Meldmind on this PC. Talks only to the app on this computer.",
   "version": "0.1.0",
   "minimum_chrome_version": "110",
   "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_title": "Send to Command AI", "default_popup": "popup.html" }
+  "action": { "default_title": "Send to Meldmind", "default_popup": "popup.html" }
 }

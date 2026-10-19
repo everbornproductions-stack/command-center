@@ -34,6 +34,7 @@ import { augment as webAugment, sourcesFromCitations, recordNative } from "./sea
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
+import { expandJob } from "./prompts/apply.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
@@ -97,7 +98,7 @@ function indexHtml(file) {
   const tag = `<meta name="cc-token" content="${LOCAL_TOKEN}" />`;
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}\n${tag}`) : tag + html;
 }
-const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Command AI" };
+const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind" };
 const settings = () => doc("settings", () => ({ ...DEFAULT_SETTINGS }));
 const saveSettings = (s) => putDoc("settings", s);
 
@@ -271,7 +272,7 @@ function fullState() {
 }
 
 // What the browser may know before signing in.
-const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null, sso: ssoProviders() });
+const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", tagline: "an Everborn product", subtitle: "Take command of all your AIs.", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null, sso: ssoProviders() });
 
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
@@ -390,19 +391,25 @@ async function api(req, res, url) {
   if (method === "POST" && seg[0] === "check" && seg[1]) return json(res, 200, await checkProvider(seg[1]));
 
   if (method === "POST" && p === "/council") {
-    if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    let job = body;
+    try { job = expandJob(body, "prompt"); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
+    if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined, libraries: Array.isArray(body.libraries) ? body.libraries : undefined }); }
+    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
   }
   if (method === "POST" && p === "/mission") {
-    if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
-    try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    let job = body;
+    try { job = expandJob(body, "goal"); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
+    if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
+    try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined, libraries: Array.isArray(body.libraries) ? body.libraries : undefined };
-    if (body.runAt === "offpeak") {
+    const opts = { goal: job.goal, mode: job.mode || s.defaultMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
+    if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
       emit("log", { text: "A discount window is already open (or none is configured): running now." });
@@ -413,8 +420,11 @@ async function api(req, res, url) {
   }
   if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") return json(res, 200, { aborted: abortMission(seg[1]) });
   if (method === "POST" && p === "/chat") {
-    if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
-    runChat(body).catch((e) => emit("log", { text: `Chat failed: ${e.message}`, level: "error" }));
+    let job = body;
+    try { job = expandJob(body, "prompt"); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
+    if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    runChat(job).catch((e) => emit("log", { text: `Chat failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
   }
 
@@ -688,7 +698,7 @@ async function initContext() {
     process.exit(1);
   });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
-    console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
+    console.log(`Meldmind (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);
     else console.log(`data: ${DATA_DIR}\nHQ:   ${HQ_DIR || "(not linked; set CC_HQ_DIR)"}`);
     startHealthLoop();

@@ -2,10 +2,18 @@
 // (document "tour.state", per user) and starts the sample run the tour shows. The sample only ever
 // runs on the three demo AIs: it refuses when demo mode is off or when any real text-AI key is
 // saved, so a brand-new user can never spend a cent by clicking through the tour.
+// What's new is a separate document ("whatsnew.state"): the screen shows once per app version,
+// including the first launch, and a tour reset does not show it again.
+import fs from "node:fs";
+import path from "node:path";
 import { demoActive } from "../mock.js";
+import { ROOT } from "../paths.js";
+import { VERSION } from "../update.js";
 export const id = "tour";
 
 const KIND = "tour.state";
+const NEWS_KIND = "whatsnew.state";
+export const NEWS_PATH = path.join(ROOT, "docs", "WHATS-NEW.json");
 export const DEFAULTS = { completed: false, completedAt: null, skippedAt: null, sampleRuns: 0, lastSampleAt: null };
 export const SAMPLE_GOAL = "Plan a one-week Instagram launch for a small coffee roaster: five post ideas with hooks, short captions and a posting schedule.";
 export const SAMPLE_CONTEXT = "This is the onboarding sample run on the demo AIs. Keep every deliverable short and concrete.";
@@ -17,10 +25,29 @@ export function sampleDecision({ demo, realKeys, canMission }) {
   return { ok: true, kind: canMission ? "mission" : "single" };
 }
 
+// Pure: the changelog entry for one version, or null when that version has no bullets.
+export function whatsNewFor(version, changelog) {
+  const entry = changelog && typeof changelog === "object" ? changelog[version] : null;
+  if (!entry || !Array.isArray(entry.bullets) || entry.bullets.length === 0) return null;
+  return { version, title: String(entry.title || `What's new in ${version}`), bullets: entry.bullets.map((b) => String(b)) };
+}
+
+export function readChangelog(text = fs.readFileSync(NEWS_PATH, "utf8")) {
+  const data = JSON.parse(text);
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("WHATS-NEW.json must be an object keyed by version");
+  return data;
+}
+
 const realKeys = (h) => Object.values(h.PROVIDERS).some((p) => p.kind === "text" && !p.demo && h.hasSecret(p.id, p.keyEnv));
 const state = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
 const save = (h, patch) => h.putDoc(KIND, { ...state(h), ...patch });
-const view = (h) => ({ ...state(h), demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions, sample: { goal: SAMPLE_GOAL } });
+const newsSeen = (h) => h.doc(NEWS_KIND, () => ({ seen: null })).seen || null;
+function pendingNews(h) {
+  if (newsSeen(h) === VERSION) return null;
+  try { return whatsNewFor(VERSION, readChangelog()); }
+  catch { return null; }
+}
+const view = (h) => ({ ...state(h), demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions, sample: { goal: SAMPLE_GOAL }, whatsNew: pendingNews(h) });
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/tour/, "");
@@ -29,6 +56,7 @@ export async function routes(req, res, url, body, h) {
   if (p === "/complete") { save(h, { completed: true, completedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/skip") { save(h, { skippedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/reset") { h.putDoc(KIND, { ...DEFAULTS }); return h.json(res, 200, view(h)); }
+  if (p === "/whats-new/seen") { h.putDoc(NEWS_KIND, { seen: VERSION }); return h.json(res, 200, view(h)); }
   if (p === "/sample") {
     const d = sampleDecision({ demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions });
     if (!d.ok) return h.json(res, 400, { error: d.error, code: d.code });

@@ -1,7 +1,7 @@
 {
   "name": "everborn-command-center",
   "version": "0.4.1",
-  "description": "Command AI, an Everborn product: one console for every AI you pay for. Council, missions, credits, projects.",
+  "description": "Meldmind, an Everborn product. Take command of all your AIs. Council, missions, credits, projects.",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

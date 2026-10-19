@@ -248,7 +248,7 @@ function urlProblem(raw) {
   if (SQUARE.test(u.hostname)) return "the helper never handles Square";
   if (BILLING_PATH.test(u.pathname)) return "the helper never handles billing or payment-method pages";
   const loop = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(u.hostname);
-  if (loop && Number(u.port || 80) === PORT && u.pathname !== "/browser-demo.html") return "the helper does not open Command AI itself";
+  if (loop && Number(u.port || 80) === PORT && u.pathname !== "/browser-demo.html") return "the helper does not open Meldmind itself";
   return null;
 }
 const isPayField = (el) => !!el?.payment;

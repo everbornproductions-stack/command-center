@@ -56,7 +56,7 @@ test("assess: refuses Square, billing, this app, non-web addresses, passwords an
   assert.match(BH.assess({ action: "open", url: "https://app.example.com/settings/billing" }, snap).refuse, /billing/);
   assert.match(BH.assess({ action: "open", url: "file:///C:/Windows/win.ini" }, snap).refuse, /http/);
   assert.match(BH.assess({ action: "open", url: "javascript:alert(1)" }, snap).refuse, /http/);
-  assert.match(BH.assess({ action: "open", url: "http://127.0.0.1:4747/api/state" }, snap).refuse, /Command AI itself/);
+  assert.match(BH.assess({ action: "open", url: "http://127.0.0.1:4747/api/state" }, snap).refuse, /Meldmind itself/);
   assert.deepEqual(BH.assess({ action: "open", url: "http://127.0.0.1:4747/browser-demo.html" }, snap), {}, "the built-in demo page is fine");
   assert.deepEqual(BH.assess({ action: "open", url: "https://news.example.com/today" }, snap), {});
   assert.equal(BH.assess({ action: "open", url: "https://shop.example.com/account/delete" }, snap).ask.kind, "delete");
@@ -455,7 +455,7 @@ test("demo mode: no keys, the built-in demo page, the OK prompt, nothing leaves 
     assert.match(j.task, new RegExp(`http://127\\.0\\.0\\.1:${s.port}/browser-demo\\.html`));
     const jw = await waitFor(async () => { const x = await job(j.id); return x.status === "needs_approval" ? x : null; }, "demo approval", 30000, s);
     assert.match(jw.approval.title, /Submit the form "Contact us"/);
-    assert.match(jw.approval.lines.join("\n"), /name: "Demo Helper"[\s\S]*email: "hello@example\.com"[\s\S]*message: "Hello from the Command AI browser helper \(demo\)\."/);
+    assert.match(jw.approval.lines.join("\n"), /name: "Demo Helper"[\s\S]*email: "hello@example\.com"[\s\S]*message: "Hello from the Meldmind browser helper \(demo\)\."/);
     await s.api(`/browser/jobs/${j.id}/approve`, { method: "POST", body: { approval: jw.approval.id } });
     const jd = await waitFor(async () => { const x = await job(j.id); return ["done", "failed"].includes(x.status) ? x : null; }, "demo done", 30000, s);
     assert.equal(jd.status, "done", jd.error); assert.match(jd.text, /sent after your OK/); assert.match(jd.text, /Sunny Side Bakery/);

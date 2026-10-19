@@ -236,7 +236,7 @@ test("server: voice mode persists on the settings document, default tap, junk re
   const s = await startServer({
     seed(dir) {
       fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({
-        budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Command AI",
+        budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind",
         cloud: { url: "http://127.0.0.1", anonKey: marker },
       }));
     },

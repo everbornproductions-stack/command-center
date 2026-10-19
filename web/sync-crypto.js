@@ -76,7 +76,7 @@ export async function seal(keys, obj, aad) {
 
 export async function open(keys, blob, aad) {
   const u = unb64(blob);
-  if (u.length < 30 || u[0] !== MAGIC[0] || u[1] !== MAGIC[1]) throw new Error("Not a Command AI sync blob.");
+  if (u.length < 30 || u[0] !== MAGIC[0] || u[1] !== MAGIC[1]) throw new Error("Not a Meldmind sync blob.");
   let plain;
   try { plain = await subtle().decrypt({ name: "AES-GCM", iv: u.slice(2, 14), additionalData: te.encode(String(aad)) }, keys.aes, u.slice(14)); }
   catch { throw Object.assign(new Error("Could not decrypt: wrong passphrase, or the data was changed."), { code: "decrypt_failed" }); }

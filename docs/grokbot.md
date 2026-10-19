@@ -1,9 +1,9 @@
 # Grok Bot agent (Phase 12)
 
-Command AI hands Grok Bot the parts of a job that need its own computer: **signed-in browsing**, **Gmail**, **Google Drive**, **Google Calendar** and its **teammate bots**. Plain text work (writing, research, analysis) always stays with the text AIs.
+Meldmind hands Grok Bot the parts of a job that need its own computer: **signed-in browsing**, **Gmail**, **Google Drive**, **Google Calendar** and its **teammate bots**. Plain text work (writing, research, analysis) always stays with the text AIs.
 
 ## Set up (Settings > Integrations > Grok Bot)
-- **Webhook URL**: where Command AI posts jobs. `https://` anywhere; `http://` only for this computer (127.0.0.1 / localhost).
+- **Webhook URL**: where Meldmind posts jobs. `https://` anywhere; `http://` only for this computer (127.0.0.1 / localhost).
 - **Sender key**: the key Grok Bot checks on every job.
 - **Header name** (optional): default `Authorization`, sent as `Authorization: Bearer <key>`. Any other name (for example `X-Api-Key`) carries the key as is.
 - **Where results come back** (optional): the public address of the hosted hub or a tunnel. Empty means `http://127.0.0.1:<port>`.

@@ -1,17 +1,17 @@
-# Releasing a new version of Command AI (so the in-app update button finds it)
+# Releasing a new version of Meldmind (so the in-app update button finds it)
 
 The Windows app checks for updates when it starts and every 4 hours. People can also press
 **Settings > Check for updates**. When a newer version is out, a banner says
 "Update available: vX.Y.Z" with an **Update and restart** button. Nothing downloads until they click it.
 
-Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Command AI vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
+Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Meldmind vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
 
 Updates come from GitHub Releases in the PUBLIC repo `everbornproductions-stack/command-center-releases`.
 The source code repo (`command-center`) stays private. The releases repo only holds installers and
 release notes. No token is built into the app, so the releases repo must stay public.
 
 User data (settings, encrypted keys, ledger, projects) lives in `%APPDATA%\Everborn Command\data` (the folder keeps
-its original name on purpose, so data survives the rename to Command AI),
+its original name on purpose, so data survives the rename to Meldmind),
 not in the install folder, so updating or reinstalling keeps it.
 
 ## Steps (on the Windows PC, in the command-center folder)
@@ -19,17 +19,22 @@ not in the install folder, so updating or reinstalling keeps it.
 1. **Bump the version.** Pick the next number: `npm version minor --no-git-tag-version`
    (0.2.0 becomes 0.3.0) or `npm version patch --no-git-tag-version` for a small fix (0.2.0 becomes 0.2.1).
    The update only shows if the new number is higher than the installed one.
+   Then add that same version to `docs/WHATS-NEW.json` with plain-language bullets. The app shows
+   that note once after the update (and once on a first launch). If the release adds or changes
+   something people see, add or update a step in the onboarding tour (`web/features/tour.js`).
+   `npm test` fails when `package.json` version has no What's new entry. The installer keeps
+   `docs/WHATS-NEW.json` even though the rest of `docs/` is left out.
 2. **Test.** `npm test` and `npm run smoke`. Both must pass.
 3. **Commit and push** the version bump: `git add package.json package-lock.json` then
    `git commit -m "Release vX.Y.Z"` and `git push`.
 4. **Build.** `npm run dist`. This makes three files in `dist\` that matter:
-   - `Command-AI-Setup-X.Y.Z.exe` (the installer)
-   - `Command-AI-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
+   - `Meldmind-Setup-X.Y.Z.exe` (the installer)
+   - `Meldmind-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
    - `latest.yml` (tells the app what the newest version is)
 5. **Publish the release** (replace X.Y.Z):
 
    ```
-   gh release create vX.Y.Z --repo everbornproductions-stack/command-center-releases --title "Command AI vX.Y.Z" --notes "What changed, in plain words" dist\Command-AI-Setup-X.Y.Z.exe dist\Command-AI-Setup-X.Y.Z.exe.blockmap dist\latest.yml
+   gh release create vX.Y.Z --repo everbornproductions-stack/command-center-releases --title "Meldmind vX.Y.Z" --notes "What changed, in plain words" dist\Meldmind-Setup-X.Y.Z.exe dist\Meldmind-Setup-X.Y.Z.exe.blockmap dist\latest.yml
    ```
 
    All three files must be on the same release. If the upload drops (large files from this PC can),
@@ -51,7 +56,7 @@ not in the install folder, so updating or reinstalling keeps it.
 
 ## Mac (unsigned for now)
 
-- GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Command-AI-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
+- GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Meldmind-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
 - One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
 - The workflow runs `npm test`, `npm run smoke` and `npm run dist:mac` (x64 and arm64). It never publishes: if the release `vX.Y.Z` does not exist yet, it creates it as a **draft** with the Mac files, and you add the Windows files and publish it as usual. If the Windows release is already published, the Mac files and `latest-mac.yml` are added to it.
 - Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates). Keys are sealed with the macOS Keychain through the desktop app.

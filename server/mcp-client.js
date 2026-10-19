@@ -13,7 +13,7 @@ import { networkCause } from "./health.js";
 
 export const PROTOCOL_VERSION = "2025-06-18";
 const OLDER_VERSIONS = ["2025-03-26", "2024-11-05"];
-export const CLIENT_INFO = { name: "Command AI", version: "0.3.2" };
+export const CLIENT_INFO = { name: "Meldmind", version: "0.3.2" };
 
 export class McpError extends Error {
   constructor(message, { status = 0, code = null, network = false, unauthorized = false, data = null } = {}) {
