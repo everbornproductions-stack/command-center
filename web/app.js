@@ -581,9 +581,9 @@ async function sendOrders() {
     if (projectId) { try { memory = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
     const withMemory = memory ? `${prompt}\n\n${memory}` : prompt;
     if (mode === "single") await api("/chat", { method: "POST", body: { prompt: withMemory, projectId } });
-    // grokbot: true (always include Grok Bot), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt: withMemory, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, context: memory, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt: withMemory, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, context: memory, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) { toast(e.message, true); }
   finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }

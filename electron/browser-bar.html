@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Browser helper</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #0f1520; color: #e5e7eb; font: 13px/1.4 system-ui, sans-serif; border-bottom: 2px solid #38bdf8; }
+  .top { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #64748b; flex: none; }
+  .dot.working { background: #a78bfa; } .dot.needs_approval { background: #f59e0b; } .dot.done { background: #22c55e; } .dot.failed { background: #ef4444; }
+  .task { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: .9; }
+  .meta { opacity: .6; white-space: nowrap; }
+  button { font: inherit; border-radius: 7px; border: 1px solid #334155; background: #1e293b; color: inherit; padding: 4px 12px; cursor: pointer; }
+  button.stop { border-color: #7f1d1d; background: #450a0a; }
+  button.ok { border-color: #166534; background: #14532d; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: default; }
+  .ask { display: none; margin: 0 12px 6px; padding: 8px 10px; border: 1px solid #f59e0b; border-radius: 8px; background: #1c1405; }
+  .ask.on { display: block; }
+  .ask h4 { margin: 0 0 4px; font-size: 13px; color: #fbbf24; }
+  .ask pre { margin: 0; max-height: 170px; overflow: auto; white-space: pre-wrap; font: 12px/1.35 ui-monospace, Consolas, monospace; }
+  .ask .row { display: flex; gap: 8px; margin-top: 6px; }
+  .log { flex: 1; overflow: auto; margin: 0 12px 6px; font: 12px/1.35 ui-monospace, Consolas, monospace; opacity: .85; }
+  .log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log .refused, .log .error, .log .no { color: #fca5a5; } .log .ok, .log .done { color: #86efac; } .log .ask { color: #fbbf24; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <span class="dot" id="dot"></span><b>Browser helper</b>
+    <span class="task" id="task">Waiting for a job</span>
+    <span class="meta" id="meta"></span>
+    <button class="stop" id="stop" disabled>Stop</button>
+  </div>
+  <div class="ask" id="ask">
+    <h4 id="ask-title"></h4>
+    <pre id="ask-lines"></pre>
+    <div class="row"><button class="ok" id="ok">OK, do it</button><button id="no">No</button><span class="meta" style="align-self:center">Nothing happens until you click.</span></div>
+  </div>
+  <div class="log" id="log"></div>
+<script>
+  let cur = null;
+  const $ = (id) => document.getElementById(id);
+  // everything shown here is set as text, never as HTML
+  window.ccBar.onState((s) => {
+    cur = s;
+    const j = s.job || {};
+    $("dot").className = "dot " + (j.status || "");
+    $("task").textContent = j.task ? j.task : "Waiting for a job";
+    $("meta").textContent = j.status ? `${j.statusLabel} · ${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}` : "";
+    $("stop").disabled = !j.id || ["done", "failed"].includes(j.status);
+    const a = s.approval;
+    $("ask").className = a ? "ask on" : "ask";
+    $("ask-title").textContent = a ? `${a.kind === "your turn" ? "Your turn" : "OK to do this?"} ${a.title}` : "";
+    $("ask-lines").textContent = a ? (a.lines || []).join("\n") : "";
+    $("ok").disabled = $("no").disabled = !a;
+    const log = $("log");
+    log.textContent = "";
+    const lines = (s.log || []).slice().reverse();
+    if (s.error) lines.unshift({ kind: "error", text: s.error, ts: Date.now() });
+    if (s.text) lines.unshift({ kind: "done", text: "Result: " + s.text, ts: Date.now() });
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.className = l.kind || "";
+      d.textContent = `${new Date(l.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}  ${l.text}`;
+      d.title = l.text;
+      log.appendChild(d);
+    }
+  });
+  $("stop").addEventListener("click", () => { if (cur && cur.job) window.ccBar.stop(cur.job.id); });
+  $("ok").addEventListener("click", () => { if (cur && cur.approval) { $("ok").disabled = $("no").disabled = true; window.ccBar.ok(cur.job.id, cur.approval.id); } });
+  $("no").addEventListener("click", () => { if (cur && cur.approval) { $("ok").disabled = $("no").disabled = true; window.ccBar.no(cur.job.id, cur.approval.id); } });
+</script>
+</body>
+</html>

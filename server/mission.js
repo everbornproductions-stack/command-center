@@ -14,7 +14,8 @@ import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
-import { AGENT_ID as GROKBOT, NAME as GROKBOT_NAME, TAGS as AGENT_TAGS, TAG_LABEL, wantAgent, readiness as agentReadiness, settings as agentSettings, dispatch as dispatchAgent, awaitJob, cancelJob, waitMs, onJobFinished, STATUS_LABEL } from "./grokbot.js";
+import { AGENT_ID as GROKBOT } from "./grokbot.js";
+import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -74,7 +75,7 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser }) {
   const id = "m-" + Date.now().toString(36);
   const ctl = new AbortController();
   running.set(id, ctl);
@@ -100,9 +101,13 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
     if (web?.sources?.length) { mission.sources = web.sources; mission.searchEngine = web.name; spend({ cost: web.cost || 0 }); context = `${context ? `${context}\n\n` : ""}${web.block}`; }
 
-    // Grok Bot (Phase 12): offered to the planner only when it is ready and not left out by the person
-    const agentOn = grokbot !== false && agentReadiness().ready && (grokbot === true || agentSettings().auto);
-    const agentLine = agentOn ? `\nA step that must act in the person's signed-in browser, Gmail, Google Drive, Google Calendar or with their teammate bots gets capability "agent" and "needs": a list from ${JSON.stringify(AGENT_TAGS)}; their own assistant, ${GROKBOT_NAME}, does those steps. Never use "agent" for plain writing, research or analysis.` : "";
+    // Grok Bot (Phase 12), else the built-in browser helper (Phase 27): offered to the planner only when it
+    // is ready and not left out by the person
+    const MA = missionAgent({ grokbot, browser });
+    const agentOn = !!MA;
+    const agentLine = !agentOn ? "" : MA.id === GROKBOT
+      ? `\nA step that must act in the person's signed-in browser, Gmail, Google Drive, Google Calendar or with their teammate bots gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; their own assistant, ${MA.name}, does those steps. Never use "agent" for plain writing, research or analysis.`
+      : `\nA step that must act on a website (signed-in pages, forms), in the person's Gmail or in their Google Drive gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; the built-in ${MA.name} does those steps in its own browser window (every send, post or form submit waits for the person's OK). Never use "agent" for plain writing, research or analysis.`;
 
     // ---- 1. Plan ----
     const planner = pick({ capability: "reasoning", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" });
@@ -144,11 +149,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const needsWebModel = (t) => !!t.needWeb && !searchOn;
     const used = new Map();
     for (const t of plan.tasks) {
-      // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to Grok Bot
-      const fit = agentOn ? wantAgent({ prompt: `${t.title}. ${t.instructions || ""}`, explicit: grokbot }) : null;
+      // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
+      const fit = agentOn ? MA.want({ prompt: `${t.title}. ${t.instructions || ""}`, explicit: MA.id === GROKBOT ? grokbot : browser }) : null;
       if (agentOn && (t.capability === "agent" || (fit.use && fit.needs.length))) {
-        const needs = [...new Set([...(Array.isArray(t.needs) ? t.needs.filter((x) => AGENT_TAGS.includes(x)) : []), ...fit.needs])];
-        mission.tasks.push({ ...t, capability: "agent", needs, agent: true, status: "queued", provider: GROKBOT, model: GROKBOT, agentName: `${GROKBOT_NAME} · ${needs.map((x) => TAG_LABEL[x]).join(", ") || "its own computer"}`, estCost: 0, output: null, review: null, cost: 0 });
+        const needs = [...new Set([...(Array.isArray(t.needs) ? t.needs.filter((x) => MA.TAGS.includes(x)) : []), ...fit.needs])];
+        mission.tasks.push({ ...t, capability: "agent", needs, agent: true, status: "queued", provider: MA.id, model: MA.id, agentName: `${MA.name} · ${needs.map((x) => MA.TAG_LABEL[x]).join(", ") || (MA.id === GROKBOT ? "its own computer" : "its own window")}`, estCost: 0, output: null, review: null, cost: 0 });
         continue;
       }
       if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
@@ -166,7 +171,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const est = mission.tasks.reduce((a, t) => a + t.estCost, 0) * (qa ? 1.6 : 1.1);
     mission.estimatedCost = +est.toFixed(4);
     const agentTasks = mission.tasks.filter((t) => t.agent).length;
-    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${GROKBOT_NAME} (${agentTasks}, results are async and can take minutes)`] : []).join(", ")}. Estimated $${est.toFixed(3)}.`);
+    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).join(", ")}. Estimated $${est.toFixed(3)}.`);
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to economy mode.`);
       for (const t of mission.tasks) {
@@ -181,42 +186,43 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // ---- 3. Execute in waves ----
     const done = new Set();
     const outputs = {};
-    // A Grok Bot step: hand it over, then wait for the callback (up to the mission wait). A result that
-    // comes back later is added to this mission by the finish listener at the end of this file.
+    // An agent step (Grok Bot or the browser helper): hand it over, then wait for the result (up to the
+    // mission wait). A result that comes back later is added to this mission by the finish listener at the end of this file.
     const agentTask = async (t) => {
       const agent = `${id}:${t.id}`;
+      const AID = MA.id, ANAME = MA.name;
       t.status = "running"; t.startedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
-      emit("agent.start", { agent, provider: GROKBOT, model: GROKBOT, role: "work", missionId: id, taskId: t.id, label: `${GROKBOT_NAME}: ${t.title} (results are async and can take minutes)` });
-      for (const d of t.deps) { const dep = mission.tasks.find((x) => x.id === d); if (dep && dep.provider !== GROKBOT) emit("agent.msg", { from: dep.provider, to: GROKBOT, missionId: id, text: `handing off "${dep.title}"` }); }
+      emit("agent.start", { agent, provider: AID, model: AID, role: "work", missionId: id, taskId: t.id, label: `${ANAME}: ${t.title} (results are async and can take minutes)` });
+      for (const d of t.deps) { const dep = mission.tasks.find((x) => x.id === d); if (dep && dep.provider !== AID) emit("agent.msg", { from: dep.provider, to: AID, missionId: id, text: `handing off "${dep.title}"` }); }
       const inputs = t.deps.map((d) => `### Input from task "${mission.tasks.find((x) => x.id === d)?.title}"\n${outputs[d] || "(missing)"}`).join("\n\n");
       const s = Date.now();
       try {
-        const job = await dispatchAgent({ task: `${t.title}\n${t.instructions || ""}\nDeliverable: ${t.deliverable || "a short report of what was done"}`, context: [`Mission goal: ${goal}`, inputs, context].filter(Boolean).join("\n\n"), needs: t.needs, source: { kind: "mission", runId: id, taskId: t.id, projectId } });
+        const job = await MA.dispatch({ task: `${t.title}\n${t.instructions || ""}\nDeliverable: ${t.deliverable || "a short report of what was done"}`, context: [`Mission goal: ${goal}`, inputs, context].filter(Boolean).join("\n\n"), needs: t.needs, source: { kind: "mission", runId: id, taskId: t.id, projectId } });
         t.agentJob = { jobId: job.id, status: job.status };
         if (job.status === "failed") throw new Error(job.error);
         emit("task.update", { missionId: id, task: pubTask(t) }); update();
-        const fin = await awaitJob(job.id, { timeoutMs: waitMs("mission"), signal: ctl.signal, onUpdate: (j) => { t.agentJob.status = j.status; emit("task.update", { missionId: id, task: pubTask(t) }); update(); } });
+        const fin = await MA.awaitJob(job.id, { timeoutMs: MA.waitMs("mission"), signal: ctl.signal, onUpdate: (j) => { t.agentJob.status = j.status; emit("task.update", { missionId: id, task: pubTask(t) }); update(); } });
         if (fin) t.agentJob.status = fin.status;
         if (fin?.status === "done") {
-          t.output = fin.text || `${GROKBOT_NAME} reported this step done.`; t.artifacts = fin.artifacts || []; outputs[t.id] = t.output; t.status = "done";
+          t.output = fin.text || `${ANAME} reported this step done.`; t.artifacts = fin.artifacts || []; outputs[t.id] = t.output; t.status = "done";
           t.work = { cost: 0, ms: Date.now() - s, free: true };
-          observe({ provider: GROKBOT, model: GROKBOT, capability: "agent", difficulty: t.difficulty, runId: id, ok: true, cost: 0, ms: Date.now() - s });
-          emit("agent.done", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
+          observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: true, cost: 0, ms: Date.now() - s });
+          emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
         } else if (fin?.status === "failed") {
-          throw new Error(fin.error || `${GROKBOT_NAME} reported a failure`);
+          throw new Error(fin.error || `${ANAME} reported a failure`);
         } else if (ctl.signal.aborted) {
-          try { cancelJob(job.id, "mission aborted"); } catch {}
+          try { cancelAgentJob(job.id, "mission aborted"); } catch {}
           t.status = "failed"; t.error = "Mission aborted";
         } else {
           // still out: dependents go on without it; its result is added to this mission when it comes back
-          t.status = "waiting"; outputs[t.id] = `(${GROKBOT_NAME} is still working on "${t.title}"; its result is added to this mission when it comes back.)`;
-          log(`${GROKBOT_NAME} is still on "${t.title}" (${STATUS_LABEL[t.agentJob.status].toLowerCase()}). The mission goes on; the result is added here when it comes back, or paste it in on the ${GROKBOT_NAME} card.`);
-          emit("agent.done", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
+          t.status = "waiting"; outputs[t.id] = `(${ANAME} is still working on "${t.title}"; its result is added to this mission when it comes back.)`;
+          log(`${ANAME} is still on "${t.title}" (${MA.STATUS_LABEL[t.agentJob.status].toLowerCase()}). The mission goes on; the result is added here when it comes back${AID === GROKBOT ? `, or paste it in on the ${ANAME} card` : ""}.`);
+          emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
         }
       } catch (err) {
         t.status = "failed"; t.error = err.message;
-        emit("agent.error", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, taskId: t.id, error: err.message });
+        emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: err.message });
       }
       if (t.status !== "failed") done.add(t.id);
       t.finishedAt = Date.now();
@@ -360,7 +366,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const finished = mission.tasks.filter((t) => t.output);
     const waiting = mission.tasks.filter((t) => t.status === "waiting");
     if (!finished.length && !waiting.length) throw new Error("Every task failed.");
-    const pendingNote = waiting.length ? `\n\n---\n**Still waiting on ${GROKBOT_NAME}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back, or paste it in on the ${GROKBOT_NAME} card.` : "";
+    const pendingNote = waiting.length ? `\n\n---\n**Still waiting on ${MA.name}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "";
     if (!finished.length) mission.deliverable = pendingNote.trim();
     else await assemble(plan, planner);
     if (finished.length && pendingNote) mission.deliverable = (mission.deliverable || "") + pendingNote;
@@ -425,25 +431,26 @@ function save(m) {
   saveDoc(m);
 }
 
-// ---- a Grok Bot result that came back after its mission moved on (or after a restart) ----
+// ---- an agent's result (Grok Bot or the browser helper) that came back after its mission moved on (or after a restart) ----
 // It lands on its task and is added to the deliverable under the task's title.
 const lateWhileRunning = new Map(); // mission id -> jobs that finished after the wait, while the mission still ran
-onJobFinished(lateResult);
+onAnyJobFinished(lateResult);
 async function lateResult(job) {
   if (job.source?.kind !== "mission" || !job.source.runId) return;
   if (lateWhileRunning.has(job.source.runId)) { lateWhileRunning.get(job.source.runId).push(job); return; }
   const m = await ctx().store.getMission(job.source.runId);
   const t = m?.tasks?.find((x) => x.agentJob?.jobId === job.id);
   if (!t) return;
+  const AID = job.agent || t.provider || GROKBOT, ANAME = agentName(AID);
   t.agentJob.status = job.status; t.late = true; t.finishedAt = Date.now();
   if (job.status === "done") {
-    t.status = "done"; t.error = null; t.output = job.text || `${GROKBOT_NAME} reported this step done.`; t.artifacts = job.artifacts || [];
-    const by = job.by === "you" ? "pasted in by you" : `from ${GROKBOT_NAME}, after the rest of the mission`;
+    t.status = "done"; t.error = null; t.output = job.text || `${ANAME} reported this step done.`; t.artifacts = job.artifacts || [];
+    const by = job.by === "you" ? "pasted in by you" : `from ${ANAME}, after the rest of the mission`;
     m.deliverable = `${m.deliverable || ""}\n\n## ${t.title} (${by})\n\n${t.output}`.trim();
-    observe({ provider: GROKBOT, model: GROKBOT, capability: "agent", difficulty: t.difficulty, runId: m.id, ok: true, cost: 0 });
-  } else { t.status = "failed"; t.error = job.error || `${GROKBOT_NAME} reported a failure`; }
+    observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: m.id, ok: true, cost: 0 });
+  } else { t.status = "failed"; t.error = job.error || `${ANAME} reported a failure`; }
   if (m.status === "done" && t.status === "failed") m.status = "done-with-errors";
   save(m);
-  emit("grokbot.late", { runId: m.id, kind: "mission", mission: publicMission(m) });
-  emit("log", { text: `${GROKBOT_NAME} ${t.status === "done" ? "finished" : "could not finish"} "${t.title}"; the mission was updated.`, missionId: m.id });
+  emit("grokbot.late", { runId: m.id, kind: "mission", mission: publicMission(m), agent: AID });
+  emit("log", { text: `${ANAME} ${t.status === "done" ? "finished" : "could not finish"} "${t.title}"; the mission was updated.`, missionId: m.id });
 }

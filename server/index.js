@@ -31,6 +31,7 @@ import { augment as webAugment, sourcesFromCitations, recordNative } from "./sea
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
+import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 let lastScan = null, lastKeys = null;
 
@@ -255,7 +256,7 @@ async function api(req, res, url) {
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = url.searchParams.get("mode") || settings().defaultMode;
     const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt) });
+    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
@@ -285,7 +286,7 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/council") {
     if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined }); }
+    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -294,7 +295,7 @@ async function api(req, res, url) {
     if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined };
+    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined };
     if (body.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }

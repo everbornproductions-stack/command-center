@@ -10,19 +10,24 @@ import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
-import { AGENT_ID as GROKBOT, NAME as GROKBOT_NAME, wantAgent, dispatch as dispatchAgent, awaitJob, waitMs, onJobFinished, STATUS_LABEL } from "./grokbot.js";
+import { AGENT_ID as GROKBOT } from "./grokbot.js";
+import { AGENT_ID as BROWSER } from "./browser.js";
+import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 
 const LETTERS = "ABCDEFGHIJ";
-const nameOf = (pid) => PROVIDERS[pid]?.name || (pid === GROKBOT ? GROKBOT_NAME : pid);
+const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools, grokbot }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools, grokbot, browser }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
-  // Grok Bot (Phase 12) is an agent, not a text model: it is picked by what the job needs (signed-in browsing,
-  // Gmail, Drive, Calendar, teammate bots), never for plain text work, and it answers asynchronously
+  // Grok Bot (Phase 12) and the browser helper (Phase 27) are agents, not text models: one of them is picked
+  // by what the job needs (signed-in browsing, Gmail, Drive, Calendar, teammate bots), never for plain text
+  // work, and it answers asynchronously
   if (members?.some((m) => m?.provider === GROKBOT)) { grokbot = grokbot ?? true; members = members.filter((m) => m?.provider !== GROKBOT); }
-  const agentPick = wantAgent({ prompt, explicit: grokbot });
+  if (members?.some((m) => m?.provider === BROWSER)) { browser = browser ?? true; members = members.filter((m) => m?.provider !== BROWSER); }
+  const agentPick = pickAgent({ prompt, grokbot, browser });
+  const A = agentPick.agent;
   if (!members?.length) {
     const ranked = rank({ ...cls, mode: lite ? "economy" : "balanced" });
     const seen = new Set();
@@ -41,43 +46,44 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
   const mode = lite ? "economy" : "balanced";
   emit("council.update", { council: pub(council) });
-  emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${GROKBOT_NAME} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
+  emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
-  // ---- Grok Bot gets the same question as a job; its answer joins round 1 if it is back in time ----
+  // ---- the agent gets the same question as a job; its answer joins round 1 if it is back in time ----
   let agentWait = null;
   if (agentPick.use) {
     lateWhileRunning.set(id, []);
-    const seat = { id: GROKBOT, name: GROKBOT_NAME, letter: LETTERS[members.length], needs: agentPick.needs, reason: agentPick.reason, jobId: null, status: "queued" };
+    const AID = A.id;
+    const seat = { id: AID, name: A.name, letter: LETTERS[members.length], needs: agentPick.needs, reason: agentPick.reason, jobId: null, status: "queued" };
     council.agents.push(seat);
-    const agent = `${id}:${GROKBOT}`;
-    emit("agent.start", { agent, provider: GROKBOT, model: GROKBOT, role: "answer", missionId: id, label: `${GROKBOT_NAME} on the job (results are async and can take minutes)` });
+    const agent = `${id}:${AID}`;
+    emit("agent.start", { agent, provider: AID, model: AID, role: "answer", missionId: id, label: `${A.name} on the job (results are async and can take minutes)` });
     const s = Date.now();
     try {
-      const job = await dispatchAgent({ task: prompt, context: "", needs: agentPick.needs, source: { kind: "council", runId: id, projectId } });
+      const job = await A.dispatch({ task: prompt, context: "", needs: agentPick.needs, source: { kind: "council", runId: id, projectId } });
       seat.jobId = job.id; seat.status = job.status;
       if (job.status === "failed") throw new Error(job.error);
       emit("council.update", { council: pub(council) });
-      agentWait = awaitJob(job.id, { timeoutMs: waitMs("council"), onUpdate: (j) => { seat.status = j.status; emit("council.update", { council: pub(council) }); } }).then((j) => {
+      agentWait = A.awaitJob(job.id, { timeoutMs: A.waitMs("council"), onUpdate: (j) => { seat.status = j.status; emit("council.update", { council: pub(council) }); } }).then((j) => {
         if (j?.status === "done" && j.text) {
           seat.status = "done";
-          council.answers[GROKBOT] = { provider: GROKBOT, model: GROKBOT, text: j.text, artifacts: j.artifacts, ms: Date.now() - s, cost: 0, free: true, letter: seat.letter, agent: true, jobId: j.id, by: j.by };
-          emit("agent.done", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, ms: Date.now() - s, cost: 0, chars: j.text.length });
+          council.answers[AID] = { provider: AID, model: AID, text: j.text, artifacts: j.artifacts, ms: Date.now() - s, cost: 0, free: true, letter: seat.letter, agent: true, jobId: j.id, by: j.by };
+          emit("agent.done", { agent, provider: AID, model: AID, missionId: id, ms: Date.now() - s, cost: 0, chars: j.text.length });
         } else if (j?.status === "failed" || j?.status === "done") {
           seat.status = j.status;
-          council.answers[GROKBOT] = { provider: GROKBOT, model: GROKBOT, error: j.error || "Grok Bot sent no text", letter: seat.letter, agent: true, jobId: j.id };
-          emit("agent.error", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, error: j.error || "no text" });
+          council.answers[AID] = { provider: AID, model: AID, error: j.error || `${A.name} sent no text`, letter: seat.letter, agent: true, jobId: j.id };
+          emit("agent.error", { agent, provider: AID, model: AID, missionId: id, error: j.error || "no text" });
         } else {
           // still out: the council goes on; the answer is added to this council when it comes back
-          council.answers[GROKBOT] = { provider: GROKBOT, model: GROKBOT, pending: true, status: seat.status, letter: seat.letter, agent: true, jobId: seat.jobId };
-          emit("agent.done", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, ms: Date.now() - s, cost: 0 });
-          emit("log", { text: `${GROKBOT_NAME} is still on it (${STATUS_LABEL[seat.status].toLowerCase()}). The council goes on; its answer is added to this council and scored when it comes back.`, missionId: id });
+          council.answers[AID] = { provider: AID, model: AID, pending: true, status: seat.status, letter: seat.letter, agent: true, jobId: seat.jobId };
+          emit("agent.done", { agent, provider: AID, model: AID, missionId: id, ms: Date.now() - s, cost: 0 });
+          emit("log", { text: `${A.name} is still on it (${A.STATUS_LABEL[seat.status].toLowerCase()}). The council goes on; its answer is added to this council and scored when it comes back.`, missionId: id });
         }
         emit("council.update", { council: pub(council) });
       });
     } catch (err) {
       seat.status = "failed";
-      council.answers[GROKBOT] = { provider: GROKBOT, model: GROKBOT, error: err.message, letter: seat.letter, agent: true, jobId: seat.jobId };
-      emit("agent.error", { agent, provider: GROKBOT, model: GROKBOT, missionId: id, error: err.message });
+      council.answers[AID] = { provider: AID, model: AID, error: err.message, letter: seat.letter, agent: true, jobId: seat.jobId };
+      emit("agent.error", { agent, provider: AID, model: AID, missionId: id, error: err.message });
       emit("council.update", { council: pub(council) });
     }
   }
@@ -258,11 +264,11 @@ export function summaryOf(c) {
   return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
 }
 
-// ---- a Grok Bot answer that came back after the council moved on ----
+// ---- an agent's answer (Grok Bot or the browser helper) that came back after the council moved on ----
 // It is added next to the other answers and scored by one judge on the same 1-10 scale the peers use;
 // the judge call is in the ledger like every other call.
 const lateWhileRunning = new Map(); // council id -> jobs that finished after the wait but before the council saved
-onJobFinished(lateAnswer);
+onAnyJobFinished(lateAnswer);
 async function lateAnswer(job) {
   if (job.source?.kind !== "council" || !job.source.runId) return;
   if (lateWhileRunning.has(job.source.runId)) { lateWhileRunning.get(job.source.runId).push(job); return; }
@@ -271,7 +277,8 @@ async function lateAnswer(job) {
   const seat = (c.agents ||= []).find((a) => a.jobId === job.id);
   if (!seat) return;
   seat.status = job.status;
-  const a = { provider: GROKBOT, model: GROKBOT, letter: seat.letter, agent: true, jobId: job.id, late: true, by: job.by };
+  const AID = job.agent || seat.id || GROKBOT, ANAME = agentName(AID);
+  const a = { provider: AID, model: AID, letter: seat.letter, agent: true, jobId: job.id, late: true, by: job.by };
   if (job.status === "done" && job.text) {
     Object.assign(a, { text: job.text, artifacts: job.artifacts, cost: 0, free: true });
     try {
@@ -285,14 +292,14 @@ async function lateAnswer(job) {
       const score = Number(extractJson(r.text)?.score);
       if (score > 0) {
         c.scoreboard ||= {};
-        c.scoreboard[GROKBOT] = { letter: seat.letter, provider: GROKBOT, avg: +Math.min(10, score).toFixed(2), votes: 1, bestVotes: 0, late: true, judge: r.provider };
-        a.score = c.scoreboard[GROKBOT].avg;
+        c.scoreboard[AID] = { letter: seat.letter, provider: AID, avg: +Math.min(10, score).toFixed(2), votes: 1, bestVotes: 0, late: true, judge: r.provider };
+        a.score = c.scoreboard[AID].avg;
       }
     } catch (err) { a.scoreError = err.message; }
-    observe({ provider: GROKBOT, model: GROKBOT, capability: c.classification?.capability, difficulty: c.classification?.difficulty, runId: c.id, ok: true, score: a.score ?? null, cost: 0 });
-  } else a.error = job.error || "Grok Bot sent no text";
-  c.answers = { ...(c.answers || {}), [GROKBOT]: a };
+    observe({ provider: AID, model: AID, capability: c.classification?.capability, difficulty: c.classification?.difficulty, runId: c.id, ok: true, score: a.score ?? null, cost: 0 });
+  } else a.error = job.error || `${ANAME} sent no text`;
+  c.answers = { ...(c.answers || {}), [AID]: a };
   save(c);
-  emit("grokbot.late", { runId: c.id, kind: "council", council: c });
-  emit("log", { text: `${GROKBOT_NAME}'s answer arrived after the verdict and was added to the council${a.score ? ` (judge score ${a.score}/10)` : ""}.`, missionId: c.id });
+  emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: AID });
+  emit("log", { text: `${ANAME}'s answer arrived after the verdict and was added to the council${a.score ? ` (judge score ${a.score}/10)` : ""}.`, missionId: c.id });
 }

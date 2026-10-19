@@ -44,8 +44,40 @@ function demoToolTurn(j, system, user) {
   return { id: "call_demo_" + Date.now().toString(36), name, args };
 }
 
+// The browser helper (Phase 27) in demo mode: the pretend AI reads the page it is shown and takes simple
+// steps (open the address in the task, fill in a contact form, click its button, which asks for your OK),
+// then reports what it saw. It never invents a password and never sends anything on its own.
+function demoBrowse(u) {
+  const part = (from, to) => { const i = u.indexOf(from); if (i < 0) return ""; const rest = u.slice(i + from.length); const j = to ? rest.indexOf(to) : -1; return j >= 0 ? rest.slice(0, j) : rest; };
+  const task = (u.match(/^TASK: (.*)$/m) || [])[1] || "";
+  const page = (u.match(/^PAGE: (.*)$/m) || [])[1] || "about:blank";
+  const title = (u.match(/^TITLE: (.*)$/m) || [])[1] || "";
+  const steps = part("STEPS SO FAR:\n", "\nPAGE: ");
+  const text = part("PAGE TEXT:\n", "\nELEMENTS:");
+  const els = part("ELEMENTS:\n", "\nGOOGLE:").split("\n");
+  const done = (answer) => JSON.stringify({ action: "done", answer, why: "demo" });
+  const addr = (task.match(/https?:\/\/[^\s)"]+/) || [])[0]?.replace(/[.,;]+$/, "");
+  if (page === "about:blank") return addr ? JSON.stringify({ action: "open", url: addr, why: "the task names this page" }) : done("**Demo result**: the task names no web address, so the pretend AI did not open anything. With a real key, the helper finds its own way.");
+  const summary = `**${title || page}** (${page})\n\n${text.replace(/\s+/g, " ").trim().slice(0, 400)}`;
+  if (/SAID NO/.test(steps)) return done(`You said no, so nothing was sent. What the page says:\n\n${summary}\n\n*Demo mode: a pretend AI drove the helper.*`);
+  if (/\b(form|contact|fill|message)\b/i.test(task)) {
+    const sub = els.find((l) => /\(submits form f\d+\)/.test(l));
+    const subRef = sub && sub.match(/^\[(e\d+)\]/)[1];
+    if (subRef && new RegExp(`\\. click ${subRef}\\b[^\\n]*-> (?!REFUSED|FAILED)`).test(steps)) return done(`The contact form was sent after your OK.\n\n${summary}\n\n*Demo mode: a pretend AI drove the helper; the demo form goes nowhere.*`);
+    for (const l of els) {
+      const m = l.match(/^\[(e\d+)\] (text|email|textarea) field "([^"]*)"/);
+      if (!m || new RegExp(`type into ${m[1]}\\b`).test(steps)) continue;
+      const value = m[2] === "email" || /e-?mail/i.test(m[3]) ? "hello@example.com" : /name/i.test(m[3]) ? "Demo Helper" : "Hello from the Command AI browser helper (demo).";
+      return JSON.stringify({ action: "type", ref: m[1], text: value, why: "fill in the form" });
+    }
+    if (subRef) return JSON.stringify({ action: "click", ref: subRef, why: "send the form (asks you first)" });
+  }
+  return done(`What the page says:\n\n${summary}\n\n*Demo mode: a pretend AI drove the helper.*`);
+}
+
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
+  if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
   const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
   if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });

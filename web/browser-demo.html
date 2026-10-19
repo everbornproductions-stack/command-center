@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunny Side Bakery (demo page for the browser helper)</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 32px auto; padding: 0 16px; color: #1f2937; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .note { background: #fef3c7; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+  label { display: block; margin-top: 10px; font-weight: 600; }
+  input, textarea { width: 100%; padding: 6px 8px; font: inherit; box-sizing: border-box; }
+  button { margin-top: 12px; padding: 8px 14px; font: inherit; }
+</style>
+</head>
+<body>
+  <h1>Sunny Side Bakery</h1>
+  <p class="note">This is a pretend page that ships with Command AI so you can watch the browser helper work. Nothing on it is real, and the form below goes nowhere: it only reloads this page.</p>
+  <h2>Opening hours</h2>
+  <p>Tuesday to Saturday, 7:00 to 15:00. Closed on Sunday and Monday.</p>
+  <h2>Today's bakes</h2>
+  <ul>
+    <li>Sourdough loaf: $7</li>
+    <li>Cardamom bun: $4</li>
+    <li>Lemon tart: $5</li>
+  </ul>
+  <p><a href="/browser-demo.html#about">About us</a></p>
+  <h2 id="contact">Contact us</h2>
+  <form method="get" action="/browser-demo.html" aria-label="Contact us">
+    <input type="hidden" name="source" value="helper-demo">
+    <label for="name">Your name</label>
+    <input id="name" name="name" type="text" placeholder="Your name">
+    <label for="email">Your email</label>
+    <input id="email" name="email" type="email" placeholder="you@example.com">
+    <label for="message">Message</label>
+    <textarea id="message" name="message" rows="4" placeholder="Your message"></textarea>
+    <button type="submit">Send message</button>
+  </form>
+</body>
+</html>

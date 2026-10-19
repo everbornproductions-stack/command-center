@@ -167,6 +167,9 @@ async function startServer() {
   delete process.env.PORT; // the server prefers PORT over CC_PORT
   if (!process.env.CC_DEMO_PORT || !(await require("./ports.cjs").isFree(Number(process.env.CC_DEMO_PORT)))) process.env.CC_DEMO_PORT = String(await pickFreePort(PORT + 52, { avoid: [PORT] }));
   exposeSafeStorage();
+  // built-in browser helper (Phase 27): its own window and session; the server finds it on this global
+  try { globalThis.__ccBrowserDriver = require("./browser-helper.cjs").createBrowserHelper({ log, icon: path.join(ROOT, "web", "icons", "icon-512.png") }); }
+  catch (e) { log("browser helper window unavailable:", e && e.message); }
   await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
   serverStarted = await waitForServer();
   return serverStarted;
