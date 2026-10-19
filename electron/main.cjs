@@ -6,7 +6,12 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Command AI"
-const PORT = Number(process.env.CC_PORT || 4747);
+const crypto = require("node:crypto");
+const { pickFreePort, isOurServer } = require("./ports.cjs");
+const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
+let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free one from 4747 up)
+const INSTANCE = crypto.randomBytes(12).toString("hex");
+process.env.CC_INSTANCE = INSTANCE;
 const isPackaged = app.isPackaged;
 const ROOT = path.join(__dirname, "..");
 const userData = app.getPath("userData");
@@ -25,7 +30,7 @@ if (!single) { app.quit(); process.exit(0); }
 async function waitForServer(ms = 20000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
-    try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok) return true; } catch {}
+    try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok && isOurServer(await r.json(), INSTANCE)) return true; } catch {}
     await new Promise((r) => setTimeout(r, 250));
   }
   return false;
@@ -86,8 +91,13 @@ function exposeUpdater() {
 
 async function startServer() {
   if (serverStarted) return true;
-  // Already running (e.g. the launcher script)? Just use it.
-  try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok) { serverStarted = true; return true; } } catch {}
+  // Always run our own server. Never attach to whatever already answers on 4747 (a dev copy from the
+  // repo, an older build): it would use a different data folder and its own network settings.
+  PORT = await pickFreePort(PREFERRED_PORT);
+  if (PORT !== PREFERRED_PORT) log(`port ${PREFERRED_PORT} is busy (another program); using ${PORT}`);
+  process.env.CC_PORT = String(PORT);
+  delete process.env.PORT; // the server prefers PORT over CC_PORT
+  if (!process.env.CC_DEMO_PORT || !(await require("./ports.cjs").isFree(Number(process.env.CC_DEMO_PORT)))) process.env.CC_DEMO_PORT = String(await pickFreePort(PORT + 52, { avoid: [PORT] }));
   exposeSafeStorage();
   exposeUpdater();
   await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
@@ -136,10 +146,10 @@ process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  log(`starting v${app.getVersion()} packaged=${isPackaged} port=${PORT} data=${process.env.CC_DATA_DIR}`);
+  log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);
   let ok = false;
   try { ok = await startServer(); } catch (e) { log("server failed:", e && e.stack || e); }
-  log(ok ? "server ready" : "server did not answer");
+  log(ok ? `server ready on ${PORT} (demo ${process.env.CC_DEMO_PORT})` : "server did not answer");
   createTray();
   createWindow();
   if (!ok) dialog.showErrorBox("Command AI", `The local server did not start on port ${PORT}. Details: ${LOG}`);
