@@ -277,6 +277,55 @@ test("external agents: sent, working, reported back, Open link, and a later adap
   } finally { unregisterExternalAgent("lab-bot"); }
 });
 
+test("Phase 12 and Phase 27 handoff events show Grok Bot and the browser helper", () => {
+  const grok = fs.readFileSync(new URL("./server/grokbot.js", root), "utf8");
+  const browser = fs.readFileSync(new URL("./server/browser.js", root), "utf8");
+  assert.match(grok, /emit\("external\.handoff"/);
+  assert.match(browser, /emit\("external\.handoff"/);
+  const state = createState();
+  const sentAt = Date.parse("2026-10-19T18:04:00Z");
+  // Same fields server/grokbot.js and server/browser.js pass to emit.
+  applyLiveEvent(state, {
+    type: "external.handoff", agent: "grokbot", jobId: "gb-abc_12", status: "queued",
+    task: "Check the inbox", result: "", sentAt: null, missionId: "c-9", projectId: "p1", failed: false,
+  });
+  applyLiveEvent(state, {
+    type: "external.handoff", agent: "browser-helper", jobId: "bh-xyz_9", status: "working",
+    task: "Open the receipt page", result: "", sentAt, missionId: "", projectId: "", failed: false,
+  });
+  let view = buildLiveView({ state, projects: [{ id: "p1", name: "P", color: "#22d3ee" }], missions: [], ledger: [], jobs: [], health: {} });
+  const onProject = view.projects[0].flow.nodes.find((n) => n.id === "grokbot");
+  assert.equal(onProject.name, "Grok Bot");
+  assert.equal(onProject.presence, "live");
+  assert.equal(onProject.handoff.status, "sent");
+  assert.equal(onProject.handoff.task, "Check the inbox");
+  const loose = view.unfiled.flow.nodes.find((n) => n.id === "browser-helper");
+  assert.equal(loose.name, "Browser helper");
+  assert.equal(loose.presence, "live");
+  assert.equal(loose.handoff.status, "working");
+  assert.equal(view.flow.nodes.some((n) => n.id === "grokbot" && n.presence === "live"), true);
+  assert.equal(view.flow.nodes.some((n) => n.id === "browser-helper" && n.presence === "live"), true);
+  applyLiveEvent(state, {
+    type: "external.handoff", agent: "grokbot", jobId: "gb-abc_12", status: "done",
+    task: "Check the inbox", result: "Three notes waiting", sentAt, missionId: "c-9", projectId: "p1", failed: false,
+  });
+  applyLiveEvent(state, {
+    type: "external.handoff", agent: "browser-helper", jobId: "bh-xyz_9", status: "failed",
+    task: "Open the receipt page", result: "The page did not load", sentAt, missionId: "", projectId: "", failed: true,
+  });
+  view = buildLiveView({ state, projects: [{ id: "p1", name: "P", color: "#22d3ee" }], missions: [], ledger: [], jobs: [], health: {} });
+  const reported = view.projects[0].runs.flatMap((r) => r.handoffs).find((h) => h.jobId === "gb-abc_12");
+  assert.equal(reported.status, "reported");
+  assert.equal(reported.result, "Three notes waiting");
+  assert.equal(reported.failed, false);
+  const failed = view.unfiled.runs.flatMap((r) => r.handoffs).find((h) => h.jobId === "bh-xyz_9");
+  assert.equal(failed.status, "reported");
+  assert.equal(failed.failed, true);
+  assert.equal(failed.result, "The page did not load");
+  assert.equal(view.projects[0].flow.nodes.find((n) => n.id === "grokbot").presence, "ghost");
+  assert.equal(view.unfiled.flow.nodes.find((n) => n.id === "browser-helper").presence, "ghost");
+});
+
 test("UI and server sources: no em-dash, no fetch of a provider page, reduced motion is honored", () => {
   const ui = fs.readFileSync(new URL("./web/features/liveview.js", root), "utf8");
   const server = fs.readFileSync(new URL("./server/liveview.js", root), "utf8");

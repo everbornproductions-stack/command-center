@@ -183,7 +183,9 @@ export function applyLiveEvent(state, ev) {
   }
   if (ev.type === "external.handoff") {
     const h = normalizeHandoff(ev);
-    if (!h || (!h.missionId && !h.projectId)) return null;
+    // A click with no project still shows, on an unfiled run. Council and mission jobs
+    // carry the run id Phase 12 and Phase 27 already put on the event.
+    if (!h) return null;
     const run = ensureRun(state, h.missionId || `ext-${h.jobId}`);
     if (h.projectId) run.projectId = run.projectId || h.projectId;
     if (!run.kind) run.kind = "handoff";
