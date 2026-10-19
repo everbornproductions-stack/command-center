@@ -53,3 +53,13 @@ PHASE 1 DONE
 - Not verified: the UI (toggles, source chips, Settings panel) was syntax-checked and its API covered by tests, not clicked through in a browser; the real Tavily / Brave / Serper request and response shapes and xAI's `search_parameters` field were written from their published docs and only exercised against mocks; a first real search will confirm them. `.claude/launch.json` and `cc-names.tmp.mjs` are uncommitted work from another session and were left alone.
 
 PHASE 15 DONE
+
+## 2026-10-18 22:10 PT: Phase 17 (Side-by-side comparison), built by Cursor cloud agent
+
+- Compare tab: one prompt goes to 2 to 6 chosen models. Answers stream into parallel columns with cost and latency. Nothing is called until Compare is clicked, and an estimate is shown first. Pick winner writes the same ratings log as Phase 3 and calls recordOutcome, so the router (and later Phase 28) can read the thumbs, task type, cost and speed. The ledger line (role compare) and the rating store no prompt or answer text. Presets of model sets save, reload and delete. A provider at 100% of its monthly spend cap is skipped with a note and is not called.
+- Demo mode registers the pretend providers before saving their keys, so on macOS/Linux plain Node the demo key stays in memory (the vault already allowed that, but only after the provider was marked demo). Tests preload a safeStorage stand-in (test/vault-shim.mjs, AES-GCM, key from the temp data dir). The app itself never loads it.
+- Commit: 33c4da2 (Phase 17: side-by-side comparison of 2 to 6 models).
+- Tests: npm test 87/87 pass (test/compare.test.js adds 2: selection rules, and a server run with the three demo models in parallel, cost and latency per column, winner in the skills table and ratings log, preset save/reload/delete, spend-cap skip with no ledger line, no prompt text in the ledger or skills); npm run smoke 16/16 pass. No real URL or key.
+- Not verified: a real provider key was not used. The columns, winner and preset were also clicked through in the browser against the demo AIs (cost, time, Winner chip, preset save and use).
+
+PHASE 17 DONE (built by Cursor cloud agent)
