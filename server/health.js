@@ -37,6 +37,30 @@ export function noteCall(id, ok, latencyMs, errStatus) {
   else if (errStatus >= 400) set(id, { status: "red", detail: `HTTP ${errStatus} from the provider` });
 }
 
+// Turn a provider's refusal into words a person can act on, keeping the provider's own message
+// (with anything that looks like a key masked). Never just "key rejected" when the reason is known.
+export function providerMessage(json, text) {
+  const e = json?.error;
+  let m = (typeof e === "string" ? e : e?.message) || json?.message || json?.detail || json?.error_description || (typeof text === "string" && !/^\s*</.test(text) ? text : "") || "";
+  if (Array.isArray(json) && json[0]?.error?.message) m = json[0].error.message; // Google sometimes wraps errors in an array
+  return String(m).replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1…").replace(/\b(xai-|AIza|gsk_|pplx-|fw_|tgp_)[A-Za-z0-9_-]{4,}/g, "$1…").replace(/\s+/g, " ").trim().slice(0, 180);
+}
+export function explainProviderError(p, status, json, text) {
+  const msg = providerMessage(json, text);
+  const low = msg.toLowerCase();
+  const tail = msg ? `: ${msg}` : "";
+  if (/credit|spending limit|spend limit|quota|billing|insufficient_quota|exceeded your current|balance/.test(low) && status !== 401)
+    return { status: "amber", detail: `Out of credits or spending limit reached${tail}` };
+  if (p.api === "anthropic" && /workspace/.test(low))
+    return { status: "red", detail: `This key needs a workspace: pick or paste your Anthropic workspace ID${tail}` };
+  if (status === 400 && /api key not valid|api_key_invalid|invalid api key|incorrect api key/.test(low)) return { status: "red", detail: `Key rejected (${status})${tail}` };
+  if (status === 401 || status === 403) return { status: "red", detail: `Key rejected (${status})${tail}` };
+  if (status === 402) return { status: "red", detail: `Payment required: no credits${tail}` };
+  if (status === 429) return { status: "amber", detail: `Rate limited${tail}` };
+  if (status >= 500) return { status: "amber", detail: `${p.name} had a server error (${status})${tail}` };
+  return { status: "red", detail: `HTTP ${status} from ${p.name}${tail}` };
+}
+
 // "fetch failed" says nothing; dig out the real reason (DNS, refused, TLS, proxy, timeout).
 export function networkCause(e) {
   if (e?.name === "AbortError" || e?.name === "TimeoutError") return "timed out";
@@ -100,15 +124,14 @@ export async function checkProvider(id) {
   const t0 = Date.now();
   try {
     let r, balance = null;
-    if (p.api === "anthropic") r = await fetchJson(`${p.baseUrl}/v1/models?limit=100`, { ...(sec.headers || {}), "x-api-key": sec.key, "anthropic-version": "2023-06-01" });
+    if (p.api === "anthropic") r = await fetchJson(`${p.baseUrl}/v1/models?limit=100`, { ...(sec.headers || {}), ...(sec.workspaceId ? { "anthropic-workspace-id": sec.workspaceId } : {}), "x-api-key": sec.key, "anthropic-version": "2023-06-01" });
     else if (p.id === "google") r = await fetchJson(`${p.baseUrl.replace(/\/openai\/?$/, "")}/models?pageSize=200`, { "x-goog-api-key": sec.key });
     else if (p.id === "perplexity") r = { ok: true, status: 200 }; // no cheap list endpoint; verified on first real call
     else r = await fetchJson(`${p.baseUrl}/models`, { ...(sec.headers || {}), ...(sec.key && sec.key !== "no-key" ? { authorization: `Bearer ${sec.key}` } : {}) });
     const latencyMs = Date.now() - t0;
     if (!r.ok) {
-      // Google answers 400 "API key not valid" for a bad key
-      noteCall(id, false, latencyMs, r.status === 400 && /api key|api_key_invalid/i.test(r.text || "") ? 401 : r.status);
-      set(id, { incident });
+      noteCall(id, false, latencyMs, r.status); // keeps the call stats; the words come from the provider's own message
+      set(id, { ...explainProviderError(p, r.status, r.json, r.text), incident });
       return getStatus(id);
     }
     if (p.balanceApi === "openrouter-key") {

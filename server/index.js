@@ -95,7 +95,7 @@ function providerView() {
   return Object.values(PROVIDERS)
     .filter((p) => !p.demo || hasSecret(p.id)) // demo AIs only for the user who turned demo on
     .map((p) => ({
-      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
+      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
       keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), status: st[p.id] || { status: "grey" },
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
@@ -237,9 +237,16 @@ async function api(req, res, url) {
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
-    if (!String(body.key || "").trim()) return json(res, 400, { error: "key required" });
-    const keepHeaders = PROVIDERS[body.provider].custom ? getSecret(body.provider)?.headers : null; // custom providers keep their extra headers
-    await setSecret(body.provider, body.secret ? { key: body.key, secret: body.secret } : keepHeaders ? { key: String(body.key).trim(), headers: keepHeaders } : body.key);
+    const prev = getSecret(body.provider);
+    const key = String(body.key || "").trim() || (body.workspaceId !== undefined && !prev?.fromEnv ? prev?.key || "" : "");
+    if (!key) return json(res, 400, { error: "key required" });
+    const keepHeaders = PROVIDERS[body.provider].custom ? prev?.headers : null; // custom providers keep their extra headers
+    const value = { key };
+    if (body.secret) value.secret = String(body.secret).trim();
+    if (keepHeaders) value.headers = keepHeaders;
+    // Anthropic: optional workspace ID, sent as anthropic-workspace-id on every Anthropic request
+    if (body.provider === "anthropic") { const ws = body.workspaceId !== undefined ? String(body.workspaceId || "").trim() : prev?.workspaceId || ""; if (ws && !/^[A-Za-z0-9_-]{4,100}$/.test(ws)) return json(res, 400, { error: "That does not look like a workspace ID (letters, digits, _ and - only)." }); if (ws) value.workspaceId = ws; }
+    await setSecret(body.provider, value);
     const t0 = Date.now() - 1;
     const st = await checkProvider(body.provider);
     const demoRetired = await retireDemoIfReal(t0);

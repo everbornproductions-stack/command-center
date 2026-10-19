@@ -23,7 +23,7 @@ export function requireKey(provider) {
 }
 
 // extra headers saved with a custom provider (kept in the vault next to its key)
-const extraHeaders = (provider) => ({ ...(getSecret(provider.id, provider.keyEnv)?.headers || {}) });
+const extraHeaders = (provider) => { const s = getSecret(provider.id, provider.keyEnv); return { ...(s?.headers || {}), ...(provider.api === "anthropic" && s?.workspaceId ? { "anthropic-workspace-id": s.workspaceId } : {}) }; };
 
 // ---------- Anthropic (official SDK) ----------
 async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal }) {

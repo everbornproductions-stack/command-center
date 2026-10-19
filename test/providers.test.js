@@ -121,7 +121,7 @@ test("Google Gemini card, bad key vs good key vs unreachable, demo retires, demo
     // a rejected key is reported as a key problem and does not retire demo
     let r = await s.api("/keys", { method: "POST", body: { provider: "google", key: "AIzaWRONGwrongWRONGwrongWRONG0000" } });
     assert.equal(r.json.status.status, "red");
-    assert.match(r.json.status.detail, /Key rejected \(401\)/);
+    assert.match(r.json.status.detail, /Key rejected \(40[01]\): API key not valid/);
     assert.equal(r.json.demoRetired, false);
 
     // an unreachable provider says so, with the cause, and does not retire demo

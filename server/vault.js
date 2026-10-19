@@ -105,7 +105,8 @@ async function saveLocal(secrets) {
 export async function setSecret(providerId, value) {
   const c = ctx();
   await loadVault();
-  const v = value && typeof value === "object" ? value : value ? { key: String(value).trim() } : null;
+  // pasted keys often carry a stray space or line break: trim every key-like field on save
+  const v = value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, x]) => [k, typeof x === "string" && /^(key|secret|workspaceId)$/.test(k) ? x.trim() : x])) : value ? { key: String(value).trim() } : null;
   // Demo-mode pretend keys never need to persist; everything else must be sealed or refused.
   const memoryOnly = !HOSTED && !!PROVIDERS[providerId]?.demo && !vaultMethod().canSave;
   if (!HOSTED && v && !memoryOnly && !vaultMethod().canSave) throw Object.assign(new Error(NEEDS_APP), { status: 400, code: "vault_unavailable" });
@@ -116,9 +117,9 @@ export async function setSecret(providerId, value) {
 
 export function getSecret(providerId, envName) {
   const s = ctx().secrets?.[providerId];
-  if (s?.key) return s;
+  if (s?.key) return typeof s.key === "string" && s.key !== s.key.trim() ? { ...s, key: s.key.trim() } : s; // trim on read too (keys saved before v0.3.2)
   // env fallback is a single-user convenience; in a hosted hub it would leak one key to every user
-  if (!HOSTED && envName && process.env[envName]) return { key: process.env[envName], fromEnv: true };
+  if (!HOSTED && envName && process.env[envName]?.trim()) return { key: process.env[envName].trim(), fromEnv: true };
   return null;
 }
 
