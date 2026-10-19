@@ -888,3 +888,34 @@ FIX voice-toggle DONE (built by Cursor cloud agent)
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 2 DONE
+
+## 2026-10-19 13:57 PT: Phase 3 (Quality loop)
+- Started after PHASE 2 DONE. No conflict with docs/DECISIONS.md: the learning router (decision 18) still gets every thumb, and council scoring is unchanged.
+- Already in the code before this session, and kept: the thumbs under every deliverable (web/features/ratings.js), the ratings log and summary routes, the thumb reaching the learning router (Phase 28), the project memory editor in Settings and the "project memory in use" badge in Command. Neither plugin had tests. This phase added only what was missing.
+- Rate the result (R4):
+  - Gap fixed: a thumb was stored in the skills table as a fake council round (a win or a loss), so the skills matrix could not tell your ratings from council votes, and changing a thumb counted twice there.
+  - Thumbs now have their own up / down counts per model and task type. Council wins and rounds only change in a council. A changed thumb replaces the earlier one, also when the task type differs.
+  - Each source moves the score on its own after 2 signals: council by its win rate as before, your thumbs by up to 12 points either way. The router uses both, and the learning router still weighs thumbs double.
+  - The skills matrix on the Credits tab shows, under each score, "council +n" and "you +n" on separate lines, with the baseline in the tooltip. /api/ratings/summary returns council and human counts and deltas apart. Unknown task types are filed as writing.
+  - The unrated chip showed an em-dash. It now says "not rated".
+- Project memory and brand voice (R5):
+  - Gap fixed: memory only reached prompts typed in Command, because the page pasted it in. Pipelines, schedules, queued off-peak missions and comparisons ran without it, and the QA reviewer, the mission assembler and the council reviewers and chair never saw the never-say list.
+  - The server now adds it (server/project-memory.js) to single chats, every council member plus the reviewers and the chair, every mission step plus QA and the assembler, pipelines, schedules, off-peak runs and side-by-side comparisons, and to the context given to an outside agent. A prompt that already carries it is not given a second copy. The page now sends the raw prompt, so the stored prompt is what the person typed. Runs record `memory: true`.
+  - HQ importer: sorts a client brief into Brand voice, Offers, Never say, Past winners and Facts by its headings. It fills empty sections and sections still exactly as the last import left them, and keeps anything the person edited. The toast says what it filled and what it kept. It uses the HQ folder from CC_HQ_DIR (the old code guessed a folder two levels above the data folder, which is wrong in a packaged build) and only accepts a plain slug as the file name.
+  - "Keep as a past winner for this project" under a rated result adds one dated line to the project's past winners (newest first, no repeats, within the 4000 character limit).
+  - Demo mode: the pretend AI says "Following the project memory for <project>" when memory arrived, so the injection can be seen without keys.
+- Commits:
+  - 7dc4469 Phase 3: rate the result (R4): thumbs stored apart from council votes, a changed thumb replaces the old one, skills matrix shows council and your ratings separately, tests
+  - ee3f1b8 Phase 3: project memory and brand voice (R5): the server adds it to chats, councils (members, reviewers, chair), missions (steps, QA, assembler), pipelines, schedules and comparisons; HQ importer sorts a client brief into voice / offers / never-say / winners / facts and keeps your edits; keep a thumbs-up result as a past winner; tests
+- Tests:
+  - New: test/ratings.test.js (4), test/memory.test.js (6). Temp data dir, temp HQ folder with a made-up bakery brief, demo AIs only, no real key or URL.
+  - npm test: 228 tests, 226 pass, 0 fail, 2 skipped. npm run smoke: all checks pass.
+  - Both runs were on the final tree. The first commit was staged without the memory changes in the three shared files (server/index.js, web/app.js, web/features/ratings.js). The sandbox would not let me export that snapshot to run the suite on it alone, so I only checked by reading the staged diff that it does not reference any memory code.
+- Not verified:
+  - The skills matrix lines, the import toast and the "Keep as a past winner" button were not opened in a real browser. Only source checks and the API behind them are tested.
+  - The importer has not been run against the real company/clients files (this session had no read access to them). Its heading rules were tested on a made-up brief only.
+  - Real models following the memory. Only the demo AI's acknowledgement was checked.
+  - A queued off-peak mission picking up memory when its window opens. It goes through the same runMission path that the tests cover, but no test actually waits for a window.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 3 DONE
