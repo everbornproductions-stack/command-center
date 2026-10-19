@@ -163,12 +163,30 @@ export function setPricing(modelId, { in: inp, out }) {
   o[modelId] = { in: Number(inp), out: Number(out) };
   putDoc("pricing", o);
 }
-// list price for a model with the current user's overrides applied
+export function clearPricing(modelId) {
+  const o = overrides();
+  if (!(modelId in o)) return false;
+  delete o[modelId];
+  putDoc("pricing", o);
+  return true;
+}
+// Live prices (Phase 24): public list prices from the OpenRouter models API, set by server/live-pricing.js.
+// Shared by every user (they are public numbers); a user's own override always wins.
+let livePrices = {};
+export const setLivePrices = (map) => { livePrices = map && typeof map === "object" ? map : {}; };
+export const livePrice = (modelId) => livePrices[modelId] || null;
+// list price for a model: the user's override, else the live price, else the built-in one
 export function modelPrice(modelId) {
   const m = findModel(modelId);
   if (!m) return { in: 0, out: 0 };
   const o = overrides()[modelId];
-  return { in: o?.in ?? m.in, out: o?.out ?? m.out };
+  const l = livePrices[modelId];
+  return { in: o?.in ?? l?.in ?? m.in, out: o?.out ?? l?.out ?? m.out };
+}
+// where the price in modelPrice() comes from: "override", "live" or "built-in"
+export function priceSource(modelId) {
+  if (overrides()[modelId]) return "override";
+  return livePrices[modelId] ? "live" : "built-in";
 }
 
 export function findModel(modelId) {

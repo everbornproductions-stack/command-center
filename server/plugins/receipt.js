@@ -1,13 +1,14 @@
 // Savings receipt: for every run, what it cost versus doing all of it on the single most expensive
 // available flagship. Totals on the Credits tab; shareable as an image from the browser.
 import { allEntries } from "../ledger.js";
-import { TEXT_PROVIDERS, estimateCost } from "../registry.js";
+import { TEXT_PROVIDERS, estimateCost, modelPrice } from "../registry.js";
 export const id = "receipt";
 
 function flagshipPrice() {
-  // the priciest text model the registry knows (the "manual way": everything on the big model)
+  // the priciest text model the registry knows (the "manual way": everything on the big model), at the
+  // price in use: your own, else the live OpenRouter list price (Phase 24), else the built-in one
   let best = null;
-  for (const p of TEXT_PROVIDERS) for (const m of p.models) if (!m.variable && (!best || m.in + m.out > best.in + best.out)) best = { ...m, provider: p.id, providerName: p.name };
+  for (const p of TEXT_PROVIDERS) for (const m of p.models) { if (m.variable) continue; const pr = modelPrice(m.id); if (!best || pr.in + pr.out > best.in + best.out) best = { ...m, in: pr.in, out: pr.out, provider: p.id, providerName: p.name }; }
   return best;
 }
 

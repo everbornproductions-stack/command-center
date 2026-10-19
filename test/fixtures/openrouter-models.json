@@ -1,0 +1,12 @@
+{
+  "data": [
+    { "id": "x-ai/grok-4.3", "name": "xAI: Grok 4.3", "pricing": { "prompt": "0.000005", "completion": "0.00002", "request": "0", "image": "0" } },
+    { "id": "anthropic/claude-haiku-5.5", "name": "Anthropic: Claude Haiku 5.5", "pricing": { "prompt": "0.0000002", "completion": "0.000001" } },
+    { "id": "anthropic/claude-sonnet-5-5", "name": "Anthropic: Claude Sonnet 5.5", "pricing": { "prompt": "0.0000025", "completion": "0.0000125" } },
+    { "id": "mistralai/mistral-large", "name": "Mistral Large", "pricing": { "prompt": "0.0000006", "completion": "0.0000018" } },
+    { "id": "openai/gpt-oss-120b", "name": "OpenAI: gpt-oss-120b", "pricing": { "prompt": "0.00000009", "completion": "0.00000045" } },
+    { "id": "openrouter/auto", "name": "Auto Router", "pricing": { "prompt": "-1", "completion": "-1" } },
+    { "id": "someone/broken", "name": "no pricing" },
+    { "id": "someone/absurd", "name": "absurd", "pricing": { "prompt": "5", "completion": "5" } }
+  ]
+}

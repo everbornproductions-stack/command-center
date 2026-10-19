@@ -38,7 +38,7 @@ export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", h
   });
 }
 
-// A tiny local stand-in for Supabase + the update feed. `rpc` decides what verify_license /
+// A tiny local stand-in for Supabase, the update feed and the OpenRouter models list (404 unless a test serves one). `rpc` decides what verify_license /
 // redeem_promo answer; every request is recorded in `hits`.
 export async function startStub({ rpc = () => ({ ok: false, tier: "free", status: "unknown", message: "stub: not found" }) } = {}) {
   const port = await freePort();
@@ -71,6 +71,7 @@ export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
     ...process.env,
     CC_MODE: "", CC_DATA_DIR: dir, CC_PORT: String(port), CC_DEMO_PORT: String(demoPort),
     CC_UPDATE_FEED: `${stub.url}/latest.json`, CC_CLOUD_DEFAULTS_FILE: defaultsFile,
+    CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
   };

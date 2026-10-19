@@ -11,7 +11,7 @@ import { DATA_DIR, WEB_DIR, HQ_DIR } from "./paths.js";
 import { HOSTED, als, ctx, doc, putDoc, newContext, FileStore, setDefaultContext, getContext, runAs } from "./store.js";
 import { CFG, assertHostedConfig } from "./hosted.js";
 import { bearer, contextForToken, setContextInitializer } from "./auth.js";
-import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, pricingRules, saveRules, activeDiscount, nextDiscountStart } from "./registry.js";
+import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, priceSource, pricingRules, saveRules, activeDiscount, nextDiscountStart } from "./registry.js";
 import { loadVault, setSecret, getSecret, hasSecret, maskedKey, vaultInfo } from "./vault.js";
 import { bus, emit } from "./events.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
@@ -107,7 +107,7 @@ function providerView() {
     .map((p) => ({
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
       keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), status: st[p.id] || { status: "grey" },
-      models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
+      models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
     }))
     .concat(hubAgents()); // Grok Bot and the browser helper: their own hub cards (kind "agent", Phase 12)
