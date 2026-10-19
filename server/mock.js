@@ -151,7 +151,10 @@ function answerFor(model, system, user, messages = []) {
   if (/You QA another AI/.test(sys)) return JSON.stringify({ pass: model !== "sage-mini", score: 8, issues: model === "sage-mini" ? ["missing a call to action"] : [], fix: model === "sage-mini" ? "Add a one-line call to action at the end." : null });
   if (u.includes("LIBRARY EXCERPTS")) { const lib = demoLibraryAnswer(model, u); if (lib) return lib; }
   const topic = u.replace(/^(QUESTION|TASK|GOAL):\s*/i, "").split("\n")[0].slice(0, 70);
+  // custom agents (Phase 19): the pretend AI says which agent it is playing, so instructions can be seen arriving
+  const custom = sys.match(/^You are the custom agent "([^"\n]{1,80})"/)?.[1];
   const paras = [
+    ...(custom ? [`*Speaking as your custom agent **${custom}**.*`] : []),
     `## ${topic}\n\nHere is how **${model}** would approach this. The demo AIs produce placeholder content so you can watch the console work without spending credits.`,
     `- First, the goal is restated so nothing is lost.\n- Then the strongest angle is chosen (${pick(["clarity", "speed", "emotion", "proof"], model.length)}).\n- Finally, the deliverable is written in a form you can paste straight into the project.`,
     `### Draft\n\n${pick(["Short hook. Clear promise. One call to action.", "Lead with the result, then the method, then the invitation.", "Open on a question the audience already asks itself."], model.length + 1)}\n\n| Step | Owner | When |\n|---|---|---|\n| Draft | ${model} | today |\n| Review | another AI | +1h |\n| Publish | you | tomorrow |`,

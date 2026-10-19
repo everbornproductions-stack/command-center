@@ -52,6 +52,20 @@ try {
   const lm = (await owner.api(`/missions/${libMission.id}`)).json;
   check(lm?.librarySources?.some((x) => x.title === "returns.md"), `library mission has the library sources (${lm?.librarySources?.length})`);
   check((await owner.api(`/libraries/${lib?.id}`, { method: "DELETE" })).status === 200, "library deleted");
+  // custom agent and a saved prompt with {{variables}} (Phase 19)
+  const ag = (await owner.api("/agents", { method: "POST", body: { name: "Smoke greeter", provider: "demo-nova", model: "nova-lite", instructions: "Greet new customers warmly in two lines.", starters: ["Greet Ana"] } })).json;
+  check(/^ag-/.test(ag?.id || ""), "agent created");
+  const agRun = await owner.api(`/agents/${ag?.id}/run`, { method: "POST", body: { prompt: "Greet Ana" } });
+  let ar = null; for (let i = 0; i < 120 && !(ar && ar.status !== "running"); i++) { await sleep(500); const r = await owner.api(`/missions/${agRun.json?.runId}`); if (r.status === 200) ar = r.json; }
+  check(ar?.status === "done" && ar.customAgent?.id === ag?.id && /Smoke greeter/.test(ar.deliverable || ""), "agent run finished with its instructions");
+  const pr = (await owner.api("/agents/prompts", { method: "POST", body: { name: "Smoke promo", text: "Announce {{item}} for {{day}}.", agentId: ag?.id } })).json;
+  check((await owner.api(`/agents/prompts/${pr?.id}/run`, { method: "POST", body: { values: { item: "rye" } } })).status === 400, "prompt with a missing variable refused");
+  check((await owner.api(`/agents/prompts/${pr?.id}/fill`, { method: "POST", body: { values: { item: "rye", day: "Friday" } } })).json?.text === "Announce rye for Friday.", "prompt variables substituted");
+  const bundle = (await owner.api("/agents/export")).json;
+  check(bundle?.agents?.length === 1 && bundle.prompts.length === 1, "agents exported");
+  check((await owner.api(`/agents/${ag?.id}`, { method: "DELETE" })).status === 200, "agent deleted");
+  const imp = (await owner.api("/agents/import", { method: "POST", body: { data: bundle } })).json;
+  check(imp?.agents?.[0]?.instructions === "Greet new customers warmly in two lines.", "agents imported back");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 

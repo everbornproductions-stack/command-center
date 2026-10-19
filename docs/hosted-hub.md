@@ -162,6 +162,10 @@ Local mode (desktop, offline): the owner side works fully on this PC (create, in
 
 Verified 2026-10-18 by tests (local mode, demo AIs). Hosted mode against the real tables is not verified: it needs `workspaces.sql` applied and a second signed-in email.
 
+### Shared agents and prompts (Phase 19)
+
+File: `supabase/agents.sql` (migration file only, run after `workspaces.sql`; never run by an agent). Table `workspace_agents`: a snapshot of each agent or saved prompt someone shared into a workspace (text only, never a key). RLS through `ws_role()`: everyone in the workspace reads; owner, admin and member share their own and update or remove what they shared; owner and admin update or remove anything; a viewer only reads (the server also refuses a viewer's run and copy). Sharing needs Studio, like the workspaces. Each person's own agents and prompts stay in `user_docs` (`agents.custom`, `agents.prompts`). Tested against a local stand-in for Supabase (`test/agents.test.js`), not against the real tables.
+
 ## Verify locally (what was done and what is left)
 
 Done against the real project on 2026-10-18: hosted server boots with the real URL and publishable key, `/api/health` and `/api/config` answer, `/api/state` returns 401 without a token and with a malformed token, local-PC routes return 401/400, CORS preflight answers, the sign-in gate renders at `http://localhost:3000`, and `data/` is not created or written (`CC_DATA_DIR` pointed at a folder that still does not exist).

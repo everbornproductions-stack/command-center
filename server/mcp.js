@@ -322,7 +322,9 @@ export function chatWithTools(opts, run = {}) {
   const settings = mcpSettings();
   const pid = typeof opts.provider === "string" ? opts.provider : opts.provider?.id;
   const want = run.tools === false ? false : settings.on;
-  const tools = want && supportsTools(pid) ? enabledTools() : [];
+  // run.allow (custom agents, Phase 19): only these "serverId/tool" entries, and only if switched on as well
+  const allow = Array.isArray(run.allow) ? new Set(run.allow) : null;
+  const tools = want && supportsTools(pid) ? enabledTools().filter((t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`)) : [];
   if (!tools.length) return streamChat(opts);
   return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
 }

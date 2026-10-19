@@ -179,8 +179,10 @@ function fullState() {
 const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
 
 // ---------- single-AI chat (streams through the event bus) ----------
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries }) {
-  const id = "s-" + Date.now().toString(36);
+// Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
+// toolAllow (the tools it may use) and runId; a plain chat passes none of them.
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }) {
+  const id = runId || "s-" + Date.now().toString(36);
   let cls = null;
   if (!provider || !model) {
     cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -190,32 +192,33 @@ async function runChat({ prompt, provider, model, projectId, search, tools, libr
   }
   let agent = `${id}:${provider}`;
   const taskType = () => (cls ||= heuristicClassify(prompt));
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [] };
-  emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(customAgent ? { customAgent } : {}) };
+  const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
+  emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
   const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
   // knowledge libraries (Phase 18): the chat's, the active workspace's, or the ones the request names; excerpts cited as [L1], [L2]
-  const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
+  const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   const ask = `${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`;
-  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
+    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
         const next = `${id}:${ev.to.provider}`;
         announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "answer" });
         agent = next; provider = ev.to.provider; model = ev.to.model; m.provider = provider; m.model = model; m.via = ev.via || null;
-        emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
+        emit("mission.update", { mission: { ...m, title, tasks: [] } });
       }
-      else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } }); }
+      else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title, tasks: [] } }); }
       else if (ev.type === "done") {
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
@@ -235,8 +238,8 @@ async function runChat({ prompt, provider, model, projectId, search, tools, libr
     m.status = "failed"; m.error = err.message;
   }
   m.deliverable = text; m.finishedAt = Date.now();
-  ctx().store.saveMission(m, missionSummary({ ...m, title: prompt.slice(0, 90) }));
-  emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
+  ctx().store.saveMission(m, missionSummary({ ...m, title }));
+  emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
 }
 
@@ -541,7 +544,7 @@ async function initContext() {
   }
   setContextInitializer(initContext);
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
-  await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
+  await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, runChat, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
     console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);

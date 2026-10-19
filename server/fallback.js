@@ -262,7 +262,7 @@ export async function* fallbackChat(opts, run = {}) {
     let text = "";
     const t0 = Date.now();
     try {
-      for await (const ev of chatWithTools({ ...opts, provider, model }, { missionId: run.missionId, taskId: run.taskId, tools: run.tools })) {
+      for await (const ev of chatWithTools({ ...opts, provider, model }, { missionId: run.missionId, taskId: run.taskId, tools: run.tools, allow: run.allow })) {
         if (ev.type === "delta") { text += ev.text; yield ev; }
         else if (ev.type === "done") {
           const usage = { ...(ev.usage || {}) };
