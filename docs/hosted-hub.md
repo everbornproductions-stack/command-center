@@ -141,6 +141,27 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 
 Same `Dockerfile`; `fly.toml` is in the folder. Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in.
 
+## Teams and shared workspaces (Studio tier, Phase 8)
+
+Files: `supabase/workspaces.sql` (migration file only; Chris runs it in the Supabase SQL editor after review, it was never run by an agent), `server/plugins/workspaces.js`, `web/features/workspaces.js`, tests in `test/workspaces.test.js`. Gate: `licenseState().tier` must be `studio` or `owner` to create or change a workspace (402 otherwise). Reading, joining and switching are open, so a Free-tier invitee can still see what was shared with them.
+
+Roles: **owner** (everything, including delete), **admin** (invite and remove members and viewers, change their roles, share projects, rename, see everyone's usage), **member** (sees shared projects; calls made while the workspace is active count toward it), **viewer** (read-only). The permission table is `PERMISSIONS` in the plugin and is mirrored in RLS through `ws_role()` / `ws_can_manage()`.
+
+| Table | Purpose | Who may read / write (RLS) |
+|---|---|---|
+| `workspaces` | id, owner, name | owner: all; admin: rename; active member: read |
+| `workspace_members` | invited email, role, invite hash, expiry, user id once joined, status | owner: manage all; admin: manage members and viewers; invitee: read own row, joins only through `ws_accept_invite()` / `ws_join_by_email()` (no direct UPDATE, so nobody can promote themselves) |
+| `workspace_projects` | snapshot of each shared project (name, categories, links) | owner and admins: write; members and viewers: read |
+| `workspace_usage` | calls and cost per member per month | owner and admins: read all; others: own; writes only through `ws_add_usage()` (viewers are not counted) |
+
+Invites: the owner or an admin enters an email and a role; the app returns an invite link `https://<hub>/#join=<code>` once and stores only the SHA-256 hash of the code. Nothing is emailed; the person who invites sends the link. The link works only for the invited email and expires after 14 days ("new link" makes a fresh one). Signing in with an invited email also activates the invite.
+
+Switcher: the header shows "Workspace: Personal / <name> (role)". AI calls made while a workspace is picked are counted toward it (local mode: in the `workspaces` document; hosted: batched every 20 s through `ws_add_usage()`).
+
+Local mode (desktop, offline): the owner side works fully on this PC (create, invite, roles, share, usage of your own calls). Teammates can only join through the hosted hub.
+
+Verified 2026-10-18 by tests (local mode, demo AIs). Hosted mode against the real tables is not verified: it needs `workspaces.sql` applied and a second signed-in email.
+
 ## Verify locally (what was done and what is left)
 
 Done against the real project on 2026-10-18: hosted server boots with the real URL and publishable key, `/api/health` and `/api/config` answer, `/api/state` returns 401 without a token and with a malformed token, local-PC routes return 401/400, CORS preflight answers, the sign-in gate renders at `http://localhost:3000`, and `data/` is not created or written (`CC_DATA_DIR` pointed at a folder that still does not exist).

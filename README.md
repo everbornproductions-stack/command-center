@@ -65,7 +65,7 @@ One tile per AI at the bottom. Light colours: **green** key works and no inciden
 | Spend caps + alerts: per-AI monthly cap, amber at 80%, hard stop at 100% (router skips it), renewal and red-light alerts; in-app, email, Web Push | Settings → Spend caps & alerts |
 | Live-share link: read-only, expiring page mirroring one run for clients or recordings | under the deliverable |
 | Voice orders: hold-to-talk mic on Marching Orders (Chrome, Edge, desktop app) | Command |
-| Shared workspaces (Studio tier) | Teams tab (hosted mode) |
+| Teams and shared workspaces (Studio tier): roles owner, admin, member, viewer; invite links (nothing emailed); share chosen projects; usage per member; workspace switcher in the header | Workspaces tab, header switcher |
 | Pipeline marketplace | design only: docs/marketplace.md |
 
 Features are plugins: `server/plugins/<id>.js` + `web/features/<id>.js` (see docs/plugin-api.md).
