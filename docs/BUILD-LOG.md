@@ -328,3 +328,50 @@ PHASE 13 DONE
 - `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 17 DONE
+
+## 2026-10-19: Phase 18, knowledge libraries (RAG)
+
+- Checked first: docs/DECISIONS.md has nothing this phase conflicts with. No earlier Phase 18 work was committed, so the whole phase was built here.
+- Where: the Libraries tab, a chip row in Command ("Libraries for this chat") and Settings > Library sources (web/features/libraries.js). Server: server/libraries.js (index, search, embeddings, the prompt block), server/library-extract.js (text out of files, folder walk), server/library-sources.js (Google Drive and Notion), server/plugins/libraries.js (`/api/libraries`).
+- Sources:
+  - Uploaded files and uploaded folders (the browser reads them; Word and PDF go up as bytes), and a folder on this PC by path (hidden folders, links, node_modules and similar are skipped).
+  - Text, Markdown, CSV, JSON, code, HTML, Word .docx (unzipped, no dependency) and PDFs with real text (a best-effort reader; scanned PDFs or unusual font encodings are skipped with a note).
+  - Google Drive: the person's own OAuth client (the browser helper's client is reused when this one has none), PKCE S256, scope drive.readonly only. A grant wider than that is refused and nothing is kept. Its own tokens in the vault ("library-google"), separate from the browser helper's sign-in. Only GET requests to Drive. A picked folder brings its files (up to 3 levels down). Google Docs, Sheets and Slides are exported as text.
+  - Notion: a public integration's OAuth (owner=user). Notion has no scopes in the sign-in link, so the UI asks for "Read content" only when the integration is created, and the adapter can only call POST /v1/search and GET pages and block children; anything else is refused before a request. Secret and token in the vault.
+- Indexing:
+  - Two steps: "Read" stages the files (text, passages of about 1,100 characters with overlap, and an estimate of tokens, calls and cost; free), then the Index click spends. Unchanged files are skipped; a changed file replaces its older copy.
+  - Embeddings with the model picked when the library is made, with the person's own key: OpenAI text-embedding-3-small / 3-large, Gemini embedding 001, Mistral Embed (list prices as of 2026-10-19), a custom OpenAI-compatible provider such as Ollama (model and price typed in), or the demo embedder in demo mode.
+  - Every embedding call is a ledger line (kind call, role `embed` for indexing and `embed-query` for questions, tokens and cost kept to 9 decimals, never text). A provider at its monthly spend cap is refused before any call (402); indexing that hits the cap mid-way stops and keeps what was done.
+  - Storage: one SQLite file per library in the app data folder (`libraries/<id>.sqlite`, node:sqlite): documents, passages with float32 vectors, and an FTS5 keyword index. No native vector extension is shipped: vector search is an exact cosine scan in memory, fine up to roughly 100,000 passages per library.
+- Search: hybrid (keyword bm25 and vector cosine merged by reciprocal rank fusion), or keyword only (free) or meaning only. When the embedder is capped, keyless or down, a question falls back to keyword search and says so.
+- Use: a library is attached to a chat (the Command orders of one project, or no project), a workspace (while it is active) or an agent (stored now, for the custom agents of Phase 19). A request may also name libraries (`libraries: [...]` on /chat, /council, /mission). Single, Council (every member and the chair) and Mission (as context, kept by the assembler) add the best 6 passages as [L1], [L2] ...; the deliverable shows chips that open the passage (and the Drive or Notion page), and [L1] in the text becomes a link. Runs keep a 600-character snippet per source, not the whole passage.
+- Delete: removes the library's index file, its entry and every attachment; the original files are never touched. Single documents can be removed too.
+- Demo mode: the demo AI server answers `/v1/embeddings` for "Nova Embed (demo)" (hashed words, a few synonyms folded together so meaning search can find "automobile" for "car"), and the pretend AI quotes the best excerpt with its [L1] tag.
+- Hosted hub: the routes answer "desktop only for now" (501), because the index is a local file.
+- Commits: 4c82b57 (feature, tests, smoke checks, README row), plus this log entry.
+- Tests: npm test 136/136 pass (the count includes test/publish.test.js, another session's uncommitted work). `test/libraries.test.js` adds 5:
+  - pure: chunking, .docx and PDF extraction (built in the test), HTML, unsupported and text-less files, the folder walk (the hidden folder is never read), query terms;
+  - the Notion allow-list (read endpoints only) and the Drive scope;
+  - the running server with the demo embedder:
+    - a fixture folder (Markdown, HTML in a subfolder, CSV, Word, PDF, a scanned PDF and a PNG) staged with an estimate and no spend, then indexed; every embedding call in the ledger with matching cost and no text; re-reading skips unchanged files;
+    - keyword-only finds "ZX-4471" in parts.csv; vector-only finds the fleet rules for "car upkeep" while keywords alone cannot; hybrid finds the Word file;
+    - a chat attached to the library answers with [L1] citing the handbook passage, and the question's embedding is in the ledger under the run; a council gets the same sources;
+    - at the spend cap indexing is refused (402) with no call, a question falls back to keyword search, and vector-only is refused;
+    - removing a document; deleting the library removes its index file and attachments;
+  - Google Drive and Notion on a local mock:
+    - no client means no start; the Drive sign-in link asks for drive.readonly only with S256; a wider grant is refused and nothing is kept; the state is single use;
+    - files listed; a picked folder brings its file; every Drive request is a GET with the token;
+    - the Notion link has no scope and owner=user; the token exchange uses Basic auth; every Notion request is on the read allow-list;
+    - Drive and Notion items indexed and found, with the Drive link; no client secret or token reaches the browser; disconnect removes the token;
+  - no em-dashes in the new files.
+- npm run smoke: all checks pass, including new ones: a library made with the demo embedder, two uploaded files staged and indexed, a chat naming the library cites [L1] from the right file, a mission naming it carries the library sources, and the library deletes. Both suites ran in temp data folders with local mocks. No real key, account or URL was used.
+- Not verified:
+  - The Libraries tab, the Command chip row, the deliverable chips and Settings > Library sources were syntax-checked (node --check) but not opened in a browser or the desktop app. That includes the file and folder upload buttons, the Drive folder browser and the Notion picker.
+  - Real Google and Notion sign-ins were not run. Whether Notion accepts a http://localhost or 127.0.0.1 redirect URI for a public integration is unknown; Google Desktop-app clients accept loopback addresses.
+  - Real embedding APIs (OpenAI, Gemini's OpenAI-compatible /embeddings, Mistral, Ollama) were not called. The request follows the OpenAI embeddings shape and was tested only against the demo server.
+  - The PDF reader handles simple text PDFs only; how much text real-world PDFs yield is unknown (scanned ones are skipped with a note).
+  - Search speed on large libraries (tens of thousands of passages) was not measured.
+  - Not tier-gated: the plan does not say whether Free should be limited here. Chris decides.
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 18 DONE
