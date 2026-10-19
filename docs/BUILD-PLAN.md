@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15 and 16 were added on 2026-10-18 as high priority; 14, the Mac build, is manual). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15 and 16 were added on 2026-10-18 as high priority; 17 to 24 are the competitor-review backlog; 14, the Mac build, is manual). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -93,6 +93,50 @@ The first-run step that makes AI bookmarks also offers to organize the user's EX
 - Any provider that supports tool calling can call enabled tools; calls are routed through the local server, never directly from the browser.
 - Tools that write, send or delete need a per-call approval prompt in the UI (consistent with "nothing posts without a click"); read-only tools can run without one when the user allows it.
 - Use the official `@modelcontextprotocol/sdk`. Tests with a mock MCP server (stdio and HTTP) on a temp dir / random port.
+
+## Competitor-review backlog (added 2026-10-18, after Phases 15 and 16)
+Every item below must respect: bring-your-own-key (the user's keys only), spend caps, a ledger entry for every paid call, nothing posts or sends without an explicit click, and no secrets in logs or git. Each works in demo mode with mocks; tests never call a real API.
+
+### Phase 17: Side-by-side comparison (effort: M, about 1 session)
+- One prompt goes to 2 to 6 chosen models; answers stream into parallel columns with cost and latency per column.
+- "Pick winner" records a rating (Phase 3 ratings) and feeds the router; presets of model sets can be saved and reused.
+- Acceptance tests: 3 demo models answer in parallel and each column reports cost and latency; picking a winner writes a rating the router reads; a preset saves and reloads; a column whose provider is at its spend cap is skipped with a note; every call has a ledger entry.
+
+### Phase 18: Knowledge libraries (RAG) (effort: L, about 2 sessions)
+- Libraries built from uploaded files and folders, plus Google Drive and Notion through OAuth (read-only scopes).
+- Chunk, embed with the user's chosen embedding key, store locally (SQLite with a vector extension or LanceDB), hybrid search (keyword plus vector), cited answers with source chips. Attach a library per chat, workspace or agent.
+- Acceptance tests: a fixture folder is indexed with a mock embedder; a question returns an answer citing the right chunk; keyword-only and vector-only queries both find their target; deleting a library removes its index; Drive/Notion adapters are mocked and request read-only scopes only; embedding calls are logged in the ledger and respect caps.
+
+### Phase 19: Custom agents and a prompt library (effort: M)
+- Named agents: model, instructions, tools (Phase 16), libraries (Phase 18) and starter prompts. Saved prompts with {{variables}} filled in a small form before sending.
+- Agents and prompts export/import as JSON, are shareable to a workspace, and can be listed in the Marketplace (Phase 10).
+- Acceptance tests: create, edit, run and delete an agent on demo models; {{variables}} are required and substituted; export then import round-trips; a shared agent is visible to a workspace member and read-only for a viewer.
+
+### Phase 20: Artifacts side panel (effort: M)
+- Generated HTML/JS, charts, markdown and mini apps render and run in a sandboxed iframe (sandbox="allow-scripts", no same-origin, no network to the local API), with versions, edit and re-run, and export (file download). Optional Python via Pyodide in a worker.
+- Acceptance tests: an HTML artifact renders inside the sandbox and cannot read the session token or call /api; editing creates version 2 and the old version stays; export produces the file; Pyodide is lazy-loaded and a simple script returns output (skip in CI if offline).
+
+### Phase 21: Image generation in chat (effort: M)
+- Through the user's keys: OpenAI GPT-Image, Gemini, xAI, Flux via Replicate or fal. Generate, edit and variations; results saved to the media gallery (Phase 6 media).
+- Cost estimate shown first; ledger entry per image; spend caps respected.
+- Acceptance tests: mock adapters for each provider return an image saved to the gallery with its prompt; edit and variation requests carry the source image; a provider at its cap is refused; no key means a clear "add a key" message.
+
+### Phase 22: Scheduled and triggered agents (effort: L)
+- Run an agent or mission on a cron schedule, from a webhook (per-trigger secret token) or when a new file lands in a watched folder. Run history, a spend cap per schedule, and an approval step for anything that posts or sends.
+- Note in the UI and docs: desktop schedules only run while the app is running (tray counts); always-on schedules need the hosted hub later.
+- Acceptance tests: a fake clock fires a cron job once per slot; a webhook with a wrong token is refused (401) and a right one queues a run; a new fixture file triggers a run; a schedule over its cap stops and alerts; a posting step waits in "needs approval".
+
+### Phase 23: ChatGPT and Claude history import, optional encrypted sync (effort: M)
+- Import conversations from the ChatGPT and Claude export zips into projects and chats (no upload anywhere).
+- Optional sync of chats between desktop and phone through Supabase, end-to-end encrypted with a key derived from a user passphrase (the server stores ciphertext only). Off by default.
+- Acceptance tests: fixture export zips import with titles, dates and messages intact; a bad zip fails with a clear message; the sync payload stored in the (mocked) Supabase layer is ciphertext and decrypts on a second client with the same passphrase only.
+
+### Phase 24: Smaller extras (effort: S each)
+- Global hotkey quick-launcher on desktop (default Alt+Space, configurable; must not steal it if the OS or another app owns it).
+- Chrome/Edge extension: send the page or a selection to a chat or council on the local app (paired with a token; nothing sent elsewhere).
+- Live model pricing from the OpenRouter models API, feeding the router, ledger estimates and savings receipts (cached daily; manual overrides win).
+- Team SSO (Google and Microsoft OIDC) for the hosted hub, and per-workspace API keys (stored in the vault, scoped to the workspace).
+- Acceptance tests: hotkey registration is mocked and unregisters on quit; the extension's message is accepted only with the pairing token; a pricing fixture updates the router's costs and an override wins; OIDC flows are mocked; a workspace key is used only for that workspace's calls.
 
 ### Phase 14 (low priority, added 2026-10-18): Mac build
 - `docs/ci/mac-build.yml` (added by Grok Bot; move it to `.github/workflows/` after `gh auth refresh -s workflow`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only).
