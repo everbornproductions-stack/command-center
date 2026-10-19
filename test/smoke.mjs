@@ -66,6 +66,14 @@ try {
   check((await owner.api(`/agents/${ag?.id}`, { method: "DELETE" })).status === 200, "agent deleted");
   const imp = (await owner.api("/agents/import", { method: "POST", body: { data: bundle } })).json;
   check(imp?.agents?.[0]?.instructions === "Greet new customers warmly in two lines.", "agents imported back");
+  const arts = (await owner.api("/artifacts/extract", { method: "POST", body: { runId: single?.id, text: "## Menu\n```html\n<!doctype html><html><head><title>Menu</title></head><body><p>Rye</p></body></html>\n```\n```chart\n{\"type\":\"bar\",\"labels\":[\"Mon\"],\"series\":[{\"name\":\"Loaves\",\"values\":[4]}]}\n```" } })).json;
+  check(arts?.items?.length === 2 && arts.items[0].kind === "html" && arts.items[1].kind === "chart", "artifacts found in an answer (html, chart)");
+  const fr = (await owner.api(`/artifacts/${arts?.items?.[0]?.id}/frame`)).json;
+  check(fr?.sandbox === "allow-scripts" && /connect-src 'none'/.test(fr.html) && !fr.html.includes(owner.token), "artifact frame sandboxed, no network, no token");
+  const v2 = (await owner.api(`/artifacts/${arts?.items?.[0]?.id}/versions`, { method: "POST", body: { content: "<p>Spelt</p>" } })).json;
+  check(v2?.versions?.length === 2 && v2.versions[0].content.includes("Rye"), "artifact edit is version 2, version 1 kept");
+  const exf = await owner.raw({ path: `/api/artifacts/${arts?.items?.[0]?.id}/export?v=1`, headers: { "x-cc-token": owner.token } });
+  check(exf.status === 200 && /attachment; filename="menu-v1\.html"/.test(exf.headers["content-disposition"] || "") && exf.text.includes("Rye"), "artifact exported as a file");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 
