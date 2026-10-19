@@ -948,3 +948,31 @@ PHASE 3 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 4 DONE
+
+## 2026-10-19 21:17 PT: Phase 5 (Hands-free and mobile)
+- Started after PHASE 4 DONE. No conflict with docs/DECISIONS.md: the shell service worker, the Refresh-only update and the desktop app's "no service worker" rule (decision 7) are unchanged, and tap / hold to talk (FIX voice-toggle) is kept as it was.
+- Already in the code before this session, and kept: the mic button with tap to talk and hold to talk (push-to-talk), stop on silence, the Recording timer, the desktop mic grant; the manifest, icons, Install app button and offline shell worker; VAPID keys, encrypted Web Push and the push worker for spend-cap, red-light and renewal alerts. This phase added only what was missing.
+- Voice commands (R9):
+  - Gap fixed: the auto-send checkbox was never saved, so it was off again after every redraw or restart, and Settings had no switch for it.
+  - Auto-send is now part of the voice settings (`settings.voice.autoSend`, off by default) and is kept when the mode or stop on silence changes. Command has the checkbox, Settings > Voice orders has the switch, and both save.
+  - It sends only when words were heard and the mic was not blocked or cut off. Off: the words wait in the box for a click on Send orders.
+- PWA and push notifications:
+  - Job done: new opt-in "Also push when a chat, council or mission finishes" (off by default). One push per run, only for runs the app saw start (a late result or a restored run does not push), push only (no email; the feed already logs every finish). A failed run says so.
+  - "Turn off push here" drops the browser subscription and removes the device from the list (new POST /api/alerts/unsubscribe).
+  - Subscriptions are refused unless the endpoint is https (plain http only on this computer, for a local test service), has no user:password, and carries both device keys. Pushes do not follow redirects.
+  - The desktop app removes every service worker at start (decision 7), so "Enable push here" there now explains that push belongs on the phone or browser instead of registering a worker it would delete. Settings says push is opt-in and that iPhone needs Add to Home Screen first.
+  - A notification click opens or focuses the app's own page only, never a URL from the message. Each finished run has its own notification tag.
+- Commits:
+  - dee4538 Phase 5: voice commands (R9): auto-send is saved with the voice settings (Command checkbox and Settings switch), fires only when words were heard and the mic was not blocked, tests
+  - 469b3cf Phase 5: PWA and web push: opt-in job-done push (chats, councils, missions; off by default, one per run), Turn off push here, push subscriptions limited to https push services, desktop app points push to the phone, a click opens only the app, tests with a local mock push service that decrypts and checks VAPID
+- Tests:
+  - New: test/push.test.js (2): a local mock push service on a random port; each message is decrypted the way a browser would (RFC 8291), the VAPID signature and audience are checked (RFC 8292), another device cannot read it, job done is silent while off and sends exactly one push when on, push off sends nothing, a 410 removes the device, unsubscribe, bad endpoints refused, no device secret or private key in the state or log; manifest, icons, served worker files and the decision 7 rules. test/voice.test.js: auto-send rules and the saved setting (1 new test, 2 extended).
+  - npm test: 239 tests, 237 pass, 0 fail, 2 skipped. npm run smoke: all checks pass. Both runs were on the tree of each commit. Node 24.21.0. Temp data dirs, demo AIs only, no real key or URL.
+- Not verified:
+  - Real push delivery through Chrome, Edge, Firefox or Safari push services and a real phone: only the local mock service received messages. The browser side (subscribe, unsubscribe, notification click) was not run in a real browser.
+  - Speech recognition and auto-send with a real microphone: the rules and the saved setting are tested, the button only by source checks.
+  - Installing the PWA from a phone over the network: the app serves on this computer, and a phone needs the hosted hub or a tunnel to reach it.
+  - Job-done pushes in hosted mode across several users: only local mode was tested.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 5 DONE
