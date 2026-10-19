@@ -8,10 +8,11 @@ import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { chatWithTools } from "./mcp.js";
 
 const LETTERS = "ABCDEFGHIJ";
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -30,7 +31,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   chair ||= rank({ ...cls, mode: "quality" }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
-  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [] };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [] };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -47,8 +48,10 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     const s = Date.now();
     let text = "", usage = null, citations = null;
     try {
-      for await (const ev of streamChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] })) {
+      // MCP tools (Phase 16) ride along for members that can call them
+      for await (const ev of chatWithTools({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
+        else if (ev.type === "tool" && ev.phase === "done") { council.toolCalls.push({ by: m.provider, tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("council.update", { council: pub(council) }); }
         else if (ev.type === "done") { usage = ev.usage; citations = ev.citations || null; }
       }
       const ms = Date.now() - s;

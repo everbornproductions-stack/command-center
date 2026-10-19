@@ -28,6 +28,7 @@ import { licenseState, activate as activateLicense, redeem as redeemPromo, reche
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
+import { chatWithTools } from "./mcp.js";
 let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
@@ -172,7 +173,7 @@ function fullState() {
 const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
 
 // ---------- single-AI chat (streams through the event bus) ----------
-async function runChat({ prompt, provider, model, projectId, search }) {
+async function runChat({ prompt, provider, model, projectId, search, tools }) {
   const id = "s-" + Date.now().toString(36);
   if (!provider || !model) {
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -181,7 +182,7 @@ async function runChat({ prompt, provider, model, projectId, search }) {
     provider = best.provider; model = best.model;
   }
   const agent = `${id}:${provider}`;
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [] };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [] };
   emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
   const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
@@ -190,8 +191,10 @@ async function runChat({ prompt, provider, model, projectId, search }) {
   const s = Date.now();
   let text = "";
   try {
-    for await (const ev of streamChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] })) {
+    // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first
+    for await (const ev of chatWithTools({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] }, { missionId: id, tools })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
+      else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } }); }
       else if (ev.type === "done") {
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
@@ -264,7 +267,7 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/council") {
     if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined }); }
+    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -273,7 +276,7 @@ async function api(req, res, url) {
     if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined };
+    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined };
     if (body.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }

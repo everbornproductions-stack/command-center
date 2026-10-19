@@ -39,7 +39,10 @@ Rules: never read or write `data/` directly (use `doc`/`putDoc`); never return s
 
 ## Web: `web/features/<id>.js`
 
-Loaded by `web/features/index.js` (add your id to its `FEATURES` list only if it is not already there; the current list already includes pipelines, ratings, memory, receipt, media, publish, reports, alerts, share, voice, workspaces). The module calls `CC.register({...})` at import time:
+Loaded by `web/features/index.js` (add your id to its `FEATURES` list only if it is not already there; the current list already includes search, mcp, pipelines, ratings, memory, receipt, media, publish, reports, alerts, share, voice, workspaces). The module calls `CC.register({...})` at import time:
+
+Note: a feature's `web/features/<file>.js` name, its `CC.register({ id })` and its server plugin's `export const id` are independent. The Tools feature (MCP) is `web/features/mcp.js` with register id `mcp`, but its server plugin mounts at `/api/tools` (`export const id = "tools"` in `server/plugins/mcp.js`). Keep the server id out of any path whose last segment is `mcp` or `sse`.
+
 
 ```js
 const { S, api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, go } = window.CC;

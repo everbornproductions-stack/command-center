@@ -25,8 +25,29 @@ function caps(seed) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pick = (arr, i) => arr[i % arr.length];
 
-function answerFor(model, system, user) {
+// Which tool (if any) the pretend AI calls for these orders. Only when the caller offered tools and the
+// orders (or the mission goal in the system prompt) mention time, counting, notes or "tool".
+function demoToolTurn(j, system, user) {
+  if (!Array.isArray(j.tools) || !j.tools.length) return null;
+  if (j.messages.some((m) => m.role === "tool")) return null; // already answered by a tool: now write the answer
+  // only the person's words count (and a mission's goal, which rides in the system prompt), never the app's own tool instructions
+  const goal = (system.match(/toward this goal:\n([^\n]+)/) || [])[1] || "";
+  const hay = `${goal}\n${user}`.toLowerCase();
+  const names = j.tools.map((t) => t.function?.name || "").filter(Boolean);
+  const find = (re) => names.find((n) => re.test(n));
+  let name = null, args = {};
+  if (/\b(time|clock|date|today)\b/.test(hay)) name = find(/clock$/);
+  if (!name && /\b(count|words?)\b/.test(hay)) { name = find(/word_count$/); args = { text: user.split("\n")[0].slice(0, 500) }; }
+  if (!name && /\bnotes?\b/.test(hay)) { name = find(/save_note$/); args = { title: user.split("\n")[0].slice(0, 60) || "Demo note", body: user.slice(0, 500) }; }
+  if (!name && /\btools?\b/.test(hay)) name = names[0];
+  if (!name) return null;
+  return { id: "call_demo_" + Date.now().toString(36), name, args };
+}
+
+function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
+  const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
+  if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });
   if (/Break the goal into/.test(sys)) return JSON.stringify({ title: "Demo plan: " + u.replace(/^GOAL:\s*/i, "").slice(0, 30), tasks: [
     { id: "t1", title: "Research the audience and angle", capability: "research", difficulty: 2, needWeb: false, deps: [], instructions: "List who this is for and the three angles that would land.", deliverable: "Audience notes and 3 angles" },
@@ -64,9 +85,18 @@ export async function startDemo() {
     let body = ""; for await (const c of req) body += c;
     let j; try { j = JSON.parse(body); } catch { res.writeHead(400); return res.end(); }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
-    const user = j.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
-    const text = answerFor(j.model, system, user);
+    const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+    // MCP tools (Phase 16): when tools are offered and the orders mention one, the pretend AI calls it
+    // once, then answers with the result. Lets Settings > Tools be tried end to end without a key.
+    const toolTurn = demoToolTurn(j, system, user);
+    if (toolTurn) {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: toolTurn.id, type: "function", function: { name: toolTurn.name, arguments: JSON.stringify(toolTurn.args) } }] }, finish_reason: null }] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: Math.ceil((system.length + user.length) / 4), completion_tokens: 12 } })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
+    const text = answerFor(j.model, system, user, j.messages);
     const words = text.split(/(?<=\s)/);
     const slow = !/JSON only/.test(system);
     for (let i = 0; i < words.length; i++) {

@@ -25,15 +25,47 @@ export function requireKey(provider) {
 // extra headers saved with a custom provider (kept in the vault next to its key)
 const extraHeaders = (provider) => { const s = getSecret(provider.id, provider.keyEnv); return { ...(s?.headers || {}), ...(provider.api === "anthropic" && s?.workspaceId ? { "anthropic-workspace-id": s.workspaceId } : {}) }; };
 
+// ---------- tool calling (Phase 16, MCP) ----------
+// Callers pass tools: [{ name, description, parameters }] (JSON schema). The transcript may then hold
+//   { role: "assistant", content: text, toolCalls: [{ id, name, args }] }   what the model asked for
+//   { role: "tool", id, name, content: text, isError }                       what the tool answered
+// and "done" carries toolCalls: [{ id, name, args }] when the model stopped to call tools.
+const textOf = (m) => (typeof m.content === "string" ? m.content : (m.content || []).map((c) => c.text || "").join("\n"));
+const parseArgs = (s) => { if (s && typeof s === "object") return s; try { return JSON.parse(s || "{}") || {}; } catch { return {}; } };
+// Anthropic shapes: tool_use blocks on the assistant turn, tool_result blocks grouped into one user turn.
+function anthropicMessages(messages) {
+  const out = [];
+  for (const m of messages) {
+    if (m.role === "assistant" && m.toolCalls?.length) {
+      out.push({ role: "assistant", content: [...(textOf(m).trim() ? [{ type: "text", text: textOf(m) }] : []), ...m.toolCalls.map((c) => ({ type: "tool_use", id: c.id, name: c.name, input: c.args && typeof c.args === "object" ? c.args : {} }))] });
+    } else if (m.role === "tool") {
+      const block = { type: "tool_result", tool_use_id: m.id, content: String(m.content ?? ""), ...(m.isError ? { is_error: true } : {}) };
+      const last = out[out.length - 1];
+      if (last?.role === "user" && Array.isArray(last.content) && last.content.every((b) => b.type === "tool_result")) last.content.push(block);
+      else out.push({ role: "user", content: [block] });
+    } else out.push({ role: m.role, content: m.content });
+  }
+  return out;
+}
+// OpenAI shapes: tool_calls on the assistant turn, one "tool" message per result.
+function openaiMessages(messages) {
+  return messages.map((m) => {
+    if (m.role === "assistant" && m.toolCalls?.length) return { role: "assistant", content: textOf(m) || null, tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.args && typeof c.args === "object" ? c.args : {}) } })) };
+    if (m.role === "tool") return { role: "tool", tool_call_id: m.id, content: String(m.content ?? "") };
+    return { role: m.role, content: textOf(m) };
+  });
+}
+
 // ---------- Anthropic (official SDK) ----------
-async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal }) {
+async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal, tools }) {
   const client = new Anthropic({ apiKey: requireKey(provider), baseURL: provider.baseUrl, maxRetries: 1, defaultHeaders: extraHeaders(provider) });
   const params = {
     model,
     max_tokens: maxTokens,
-    messages,
+    messages: tools?.length || messages.some((m) => m.role === "tool" || m.toolCalls) ? anthropicMessages(messages) : messages,
     ...(system ? { system } : {}),
     ...(effort ? { output_config: { effort } } : {}),
+    ...(tools?.length ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) } : {}),
   };
   let stream;
   try {
@@ -47,9 +79,11 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
     if (final.stop_reason === "refusal") {
       yield { type: "delta", text: "\n\n[Claude declined this request (safety refusal).]" };
     }
+    const toolCalls = (final.content || []).filter((b) => b.type === "tool_use").map((b) => ({ id: b.id, name: b.name, args: b.input && typeof b.input === "object" ? b.input : {} }));
     yield {
       type: "done",
       stop: final.stop_reason,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
       usage: {
         input: (final.usage?.input_tokens || 0) + (final.usage?.cache_read_input_tokens || 0) + (final.usage?.cache_creation_input_tokens || 0),
         output: final.usage?.output_tokens || 0,
@@ -61,10 +95,11 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
 }
 
 // ---------- OpenAI-compatible chat completions (OpenAI, xAI, Gemini, OpenRouter, Perplexity, DeepSeek, Groq, Mistral) ----------
-async function* openaiCompatStream({ provider, model, system, messages, maxTokens, signal, webSearch, maxSources }) {
+async function* openaiCompatStream({ provider, model, system, messages, maxTokens, signal, webSearch, maxSources, tools }) {
   const key = requireKey(provider);
-  const msgs = [...(system ? [{ role: "system", content: system }] : []), ...messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.map((c) => c.text || "").join("\n") }))];
+  const msgs = [...(system ? [{ role: "system", content: system }] : []), ...openaiMessages(messages)];
   const body = { model, messages: msgs, stream: true };
+  if (tools?.length) body.tools = tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
   if (provider.id === "openai") body.max_completion_tokens = maxTokens;
   else body.max_tokens = maxTokens;
   if (provider.id !== "perplexity") body.stream_options = { include_usage: true };
@@ -90,6 +125,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = "", usage = null, outText = "", stop = null, actualModel = null, citations = null, searchResults = null;
+  const calls = new Map(); // index -> { id, name, args (json text) } assembled from streamed fragments
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -108,6 +144,16 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       const ch = j.choices?.[0];
       const t = ch?.delta?.content;
       if (t) { outText += t; yield { type: "delta", text: t }; }
+      for (const tc of ch?.delta?.tool_calls || []) {
+        const i = tc.index ?? calls.size;
+        const cur = calls.get(i) || { id: null, name: "", args: "" };
+        if (tc.id) cur.id = tc.id;
+        if (tc.function?.name) cur.name += tc.function.name;
+        if (tc.function?.arguments) cur.args += tc.function.arguments;
+        calls.set(i, cur);
+      }
+      // a non-streaming answer shape (some gateways ignore stream: true)
+      for (const tc of ch?.message?.tool_calls || []) calls.set(calls.size, { id: tc.id, name: tc.function?.name || "", args: tc.function?.arguments || "" });
       if (ch?.finish_reason) stop = ch.finish_reason;
       // Perplexity and xAI send the pages they used: citations = URLs, search_results = { title, url } rows
       if (Array.isArray(j.citations) && j.citations.length) citations = j.citations;
@@ -115,12 +161,14 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
     }
   }
   const cited = searchResults ? searchResults.map((r) => ({ url: r.url, title: r.title })) : citations;
+  const toolCalls = [...calls.values()].filter((c) => c.name).map((c, i) => ({ id: c.id || `call_${Date.now().toString(36)}_${i}`, name: c.name, args: parseArgs(c.args) }));
   yield {
     type: "done",
     stop,
+    toolCalls: toolCalls.length ? toolCalls : undefined,
     citations: cited || undefined,
     usage: {
-      input: usage?.prompt_tokens ?? approxTokens(msgs.map((m) => m.content).join("\n")),
+      input: usage?.prompt_tokens ?? approxTokens(msgs.map((m) => m.content || "").join("\n")),
       output: usage?.completion_tokens ?? approxTokens(outText),
       estimated: !usage,
       // OpenRouter returns the exact billed amount in USD; others do not
