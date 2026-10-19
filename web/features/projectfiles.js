@@ -28,7 +28,7 @@ async function readFiles(list) {
 
 async function renderCommand(el) {
   const pid = currentProject();
-  if (!pid) { el.innerHTML = `<div class="pf-drop small dim">Pick a project to drop files into it and ask about them.</div>`; return; }
+  if (!pid) { el.innerHTML = `<div class="pf-drop small dim" id="pf-drop">Pick a project to drop files into it and ask about them.</div>`; return; }
   let ov; try { ov = await api(`/projectfiles/${encodeURIComponent(pid)}`); } catch (e) { el.innerHTML = /desktop app/.test(e.message) ? `<div class="pf-drop small dim">${esc(e.message)}</div>` : ""; return; }
   const sg = st.stage?.projectId === pid ? st.stage : null;
   el.innerHTML = `<div class="pf-drop" id="pf-drop"><div class="row small" style="gap:8px;flex-wrap:wrap"><b>Files in this project</b>

@@ -35,7 +35,7 @@ const safeName = (name) => String(name || "file").replace(/\\/g, "/").split("/")
 
 function need(projectId) {
   if (HOSTED) throw bad("Chat with files lives in the desktop app for now (the files and their index stay on your PC).", 501, { code: "hosted" });
-  if (!L.available()) throw bad("Chat with files needs a newer runtime (node:sqlite). Update Command AI.", 501);
+  if (!L.available()) throw bad("Chat with files needs a newer runtime (node:sqlite). Update Meldmind.", 501);
   const p = listProjects().find((x) => x.id === String(projectId || ""));
   if (!p) throw bad("Pick a project first: files are kept per project.", 404);
   return p;
