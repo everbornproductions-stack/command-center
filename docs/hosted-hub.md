@@ -54,6 +54,8 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_HUB_URL` | no | public address of the hub, shown in the pairing QR |
 | `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token (keep it only on the hub) |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
+| `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
+| `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |
 
 ## Deploy runbook (Cloudflare Containers)
 
