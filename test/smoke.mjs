@@ -103,6 +103,12 @@ try {
   const wsk = (await owner.api("/workspaces", { method: "POST", body: { name: "Smoke team" } })).json;
   check((await owner.api(`/wskeys/${wsk?.id}`, { method: "POST", body: { provider: "openai", key: "sk-smoke-not-a-real-key-0000" } })).json?.masked === "sk-s…0000", "workspace key saved, shown masked only");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
+  const mk = (await owner.api("/marketplace")).json;
+  check(mk?.paidEnabled === false && mk.revenueShare?.placeholder === true && mk.revenueShare?.everbornPct === 20 && mk.catalog?.some((c) => c.id === "demo-week-of-posts" && c.price?.type === "free"), "marketplace demo catalog, placeholder revenue share, paid checkout off");
+  const mkInst = await owner.api("/marketplace/install", { method: "POST", body: { listingId: "demo-week-of-posts" } });
+  check(mkInst.status === 200 && mkInst.json?.ran === false && mkInst.json?.charged === false, "marketplace install copies a free demo pipeline and does not run it");
+  const mkPaid = await owner.api("/marketplace/install", { method: "POST", body: { listingId: "demo-follow-up" } });
+  check(mkPaid.status === 409 && mkPaid.json?.charged === false && /nothing is charged|No charge was made/i.test(mkPaid.json?.error || ""), "paid marketplace listing refused, nothing charged");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 
 log("free copy");

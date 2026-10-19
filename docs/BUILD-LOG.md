@@ -1,4 +1,4 @@
-# Command Center build log
+﻿# Command Center build log
 
 Each phase appends its results here and ends with a line `PHASE N DONE` or `PHASE N BLOCKED: reason`.
 The chain script (C:\Users\chris\terminals\cc-build-chain.ps1) skips every phase that already has a `PHASE N DONE` line.
@@ -299,7 +299,7 @@ PHASE 13 DONE
 - Where: the Compare tab (web/features/compare.js). Server: server/compare.js, server/plugins/compare.js (`/api/compare`).
 - Running a comparison:
   - One prompt goes to 2 to 6 models the person picks (the same model twice counts once). The tab shows an estimate per model and a total before the Compare click.
-  - Every column streams at the same time. Each one shows its answer, cost (✓ when the provider reported the exact bill), time to first words, total time and tokens.
+  - Every column streams at the same time. Each one shows its answer, cost (âœ“ when the provider reported the exact bill), time to first words, total time and tokens.
   - Each column uses exactly the model that was picked. Smart fallback is deliberately not used here, because a stand-in would spoil the comparison. A failed provider shows its error in its column, and smart fallback's trouble table still hears about it for other jobs.
   - A provider at 100% of its monthly spend cap (alerts plugin) is skipped with a note and never called. A provider without a saved key is skipped the same way.
   - Every call is in the ledger (role `compare`, the run id as missionId) and in the health lights. Each column counts as one job of the prompt's task type for the learning router. The task type comes from the keyword classifier, so classifying costs no extra call, and no prompt text is kept in the router's record.
@@ -1045,3 +1045,7 @@ PHASE 6 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 7 DONE
+
+## 2026-10-19: Marketplace phase built by Cursor cloud agent in PR (pending merge)
+
+Marketplace phase built by Cursor cloud agent in PR (pending merge). Phase 10: local and demo catalog, signed pipeline export and import, share link, install on click, moderation queue, placeholder revenue share. Paid checkout is stubbed off (`CC_MARKET_PAID`). Nothing is charged. No payment service.

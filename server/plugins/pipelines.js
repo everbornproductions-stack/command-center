@@ -66,6 +66,12 @@ function allPipelines(h) {
   return [...TEMPLATES.map((t) => ({ ...t, builtIn: true })), ...saved];
 }
 
+// Read-only lookup so another plugin can export a template without copying the starters.
+export function findPipeline(h, id) {
+  if (!id) return null;
+  return allPipelines(h).find((x) => x.id === id) || null;
+}
+
 function fillInputs(text, values) {
   return String(text || "").replace(/\{(\w+)\}/g, (m, k) => values[k] ?? m);
 }
