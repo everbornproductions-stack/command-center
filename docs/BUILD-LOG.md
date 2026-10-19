@@ -1049,3 +1049,10 @@ PHASE 7 DONE
 ## 2026-10-19: Marketplace phase built by Cursor cloud agent in PR (pending merge)
 
 Marketplace phase built by Cursor cloud agent in PR (pending merge). Phase 10: local and demo catalog, signed pipeline export and import, share link, install on click, moderation queue, placeholder revenue share. Paid checkout is stubbed off (`CC_MARKET_PAID`). Nothing is charged. No payment service.
+
+## 2026-10-19 15:30 PT: chain paused to merge PR #8 (marketplace), then resumed (Grok Bot)
+- CC-Build-Chain disabled during Phase 7; the chain script was stopped after Phase 7's result and push, before Phase 8 started.
+- PR #8 merged into main (conflicts in docs/BUILD-LOG.md and web/features/index.js resolved keeping both sides). npm test 252 tests, 250 pass, 0 fail, 2 skipped; npm run smoke all pass.
+- Chain re-enabled and started; it resumes at Phase 8 and skips Phase 10.
+
+PHASE 10 DONE (built by Cursor cloud agent, PR #8)
