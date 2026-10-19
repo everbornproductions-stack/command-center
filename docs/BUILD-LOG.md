@@ -425,3 +425,65 @@ Nothing for this phase was committed before this session; all of it was built he
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 19 DONE
+
+## Phase 20: Artifacts side panel (2026-10-19, about 12:00 local)
+Nothing for this phase was committed before this session; all of it was built here. No locked decision in docs/DECISIONS.md was touched, and no shared file changed beyond one name in web/features/index.js.
+- Artifacts: HTML pages and mini apps, SVG, charts, Markdown, JavaScript and Python.
+  - "Open in artifacts" under a deliverable saves its runnable code blocks (html, svg, chart or a chart-shaped json, markdown, js, python; bash and other blocks are ignored). The same answer is not saved twice.
+  - The Artifacts tab lists everything and has "New artifact" for pasted code.
+  - Charts are a small JSON spec (bar, line or pie; labels and series, or a data list), drawn as SVG on the server with no library.
+  - Stored per user in the document "artifacts" (local: data folder; hosted: the user's own rows). Limits: 400 KB per version, 50 versions (version 1 and the newest are kept), 300 artifacts.
+- Side panel: a version picker, Re-run, Edit (a text editor with Preview of the unsaved text and "Save as version N"), Export file, Allow internet, Delete. Saving always adds a version; earlier versions are never changed.
+- Sandbox:
+  - The frame is `<iframe sandbox="allow-scripts" srcdoc>` without allow-same-origin, so it has an opaque origin. It cannot read the app page, so it cannot read the session token.
+  - Anything it sends to the local server carries `Origin: null`. The existing local gate refuses that (403), with or without a token, and the page with the token too.
+  - Its own Content-Security-Policy comes first in its head: connect-src 'none', form-action 'none', base-uri 'none', and no outside scripts.
+  - "Allow internet" per artifact (a setting, not a new version) opens https: only, for CDN scripts and images. It never opens http:, so the loopback API stays closed.
+  - The frame talks to the panel only by postMessage (size and errors). The panel accepts messages only from its own frame.
+- Export: the chosen version as a file (.html, .svg, .md, .js, .py; a chart as its .svg drawing). The raw route sends it as an attachment with `Content-Security-Policy: sandbox` and nosniff; the panel uses the JSON form so it also works on the hosted hub.
+- Python: Pyodide (v0.26.4 from cdn.jsdelivr.net by default; Settings > Artifacts: Python takes another https:// address) runs in a Web Worker started inside the sandboxed frame.
+  - It is loaded only when the person clicks Run Python. No other frame and nothing in the panel references it.
+  - stdout, stderr, the last value and errors are shown. The runner is one function (PY_RUNNER) that the frame embeds and the tests call.
+- Commits: eecdfe5 (feature, tests, smoke checks, README row), plus this log entry.
+- Tests: npm test 144 pass, 0 fail, 2 skipped (146 in total; the count includes test/publish.test.js, another session's uncommitted work). `test/artifacts.test.js` adds 5 tests:
+  - pure checks:
+    - the code-block finder;
+    - the CSP is first in the head and blocks all network, and Allow internet is https only;
+    - only a Python frame mentions Pyodide, and the panel code never loads it, never uses allow-same-origin and never touches the token;
+    - a closing script tag cannot break out of the JS runner;
+    - charts (bar, pie with percentages, line, unsupported type refused);
+    - Markdown is escaped;
+    - export file names.
+  - The Python runner with a fake Pyodide: output, last value and errors.
+  - Real Pyodide: SKIPPED. Pyodide is not installed locally, and the tests never download it. `npm i -D pyodide` would turn it on; the npm lookup needed approval in this session.
+  - The running server:
+    - token required, and Origin: null refused (403) on /api and on the page;
+    - validation;
+    - create, then the frame (sandbox allow-scripts, no token in it, connect-src 'none');
+    - an edit with no change is refused;
+    - an edit makes version 2 with version 1 unchanged, and both versions still run;
+    - preview;
+    - export (attachment, file name, body of the chosen version, JSON form);
+    - extract (html, chart and python, not twice);
+    - chart export as SVG;
+    - filters by run and project;
+    - Allow internet;
+    - delete.
+  - Real browser: SKIPPED here. The test opens the app page in a hidden Electron window, opens an artifact through the panel code and checks from inside the frame that the token, the parent page, /api/state, the page and /api/health are all out of reach, with Allow internet off and on. Electron's GUI process did not start in this session (it exited at once with no output, and a trivial Electron app also hung, even outside the tool sandbox), so the test skipped itself. It runs on a normal desktop session.
+  - No em-dashes in the new files.
+- npm run smoke: all checks pass, including these new ones:
+  - artifacts found in an answer;
+  - the frame is sandboxed with no network and no token;
+  - an edit is version 2 with version 1 kept;
+  - export as a file.
+- Both suites ran in temp data folders with local mocks. No real key, account or URL was used.
+- Not verified:
+  - The sandbox in a real browser: the Electron probe above did not run here. What was verified is the iframe attributes in the panel code, the frame's CSP and the server's refusal of Origin: null.
+  - Pyodide end to end: the real CDN load and a script in the frame were not run (no network in tests). The v0.26.4 address was not checked against the CDN.
+  - The Artifacts tab, side panel, editor, export download, deliverable button and Settings panel were syntax-checked (node --check) but not opened in a browser or the desktop app.
+  - Whether common AI-made pages that load CDN libraries work with Allow internet on.
+  - "Edit" is manual. Asking an AI to change an artifact is not built; the plan did not ask for it.
+  - Not tier-gated: the plan does not say whether Free should be limited here. Chris decides.
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 20 DONE
