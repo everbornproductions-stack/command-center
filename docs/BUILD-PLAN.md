@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 25, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16 and 25 were added on 2026-10-18 as high priority; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25 and 26 were added on 2026-10-18 as high priority, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -69,6 +69,14 @@ Chris wants the app to be the hub where all his AIs talk and decide who does wha
 - The callback endpoint must be exempt from the local session token (it uses the per-job token instead) and must reject everything else.
 - Tests: a local mock webhook server only (random port); never hit a real URL in tests.
 - Do not build a tunnel and do not deploy anything. Document that `callback_url` only works once Grok Bot can reach it: after the hosted hub exists or a tunnel is set up by Chris. Until then the job stays `queued`/`working` and the user can paste the result in by hand.
+- Agents on the hub (expanded 2026-10-18): Grok Bot and the built-in browser helper (Phase 27) appear on the hub as their own cards next to Claude, ChatGPT, Grok and Gemini, with a live status light, an activity feed of what they are doing right now, and their results shown in the council next to the other answers (scored and credited the same way).
+
+### Phase 27 (added 2026-10-18 by Chris): Built-in browser helper (effort: L, about 2 sessions)
+For customers who do not have Grok Bot: a browser window inside the desktop app that an AI can drive for browsing tasks.
+- A separate Electron browser window (its own session, never the person's main browser profile) driven step by step by the cheapest capable model (vision or DOM-reading), with a visible action log and a Stop button.
+- Gmail and Google Drive through the person's own Google sign-in (OAuth, least-privilege scopes, tokens in the vault); read by default.
+- Explicit OK required before any send, post, delete, purchase or form submit; the prompt shows exactly what will happen. Never stores passwords; never handles Square or billing.
+- Appears on the hub as its own agent card (see Phase 12). Tests: a local mock site and mocked Google APIs; no real accounts or URLs.
 
 ### Phase 13 (added 2026-10-18): Organize my existing browser bookmarks
 The first-run step that makes AI bookmarks also offers to organize the user's EXISTING bookmarks into smart, auto-named folders by topic (e.g. their business name, insurance, banking, tools, social), using the user's own API key to categorize.
@@ -93,6 +101,15 @@ The first-run step that makes AI bookmarks also offers to organize the user's EX
 - Any provider that supports tool calling can call enabled tools; calls are routed through the local server, never directly from the browser.
 - Tools that write, send or delete need a per-call approval prompt in the UI (consistent with "nothing posts without a click"); read-only tools can run without one when the user allows it.
 - Use the official `@modelcontextprotocol/sdk`. Tests with a mock MCP server (stdio and HTTP) on a temp dir / random port.
+
+### Phase 26 (HIGH PRIORITY, core, added 2026-10-18 by Chris): Smart fallback (effort: M, about 1 session)
+For every customer: a job never fails just because one provider is out of credits, rate limited or refusing the key.
+- The router reads each provider's health (out of credits / spending limit, rate limited, key rejected, unreachable, spend cap reached) and auto-skips that provider for new work.
+- It routes to the next-best model for the job by the person's priority (quality / balanced / economy), using speed, quality and cost from the registry and learned skills. The deliverable and the feed say which model stood in and why.
+- If an OpenRouter key exists, it first retries the same model through OpenRouter (mapped model id) before switching models.
+- Small jobs (short classify / summarize / title tasks) prefer free tiers where the user has them (for example the Gemini free allowance), never exceeding a free limit the app knows about.
+- A provider switches back automatically when its credits or limit return (next successful health check or call); no manual reset needed.
+- Every fallback call goes to the ledger and respects spend caps. Tests: mocked providers returning 402 / 403-credits / 429 / 401 / network errors, OpenRouter retry, free-tier pick, and recovery; no real URLs or keys.
 
 ### Phase 25 (HIGH PRIORITY, added 2026-10-18 by Chris): Subscriptions and services page (effort: L, about 2 sessions)
 One page that shows every paid AI service, what is left, what it costs this month and when it renews. Builds on the existing subscriptions tracker (server/subscriptions.js) and the spend caps and alerts plugin.
