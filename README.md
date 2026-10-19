@@ -1,4 +1,6 @@
-# Everborn Command Center
+# Command AI
+
+*an Everborn product* by Everborn Productions. (Internal and repo name: Everborn Command Center / command-center.)
 
 One console for every AI you pay for. Give marching orders once; the console picks the right AI for each part, lets them check each other's work, shows you who is working and who is talking to whom in real time, and keeps score of what everything costs.
 
@@ -8,7 +10,7 @@ The local server only answers its own window: it binds 127.0.0.1, pins the `Host
 
 ## Install on Windows (no Node needed)
 
-Run **EverbornCommand-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen will warn once because the build is not code-signed yet; choose "More info → Run anyway". Build it yourself with `npm run dist`.
+Run **Command-AI-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen will warn once because the build is not code-signed yet; choose "More info → Run anyway". Build it yourself with `npm run dist`.
 
 ## Run from source
 

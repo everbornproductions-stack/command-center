@@ -70,7 +70,7 @@ function indexHtml(file) {
   const tag = `<meta name="cc-token" content="${LOCAL_TOKEN}" />`;
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}\n${tag}`) : tag + html;
 }
-const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Everborn Command" };
+const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Command AI" };
 const settings = () => doc("settings", () => ({ ...DEFAULT_SETTINGS }));
 const saveSettings = (s) => putDoc("settings", s);
 
@@ -153,7 +153,7 @@ function fullState() {
 }
 
 // What the browser may know before signing in.
-const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Everborn Command", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
+const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
 
 // ---------- single-AI chat (streams through the event bus) ----------
 async function runChat({ prompt, provider, model, projectId }) {
@@ -481,7 +481,7 @@ async function initContext() {
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
   await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
-    console.log(`Everborn Command Center (${MODE})  →  http://localhost:${PORT}`);
+    console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);
     else console.log(`data: ${DATA_DIR}\nHQ:   ${HQ_DIR || "(not linked; set CC_HQ_DIR)"}`);
     startHealthLoop();

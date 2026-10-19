@@ -4,7 +4,7 @@
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
-  { id: "welcome", title: "Welcome to Command", body: "One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour takes two minutes and uses three pretend AIs, so nothing is spent." },
+  { id: "welcome", title: "Welcome to Command AI", body: "One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour takes two minutes and uses three pretend AIs, so nothing is spent." },
   { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
   { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. The router classifies the job (what kind of work, how hard, needs the web?) and sends each part to the best available AI for it." },
   { id: "modes", target: "#run-mode", view: "command", title: "Single, Council or Mission", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI QA-checks each piece, an assembler compiles the result." },

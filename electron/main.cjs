@@ -1,11 +1,11 @@
-// Everborn Command desktop shell. Starts the same Node server the web version uses, inside
+// Command AI desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
-app.setName("Everborn Command"); // app-data folder: %APPDATA%\Everborn Command
+app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Command AI"
 const PORT = Number(process.env.CC_PORT || 4747);
 const isPackaged = app.isPackaged;
 const ROOT = path.join(__dirname, "..");
@@ -98,7 +98,7 @@ async function startServer() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
-    backgroundColor: "#090d14", title: "Everborn Command", autoHideMenuBar: true,
+    backgroundColor: "#090d14", title: "Command AI", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -113,9 +113,9 @@ function createTray() {
   try {
     const img = nativeImage.createFromPath(path.join(ROOT, "web", "icons", "icon-512.png")).resize({ width: 16, height: 16 });
     tray = new Tray(img);
-    tray.setToolTip("Everborn Command");
+    tray.setToolTip("Command AI, an Everborn product");
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: "Open Everborn Command", click: () => { if (win) win.show(); else createWindow(); } },
+      { label: "Open Command AI", click: () => { if (win) win.show(); else createWindow(); } },
       { label: "Open in browser", click: () => shell.openExternal(`http://localhost:${PORT}/`) },
       { label: `Data folder`, click: () => shell.openPath(process.env.CC_DATA_DIR) },
       { type: "separator" },
@@ -142,5 +142,5 @@ app.whenReady().then(async () => {
   log(ok ? "server ready" : "server did not answer");
   createTray();
   createWindow();
-  if (!ok) dialog.showErrorBox("Everborn Command", `The local server did not start on port ${PORT}. Details: ${LOG}`);
+  if (!ok) dialog.showErrorBox("Command AI", `The local server did not start on port ${PORT}. Details: ${LOG}`);
 });

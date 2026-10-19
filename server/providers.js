@@ -68,7 +68,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   const headers = { "content-type": "application/json", authorization: `Bearer ${key}` };
   if (provider.id === "openrouter") {
     headers["HTTP-Referer"] = "https://everbornproductions.com";
-    headers["X-Title"] = "Everborn Command Center";
+    headers["X-Title"] = "Command AI";
   }
   let res;
   try {

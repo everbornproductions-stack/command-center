@@ -307,7 +307,7 @@ function renderUpdateBar() {
   const action = u.desktop
     ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
     : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+  bar.innerHTML = `<span>↑</span><div><b>Update available: Command AI v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -319,7 +319,7 @@ function updateBoxHtml() {
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
     : u.available ? `Update available: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
-  return `Version <b>v${esc(S.version || u.current || "")}</b> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
+  return `<b>Command AI</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
     + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
     + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
@@ -678,7 +678,7 @@ function renderSubscriptions(v) {
     <td><input type="number" data-f="monthly" value="${s.monthly ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px;padding:4px 6px"></td>
     <td><input type="date" data-f="renews" value="${s.renews || ""}" style="width:140px;padding:4px 6px"></td>
     <td><div class="row" style="gap:4px"><input type="number" data-f="credits" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
-    <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>—</span>"}</td>
+    <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
     <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)">✕</button></td>
   </tr>`).join("")}
@@ -816,11 +816,12 @@ function renderGate(message = "") {
   $("#app").style.visibility = "hidden";
   const unreachable = !CONFIG.supabase;
   g.innerHTML = `<div class="gate-card">
-    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name">EVERBORN <b>COMMAND</b></span></div>
+    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name">COMMAND <b>AI</b></span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" required placeholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>`}
+    <div class="dim small" style="text-align:center;margin-top:16px">Command AI, an Everborn product by Everborn Productions</div>
     <div id="gate-msg" class="small" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
     <details style="margin-top:14px"><summary class="small muted" style="cursor:pointer">Hub address</summary>
       <div class="row" style="margin-top:8px"><input type="text" id="gate-hub" value="${esc(hubAddress())}" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="gate-hub-save">Use</button>${HUB ? `<button class="btn sm" id="gate-hub-reset">Reset</button>` : ""}</div></details>

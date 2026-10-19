@@ -283,3 +283,8 @@ body.hosted #tab-setup { display: none; }
 .mobile-more button { background: #111a28; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 10px 6px; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .mobile-more button i { font-style: normal; font-size: 18px; }
 .mobile-more button.active { border-color: var(--accent); color: var(--accent-2); }
+
+/* Command AI branding: tagline next to the name, and on the onboarding tour card */
+.brand-tag { margin-left: 8px; letter-spacing: .02em; white-space: nowrap; }
+@media (max-width: 760px) { .brand-tag { display: none; } }
+#cc-tour .card::after { content: "Command AI, an Everborn product"; display: block; margin-top: 10px; font-size: 11px; color: var(--dim, #7b8798); text-align: right; }

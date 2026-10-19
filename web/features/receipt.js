@@ -19,7 +19,7 @@ function toPng(el) {
   const r = el._receipt; if (!r) return;
   const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
   const grad = g.createLinearGradient(0, 0, W, H); grad.addColorStop(0, "#0f1a2b"); grad.addColorStop(1, "#090d14"); g.fillStyle = grad; g.fillRect(0, 0, W, H);
-  g.fillStyle = "#22d3ee"; g.font = "600 34px Inter, Arial"; g.fillText("EVERBORN COMMAND · SAVINGS RECEIPT", 70, 110);
+  g.fillStyle = "#22d3ee"; g.font = "600 34px Inter, Arial"; g.fillText("COMMAND AI · SAVINGS RECEIPT", 70, 110);
   g.fillStyle = "#e5e7eb"; g.font = "700 72px Inter, Arial"; g.fillText(`${r.savedPct}% cheaper`, 70, 260);
   g.font = "400 36px Inter, Arial"; g.fillStyle = "#8b95a7"; g.fillText(`${money(r.actual, 4)} instead of ${money(r.flagshipCost, 4)} on ${r.flagship?.name || "the flagship"}`, 70, 330);
   g.fillText(`${r.calls} AI calls · ${fmtN(r.inTok + r.outTok)} tokens`, 70, 390);

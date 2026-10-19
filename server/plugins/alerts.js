@@ -53,7 +53,7 @@ async function notify(h, key, title, body, level = "amber") {
 async function sendEmail(h, to, subject, text) {
   const k = h.getSecret("resend")?.key;
   if (!k) return;
-  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${k}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Everborn Command <alerts@everbornproductions.com>", to, subject: `[Everborn Command] ${subject}`, text }) });
+  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${k}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Command AI <alerts@everbornproductions.com>", to, subject: `[Everborn Command] ${subject}`, text }) });
   if (!r.ok) throw new Error(`Resend ${r.status}`);
 }
 

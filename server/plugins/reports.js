@@ -55,7 +55,7 @@ async function deliver(h, rep, reason) {
   const prefs = h.doc(PREFS, () => ({ email: "", emailOn: false }));
   const k = h.getSecret("resend")?.key;
   if (prefs.emailOn && prefs.email && k) {
-    try { await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${k}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Everborn Command <reports@everbornproductions.com>", to: prefs.email, subject: `Weekly report: $${rep.totals.thisWeek.toFixed(2)} this week`, text: rep.markdown }) }); }
+    try { await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${k}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Command AI <reports@everbornproductions.com>", to: prefs.email, subject: `Weekly report: $${rep.totals.thisWeek.toFixed(2)} this week`, text: rep.markdown }) }); }
     catch (e) { h.emit("log", { text: `Report email failed: ${e.message}`, level: "error" }); }
   }
 }

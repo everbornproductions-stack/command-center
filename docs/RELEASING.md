@@ -1,4 +1,4 @@
-# Releasing a new version (so the in-app update button finds it)
+# Releasing a new version of Command AI (so the in-app update button finds it)
 
 The Windows app checks for updates when it starts and every 4 hours. People can also press
 **Settings > Check for updates**. When a newer version is out, a banner says
@@ -8,7 +8,8 @@ Updates come from GitHub Releases in the PUBLIC repo `everbornproductions-stack/
 The source code repo (`command-center`) stays private. The releases repo only holds installers and
 release notes. No token is built into the app, so the releases repo must stay public.
 
-User data (settings, encrypted keys, ledger, projects) lives in `%APPDATA%\Everborn Command\data`,
+User data (settings, encrypted keys, ledger, projects) lives in `%APPDATA%\Everborn Command\data` (the folder keeps
+its original name on purpose, so data survives the rename to Command AI),
 not in the install folder, so updating or reinstalling keeps it.
 
 ## Steps (on the Windows PC, in the command-center folder)
@@ -20,13 +21,13 @@ not in the install folder, so updating or reinstalling keeps it.
 3. **Commit and push** the version bump: `git add package.json package-lock.json` then
    `git commit -m "Release vX.Y.Z"` and `git push`.
 4. **Build.** `npm run dist`. This makes three files in `dist\` that matter:
-   - `EverbornCommand-Setup-X.Y.Z.exe` (the installer)
-   - `EverbornCommand-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
+   - `Command-AI-Setup-X.Y.Z.exe` (the installer)
+   - `Command-AI-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
    - `latest.yml` (tells the app what the newest version is)
 5. **Publish the release** (replace X.Y.Z):
 
    ```
-   gh release create vX.Y.Z --repo everbornproductions-stack/command-center-releases --title "Everborn Command vX.Y.Z" --notes "What changed, in plain words" dist\EverbornCommand-Setup-X.Y.Z.exe dist\EverbornCommand-Setup-X.Y.Z.exe.blockmap dist\latest.yml
+   gh release create vX.Y.Z --repo everbornproductions-stack/command-center-releases --title "Command AI vX.Y.Z" --notes "What changed, in plain words" dist\Command-AI-Setup-X.Y.Z.exe dist\Command-AI-Setup-X.Y.Z.exe.blockmap dist\latest.yml
    ```
 
    All three files must be on the same release. If the upload drops (large files from this PC can),

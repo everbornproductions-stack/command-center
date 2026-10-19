@@ -80,7 +80,7 @@ function renderPanel(el) {
   const logo = pendingLogo !== undefined ? pendingLogo : kit.logo;
   el.innerHTML = `<div class="panel"><h3>Brand kit <span class="right">${kit.updatedAt ? "saved" : "not set"}</span></h3>
     <div class="grid cols-2" style="gap:10px">
-      <div><label class="lbl">Company or client name</label><input type="text" id="cc-br-name" maxlength="60" value="${esc(kit.name)}" placeholder="Everborn Command"></div>
+      <div><label class="lbl">Company or client name</label><input type="text" id="cc-br-name" maxlength="60" value="${esc(kit.name)}" placeholder="Command AI"></div>
       <div><label class="lbl">Tagline (share pages)</label><input type="text" id="cc-br-tag" maxlength="120" value="${esc(kit.tagline)}" placeholder="One console for every AI you pay for"></div>
       <div><label class="lbl">Primary colour</label><div class="row"><input type="color" id="cc-br-p" value="${esc(kit.primary || "#22d3ee")}" style="width:44px;height:32px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:transparent"><label class="row small" style="gap:6px"><input type="checkbox" id="cc-br-p-on" ${kit.primary ? "checked" : ""}> use</label></div></div>
       <div><label class="lbl">Secondary colour</label><div class="row"><input type="color" id="cc-br-s" value="${esc(kit.secondary || "#a78bfa")}" style="width:44px;height:32px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:transparent"><label class="row small" style="gap:6px"><input type="checkbox" id="cc-br-s-on" ${kit.secondary ? "checked" : ""}> use</label></div></div>

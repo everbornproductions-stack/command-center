@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Everborn Command · live</title>
+<title>Command AI · live</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
 <style>
@@ -40,7 +40,7 @@ async function tick() {
   const agentIds = [...new Set([...(m.tasks || []).map((t) => t.provider), ...(m.members || []), ...Object.values(m.answers || {}).map((a) => a.provider)].filter(Boolean))];
   const done = ["done", "done-with-errors", "failed", "aborted"].includes(m.status);
   root.innerHTML = `
-    <div class="top"><span class="brand-mark"></span><span class="brand-name">EVERBORN <b style="color:var(--accent-2)">COMMAND</b> · LIVE</span><span class="chip ${done ? "green" : ""}" style="margin-left:auto">${esc(m.kind)} · ${esc(m.status)}</span>${m.cost != null ? `<span class="chip">$${Number(m.cost).toFixed(4)}</span>` : ""}</div>
+    <div class="top"><span class="brand-mark"></span><span class="brand-name">COMMAND <b style="color:var(--accent-2)">AI</b> · LIVE</span><span class="chip ${done ? "green" : ""}" style="margin-left:auto">${esc(m.kind)} · ${esc(m.status)}</span>${m.cost != null ? `<span class="chip">$${Number(m.cost).toFixed(4)}</span>` : ""}</div>
     <div class="panel"><h3>${esc(m.title)}</h3>
       <div class="agents">${agentIds.map((p) => `<div class="agent ${!done && active.has(p) ? "on" : ""}"><span class="light"></span><span class="dot" style="background:${pc(p)}"></span>${esc(pn(p))}</div>`).join("")}</div>
       ${m.tasks ? `<div class="tasks">${m.tasks.map((t) => `<div class="task"><span class="st ${t.status}"></span><div><div>${esc(t.title)}${t.review ? ` <span class="chip ${t.review.pass ? "green" : "amber"}">QA ${t.review.score ?? ""}</span>` : ""}</div><div class="who" style="color:${pc(t.provider)}">${esc(t.agentName || pn(t.provider))}</div></div><span class="chip">${esc(t.capability)}</span><span class="cost">${t.cost != null ? "$" + Number(t.cost).toFixed(4) : ""}</span><div class="bar"><i style="width:${t.status === "done" ? 100 : t.status === "running" ? 40 : t.status === "review" ? 85 : 0}%;background:${pc(t.provider)}"></i></div></div>`).join("")}</div>` : ""}
@@ -50,7 +50,7 @@ async function tick() {
       <div class="panel"><h3>Deliverable</h3><div class="md">${m.deliverable ? md(m.deliverable) : m.verdict?.text ? md(m.verdict.text) : `<div class="empty">${done ? "No deliverable recorded." : "Being written…"}</div>`}</div></div>
       <div class="panel"><h3>Live feed</h3><div class="feedbox">${d.feed.slice().reverse().map((e) => `<div class="ev ${e.type === "agent.msg" ? "msg" : e.type === "agent.error" ? "err" : ""}"><div class="bar" style="background:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}"></div><div><span class="who" style="color:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}">${esc(e.type === "agent.msg" ? `${pn(e.from)} → ${pn(e.to)}` : e.provider ? pn(e.provider) : "Command")}</span><span class="t">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span><div class="txt">${esc(e.text || e.type)}</div></div></div>`).join("")}</div></div>
     </div>
-    <div class="dim small" style="margin-top:12px;text-align:center">Read-only view · expires ${new Date(d.expiresAt).toLocaleString()} · made with Everborn Command</div>`;
+    <div class="dim small" style="margin-top:12px;text-align:center">Read-only view · expires ${new Date(d.expiresAt).toLocaleString()} · made with Command AI, an Everborn product</div>`;
   if (done) clearInterval(timer);
 }
 const timer = setInterval(tick, 2000); tick();

@@ -1,7 +1,7 @@
 {
-  "name": "Everborn Command",
-  "short_name": "Command",
-  "description": "One console for every AI you pay for. Council, missions, credits, projects.",
+  "name": "Command AI",
+  "short_name": "Command AI",
+  "description": "Command AI, an Everborn product. One console for every AI you pay for. Council, missions, credits, projects.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

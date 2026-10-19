@@ -95,3 +95,19 @@ test("installer config keeps user data and publishes to a public releases feed",
   assert.match(main, /autoDownload = false/);
   assert.match(main, /autoInstallOnAppQuit = false/);
 });
+
+test("branding: Command AI everywhere users look, appId and data folder unchanged so updates keep data", () => {
+  const yml = fs.readFileSync(path.join(ROOT, "electron-builder.yml"), "utf8");
+  assert.match(yml, /^productName: Command AI$/m);
+  assert.match(yml, /^appId: com\.everborn\.command\b/m, "appId must never change");
+  assert.match(yml, /Command-AI-Setup-\$\{version\}/);
+  const main = fs.readFileSync(path.join(ROOT, "electron", "main.cjs"), "utf8");
+  assert.match(main, /app\.setName\("Everborn Command"\)/, "user-data folder name stays the same");
+  assert.match(main, /title: "Command AI"/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "web", "manifest.webmanifest"), "utf8"));
+  assert.equal(manifest.name, "Command AI");
+  const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8");
+  assert.match(html, /<title>Command AI<\/title>/);
+  assert.match(html, /an Everborn product/);
+  for (const f of ["web/index.html", "web/app.js", "web/manifest.webmanifest", "web/share.html", "web/features/workspaces.js"]) assert.ok(!fs.readFileSync(path.join(ROOT, f), "utf8").includes("\u2014"), `no em-dash in ${f}`);
+});
