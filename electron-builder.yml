@@ -38,6 +38,14 @@ nsis:
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   artifactName: "Command-AI-Setup-${version}.${ext}"
+mac:
+  # unsigned until there is an Apple Developer account (see docs/RELEASING.md); zip is what Mac updates use
+  target: [dmg, zip]
+  category: public.app-category.productivity
+  icon: web/icons/icon-512.png
+  artifactName: "Command-AI-${version}-${arch}.${ext}"
+dmg:
+  artifactName: "Command-AI-${version}-${arch}.${ext}"
 portable:
   artifactName: "Command-AI-Portable-${version}.${ext}"
 # In-app updates: electron-updater reads releases from this PUBLIC repo (the source repo is private,

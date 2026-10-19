@@ -70,7 +70,7 @@ function exposeUpdater() {
   autoUpdater.logger = { info: (m) => log("updater:", m), warn: (m) => log("updater warn:", m), error: (m) => log("updater error:", m), debug: () => {} };
   const listeners = [];
   const send = (ev) => { for (const f of listeners) { try { f(ev); } catch {} } };
-  const notes = (info) => { const n = info && info.releaseNotes; if (!n) return ""; const t = Array.isArray(n) ? n.map((x) => x.note || "").join(" ") : String(n); return t.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300); };
+  const notes = (info) => { const n = info && info.releaseNotes; if (!n) return ""; const t = Array.isArray(n) ? n.map((x) => x.note || "").join(" ") : String(n); return t.replace(/<[^>]+>/g, " ").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim().slice(0, 300); };
   autoUpdater.on("update-available", (info) => send({ type: "available", version: info.version, notes: notes(info) }));
   autoUpdater.on("update-not-available", (info) => send({ type: "none", version: info && info.version }));
   autoUpdater.on("download-progress", (p) => send({ type: "progress", percent: p.percent }));

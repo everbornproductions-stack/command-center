@@ -46,3 +46,9 @@ not in the install folder, so updating or reinstalling keeps it.
   ("More info" then "Run anyway"). Updates install without that prompt.
 - Never put a token, key or password into `electron-builder.yml` or the app.
 - The phone / web app updates itself when the hub is updated; it shows "New version available, Refresh".
+
+## Mac (unsigned for now)
+
+- GitHub Actions workflow **Mac build** (`.github/workflows/mac-build.yml`) builds `Command-AI-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
+- One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
+- TODO (needs an Apple Developer account, $99/year): signing and notarization. Until then Mac users right-click the app and choose Open the first time, and the in-app update button cannot install on Mac (Apple only allows signed apps to self-update); they download the new .dmg instead.
