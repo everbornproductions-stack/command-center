@@ -8,7 +8,9 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "electron": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "test": "node --test \"test/*.test.js\"",
+    "smoke": "node test/smoke.mjs"
   },
   "license": "UNLICENSED",
   "private": true,

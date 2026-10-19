@@ -37,7 +37,8 @@ export async function handlePlugin(req, res, url, body) {
   try {
     return (await p.routes(req, res, url, body, helpersRef)) !== false;
   } catch (e) {
-    helpersRef.json(res, 500, { error: e.message });
+    // tier gates throw with status 402; anything else is a plugin bug
+    helpersRef.json(res, e.status || 500, { error: e.message, code: e.code });
     return true;
   }
 }

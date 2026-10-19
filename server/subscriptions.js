@@ -1,32 +1,18 @@
 // Subscription tracker: what you pay, when it renews, how many credits are left, burn rate,
 // and a plain-English keep / watch / cancel signal. Prices marked estimated until confirmed.
-import { HOSTED, doc, putDoc } from "./store.js";
+import { doc, putDoc } from "./store.js";
 import { allStatus } from "./health.js";
 import { summary as ledgerSummary } from "./ledger.js";
 
-// Seeded from what the history and HQ files show is actually in use. Prices are UNKNOWN until
-// Chris confirms them; listPrice is the public list price for reference only.
+// Every new user (desktop or hosted) starts with the three generic chat subscriptions, prices
+// UNKNOWN until confirmed; listPrice is the public list price for reference only. The owner's own
+// tool list is not shipped with the app (import example: docs/owner-seed.example.json, not bundled).
 const SEED = [
-  { id: "claude", provider: "anthropic", name: "Claude", plan: "UNKNOWN (Pro or Max)", monthly: null, listPrice: 20, renews: null, unit: "messages", credits: null, creditsTotal: null, notes: "Claude.ai + Claude Code. API usage is metered separately and tracked in the ledger.", url: "https://claude.ai/settings/billing" },
-  { id: "chatgpt", provider: "openai", name: "ChatGPT", plan: "UNKNOWN", monthly: null, listPrice: 20, renews: null, unit: "messages", credits: null, creditsTotal: null, notes: "Codex access seen in history.", url: "https://chatgpt.com/#settings" },
-  { id: "grok", provider: "xai", name: "Grok (SuperGrok)", plan: "UNKNOWN", monthly: null, listPrice: 30, renews: null, unit: "credits", credits: null, creditsTotal: null, notes: "Grok bots run the Everborn/SCF reels; Claude Studio is the backup when Grok is out.", url: "https://grok.com" },
-  { id: "kling", provider: "kling", name: "Kling AI Premier", plan: "Premier", monthly: null, listPrice: 92, renews: "2026-11-13", unit: "credits", credits: null, creditsTotal: 8000, notes: "About 8,000 credits per 31 days, shared with Grok's bots. Log every generation.", url: "https://app.klingai.com/global/membership" },
-  { id: "suno", provider: "suno", name: "Suno", plan: "UNKNOWN", monthly: null, listPrice: 10, renews: null, unit: "credits", credits: null, creditsTotal: null, notes: "Jake Stien songs.", url: "https://suno.com/account" },
-  { id: "flow", provider: "flow", name: "Google AI (Flow / Veo)", plan: "UNKNOWN (AI Pro or Ultra)", monthly: null, listPrice: 20, renews: null, unit: "AI credits", credits: null, creditsTotal: null, notes: "Veo 3.1 Quality ≈100 credits per clip, Nano Banana stills ≈1. Usage is in studio/credit-log.csv.", url: "https://one.google.com/ai" },
-  { id: "syncso", provider: "syncso", name: "Sync.so", plan: "UNKNOWN", monthly: null, listPrice: null, renews: null, unit: "credits", credits: null, creditsTotal: null, notes: "Lip sync. Fallback: Kling lip sync.", url: "https://sync.so" },
-  { id: "hedra", provider: "hedra", name: "Hedra", plan: "UNKNOWN", monthly: null, listPrice: null, renews: null, unit: "credits", credits: null, creditsTotal: null, notes: "", url: "https://www.hedra.com/app" },
-  { id: "cursor", provider: "cursor", name: "Cursor", plan: "UNKNOWN", monthly: null, listPrice: 20, renews: null, unit: "requests", credits: null, creditsTotal: null, notes: "", url: "https://cursor.com/settings" },
-  { id: "capcut", provider: "capcut", name: "CapCut", plan: "UNKNOWN", monthly: null, listPrice: null, renews: null, unit: null, credits: null, creditsTotal: null, notes: "", url: "https://www.capcut.com" },
-  { id: "ghl", provider: null, name: "GoHighLevel", plan: "UNKNOWN", monthly: null, listPrice: 97, renews: null, unit: null, credits: null, creditsTotal: null, notes: "CRM hub for SCF and clients. See hq/finance/subscriptions.csv.", url: "https://app.gohighlevel.com" },
-  { id: "zapier", provider: null, name: "Zapier", plan: "UNKNOWN", monthly: null, listPrice: 20, renews: null, unit: "tasks", credits: null, creditsTotal: null, notes: "", url: "https://zapier.com/app/billing" },
-  { id: "cloudflare", provider: null, name: "Cloudflare", plan: "UNKNOWN", monthly: null, listPrice: 0, renews: null, unit: null, credits: null, creditsTotal: null, notes: "Pages hosting for everbornproductions.com, capitalcitylife.com.", url: "https://dash.cloudflare.com" },
-  { id: "distrokid", provider: null, name: "DistroKid", plan: "UNKNOWN (annual)", monthly: null, listPrice: 2, renews: null, unit: null, credits: null, creditsTotal: null, notes: "Music distribution for Jake Stien.", url: "https://distrokid.com" },
-  { id: "1password", provider: null, name: "1Password", plan: "UNKNOWN", monthly: null, listPrice: 3, renews: null, unit: null, credits: null, creditsTotal: null, notes: "", url: "https://my.1password.com" },
+  { id: "claude", provider: "anthropic", name: "Claude", plan: "UNKNOWN", monthly: null, listPrice: 20, renews: null, unit: "messages", credits: null, creditsTotal: null, notes: "", url: "https://claude.ai/settings/billing" },
+  { id: "chatgpt", provider: "openai", name: "ChatGPT", plan: "UNKNOWN", monthly: null, listPrice: 20, renews: null, unit: "messages", credits: null, creditsTotal: null, notes: "", url: "https://chatgpt.com/#settings" },
+  { id: "grok", provider: "xai", name: "Grok", plan: "UNKNOWN", monthly: null, listPrice: 30, renews: null, unit: "credits", credits: null, creditsTotal: null, notes: "", url: "https://grok.com" },
 ];
-
-// The seed lists the owner's own tools; a hosted user starts with the generic chat subscriptions only.
-const HOSTED_SEED = SEED.filter((s) => ["claude", "chatgpt", "grok"].includes(s.id)).map((s) => ({ ...s, notes: "" }));
-const subs = () => doc("subscriptions", () => structuredClone(HOSTED ? HOSTED_SEED : SEED));
+const subs = () => doc("subscriptions", () => structuredClone(SEED));
 export function loadSubscriptions() { return subs(); }
 export function saveSubscription(s) {
   const list = subs();

@@ -31,6 +31,9 @@ const HUB = (() => {
 })();
 const hubAddress = () => HUB || location.origin;
 let CONFIG = { mode: "local" };
+// Local mode: the server injects a per-launch session token into index.html; every /api call carries it
+// (X-CC-Token) and it is the first WebSocket message, so a foreign web page cannot drive this console.
+const TOKEN = document.querySelector('meta[name="cc-token"]')?.content || "";
 let AUTH = (() => { try { return JSON.parse(localStorage.getItem("cc.auth") || "null"); } catch { return null; } })();
 function saveAuth(a) { AUTH = a; try { if (a) localStorage.setItem("cc.auth", JSON.stringify(a)); else localStorage.removeItem("cc.auth"); } catch {} }
 // After the magic link, Supabase sends the browser back with the session in the URL hash.
@@ -61,15 +64,27 @@ async function signOut(tellServer = true, message = "") {
   renderGate(message);
 }
 
-async function api(path, opts = {}) {
+async function apiHeaders() {
   const headers = { "content-type": "application/json" };
   if (CONFIG.mode === "hosted") { const t = await ensureFreshToken(); if (t) headers.authorization = `Bearer ${t}`; }
+  else if (TOKEN) headers["x-cc-token"] = TOKEN;
+  return headers;
+}
+async function api(path, opts = {}) {
+  const headers = await apiHeaders();
   const r = await fetch(HUB + "/api" + path, { headers, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (r.status === 401 && CONFIG.mode === "hosted") { signOut(false, "Signed out. Sign in again."); throw new Error("Sign in required"); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
+// Fetch a non-JSON API response (download, QR image) with the same auth headers; returns a blob: URL.
+async function apiBlobUrl(path) {
+  const r = await fetch(HUB + "/api" + path, { headers: await apiHeaders() });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || r.statusText); }
+  return URL.createObjectURL(await r.blob());
+}
+function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
 function toast(msg, err = false) {
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
@@ -105,13 +120,25 @@ function connect() {
   ws = new WebSocket(`${base.protocol === "https:" ? "wss" : "ws"}://${base.host}/ws`);
   ws.onopen = async () => {
     if (CONFIG.mode === "hosted") { const t = await ensureFreshToken(); if (!t) return; ws.send(JSON.stringify({ type: "auth", token: t })); }
+    else ws.send(JSON.stringify({ type: "auth", token: TOKEN })); // local: per-launch session token
     $("#conn-dot").className = "dot green"; $("#conn-txt").textContent = "live";
   };
-  ws.onclose = (e) => { if (e.code === 4401) return; $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reconnecting"; clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); };
-  ws.onmessage = (m) => { const ev = JSON.parse(m.data); if (ev.type === "auth.error") return signOut(false, ev.error || "Sign in again."); handle(ev); };
+  ws.onclose = (e) => { if (e.code === 4401 || e.code === 4403) return; $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reconnecting"; clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); };
+  ws.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    if (ev.type === "auth.error") {
+      if (CONFIG.mode === "hosted") return signOut(false, ev.error || "Sign in again.");
+      // local: the server was relaunched with a new token; reload once to pick it up
+      const last = Number(sessionStorage.getItem("cc.reload") || 0);
+      if (Date.now() - last > 10000) { sessionStorage.setItem("cc.reload", String(Date.now())); location.reload(); }
+      else { $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reload the page"; }
+      return;
+    }
+    handle(ev);
+  };
 }
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions, subscriptionTotals: st.subscriptionTotals, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir });
   S.plugins = st.plugins || [];
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
@@ -128,7 +155,7 @@ function handle(ev) {
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
     }
-    case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions, subscriptionTotals: ev.subscriptionTotals, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view)) render(); return;
+    case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view)) render(); return;
     case "provider.status": { const p = P(ev.provider); if (p) p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance }; renderStrip(); graph?.setStatus(ev.provider, ev.status); pushFeed(ev); return; }
     case "agent.start": onAgentStart(ev); pushFeed(ev); return;
     case "agent.delta": onAgentDelta(ev); return;
@@ -319,7 +346,7 @@ function renderCommand(v) {
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
-        <textarea id="orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for Jake Stien's new single: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
@@ -487,7 +514,7 @@ function renderProjects(v) {
     </div>
     <div class="grid">
       <div class="panel"><h3>Waiting on you <span class="right">HQ board</span></h3>
-        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : `<div class="dim small">No HQ folder found at ${esc(S.hqDir || "")}.</div>`}
+        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       <div class="panel"><h3>Recent runs</h3>
         ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
@@ -495,7 +522,7 @@ function renderProjects(v) {
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
-  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); });
+  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -587,6 +614,16 @@ function renderCredits(v) {
 
 // ----- Subscriptions -----
 function renderSubscriptions(v) {
+  if (S.subscriptionsLocked) {
+    v.innerHTML = `<div class="panel" style="max-width:720px;margin:24px auto;text-align:center;padding:36px 28px">
+      <div style="font-size:28px;margin-bottom:8px">🔒</div>
+      <h2 style="margin:0 0 8px;font-size:20px">The Subscriptions tracker is part of Pro</h2>
+      <div class="muted">What you pay for every AI subscription, when it renews, credits left, burn per day, runway, and a plain keep / watch / cancel signal. Pro also unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler.</div>
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px"><a class="btn primary" href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a><button class="btn" id="sub-lic">I have a licence key</button></div>
+    </div>`;
+    $("#sub-lic").addEventListener("click", () => { S.view = "settings"; render(); });
+    return;
+  }
   const T = S.subscriptionTotals || {};
   v.innerHTML = `
   <div class="kpi" style="margin-bottom:16px">
@@ -650,10 +687,12 @@ function renderSettings(v) {
         </div>
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `HQ folder: ${esc(S.hqDir || "")} · <a href="#" id="s-setup">Run first-time setup again</a> · `}v${esc(S.version || "")} <a href="#" id="s-upd">check for updates</a>${S.update?.error ? ` <span class="dim">(last check failed: ${esc(S.update.error)})</span>` : ""}</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run first-time setup again</a> · `}v${esc(S.version || "")} <a href="#" id="s-upd">check for updates</a>${S.update?.error ? ` <span class="dim">(last check failed: ${esc(S.update.error)})</span>` : ""}</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
-          : `<div class="dim small" style="margin-top:8px">Vault file: <span class="mono">${esc(S.vault?.file || "")}</span>. Keys are sealed with Windows DPAPI for your user account and never leave this machine except to the provider you gave them to.</div>`}
+          : S.vault?.canSave === false
+            ? `<div class="small" style="margin-top:8px;color:var(--amber)">Keys cannot be saved here: ${esc(S.vault?.method || "")} Keys are only ever stored encrypted by the operating system; use the desktop app.</div>`
+            : `<div class="dim small" style="margin-top:8px">Vault file: <span class="mono">${esc(S.vault?.file || "")}</span>. Keys are sealed with ${esc(S.vault?.method || "the operating system")} for your user account and never leave this machine except to the provider you gave them to.</div>`}
       </div>
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
@@ -665,14 +704,16 @@ function renderSettings(v) {
             <div class="dim small" style="margin-top:8px">Scan the code with your phone camera to open this hub there, then Share → Add to Home Screen (iPhone) or Install app (Android). Any browser works: the phone talks to the hub, so your PC can be off${S.mode === "hosted" ? "" : " once the hub is hosted (see docs/hosted-hub.md)"}.</div>
             <div class="row small" style="margin-top:8px"><a href="${esc(hubAddress())}" target="_blank" rel="noopener" class="mono">${esc(hubAddress())}</a><button class="ghost small" id="hub-copy">copy link</button></div>
           </div>
-          <img id="hub-qr" alt="QR code for ${esc(hubAddress())}" src="${esc(HUB + "/api/pair/qr.svg?u=" + encodeURIComponent(hubAddress()))}" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px">
+          <img id="hub-qr" alt="QR code for ${esc(hubAddress())}" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px">
         </div></div>
-      <div class="panel"><h3>Licence &amp; cloud <span class="right">${S.license?.configured ? `tier: ${esc(S.license.tier)}` : "owner build (no cloud configured)"}</span></h3>
-        ${S.license?.configured ? `<div class="row"><input type="text" id="lic-key" placeholder="${S.license.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
-          <div class="small muted" style="margin-top:6px">${esc(S.license.message || "")} ${S.license.email ? `· ${esc(S.license.email)}` : ""} ${S.license.tier === "free" ? `· Free tier: Single mode, ${S.license.limits.councilsPerMonth} councils/month, 1 project. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
-          <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>` : `<div class="dim small">This copy runs unlocked. To turn on licence checks (for customer builds), enter the Supabase project URL and anon key below.</div>`}
-        ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Cloud (Supabase) connection</summary>
-          <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://xxxx.supabase.co" value="${esc(S.settings.cloud?.url || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="${S.settings.cloud?.anonKey ? "anon key saved" : "anon public key"}" style="flex:1"><button class="btn sm" id="cl-save">Save</button></div></details>`}
+      <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
+        <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
+        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 3} councils/month, 1 project. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
+        <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
+        ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
+        ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
+          <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://xxxx.supabase.co" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
+          <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
       <div class="panel"><h3>Media &amp; creative tools <span class="right">credits tracked · API where one exists</span></h3>
@@ -696,10 +737,11 @@ function renderSettings(v) {
   $("#hub-save").addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
   $("#hub-copy").addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
+  apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
   $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
   $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
   $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });
-  $("#cl-save")?.addEventListener("click", async () => { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value || undefined } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Cloud saved"); render(); });
+  $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   $("#s-upd").addEventListener("click", async (e) => { e.preventDefault(); S.update = await api("/update/check", { method: "POST" }); renderUpdateBar(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version"); render(); });
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
   renderExtras("settings", "#settings-extras");
@@ -808,20 +850,21 @@ function renderSetup(v) {
   v.innerHTML = `<div style="max-width:980px;margin:0 auto" class="grid">
     <div class="panel"><h3>AIs you use <span class="right">${scan ? `${scan.days} days · ${scan.scanned.length} browser profile${scan.scanned.length === 1 ? "" : "s"} scanned` : "history scan skipped"}</span></h3>
       <div class="grid" style="gap:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
-      <div class="dim small" style="margin-top:8px">"Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed with Windows DPAPI and never leave this PC.</div></div>
+      <div class="dim small" style="margin-top:8px">"Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
     ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
     ${st.bookmarks && folder.length ? `<div class="panel"><h3>Your AI bookmark folder <span class="right">${folder.reduce((a, c) => a + c.links.length, 0)} links</span></h3>
       <div class="grid cols-3" style="gap:10px">${folder.map((c) => `<div><div class="cat-h" style="margin:4px 0 6px">${esc(c.name)}</div>${c.links.map((l) => `<div class="small" style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><img src="${favicon(l.url)}" style="width:12px;height:12px;vertical-align:-1px;margin-right:6px">${esc(l.name)}</div>`).join("")}</div>`).join("")}</div>
-      <div class="row" style="margin-top:14px"><a class="btn sm" href="/api/setup/bookmarks.html" download>Download import file</a>
+      <div class="row" style="margin-top:14px"><button class="btn sm" id="su-dl">Download import file</button>
         <select id="su-prof" style="width:auto">${profiles.map((x) => `<option value="${x.browser}|${x.dir}" ${x.synced ? "disabled" : ""}>${esc(x.browserName)} · ${esc(x.name)}${x.email ? ` (${esc(x.email)})` : ""}${x.synced ? " · synced, use import" : ""}</option>`).join("")}</select>
         <button class="btn sm primary" id="su-apply">Add to this browser now</button><span class="dim small">closes and reopens the browser, keeps your tabs, backs up first</span></div></div>` : ""}
     <div class="row"><button class="btn" id="su-back">← Back</button><button class="btn primary" id="su-done" style="margin-left:auto">Finish setup</button></div></div>`;
   $$("[data-import]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/import-keys", { method: "POST", body: { providers: [b.dataset.import] } }); toast(r2.imported.length ? `${pname(b.dataset.import)} linked` : "Nothing imported", !r2.imported.length); await refresh(); }));
   $$("[data-open]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/open", { method: "POST", body: { provider: b.dataset.open } }); toast(`Opened ${r2.url}`); }));
   $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); toast(`${pname(b.dataset.savek)}: ${r2.status.status} · ${r2.status.detail}`, r2.status.status === "red"); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
-  $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); }));
-  $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); });
+  $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
+  $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
+  $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; toast("Setup complete"); S.view = "command"; render(); });
 }

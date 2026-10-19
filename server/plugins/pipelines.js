@@ -1,12 +1,12 @@
 // Saved pipelines: a mission with its steps already decided. One click runs it for a project.
-// Templates ship for the work Everborn does every week; users can save their own from any mission.
+// Three templates ship for common creative and client work; users can save their own from any mission.
 export const id = "pipelines";
 
 const TEMPLATES = [
   {
     id: "instagram-week", name: "Instagram week", icon: "📅", category: "Social Posts",
     description: "Seven posts for one brand: hooks, captions, hashtags, visual direction, posting schedule, checklist.",
-    inputs: [{ key: "brand", label: "Brand or product", placeholder: "Jake Stien · new single" }, { key: "goal", label: "What should the week achieve?", placeholder: "Pre-saves for the single" }, { key: "tone", label: "Tone", placeholder: "moody, direct, no hashtags in first line" }],
+    inputs: [{ key: "brand", label: "Brand or product", placeholder: "Your brand · new launch" }, { key: "goal", label: "What should the week achieve?", placeholder: "Sign-ups for the launch" }, { key: "tone", label: "Tone", placeholder: "warm, direct, no hashtags in first line" }],
     steps: [
       { title: "Audience and angles", capability: "research", instructions: "Describe who this is for and the three angles most likely to land this week.", deliverable: "Audience notes and 3 ranked angles" },
       { title: "Seven post concepts", capability: "creative", deps: [1], instructions: "Seven posts (mix of reels, carousels, stills) with a one-line hook each, built on the best angle.", deliverable: "Numbered list: format, hook, visual" },
@@ -19,7 +19,7 @@ const TEMPLATES = [
   {
     id: "music-video", name: "Music video from a song", icon: "🎬", category: "Music Videos",
     description: "From lyrics to a shot list ready for Kling or Flow: concept, scenes, prompts per shot, lip-sync plan, edit map.",
-    inputs: [{ key: "song", label: "Song title and artist", placeholder: "I Loved You in the Dark – Jake Stien" }, { key: "lyrics", label: "Lyrics (paste)", multiline: true }, { key: "look", label: "Look and references", placeholder: "night, rain on glass, one practical light, real photo first frames" }],
+    inputs: [{ key: "song", label: "Song title and artist", placeholder: "Song title – Artist" }, { key: "lyrics", label: "Lyrics (paste)", multiline: true }, { key: "look", label: "Look and references", placeholder: "night, rain on glass, one practical light, real photo first frames" }],
     steps: [
       { title: "Concept and story beats", capability: "creative", instructions: "A one-paragraph concept and 6–10 story beats mapped to the song structure (verse, chorus, bridge).", deliverable: "Concept + beats with timestamps" },
       { title: "Shot list", capability: "creative", deps: [1], instructions: "A numbered shot list (25–40 shots, 3–5 s each) with camera, action, lighting; mouths mostly closed; small human beats (sigh, look down); no exaggerated motion.", deliverable: "Shot list table" },
@@ -32,7 +32,7 @@ const TEMPLATES = [
   {
     id: "client-site-launch", name: "Client site launch", icon: "🚀", category: "Client Work",
     description: "Everything to launch a small-business site: pages and copy, SEO basics, launch checklist, first-week posts.",
-    inputs: [{ key: "client", label: "Client and industry", placeholder: "Capital City Life · life insurance" }, { key: "offer", label: "Main offer / call to action", placeholder: "Free 15-minute quote call" }, { key: "proof", label: "Proof points (facts only)", placeholder: "licensed in CA, 200+ families" }],
+    inputs: [{ key: "client", label: "Client and industry", placeholder: "Client name · industry" }, { key: "offer", label: "Main offer / call to action", placeholder: "Free 15-minute call" }, { key: "proof", label: "Proof points (facts only)", placeholder: "years in business, licences, number of customers" }],
     steps: [
       { title: "Site map and page goals", capability: "analysis", instructions: "Pages the site needs, each page's single job, and the primary call to action.", deliverable: "Site map table" },
       { title: "Home and service copy", capability: "writing", deps: [1], instructions: "Headline, subhead, sections and CTA copy for the home page and each service page. No invented numbers; mark unknowns as [ASK CLIENT].", deliverable: "Copy per page" },

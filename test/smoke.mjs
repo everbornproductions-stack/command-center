@@ -1,0 +1,50 @@
+// Demo-mode smoke test (npm run smoke): starts the server in a temp data dir as owner (CC_DEV_OWNER=1,
+// unpackaged), turns demo mode on, runs one Single, one Council and one Mission against the three
+// pretend AIs, then starts a Free copy and checks the gates. No real keys, no spend, no data/ access.
+import { startServer } from "./helpers.js";
+
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitFor(s, pred, label, ms = 180000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) { const st = await s.api("/state"); const hit = pred(st.json); if (hit) return hit; await sleep(1000); }
+  throw new Error(`timed out waiting for ${label}`);
+}
+const done = (kind) => (st) => st.missions.find((m) => m.kind === kind && m.status === "done");
+let failures = 0;
+const check = (ok, what) => { log(ok ? "PASS" : "FAIL", what); if (!ok) failures++; };
+
+log("owner copy (dev override)");
+const owner = await startServer({ env: { CC_DEV_OWNER: "1" } });
+try {
+  const st = await owner.api("/state");
+  check(st.json.license.tier === "owner", `tier is owner (${st.json.license.tier})`);
+  const demo = await owner.api("/demo", { method: "POST", body: { on: true } });
+  check(demo.status === 200 && demo.json.demo === true, "demo mode on");
+  check((await owner.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome note for a new customer." } })).status === 202, "single accepted");
+  const single = await waitFor(owner, done("single"), "single to finish", 60000);
+  check(!!single, `single finished (${single?.title})`);
+  check((await owner.api("/council", { method: "POST", body: { prompt: "Which of three hooks works best for a launch post?", lite: true } })).status === 202, "council accepted");
+  const council = await waitFor(owner, done("council"), "council to finish", 120000);
+  check(!!council, `council finished (winner: ${council?.winner})`);
+  check((await owner.api("/mission", { method: "POST", body: { goal: "Plan a one-week social campaign for a small bakery.", mode: "economy", budgetUsd: 1 } })).status === 202, "mission accepted");
+  const mission = await waitFor(owner, done("mission"), "mission to finish", 180000);
+  check(!!mission, `mission finished (${mission?.tasks} tasks, $${mission?.cost})`);
+  check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
+} catch (e) { check(false, e.message); } finally { await owner.stop(); }
+
+log("free copy");
+const free = await startServer();
+try {
+  const st = await free.api("/state");
+  check(st.json.license.tier === "free" && st.json.license.configured === false, "no cloud → free");
+  check((await free.api("/mission", { method: "POST", body: { goal: "x" } })).status === 402, "mission gated");
+  check((await free.api("/projects", { method: "POST", body: { name: "Second", categories: [] } })).status === 402, "2nd project gated");
+  check((await free.api("/subscriptions", { method: "POST", body: { name: "x" } })).status === 402, "subscriptions gated");
+  check(st.json.subscriptionsLocked === true && st.json.subscriptions.length === 0, "subscriptions locked in state");
+  check((await free.api("/cloud", { method: "POST", body: { url: "", anonKey: "" } })).status === 400, "empty cloud refused");
+  check((await free.api("/state", { noToken: true })).status === 401, "no token → 401");
+} catch (e) { check(false, e.message); } finally { await free.stop(); }
+
+log(failures ? `${failures} check(s) FAILED` : "all smoke checks passed");
+process.exit(failures ? 1 : 0);

@@ -1,0 +1,113 @@
+{
+  "_comment": "Example of a fuller Projects + Subscriptions set (the owner's own hubs, notes removed). Not bundled with the app (docs/ is excluded by electron-builder.yml). To use it on a fresh install, stop the app and copy the two arrays into <data dir>/projects.json and <data dir>/subscriptions.json, or add the entries by hand in the UI. Existing data files are never overwritten by the app.",
+  "projects": [
+    {
+      "id": "everborn", "name": "Everborn Productions", "color": "#D97757", "kind": "company", "hqClient": "everborn",
+      "summary": "AI-built CRM, marketing and media for small businesses.",
+      "categories": [
+        { "id": "website", "name": "Website", "links": [
+          { "name": "everbornproductions.com", "url": "https://everbornproductions.com" },
+          { "name": "Cloudflare Pages", "url": "https://dash.cloudflare.com" },
+          { "name": "Search Console", "url": "https://search.google.com/search-console" }
+        ] },
+        { "id": "social", "name": "Social Posts", "links": [
+          { "name": "Instagram", "url": "https://www.instagram.com" },
+          { "name": "TikTok Studio", "url": "https://www.tiktok.com/tiktokstudio" },
+          { "name": "Meta Business Suite", "url": "https://business.facebook.com" },
+          { "name": "YouTube Studio", "url": "https://studio.youtube.com" }
+        ] },
+        { "id": "clients", "name": "Client Work", "links": [
+          { "name": "Capital City Life (site)", "url": "https://capitalcitylife.com" }
+        ] },
+        { "id": "money", "name": "Money", "links": [
+          { "name": "Square", "url": "https://app.squareup.com/dashboard" },
+          { "name": "Stripe", "url": "https://dashboard.stripe.com" }
+        ] }
+      ]
+    },
+    {
+      "id": "jake-stien", "name": "Jake Stien (music)", "color": "#FF5A5F", "kind": "music", "hqClient": "everborn",
+      "summary": "AI music videos: Suno → Kling / Flow → Sync.so → ffmpeg → YouTube, TikTok, Instagram.",
+      "categories": [
+        { "id": "music-videos", "name": "Music Videos", "links": [
+          { "name": "YouTube channel", "url": "https://www.youtube.com" },
+          { "name": "YouTube Studio analytics", "url": "https://studio.youtube.com" },
+          { "name": "Suno library", "url": "https://suno.com/me" },
+          { "name": "Kling projects", "url": "https://app.klingai.com" },
+          { "name": "Google Flow", "url": "https://flow.google.com" },
+          { "name": "Sync.so studio", "url": "https://sync.so" },
+          { "name": "Hedra", "url": "https://www.hedra.com/app" }
+        ] },
+        { "id": "distribution", "name": "Distribution", "links": [
+          { "name": "DistroKid", "url": "https://distrokid.com" },
+          { "name": "YouTube Music", "url": "https://music.youtube.com" }
+        ] },
+        { "id": "social", "name": "Social Posts", "links": [
+          { "name": "Instagram", "url": "https://www.instagram.com" },
+          { "name": "TikTok Studio", "url": "https://www.tiktok.com/tiktokstudio" }
+        ] }
+      ]
+    },
+    {
+      "id": "snap-credit-fix", "name": "Snap Credit Fix", "color": "#20B8CD", "kind": "client", "hqClient": "snap-credit-fix",
+      "summary": "Credit repair client: GoHighLevel CRM, DisputeFox, affiliate program, dealer outreach.",
+      "categories": [
+        { "id": "crm", "name": "CRM & Automation", "links": [
+          { "name": "GoHighLevel", "url": "https://app.gohighlevel.com" },
+          { "name": "Zapier", "url": "https://zapier.com/app/zaps" },
+          { "name": "DisputeFox", "url": "https://pulse.disputeprocess.com" }
+        ] },
+        { "id": "website", "name": "Website", "links": [
+          { "name": "snapcreditfix.com", "url": "https://snapcreditfix.com" },
+          { "name": "go.snapcreditfix.com", "url": "https://go.snapcreditfix.com" },
+          { "name": "Cloudflare", "url": "https://dash.cloudflare.com" }
+        ] },
+        { "id": "social", "name": "Social & Ads", "links": [
+          { "name": "Meta Ads Manager", "url": "https://adsmanager.facebook.com" },
+          { "name": "Meta Business Suite", "url": "https://business.facebook.com" },
+          { "name": "Instagram", "url": "https://www.instagram.com" }
+        ] },
+        { "id": "partners", "name": "Partners & Affiliates", "links": [
+          { "name": "Skool", "url": "https://www.skool.com" },
+          { "name": "Tradeline Genie", "url": "https://tradelinegenie.org" },
+          { "name": "Callers.io", "url": "https://callers.io" }
+        ] }
+      ]
+    },
+    {
+      "id": "capital-city-life", "name": "Capital City Life (insurance)", "color": "#4E8CFF", "kind": "client", "hqClient": "capital-city-life",
+      "summary": "Insurance site and reels; SEO lane.",
+      "categories": [
+        { "id": "website", "name": "Website", "links": [
+          { "name": "capitalcitylife.com", "url": "https://capitalcitylife.com" },
+          { "name": "Cloudflare", "url": "https://dash.cloudflare.com" }
+        ] },
+        { "id": "social", "name": "Social Posts", "links": [
+          { "name": "Instagram", "url": "https://www.instagram.com" }
+        ] },
+        { "id": "carriers", "name": "Carriers & Tools", "links": [
+          { "name": "Mutual of Omaha producer", "url": "https://producer.mutualofomaha.com" },
+          { "name": "iPipeline iGO", "url": "https://igoforms2.ipipeline.com" },
+          { "name": "Integrity leads", "url": "https://leads.integrity.com" }
+        ] }
+      ]
+    }
+  ],
+  "subscriptions": [
+    { "id": "claude", "provider": "anthropic", "name": "Claude", "plan": "UNKNOWN (Pro or Max)", "monthly": null, "listPrice": 20, "renews": null, "unit": "messages", "credits": null, "creditsTotal": null, "notes": "", "url": "https://claude.ai/settings/billing" },
+    { "id": "chatgpt", "provider": "openai", "name": "ChatGPT", "plan": "UNKNOWN", "monthly": null, "listPrice": 20, "renews": null, "unit": "messages", "credits": null, "creditsTotal": null, "notes": "", "url": "https://chatgpt.com/#settings" },
+    { "id": "grok", "provider": "xai", "name": "Grok (SuperGrok)", "plan": "UNKNOWN", "monthly": null, "listPrice": 30, "renews": null, "unit": "credits", "credits": null, "creditsTotal": null, "notes": "", "url": "https://grok.com" },
+    { "id": "kling", "provider": "kling", "name": "Kling AI Premier", "plan": "Premier", "monthly": null, "listPrice": 92, "renews": null, "unit": "credits", "credits": null, "creditsTotal": 8000, "notes": "", "url": "https://app.klingai.com/global/membership" },
+    { "id": "suno", "provider": "suno", "name": "Suno", "plan": "UNKNOWN", "monthly": null, "listPrice": 10, "renews": null, "unit": "credits", "credits": null, "creditsTotal": null, "notes": "", "url": "https://suno.com/account" },
+    { "id": "flow", "provider": "flow", "name": "Google AI (Flow / Veo)", "plan": "UNKNOWN (AI Pro or Ultra)", "monthly": null, "listPrice": 20, "renews": null, "unit": "AI credits", "credits": null, "creditsTotal": null, "notes": "", "url": "https://one.google.com/ai" },
+    { "id": "syncso", "provider": "syncso", "name": "Sync.so", "plan": "UNKNOWN", "monthly": null, "listPrice": null, "renews": null, "unit": "credits", "credits": null, "creditsTotal": null, "notes": "", "url": "https://sync.so" },
+    { "id": "hedra", "provider": "hedra", "name": "Hedra", "plan": "UNKNOWN", "monthly": null, "listPrice": null, "renews": null, "unit": "credits", "credits": null, "creditsTotal": null, "notes": "", "url": "https://www.hedra.com/app" },
+    { "id": "cursor", "provider": "cursor", "name": "Cursor", "plan": "UNKNOWN", "monthly": null, "listPrice": 20, "renews": null, "unit": "requests", "credits": null, "creditsTotal": null, "notes": "", "url": "https://cursor.com/settings" },
+    { "id": "capcut", "provider": "capcut", "name": "CapCut", "plan": "UNKNOWN", "monthly": null, "listPrice": null, "renews": null, "unit": null, "credits": null, "creditsTotal": null, "notes": "", "url": "https://www.capcut.com" },
+    { "id": "ghl", "provider": null, "name": "GoHighLevel", "plan": "UNKNOWN", "monthly": null, "listPrice": 97, "renews": null, "unit": null, "credits": null, "creditsTotal": null, "notes": "", "url": "https://app.gohighlevel.com" },
+    { "id": "zapier", "provider": null, "name": "Zapier", "plan": "UNKNOWN", "monthly": null, "listPrice": 20, "renews": null, "unit": "tasks", "credits": null, "creditsTotal": null, "notes": "", "url": "https://zapier.com/app/billing" },
+    { "id": "cloudflare", "provider": null, "name": "Cloudflare", "plan": "UNKNOWN", "monthly": null, "listPrice": 0, "renews": null, "unit": null, "credits": null, "creditsTotal": null, "notes": "", "url": "https://dash.cloudflare.com" },
+    { "id": "distrokid", "provider": null, "name": "DistroKid", "plan": "UNKNOWN (annual)", "monthly": null, "listPrice": 2, "renews": null, "unit": null, "credits": null, "creditsTotal": null, "notes": "", "url": "https://distrokid.com" },
+    { "id": "1password", "provider": null, "name": "1Password", "plan": "UNKNOWN", "monthly": null, "listPrice": 3, "renews": null, "unit": null, "credits": null, "creditsTotal": null, "notes": "", "url": "https://my.1password.com" }
+  ]
+}

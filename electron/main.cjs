@@ -1,7 +1,7 @@
 // Everborn Command desktop shell. Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -13,11 +13,9 @@ const userData = app.getPath("userData");
 
 process.env.CC_PORT = String(PORT);
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || path.join(userData, "data");
-// HQ adapter: only meaningful on Chris's PC; point it at a sibling folder if present, else nowhere.
-if (!process.env.CC_HQ_DIR) {
-  const guess = path.resolve(ROOT, "..");
-  process.env.CC_HQ_DIR = fs.existsSync(path.join(guess, "hq", "state.json")) ? guess : path.join(userData, "hq");
-}
+// Installed builds ignore developer overrides (CC_DEV_OWNER) and cannot be pointed at another licence server.
+process.env.CC_PACKAGED = isPackaged ? "1" : "0";
+// HQ adapter: only active when CC_HQ_DIR is set explicitly; the app never guesses a folder.
 
 let win = null, tray = null, serverStarted = false;
 
@@ -27,16 +25,41 @@ if (!single) { app.quit(); process.exit(0); }
 async function waitForServer(ms = 20000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
-    try { const r = await fetch(`http://127.0.0.1:${PORT}/api/state`); if (r.ok) return true; } catch {}
+    try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok) return true; } catch {}
     await new Promise((r) => setTimeout(r, 250));
   }
   return false;
 }
 
+// OS-backed key encryption for macOS (Keychain) and Linux (libsecret / kwallet). Windows keeps DPAPI
+// inside the server. The server runs in this same process, so the channel is a global it reads;
+// see server/vault.js. Must be set after app "ready" (safeStorage is unusable before that).
+function exposeSafeStorage() {
+  const backend = () => {
+    if (process.platform === "darwin") return "macOS Keychain";
+    if (process.platform === "linux") { try { return safeStorage.getSelectedStorageBackend(); } catch { return "libsecret"; } }
+    return "Windows DPAPI";
+  };
+  globalThis.__ccSafeStorage = {
+    get backend() { return backend(); },
+    available() {
+      try {
+        if (!safeStorage.isEncryptionAvailable()) return false;
+        // Linux without a keyring falls back to "basic_text", which is not encryption
+        if (process.platform === "linux" && backend() === "basic_text") return false;
+        return true;
+      } catch { return false; }
+    },
+    encrypt: (s) => safeStorage.encryptString(s).toString("base64"),
+    decrypt: (b64) => safeStorage.decryptString(Buffer.from(b64, "base64")),
+  };
+}
+
 async function startServer() {
   if (serverStarted) return true;
   // Already running (e.g. the launcher script)? Just use it.
-  try { const r = await fetch(`http://127.0.0.1:${PORT}/api/state`); if (r.ok) { serverStarted = true; return true; } } catch {}
+  try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok) { serverStarted = true; return true; } } catch {}
+  exposeSafeStorage();
   await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
   serverStarted = await waitForServer();
   return serverStarted;

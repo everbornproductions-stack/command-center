@@ -2,7 +2,9 @@
 
 One console for every AI you pay for. Give marching orders once; the console picks the right AI for each part, lets them check each other's work, shows you who is working and who is talking to whom in real time, and keeps score of what everything costs.
 
-Runs on your PC. Your API keys never leave it (sealed with Windows DPAPI). Zero markup: you pay the providers directly.
+Runs on your PC. Your API keys never leave it (sealed with Windows DPAPI, or the OS keychain through the desktop app on macOS and Linux). Zero markup: you pay the providers directly.
+
+The local server only answers its own window: it binds 127.0.0.1, pins the `Host` and `Origin` headers to the loopback address, requires `application/json` on every write, and issues a fresh session token on each launch that the page must send with every API call and as the first WebSocket message. A web page you happen to visit cannot read your console or start work on your keys.
 
 ## Install on Windows (no Node needed)
 
@@ -70,7 +72,8 @@ server/mission.js      mission mode (plan → assign → execute → QA → asse
 server/health.js       status lights, balance checks, status pages, live model lists
 server/ledger.js       usage ledger (data/ledger.jsonl)
 server/subscriptions.js, server/projects.js
-server/vault.js        DPAPI-sealed key vault (data/vault.bin)
+server/vault.js        key vault (data/vault.bin): Windows DPAPI; macOS/Linux via Electron safeStorage (Keychain / libsecret);
+                       plain Node on macOS/Linux refuses to save keys (no base64 fallback)
 server/mock.js         demo mode
 server/discover.js     setup wizard: history scan, key detection, AI bookmark folder
 server/update.js       update checker (release/latest.json is the feed template)
@@ -79,7 +82,7 @@ data/                  your data: vault, ledger, projects, subscriptions, missio
 docs/                  market research, provider API research, product brief
 ```
 
-The HQ adapter reads `../hq/state.json` (task board, decisions waiting on you) and `../studio/credit-log.csv` (Kling/Flow generations). Set `CC_HQ_DIR` to point elsewhere.
+The optional HQ adapter reads `<CC_HQ_DIR>/hq/state.json` (task board, decisions waiting on you) and `<CC_HQ_DIR>/studio/credit-log.csv` (Kling/Flow generations). It is only active when `CC_HQ_DIR` is set (a run from source also picks up a sibling `hq/` folder when one exists; installed builds never guess). New installs start with one empty project and three generic subscription rows; `docs/owner-seed.example.json` shows the import shape for a fuller set.
 
 ## Not yet built (see docs/product-brief.md)
 
