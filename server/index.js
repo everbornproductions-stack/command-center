@@ -30,6 +30,8 @@ import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
+import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
+import { hubAgents } from "./agents.js";
 let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
@@ -102,7 +104,8 @@ function providerView() {
       keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), status: st[p.id] || { status: "grey" },
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
-    }));
+    }))
+    .concat(hubAgents()); // Grok Bot and the browser helper: their own hub cards (kind "agent", Phase 12)
 }
 
 function rulesView() {
@@ -252,7 +255,7 @@ async function api(req, res, url) {
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = url.searchParams.get("mode") || settings().defaultMode;
     const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4 });
+    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
@@ -282,7 +285,7 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/council") {
     if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined }); }
+    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -291,7 +294,7 @@ async function api(req, res, url) {
     if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined };
+    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined };
     if (body.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -427,6 +430,9 @@ const server = http.createServer(async (req, res) => {
   let url;
   try { url = new URL(req.url, `http://127.0.0.1:${PORT}`); } catch { return json(res, 400, { error: "bad url" }); }
   try {
+    // Grok Bot results (Phase 12): exempt from the session token, the Host pin (a tunnel or the hosted hub
+    // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
+    if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
     const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }

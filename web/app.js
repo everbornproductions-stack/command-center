@@ -311,7 +311,8 @@ function renderFeed() {
 // ---------------- strip + budget ----------------
 function renderStrip() {
   const strip = $("#strip");
-  const order = S.providers.filter((p) => p.kind === "text").concat(S.providers.filter((p) => p.kind !== "text"));
+  // the AIs, then the outside agents (Grok Bot, the browser helper), then media tools
+  const order = S.providers.filter((p) => p.kind === "text").concat(S.providers.filter((p) => p.kind === "agent"), S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent"));
   strip.innerHTML = order.map((p) => {
     const st = p.status?.status || "grey";
     const bp = S.ledger?.byProvider?.[p.id];
@@ -474,8 +475,9 @@ function renderCommand(v) {
   // keyed AIs always appear; grey (no key) ones only fill in while there is room
   const textKeyed = S.providers.filter((p) => p.kind === "text" && p.keyed);
   const textGrey = S.providers.filter((p) => p.kind === "text" && !p.keyed).slice(0, Math.max(0, 8 - textKeyed.length));
-  const media = S.providers.filter((p) => p.kind !== "text" && (p.keyed || S.subscriptions.some((s) => s.provider === p.id && (s.credits != null || s.renews))));
-  graph.setProviders([...textKeyed, ...textGrey, ...media]);
+  const media = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent" && (p.keyed || S.subscriptions.some((s) => s.provider === p.id && (s.credits != null || s.renews))));
+  const agents = S.providers.filter((p) => p.kind === "agent");
+  graph.setProviders([...textKeyed, ...textGrey, ...agents, ...media]);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0) graph.activate(pid, "working");
   $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); });
@@ -510,7 +512,7 @@ function renderTasks() {
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
     return `<div class="task" data-task="${t.id}">
       <span class="st ${t.status}"></span>
-      <div><div>${esc(t.title)} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
+      <div><div>${esc(t.title)} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
       <span class="chip">${t.capability}</span>
       <span class="cost">${money(t.cost || t.estCost || 0, 4)}</span>
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
@@ -521,7 +523,10 @@ function renderCouncil() {
   const box = $("#council"); if (!box) return;
   const c = S.live.council;
   if (S.live.kind !== "council" || !c) { box.innerHTML = ""; return; }
-  const answers = c.members.map((m) => c.answers?.[m.model] || { provider: m.provider, model: m.model, letter: "?" });
+  // outside agents (Grok Bot) sit next to the AIs; their answers arrive asynchronously
+  const agentText = (g) => `*${g.name}: ${{ queued: "queued", working: "working", needs_approval: "needs your approval in Grok Bot", failed: "failed" }[g.status] || g.status}. Results are async and can take minutes; this answer joins the council when it comes back.*`;
+  const answers = c.members.map((m) => c.answers?.[m.model] || { provider: m.provider, model: m.model, letter: "?" })
+    .concat((c.agents || []).map((g) => { const a = c.answers?.[g.id]; return a?.text || a?.error ? a : { provider: g.id, model: g.id, letter: g.letter, text: agentText(g) }; }));
   box.innerHTML = `<div class="cat-h" style="margin-top:14px">Answers ${c.classification ? `<span class="chip">${c.classification.capability}</span>` : ""}</div>
   <div class="council-cols">${answers.map((a) => {
     const sb = c.scoreboard?.[a.model];
@@ -529,7 +534,7 @@ function renderCouncil() {
     const text = a.text || live?.text || (a.error ? `**Error:** ${a.error}` : "");
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
       <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
-      <span class="score">${sb?.avg != null ? `peer ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}</span></div>
+      <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span></div>
       <div class="body md">${md(text)}</div></div>`;
   }).join("")}</div>
   ${Object.keys(c.reviews || {}).length ? `<div class="cat-h">Where they disagreed</div><div class="small muted">${Object.values(c.reviews).map((r) => `<div><b style="color:${pcolor(r.provider)}">${esc(pname(r.provider))}</b>: ${esc(r.disagreement || "none")}</div>`).join("")}</div>` : ""}`;
@@ -558,6 +563,7 @@ async function previewRoute() {
     box.innerHTML = `<div><b>${esc(c.summary || c.capability)}</b> <span class="chip">${c.capability}</span> <span class="chip">difficulty ${c.difficulty}</span> ${c.needWeb ? '<span class="chip violet">needs web</span>' : ""}</div>
       <div class="small" style="margin-top:6px">Best fit: <b style="color:${pcolor(best?.provider)}">${esc(best?.name || "none available")}</b> ≈ ${money(best?.estCost || 0, 4)} per call${best?.discount ? ` <span class="chip green">${best.discount.pct}% off now</span>` : ""}${best?.warnings?.length ? ` <span class="chip amber" title="${esc(best.warnings.join("; "))}">health −${best.healthPenalty}</span>` : ""} · council of 4 ≈ ${money(r.councilEstimate, 3)}</div>
       ${r.cheaper?.advice ? `<div class="adv">${esc(r.cheaper.advice)}</div>` : ""}
+      ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
       <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
@@ -575,8 +581,9 @@ async function sendOrders() {
     if (projectId) { try { memory = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
     const withMemory = memory ? `${prompt}\n\n${memory}` : prompt;
     if (mode === "single") await api("/chat", { method: "POST", body: { prompt: withMemory, projectId } });
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt: withMemory, projectId, qa, lite: costMode === "economy" } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, context: memory, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now" } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    // grokbot: true (always include Grok Bot), false (leave it out), undefined (the router decides by what the job needs)
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt: withMemory, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, context: memory, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) { toast(e.message, true); }
   finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }
@@ -682,7 +689,7 @@ function renderCredits(v) {
     </div>
     <div class="grid">
       <div class="panel"><h3>Log media credits <span class="right">Kling · Suno · Flow · Sync</span></h3>
-        <div class="row"><select id="cr-p" style="width:160px">${S.providers.filter((p) => p.kind !== "text").map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+        <div class="row"><select id="cr-p" style="width:160px">${S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent").map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
         <input type="number" id="cr-u" placeholder="credits" style="width:110px"><input type="text" id="cr-n" placeholder="note (shot, prompt…)" style="flex:1"><button class="btn sm" id="cr-go">Log</button></div>
         <div class="dim small" style="margin-top:6px">Logged credits feed the status strip, burn rate and runway on the Subscriptions tab.</div></div>
       ${hqc ? `<div class="panel"><h3>HQ credit log <span class="right">${esc((hqc.file || "").split(/[\\/]/).slice(-2).join("/"))}</span></h3>
@@ -744,7 +751,7 @@ function renderSubscriptions(v) {
 
 // ----- Settings -----
 function renderSettings(v) {
-  const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text");
+  const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
       <span class="chip ${p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.status?.detail || "")}">${esc(p.status?.detail || "no key")}</span></div>
@@ -987,7 +994,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
