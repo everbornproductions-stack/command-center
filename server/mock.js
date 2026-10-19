@@ -106,6 +106,34 @@ function demoBookmarks(u) {
   return JSON.stringify({ folders: Object.entries(folders).map(([name, items]) => ({ name, items })) });
 }
 
+// Knowledge libraries (Phase 18) in demo mode: "nova-embed" hashes words into 1024 numbers, with a few
+// synonyms folded together so a question can find a passage that uses other words (car / automobile).
+// Deterministic, local, no network.
+const DEMO_SYNONYMS = { car: "vehicle", cars: "vehicle", automobile: "vehicle", auto: "vehicle", truck: "vehicle", price: "cost", pricing: "cost", fee: "cost", fees: "cost", charge: "cost", refund: "return", refunds: "return", returns: "return", employee: "staff", employees: "staff", worker: "staff", workers: "staff", holiday: "vacation", holidays: "vacation", leave: "vacation" };
+export function demoEmbedding(text, dims = 1024) {
+  const v = new Array(dims).fill(0);
+  const words = String(text || "").toLowerCase().match(/[a-z0-9]+/g) || [];
+  for (const w0 of words) {
+    if (w0.length < 2) continue;
+    let w = DEMO_SYNONYMS[w0] || w0;
+    if (!DEMO_SYNONYMS[w0] && w.length > 4) w = w.replace(/(ing|ed|es|s)$/, "");
+    let h = 2166136261; for (let i = 0; i < w.length; i++) { h ^= w.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    v[h % dims] += (h >>> 16) & 1 ? 1 : -1;
+  }
+  const n = Math.sqrt(v.reduce((a, x) => a + x * x, 0)) || 1;
+  return v.map((x) => +(x / n).toFixed(6));
+}
+// The pretend AI answers from the first library excerpt and cites it, so citations can be tried without a key.
+function demoLibraryAnswer(model, u) {
+  const i = u.indexOf("LIBRARY EXCERPTS");
+  const m = u.slice(i).match(/\n\[(L\d+)\] ([^\n]*)\n([\s\S]*?)(?=\n\n\[L\d+\] |$)/);
+  if (!m) return null;
+  const flat = m[3].replace(/^#+\s*[^\n]*\n/gm, "").replace(/\s+/g, " ").trim() || m[3].replace(/\s+/g, " ").trim();
+  const first = flat.match(/^.{20,}?[.!?](?=\s|$)/)?.[0] || m[3].replace(/\s+/g, " ").trim().slice(0, 200);
+  const topic = u.replace(/^(QUESTION|TASK|GOAL):\s*/i, "").split("\n")[0].slice(0, 70);
+  return `## ${topic}\n\nFrom your library: ${first} [${m[1]}]\n\nThat passage comes from **${m[2].replace(/ \(library: .*\)$/, "")}**. Click the [${m[1]}] chip to see the excerpt.\n\n*Demo mode: **${model}** is a pretend AI that quotes the best excerpt; real AIs read every excerpt and cite each fact.*`;
+}
+
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
@@ -121,6 +149,7 @@ function answerFor(model, system, user, messages = []) {
   ], assembly: "One document: audience, hooks, copy, schedule." });
   if (/strict judge/.test(sys)) { const letters = [...u.matchAll(/### Answer ([A-J])/g)].map((m) => m[1]); const scores = {}; letters.forEach((l, i) => { scores[l] = 6 + ((l.charCodeAt(0) + model.length + i) % 4); }); const best = letters.sort((a, b) => scores[b] - scores[a])[0]; return JSON.stringify({ scores, best, notes: Object.fromEntries(letters.map((l) => [l, "demo note"])), disagreement: "Answers differ on how aggressive the hook should be." }); }
   if (/You QA another AI/.test(sys)) return JSON.stringify({ pass: model !== "sage-mini", score: 8, issues: model === "sage-mini" ? ["missing a call to action"] : [], fix: model === "sage-mini" ? "Add a one-line call to action at the end." : null });
+  if (u.includes("LIBRARY EXCERPTS")) { const lib = demoLibraryAnswer(model, u); if (lib) return lib; }
   const topic = u.replace(/^(QUESTION|TASK|GOAL):\s*/i, "").split("\n")[0].slice(0, 70);
   const paras = [
     `## ${topic}\n\nHere is how **${model}** would approach this. The demo AIs produce placeholder content so you can watch the console work without spending credits.`,
@@ -148,6 +177,12 @@ export async function startDemo() {
     if (req.method === "GET" && req.url.endsWith("/models")) { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) })); }
     let body = ""; for await (const c of req) body += c;
     let j; try { j = JSON.parse(body); } catch { res.writeHead(400); return res.end(); }
+    if (req.url.endsWith("/embeddings")) {
+      const input = Array.isArray(j.input) ? j.input : [j.input];
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ object: "list", model: j.model, data: input.map((t, index) => ({ object: "embedding", index, embedding: demoEmbedding(t) })), usage: { prompt_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0), total_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0) } }));
+    }
+    if (!Array.isArray(j.messages)) { res.writeHead(400); return res.end(); }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
     const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });

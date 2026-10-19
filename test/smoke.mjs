@@ -34,6 +34,24 @@ try {
   check(cmp.status === 202, "side-by-side accepted");
   let cr = null; for (let i = 0; i < 120 && cr?.status !== "done"; i++) { await sleep(500); cr = (await owner.api(`/compare/${cmp.json?.id}`)).json; }
   check(cr?.status === "done" && cr.columns.every((c) => c.status === "done" && c.cost > 0 && c.ms > 0), `side-by-side finished (3 columns, $${cr?.cost})`);
+  // knowledge library (demo embedder): upload, index, then a chat that names the library cites it
+  const lib = (await owner.api("/libraries", { method: "POST", body: { name: "Smoke handbook", provider: "demo-nova", model: "nova-embed" } })).json;
+  const stg = (await owner.api(`/libraries/${lib?.id}/stage`, { method: "POST", body: { kind: "files", files: [{ name: "returns.md", text: "Returns are accepted within 30 days with the receipt." }, { name: "hours.txt", text: "The shop opens at 9 and closes at 17 on weekdays." }] } })).json;
+  check(stg?.files?.length === 2 && stg.estimate.cost >= 0, `library staged (2 files, estimate $${stg?.estimate?.cost})`);
+  check((await owner.api(`/libraries/${lib?.id}/index`, { method: "POST", body: { stageId: stg?.stageId } })).status === 202, "library indexing accepted");
+  let li = null; for (let i = 0; i < 60 && li?.job?.status !== "done"; i++) { await sleep(250); li = (await owner.api(`/libraries/${lib?.id}`)).json; }
+  check(li?.job?.status === "done" && li.chunks >= 2, `library indexed (${li?.chunks} passages)`);
+  const singles = (await owner.api("/state")).json.missions.filter((m) => m.kind === "single").length;
+  check((await owner.api("/chat", { method: "POST", body: { prompt: "How long do I have to return something?", libraries: [lib?.id] } })).status === 202, "library chat accepted");
+  const libChat = await waitFor(owner, (s) => { const list = s.missions.filter((m) => m.kind === "single"); return list.length > singles && list.find((m) => m.status === "done" && !(m.id === single.id)); }, "library chat to finish", 60000);
+  const libRun = (await owner.api(`/missions/${libChat.id}`)).json;
+  check(libRun?.librarySources?.[0]?.title === "returns.md" && /\[L1\]/.test(libRun.deliverable || ""), "library chat cites [L1] from returns.md");
+  const missionsBefore = (await owner.api("/state")).json.missions.filter((m) => m.kind === "mission").map((m) => m.id);
+  check((await owner.api("/mission", { method: "POST", body: { goal: "Write a returns notice for the shop window.", mode: "economy", budgetUsd: 1, libraries: [lib?.id] } })).status === 202, "library mission accepted");
+  const libMission = await waitFor(owner, (s) => s.missions.find((m) => m.kind === "mission" && m.status === "done" && !missionsBefore.includes(m.id)), "library mission to finish", 180000);
+  const lm = (await owner.api(`/missions/${libMission.id}`)).json;
+  check(lm?.librarySources?.some((x) => x.title === "returns.md"), `library mission has the library sources (${lm?.librarySources?.length})`);
+  check((await owner.api(`/libraries/${lib?.id}`, { method: "DELETE" })).status === 200, "library deleted");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 

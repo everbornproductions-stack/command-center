@@ -28,6 +28,7 @@ import { licenseState, activate as activateLicense, redeem as redeemPromo, reche
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
+import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
@@ -178,7 +179,7 @@ function fullState() {
 const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
 
 // ---------- single-AI chat (streams through the event bus) ----------
-async function runChat({ prompt, provider, model, projectId, search, tools }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries }) {
   const id = "s-" + Date.now().toString(36);
   let cls = null;
   if (!provider || !model) {
@@ -194,14 +195,18 @@ async function runChat({ prompt, provider, model, projectId, search, tools }) {
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
   const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
-  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}` });
+  // knowledge libraries (Phase 18): the chat's, the active workspace's, or the ones the request names; excerpts cited as [L1], [L2]
+  const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
+  if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
+  const ask = `${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`;
+  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] }, { missionId: id, tools, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
+    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -286,7 +291,7 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/council") {
     if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined }); }
+    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined, libraries: Array.isArray(body.libraries) ? body.libraries : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -295,7 +300,7 @@ async function api(req, res, url) {
     if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined };
+    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined, tools: typeof body.tools === "boolean" ? body.tools : undefined, grokbot: typeof body.grokbot === "boolean" ? body.grokbot : undefined, browser: typeof body.browser === "boolean" ? body.browser : undefined, libraries: Array.isArray(body.libraries) ? body.libraries : undefined };
     if (body.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }

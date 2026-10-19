@@ -1,0 +1,1 @@
+hidden folders are never read: zebra-canary-77

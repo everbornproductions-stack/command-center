@@ -8,6 +8,7 @@ import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
@@ -17,7 +18,7 @@ import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools, grokbot, browser }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools, grokbot, browser, libraries }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -91,7 +92,10 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- live web search (Phase 15): one search, the same numbered sources for every member and the chair ----
   const web = await webAugment({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined });
   if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; emit("council.update", { council: pub(council) }); }
-  const askPrompt = web?.prompt || prompt;
+  // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
+  const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
+  if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
+  const askPrompt = `${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`;
   const nativeFor = (m) => !!web?.native && nativeSupported(m.provider, m.model);
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
@@ -207,11 +211,12 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const packet = good.map((a) => `### Answer ${a.letter} (${nameOf(a.provider)}${council.scoreboard?.[a.model]?.avg != null ? `, peer score ${council.scoreboard[a.model].avg}/10` : ""})\n${a.text}`).join("\n\n");
       const disagreements = Object.values(council.reviews).map((r) => r.disagreement).filter((d) => d && d.toLowerCase() !== "none");
       const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
+      const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
       let text = "";
       for await (const ev of fallbackChat({
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
-        messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}` }],
+        messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
       }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode: "quality" })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {

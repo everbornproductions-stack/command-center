@@ -42,6 +42,12 @@ export function recordSearch({ provider, engine, results, cost, missionId, taskI
   return append({ ts: Date.now(), kind: "search", provider, engine: engine || null, results: Number(results) || 0, cost: +Number(cost || 0).toFixed(6), native: !!native, missionId: missionId || null, taskId: taskId || null, role: role || "search", ms: ms || null });
 }
 
+// One embedding call (Phase 18 knowledge libraries): tokens in, nothing out; cost = tokens x the library's
+// price per 1M tokens, kept to 9 decimals (a short question costs well under a millionth of a dollar). `estimated` when the provider did not report the token count. No text is stored.
+export function recordEmbedding({ provider, model, tokens, cost, estimated, missionId, role, ms, inputs }) {
+  return append({ ts: Date.now(), kind: "call", provider, model, actualModel: null, inTok: Number(tokens) || 0, outTok: 0, cost: +Number(cost || 0).toFixed(9), exact: false, estimated: !!estimated, missionId: missionId || null, taskId: null, role: role || "embed", ms: ms || null, free: false, fallback: null, inputs: Number(inputs) || 0 });
+}
+
 export function summary() {
   const entries = ctx().ledger;
   const now = new Date();

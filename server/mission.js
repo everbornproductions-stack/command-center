@@ -12,6 +12,7 @@ import { emit } from "./events.js";
 import { classify, pick, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
+import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
@@ -75,13 +76,14 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries }) {
   const id = "m-" + Date.now().toString(36);
   const ctl = new AbortController();
   running.set(id, ctl);
   lateWhileRunning.set(id, []);
   const t0 = Date.now();
   const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [] };
+  let lib = null; // knowledge-library excerpts for this mission (Phase 18)
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
@@ -100,6 +102,9 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     const searchOn = !!web && !web.native && !web.skipped;
     if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
     if (web?.sources?.length) { mission.sources = web.sources; mission.searchEngine = web.name; spend({ cost: web.cost || 0 }); context = `${context ? `${context}\n\n` : ""}${web.block}`; }
+    // ---- knowledge libraries (Phase 18): the best excerpts for the goal ride along as context, cited as [L1], [L2] ----
+    lib = await libraryAugment({ prompt: goal, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
+    if (lib) { mission.librarySources = publicLibrarySources(lib.sources); spend({ cost: lib.cost || 0 }); if (lib.block) context = `${context ? `${context}\n\n` : ""}${lib.block}`; update(); }
 
     // Grok Bot (Phase 12), else the built-in browser helper (Phase 27): offered to the planner only when it
     // is ready and not left out by the person
@@ -398,8 +403,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     try {
       for await (const ev of fallbackChat({
         provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
-        system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}`,
-        messages: [{ role: "user", content: `GOAL:\n${goal}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}` }],
+        system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}`,
+        messages: [{ role: "user", content: `GOAL:\n${goal}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }],
       }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
@@ -425,7 +430,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [] };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [] };
 }
 function save(m) {
   saveDoc(m);
