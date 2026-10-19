@@ -553,3 +553,86 @@ PHASE 20 DONE
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 21 DONE
+
+## Phase 22: Scheduled and triggered agents (2026-10-19, about 06:55 local)
+- Checked first: nothing for Phase 22 was committed yet, so the whole phase was built in this session. No conflict with docs/DECISIONS.md. The webhook exemption follows the existing Grok Bot callback pattern, and no locked item was touched.
+- Done:
+  - A schedule runs a custom agent (Phase 19), a plain chat or a mission, for a project if picked. It runs through the same runners as a click (h.runChat / h.runMission), so the ledger, the per-AI spend caps, smart fallback, tool approvals and tier gates all apply. Core logic is in server/schedules.js, routes and the runner in server/plugins/schedules.js.
+  - Triggers:
+    - Cron: five fields in local time, with lists, ranges, steps, weekday 7 = Sunday, and @hourly / @daily / @weekly / @monthly.
+      - Each slot fires at most once (the slot is stored before the run).
+      - A late tick still fires a slot from the last five minutes.
+      - Slots missed while the app was closed, or while the schedule was paused, are not replayed.
+      - Shows the next run time.
+    - Webhook: `POST /api/schedules/hook/<id>`.
+      - Each trigger has its own random token, shown once and stored only as a SHA-256 hash. It is compared with timingSafeEqual. It is accepted from X-CC-Trigger-Token, Authorization: Bearer or ?t=. "New token" retires the old one.
+      - The route is exempt from the session token and the Host pin, like the Grok Bot callback. An unknown trigger and a wrong token both get 401, and the session token alone does not open it.
+      - JSON or empty body only (415), 64 KB (413), 30 calls a minute (429), at most five runs waiting.
+      - The body is handed to the run as data, not as instructions.
+    - Watched folder: polled, with an optional pattern (`*.txt, *.csv`).
+      - Files already there are the baseline.
+      - A new file runs once its size holds still for one scan. Partial downloads and temp files are ignored.
+      - Text files up to 50 KB are handed to the run as data.
+      - The path must be an absolute, existing folder, and the app's data folder is refused.
+  - Run history: source, file, status, cost, error, mission/chat id, and where a result was sent.
+  - Spend cap per schedule (monthly, default $1). When the month's runs reach it:
+    - the schedule pauses (reason "cap");
+    - an alert goes out through the alerts plugin (in-app log, push and email per the prefs, deduped per month);
+    - the next trigger is refused (409) and a manual run is recorded as "stopped";
+    - Resume is refused until the cap is raised.
+    - A mission gets the cap that is left as its budget.
+  - Approval step: "After the run: send it to a web address".
+    - The result is held in "needs_approval" with the full text and the address shown. Nothing is sent before Approve.
+    - Approve sends one JSON POST (15 s timeout, no redirects, clear "Could not reach" / "refused (status)" errors). Don't send drops it.
+    - Tools that write or send during a run still ask through the Phase 16 approval prompt.
+  - Tier: a mission schedule (create, edit, Run now) goes through guard("missions"), so Free gets 402. Agent and chat schedules are not gated (see below).
+  - Desktop only: a hosted hub refuses the routes and the webhook with the message "Schedules run on the desktop app for now. Always-on schedules need the hosted hub later."
+  - UI (web/features/schedules.js), the Schedules tab:
+    - the note "Desktop schedules only run while the app is running (the tray counts). Always-on schedules need the hosted hub later.";
+    - the webhook token panel, shown once;
+    - a "Needs your approval" panel with Approve and send / Don't send;
+    - the schedule list with spend against the cap, Run now, Pause/Resume, Edit, New token and Delete;
+    - the run history;
+    - the create/edit form with cron presets;
+    - live refresh on schedules.* events (it never re-renders while you type in the form), and a toast when a result waits for approval.
+  - Docs: docs/schedules.md (with the same note) and a README row.
+- Commits:
+  - ebc5e30 Phase 22: scheduled and triggered agents (...)
+- Tests:
+  - npm test: 156 tests, 154 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips as before; the count includes another session's uncommitted test/publish.test.js, which passes).
+  - New test/schedules.test.js, 7 tests:
+    - cron parsing and refusals;
+    - a fake clock: 30 minutes in 20 s steps with double ticks fires */5 exactly six times, once per slot; a late tick fires once; a long gap does not replay;
+    - pause and resume do not replay;
+    - a cap that stops, alerts once (level stop), refuses the webhook and a manual run with no runner call, and resumes only after the cap is raised;
+    - needs_approval: nothing sent before Approve, one send after it, 409 on a second approve, Don't send sends nothing, a failed run skips approval, file:// refused;
+    - a new fixture file in a watched folder runs once with its contents; the baseline, non-matching and partial files do not; the data folder and relative or missing paths are refused;
+    - against the real server in demo mode (fast tick) with a local mock receiver:
+      - wrong, missing and session-only tokens give 401 with nothing queued;
+      - text/plain gives 415, GET gives 405;
+      - the right token gives 202 and an agent run that waits in needs_approval;
+      - the mock gets nothing until Approve, then exactly one POST with the text;
+      - ?t= and Bearer both work, and a rotated token retires the old one;
+      - a new file in a watched folder runs;
+      - a tiny cap pauses the schedule, puts the alert in the feed, and the next hook gets 409;
+      - the run's call is in the ledger;
+      - Free gets 402 for a mission schedule;
+      - a deleted schedule's hook gets 401.
+  - npm run smoke: all checks pass, including these new ones:
+    - schedule webhook wrong token 401;
+    - right token queued;
+    - the result waits for approval;
+    - Don't send drops it;
+    - mission schedule gated on Free.
+  - Both suites ran in temp data folders with local mocks. No real key, account or URL was used.
+- Not verified:
+  - The Schedules tab was syntax-checked (node --check) but not opened in a browser or the desktop app.
+  - The real 15 s timer in the app was exercised only with a fast tick in tests. Cron timing on the wall clock was checked through the fake clock, not by waiting for real slots.
+  - Folder watching polls (no fs.watch). Network drives and cloud-synced folders (Drive, OneDrive) were not tried.
+  - A webhook from outside this PC needs the hosted hub or a tunnel Chris sets up; neither exists, so only local callers were tested.
+  - Chris decides:
+    - whether agent and chat schedules should be Pro-only (the existing "scheduler" tier flag covers the off-peak scheduler; this phase gates only mission schedules, through the missions gate);
+    - the default per-schedule cap ($1).
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 22 DONE
