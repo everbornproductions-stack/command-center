@@ -57,6 +57,7 @@ One tile per AI at the bottom. Light colours: **green** key works and no inciden
 
 | Feature | Where |
 |---|---|
+| Guided API-key setup: one provider at a time, where to get the key, paste, a test call, then the vault; a refused key is never kept; keys never logged or shown again | Settings → Guided API-key setup, last stop of the tour |
 | Pipelines: saved missions with the steps pre-decided (Instagram week, music video from a song, client site launch; save your own from any mission) | Pipelines tab |
 | Rate the result: thumbs up/down per AI under every deliverable, feeds the router | under the deliverable |
 | Project memory: brand voice, offers, never-say list, facts; injected into every prompt for that project; import from HQ client files | Settings → Project memory |
