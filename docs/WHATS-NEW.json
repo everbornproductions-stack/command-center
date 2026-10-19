@@ -1,0 +1,28 @@
+{
+  "0.4.0": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "The app is now called Meldmind. It is still an Everborn product. Take command of all your AIs.",
+      "The top bar is grouped dropdown menus: Work, Create, Business, Connect, and Settings.",
+      "Council is on the order box: several AIs answer, review each other, and a chair writes the verdict.",
+      "Pro prompts are written by our team. Auto-detect can suggest one from what you type, and you can remove that chip.",
+      "Open live view sits at the bottom-right of Live Ops.",
+      "Connect an API key, or an MCP server, from the Connect menu.",
+      "Pipelines and scheduled agents are in the Work menu. A scheduled result that would be sent waits until you approve it.",
+      "Publishing shows a preview first. Nothing posts until you confirm."
+    ]
+  },
+  "0.4.1": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "The app is now called Meldmind. It is still an Everborn product. Take command of all your AIs.",
+      "The top bar is grouped dropdown menus: Work, Create, Business, Connect, and Settings.",
+      "Pro prompts are written by our team. Auto-detect can suggest one from what you type, and you can remove that chip.",
+      "Open live view sits at the bottom-right of Live Ops.",
+      "Drop a PDF, Word doc, text file, or image into a project. Meldmind reads it, shows the estimate, and later answers can cite the file.",
+      "A mission can include a video, an image, or a voice clip. You see the price first. A paid step waits until you click Approve.",
+      "Publishing shows a preview first. Nothing posts until you confirm.",
+      "This note shows once after an update. Take the tour again any time from the Settings menu."
+    ]
+  }
+}

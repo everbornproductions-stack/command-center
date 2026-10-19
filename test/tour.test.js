@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { startServer } from "./helpers.js";
-import { sampleDecision, SAMPLE_GOAL, DEFAULTS } from "../server/plugins/tour.js";
+import { sampleDecision, SAMPLE_GOAL, DEFAULTS, whatsNewFor, readChangelog } from "../server/plugins/tour.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -72,4 +72,55 @@ test("owner copy: demo on → the sample starts a real demo mission (then aborte
     assert.equal((await s.api("/tour")).json.sampleRuns, 1);
     await s.api(`/mission/${mission.id}/abort`, { method: "POST" });
   } finally { await s.stop(); }
+});
+
+test("package.json version has a What's new entry, and a version with no bullets does not", () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const changelog = readChangelog();
+  const entry = whatsNewFor(pkg.version, changelog);
+  assert.ok(entry, `docs/WHATS-NEW.json is missing bullets for ${pkg.version}`);
+  assert.equal(entry.version, pkg.version);
+  assert.ok(entry.title.length > 0);
+  assert.ok(entry.bullets.length > 0);
+  assert.doesNotMatch(JSON.stringify(entry), /\u2014/);
+  assert.equal(whatsNewFor("9.9.9", changelog), null);
+  assert.equal(whatsNewFor(pkg.version, { [pkg.version]: { title: "Empty", bullets: [] } }), null);
+  assert.throws(() => readChangelog("[]"), /keyed by version/);
+});
+
+test("what's new is returned once per version and a tour reset does not show it again", async () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const s = await startServer();
+  try {
+    const g = await s.api("/tour");
+    assert.equal(g.json.whatsNew.version, pkg.version);
+    assert.ok(g.json.whatsNew.bullets.length > 0);
+    const seen = await s.api("/tour/whats-new/seen", { method: "POST" });
+    assert.equal(seen.status, 200);
+    assert.equal(seen.json.whatsNew, null);
+    const file = path.join(s.dir, "whatsnew.state.json");
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).seen, pkg.version);
+    const reset = await s.api("/tour/reset", { method: "POST" });
+    assert.equal(reset.json.completed, false);
+    assert.equal(reset.json.whatsNew, null, "resetting the tour does not show What's new again");
+    assert.equal((await s.api("/tour")).json.whatsNew, null);
+  } finally { await s.stop(); }
+});
+
+test("tour steps cover the current app and What's new shows before the invite", () => {
+  const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
+  const steps = src.slice(src.indexOf("const STEPS"), src.indexOf("const css"));
+  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#settings-keys"]) {
+    assert.ok(steps.includes(phrase), `tour step missing ${phrase}`);
+  }
+  assert.doesNotMatch(src, /\u2014/);
+  assert.doesNotMatch(steps, /Nine stops/);
+  assert.match(src, /whatsNew/);
+  assert.match(src, /S\.view === "setup"\) \{ hideNews\(\)/, "first-run setup is not covered by What's new");
+  const invite = src.slice(src.indexOf("function maybeInvite"), src.indexOf("function showNews"));
+  const offer = invite.indexOf("showNews()");
+  const create = invite.indexOf('className = "cc-tour-invite"');
+  assert.ok(offer !== -1 && create !== -1 && offer < create, "What's new is offered before the tour invite");
+  const yml = fs.readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8");
+  assert.match(yml, /docs\/WHATS-NEW\.json/);
 });

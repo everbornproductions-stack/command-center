@@ -80,7 +80,7 @@ export function menuModel(views) {
     buckets[groupFor(view)].push({ view, label: LABELS[view] || view, home: true });
   }
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
-  buckets.help.push({ id: "tour", label: "Help tour", action: "tour", home: false });
+  buckets.help.push({ id: "tour", label: "Take the tour again", action: "tour", home: false });
   return GROUP_ORDER.map((id) => ({ ...GROUPS[id], items: buckets[id] }));
 }
 
@@ -244,7 +244,7 @@ export function placeNavItem(root, view, label) {
   const group = groupFor(view);
   let panel = root.querySelector(`#nav-panel-${group}`);
   if (!panel) return;
-  if (panel.querySelector(`button[data-view="${CSS.escape(view)}"]`)) return;
+  if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
   const btn = itemButton({ view, label: label || LABELS[view] || view, home: true });
   const links = panel.querySelector("button[data-focus]");
   if (links) panel.insertBefore(btn, links);

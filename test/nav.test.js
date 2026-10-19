@@ -30,7 +30,9 @@ test("Connect links scroll the Settings page and Help can start the tour", () =>
   assert.ok(connect.every((i) => i.view === "settings" && i.focus));
   assert.ok(connect.some((i) => i.focus === "#settings-keys"));
   const help = model.find((g) => g.id === "help").items;
-  assert.ok(help.some((i) => i.action === "tour"));
+  assert.ok(help.some((i) => i.action === "tour" && i.label === "Take the tour again"));
+  const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
+  assert.match(navSrc, /globalThis\.CSS\.escape\(view\)/, "the stylesheet string must not shadow CSS.escape");
   assert.ok(help.some((i) => i.view === "setup"));
 });
 

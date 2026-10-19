@@ -13,6 +13,8 @@ files:
   - "!data/**"
   - "!dist/**"
   - "!docs/**"
+  # The What's new screen reads this file at runtime, so the installer keeps it.
+  - docs/WHATS-NEW.json
   - "!supabase/**"
   - "!release/**"
   - "!Start Command Center.cmd"

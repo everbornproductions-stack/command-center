@@ -4,15 +4,20 @@
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
-  { id: "welcome", title: "Welcome to Meldmind", body: "Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour takes two minutes and uses three pretend AIs, so nothing is spent." },
+  { id: "welcome", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour uses three pretend AIs, so nothing is spent." },
+  { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus: Work, Create, Business, Connect, and Settings. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
   { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
-  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. The router classifies the job (what kind of work, how hard, needs the web?) and sends each part to the best available AI for it." },
-  { id: "modes", target: "#run-mode", view: "command", title: "Single, Council or Mission", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI QA-checks each piece, an assembler compiles the result." },
+  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
+  { id: "council", target: "#run-mode", view: "command", title: "Council", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result." },
+  { id: "prompts", target: "#pp-list", view: "prompts", title: "Pro prompts", body: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert. Search the pack here. Auto-detect on the order box can suggest one; you can remove that chip and write your own." },
   { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. Demo mode turns on by itself; no keys are needed and nothing is spent.", action: "sample" },
-  { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; QA sends a piece back for one revision when it falls short." },
+  { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; a check can send a piece back for one revision when it falls short." },
+  { id: "live", target: "#lv-open", view: "command", title: "Open live view", body: "The Open live view button is at the bottom-right of Live Ops. It opens the full live map. Live is also in the Work menu." },
   { id: "deliverable", target: "#out-md", view: "command", title: "The deliverable", body: "The assembled result lands here. Copy it, see the savings receipt under it, and find it later under the project it was filed to." },
-  { id: "tabs", target: "#tabs", view: "command", title: "Projects, Credits, Subscriptions", body: "Projects link to where the work really lives. Credits shows spend by day and by AI plus who is best at what. Subscriptions tracks what you pay, renewals, credits left and runway." },
-  { id: "keys", title: "Ready for real answers?", body: "Add your own API keys with the guided setup: it shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again.", action: "keys" },
+  { id: "pipelines", target: "#pl-form", view: "pipelines", title: "Pipelines", body: "A pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
+  { id: "schedules", target: "#sch-root", view: "schedules", title: "Scheduled agents", body: "Schedules run an agent, a chat, or a mission on a clock, from a webhook, or when a file lands in a folder. A result that would be sent somewhere waits until you approve it. Desktop schedules only run while the app is open." },
+  { id: "publish", target: "#pub-tour", view: "publish", title: "Publishing preview", body: "Publishing always shows a preview first. Nothing posts, schedules, or saves until you click Confirm. If credentials are not saved yet, the preview says it will record a dry run." },
+  { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again.", action: "keys" },
 ];
 
 const css = `
@@ -28,9 +33,14 @@ const css = `
 #cc-tour .dots i.on { background: var(--accent); }
 #cc-tour .dots i.done { background: var(--muted); }
 .cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
+#cc-whats-new { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#cc-whats-new .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+#cc-whats-new h4 { margin: 0 0 6px; font-size: 18px; }
+#cc-whats-new ul { margin: 10px 0 0; padding-left: 18px; }
+#cc-whats-new li { margin: 6px 0; }
 @media (max-width: 760px) { #cc-tour .card { left: 12px !important; right: 12px; bottom: calc(var(--strip-h) + 64px); top: auto !important; width: auto; } .cc-tour-invite { left: 12px; right: 12px; bottom: calc(var(--strip-h) + 66px); } }
 `;
-const style = document.createElement("style"); style.id = "cc-tour"; style.textContent = css; document.head.appendChild(style);
+const style = document.createElement("style"); style.id = "cc-tour-style"; style.textContent = css; document.head.appendChild(style);
 
 let tour = null;      // server state
 let synced = false;
@@ -39,22 +49,62 @@ let el = null;        // overlay root
 let timer = null;     // reposition loop
 let msg = "";         // message under the current step (sample result etc.)
 let busy = false;
+let newsOpen = false;
+let newsDismissed = false;
 
 async function sync() { try { tour = await api("/tour"); synced = true; } catch {} maybeInvite(); }
 
-// ---- the invite pill (shown once, until started or dismissed) ----
+// What's new first, then the tour invite. Never both at once. Seen version lives in the data folder.
+function hideNews() {
+  const box = document.getElementById("cc-whats-new");
+  if (box?._newsKey) document.removeEventListener("keydown", box._newsKey);
+  box?.remove();
+  newsOpen = false;
+}
 function maybeInvite() {
+  if (idx >= 0) return;
+  if (S.view === "setup") { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
+  if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
+  if (newsOpen) return;
   const existing = document.querySelector(".cc-tour-invite");
-  const show = tour && !tour.completed && !tour.skippedAt && idx < 0 && S.view !== "setup";
+  const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
   if (!show) { existing?.remove(); return; }
   if (existing) return;
   const d = document.createElement("div"); d.className = "cc-tour-invite";
-  d.innerHTML = `<span>👋</span><span>New here? <b>Take the two-minute tour</b>: it runs a sample on pretend AIs.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
+  d.innerHTML = `<span>👋</span><span>New here? <b>Take the tour</b>: it runs a sample on pretend AIs.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
   document.body.appendChild(d);
   d.querySelector("#cc-tour-go").addEventListener("click", () => start());
   d.querySelector("#cc-tour-later").addEventListener("click", async () => { d.remove(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} });
 }
 // Views re-render into #view; re-check whether the invite should show (e.g. after leaving Setup).
+function showNews() {
+  const n = tour?.whatsNew;
+  if (!n || idx >= 0 || S.view === "setup") return;
+  document.querySelector(".cc-tour-invite")?.remove();
+  let box = document.getElementById("cc-whats-new");
+  if (box) return;
+  newsOpen = true;
+  box = document.createElement("div");
+  box.id = "cc-whats-new";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(n.title)}</h4><div class="dim small">Version ${esc(n.version)}. This note shows once for this version.</div><ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+  document.body.appendChild(box);
+  const onKey = (e) => { if (e.key === "Escape") dismissNews(false); };
+  document.addEventListener("keydown", onKey);
+  box._newsKey = onKey;
+  box.querySelector("#cc-news-ok").addEventListener("click", () => dismissNews(false));
+  box.querySelector("#cc-news-tour").addEventListener("click", () => dismissNews(true));
+}
+async function dismissNews(thenTour) {
+  newsDismissed = true;
+  const box = document.getElementById("cc-whats-new");
+  if (box?._newsKey) document.removeEventListener("keydown", box._newsKey);
+  box?.remove();
+  newsOpen = false;
+  try { tour = await api("/tour/whats-new/seen", { method: "POST" }); } catch {}
+  if (thenTour) start();
+  else maybeInvite();
+}
+
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
 
 // ---- the tour itself ----
@@ -74,7 +124,7 @@ function close() {
   window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("keydown", onKey);
 }
 function onKey(e) { if (e.key === "Escape") skip(); else if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") back(); }
-async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} toast("Tour skipped. Restart it any time from Settings."); }
+async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} toast("Tour skipped. Take the tour again from the Settings menu, or from the Settings page."); }
 async function finish() { close(); try { tour = await api("/tour/complete", { method: "POST" }); } catch {} toast("Tour done. Add a key in Settings when you are ready for real answers."); }
 function next() { if (idx >= STEPS.length - 1) return finish(); msg = ""; show(idx + 1); }
 function back() { if (idx > 0) { msg = ""; show(idx - 1); } }
@@ -137,7 +187,7 @@ async function runSample() {
 function renderPanel(el2) {
   const t = tour || {};
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour</button><span class="dim small">Nine stops, two minutes, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${STEPS.length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });

@@ -1030,3 +1030,13 @@ PHASE 6 DONE
 
 PHASE 30 DONE (built by Cursor cloud agent)
 PHASE 31 DONE (built by Cursor cloud agent)
+
+## 2026-10-19: Onboarding tour and What's new (Cursor cloud agent)
+
+- The tour now walks the current app: Meldmind, the dropdown menus, Council, Pro prompts and auto-detect, Open live view at the bottom-right of Live Ops, API keys and MCP, pipelines, scheduled agents, and the publishing preview. The sample run on the demo AIs is unchanged.
+- What's new reads `docs/WHATS-NEW.json` and shows once per `package.json` version. The seen version is stored in the data folder (`whatsnew.state.json`), so it survives the desktop cache clear. It waits until first-run setup is finished, then the tour invite. Settings menu: Take the tour again. Resetting the tour does not show the note again.
+- Releasing and the build-plan rules now require a What's new entry for the new version and a tour update for any new user-facing feature. A test fails when the package version has no entry. The installer keeps `docs/WHATS-NEW.json`.
+- A stylesheet string in the nav module was shadowing `CSS.escape`, so adding a menu item after startup threw and a render could fail. Menu items now call `globalThis.CSS.escape`.
+- Tests: npm test 253 tests, 251 pass, 0 fail, 2 skipped. npm run smoke all checks passed. No real key. Temp data dir only.
+- Checked in a browser: first-run setup is not covered by What's new. After Skip, the note shows 8 bullets and the tour invite stays hidden until Got it. All 14 tour steps appear. After a reload the note and the invite stay gone. Settings, Take the tour again, opens the welcome step.
+- Not verified: a packaged installer reading `docs/WHATS-NEW.json` from inside the app archive, and a real auto-update. Phase 14 stays BLOCKED (needs a Mac). Phase 34 stays planned, not built.
