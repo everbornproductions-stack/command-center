@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 25, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16 and 25 were added on 2026-10-18 as high priority; 17 to 24 are the competitor-review backlog; 14, the Mac build, is manual). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 25, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16 and 25 were added on 2026-10-18 as high priority; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -148,4 +148,4 @@ Every item below must respect: bring-your-own-key (the user's keys only), spend 
 - `docs/ci/mac-build.yml` (added by Grok Bot; move it to `.github/workflows/` after `gh auth refresh -s workflow`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only).
 - Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`.
 - TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open and in-app updates do not work on Mac.
-- Never block the Windows installer on this. Not in the chain run order: it needs a real Mac to verify.
+- Never block the Windows installer on this. In the chain after Phase 24; any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
