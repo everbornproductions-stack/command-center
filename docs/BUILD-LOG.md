@@ -1090,3 +1090,43 @@ PHASE 10 DONE (built by Cursor cloud agent, PR #8)
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 9 DONE
+
+## 2026-10-19 15:45 PT: Phase 11 (Hardening and polish)
+- Started after PHASE 10 DONE and PHASE 9 DONE. No Phase 11 commits existed. No conflict with docs/DECISIONS.md: HTML stays no-store (decision 7), the reduced-motion rule covers only the shell's own animations so the live flow map keeps its approved fallback (decision 19), the updater, ports and instance-id rules (decisions 4 and 6) are unchanged, and the user guide describes them as locked.
+- Full regression pass: the suite was run 5 times in full. Run 2 (before any fix) had 5 failures, all `ECONNRESET` / `socket hang up` in tests that start a server (MCP demo, media, project memory, pipelines, push).
+  - Cause: test/helpers.js picked a free port, closed it, then started the server. With test files running side by side, another test's server or mock could take that port first. The child then crashed on EADDRINUSE (no handler), and the plain /api/health check got a 200 from the OTHER test's server, so the test ran against it until its owner shut it down.
+  - Fix: each test child gets its own CC_INSTANCE and only a health answer echoing it counts (the same rule the desktop app uses, decision 6); a lost port race is detected from the log and retried on new ports (up to 4 tries). After the fix: 3 full runs with 0 failures.
+  - One other failure was seen once, in a full run after the fix: test/fallback.test.js step 2 (a pinned chat to a provider already known to be out of credits ended "failed" instead of "done"). It passed 3 of 3 times run alone and in the next full run. Cause not found; the assertion now prints the run's error, the fallback chain and the server log tail so a repeat says why. Possibly timing under load; not fixed.
+- Server hardening:
+  - A taken main port is now "Command AI could not start: port N in use (EADDRINUSE)..." and exit code 1, not a stack trace (the ws server's copy of the error is handled too).
+  - Demo mode: when its usual loopback port is taken, the demo server listens on any free port and the pretend providers are pointed there, instead of failing.
+  - Static files: scripts, styles and images get a weak ETag (size and mtime) with `no-cache`, so the browser revalidates and gets 304 with no body while a file is unchanged; HTML (index, quick, share) gets no ETag and index/quick stay no-store. `content-length` is sent and a read error closes the response. The web/ check now requires the path separator, so a sibling folder starting with "web" can never be served.
+  - The clock only touches the page when the minute changes.
+- Accessibility (web/index.html, web/app.js, web/styles.css):
+  - Skip to content link; main region focusable; both navs labelled "Main"; the open tab gets aria-current="page" (also for feature tabs and the phone More sheet).
+  - Toasts in a polite live region, error toasts role="alert"; the connection pill is a status; the live feed is a log (not read out on every line); decorative icons aria-hidden.
+  - Run mode, Priority and When are labelled groups with aria-pressed; the orders box and the project picker have labels.
+  - Status-strip tiles, project cards and recent-run rows are role="button", focusable, and open with Enter or Space; each tile's label says the AI, its light in words, its line and what clicking does (colour is no longer the only signal).
+  - Subscriptions inputs and the remove button are labelled per service; the hosted sign-in email field and message are labelled.
+  - A visible :focus-visible ring on buttons, links and focusable rows; prefers-reduced-motion stops the shell's blink, pulse, ring and fade animations.
+- Error states:
+  - Every API call and download goes through one fetch wrapper: a network failure is "Could not reach Command AI's engine. Check that the app is still running, then try again." (or the hub's address), never "Failed to fetch"; an error answer without a message is "Request failed (HTTP N ...)" or "Not found (404)", never empty.
+  - Click handlers that never caught their errors (deleting a project, adding links, saving a subscription, logging credits and others in app.js and the feature modules) now show the error: one unhandled-rejection handler shows it as an error toast, the same message at most once every 10 s, and logs it to the console.
+  - A feature tab that throws while rendering says which tab could not open and offers Try again.
+  - Copy under the deliverable says "Nothing to copy yet" or "Could not copy" instead of always "Copied". The hosted sign-in says the sign-in service cannot be reached instead of "Failed to fetch".
+- Empty states: Projects (no projects yet, how to start), Subscriptions (nothing tracked, + Add or Setup), the live feed (quiet for now, what will show up). The others (deliverable, runs, HQ panels, skills matrix, recent calls) already had one.
+- Docs: docs/USER-GUIDE.md (new: install, demo, keys, orders, projects, money, tabs, sending only on click, updates, troubleshooting table, keyboard and accessibility, privacy); docs/RELEASE-NOTES.md (new: the next release after v0.4.1 with Phases 7, 9, 10 and 11, then v0.4.1 and v0.4.0; no version number chosen, Chris cuts releases); README links both, the Updates section now describes the desktop updater from decision 4, a new Accessibility and error states section, and the stale "Not yet built" list (media, Electron, licensing, sync were all built) replaced with what really is not built.
+- Commits:
+  - 9866c0c Phase 11: hardening and polish (regression fixes, server hardening, accessibility, error and empty states, docs)
+  - One commit, not one per feature as rule 2 asks: the three per-feature commits were attempted, the first two failed on PowerShell quoting of their messages after their files were staged, so the third commit took all 13 files. git reset needed an approval this run could not get, so the commit message was amended to describe everything in it. All files in it are Phase 11's own.
+- Tests:
+  - New: test/hardening.test.js (3: ETag and 304 for scripts and styles, no ETag and no-store for HTML, nothing outside web/; a taken port gives the message and exit 1 with no stack trace; a taken demo port still gives working demo AIs), test/a11y.test.js (1, static checks of the shell: landmarks, live regions, aria-current, aria-pressed, keyboard roles, error wording, empty states, focus ring, reduced motion scoped to the shell, no em-dashes), test/docs.test.js (1: guide and notes exist, linked from the README, describe the locked behaviour, no em-dashes). Changed: test/helpers.js (instance id and retry), test/fallback.test.js (diagnostic message only).
+  - npm test: 264 tests, 262 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips). npm run smoke: all checks pass. Run on the committed tree. Node 24.21.0. Temp data dirs, mocks only, no real key or URL.
+- Not verified:
+  - Nothing was clicked through in a browser, the desktop app or a screen reader (the Electron window does not start in agent runs). The accessibility work was checked by reading the code and by static tests; tab order, the focus ring's look, screen-reader wording and colour contrast still need a person to try them. Colour contrast was not measured.
+  - The feature tabs (web/features/*) were not audited one by one for labels and keyboard use; only the shell and the core tabs (Command, Projects, Credits, Subscriptions, Settings, sign-in) were changed. Their unhandled errors now surface through the shared handler.
+  - The 304 path was tested against the local server only, not through the hosted hub or a service worker.
+  - The fallback step-2 failure above is not explained yet.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes). Nothing deployed, no Square, billing, real keys or data/ touched.
+
+PHASE 11 DONE
