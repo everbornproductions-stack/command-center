@@ -1,5 +1,7 @@
 // Saved pipelines: a mission with its steps already decided. One click runs it for a project.
-// Three templates ship for common creative and client work; users can save their own from any mission.
+// Starter templates ship for common creative and client work; users can save their own from any mission.
+import { nextDiscountWindow } from "../router.js";
+import { scheduleMission } from "../mission.js";
 export const id = "pipelines";
 
 const TEMPLATES = [
@@ -28,6 +30,19 @@ const TEMPLATES = [
       { title: "Edit map and credits budget", capability: "analysis", deps: [3, 4], instructions: "Beat-cut edit map with shot numbers per bar, plus a credits estimate (Kling credits per 5 s clip, retries capped at 3).", deliverable: "Edit map + credit budget" },
     ],
     assembly: "Director's packet: concept, beats, shot list with prompts inline, lip-sync map, edit map, credit budget.",
+  },
+  {
+    id: "client-proposal", name: "Client proposal", icon: "📝", category: "Client Work",
+    description: "A proposal ready to send after review: the client's problem, the plan, scope and timeline, pricing options, next step.",
+    inputs: [{ key: "client", label: "Client and industry", placeholder: "Client name · industry" }, { key: "need", label: "What they asked for", placeholder: "New website and a lead follow-up system" }, { key: "budget", label: "Your price or range (facts only)", placeholder: "leave blank to mark it [ASK]" }],
+    steps: [
+      { title: "Client problem and goals", capability: "analysis", instructions: "In the client's own terms: what is broken or missing today, what it costs them, and the two or three outcomes they want.", deliverable: "Problem statement and goals" },
+      { title: "Proposed plan", capability: "reasoning", deps: [1], instructions: "The solution in plain steps, what is included and what is not, and why this order. No invented numbers; mark unknowns as [ASK].", deliverable: "Plan with in-scope and out-of-scope lists" },
+      { title: "Timeline and deliverables", capability: "analysis", deps: [2], instructions: "Phases with deliverables and what the client must provide for each. Durations only where they follow from the inputs; otherwise [ASK].", deliverable: "Timeline table" },
+      { title: "Pricing options", capability: "writing", deps: [2], instructions: "Two or three options built only from the price given in the inputs. If no price was given, keep the structure and write [ASK] for every amount.", deliverable: "Options table" },
+      { title: "Proposal letter", capability: "writing", deps: [1, 3, 4], instructions: "A short cover letter, the proposal in order, and one clear next step (call, signature, deposit). A draft for review; it is never sent from here.", deliverable: "Proposal draft" },
+    ],
+    assembly: "Proposal: cover letter, problem and goals, plan, timeline, pricing options, next step. Keep every [ASK] marker visible.",
   },
   {
     id: "client-site-launch", name: "Client site launch", icon: "🚀", category: "Client Work",
@@ -70,15 +85,21 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "POST" && p === "/run") {
     const pl = allPipelines(h).find((x) => x.id === body.id);
     if (!pl) return h.json(res, 404, { error: "pipeline not found" });
-    try { h.requireFeature("missions"); } catch (e) { return h.json(res, e.status || 402, { error: e.message }); }
+    try { h.requireFeature("missions"); if (body.runAt === "offpeak") h.guard("scheduler"); } catch (e) { return h.json(res, e.status || 402, { error: e.message, code: e.code }); }
     const m = toMission(pl, body.values || {}, body.projectId || null);
-    h.emit("log", { text: `Pipeline "${pl.name}" started${m.projectId ? ` for project ${m.projectId}` : ""}.` });
-    const promise = h.runMission({ ...m, runAt: body.runAt });
-    promise.catch((e) => h.emit("log", { text: `Pipeline failed: ${e.message}`, level: "error" }));
     const st = h.doc("pipelines.runs", () => ({ runs: [] }));
-    st.runs.unshift({ pipelineId: pl.id, name: pl.name, projectId: m.projectId, startedAt: Date.now(), values: body.values || {} });
-    st.runs = st.runs.slice(0, 100);
-    h.putDoc("pipelines.runs", st);
+    const remember = (extra = {}) => { st.runs.unshift({ pipelineId: pl.id, name: pl.name, projectId: m.projectId, startedAt: Date.now(), values: body.values || {}, ...extra }); st.runs = st.runs.slice(0, 100); h.putDoc("pipelines.runs", st); };
+    // Off-peak: queue it for the next discount window, the same way a mission from Command is queued
+    const win = body.runAt === "offpeak" ? nextDiscountWindow() : null;
+    if (win) {
+      const q = scheduleMission(m, win.at, `${win.rule.name}, ${win.rule.pct}% off`);
+      remember({ scheduledFor: q.scheduledFor });
+      return h.json(res, 202, { ok: true, goal: m.goal, scheduled: q });
+    }
+    h.emit("log", { text: `Pipeline "${pl.name}" started${m.projectId ? ` for project ${m.projectId}` : ""}.` });
+    const promise = h.runMission(m);
+    promise.catch((e) => h.emit("log", { text: `Pipeline failed: ${e.message}`, level: "error" }));
+    remember();
     return h.json(res, 202, { ok: true, goal: m.goal });
   }
   if (req.method === "POST" && p === "/save") {

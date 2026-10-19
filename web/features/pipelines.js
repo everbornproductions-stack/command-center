@@ -48,7 +48,7 @@ function showForm(view, p) {
     const projectId = box.querySelector("#pl-proj").value || null;
     try {
       const r = await api("/pipelines/run", { method: "POST", body: { id: p.id, values, projectId, runAt: when } });
-      toast(`Running: ${r.goal}`);
+      toast(r.scheduled ? `Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}` : `Running: ${r.goal}`);
       go("command");
     } catch (e) { toast(e.message, true); }
   });
