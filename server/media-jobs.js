@@ -21,6 +21,7 @@ import * as kling from "./media/kling.js";
 import * as elevenlabs from "./media/elevenlabs.js";
 import * as runway from "./media/runway.js";
 import * as fal from "./media/fal.js";
+import { filesFromTool, isDual, mcpConfigured, runService } from "./connect.js";
 
 export const JOBS = "media.jobs"; // shared with the image gallery (server/images.js)
 export const ADAPTERS = { kling, elevenlabs, runway, fal };
@@ -38,6 +39,10 @@ const bad = (msg, status = 400, extra) => new MediaError(status, msg, extra);
 
 export const secretOf = (pid) => getSecret(pid, KEY_ENV[pid]);
 export const keyed = (pid) => !!secretOf(pid)?.key;
+// A dual service (Kling and the others) can also be reached through its MCP server. keyed stays the API key.
+export const mcpOn = (pid) => isDual(pid) && mcpConfigured(pid);
+export const ready = (pid) => keyed(pid) || mcpOn(pid);
+export const both = (pid) => isDual(pid);
 
 function capState(pid, add = 0) {
   const cap = Number(doc("alerts.caps", () => ({}))[pid]) || 0;
@@ -50,7 +55,7 @@ function capState(pid, add = 0) {
 // the provider a mission step uses: keyed and under its cap, else keyed, else the first one (a dry run)
 export function chooseProvider(kind) {
   const list = ORDER[kind] || [];
-  return list.find((p) => keyed(p) && !capState(p).capped) || list.find((p) => keyed(p)) || list[0] || null;
+  return list.find((p) => ready(p) && !capState(p).capped) || list.find((p) => ready(p)) || list[0] || null;
 }
 
 // only the fields the adapters read; a first-frame image must be a web address
@@ -73,8 +78,9 @@ export function estimate({ provider, kind, params = {} } = {}) {
   const p = cleanParams(params);
   const e = a.estimate({ ...p, kind });
   const has = keyed(a.id);
-  const cap = has ? capState(a.id, e.usd) : { cap: null, left: null, capped: false, over: false };
-  return { provider: a.id, providerName: a.name, kind, estimate: e, usd: e.usd, keyed: has, dryRun: !has, capped: cap.capped, wouldExceed: !cap.capped && cap.over, cap: cap.cap, capLeft: cap.left };
+  const live = ready(a.id);
+  const cap = live ? capState(a.id, e.usd) : { cap: null, left: null, capped: false, over: false };
+  return { provider: a.id, providerName: a.name, kind, estimate: e, usd: e.usd, keyed: has, connected: live, both: both(a.id), dryRun: !live, capped: cap.capped, wouldExceed: !cap.capped && cap.over, cap: cap.cap, capLeft: cap.left };
 }
 
 // a paid job: refused at the cap, and refused unless the click carried the current estimate
@@ -175,11 +181,11 @@ export function createJob({ provider, kind, params, projectId = null, missionId 
   if (!words) throw bad("Write what to make (for voice, the words to speak).");
   if (words.length > MAX_PROMPT) throw bad(`The prompt is too long (${MAX_PROMPT} characters at most).`);
   const est = estimate({ provider, kind, params: p });
-  if (est.keyed && approve) checkSpend(est, seen);
+  if (!est.dryRun && approve) checkSpend(est, seen);
   const job = {
     id: "mj-" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"), provider: est.provider, kind, params: p,
     projectId: projectId || null, missionId: missionId || null, missionTaskId: missionTaskId || null, origin,
-    estimate: est.estimate, dryRun: !est.keyed, status: est.keyed && !approve ? "awaiting_ok" : "queued", createdAt: Date.now(), outputs: [],
+    estimate: est.estimate, dryRun: est.dryRun, status: !est.dryRun && !approve ? "awaiting_ok" : "queued", createdAt: Date.now(), outputs: [],
   };
   saveJob(job);
   if (job.status === "awaiting_ok") {
@@ -194,8 +200,8 @@ export function approveJob(id, seen) {
   if (!job) throw bad("No such media job.", 404);
   if (job.status !== "awaiting_ok") throw bad(`This job is ${job.status}, not waiting for an OK.`, 409);
   const est = estimate({ provider: job.provider, kind: job.kind, params: job.params });
-  if (est.keyed) checkSpend(est, seen);
-  job.estimate = est.estimate; job.dryRun = !est.keyed; job.status = "queued"; job.approvedAt = Date.now();
+  if (!est.dryRun) checkSpend(est, seen);
+  job.estimate = est.estimate; job.dryRun = est.dryRun; job.status = "queued"; job.approvedAt = Date.now();
   saveJob(job);
   start(job);
   return job;
@@ -215,6 +221,33 @@ function start(job) {
   runAs(c, () => runJob(job)).catch((e) => console.error("[media] job:", e.message));
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runApi(job, a) {
+  const secret = secretOf(job.provider);
+  if (!secret?.key) throw new Error(`No ${a.name} API key saved.`);
+  const started = await a.start(secret, { ...job.params, kind: job.kind });
+  if (started.done) return started;
+  job.taskId = started.taskId; job.pollPath = started.pollPath; saveJob(job); // taskId: the provider's id (the live view links Kling's task page)
+  for (let i = 0; i < Math.ceil(POLL_FOR_MS / POLL_MS); i++) {
+    await sleep(POLL_MS);
+    const p = await a.poll(secret, job);
+    if (p.done) { if (p.error) throw new Error(p.error); return p; }
+    job.progress = p.progress || p.status || null; saveJob(job);
+  }
+  throw new Error(`${a.name} did not finish within 20 minutes. Check the job on ${a.name}'s own page.`);
+}
+// The active connection runs the job. If both are set up and it fails, the other one runs it.
+async function runPaid(job, a) {
+  job.status = "processing"; saveJob(job);
+  if (!isDual(job.provider)) { job.via = "key"; job.fallback = false; return runApi(job, a); }
+  const out = await runService(job.provider, job.kind, {
+    args: { prompt: job.params.prompt || job.params.text || "", text: job.params.text || job.params.prompt || "", model: job.params.model || "", kind: job.kind, duration: job.params.duration, aspect: job.params.aspect || "" },
+    api: () => runApi(job, a),
+    mcp: (raw) => filesFromTool(raw),
+  });
+  job.via = out.via; job.fallback = !!out.fallback;
+  if (job.fallback) job.note = job.via === "mcp" ? "API key failed. MCP stood in." : "MCP failed. API key stood in.";
+  return out.result;
+}
 async function runJob(job) {
   const a = ADAPTERS[job.provider];
   const agent = `media:${job.id}`;
@@ -222,7 +255,7 @@ async function runJob(job) {
   emit("agent.start", { agent, provider: job.provider, model: job.params.model || a.defaults?.model || job.provider, role: "media", missionId: job.missionId, taskId: job.missionTaskId, label });
   const t0 = Date.now();
   try {
-    if (job.dryRun || !keyed(job.provider)) {
+    if (job.dryRun || !ready(job.provider)) {
       await sleep(300);
       job.dryRun = true;
       job.outputs = savePlaceholder(job);
@@ -231,28 +264,17 @@ async function runJob(job) {
       emit("agent.done", { agent, provider: job.provider, model: job.params.model || job.provider, missionId: job.missionId, taskId: job.missionTaskId, ms: Date.now() - t0, cost: 0 });
       saveJob(job); finished(job); return;
     }
-    const secret = secretOf(job.provider);
-    job.status = "processing"; saveJob(job);
-    const started = await a.start(secret, { ...job.params, kind: job.kind });
-    if (started.done) await saveOutput(job, started);
-    else {
-      job.taskId = started.taskId; job.pollPath = started.pollPath; saveJob(job); // taskId: the provider's id (the live view links Kling's task page)
-      let ok = false;
-      for (let i = 0; i < Math.ceil(POLL_FOR_MS / POLL_MS); i++) {
-        await sleep(POLL_MS);
-        const p = await a.poll(secret, job);
-        if (p.done) { if (p.error) throw new Error(p.error); await saveOutput(job, p); ok = true; break; }
-        job.progress = p.progress || p.status || null; saveJob(job);
-      }
-      if (!ok) throw new Error(`${a.name} did not finish within 20 minutes. Check the job on ${a.name}'s own page.`);
-    }
+    const produced = await runPaid(job, a);
+    await saveOutput(job, produced);
     job.status = job.outputs?.length ? "done" : "failed"; job.finishedAt = Date.now();
     if (job.status === "failed") job.error = `${a.name} reported success but sent no file.`;
     // one ledger line per paid job, with the estimate the person approved
     const e = job.estimate || {};
     recordCredits({ provider: job.provider, units: e.credits || e.characters || e.seconds || 1, cost: e.usd, note: `${job.kind}${job.missionId ? " (mission)" : ""}`, project: job.projectId });
     emit("agent.done", { agent, provider: job.provider, model: job.params.model || job.provider, missionId: job.missionId, taskId: job.missionTaskId, ms: Date.now() - t0, cost: e.usd });
-    emit("log", { text: `${a.name} ${job.kind} ready (${job.outputs.length} file${job.outputs.length === 1 ? "" : "s"}, saved to the project) · about $${e.usd}`, missionId: job.missionId });
+    const stood = job.fallback ? (job.via === "mcp" ? " API key failed, MCP stood in." : " MCP failed, API key stood in.") : "";
+    const via = job.via === "mcp" ? " Via MCP." : "";
+    emit("log", { text: `${a.name} ${job.kind} ready (${job.outputs.length} file${job.outputs.length === 1 ? "" : "s"}, saved to the project) · about $${e.usd}${via}${stood}`, missionId: job.missionId });
   } catch (err) {
     job.status = "failed"; job.error = String(err.message || err).slice(0, 300); job.finishedAt = Date.now();
     emit("agent.error", { agent, provider: job.provider, model: job.params.model || job.provider, missionId: job.missionId, taskId: job.missionTaskId, error: job.error });

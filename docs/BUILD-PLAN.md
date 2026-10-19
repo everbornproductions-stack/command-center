@@ -185,3 +185,19 @@ Every item below must respect: bring-your-own-key (the user's keys only), spend 
 - Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`.
 - TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open and in-app updates do not work on Mac.
 - Never block the Windows installer on this. In the chain after Phase 24; any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
+
+## Planned, not in the run order (Chris, 2026-10-19)
+
+These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start them until Chris adds them to the run order above. They are not phases, and the chain must not build them.
+
+### Welcome email
+- On sign-up or license redeem, send a plain welcome email.
+- Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
+- No income or results claims.
+- Nothing sends until this is in the run order and the person has actually signed up or redeemed a license. Do not touch Square or billing.
+
+### Use your own Supabase
+- Optional advanced setting named "Use your own Supabase", for power users and companies.
+- Bring-your-own project URL and publishable key. Off by default. Never part of normal onboarding.
+- Customers never need to create a Supabase account by default. The normal app uses Everborn's Supabase.
+- Separate from the licence server connection already in Settings. Do not change that connection, and do not touch Square or billing.

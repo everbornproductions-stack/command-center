@@ -13,7 +13,7 @@ function form(prefill = {}) {
   const pv = providers.filter((p) => p.kinds.includes(prefill.kind || "video"));
   return `<div class="panel" id="md-form"><h3>Generate <span class="right">estimate first · nothing spends until you click Generate</span></h3>
     <div class="row"><div class="seg" id="md-kind">${["video", "image", "voice"].map((k) => `<button data-k="${k}" class="${(prefill.kind || "video") === k ? "on" : ""}">${k}</button>`).join("")}</div>
-      <select id="md-prov" style="width:auto">${pv.map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : " (no key: dry run)"}</option>`).join("")}</select>
+      <select id="md-prov" style="width:auto">${pv.map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (no key: dry run)"}</option>`).join("")}</select>
       <select id="md-proj" style="width:auto"><option value="">No project</option>${S.projects.map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <label class="lbl">Prompt / text</label><textarea id="md-prompt" style="min-height:80px">${esc(prefill.prompt || "")}</textarea>
     <div class="row" style="margin-top:8px"><label class="small" id="md-img-l">First-frame image URL <input type="text" id="md-img" placeholder="https://… (needed for image-to-video)" style="width:320px;padding:5px 8px"></label><label class="small" id="md-dur-l">Seconds <input type="number" id="md-dur" value="5" min="3" max="10" style="width:70px;padding:5px 8px"></label><input type="text" id="md-model" placeholder="model (optional)" style="width:220px;padding:5px 8px"></div>
@@ -24,7 +24,7 @@ function wireForm(root, after) {
   let kind = root.querySelector("#md-kind button.on")?.dataset.k || "video";
   let seen = null; // the estimate on screen; Generate sends it back
   const stale = () => { seen = null; root.querySelector("#md-go").disabled = true; root.querySelector("#md-est-out").innerHTML = ""; };
-  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : " (no key: dry run)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; stale(); };
+  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (no key: dry run)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; stale(); };
   root.querySelector("#md-kind").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; kind = b.dataset.k; root.querySelectorAll("#md-kind button").forEach((x) => x.classList.toggle("on", x === b)); refreshProv(); });
   for (const sel of ["#md-prov", "#md-prompt", "#md-img", "#md-dur", "#md-model"]) root.querySelector(sel).addEventListener("input", stale);
   const params = () => ({ prompt: root.querySelector("#md-prompt").value.trim(), text: root.querySelector("#md-prompt").value.trim(), imageUrl: root.querySelector("#md-img").value.trim() || undefined, duration: Number(root.querySelector("#md-dur").value) || 5, model: root.querySelector("#md-model").value.trim() || undefined });
@@ -32,7 +32,7 @@ function wireForm(root, after) {
     try {
       const r = await api("/media/estimate", { method: "POST", body: { provider: root.querySelector("#md-prov").value, kind, params: params() } });
       seen = r.usd;
-      root.querySelector("#md-est-out").innerHTML = `≈ <b>${money(r.usd, 3)}</b> <span class="dim">${esc(r.estimate.note || "")}</span>${r.keyed ? "" : ' <span class="chip amber">no key · dry run, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
+      root.querySelector("#md-est-out").innerHTML = `≈ <b>${money(r.usd, 3)}</b> <span class="dim">${esc(r.estimate.note || "")}</span>${r.keyed ? "" : r.connected ? ' <span class="chip">MCP</span>' : ' <span class="chip amber">no key · dry run, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
       root.querySelector("#md-go").disabled = !!(r.capped || r.wouldExceed);
     } catch (e) { toast(e.message, true); }
   });
@@ -93,7 +93,7 @@ function onEvent(ev) {
 async function renderSettings(el) {
     await loadProviders();
     el.innerHTML = `<div class="panel"><h3>Media API keys <span class="right">Kling, ElevenLabs, Runway, fal.ai</span></h3>
-      ${providers.map((p) => `<div class="row" style="margin-top:6px"><span style="width:110px"><span class="dot" style="background:${pcolor(p.id)}"></span> ${esc(p.name)}</span>${p.id === "kling" ? `<input type="password" placeholder="access key" data-mk="${p.id}" style="flex:1"><input type="password" placeholder="secret key" data-ms="${p.id}" style="flex:1">` : `<input type="password" placeholder="${p.keyed ? "key saved" : "API key"}" data-mk="${p.id}" style="flex:1">`}<button class="btn sm" data-save="${p.id}">Save</button><span class="chip ${p.keyed ? "green" : ""}">${p.keyed ? "keyed" : "dry run"}</span></div>`).join("")}
+      ${providers.map((p) => `<div class="row" style="margin-top:6px"><span style="width:110px"><span class="dot" style="background:${pcolor(p.id)}"></span> ${esc(p.name)}</span>${p.id === "kling" ? `<input type="password" placeholder="access key" data-mk="${p.id}" style="flex:1"><input type="password" placeholder="secret key" data-ms="${p.id}" style="flex:1">` : `<input type="password" placeholder="${p.keyed ? "key saved" : "API key"}" data-mk="${p.id}" style="flex:1">`}<button class="btn sm" data-save="${p.id}">Save</button><span class="chip ${p.keyed || p.connected ? "green" : ""}">${p.keyed ? "keyed" : p.connected ? "MCP" : "dry run"}</span></div>`).join("")}
       <div class="dim small" style="margin-top:8px">Keys are sealed in the same vault as the chat AIs. Without a key, generation runs as a dry run: the estimate is shown, nothing is spent, and a placeholder file is saved to the project.</div></div>`;
     el.querySelectorAll("[data-save]").forEach((b) => b.addEventListener("click", async () => { const pid = b.dataset.save; const key = el.querySelector(`[data-mk="${pid}"]`).value.trim(); const secret = el.querySelector(`[data-ms="${pid}"]`)?.value.trim(); if (!key) return toast("Paste the key first", true); try { const r = await api("/media/keys", { method: "POST", body: { provider: pid, key, secret } }); toast(`${pname(pid)} key saved${r.balance?.usd != null ? ` · balance $${r.balance.usd}` : ""}`); renderSettings(el); } catch (e) { toast(e.message, true); } }));
 }

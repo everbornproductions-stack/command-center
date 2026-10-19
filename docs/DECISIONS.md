@@ -1,6 +1,8 @@
 # Locked decisions: do not undo
 
-Chris approved everything below on 2026-10-18. It is shipped and in use, and it must not be reverted, renamed, reworked or "cleaned up" by any build phase, refactor or agent.
+Chris approved items 1 to 20 on 2026-10-18. They are shipped and in use, and they must not be reverted, renamed, reworked or "cleaned up" by any build phase, refactor or agent.
+
+Items dated 2026-10-19 that say "not built yet" are locked specs. Do not build them until Chris adds them to the run order, and do not rewrite the spec. Do not change the meaning of items 1 to 20.
 
 If a phase in docs/BUILD-PLAN.md seems to need a change to one of these items, do not make the change. Write `PHASE N BLOCKED: <reason, naming the decision>` in docs/BUILD-LOG.md and stop, so Chris can decide.
 
@@ -101,6 +103,27 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
     - Later launches open the hub. Bookmark organizing does not run on launch.
     - At most once every 24 hours, in the background, the app compares providers, models and vault keys with the saved history and integrates only what is new. A small notice says "New: X added". It does not open setup.
     - Settings keeps a manual "Run setup again".
+
+21. **API key or MCP, for services that offer both.** Approved by Chris on 2026-10-19. Shipped.
+    - Kling, ElevenLabs, Sync.so, fal.ai and Replicate can be connected with an API key or with an MCP server.
+    - Each of those Settings cards has **Connect with API key**, **Connect with MCP**, which one is active, and **Test connection**. The same choice is in the guided key setup. The person can switch any time. Both can stay saved.
+    - A job uses the active connection. If both are set up and the active one fails, the other runs the job.
+    - Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.
+    - This reuses the Phase 1 vault and guided key setup, and the Phase 16 MCP client. It does not add a second vault or a second MCP client. Phase 13 is bookmarks.
+    - Onboarding still runs once. Saving a key or an MCP server does not open setup again.
+
+22. **Welcome email.** Approved by Chris on 2026-10-19. Not built yet.
+    - On sign-up or license redeem, send a plain welcome email.
+    - The email explains their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
+    - No income or results claims.
+    - Do not build this until Chris adds it to the run order. Do not rewrite this spec.
+
+23. **Use your own Supabase.** Approved by Chris on 2026-10-19. Not built yet.
+    - An optional advanced setting for power users and companies: a bring-your-own project URL and publishable key.
+    - Off by default. Never part of normal onboarding.
+    - Customers never need to create a Supabase account by default. The normal app uses Everborn's Supabase.
+    - This is separate from the licence server connection in Settings. It must not touch Square or billing.
+    - Do not build this until Chris adds it to the run order. Do not rewrite this spec.
 
 ## Rules (always)
 - Never deploy the hub or anything else. Never touch Square or billing, never charge money.

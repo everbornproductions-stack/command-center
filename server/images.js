@@ -24,6 +24,7 @@ import { summary as ledgerSummary, recordImage } from "./ledger.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
 import { networkCause } from "./health.js";
+import { filesFromTool, isDual, mcpConfigured, runService } from "./connect.js";
 
 export const JOBS = "media.jobs"; // shared with the Media tab (server/plugins/media.js)
 export const OPS = ["generate", "edit", "variation"];
@@ -91,6 +92,7 @@ function secretOf(pid) {
   return getSecret(pid, PROVIDERS[pid]?.keyEnv);
 }
 const keyed = (pid) => !!secretOf(pid)?.key;
+const mcpReady = (pid) => isDual(pid) && mcpConfigured(pid);
 function capState(pid, add = 0) {
   const cap = Number(doc("alerts.caps", () => ({}))[pid]) || 0;
   const stop = (doc("alerts.state", () => undefined)?.stop || []).includes(pid);
@@ -124,11 +126,11 @@ export function estimate(body = {}) {
   const pr = pv.models[model].price;
   const perImage = typeof pr === "number" ? pr : pr[quality][size === "square" ? 0 : 1];
   const usd = +(perImage * n).toFixed(4);
-  const has = keyed(pv.id), cap = capState(pv.id, usd);
+  const has = keyed(pv.id), ready = has || mcpReady(pv.id), cap = capState(pv.id, usd);
   return {
     provider: pv.id, providerName: pv.name, model, modelName: pv.models[model].name, op, n, size, quality, perImage, usd,
     note: `${n} image${n === 1 ? "" : "s"} x $${perImage} (${pv.models[model].name}${typeof pr === "number" ? "" : `, ${quality}, ${size}`})${pv.id === "openai" && op !== "generate" ? ", plus a little for reading the source image" : ""}`,
-    keyed: has, keyMessage: has ? null : noKeyMessage(pv),
+    keyed: has, ready, keyMessage: ready ? null : noKeyMessage(pv),
     capped: cap.capped, wouldExceed: !cap.capped && cap.over, cap: cap.cap, capLeft: cap.left,
   };
 }
@@ -138,7 +140,7 @@ export function providerList() {
   return Object.values(IMAGE_PROVIDERS).filter((p) => !p.demo || demoActive()).map((p) => ({
     id: p.id, name: p.name, ops: p.ops, defaultModel: p.defaultModel, editModel: p.editModel || null, where: p.where, demo: !!p.demo,
     models: Object.entries(p.models).map(([id, m]) => ({ id, name: m.name, edit: !!m.edit, price: m.price })),
-    keyed: keyed(p.id), capped: capState(p.id).capped,
+    keyed: keyed(p.id), ready: keyed(p.id) || mcpReady(p.id), capped: capState(p.id).capped,
   }));
 }
 
@@ -304,6 +306,22 @@ export function demoSvg(job, i = 0, src = null) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${ht}" viewBox="0 0 ${w} ${ht}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/>${back}<circle cx="${w * 0.72 | 0}" cy="${ht * 0.3 | 0}" r="${(h[2] % 60) + 50}" fill="#fff" opacity="0.25"/>${lines.slice(0, 6).map((l, k) => `<text x="32" y="${ht - 40 - (Math.min(lines.length, 6) - 1 - k) * 30}" font-family="sans-serif" font-size="24" fill="#fff">${xmlEsc(l)}</text>`).join("")}<text x="32" y="44" font-family="sans-serif" font-size="16" fill="#fff" opacity="0.8">Demo ${xmlEsc(job.op)} ${i + 1}</text></svg>`;
 }
 
+async function picsFromTool(pv, raw) {
+  const file = filesFromTool(raw);
+  const out = [];
+  if (file.bytes?.length) out.push({ bytes: file.bytes, mime: MIMES[file.mime] ? file.mime : "image/png" });
+  for (const u of file.urls || []) {
+    if (/^data:image\//.test(u)) {
+      const m = u.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/);
+      if (m) out.push(b64img(m[2], m[1]));
+    } else {
+      const base = /^http:\/\/127\.0\.0\.1[:/]/.test(u) ? new URL(u).origin : devBase(pv.id, "https://fal.run");
+      out.push(await download(pv, u, base));
+    }
+  }
+  return out;
+}
+
 // ---------- generate / edit / variation ----------
 export async function makeImages(body = {}) {
   if (HOSTED) throw bad("Image generation runs in the desktop app for now: the gallery lives in the local data folder.", 400);
@@ -314,7 +332,7 @@ export async function makeImages(body = {}) {
   if (!prompt) throw bad("Write what the image should show.");
   if (prompt.length > MAX_PROMPT) throw bad(`The prompt is too long (${MAX_PROMPT} characters at most).`);
   // nothing is called without a key, over a cap, or before the person has seen the price
-  if (!est.keyed) throw bad(est.keyMessage, 400, { code: "no_key" });
+  if (!est.ready) throw bad(est.keyMessage || noKeyMessage(pv), 400, { code: "no_key" });
   if (est.capped) throw bad(`${pv.name} has reached its monthly spend cap, so no image was made. Raise the cap in Settings > Spend caps or wait for the month to roll over.`, 402, { code: "capped" });
   if (est.wouldExceed) throw bad(`These images (about $${est.usd}) would take ${pv.name} over its monthly spend cap ($${est.capLeft} left). Ask for fewer or cheaper images, or raise the cap.`, 402, { code: "capped" });
   const seen = Number(body.estimate);
@@ -326,7 +344,15 @@ export async function makeImages(body = {}) {
   emit("agent.start", { agent, provider: pv.id, model: est.model, role: "image", missionId: body.runId || null, label: `${pv.name} ${est.op === "generate" ? "making" : est.op === "edit" ? "editing" : "varying"} ${est.n === 1 ? "an image" : `${est.n} images`}` });
   const t0 = Date.now();
   let pics;
-  try { pics = await ADAPTERS[pv.id](job, secretOf(pv.id), src); }
+  let via = "key", fallback = false;
+  try {
+    const out = await runService(pv.id, "image", {
+      args: { prompt: job.prompt, model: job.model, op: job.op, n: job.n, size: job.size, quality: job.quality },
+      api: () => ADAPTERS[pv.id](job, secretOf(pv.id), src),
+      mcp: (raw) => picsFromTool(pv, raw),
+    });
+    pics = out.result; via = out.via; fallback = !!out.fallback;
+  }
   catch (e) { emit("agent.error", { agent, provider: pv.id, model: est.model, missionId: body.runId || null, error: e.message }); throw e instanceof ImageError ? e : bad(`${pv.name}: ${e.message}`, 502); }
   pics = (pics || []).filter((p) => p?.bytes?.length).slice(0, est.n);
   if (!pics.length) { emit("agent.error", { agent, provider: pv.id, model: est.model, missionId: body.runId || null, error: "no image" }); throw bad(`${pv.name} answered without an image. Nothing was saved.`, 502); }
@@ -341,10 +367,12 @@ export async function makeImages(body = {}) {
     id, source: "images", kind: "image", provider: pv.id, op: est.op, status: "done",
     params: { prompt, model: est.model, size: est.size, quality: est.quality, n: est.n, from: src?.from || null },
     projectId: body.projectId || null, missionId: body.runId || null, runId: body.runId || null,
-    estimate: { usd: est.usd, note: est.note }, cost, ms, demo: !!pv.demo, createdAt: Date.now(), finishedAt: Date.now(), outputs, mimes,
+    estimate: { usd: est.usd, note: est.note }, cost, ms, demo: !!pv.demo, via, fallback, createdAt: Date.now(), finishedAt: Date.now(), outputs, mimes,
   };
   const d = jobs(); d.items.unshift(row); d.items = d.items.slice(0, 500); putDoc(JOBS, d);
   emit("agent.done", { agent, provider: pv.id, model: est.model, missionId: body.runId || null, ms, cost });
-  emit("log", { text: `${pv.name}: ${pics.length} image${pics.length === 1 ? "" : "s"} saved to the gallery${cost ? ` (about $${cost})` : ""}.`, missionId: body.runId || null });
+  const viaNote = via === "mcp" ? " Via MCP." : "";
+  const stood = fallback ? " The other connection stood in." : "";
+  emit("log", { text: `${pv.name}: ${pics.length} image${pics.length === 1 ? "" : "s"} saved to the gallery${cost ? ` (about $${cost})` : ""}.${viaNote}${stood}`, missionId: body.runId || null });
   return view(row);
 }

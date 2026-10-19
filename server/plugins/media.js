@@ -16,7 +16,7 @@ export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/media/, "");
   const seg = p.split("/").filter(Boolean);
   try {
-    if (req.method === "GET" && p === "/providers") return h.json(res, 200, Object.values(M.ADAPTERS).map((a) => ({ id: a.id, name: a.name, kinds: a.kinds, defaults: a.defaults, price: a.price, keyed: M.keyed(a.id) })));
+    if (req.method === "GET" && p === "/providers") return h.json(res, 200, Object.values(M.ADAPTERS).map((a) => ({ id: a.id, name: a.name, kinds: a.kinds, defaults: a.defaults, price: a.price, keyed: M.keyed(a.id), connected: M.ready(a.id), both: M.both(a.id) })));
     if (req.method === "POST" && p === "/estimate") return h.json(res, 200, M.estimate({ provider: body.provider, kind: body.kind, params: body.params }));
     // the Media tab's Generate: the click that spends, carrying the estimate it showed
     if (req.method === "POST" && p === "/generate") {

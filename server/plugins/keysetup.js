@@ -6,6 +6,7 @@
 import { PROVIDERS } from "../registry.js";
 import { getSecret, setSecret, maskedKey, vaultInfo } from "../vault.js";
 import { checkProvider, getStatus } from "../health.js";
+import { connectionOf, isDual } from "../connect.js";
 
 export const id = "keysetup";
 const KIND = "keysetup.state";
@@ -32,18 +33,22 @@ export const GUIDES = {
     steps: ["Sign in to the Groq console (console.groq.com).", "Open API Keys, click Create API Key, copy it once.", "Paste it below. The free tier has rate limits; add a card later for more."] },
   mistral: { why: "Mistral: solid European models at low prices, good for writing and classification.", looks: "a 32-character key", free: true,
     steps: ["Sign in to the Mistral console (console.mistral.ai).", "Pick a plan under Billing (the Experiment plan is free with limits).", "Open API keys, click Create new key, copy it once.", "Paste it below."] },
-  elevenlabs: { why: "ElevenLabs: voice-overs for reels and videos; credits are tracked live.", looks: "sk_...", free: true,
-    steps: ["Sign in to ElevenLabs.", "Open Settings, then API keys, click Create API key, copy it once.", "Paste it below. The free plan includes a monthly character allowance."] },
-  kling: { why: "Kling: AI video generation for the Studio pipeline.", looks: "an access key and a secret key", free: false,
-    steps: ["Sign in to Kling and open the developer area (app.klingai.com/global/dev).", "Create an API key pair: an access key and a secret key.", "Paste both below. Credits are tracked from what you log."] },
-  syncso: { why: "Sync.so: lip-sync for music videos.", looks: "sk-...", free: false,
-    steps: ["Sign in to sync.so and open the API keys page.", "Create a key, copy it once.", "Paste it below."] },
+  kling: { why: "Kling: AI video generation for the Studio pipeline. Connect with an API key or with an MCP server.", looks: "an access key and a secret key", free: false,
+    steps: ["Sign in to Kling and open the developer area (app.klingai.com/global/dev).", "Create an API key pair: an access key and a secret key. Or connect Kling's MCP server instead.", "Paste both below, or choose Connect with MCP. Credits are tracked from what you log."] },
+  elevenlabs: { why: "ElevenLabs: voice-overs for reels and videos; credits are tracked live. Connect with an API key or with an MCP server.", looks: "sk_...", free: true,
+    steps: ["Sign in to ElevenLabs.", "Open Settings, then API keys, click Create API key, copy it once. Or connect an ElevenLabs MCP server instead.", "Paste it below, or choose Connect with MCP. The free plan includes a monthly character allowance."] },
+  fal: { why: "fal.ai: image and video models, including Flux, on one key. Connect with an API key or with an MCP server.", looks: "a key id and a secret", free: false,
+    steps: ["Sign in to fal.ai.", "Open Dashboard, then Keys, and create a key.", "Paste it below, or choose Connect with MCP."] },
+  replicate: { why: "Replicate: Flux and other image models with your own token. Connect with an API key or with an MCP server.", looks: "r8_...", free: false,
+    steps: ["Sign in to replicate.com.", "Open Account, then API tokens, and create a token.", "Paste it below, or choose Connect with MCP."] },
+  syncso: { why: "Sync.so: lip-sync for music videos. Connect with an API key or with an MCP server.", looks: "sk-...", free: false,
+    steps: ["Sign in to sync.so and open the API keys page.", "Create a key, copy it once. Or connect a Sync.so MCP server instead.", "Paste it below, or choose Connect with MCP."] },
 };
 const GENERIC = { why: "A provider you added yourself.", looks: "the key the provider gave you", free: false, steps: ["Open the provider's key page.", "Create a key and copy it once.", "Paste it below."] };
 
 // Pure: which providers the wizard walks through, in a sensible order (free ones early, media last).
 export function setupOrder(providers) {
-  const list = Object.values(providers).filter((p) => p.api && !p.demo && !p.noKey);
+  const list = Object.values(providers).filter((p) => (p.api || isDual(p.id)) && !p.demo && !p.noKey);
   const rank = (p) => (p.kind === "text" ? 0 : 1) * 100 + (GUIDES[p.id] ? 0 : 50) + (GUIDES[p.id]?.free ? 0 : 10);
   return list.sort((a, b) => rank(a) - rank(b) || Object.keys(providers).indexOf(a.id) - Object.keys(providers).indexOf(b.id)).map((p) => p.id);
 }
@@ -60,6 +65,12 @@ export function verdict(status) {
 
 const state = (h) => { const s = { ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) }; s.skipped = Array.isArray(s.skipped) ? s.skipped : []; s.linked = Array.isArray(s.linked) ? s.linked : []; return s; };
 const save = (h, patch) => h.putDoc(KIND, { ...state(h), ...patch });
+// Called when an MCP server is linked from the wizard or from Settings, so the step counts as done.
+export function markLinked(h, pid) {
+  if (!h?.PROVIDERS?.[pid]) return;
+  const s = state(h);
+  save(h, { linked: s.linked.includes(pid) ? s.linked : [...s.linked, pid], skipped: s.skipped.filter((x) => x !== pid) });
+}
 const guideOf = (p) => GUIDES[p.id] || { ...GENERIC, why: p.custom ? GENERIC.why : `${p.name} (${p.vendor}).` };
 
 function view(h) {
@@ -71,6 +82,7 @@ function view(h) {
       keysUrl: p.links?.keys || p.links?.console || null, billingUrl: p.links?.billing || null, consoleUrl: p.links?.console || null,
       why: g.why, looks: g.looks, free: !!g.free, steps: g.steps, fields: { secret: pid === "kling", workspaceId: pid === "anthropic" },
       keyed: h.hasSecret(pid, p.keyEnv), masked: maskedKey(pid, p.keyEnv), status: { status: st.status, detail: st.detail || "" },
+      connection: connectionOf(pid),
       skipped: s.skipped.includes(pid) };
   });
   return { ...s, providers, total: providers.length, linkedCount: providers.filter((p) => p.keyed).length, vault: vaultInfo() };
@@ -97,7 +109,7 @@ export async function routes(req, res, url, body, h) {
     const pid = String(body.provider || "");
     const prov = h.PROVIDERS[pid];
     if (!prov) return bad(res, h, "unknown provider");
-    if (!prov.api || prov.demo) return bad(res, h, `${prov.name} has no API key to set up.`);
+    if ((!prov.api && !isDual(pid)) || prov.demo) return bad(res, h, `${prov.name} has no API key to set up.`);
     const key = String(body.key || "").trim();
     if (!key) return bad(res, h, "Paste the key first.");
     if (key.length > 4000 || /\s/.test(key)) return bad(res, h, "That does not look like an API key (it has spaces or is far too long).");

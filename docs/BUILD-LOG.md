@@ -1017,3 +1017,14 @@ PHASE 6 DONE
 - npm test 243 tests, 241 pass, 0 fail, 2 skipped (one earlier run had 1 flaky failure that did not repeat); npm run smoke all pass.
 - Released v0.4.1 (Phases 2-6 + licence key) on command-center-releases with installer, blockmap and latest.yml.
 - Chain re-enabled and started; it resumes at Phase 7 (Phases up to 6 are DONE in this log).
+
+## 2026-10-19: API key or MCP (built by Cursor cloud agent)
+
+- Services that offer both an API and an MCP server (Kling, ElevenLabs, Sync.so, fal.ai, Replicate) connect either way. Each Settings card, and the same step in guided key setup, has Connect with API key, Connect with MCP, which one is active, and Test connection. The person can switch any time. Both can stay saved.
+- A job uses the active connection. If both are set up and the active one fails, the other runs it. Claude, ChatGPT, Grok and Gemini still need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. This reuses the Phase 1 vault and guided key setup and the Phase 16 MCP client. Phase 13 is bookmarks. Onboarding still runs once: finishing setup, or already having history, keeps the first-run screen closed.
+- Planned only, not built: a welcome email on sign-up or license redeem (decision 22), and an optional Use your own Supabase advanced setting (decision 23). Both are locked in docs/DECISIONS.md and listed in docs/BUILD-PLAN.md under "Planned, not in the run order". They are not in the run order, so the chain will not build them. They do not touch Square or billing.
+- Rebased onto origin/main through Phase 6 and v0.4.1. Claude's media job engine in server/media-jobs.js was kept: estimate first, approve before a paid job, spend caps, one ledger line, placeholders for a dry run. The API-key-or-MCP choice now runs inside that engine. A service with an MCP server and no API key is a real job, not a dry run, and still waits for the estimate.
+- Tests: npm test 246 tests, 245 pass, 0 fail, 1 skipped (Pyodide is not installed here). npm run smoke all checks pass. Run after the rebase onto Phase 6. test/connect.test.js uses a local Kling mock and a local Streamable HTTP MCP server. No real key, no real provider URL, temp data dir only. Node 22.23.3.
+- Browser (before this rebase): first-run setup, Settings cards, and guided setup were checked on desktop and at 390px. Not re-checked after Phase 6's Media tab. Not verified: a packaged Electron build, a real provider, or a real MCP server.
+
+FEATURE connect-key-or-mcp DONE (built by Cursor cloud agent)

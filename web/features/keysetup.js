@@ -29,10 +29,12 @@ let idx = 0;       // current provider index; data.providers.length = the finish
 let busy = false;
 let result = null; // { tone, label, detail, billingUrl } for the current step
 let hint = null;   // paste-detection note
+let stepMode = "key"; // "key" or "mcp" on a service that offers both
+let modeLock = null;  // set when setup opens on a chosen mode
 
 async function load() { data = await api("/keysetup"); return data; }
 
-export async function open(startAt) {
+export async function open(startAt, opts = {}) {
   try { await load(); } catch (e) { return toast(e.message, true); }
   if (!data.providers.length) return toast("No provider needs a key here.", true);
   if (!el) {
@@ -43,34 +45,64 @@ export async function open(startAt) {
   if (!data.startedAt) { try { data = await api("/keysetup/start", { method: "POST" }); } catch {} }
   if (typeof startAt === "string") idx = Math.max(0, data.providers.findIndex((p) => p.id === startAt));
   else if (typeof startAt === "number") idx = startAt;
-  else { const first = data.providers.findIndex((p) => !p.keyed && !p.skipped); idx = first < 0 ? 0 : first; }
+  else { const first = data.providers.findIndex((p) => !p.keyed && !p.connection?.mcp?.configured && !p.skipped); idx = first < 0 ? 0 : first; }
+  modeLock = opts.mode === "mcp" || opts.mode === "key" ? opts.mode : null;
+  const cur = data.providers[idx];
+  stepMode = modeLock || (cur?.connection?.active === "mcp" ? "mcp" : "key");
   result = null; hint = null; render();
 }
 function close() { if (!el) return; el.remove(); el = null; document.removeEventListener("keydown", onKey); }
 function onKey(e) { if (e.key === "Escape") close(); }
 
-function next() { result = null; hint = null; idx = Math.min(idx + 1, data.providers.length); render(); }
-function back() { result = null; hint = null; idx = Math.max(idx - 1, 0); render(); }
+function applyStep(i) {
+  idx = i; result = null; hint = null; modeLock = null;
+  const cur = data.providers[idx];
+  stepMode = cur?.connection?.active === "mcp" ? "mcp" : "key";
+  render();
+}
+function next() { applyStep(Math.min(idx + 1, data.providers.length)); }
+function back() { applyStep(Math.max(idx - 1, 0)); }
 
 function render() {
   if (!el) return;
   const list = data.providers, p = list[idx];
-  const side = `<div class="side"><h4>Your AIs</h4>${list.map((x, i) => `<button class="${i === idx ? "on" : ""}" data-i="${i}"><span class="dot ${x.keyed ? x.status.status || "green" : x.skipped ? "grey" : "grey"}"></span><span class="nm">${esc(x.name)}</span>${x.keyed ? `<span class="small dim">linked</span>` : x.skipped ? `<span class="small dim">skipped</span>` : ""}</button>`).join("")}
+  const sideOn = (x) => x.keyed || x.connection?.mcp?.configured;
+  const side = `<div class="side"><h4>Your AIs</h4>${list.map((x, i) => `<button class="${i === idx ? "on" : ""}" data-i="${i}"><span class="dot ${sideOn(x) ? x.status.status || "green" : "grey"}"></span><span class="nm">${esc(x.name)}</span>${sideOn(x) ? `<span class="small dim">linked</span>` : x.skipped ? `<span class="small dim">skipped</span>` : ""}</button>`).join("")}
     <button class="${idx >= list.length ? "on" : ""}" data-i="${list.length}"><span class="dot ${data.linkedCount ? "green" : "grey"}"></span><span class="nm">Finish</span></button></div>`;
   let main;
   if (!p) {
-    const linked = list.filter((x) => x.keyed);
+    const linked = list.filter((x) => x.keyed || x.connection?.mcp?.configured);
     main = `<div class="main"><h3>${linked.length ? `${linked.length} of ${list.length} AIs linked` : "No keys yet"}</h3>
       <div class="muted" style="margin-top:8px">${linked.length ? `Linked: ${linked.map((x) => esc(x.name)).join(", ")}. The status strip shows a green light for each one, and the router can send work to them now.` : "You can come back any time: Settings, then Guided API-key setup. Demo mode keeps working without keys."}</div>
       ${S.vault?.file ? `<div class="dim small" style="margin-top:10px">Keys are sealed with ${esc(S.vault?.method || "the operating system")} in <span class="mono">${esc(S.vault.file)}</span> and never leave this machine except to the provider you gave them to.</div>` : `<div class="dim small" style="margin-top:10px">Keys are encrypted before they are stored and are only decrypted to call the provider you gave them to.</div>`}
       <div class="foot"><button class="btn sm" id="ks-back">Back</button><span style="flex:1"></span><button class="btn sm primary" id="ks-done">Done</button></div></div>`;
   } else {
     const n = idx + 1;
+    const conn = p.connection;
+    const both = !!conn?.both;
+    const mcpOn = stepMode === "mcp" && both;
+    const activeLabel = conn?.active === "mcp" ? "MCP" : "API key";
     main = `<div class="main">
-      <div class="row" style="gap:8px"><h3><span class="dot ${p.keyed ? p.status.status || "green" : "grey"}"></span>${esc(p.name)} <span class="dim small" style="font-weight:400">${esc(p.vendor)}</span></h3><span class="dim small" style="margin-left:auto;font-family:var(--mono)">${n} / ${list.length}</span></div>
+      <div class="row" style="gap:8px"><h3><span class="dot ${sideOn(p) ? p.status.status || "green" : "grey"}"></span>${esc(p.name)} <span class="dim small" style="font-weight:400">${esc(p.vendor)}</span></h3><span class="dim small" style="margin-left:auto;font-family:var(--mono)">${n} / ${list.length}</span></div>
       <div class="muted" style="margin-top:6px">${esc(p.why)}${p.free ? ` <span class="chip green">free tier</span>` : ""}</div>
-      ${p.keyed ? `<div class="result green">Already linked: <span class="mono">${esc(p.masked || "")}</span>. ${esc(p.status.detail || "")} Paste a new key below to replace it, or press Next.</div>` : ""}
+      ${conn?.council ? `<div class="dim small" style="margin-top:8px">${esc(conn.note)}</div>` : ""}
+      ${both ? `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn sm ${stepMode === "key" ? "primary" : ""}" id="ks-mode-key">Connect with API key</button>
+        <button type="button" class="btn sm ${stepMode === "mcp" ? "primary" : ""}" id="ks-mode-mcp">Connect with MCP</button>
+        <button type="button" class="btn sm" id="ks-test">Test connection</button>
+        <span class="small dim">Active: ${activeLabel}${conn.key?.configured && conn.mcp?.configured ? " · both set up, the other is the fallback" : ""}</span>
+      </div>
+      <div class="dim small" style="margin-top:4px">${esc(conn.note || "")}</div>` : ""}
+      ${p.keyed ? `<div class="result green">API key saved: <span class="mono">${esc(p.masked || "")}</span>. ${esc(p.status.detail || "")}</div>` : ""}
+      ${conn?.mcp?.configured ? `<div class="result green">MCP connected: ${esc(conn.mcp.name || "server")}${conn.mcp.tools?.length ? ` (${conn.mcp.tools.length} tools)` : ""}.</div>` : ""}
       <ol class="steps">${p.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+      ${mcpOn ? `<div class="row" style="margin-top:12px;gap:8px">
+        <select id="ks-transport" style="width:auto"><option value="http">Remote HTTP</option><option value="sse">Remote SSE</option><option value="stdio">Local command</option></select>
+        <input id="ks-target" placeholder="https://server/mcp or a start command" value="${esc(conn.mcp?.url || "")}" style="flex:1" autocomplete="off">
+      </div>
+      <input type="password" id="ks-headers" placeholder="Header (optional): Authorization: Bearer ..." style="width:100%;margin-top:8px" autocomplete="off">
+      <div class="row" style="margin-top:8px"><button class="btn sm primary" id="ks-mcp" ${busy ? "disabled" : ""}>${busy ? "Testing…" : "Test and connect"}</button></div>
+      <div class="dim small" style="margin-top:8px">The header is sealed in the vault. This uses the same MCP connection as Settings, Tools.</div>` : `<div>
       <div class="row" style="margin-top:10px;gap:8px">${p.keysUrl ? `<a class="btn sm" href="${esc(p.keysUrl)}" target="_blank" rel="noopener">Open the ${esc(p.name)} key page</a>` : ""}${p.billingUrl ? `<a class="small" href="${esc(p.billingUrl)}" target="_blank" rel="noopener">billing</a>` : ""}<span class="dim small">A key looks like <span class="mono">${esc(p.looks)}</span></span></div>
       <div class="row" style="margin-top:12px;gap:8px">
         <input type="password" id="ks-key" placeholder="${esc(p.fields.secret ? "access key" : "paste the key here")}" style="flex:1" autocomplete="off" spellcheck="false">
@@ -78,20 +110,25 @@ function render() {
         ${p.fields.workspaceId ? `<input type="text" id="ks-ws" placeholder="workspace ID (optional)" style="width:180px;font-family:var(--mono)" autocomplete="off" title="Only for keys that must name a workspace.">` : ""}
         <button class="btn sm primary" id="ks-save" ${busy ? "disabled" : ""}>${busy ? "Testing…" : "Test and save"}</button>
       </div>
+      <div class="dim small" style="margin-top:10px">The console sends one test call to ${esc(p.name)}, then seals the key in the vault. It is never logged and never shown again (only its first and last four characters).</div>
+      </div>`}
       ${hint ? `<div class="small" style="margin-top:6px">${hint}</div>` : ""}
       ${result ? `<div class="result ${result.tone}"><b>${esc(result.label)}.</b> ${esc(result.detail || "")}${result.tone === "amber" && result.billingUrl ? ` <a href="${esc(result.billingUrl)}" target="_blank" rel="noopener">Add credit</a>.` : ""}${result.tone === "red" ? " Nothing was saved; copy the key again and retry, or skip this one." : ""}</div>` : ""}
-      <div class="dim small" style="margin-top:10px">The console sends one test call to ${esc(p.name)}, then seals the key in the vault. It is never logged and never shown again (only its first and last four characters).</div>
       <div class="foot"><button class="btn sm" id="ks-back" ${idx === 0 ? "disabled" : ""}>Back</button><button class="ghost small" id="ks-skip">Skip ${esc(p.name)}</button><span style="flex:1"></span><button class="ghost small" id="ks-close">Close</button><button class="btn sm primary" id="ks-next">${n === list.length ? "Finish" : "Next"}</button></div>
     </div>`;
   }
   el.innerHTML = `<div class="box" role="dialog" aria-label="Guided API-key setup">${side}${main}</div>`;
-  el.querySelectorAll(".side button").forEach((b) => b.addEventListener("click", () => { result = null; hint = null; idx = Number(b.dataset.i); render(); }));
+  el.querySelectorAll(".side button").forEach((b) => b.addEventListener("click", () => applyStep(Number(b.dataset.i))));
   el.querySelector("#ks-back")?.addEventListener("click", back);
   el.querySelector("#ks-next")?.addEventListener("click", next);
   el.querySelector("#ks-close")?.addEventListener("click", close);
   el.querySelector("#ks-done")?.addEventListener("click", async () => { try { await api("/keysetup/complete", { method: "POST" }); } catch {} close(); toast(data.linkedCount ? "Keys set up. Your AIs are ready." : "No keys saved. Add them any time from Settings."); go("command"); });
   el.querySelector("#ks-skip")?.addEventListener("click", async () => { try { data = await api("/keysetup/skip", { method: "POST", body: { provider: p.id } }); } catch {} next(); });
   el.querySelector("#ks-save")?.addEventListener("click", () => save(p));
+  el.querySelector("#ks-mode-key")?.addEventListener("click", () => chooseMode(p, "key"));
+  el.querySelector("#ks-mode-mcp")?.addEventListener("click", () => chooseMode(p, "mcp"));
+  el.querySelector("#ks-test")?.addEventListener("click", () => testConn(p));
+  el.querySelector("#ks-mcp")?.addEventListener("click", () => saveMcp(p));
   const keyEl = el.querySelector("#ks-key");
   keyEl?.addEventListener("keydown", (e) => { if (e.key === "Enter") save(p); });
   keyEl?.addEventListener("input", () => detect(p, keyEl.value.trim()));
@@ -118,6 +155,40 @@ function detect(p, key) {
   }, 350);
 }
 
+async function chooseMode(p, mode) {
+  try { await api("/connect/active", { method: "POST", body: { provider: p.id, mode } }); await load(); stepMode = mode; modeLock = null; }
+  catch (e) { return toast(e.message, true); }
+  render();
+}
+async function testConn(p) {
+  try {
+    const r = await api("/connect/test", { method: "POST", body: { provider: p.id, mode: stepMode } });
+    result = { tone: r.ok ? "green" : "red", label: r.ok ? "Connection works" : "Not connected", detail: r.detail };
+    toast(`${p.name}: ${r.detail}`, !r.ok);
+  } catch (e) { result = { tone: "red", label: "Not connected", detail: e.message }; }
+  render();
+}
+async function saveMcp(p) {
+  if (busy) return;
+  const transport = el.querySelector("#ks-transport")?.value || "http";
+  const target = el.querySelector("#ks-target")?.value.trim();
+  const headers = el.querySelector("#ks-headers")?.value.trim();
+  if (!target) return toast(transport === "stdio" ? "Type the start command" : "Paste the MCP server address", true);
+  const body = { provider: p.id, transport };
+  if (transport === "stdio") {
+    const parts = target.match(/"[^"]*"|'[^']*'|\S+/g)?.map((a) => a.replace(/^["']|["']$/g, "")) || [];
+    body.command = parts[0] || ""; body.args = parts.slice(1);
+  } else body.url = target;
+  if (headers) body.headers = headers;
+  busy = true; render();
+  try {
+    const r = await api("/connect/mcp", { method: "POST", body });
+    result = { tone: r.ok ? "green" : "amber", label: r.ok ? "MCP connected" : "Saved, not reached", detail: r.ok ? `${r.tools?.length || 0} tools` : (r.error || "") };
+    await load();
+    refresh().catch(() => {});
+  } catch (e) { result = { tone: "red", label: "Not saved", detail: e.message }; }
+  busy = false; render();
+}
 async function save(p) {
   if (busy) return;
   const key = el.querySelector("#ks-key")?.value.trim();
