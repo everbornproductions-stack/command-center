@@ -850,3 +850,9 @@ PHASE 29 DONE (built by Cursor cloud agent)
 - Tests: test/voice.test.js. npm test 191 pass, 1 skipped (Pyodide is not installed here; the real-browser artifacts test ran), npm run smoke all checks pass. No real key, no network provider, temp data dir only.
 
 FIX voice-toggle DONE (built by Cursor cloud agent)
+
+## 2026-10-19 10:30 PT: chain resumed by Grok Bot
+- Merged Cursor PRs #3 (onboarding runs once), #4 (Phase 29 live project view and flow map) and #5 (hold-to-talk fix, tap-to-talk) into main. Conflicts in BUILD-LOG.md kept both sides; server/mock.js and test/helpers.js kept the PR #4 version (same demo-provider order fix and an identical test keychain stand-in as PR #5). npm test 212 tests, 210 pass, 0 fail, 2 skipped; npm run smoke all pass.
+- Released v0.4.0 on command-center-releases (built from main at 99158ad, which includes the publish change another session committed at 10:11). Installer, blockmap and latest.yml uploaded; latest.yml says 0.4.0 and the release is marked latest.
+- PR #2 (older Phase 17 draft, conflicting) left open: Phase 17 was already built by Claude.
+- CC-Build-Chain task re-enabled. The chain still stops at the Phase 14 BLOCKED line (needs a real Mac) until Chris decides how to handle Phase 14; phases 2-7 and 9-11 come after it in the run order.
