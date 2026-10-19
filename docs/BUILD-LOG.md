@@ -828,3 +828,15 @@ PHASE 14 BLOCKED: everything that can be done on Windows is finished and committ
 - Not verified: a packaged Electron build, a real Windows DPAPI vault, or a real browser profile. The fresh setup screen, the hub after history exists, and Settings were checked in the browser against the local server.
 
 FIX onboarding-repeat DONE (built by Cursor cloud agent)
+
+## 2026-10-19: Phase 29 (Live project view), built by Cursor cloud agent
+
+- Live tab, the Command status line, and the project page show who is working, the current step, and credits or cost from the existing ledger, updating over the existing WebSocket. Open in links: Kling task page, and the OpenAI, Anthropic, and xAI usage dashboards. The UI says API chats do not appear in claude.ai, grok.com or ChatGPT history. Links are only opened by a click. Nothing is fetched.
+- Flow map (SVG and CSS, no new dependencies): each AI or agent is a node. Active nodes glow. Busy edges carry a light stream. Idle nodes and edges fade to dim and stay on the map. A tooltip shows the step and the cost. prefers-reduced-motion keeps the highlight and turns the moving light off.
+- Outside agents use one adapter: Grok Bot (webhook handoff), the built-in browser helper, Cursor cloud builders, and any later agent added with registerExternalAgent. Each handoff shows sent, working, or reported back, the job, when it was sent, the result, and an Open link only for an https page (Cursor uses https://cursor.com/agents/<id>). Phase 12 and Phase 27 already emit external.handoff from their own dispatch. This phase only watches that event.
+- Demo pretend providers are registered before their keys are saved, so on macOS and Linux without the desktop keychain those keys stay in memory, which vault.js already allowed. Tests seal other keys with a process-local stand-in for the desktop keychain. The app itself still refuses plain Node saves.
+- Rebased onto origin/main after Phases 12, 16, 26, 27, 28, 25, 13, and 17 through 24 and 14. Claude's log, decisions, and plan text were kept.
+- Tests: npm test 186 pass / 1 skipped (test/liveview.test.js adds 8: links, mission events, flow-map state, Kling credits, external handoffs, the Phase 12 and Phase 27 handoff payloads, source checks, and a demo chat over the WebSocket). npm run smoke all checks pass. No real provider URL or key. Node 22.14.0 here has no FTS5 in node:sqlite, so the library tests need 22.23.3 (which has it); that is the runtime, not a Phase 29 change.
+- Browser (before the rebase): Live tab, a demo Single chat, Nova on the map with the tooltip "Nova (demo) answering" and $0.0001, and the map on the project page. Not verified: the OS reduced-motion setting in a browser, opening a real Kling or usage page, and a real Grok Bot, browser helper, or Cursor cloud handoff (handoffs were tested with mocked events shaped like the Phase 12 and Phase 27 payloads).
+
+PHASE 29 DONE (built by Cursor cloud agent)

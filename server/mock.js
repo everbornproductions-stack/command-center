@@ -168,14 +168,16 @@ function answerFor(model, system, user, messages = []) {
 export function demoActive() { return !!server && hasSecret(DEMO[0].id); }
 
 export async function startDemo() {
-  for (const d of DEMO) if (!hasSecret(d.id)) await setSecret(d.id, "demo-key");
-  if (server) return;
+  // Register the pretend providers before saving their keys. On macOS and Linux without the
+  // desktop keychain, vault.js keeps a demo key in memory and refuses every other save.
   for (const d of DEMO) {
     if (PROVIDERS[d.id]) continue;
     PROVIDERS[d.id] = { id: d.id, name: d.name, vendor: d.vendor, color: d.color, kind: "text", api: "openai", demo: true, baseUrl: `http://127.0.0.1:${PORT}/v1`, keyEnv: "CC_DEMO_KEY", keyHint: "demo", links: { app: "http://localhost:4747", console: null, billing: null, status: null }, statusApi: null,
       models: d.models.map(([id, name, tier, inp, out], i) => ({ id, name, tier, in: inp, out, caps: caps(id.length + i), default: i === 0 })) };
     TEXT_PROVIDERS.push(PROVIDERS[d.id]);
   }
+  for (const d of DEMO) if (!hasSecret(d.id)) await setSecret(d.id, "demo-key");
+  if (server) return;
   server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url.endsWith("/models")) { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) })); }
     let body = ""; for await (const c of req) body += c;
