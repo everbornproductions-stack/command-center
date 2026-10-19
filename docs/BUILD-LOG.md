@@ -1017,3 +1017,31 @@ PHASE 6 DONE
 - npm test 243 tests, 241 pass, 0 fail, 2 skipped (one earlier run had 1 flaky failure that did not repeat); npm run smoke all pass.
 - Released v0.4.1 (Phases 2-6 + licence key) on command-center-releases with installer, blockmap and latest.yml.
 - Chain re-enabled and started; it resumes at Phase 7 (Phases up to 6 are DONE in this log).
+
+## 2026-10-19 22:10 PT: Phase 7 (Integrations: OAuth, post only on click)
+- Started after PHASE 6 DONE and the v0.4.1 release note. No Phase 7 commits existed yet. No conflict with docs/DECISIONS.md.
+- Already in the code before this session, and kept: the publish plugin (Post to Instagram, Schedule in GHL, a Drive-synced folder) with preview, confirm, one preview per post, dry run without credentials, history and a ledger note per post. It had no Slack, no OAuth and no Drive API, and its adapters called fixed real addresses, so it could not be tested against a mock. This phase added only that.
+- OAuth connectors (server/publish/oauth.js), Settings > Publishing:
+  - Google Drive, Instagram (Meta), HighLevel and Slack. The person pastes their own app's client ID and secret and clicks Connect; the page comes back with ?code=&state=pub-<connector>-... and the server swaps the code.
+  - Least scopes: Drive `drive.file` only (the app sees only files it made), Meta instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement, HighLevel socialplanner/post.write and socialplanner/account.readonly, Slack chat:write and channels:read. Google uses PKCE (S256). A grant wider than asked for is refused and nothing is kept. A state is single use, expires after 10 minutes and, in hosted mode, belongs to one user.
+  - Instagram: the user token is swapped for a long-lived one, then the Page token of the first Page with a linked Instagram professional account is kept, with the IG user id. HighLevel keeps the location id from the token answer. Google and HighLevel tokens are refreshed before a post when they are about to expire; a refused refresh shows "sign in again".
+  - Tokens go to the vault under the same ids a pasted token uses (meta, ghl, plus slack and drive-publish); client secrets have their own vault entries. Neither is ever sent back to the page. The Google client of the browser helper is reused when no own client is set. Disconnect removes the token. Pasting a token still works (Slack bot token added).
+  - Connecting posts nothing.
+- Channels:
+  - Send to Slack (new, server/publish/slack.js): pick a channel from the workspace's public channels, the message is the title plus the text (and an https media link if any), and the permalink is kept.
+  - Save to Drive: uploads the deliverable as Markdown, plus the attached media job's files (resumable upload, only to Google's own upload address), into one "Command AI" folder the app makes once and reuses. Without a Drive connection it writes to the Drive-synced folder as before.
+  - Under each deliverable: Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive. Each still needs a preview and then the confirm click, and posts exactly what was previewed.
+  - The Meta, HighLevel, Slack and Drive API addresses can be pointed at a local mock with env vars (CC_META_GRAPH_URL, CC_GHL_API_URL, CC_SLACK_API_URL, CC_DRIVE_API_URL, CC_DRIVE_UPLOAD_URL and the matching *_AUTH_URL). Requests no longer follow redirects and have timeouts.
+- Commits:
+  - f6a9741 Phase 7: integrations (R3): connect Google Drive, Instagram (Meta), HighLevel and Slack with the person's own OAuth app (least scopes, PKCE for Google, a wider grant or stale state saves nothing, tokens and client secrets in the vault, expiring tokens refreshed, Disconnect); Send to Slack channel; Save to Drive uploads to a "Command AI" folder through the Drive API (drive.file) when connected, else the Drive-synced folder; Post to Instagram, Schedule in HighLevel, Send to Slack and Save to Drive each need a preview and a click; API addresses overridable for tests; tests with one local mock of all four services
+- Tests:
+  - New: test/integrations.test.js (4), one local mock on a random port plays Google, Meta, HighLevel and Slack: client ID required first; sign-in links ask only for the listed scopes with PKCE for Google; a forged or reused state and a wider Google grant save nothing; all four connect and nothing is posted by connecting; no token or client secret in any reply to the page; a preview calls no service; each channel posts only after confirm and with the previewed text; the HighLevel token is refreshed first; Drive uploads into one reused folder and only the media job's own file; history and ledger lines; Disconnect makes Slack a dry run that sends nothing; no token or client secret in any data file or the server log. test/publish.test.js: the Drive ledger label is now "Google Drive".
+  - npm test: 247 tests, 245 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips). npm run smoke: all checks pass. Run on the committed tree. Node 24.21.0. Temp data dirs, mocks only, no real key or URL.
+- Not verified:
+  - No real Google, Meta, HighLevel or Slack sign-in or API call was made. Request and answer shapes follow the published docs and were only run against the mock. A first real connection will confirm them, in particular: Meta's Page and Instagram lookup, HighLevel's token answer (locationId, user_type=Location) and its scope names, and Drive's resumable upload.
+  - Redirect addresses: the app uses its own address (http://127.0.0.1:<port>/) as the redirect. Google allows this for a Desktop client. Meta and Slack may require an https redirect, and HighLevel requires the address to be registered in the Marketplace app; whether they accept http://127.0.0.1 is unconfirmed. If not, connecting those needs the hosted hub or a tunnel (not built, not deployed), and pasting a token still works.
+  - The Settings rows, the Slack channel picker and the return from sign-in were syntax-checked and their routes tested, not clicked through in a browser or the desktop app.
+  - Meta's long-lived Page token and Slack bot tokens do not expire on a timer, so they are not refreshed; if one is revoked the post fails with a clear message.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 7 DONE
