@@ -75,9 +75,16 @@ export async function verifyToken(token) {
   const r = await fetch(`${CFG.url}/auth/v1/user`, { headers: { apikey: CFG.anonKey, authorization: `Bearer ${token}` } });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j?.id) throw Object.assign(new Error(j?.msg || j?.message || "Session expired. Sign in again."), { status: 401 });
-  const user = { id: j.id, email: (j.email || "").toLowerCase() };
   // never cache past the token's own expiry
-  let exp = 0; try { exp = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).exp * 1000; } catch {}
+  let exp = 0, claims = {}; try { claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()) || {}; exp = claims.exp * 1000; } catch {}
+  // Team SSO (Phase 24): how this session signed in (Supabase's amr claim: "oauth" for Google / Microsoft,
+  // "otp" or "magiclink" for the emailed link) and which sign-in identities the account has, with their addresses.
+  // The token was just accepted by Supabase Auth, so its claims are the ones Auth issued.
+  const amr = Array.isArray(claims.amr) ? claims.amr : [];
+  const latest = amr.reduce((a, x) => (!a || Number(x?.timestamp || 0) > Number(a?.timestamp || 0) ? x : a), null);
+  const method = latest?.method ? String(latest.method) : null;
+  const identities = (Array.isArray(j.identities) ? j.identities : []).map((i) => ({ provider: String(i?.provider || "").toLowerCase(), email: String(i?.identity_data?.email || i?.email || "").toLowerCase() })).filter((i) => i.provider);
+  const user = { id: j.id, email: (j.email || "").toLowerCase(), auth: { method, identities } };
   tokenCache.set(h, { user, until: Math.min(Date.now() + 5 * 60 * 1000, exp || Infinity) });
   if (tokenCache.size > 5000) tokenCache.delete(tokenCache.keys().next().value);
   return user;

@@ -115,7 +115,17 @@ export async function setSecret(providerId, value) {
   else if (!memoryOnly) await saveLocal(c.secrets);
 }
 
+// Per-workspace keys (Phase 24, server/workspace-keys.js): while a workspace is active, its key for a
+// provider is used first, and only then. Set once at startup.
+let scoped = null;
+export const setScopedResolver = (fn) => { scoped = typeof fn === "function" ? fn : null; };
+
 export function getSecret(providerId, envName) {
+  if (scoped) { const w = scoped(ctx(), providerId); if (w?.key) return w; }
+  return getOwnSecret(providerId, envName);
+}
+// your own key only (Settings > keys edits this one, never a workspace's)
+export function getOwnSecret(providerId, envName) {
   const s = ctx().secrets?.[providerId];
   if (s?.key) return typeof s.key === "string" && s.key !== s.key.trim() ? { ...s, key: s.key.trim() } : s; // trim on read too (keys saved before v0.3.2)
   // env fallback is a single-user convenience; in a hosted hub it would leak one key to every user

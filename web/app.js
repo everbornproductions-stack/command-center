@@ -962,7 +962,9 @@ function renderGate(message = "") {
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" required placeholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
-    <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>`}
+    <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
+    ${(CONFIG.sso || []).length ? `<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">${CONFIG.sso.map((p) => `<button class="btn" type="button" data-sso="${esc(p.id)}" style="flex:1">Continue with ${esc(p.name)}</button>`).join("")}</div>
+    <div class="small muted" style="margin-top:6px">Your team may ask you to use your work Google or Microsoft account.</div>` : ""}`}
     <div class="dim small" style="text-align:center;margin-top:16px">Command AI, an Everborn product by Everborn Productions</div>
     <div id="gate-msg" class="small" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
     <details style="margin-top:14px"><summary class="small muted" style="cursor:pointer">Hub address</summary>
@@ -981,6 +983,13 @@ function renderGate(message = "") {
       $("#gate-msg").style.color = "var(--green)"; $("#gate-msg").textContent = `Link sent to ${email}. Open it on this device (check spam if it takes a minute).`;
     } catch (err) { $("#gate-msg").style.color = "var(--red)"; $("#gate-msg").textContent = err.message; b.disabled = false; b.textContent = "Email me a sign-in link"; }
   });
+  // Google / Microsoft sign-in (Phase 24): the hub sends the browser to Supabase Auth and back here with the session
+  $$("[data-sso]", g).forEach((b) => b.addEventListener("click", () => {
+    const back = location.origin + location.pathname;
+    location.href = HUB && HUB !== location.origin
+      ? `${CONFIG.supabase.url}/auth/v1/authorize?${new URLSearchParams({ provider: b.dataset.sso, redirect_to: back, scopes: "openid email profile" })}`
+      : `/api/sso/start?${new URLSearchParams({ provider: b.dataset.sso, redirect: back })}`;
+  }));
   $("#gate-hub-save")?.addEventListener("click", () => { const v = $("#gate-hub").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return; localStorage.setItem("cc.hub", v); location.reload(); });
   $("#gate-hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
 }

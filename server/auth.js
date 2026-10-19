@@ -28,7 +28,7 @@ export async function contextForToken(token) {
       console.log(`[auth] context ready for ${c.email} (${Object.keys(c.secrets).length} keys, ${c.ledger.length} ledger rows, ${c.missions?.size || 0} missions loaded)`);
     })().catch((e) => { dropContext(user.id); throw e; });
   }
-  c.token = token; c.email = user.email; c.lastSeen = Date.now();
+  c.token = token; c.email = user.email; c.auth = user.auth || null; c.lastSeen = Date.now(); // auth: how this session signed in (Team SSO, Phase 24)
   if (!c.ready) await c.loading;
   return c;
 }

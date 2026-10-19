@@ -92,6 +92,16 @@ try {
   let sr = null; for (let i = 0; i < 120 && !(sr && !["queued", "running"].includes(sr.status)); i++) { await sleep(500); sr = (await owner.api(`/schedules/runs/${hr.json?.run_id}`)).json; }
   check(sr?.status === "needs_approval" && sr.cost > 0, "scheduled result waits for approval before it is sent");
   check((await owner.api(`/schedules/runs/${sr?.id}/reject`, { method: "POST" })).json?.status === "rejected", "Don't send drops the result (nothing sent)");
+  // smaller extras (Phase 24): live prices, the quick launcher, the browser extension, workspace keys
+  const lp = (await owner.api("/pricing/live")).json;
+  check(lp?.on === true && lp.rows?.some((r) => r.model === "grok-4.3" && r.source === "built-in"), "live prices on, built-in prices until OpenRouter answers (local stub here)");
+  const qk = (await owner.api("/hotkey")).json;
+  check(qk?.accelerator === "Alt+Space" && qk.desktop === false, "quick launcher: Alt+Space by default, desktop app only");
+  const pair = (await owner.api("/extension/pairings", { method: "POST", body: { name: "Smoke browser" } })).json;
+  const ping = (code) => owner.raw({ path: "/api/ext/ping", headers: code ? { authorization: `Bearer ${code}` } : {} });
+  check((await ping("cce.4747.wrongwrongwrongwrongwrongwrongwrong0")).status === 401 && (await ping(pair?.code)).status === 200, "extension accepted only with its pairing code");
+  const wsk = (await owner.api("/workspaces", { method: "POST", body: { name: "Smoke team" } })).json;
+  check((await owner.api(`/wskeys/${wsk?.id}`, { method: "POST", body: { provider: "openai", key: "sk-smoke-not-a-real-key-0000" } })).json?.masked === "sk-s…0000", "workspace key saved, shown masked only");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 
@@ -118,6 +128,7 @@ try {
   check(hbad.status === 400 && /not a zip file/.test(hbad.json?.error || ""), "a bad export file is refused with a clear message");
   const hsync = (await free.api("/history/sync")).json;
   check(hsync?.enabled === false && (await free.api("/history/sync/setup", { method: "POST", body: { passphrase: "a long enough passphrase" } })).status === 400, "sync is off by default and needs a cloud project");
+  check((await free.api("/wskeys/w-any", { method: "POST", body: { provider: "openai", key: "sk-smoke-not-a-real-key-0000" } })).status === 402, "workspace keys gated (Studio)");
 } catch (e) { check(false, e.message); } finally { await free.stop(); }
 
 log(failures ? `${failures} check(s) FAILED` : "all smoke checks passed");

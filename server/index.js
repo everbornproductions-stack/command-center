@@ -12,7 +12,9 @@ import { HOSTED, als, ctx, doc, putDoc, newContext, FileStore, setDefaultContext
 import { CFG, assertHostedConfig } from "./hosted.js";
 import { bearer, contextForToken, setContextInitializer } from "./auth.js";
 import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, priceSource, pricingRules, saveRules, activeDiscount, nextDiscountStart } from "./registry.js";
-import { loadVault, setSecret, getSecret, hasSecret, maskedKey, vaultInfo } from "./vault.js";
+import { loadVault, setSecret, getSecret, getOwnSecret, hasSecret, maskedKey, vaultInfo } from "./vault.js";
+import { loadForActive as loadWorkspaceKeys } from "./workspace-keys.js";
+import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso.js";
 import { bus, emit } from "./events.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
 import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall, getStatus } from "./health.js";
@@ -107,7 +109,7 @@ function providerView() {
     .filter((p) => !p.demo || hasSecret(p.id)) // demo AIs only for the user who turned demo on
     .map((p) => ({
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
-      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), status: st[p.id] || { status: "grey" },
+      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" },
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
     }))
@@ -180,7 +182,7 @@ function fullState() {
 }
 
 // What the browser may know before signing in.
-const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
+const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null, sso: ssoProviders() });
 
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
@@ -277,7 +279,7 @@ async function api(req, res, url) {
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
-    const prev = getSecret(body.provider);
+    const prev = getOwnSecret(body.provider); // never a workspace's key (Phase 24)
     const key = String(body.key || "").trim() || (body.workspaceId !== undefined && !prev?.fromEnv ? prev?.key || "" : "");
     if (!key) return json(res, 400, { error: "key required" });
     const keepHeaders = PROVIDERS[body.provider].custom ? prev?.headers : null; // custom providers keep their extra headers
@@ -462,6 +464,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());
     if (url.pathname === "/api/pair/qr.svg") return pairQr(res, url);
+    if (url.pathname === "/api/sso/start") return ssoStart(req, res, url, json); // Google / Microsoft sign-in on the hub (Phase 24)
     if (url.pathname.startsWith("/api/")) {
       if (!HOSTED) return await api(req, res, url);
       let c;
@@ -543,6 +546,7 @@ async function initContext() {
   if (settings().demo) await startDemo().catch((e) => { console.error("[demo]", e.message); emit("log", { text: `Demo mode could not start: ${e.message}`, level: "error" }); });
   restoreScheduled();
   if (HOSTED) await loadHostedLicense();
+  if (HOSTED) await loadWorkspaceKeys().catch((e) => console.error("[workspace-keys]", e.message)); // the active workspace's keys (Phase 24)
   checkAll().then(() => retireDemoIfReal()).catch(() => {});
 }
 

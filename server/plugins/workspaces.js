@@ -12,6 +12,7 @@ import { rest } from "../hosted.js";
 import { licenseState } from "../license.js";
 import { listProjects } from "../projects.js";
 import { emit } from "../events.js";
+import { check as ssoCheck } from "../sso.js";
 
 export const id = "workspaces";
 const STUDIO = new Set(["studio", "owner"]);
@@ -100,8 +101,12 @@ async function hostedView() {
   const roleIn = (w) => w.owner_id === myId ? "owner" : ((members || []).find((m) => m.workspace_id === w.id && (m.user_id === myId || clean(m.email) === email) && m.status === "active")?.role || null);
   const managed = (ws || []).filter((w) => can(roleIn(w), "usage.viewAll")).map((w) => w.id);
   const usage = managed.length ? await q(`workspace_usage?select=workspace_id,user_id,email,month,calls,cost&workspace_id=in.(${managed.join(",")})&order=month.desc`) : await q(`workspace_usage?select=workspace_id,user_id,email,month,calls,cost&user_id=eq.${myId}`).catch(() => []);
+  // Team SSO (Phase 24): a workspace whose sign-in rule this session does not meet shows as locked, without its contents
+  const locked = new Map();
+  for (const w of ws || []) { const role = roleIn(w); if (role && role !== "owner") { const r = await ssoCheck(w.id, role); if (!r.ok) locked.set(w.id, r.reason); } }
   const shape = (w) => {
     const role = roleIn(w);
+    if (locked.has(w.id)) return { id: w.id, name: w.name, createdAt: new Date(w.created_at).getTime(), ownerId: w.owner_id, role, permissions: permissionsFor(role), members: [], projects: [], usage: [], locked: locked.get(w.id) };
     return {
       id: w.id, name: w.name, createdAt: new Date(w.created_at).getTime(), ownerId: w.owner_id, role, permissions: permissionsFor(role),
       members: (members || []).filter((m) => m.workspace_id === w.id).map((m) => ({ email: m.email, role: m.role, status: m.status, invitedAt: m.invited_at ? new Date(m.invited_at).getTime() : null, expiresAt: m.expires_at ? new Date(m.expires_at).getTime() : null, joinedAt: m.joined_at ? new Date(m.joined_at).getTime() : null })),
@@ -180,7 +185,10 @@ export async function routes(req, res, url, body, h) {
   // switcher: which workspace is active for me ("Personal" = null). Anyone may switch to a workspace they are in.
   if (method === "POST" && seg[0] === "active" && seg.length === 1) {
     const wsId = body.id || null;
-    if (wsId) { const role = await roleFor(wsId); if (!role) throw err(403, "You are not in this workspace.", "role"); }
+    if (wsId) {
+      const role = await roleFor(wsId); if (!role) throw err(403, "You are not in this workspace.", "role");
+      const sso = await ssoCheck(wsId, role); if (!sso.ok) throw err(403, sso.reason, "sso"); // Team SSO (Phase 24)
+    }
     putDoc(ACTIVE_DOC, { id: wsId, at: Date.now() });
     emit("workspace.active", { id: wsId });
     return h.json(res, 200, { ok: true, active: wsId });
