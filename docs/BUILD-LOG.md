@@ -856,3 +856,35 @@ FIX voice-toggle DONE (built by Cursor cloud agent)
 - Released v0.4.0 on command-center-releases (built from main at 99158ad, which includes the publish change another session committed at 10:11). Installer, blockmap and latest.yml uploaded; latest.yml says 0.4.0 and the release is marked latest.
 - PR #2 (older Phase 17 draft, conflicting) left open: Phase 17 was already built by Claude.
 - CC-Build-Chain task re-enabled. The chain still stops at the Phase 14 BLOCKED line (needs a real Mac) until Chris decides how to handle Phase 14; phases 2-7 and 9-11 come after it in the run order.
+
+## 2026-10-19 20:50 PT: Phase 2 (Proof of value)
+- Started on Chris's direct order for Phase 2. Phase 14 is BLOCKED only on steps that need a Mac, which decision 14 expects. No conflict with docs/DECISIONS.md.
+- Already in the code before this session, and kept as it was: the pipelines plugin with Instagram week, Music video and Client site launch; per-run savings receipts with a PNG export under each deliverable and a totals line in Command; spend caps with amber at 80%, a stop at 100% in the router, and in-app, push and email alerts (74d9cca). This phase added only what was missing.
+- Starter pipelines (R1):
+  - Added the "Client proposal" starter: problem and goals, plan, timeline, pricing options, and the proposal letter. Every amount comes from the inputs or is marked [ASK]. It is a draft and is never sent from the app.
+  - "Off-peak" on a pipeline run used to be ignored: the run started at once. It now queues for the next discount window, the same way a Command mission does, and runs at once only when no window is configured. The scheduler tier gate applies.
+  - Results are filed under the project: the mission carries projectId, and the project page lists it.
+- Savings receipt (R7):
+  - The Credits tab has a new "Savings receipts" panel: saved this month and all time against the flagship-only cost, the number of runs, and the newest runs, each with its own "save as image" PNG.
+  - New route GET /api/receipt/recent.
+  - The Credits tab has a feature hook (`credits` kind, `#credits-extras`). The tab redraws on every tick, so the panel fetches at most every 30 s.
+- Spend caps and alerts (R10):
+  - Gap fixed: the router stopped sending work to a capped AI only while another AI was free, and a chat pinned to a capped AI still called it. Now streamChat refuses any call to a provider at 100% of its cap, with a clear "reached its monthly spend cap" note and code `cap`.
+  - Smart fallback treats that refusal as a reason to hand the job to a stand-in. It does not mark the provider as in trouble or log a failure against it, and the chat runner does not count it as the provider's failure either.
+  - Saving a cap that is already at 80% or 100% now raises the alert right away.
+  - The amber text no longer says the router "leans away" (it never did). It now says the AI keeps working until 100%.
+- Commits:
+  - d7e6514 Phase 2: starter pipelines add Client proposal, off-peak pipeline runs queue for the discount window, tests
+  - 23fe8b0 Phase 2: savings receipts on the Credits tab (totals, recent runs, PNG per run), tests
+  - 783556f Phase 2: spend caps hard stop at 100% even with no stand-in, alert on cap save, honest amber text, tests
+- Tests:
+  - New: test/pipelines.test.js (3), test/receipt.test.js (2), test/caps.test.js (1). Temp data dir, demo AIs only, no real key or URL.
+  - npm test: 218 tests, 216 pass, 0 fail, 2 skipped.
+  - npm run smoke: all checks pass.
+- Not verified:
+  - The Credits tab panel and the PNG export were not opened in a real browser. They are covered by source checks only.
+  - An off-peak pipeline that is actually queued: the test data dir may have no discount rule, and in that case the test only checks that the run starts.
+  - Push and email delivery of cap alerts (no real Resend key or push device). The test checks the alert record, not delivery.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 2 DONE
