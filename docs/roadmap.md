@@ -23,7 +23,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 | 8 | Live-share link | `server/plugins/share.js`, `web/share.html`, `web/features/share.js` | Read-only token URL that mirrors graph, tasks and feed of one mission in real time; expires; no keys or costs exposed unless toggled |
 | 9 | Voice orders | `web/features/voice.js` | Mic button on Marching Orders using the Web Speech API (Chrome/Edge), fallback to Wispr Flow dictation; push-to-talk and auto-send option |
 | 11 | Shared workspaces (Studio) | hosted-hub session: `server/hosted.js`, `server/store.js`, `supabase/workspaces.sql`, `web/features/workspaces.js` | Owner invites members by email; members see only shared projects; owner sees members' usage; tier gate on Studio |
-| 12 | Pipeline marketplace | `docs/marketplace.md` only for now | Design: listing, pricing, revenue share, moderation, install flow; build after 1 ships and has users |
+| 12 | Pipeline marketplace | `server/plugins/marketplace.js`, `web/features/marketplace.js`, `docs/marketplace.md` | Local and demo catalog, signed template file, install, moderation, placeholder revenue share. Payments are not built |
 
 ## Rules for every session
 

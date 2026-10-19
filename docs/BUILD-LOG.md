@@ -976,3 +976,7 @@ PHASE 4 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 5 DONE
+
+## 2026-10-19: Marketplace phase built by Cursor cloud agent in PR (pending merge)
+
+Marketplace phase built by Cursor cloud agent in PR (pending merge). Phase 10: local and demo catalog, signed pipeline export and import, share link, install on click, moderation queue, placeholder revenue share. Paid checkout is stubbed off (`CC_MARKET_PAID`). Nothing is charged. No payment service.

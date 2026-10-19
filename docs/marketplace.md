@@ -1,5 +1,9 @@
 # Pipeline marketplace (design, build after pipelines have users)
 
+## Status (Phase 10)
+
+The app has a Marketplace tab for a local and demo catalog. Install copies a pipeline, agent, or prompt onto this computer and does not run it. Paid prices are placeholders. Checkout is off unless `CC_MARKET_PAID=1`, and even then nothing is charged and no payment service is called. The tables below are a sketch for a later hosted catalog. The app does not create them.
+
 ## What it is
 
 Users publish the pipelines they have proven (steps, assignments, inputs, example output) and other users install them with one click. Everborn takes a cut. It turns the best customers into sellers and gives new customers a reason to stay subscribed: the library keeps growing.
