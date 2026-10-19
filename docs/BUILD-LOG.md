@@ -770,3 +770,46 @@ PHASE 23 DONE
 - Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). Nothing was pushed (Chris pushes).
 
 PHASE 24 DONE
+
+## Phase 14: Mac build (2026-10-19, about 14:50 local)
+- Started from scratch: no Phase 14 work was committed before this run. The Keychain vault (Electron safeStorage), the Mac targets in electron-builder.yml and docs/ci/mac-build.yml already existed from earlier phases.
+- Features:
+  - **macOS app menu** (electron/main.cjs): Command AI (About, Check for updates, Hide, Quit with Cmd+Q), Edit, View (full screen, zoom) and Window. Without it, Cmd+C, Cmd+V, Cmd+A and Cmd+Z do nothing in text boxes on a Mac and Cmd+Q does not quit. It has no reload item, so reloads still go through safeReload (decision 7). Windows still has no menu bar.
+  - **Tray:** an 18 pt icon in the Mac menu bar; Windows keeps 16 px.
+  - **Engine start:** the server is imported with `pathToFileURL`. The old Windows-only path rewrite would have produced a plain path for "/Applications/Command AI.app/...". Windows gives the same file:///C:/... URL as before.
+  - **Updates on unsigned Mac builds:** `MAC_SELF_UPDATE = false` turns on `manualInstall` in electron/updater.cjs on Mac only.
+    - The launch prompt, tray and Settings still say "vX.Y.Z is ready". Install now opens the release page for that version (https://github.com/everbornproductions-stack/command-center-releases/releases/tag/vX.Y.Z) and says why.
+    - It never downloads and never quits, because Apple lets only signed apps replace themselves.
+    - Windows is unchanged (manualInstall is off by default).
+    - Set the flag to true once Developer ID signing and notarization are on.
+  - **Mac workflow** (docs/ci/mac-build.yml):
+    - A missing release is now created as a **draft** and nothing is published. Before this, a tag push that ran ahead of the Windows release would have published a Mac-only release with no latest.yml, and every Windows copy would have reported an update error (decision 3).
+    - It now runs `npm run smoke` as well as `npm test`, and builds with the new `npm run dist:mac` (unsigned dmg and zip, x64 and arm64).
+    - It stays parked in docs/ci/ because moving it to .github/workflows/ needs `gh auth refresh -s workflow` and a push, which are Chris's steps.
+  - **Data folder:** unchanged. `app.setName("Everborn Command")` puts Mac data in `~/Library/Application Support/Everborn Command`. This is checked by test only.
+  - docs/RELEASING.md Mac section updated.
+- Commits:
+  - e79c7a1 Phase 14: Mac build readiness (macOS app menu, menu-bar tray size, pathToFileURL engine import, unsigned-Mac manual install, draft-only Mac workflow, dist:mac, tests)
+  - 212c2fb Phase 14 docs: RELEASING.md Mac section
+- Tests:
+  - npm test: 183 tests, 181 pass, 0 fail, 2 skipped (the same real-browser and Pyodide skips). The count includes another session's uncommitted test/publish.test.js.
+  - npm run smoke: all checks pass.
+  - New test/mac.test.js (5 tests):
+    - The workflow: unsigned, both architectures, RELEASES_TOKEN is the only secret, draft only, never publishes.
+    - The builder config: Mac names, same appId, Windows installer name unchanged.
+    - The main-process Mac wiring.
+    - The manual-install updater: opens the page, no download, no quit, Settings path rejected with a clear note.
+    - The Keychain vault: server/vault.js runs in a child Node that reports "darwin" (test/fixtures/as-darwin.cjs) with a stand-in for safeStorage. Saving writes an `ss1:` blob with no plain or base64 key, and it reads back. Plain Node on a Mac refuses to save and does not overwrite the vault.
+  - Extra check, not committed: the full suite also passed with every test process reporting "darwin" (176 pass, 2 skipped). The server child processes the tests start still ran as Windows, so this is only a partial emulation.
+- Not verified (each needs a real Mac or the Mac runner):
+  - `electron-builder --mac` was never run. It only runs on macOS, so the dmg and zip, their names and latest-mac.yml are unbuilt.
+  - The app was never started on a Mac: server start, Keychain prompt and real safeStorage, the tray in the menu bar, the window, the Dock click reopening it, the app menu and the data folder location.
+  - The quick-launcher hotkey and the built-in browser helper on macOS. The Alt+Space default maps to Option+Space there.
+  - The workflow has never run on GitHub (it is parked in docs/ci/).
+  - Gatekeeper first-open behaviour and the release page opened by Install now.
+- Chris decides:
+  - Turning the workflow on: `gh auth refresh -s workflow`, `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, push, and add the RELEASES_TOKEN secret.
+  - Whether to buy the Apple Developer account ($99/year) for signing, notarization and Mac self-updates.
+- Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). My scratch file `cc-mac-sim.tmp.cjs` was deleted. Nothing was pushed (Chris pushes).
+
+PHASE 14 BLOCKED: everything that can be done on Windows is finished and committed (Mac menu, tray, engine import, unsigned-Mac updates, draft-only workflow, tests), but the plan's step "check that the app runs on a Mac" (server start, Keychain vault, tray, window, data folder) and the Mac build itself need a real Mac or the macOS runner, which this PC does not have; signing and notarization also need the Apple Developer account Chris has not decided on.
