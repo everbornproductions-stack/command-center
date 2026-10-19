@@ -1,5 +1,5 @@
 {
-  "_comment": "Licence server shipped with the app. url is the Supabase project; anonKey is the PUBLISHABLE key (sb_publishable_...), which Supabase designs to be public and is safe to commit. It is NOT the service key. Leave anonKey empty and every copy runs on the Free tier until a licence can be checked.",
-  "url": "https://ezbpstloczzdlcxwliwu.supabase.co",
-  "anonKey": ""
+    "_comment":  "Licence server shipped with the app. url is the Supabase project; anonKey is the PUBLISHABLE key (sb_publishable_...), which Supabase designs to be public and is safe to commit. It is NOT the service key. Leave anonKey empty and every copy runs on the Free tier until a licence can be checked.",
+    "url":  "https://ezbpstloczzdlcxwliwu.supabase.co",
+    "anonKey":  "sb_publishable_-vQhqr9u5dSSLCkrnkNT5g_JmReU16a"
 }
