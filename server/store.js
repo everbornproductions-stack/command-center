@@ -71,6 +71,13 @@ export class FileStore {
       const v = readJson(path.join(this.dir, file), undefined);
       if (v !== undefined) c.docs[kind] = v;
     }
+    // plugin documents are stored as <kind>.json (e.g. reports.latest.json); read them back too
+    const mapped = new Set(Object.values(DOC_FILES));
+    for (const f of fs.readdirSync(this.dir)) {
+      if (!f.endsWith(".json") || mapped.has(f) || f === "package.json") continue;
+      const kind = f.slice(0, -5);
+      if (c.docs[kind] === undefined) { const v = readJson(path.join(this.dir, f), undefined); if (v !== undefined) c.docs[kind] = v; }
+    }
     c.ledger = [];
     const lf = path.join(this.dir, "ledger.jsonl");
     if (fs.existsSync(lf)) for (const line of fs.readFileSync(lf, "utf8").split("\n")) { if (!line.trim()) continue; try { c.ledger.push(JSON.parse(line)); } catch {} }

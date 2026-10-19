@@ -53,6 +53,9 @@ export function availableModels() {
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date() }) {
   const costWeight = { quality: 0.15, balanced: 0.5, economy: 1.1 }[mode] ?? 0.5;
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web));
+  // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
+  const capped = doc("alerts.state", () => null)?.stop || [];
+  if (capped.length && list.some((m) => !capped.includes(m.provider))) list = list.filter((m) => !capped.includes(m.provider));
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
