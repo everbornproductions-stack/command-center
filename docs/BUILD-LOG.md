@@ -487,3 +487,69 @@ Nothing for this phase was committed before this session; all of it was built he
 - `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 20 DONE
+
+## Phase 21: Image generation in chat (2026-10-19)
+- Started from the end of this log: nothing for Phase 21 was committed yet. No conflict with docs/DECISIONS.md: Gemini keeps its key in a header (decision 8), every image is in the ledger and inside the spend caps (decision 16), nothing spends without a click.
+- Features done:
+  - server/images.js and server/plugins/images.js (`/api/images`): generate, edit and variation through the person's own keys.
+    - OpenAI GPT-Image (gpt-image-1, gpt-image-1-mini): /images/generations, and /images/edits as multipart with the source picture for edits and variations.
+    - Google Gemini (gemini-2.5-flash-image) through the native generateContent endpoint, with the source as inline data. The key goes in the x-goog-api-key header, never the URL.
+    - xAI (grok-2-image): new images only. Edit and variation are refused with a message that names the providers that can do them.
+    - Flux through Replicate (flux-schnell, dev, 1.1 pro; edits and variations through flux-kontext-pro, polled until done) or fal (flux schnell, dev, 1.1 pro; edits through flux-pro/kontext).
+    - A variation is the source image plus a "fresh take" prompt, so every provider handles it the same way.
+  - The cost estimate comes first. `/api/images/estimate` gives the per-image price, the total, whether a key is saved, and the cap state. A generate call must send the estimate it showed; a missing or lower one gets 409 with the current figure, and no call is made.
+  - Spend caps (alerts plugin) are checked before any call. A provider at its cap is refused (402), and so is a batch that would take it over the cap. The alerts plugin now recomputes on image ledger lines too.
+  - One ledger line per image (kind "image", provider, model, op, per-image price, no prompt text).
+  - The media gallery: files go to the project's media folder, and each batch is a row in `media.jobs` with its prompt, so the Media tab lists them too. You can list (by project), view the file (served with the token only, nosniff, CSP sandbox) and delete (row and files).
+  - No key: a clear message ("No OpenAI key saved. Add your OpenAI key in Settings > AI keys ..."), and no call is made.
+  - Demo mode: a "Demo images" provider draws a free local SVG sketch (the prompt is escaped). Demo sketches cannot be used as edit sources.
+  - Replicate and fal were added to the registry as media providers, so their keys are sealed in the vault through /api/keys and the caps apply. The fal key is the same one the Media tab already uses.
+  - UI (web/features/images.js):
+    - an Images tab: a form with New image / Edit / Variation, provider, model, shape, quality, count, project and upload. Generate stays off until the estimate for the current choices is on screen.
+    - a gallery grid with Edit, Variation, Save and Delete.
+    - an "Image from these orders" row under the Command orders box.
+    - "Make an image from this" under the deliverable.
+    - Replicate and fal key fields in Settings.
+  - `apiBlobUrl` is now exposed on window.CC so the gallery can show the token-protected files.
+  - Hosted hub: refused with a clear message for now, because the gallery lives in the local data folder.
+- Commits:
+  - e7d2654 Phase 21: image generation in chat (...)
+- Tests:
+  - npm test: 149 tests, 147 pass, 0 fail, 2 skipped (the same two real-browser and Pyodide skips as Phase 20).
+  - New test/images.test.js:
+    - pure: estimate maths, model choice, refusals, the escaped demo sketch;
+    - server against one local mock for all five providers:
+      - token required;
+      - estimate first (409, nothing called);
+      - each provider's image saved to the gallery with its prompt;
+      - one ledger line per image with no prompt text;
+      - listed on the Media tab;
+      - an OpenAI edit carries the gallery image in the multipart body;
+      - a Gemini variation carries the upload as inline data, with the key in a header only;
+      - a Replicate edit goes through Kontext with input_image;
+      - a fal variation sends image_url;
+      - xAI edit refused;
+      - at-cap and would-cross-cap both refused with no provider call;
+      - 401 reads "Key rejected (401)" and 429 reads "rate limited";
+      - failed calls save nothing;
+      - delete removes the row and files;
+    - no keys: every provider gives the add-a-key message and makes no call; a vault-saved Replicate key turns it on; demo sketches are free, escaped and served sandboxed; non-image uploads and demo sketches are refused as sources.
+  - npm run smoke: all checks pass, including these new ones:
+    - refused before the price;
+    - demo images in the gallery with the prompt;
+    - one ledger line per image;
+    - the OpenAI add-a-key message.
+  - Both suites ran in temp data folders with local mocks. No real key, account or URL was used.
+- Not verified:
+  - No real provider was called. The request shapes follow each provider's published API, but these were not checked here:
+    - the model ids (gpt-image-1, gemini-2.5-flash-image, grok-2-image, the Flux ids);
+    - Gemini's imageConfig aspect ratio;
+    - Replicate's input_image on Kontext;
+    - fal's num_images and image_url.
+  - Prices are per-image estimates (October 2026 list prices), not checked against live price pages. OpenAI edits also bill the source image as input tokens, and the estimate only says so; it does not add a figure.
+  - The Images tab, gallery, Command row, deliverable button and Settings panel were syntax-checked (node --check) but not opened in a browser or the desktop app.
+  - Not tier-gated: the plan does not say whether Free should be limited here. Chris decides.
+  - Images do not yet go into the chat answer itself or the council. They show under the orders box and in the gallery.
+- `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js) are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 21 DONE
