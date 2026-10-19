@@ -72,10 +72,13 @@ export async function startServer({ env = {}, dataDir, cloud, seed } = {}) {
     CC_MODE: "", CC_DATA_DIR: dir, CC_PORT: String(port), CC_DEMO_PORT: String(demoPort),
     CC_UPDATE_FEED: `${stub.url}/latest.json`, CC_CLOUD_DEFAULTS_FILE: defaultsFile,
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
+    CC_TEST_VAULT: "1",
     ...env,
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
-  const child = spawn(process.execPath, [path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+  // Plain Node on macOS/Linux cannot seal the vault. Tests preload a safeStorage stand-in
+  // (AES-GCM, key from this data dir) so fake keys can be saved. The app itself never loads it.
+  const child = spawn(process.execPath, ["--import", path.join(ROOT, "test", "vault-shim.mjs"), path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   child.stdout.on("data", (c) => (log += c));
   child.stderr.on("data", (c) => (log += c));
