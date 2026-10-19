@@ -104,6 +104,8 @@ export async function checkProvider(id) {
   const sec = getSecret(p.id, p.keyEnv);
   const incident = await checkStatusPage(p);
   if (!sec) { set(id, { status: "grey", detail: incident ? `no key · ${incident}` : "no key", incident }); return getStatus(id); }
+  // managed plan (Phase 9): the pool key is not used for checks; the first real call shows whether it works
+  if (sec.managed) { set(id, { status: incident ? "amber" : "green", detail: incident ? `managed by Everborn · ${incident}` : "managed by Everborn", incident }); return getStatus(id); }
   if (p.kind !== "text") {
     // media providers with an API we can ping
     try {

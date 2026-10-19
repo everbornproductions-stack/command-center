@@ -120,9 +120,24 @@ export async function setSecret(providerId, value) {
 let scoped = null;
 export const setScopedResolver = (fn) => { scoped = typeof fn === "function" ? fn : null; };
 
+// Managed plan (Phase 9, server/growth.js): asked last, only when there is no workspace key and no key of
+// your own. Returns { key, managed: true, scope: "managed" } or null. Set once at startup.
+let managedResolver = null;
+export const setManagedResolver = (fn) => { managedResolver = typeof fn === "function" ? fn : null; };
+
 export function getSecret(providerId, envName) {
   if (scoped) { const w = scoped(ctx(), providerId); if (w?.key) return w; }
-  return getOwnSecret(providerId, envName);
+  const own = getOwnSecret(providerId, envName);
+  if (own || !managedResolver) return own;
+  const m = managedResolver(ctx(), providerId);
+  return m?.key ? m : null;
+}
+// Would a call to this provider go through the managed pool (allowance ignored, for metering)?
+export function isManaged(providerId, envName) {
+  if (!managedResolver) return false;
+  if (scoped && scoped(ctx(), providerId)?.key) return false;
+  if (getOwnSecret(providerId, envName)) return false;
+  return !!managedResolver(ctx(), providerId, { metering: true })?.key;
 }
 // your own key only (Settings > keys edits this one, never a workspace's)
 export function getOwnSecret(providerId, envName) {
@@ -140,6 +155,7 @@ export function hasSecret(providerId, envName) {
 export function maskedKey(providerId, envName) {
   const s = getSecret(providerId, envName);
   if (!s) return null;
+  if (s.managed) return "managed by Everborn"; // a pool key is never shown, not even masked
   const k = s.key;
   return k.length <= 8 ? "••••" : `${k.slice(0, 4)}…${k.slice(-4)}`;
 }

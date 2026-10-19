@@ -116,7 +116,7 @@ export async function routes(req, res, url, body, h) {
     const v = verdict(status);
     if (!v.keep) {
       // put things back exactly as they were, then re-check so the status strip is honest
-      await setSecret(pid, prev && !prev.fromEnv ? prev : null);
+      await setSecret(pid, prev && !prev.fromEnv && !prev.managed ? prev : null);
       await checkProvider(pid);
       return h.json(res, 200, { ok: false, provider: pid, verdict: v, status: { status: status.status, detail: status.detail || "" }, kept: false, masked: maskedKey(pid, prov.keyEnv), billingUrl: prov.links?.billing || null });
     }

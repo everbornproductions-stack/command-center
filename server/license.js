@@ -74,15 +74,26 @@ export function resolveTier({ lic: l, now = Date.now(), ownerEmail = false, devO
   return { tier: "free", reason: l?.status ? `licence_${l.status}` : "no_licence" };
 }
 
+// Free trial (Phase 9, server/growth.js, behind CC_TRIAL): asked only when the licence says Free.
+// Returns { tier: "pro", reason: "trial", trialEndsAt, daysLeft } or null; never owner.
+let trialResolver = null;
+export const setTrialResolver = (fn) => { trialResolver = typeof fn === "function" ? fn : null; };
+function withTrial(r) {
+  if (r.tier !== "free" || !trialResolver) return r;
+  const t = trialResolver();
+  return t?.tier === "pro" ? { tier: "pro", reason: "trial", trialEndsAt: t.trialEndsAt, daysLeft: t.daysLeft } : r;
+}
+
 export function licenseState() {
   const c = cloud();
   const configured = complete(c);
   const l = lic();
-  const r = resolveTier({ lic: l, ownerEmail: isOwnerEmail(), devOwner: devOwnerAllowed() });
+  const r = withTrial(resolveTier({ lic: l, ownerEmail: isOwnerEmail(), devOwner: devOwnerAllowed() }));
   const T = TIERS[r.tier];
   let message = l.message;
   if (r.reason === "owner_email") message = "Owner account";
   else if (r.reason === "dev_override") message = "Developer override (CC_DEV_OWNER=1, unpackaged run)";
+  else if (r.reason === "trial") message = `Free trial: Pro for ${r.daysLeft} more day${r.daysLeft === 1 ? "" : "s"}. Nothing is charged.`;
   else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
   else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
   else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
@@ -92,9 +103,12 @@ export function licenseState() {
     limits: { ...T, councilsPerMonth: T.councilsPerMonth === Infinity ? null : T.councilsPerMonth, projects: T.projects === Infinity ? null : T.projects },
     key: l.key ? l.key.replace(/^(.{3}).*(.{4})$/, "$1-••••-••••-$2") : null,
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
-    message, deviceId: l.deviceId,
+    message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
   };
 }
+
+// Growth (Phase 9) asks the same licence server about referrals.
+export const licenceRpc = (fn, body) => rpc(fn, body);
 
 async function rpc(fn, body) {
   if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => (Array.isArray(j) ? j[0] : j));

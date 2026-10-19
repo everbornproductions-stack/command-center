@@ -140,7 +140,7 @@ const summarize = (m) => { const s = m.kind === "council" ? summaryOf(m) : missi
 
 // Demo mode retires itself once a real key is saved and validated (built-in or custom provider).
 // The user can turn it back on in Settings; that choice (demoKeep) is respected until they turn it off again.
-const realValidated = (since = 0) => Object.values(PROVIDERS).some((p) => p.kind === "text" && !p.demo && hasSecret(p.id, p.keyEnv) && (getStatus(p.id)?.lastOk || 0) > since && getStatus(p.id)?.status !== "red");
+const realValidated = (since = 0) => Object.values(PROVIDERS).some((p) => p.kind === "text" && !p.demo && hasSecret(p.id, p.keyEnv) && !getSecret(p.id, p.keyEnv)?.managed && (getStatus(p.id)?.lastOk || 0) > since && getStatus(p.id)?.status !== "red");
 async function retireDemoIfReal(since = 0) {
   const s = settings();
   if (!demoActive() || s.demoKeep || !realValidated(since)) return false;

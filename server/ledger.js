@@ -3,6 +3,7 @@
 import { ctx } from "./store.js";
 import { estimateCostAt, PROVIDERS } from "./registry.js";
 import { emit } from "./events.js";
+import { isManaged } from "./vault.js";
 
 // Local mode reads the file through the store at startup; this just returns the loaded entries.
 export function loadLedger() {
@@ -11,6 +12,8 @@ export function loadLedger() {
 
 function append(e) {
   const c = ctx();
+  // managed plan (Phase 9): a call made with Everborn's pool key is tagged so it is metered (server/growth.js)
+  try { if (e.provider && PROVIDERS[e.provider] && isManaged(e.provider, PROVIDERS[e.provider].keyEnv)) e.managed = true; } catch {}
   c.ledger.push(e);
   c.store.appendLedger(e);
   emit("ledger.entry", { entry: e });

@@ -782,7 +782,7 @@ function renderSettings(v) {
       ${p.id === "kling" ? `<input type="password" placeholder="secret key" data-secret="${p.id}" style="flex:1" autocomplete="off">` : ""}
       ${p.id === "anthropic" ? `<input type="text" placeholder="workspace ID (optional)" value="${esc(p.workspaceId || "")}" data-ws="${p.id}" style="width:170px;font-family:var(--mono)" autocomplete="off" title="Only for keys that must name a workspace. Sent as anthropic-workspace-id on every Claude request.">` : ""}
       ${p.noKey ? "" : `<button class="btn sm" data-save-key="${p.id}">Save &amp; test</button>`}
-      ${p.keyed ? `<button class="btn sm" data-test="${p.id}">Test</button><button class="btn sm danger" data-rm-key="${p.id}">Remove</button>` : ""}
+      ${p.keyed && p.keyScope !== "managed" ? `<button class="btn sm" data-test="${p.id}">Test</button><button class="btn sm danger" data-rm-key="${p.id}">Remove</button>` : ""}
     </div>`}
     <div class="row small" style="margin-top:8px;gap:12px">${Object.entries(p.links || {}).filter(([, u]) => u).map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${k}</a>`).join("")}</div>
     ${p.kind === "text" ? `<div class="models">${p.models.map((m) => `<div class="mrow" data-model="${esc(m.id)}"><span class="mono" title="${esc(m.id)}">${esc(m.name)} <span class="dim">· ${m.tier}</span></span><input type="number" step="0.01" value="${m.in}" data-in title="$ per 1M input tokens"><input type="number" step="0.01" value="${m.out}" data-out title="$ per 1M output tokens"><button class="ghost small" data-price>save $</button></div>`).join("")}
