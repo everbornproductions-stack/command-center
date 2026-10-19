@@ -11,6 +11,7 @@ import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { classify, pick, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
+import { augment as webAugment, sourcesBlock } from "./search.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -70,20 +71,27 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "" }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search }) {
   const id = "m-" + Date.now().toString(36);
   const ctl = new AbortController();
   running.set(id, ctl);
   const t0 = Date.now();
-  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [] };
+  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [] };
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
+  const explicitSearch = typeof search === "boolean" ? search : undefined;
 
   try {
     update();
     const cls = await classify(goal, { onCall: (c) => { spend(recordCall({ ...c, missionId: id })); } });
     mission.classification = cls;
+
+    // ---- live web search (Phase 15): one search on the goal; the sources ride along as context ----
+    const web = await webAugment({ prompt: goal, kind: "mission", missionId: id, explicit: explicitSearch });
+    const searchOn = !!web && !web.native && !web.skipped;
+    if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
+    if (web?.sources?.length) { mission.sources = web.sources; mission.searchEngine = web.name; spend({ cost: web.cost || 0 }); context = `${context ? `${context}\n\n` : ""}${web.block}`; }
 
     // ---- 1. Plan ----
     const planner = pick({ capability: "reasoning", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" });
@@ -120,16 +128,19 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.title = plan.title;
 
     // ---- 2. Assign ----
+    // a task that needs live information is limited to models with their own web access, unless the
+    // search engine is on: then any model can do it, because the task gets its own search results
+    const needsWebModel = (t) => !!t.needWeb && !searchOn;
     const used = new Map();
     for (const t of plan.tasks) {
-      const ranked = rank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: !!t.needWeb });
+      const ranked = rank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) });
       // spread the load: prefer a provider not already carrying 2 tasks when scores are close
       let choice = ranked[0];
       for (const c of ranked.slice(0, 4)) {
         if ((used.get(c.provider) || 0) < 2 && c.score >= (ranked[0].score - 6)) { choice = c; break; }
       }
       if (!choice) choice = ranked[0];
-      if (!choice) throw new Error(`No AI available for task "${t.title}" (${t.capability}${t.needWeb ? ", needs web" : ""}).`);
+      if (!choice) throw new Error(`No AI available for task "${t.title}" (${t.capability}${t.needWeb ? ", needs web: turn on Search the web or add a Perplexity key" : ""}).`);
       used.set(choice.provider, (used.get(choice.provider) || 0) + 1);
       mission.tasks.push({ ...t, status: "queued", provider: choice.provider, model: choice.model, agentName: `${choice.providerName} · ${t.capability}`, estCost: choice.estCost, output: null, review: null, cost: 0 });
     }
@@ -139,7 +150,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to economy mode.`);
       for (const t of mission.tasks) {
-        const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "economy", needWeb: !!t.needWeb });
+        const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "economy", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
     }
@@ -166,13 +177,19 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("agent.start", { agent, provider: t.provider, model: t.model, role: "work", missionId: id, taskId: t.id, label: `${PROVIDERS[t.provider].name}: ${t.title}` });
         for (const d of t.deps) { const dep = mission.tasks.find((x) => x.id === d); if (dep && dep.provider !== t.provider) emit("agent.msg", { from: dep.provider, to: t.provider, missionId: id, text: `handing off "${dep.title}"` }); }
         const inputs = t.deps.map((d) => `### Input from task "${mission.tasks.find((x) => x.id === d)?.title}"\n${outputs[d] || "(missing)"}`).join("\n\n");
+        // a task that needs live information gets its own search, numbered after the mission's sources
+        let taskWeb = "";
+        if (searchOn && t.needWeb && !ctl.signal.aborted) {
+          const tw = await webAugment({ prompt: `${t.title}. ${t.instructions || ""}`, kind: "mission", missionId: id, taskId: t.id, explicit: true, offset: mission.sources.length, role: "task-search" });
+          if (tw?.sources?.length) { mission.sources = [...mission.sources, ...tw.sources]; mission.searchEngine = mission.searchEngine || tw.name; spend({ cost: tw.cost || 0 }); taskWeb = tw.block; update(); }
+        }
         const s = Date.now();
         let text = "";
         try {
           for await (const ev of streamChat({
             provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal,
             system: `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`,
-            messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
+            messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }],
           })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
             else if (ev.type === "done") {
@@ -190,7 +207,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           noteCall(t.provider, false, Date.now() - s, err.status);
           emit("agent.error", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: err.message });
           // one retry on a different provider
-          const alt = rank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: !!t.needWeb, exclude: [t.model] }).find((m) => m.provider !== t.provider);
+          const alt = rank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
           if (alt && !ctl.signal.aborted) {
             log(`${PROVIDERS[t.provider].name} failed "${t.title}" (${err.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
             emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `re-assign "${t.title}"` });
@@ -268,8 +285,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     try {
       for await (const ev of streamChat({
         provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
-        system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.`,
-        messages: [{ role: "user", content: `GOAL:\n${goal}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}` }],
+        system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}`,
+        messages: [{ role: "user", content: `GOAL:\n${goal}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}` }],
       })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "done") {
@@ -303,7 +320,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0 };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null };
 }
 function save(m) {
   saveDoc(m);

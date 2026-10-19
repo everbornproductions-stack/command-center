@@ -27,6 +27,7 @@ import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } 
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
+import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
 let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
@@ -171,7 +172,7 @@ function fullState() {
 const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Command AI", tagline: "an Everborn product", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null });
 
 // ---------- single-AI chat (streams through the event bus) ----------
-async function runChat({ prompt, provider, model, projectId }) {
+async function runChat({ prompt, provider, model, projectId, search }) {
   const id = "s-" + Date.now().toString(36);
   if (!provider || !model) {
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -180,19 +181,23 @@ async function runChat({ prompt, provider, model, projectId }) {
     provider = best.provider; model = best.model;
   }
   const agent = `${id}:${provider}`;
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "" };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [] };
   emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
-  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${PROVIDERS[provider].name} answering` });
+  // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
+  const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
+  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
-    for await (const ev of streamChat({ provider, model, maxTokens: 3000, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: prompt }] })) {
+    for await (const ev of streamChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: web?.prompt || prompt }] })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "done") {
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
-        m.cost = e.cost;
+        m.cost = +(m.cost + e.cost).toFixed(6);
+        if (web?.native && ev.citations?.length) { m.sources = sourcesFromCitations(ev.citations); m.searchEngine = web.name; m.cost = +(m.cost + recordNative(provider, ev.citations, { missionId: id })).toFixed(6); }
         emit("agent.done", { agent, provider, model, missionId: id, ms, cost: e.cost });
       }
     }
@@ -259,7 +264,7 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/council") {
     if (!body.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite }); }
+    try { promise = startCouncil({ prompt: body.prompt, members: body.members, chair: body.chair, projectId: body.projectId, qa: body.qa !== false, lite: !!body.lite, search: typeof body.search === "boolean" ? body.search : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -268,7 +273,7 @@ async function api(req, res, url) {
     if (!body.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (body.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "" };
+    const opts = { goal: body.goal, mode: body.mode || s.defaultMode, projectId: body.projectId, qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || s.missionBudget, context: body.context || "", search: typeof body.search === "boolean" ? body.search : undefined };
     if (body.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }

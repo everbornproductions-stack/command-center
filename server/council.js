@@ -7,10 +7,11 @@ import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
+import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 
 const LETTERS = "ABCDEFGHIJ";
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -29,25 +30,37 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   chair ||= rank({ ...cls, mode: "quality" }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
-  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running" };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [] };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
+
+  // ---- live web search (Phase 15): one search, the same numbered sources for every member and the chair ----
+  const web = await webAugment({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; emit("council.update", { council: pub(council) }); }
+  const askPrompt = web?.prompt || prompt;
+  const nativeFor = (m) => !!web?.native && nativeSupported(m.provider, m.model);
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
   await Promise.all(members.map(async (m, i) => {
     const agent = `${id}:${m.provider}`;
-    emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering` });
+    emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
     const s = Date.now();
-    let text = "", usage = null;
+    let text = "", usage = null, citations = null;
     try {
-      for await (const ev of streamChat({ provider: m.provider, model: m.model, maxTokens, system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: prompt }] })) {
+      for await (const ev of streamChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
-        else if (ev.type === "done") usage = ev.usage;
+        else if (ev.type === "done") { usage = ev.usage; citations = ev.citations || null; }
       }
       const ms = Date.now() - s;
       noteCall(m.provider, true, ms);
       const e = recordCall({ provider: m.provider, model: m.model, usage, missionId: id, role: "answer", ms });
       council.cost += e.cost;
+      if (nativeFor(m) && citations?.length) {
+        // a member that searched on its own: its pages join the shared list, numbered after the others
+        council.sources = [...council.sources, ...sourcesFromCitations(citations, council.sources.length)];
+        council.searchEngine = council.searchEngine || web.name;
+        council.cost += recordNative(m.provider, citations, { missionId: id });
+      }
       council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, letter: LETTERS[i] };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
@@ -118,11 +131,12 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     try {
       const packet = good.map((a) => `### Answer ${a.letter} (${PROVIDERS[a.provider].name}${council.scoreboard?.[a.model]?.avg != null ? `, peer score ${council.scoreboard[a.model].avg}/10` : ""})\n${a.text}`).join("\n\n");
       const disagreements = Object.values(council.reviews).map((r) => r.disagreement).filter((d) => d && d.toLowerCase() !== "none");
+      const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
       let text = "";
       for await (const ev of streamChat({
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
-        messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}` }],
+        messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}` }],
       })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "done") {

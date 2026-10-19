@@ -3,7 +3,9 @@
 // Web Push (VAPID, implemented with Node crypto; no extra dependency).
 import crypto from "node:crypto";
 import { PROVIDERS } from "../registry.js";
+import { searchCaps, nameOfLedgerProvider } from "../search.js";
 export const id = "alerts";
+const nameOf = (pid) => PROVIDERS[pid]?.name || nameOfLedgerProvider(pid) || pid;
 
 const CAPS = "alerts.caps";      // { [providerId]: usd }
 const STATE = "alerts.state";    // { month, perProvider: { id: { spend, cap, pct, level } }, stop: [ids], fired: { key: ts } }
@@ -17,7 +19,8 @@ export async function init(h) { H = h; }
 function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 
 function recompute(h) {
-  const caps = h.doc(CAPS, () => ({}));
+  // web-search caps (Phase 15) live in the search settings and are read here, never written back
+  const caps = { ...h.doc(CAPS, () => ({})), ...searchCaps() };
   const st = h.doc(STATE, () => ({ month: monthKey(), perProvider: {}, stop: [], fired: {} }));
   if (st.month !== monthKey()) { st.month = monthKey(); st.perProvider = {}; st.stop = []; st.fired = {}; }
   const led = h.ledgerSummary();
@@ -119,16 +122,16 @@ async function pushAll(h, payload) {
 
 // ---------- events ----------
 export function onEvent(ev, h) {
-  if (ev.type === "ledger.entry" && ev.entry?.kind === "call") {
+  if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search")) {
     const { changes } = recompute(h);
     for (const c of changes) {
-      const name = PROVIDERS[c.pid]?.name || c.pid;
+      const name = nameOf(c.pid);
       if (c.level === "amber") notify(h, `cap80:${c.pid}:${monthKey()}`, `${name} at ${c.pct}% of its $${c.cap} monthly cap`, `$${c.spend.toFixed(2)} spent this month. It keeps working; the router leans away from it.`, "amber");
       if (c.level === "stop") notify(h, `cap100:${c.pid}:${monthKey()}`, `${name} hit its $${c.cap} monthly cap`, `Hard stop: the router will not send it new work until the cap is raised or the month rolls over.`, "stop");
     }
   }
   if (ev.type === "provider.status" && ev.status === "red") {
-    const name = PROVIDERS[ev.provider]?.name || ev.provider;
+    const name = nameOf(ev.provider);
     notify(h, `red:${ev.provider}:${ev.detail}`, `${name} is red`, ev.detail || "key rejected or provider down", "stop");
   }
 }

@@ -61,13 +61,15 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
 }
 
 // ---------- OpenAI-compatible chat completions (OpenAI, xAI, Gemini, OpenRouter, Perplexity, DeepSeek, Groq, Mistral) ----------
-async function* openaiCompatStream({ provider, model, system, messages, maxTokens, signal }) {
+async function* openaiCompatStream({ provider, model, system, messages, maxTokens, signal, webSearch, maxSources }) {
   const key = requireKey(provider);
   const msgs = [...(system ? [{ role: "system", content: system }] : []), ...messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.map((c) => c.text || "").join("\n") }))];
   const body = { model, messages: msgs, stream: true };
   if (provider.id === "openai") body.max_completion_tokens = maxTokens;
   else body.max_tokens = maxTokens;
   if (provider.id !== "perplexity") body.stream_options = { include_usage: true };
+  // the model's own web search (Phase 15): xAI Live Search is asked for explicitly; Perplexity Sonar always searches
+  if (webSearch && provider.id === "xai") body.search_parameters = { mode: "on", return_citations: true, max_search_results: Math.min(20, Math.max(1, maxSources || 5)) };
   const headers = { ...extraHeaders(provider), "content-type": "application/json", ...(key && key !== "no-key" ? { authorization: `Bearer ${key}` } : {}) };
   if (provider.id === "openrouter") {
     headers["HTTP-Referer"] = "https://everbornproductions.com";
@@ -87,7 +89,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", usage = null, outText = "", stop = null, actualModel = null;
+  let buf = "", usage = null, outText = "", stop = null, actualModel = null, citations = null, searchResults = null;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -107,12 +109,16 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       const t = ch?.delta?.content;
       if (t) { outText += t; yield { type: "delta", text: t }; }
       if (ch?.finish_reason) stop = ch.finish_reason;
-      if (j.citations && provider.id === "perplexity") j._citations = j.citations;
+      // Perplexity and xAI send the pages they used: citations = URLs, search_results = { title, url } rows
+      if (Array.isArray(j.citations) && j.citations.length) citations = j.citations;
+      if (Array.isArray(j.search_results) && j.search_results.length) searchResults = j.search_results;
     }
   }
+  const cited = searchResults ? searchResults.map((r) => ({ url: r.url, title: r.title })) : citations;
   yield {
     type: "done",
     stop,
+    citations: cited || undefined,
     usage: {
       input: usage?.prompt_tokens ?? approxTokens(msgs.map((m) => m.content).join("\n")),
       output: usage?.completion_tokens ?? approxTokens(outText),

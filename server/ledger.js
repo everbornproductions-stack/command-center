@@ -32,6 +32,12 @@ export function recordCredits({ provider, units, note, project, cost }) {
   return append({ ts: Date.now(), kind: "credits", provider, units: Number(units), cost: cost ? Number(cost) : null, note: note || "", project: project || null });
 }
 
+// One web search (Phase 15): provider is "search-<engine>" (or the text provider for built-in search,
+// or "demo-search"). cost = the per-search price at the time; no query text is stored.
+export function recordSearch({ provider, engine, results, cost, missionId, taskId, ms, role, native }) {
+  return append({ ts: Date.now(), kind: "search", provider, engine: engine || null, results: Number(results) || 0, cost: +Number(cost || 0).toFixed(6), native: !!native, missionId: missionId || null, taskId: taskId || null, role: role || "search", ms: ms || null });
+}
+
 export function summary() {
   const entries = ctx().ledger;
   const now = new Date();
@@ -39,7 +45,7 @@ export function summary() {
   const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const byProvider = {};
   for (const p of Object.values(PROVIDERS)) byProvider[p.id] = { month: 0, today: 0, calls: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 };
-  let month = 0, today = 0, calls = 0;
+  let month = 0, today = 0, calls = 0, searches = 0, searchMonth = 0;
   const days = {};
   // demo AI calls are pretend money: once demo mode is off they leave the totals and filters,
   // and stay visible in history tagged demo
@@ -56,7 +62,8 @@ export function summary() {
       b.units += e.units || 0;
       if (e.ts >= startMonth) b.unitsMonth += e.units || 0;
     }
-    if (e.ts >= startMonth) { b.month += c; month += c; if (e.kind === "call") calls++; }
+    if (e.kind === "search") { b.searches = (b.searches || 0) + 1; }
+    if (e.ts >= startMonth) { b.month += c; month += c; if (e.kind === "call") calls++; if (e.kind === "search") { searches++; searchMonth += c; } }
     if (e.ts >= startDay) { b.today += c; today += c; }
     const d = new Date(e.ts).toISOString().slice(0, 10);
     days[d] = (days[d] || 0) + c;
@@ -67,7 +74,7 @@ export function summary() {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i).toISOString().slice(0, 10);
     series.push({ d, v: +(days[d] || 0).toFixed(4) });
   }
-  return { month: +month.toFixed(4), today: +today.toFixed(4), calls, byProvider, series, recent: entries.slice(-40).reverse().map((e) => (isDemo(e) ? { ...e, demo: true } : e)), demoCalls };
+  return { month: +month.toFixed(4), today: +today.toFixed(4), calls, searches, searchMonth: +searchMonth.toFixed(4), byProvider, series, recent: entries.slice(-40).reverse().map((e) => (isDemo(e) ? { ...e, demo: true } : e)), demoCalls };
 }
 
 export const allEntries = () => ctx().ledger;
