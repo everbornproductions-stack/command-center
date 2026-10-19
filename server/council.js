@@ -14,6 +14,7 @@ import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
+import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
@@ -44,7 +45,10 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   chair ||= rank({ ...cls, mode: "quality" }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
-  const council = { id, kind: "council", prompt, projectId: projectId || null, classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
+  // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
+  const memBlock = contextFor(projectId);
+  const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
+  const council = { id, kind: "council", prompt, projectId: projectId || null, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
   const mode = lite ? "economy" : "balanced";
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
@@ -60,7 +64,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     emit("agent.start", { agent, provider: AID, model: AID, role: "answer", missionId: id, label: `${A.name} on the job (results are async and can take minutes)` });
     const s = Date.now();
     try {
-      const job = await A.dispatch({ task: prompt, context: "", needs: agentPick.needs, source: { kind: "council", runId: id, projectId } });
+      const job = await A.dispatch({ task: prompt, context: memNote.trim(), needs: agentPick.needs, source: { kind: "council", runId: id, projectId } });
       seat.jobId = job.id; seat.status = job.status;
       if (job.status === "failed") throw new Error(job.error);
       emit("council.update", { council: pub(council) });
@@ -95,7 +99,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
-  const askPrompt = `${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`;
+  const askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
   const nativeFor = (m) => !!web?.native && nativeSupported(m.provider, m.model);
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
@@ -157,7 +161,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         const r = await completeFallback({
           provider: reviewer.provider, model: reviewer.model, maxTokens: 700,
           system: `You are a strict judge. Several anonymous answers to the same question follow. Score each 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"scores": {"A": n, ...}, "best": "A", "notes": {"A": "<=20 words", ...}, "disagreement": "<=30 words on where the answers conflict, or 'none'"}`,
-          messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}` }],
+          messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}` }],
         }, { missionId: id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy" }, { onFallback: (ev) => { council.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: agent, role: "review" }); } });
         const ms = Date.now() - s;
         noteCall(r.provider, true, ms);
@@ -216,7 +220,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       for await (const ev of fallbackChat({
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
-        messages: [{ role: "user", content: `QUESTION:\n${prompt}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
+        messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
       }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode: "quality" })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {

@@ -1,4 +1,6 @@
-// Project memory editor (Settings panel + a badge in Command). The server injects it into prompts.
+// Project memory editor (Settings panel + a badge in Command). The server injects it into every prompt for
+// the project: single chats, councils, missions, pipelines, schedules and side-by-side comparisons.
+// The HQ import fills empty sections (and ones still as the last import left them); edits are kept.
 const { S, api, toast, esc } = window.CC;
 const FIELDS = [["voice", "Brand voice", "Short, direct, no hype. Lead with the result."], ["offers", "Offers and calls to action", "Free 15-minute call · link in bio"], ["never", "Never say / never do", "No invented numbers. No 'guaranteed'. No hashtags in the first line."], ["winners", "Past winners (what worked)", "Hook: 'I loved you in the dark' over rain shot; carousel of 3 before/after"], ["facts", "Facts to keep straight", "Licensed in CA. Founded 2024. Owner: Chris Magee."]];
 
@@ -17,7 +19,14 @@ async function panel(el) {
   };
   sel.addEventListener("change", load);
   el.querySelector("#mem-save").addEventListener("click", async () => { const body = {}; el.querySelectorAll("[data-f]").forEach((t) => { body[t.dataset.f] = t.value; }); try { await api(`/memory/project/${sel.value}`, { method: "POST", body }); toast("Memory saved"); load(); } catch (e) { toast(e.message, true); } });
-  el.querySelector("#mem-import").addEventListener("click", async () => { try { await api("/memory/import-hq", { method: "POST", body: { projectId: sel.value } }); toast("Imported from HQ"); load(); } catch (e) { toast(e.message, true); } });
+  el.querySelector("#mem-import").addEventListener("click", async () => {
+    try {
+      const r = await api("/memory/import-hq", { method: "POST", body: { projectId: sel.value } });
+      const name = (k) => FIELDS.find((f) => f[0] === k)?.[1] || k;
+      toast(`Imported from HQ${r.filled?.length ? `: ${r.filled.map(name).join(", ")}` : ": nothing new"}${r.kept?.length ? `. Kept your edits in ${r.kept.map(name).join(", ")}` : ""}`);
+      load();
+    } catch (e) { toast(e.message, true); }
+  });
   load();
 }
 

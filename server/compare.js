@@ -21,6 +21,7 @@ import { hasSecret } from "./vault.js";
 import { heuristicClassify } from "./router.js";
 import { observe } from "./brain.js";
 import { troubleKind, markTrouble } from "./fallback.js";
+import { withMemory } from "./project-memory.js";
 
 export const RUNS = "compare.runs";
 export const PRESETS = "compare.presets";
@@ -128,7 +129,7 @@ async function runColumn(run, c) {
   publish(run);
   let usage = null;
   try {
-    for await (const ev of streamChat({ provider: c.provider, model: c.model, maxTokens: run.maxTokens, system: SYSTEM, messages: [{ role: "user", content: run.prompt }] })) {
+    for await (const ev of streamChat({ provider: c.provider, model: c.model, maxTokens: run.maxTokens, system: SYSTEM, messages: [{ role: "user", content: withMemory(run.prompt, run.projectId) }] })) {
       if (ev.type === "delta") {
         if (c.ttftMs == null) c.ttftMs = Date.now() - s;
         c.text += ev.text;
