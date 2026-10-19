@@ -8,7 +8,7 @@ const fs = require("node:fs");
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
-const { createUpdateController } = require("./updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const { createHotkey } = require("./hotkey.cjs");
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
@@ -99,7 +99,7 @@ function setupUpdater() {
     },
   });
   globalThis.__ccUpdater = updater.bridge; // Settings > Check for updates keeps working through the server
-  setInterval(() => updater.check({ prompt: true }).catch(() => {}), 4 * 3600 * 1000).unref();
+  setInterval(() => updater.check({ prompt: true }).catch((e) => log("periodic update check failed:", e && e.message)), CHECK_EVERY_MS).unref();
 }
 function showUpdateWindow() {
   if (updateWin && !updateWin.isDestroyed()) { updateWin.show(); updateWin.focus(); return; }
@@ -133,7 +133,7 @@ function setupIpc() {
   handle("app:log-reload", (reason) => { log("renderer:", reason); return true; });
   handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
   handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
-  handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); return updater.install(); });
+  handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); showUpdateWindow(); return updater.install(); });
   handle("upd:later", () => { updater && updater.later(); if (updateWin && !updateWin.isDestroyed()) updateWin.close(); return true; });
   handle("engine:state", () => ({ port: PORT, stuck: !!(watchdog && watchdog.stuck), reason: watchdog ? watchdog.reason : null }));
   handle("quick:hide", () => { hideQuick(); return true; });

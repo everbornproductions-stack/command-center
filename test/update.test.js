@@ -57,6 +57,16 @@ test("desktop bridge: download error is reported and the update stays available"
   } finally { delete globalThis.__ccUpdater; }
 });
 
+test("desktop bridge: a failed check is reported and is not treated as an update", async () => {
+  globalThis.__ccUpdater = { onEvent() {}, async check() { return { version: pkg.version, notes: "", error: "Could not reach the releases feed" }; }, async download() { throw new Error("no"); }, install() {} };
+  try {
+    const s = await upd.checkForUpdate();
+    assert.equal(s.available, false);
+    assert.equal(s.phase, "idle");
+    assert.match(s.error, /releases feed/);
+  } finally { delete globalThis.__ccUpdater; }
+});
+
 test("desktop bridge: same version is not an update; install is refused", async () => {
   globalThis.__ccUpdater = { onEvent() {}, async check() { return { version: pkg.version }; }, async download() { throw new Error("no"); }, install() {} };
   try {
@@ -89,7 +99,11 @@ test("installer config keeps user data and publishes to a public releases feed",
   assert.match(yml, /deleteAppDataOnUninstall:\s*false/);
   assert.match(yml, /provider:\s*github/);
   assert.match(yml, /repo:\s*command-center-releases/);
-  assert.doesNotMatch(yml, /^\s*(token|private)\s*:/im, "never embed a token");
+  assert.match(yml, /private:\s*false/, "the releases repo is public; a token must not be used");
+  assert.match(yml, /channel:\s*latest/, "the feed file stays latest.yml");
+  assert.match(yml, /detectUpdateChannel:\s*false/);
+  assert.doesNotMatch(yml, /^\s*token\s*:/im, "never embed a token");
+  assert.doesNotMatch(yml, /private:\s*true/);
   assert.ok(pkg.dependencies["electron-updater"], "electron-updater ships with the app");
   const main = fs.readFileSync(path.join(ROOT, "electron", "updater.cjs"), "utf8"); // the main-process update controller (v0.3.2)
   assert.match(main, /autoDownload = false/);

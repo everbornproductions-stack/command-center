@@ -86,6 +86,7 @@ export function menuModel(views) {
   }
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
   buckets.help.push({ id: "tour", label: "Take the tour again", action: "tour", home: false });
+  buckets.help.push({ id: "updates", label: "Check for updates", action: "updates", home: false });
   return GROUP_ORDER.map((id) => ({ ...GROUPS[id], items: buckets[id] }));
 }
 

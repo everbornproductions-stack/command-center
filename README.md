@@ -106,7 +106,7 @@ Features are plugins: `server/plugins/<id>.js` + `web/features/<id>.js` (see doc
 
 ## Updates
 
-- **Desktop app:** the updater runs in the Electron main process (electron/updater.cjs) and reads the public `everbornproductions-stack/command-center-releases` repo. On launch it shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**; nothing downloads before that click. The tray has Check for updates, Install update and Restart app. Shipping a release: docs/RELEASING.md.
+- **Desktop app:** the updater runs in the Electron main process (electron/updater.cjs) and reads the public `everbornproductions-stack/command-center-releases` repo (`latest.yml`, public, no token). It checks on launch and every 30 minutes. On launch it shows "Meldmind vX.Y.Z is ready" with **Install now** and **Later**; nothing downloads before that click. The top bar shows **Update available**, then **Restart to update**. Help has Check for updates. The tray has Check for updates, Install update and Restart app. Shipping a release: docs/RELEASING.md.
 - **Browser and hosted hub:** the server checks `https://everbornproductions.com/command-center/latest.json` on start and every 6 hours (override with `CC_UPDATE_FEED`) and shows a banner with the notes and a download link when it is newer than `package.json`.
 
 ## Where things live
