@@ -3,7 +3,7 @@ import { AgentGraph } from "/graph.js";
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
 const $ = (s, r = document) => r.querySelector(s);
@@ -186,9 +186,18 @@ function connect() {
     handle(ev);
   };
 }
+function noteOnboarding(ob) {
+  if (!ob?.notice) return;
+  const at = ob.noticeAt || ob.notice;
+  if (S.onboardingNoticeAt === at) return;
+  S.onboardingNoticeAt = at;
+  toast(ob.notice);
+  api("/onboarding/ack", { method: "POST" }).catch(() => {});
+}
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null });
   S.plugins = st.plugins || [];
+  noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
@@ -200,7 +209,7 @@ function handle(ev) {
       S.feed = (ev.state.recent || []).filter((e) => ["log", "agent.msg", "agent.error", "agent.start", "agent.done", "provider.status", "ledger.entry"].includes(e.type)).slice(-60);
       const run = ev.state.lastRun;
       if (run && !S.live.id) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
-      if (S.mode !== "hosted" && !S.settings.onboarded && !S.visitedSetup) { S.visitedSetup = true; S.view = "setup"; }
+      if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
@@ -218,6 +227,7 @@ function handle(ev) {
     case "ledger.entry": if (S.ledger && ev.entry.kind === "call") { S.ledger.month += ev.entry.cost; S.ledger.today += ev.entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[ev.entry.provider]; if (b) { b.month += ev.entry.cost; b.today += ev.entry.cost; b.calls++; } renderBudget(); renderStrip(); } return;
     case "log": pushFeed(ev); return;
     case "update.state": S.update = ev.update; renderUpdateBar(); renderUpdateBox(); return;
+    case "onboarding.notice": noteOnboarding({ notice: ev.text, noticeAt: ev.at }); if (S.onboarding) S.onboarding = { ...S.onboarding, notice: ev.text, noticeAt: ev.at }; return;
   }
 }
 
@@ -787,7 +797,7 @@ function renderSettings(v) {
         </div>
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run first-time setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -1032,7 +1042,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
     });
-    $("#su-skip").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; S.view = "settings"; render(); });
+    $("#su-skip").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; S.view = "settings"; render(); });
     return;
   }
   const r = st.result, scan = r.scan, keys = r.keys || {};
@@ -1074,5 +1084,5 @@ function renderSetup(v) {
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
-  $("#su-done").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; toast("Setup complete"); S.view = "command"; render(); });
+  $("#su-done").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; toast("Setup complete"); S.view = "command"; render(); });
 }

@@ -813,3 +813,15 @@ PHASE 24 DONE
 - Other sessions' uncommitted work was left alone: `cc-names.tmp.mjs` and the publish files (server/plugins/publish.js, web/features/publish.js, test/publish.test.js). My scratch file `cc-mac-sim.tmp.cjs` was deleted. Nothing was pushed (Chris pushes).
 
 PHASE 14 BLOCKED: everything that can be done on Windows is finished and committed (Mac menu, tray, engine import, unsigned-Mac updates, draft-only workflow, tests), but the plan's step "check that the app runs on a Mac" (server start, Keychain vault, tray, window, data folder) and the Mac build itself need a real Mac or the macOS runner, which this PC does not have; signing and notarization also need the Apple Developer account Chris has not decided on.
+
+## 2026-10-19: FIX onboarding-repeat (built by Cursor cloud agent)
+
+- First-run setup ("Let's connect the AIs you already use") opens only when this install has no history. History is any of: a real key in the vault, saved settings (anything beyond the factory defaults), past chats or jobs (ledger lines or mission files), or bookmarks the app already has (a project link with a url, or a bookmarks backup file). A completed flag with a version in `onboarding.json` also keeps setup closed. If any history exists and the flag was missing, the app writes the flag and does not show setup.
+- The flag lives in the user data folder, next to settings and the vault. It is not in localStorage. The v0.3.2 cache clear (service workers and HTTP/script caches) does not touch it.
+- Later launches open the hub. Bookmark organizing does not run on launch.
+- At most once every 24 hours, after plugins load and the first health check finishes, the app compares providers, models and vault key ids with the remembered history. The first check only records what is already there. Later checks name only what is new ("New: X added") and do not open setup, import env keys, call providers, or reorganize bookmarks.
+- Settings keeps a manual "Run setup again".
+- Rebased onto origin/main through Phase 14. Claude's phases were kept. npm test 186 pass, 0 fail, 1 skipped (Pyodide is not installed here); npm run smoke all pass. test/onboarding.test.js covers a completed flag, an existing vault key, saved settings, jobs, bookmarks, and a daily check that baselines once then waits 24h. Temp data dir and a test-only vault preload. No real key.
+- Not verified: a packaged Electron build, a real Windows DPAPI vault, or a real browser profile. The fresh setup screen, the hub after history exists, and Settings were checked in the browser against the local server.
+
+FIX onboarding-repeat DONE (built by Cursor cloud agent)

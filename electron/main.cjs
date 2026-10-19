@@ -252,8 +252,9 @@ function watchReloads(w) {
 app.on("child-process-gone", (_e, d) => log("child process gone:", d && d.type, d && d.reason));
 
 // After an update (or the first run of this build), drop service workers and HTTP / script caches left
-// by an older version or by another program that once answered on the same port. Keys and settings
-// live in the data folder and are not touched.
+// by an older version or by another program that once answered on the same port. Keys, settings and
+// the onboarding-completed flag (onboarding.json in the data folder) are not touched. That flag is
+// not stored in localStorage, which this clear would not be a safe place for anyway.
 async function clearStaleWebState() {
   const marker = path.join(userData, "web-state-version.txt");
   let prev = null; try { prev = fs.readFileSync(marker, "utf8").trim(); } catch {}
