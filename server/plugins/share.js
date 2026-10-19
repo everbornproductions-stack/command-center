@@ -1,9 +1,9 @@
 // Live-share link: a read-only, expiring page that mirrors one run (graph, tasks, feed) for a client
-// or for recording. No prompts' secrets, no keys; costs only if the owner allows it.
+// or for recording, with the owner's brand kit applied. No keys; costs only if the owner allows it.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { bus } from "../events.js";
+import { brandKit } from "./brand.js";
 export const id = "share";
 const KIND = "share.tokens"; // { [token]: { missionId, createdAt, expiresAt, showCosts, userId } }
 
@@ -30,6 +30,33 @@ function sanitizeMission(m, showCosts) {
   return out;
 }
 
+// Feed lines are free text, so dollar amounts are hidden unless costs are shown, and anything shaped
+// like an API key or bearer token is always hidden.
+const KEYISH = /\b(?:sk-(?:ant-|or-|proj-)?[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|xai-[A-Za-z0-9]{12,}|gsk_[A-Za-z0-9]{12,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+)\b|\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/g;
+const MONEY = /(?:US)?\$\s?\d[\d,]*(?:\.\d+)?/g;
+export function scrub(text, showCosts) {
+  let t = String(text ?? "").replace(KEYISH, "[hidden]");
+  if (!showCosts) t = t.replace(MONEY, "[cost hidden]");
+  return t;
+}
+
+// What the share page may show of the brand kit (the kit is validated when saved: hex colours, safe logo).
+export function publicBrand(kit) {
+  return { name: kit.name || "", tagline: kit.tagline || "", primary: kit.primary || null, secondary: kit.secondary || null, logo: kit.logo || null };
+}
+
+const cleanToken = (t) => String(t || "").replace(/[^A-Za-z0-9_-]/g, "");
+
+// After a restart the in-memory index is empty; in local mode the stored copy brings the link back.
+function lookup(token, h) {
+  let rec = index.get(token);
+  if (!rec && !h.HOSTED) {
+    const d = h.doc(KIND, () => ({}));
+    if (d[token]) { rec = { ...d[token], ctxRef: h.ctx() }; index.set(token, rec); }
+  }
+  return rec || null;
+}
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/share/, "");
   if (req.method === "POST" && p === "/create") {
@@ -43,8 +70,8 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { token, url: `/share.html?t=${token}`, expiresAt: rec.expiresAt });
   }
   if (req.method === "GET" && p.startsWith("/t/")) {
-    const token = p.slice(3).replace(/[^A-Za-z0-9_-]/g, "");
-    const rec = index.get(token);
+    const token = cleanToken(p.slice(3));
+    const rec = token ? lookup(token, h) : null;
     if (!rec) return h.json(res, 404, { error: "unknown link" });
     if (Date.now() > rec.expiresAt) { index.delete(token); return h.json(res, 410, { error: "this link has expired" }); }
     // read the mission: the owner's live snapshot first, then the stored copy (local file, or the owner's store in hosted mode)
@@ -55,10 +82,18 @@ export async function routes(req, res, url, body, h) {
       if (!h.HOSTED && fs.existsSync(file)) { try { m = JSON.parse(fs.readFileSync(file, "utf8")); } catch {} }
       else if (rec.ctxRef?.store?.getMission) { try { m = await h.runAs(rec.ctxRef, () => rec.ctxRef.store.getMission(rec.missionId)); } catch {} }
     }
-    const feed = (feeds.get(rec.missionId) || []).slice(-80).map((e) => ({ ts: e.ts, type: e.type, provider: e.provider, from: e.from, to: e.to, text: e.text || e.label || e.error || "", ...(rec.showCosts ? { cost: e.cost } : {}) }));
-    return h.json(res, 200, { expiresAt: rec.expiresAt, mission: sanitizeMission(m, rec.showCosts), feed, providers: Object.fromEntries(Object.values(h.PROVIDERS).map((pr) => [pr.id, { name: pr.name, color: pr.color }])) });
+    const feed = (feeds.get(rec.missionId) || []).slice(-80).map((e) => ({ ts: e.ts, type: e.type, provider: e.provider, from: e.from, to: e.to, text: scrub(e.text || e.label || e.error || "", rec.showCosts), ...(rec.showCosts ? { cost: e.cost } : {}) }));
+    let brand = null; try { brand = publicBrand(rec.ctxRef ? h.runAs(rec.ctxRef, () => brandKit(h)) : brandKit(h)); } catch {}
+    return h.json(res, 200, { expiresAt: rec.expiresAt, showCosts: rec.showCosts, brand, mission: sanitizeMission(m, rec.showCosts), feed, providers: Object.fromEntries(Object.values(h.PROVIDERS).map((pr) => [pr.id, { name: pr.name, color: pr.color }])) });
   }
-  if (req.method === "GET" && p === "/list") { const d = h.doc(KIND, () => ({})); return h.json(res, 200, Object.entries(d).map(([t, r]) => ({ token: t, ...r, expired: Date.now() > r.expiresAt }))); }
-  if (req.method === "DELETE" && p.startsWith("/t/")) { const t = p.slice(3); index.delete(t); const d = h.doc(KIND, () => ({})); delete d[t]; h.putDoc(KIND, d); return h.json(res, 200, { ok: true }); }
+  if (req.method === "GET" && p === "/list") {
+    // owner only (behind the session token); expired links older than a day are dropped from the record
+    const d = h.doc(KIND, () => ({})); const now = Date.now(); let pruned = false;
+    for (const [t, r] of Object.entries(d)) if (now > r.expiresAt + 86400000) { delete d[t]; index.delete(t); pruned = true; }
+    if (pruned) h.putDoc(KIND, d);
+    const mid = url.searchParams.get("missionId");
+    return h.json(res, 200, Object.entries(d).filter(([, r]) => !mid || r.missionId === mid).map(([t, r]) => ({ token: t, url: `/share.html?t=${t}`, ...r, expired: now > r.expiresAt })).sort((a, b) => b.createdAt - a.createdAt));
+  }
+  if (req.method === "DELETE" && p.startsWith("/t/")) { const t = cleanToken(p.slice(3)); index.delete(t); const d = h.doc(KIND, () => ({})); delete d[t]; h.putDoc(KIND, d); h.emit("log", { text: "Share link revoked." }); return h.json(res, 200, { ok: true }); }
   return false;
 }
