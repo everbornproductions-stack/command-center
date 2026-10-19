@@ -241,3 +241,54 @@ Nothing for this phase was committed before this session; all of it was built he
 - `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 27 DONE
+
+## 2026-10-19: Phase 13, organize my existing browser bookmarks
+
+- Checked first: docs/DECISIONS.md has nothing this phase conflicts with. No earlier Phase 13 work was committed, so the whole phase was built here.
+- Where: the first-run Setup page shows "Organize the bookmarks you already have?" next to the AI bookmark folder (a new `setup` kind for feature plugins, two lines in web/app.js), and Settings > Organize my bookmarks. Server: server/bookmarks.js, server/plugins/bookmarks.js (`/api/bookmarks`). UI: web/features/bookmarks.js.
+- Reading:
+  - Chrome, Edge and Brave `Bookmarks` JSON per profile (Windows, macOS and Linux paths). Firefox `places.sqlite` from a temporary read-only copy (node:sqlite); tag entries are skipped.
+  - The list shows profile names only. Nothing inside a bookmarks file is read until the person picks the profile and ticks "Allow Command AI to read this browser's bookmarks" (400 without it).
+  - The read bookmarks stay in memory only. The app's own files keep counts and backup paths, never titles or addresses.
+- Sorting:
+  - Only AIs with a saved key are listed, each with a cost estimate. The cheapest capable one is suggested. The person clicks "Sort into folders", with an optional business name.
+  - The prompt asks for 4 to 12 short folder names, for example the business name, Insurance, Banking, Tools or Social. It works in batches of 120 and reuses earlier folder names.
+  - Privacy: titles and addresses go only to the AI the person picked. Smart fallback is deliberately not used here, so the list never reaches another provider. Only the scheme, host and path are sent: query strings, fragments, user:password and bookmarklet code never leave. The UI says this.
+  - Every call is in the ledger (role `bookmarks`, no content). An AI at its spend cap is refused. Invented ids are ignored, and anything the AI leaves out goes to "Other".
+  - The app's favicon helper is not used in this panel, because it would send every bookmark's domain to Google.
+- Preview: rename folders, move a bookmark with its menu, untick it (it stays where it is), add folders. Exact duplicates (same address) are listed and merged only when ticked. Options: put the folders on the bookmarks bar or under Other bookmarks, and remove the folders this move leaves empty (on by default; folders that were already empty are never touched).
+- Apply (Chrome, Edge, Brave):
+  - Refused while the browser is running (tasklist on Windows, pgrep elsewhere; when the check is not possible, the apply is also refused).
+  - Refused when the file changed since it was read.
+  - A synced profile needs "Apply anyway", because sync may bring back the old layout. sync_metadata is left alone.
+  - Backups go next to the file (`Bookmarks.command-ai-backup-<time>`) and to the app data folder (`bookmarks-backups/`). Both are checked byte for byte before writing.
+  - Moved bookmarks keep their own id, guid, dates and meta info. An existing folder with the same name is reused, and new ids are unique. `checksum` is removed. The bookmark count is checked before the write (before minus ticked duplicates, else nothing is written). The write goes to a temp file and is then renamed. Chrome's own Bookmarks.bak is not touched.
+- Undo puts the backup back, also only with the browser closed. If the bookmarks changed after organizing, it asks first and keeps a `command-ai-before-undo` copy. A second undo is refused.
+- Firefox: writing places.sqlite is not safe, so Firefox gets an import file with the organized folders, plus the steps to import it. The Download import file button is available for every browser.
+- Demo mode: "Sample bookmarks" (server/bookmarks-demo.json, fake data, 30 bookmarks with duplicates, nested folders and a bookmarklet). The pretend AI (server/mock.js) sorts them by keywords and names a folder after the business. Apply and Undo work on a sandbox copy in the app data folder.
+- Hosted hub: the routes answer "works in the desktop app"; nothing is read.
+- Commits: 995c76f (feature and tests), plus this log entry.
+- Tests: npm test 124/124 pass. `test/bookmarks.test.js` adds 5:
+  - reading: folder paths, duplicates, address clean-up, the line format and profiles.ini;
+  - the apply plan: counts, a ticked duplicate merged, unticked bookmarks left in place, records kept, an existing folder reused, emptied folders removed or kept, Other bookmarks, the checksum dropped, the input unchanged; the import file escaped and de-duplicated;
+  - no em-dashes in the new files;
+  - the running server against a fake home folder (CC_BROWSER_HOME: Chrome with two profiles, one synced, Edge and Firefox, and a fake process list) and a mock xAI. It covers:
+    - the session token; allow first; profile checks; models only with a key, and the estimate;
+    - a key-less AI refused; exactly what is sent; ledger entries without content;
+    - refusal while Chrome runs, with nothing touched and no backup;
+    - apply with both backups equal to the original, then the result checked;
+    - a draft applies once; undo while running refused; undo restores the original bytes; a second undo refused;
+    - changed-since-read refused; undo after a later change asks, then keeps a copy;
+    - synced needs "apply anyway", and the sync data is kept;
+    - Firefox: read from a copy, tags skipped, export only, the database never written;
+  - demo mode with no keys: sample bookmarks sorted into the business, Banking & Money, Insurance, Social and AI folders, applied to the sandbox and undone, with the (fake) browser profile untouched.
+- npm run smoke: all checks pass. Both suites ran in temp data dirs with mocks. No real browser profile, account, URL or key was used.
+- Not verified:
+  - The Setup and Settings panels were syntax-checked (node --check) but not opened in a browser or the desktop app. That includes the folder editor (details, rename inside the summary, the move menus) and the file download.
+  - The spend-cap refusal for sorting is in the code but not covered by a test.
+  - The running-browser check was tested only with the fake process list. Real tasklist / pgrep, and real Chrome accepting the edited file without a checksum, were not run. The existing AI-folder apply already relies on the same checksum removal.
+  - Firefox reading was tested on a small synthetic places.sqlite. A real Firefox that is running may lock the file; the app then asks the person to close Firefox.
+  - How well a real AI names folders for a large real bookmark set is unknown. Every folder is shown for review before anything changes.
+- `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 13 DONE
