@@ -7,6 +7,7 @@
 //   command: { order: 10, render(container) {...} },                          // optional: widget in the Command view, under the orders panel
 //   deliverable: { order: 10, render(container, run) {...} },                 // optional: buttons/sections under the deliverable
 //   settings: { order: 10, render(container) {...} },                         // optional: a panel in Settings
+//   credits: { order: 10, render(container) {...} },                          // optional: a panel at the top of the Credits tab
 //   setup: { order: 10, render(container) {...} },                            // optional: a panel on the first-run Setup page (next to the AI bookmark folder)
 //   onEvent(ev) {...},                                                        // optional: every WebSocket event
 //   onState(state) {...},                                                     // optional: after each full state load / tick

@@ -34,9 +34,17 @@ export function totals() {
   return { flagship: fl ? fl.name : null, allTime: { actual: +actual.toFixed(4), flagship: +flag.toFixed(4), saved: +Math.max(0, flag - actual).toFixed(4) }, month: { actual: +actualM.toFixed(4), flagship: +flagM.toFixed(4), saved: +Math.max(0, flagM - actualM).toFixed(4) }, runs };
 }
 
+// The newest runs with a receipt each, for the Credits tab (newest first).
+export function recent(limit = 10) {
+  const last = new Map();
+  for (const e of allEntries()) if (e.kind === "call" && e.missionId) last.set(e.missionId, Math.max(last.get(e.missionId) || 0, e.ts || 0));
+  return [...last.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id, ts]) => ({ ...receiptFor(id), ts }));
+}
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/receipt/, "");
   if (req.method === "GET" && p === "/totals") return h.json(res, 200, totals());
+  if (req.method === "GET" && p === "/recent") return h.json(res, 200, recent(Math.min(50, Number(url.searchParams.get("limit")) || 10)));
   if (req.method === "GET" && p.startsWith("/")) { const r = receiptFor(p.slice(1)); return r ? h.json(res, 200, r) : h.json(res, 404, { error: "no calls logged for that run" }); }
   return false;
 }

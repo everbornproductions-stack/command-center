@@ -683,6 +683,7 @@ function renderCredits(v) {
     <div class="k"><div class="l">Subscriptions</div><div class="v">${money(S.subscriptionTotals?.known || 0, 0)}<span class="dim" style="font-size:13px"> + ~${money(S.subscriptionTotals?.estimated || 0, 0)} est.</span></div><div class="s">${S.subscriptionTotals?.unconfirmed || 0} prices still unconfirmed</div></div>
     <div class="k"><div class="l">Media credits logged</div><div class="v">${fmtN(hqc?.total || 0)}</div><div class="s">${hqc ? `${hqc.rows} generations in HQ credit log` : "no HQ credit log"}</div></div>
   </div>
+  <div id="credits-extras" style="margin-bottom:16px"></div>
   <div class="grid cols-2">
     <div class="panel"><h3>Daily API spend <span class="right">last 30 days</span></h3>
       <div class="sparks">${L.series.map((d) => `<i style="height:${Math.max(2, (d.v / max) * 100)}%" data-v="${d.d.slice(5)} ${money(d.v, 3)}"></i>`).join("")}</div></div>
@@ -713,6 +714,7 @@ function renderCredits(v) {
       <div class="panel"><h3>Recent calls <span class="right">✓ = exact billed amount</span></h3><table class="tbl"><tbody>${L.recent.filter((e) => e.kind === "call").slice(0, 12).map((e) => `<tr><td class="dim mono small">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td><span class="dot" style="background:${pcolor(e.provider)}"></span> ${esc(e.model)}</td><td class="dim small">${e.role || ""}</td><td class="right mono dim">${fmtN(e.inTok)}/${fmtN(e.outTok)}</td><td class="right mono">${money(e.cost, 4)}${e.exact ? " ✓" : e.estimated ? "~" : ""}</td></tr>`).join("") || `<tr><td class="dim">No calls yet.</td></tr>`}</tbody></table></div>
     </div>
   </div>`;
+  renderExtras("credits", "#credits-extras");
   $$("[data-rule]", v).forEach((cb) => cb.addEventListener("change", async () => { const rules = (S.rules || []).map((r) => ({ ...r, enabled: r.id === cb.dataset.rule ? cb.checked : r.enabled })); for (const r of rules) { delete r.providerName; delete r.color; delete r.activeNow; delete r.nextStart; } S.rules = await api("/rules", { method: "POST", body: { rules } }); toast("Rules saved"); }));
   $("#cr-go").addEventListener("click", async () => { const units = Number($("#cr-u").value); if (!units) return; await api("/credits", { method: "POST", body: { provider: $("#cr-p").value, units, note: $("#cr-n").value, project: S.project } }); toast("Logged"); await refresh(); });
 }
