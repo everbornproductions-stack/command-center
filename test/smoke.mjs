@@ -82,6 +82,15 @@ try {
   check((await owner.api("/state")).json.ledger.recent.filter((e) => e.kind === "image").length === 2, "one ledger line per image");
   const imgv = (await owner.api("/images/estimate", { method: "POST", body: { provider: "openai", op: "variation" } })).json;
   check(imgv?.keyed === false && /Add your OpenAI key/.test(imgv.keyMessage || ""), "no OpenAI key: a clear add-a-key message");
+  // scheduled and triggered agents (Phase 22): wrong webhook token refused, the right one runs, a send waits for approval
+  const sch = (await owner.api("/schedules", { method: "POST", body: { name: "Smoke hook", target: { kind: "chat", text: "Say hello in five words." }, trigger: { type: "webhook" }, capUsd: 1, after: { action: "webhook", url: "http://127.0.0.1:9/never" } } })).json;
+  const hk = (t) => owner.raw({ method: "POST", path: sch?.schedule?.hookPath || "/api/schedules/hook/sch-missing0", headers: { "content-type": "application/json", "x-cc-trigger-token": t }, body: {} });
+  check((await hk("wrong")).status === 401, "schedule webhook with a wrong token refused (401)");
+  const hr = await hk(sch?.token || "none");
+  check(hr.status === 202, "schedule webhook with the right token queued a run");
+  let sr = null; for (let i = 0; i < 120 && !(sr && !["queued", "running"].includes(sr.status)); i++) { await sleep(500); sr = (await owner.api(`/schedules/runs/${hr.json?.run_id}`)).json; }
+  check(sr?.status === "needs_approval" && sr.cost > 0, "scheduled result waits for approval before it is sent");
+  check((await owner.api(`/schedules/runs/${sr?.id}/reject`, { method: "POST" })).json?.status === "rejected", "Don't send drops the result (nothing sent)");
   check((await owner.api("/state")).json.subscriptionsLocked === false, "subscriptions unlocked for owner");
 } catch (e) { check(false, e.message); } finally { await owner.stop(); }
 
@@ -91,6 +100,7 @@ try {
   const st = await free.api("/state");
   check(st.json.license.tier === "free" && st.json.license.configured === false, "no cloud → free");
   check((await free.api("/mission", { method: "POST", body: { goal: "x" } })).status === 402, "mission gated");
+  check((await free.api("/schedules", { method: "POST", body: { name: "x", target: { kind: "mission", text: "x" }, trigger: { type: "cron", cron: "@daily" } } })).status === 402, "mission schedule gated");
   check((await free.api("/projects", { method: "POST", body: { name: "Second", categories: [] } })).status === 402, "2nd project gated");
   check((await free.api("/subscriptions", { method: "POST", body: { name: "x" } })).status === 402, "subscriptions gated");
   check(st.json.subscriptionsLocked === true && st.json.subscriptions.length === 0, "subscriptions locked in state");
