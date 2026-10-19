@@ -1,0 +1,341 @@
+{
+   "checksum": "0123456789abcdef0123456789abcdef",
+   "roots": {
+      "bookmark_bar": {
+         "children": [
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000004",
+               "id": "4",
+               "name": "Sunrise Bakery website",
+               "type": "url",
+               "url": "https://sunrisebakery.example/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000005",
+               "id": "5",
+               "name": "Sunrise Bakery orders",
+               "type": "url",
+               "url": "https://orders.sunrisebakery.example/admin?view=today"
+            },
+            {
+               "children": [
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000007",
+                     "id": "7",
+                     "name": "Chase",
+                     "type": "url",
+                     "url": "https://www.chase.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000008",
+                     "id": "8",
+                     "name": "Progressive",
+                     "type": "url",
+                     "url": "https://www.progressive.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000009",
+                     "id": "9",
+                     "name": "Instagram",
+                     "type": "url",
+                     "url": "https://www.instagram.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000010",
+                     "id": "10",
+                     "name": "ChatGPT",
+                     "type": "url",
+                     "url": "https://chatgpt.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000011",
+                     "id": "11",
+                     "name": "Canva",
+                     "type": "url",
+                     "url": "https://www.canva.com/"
+                  }
+               ],
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "date_modified": "13370000000000000",
+               "guid": "00000000-0000-4000-8000-000000000006",
+               "id": "6",
+               "name": "stuff",
+               "type": "folder"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000012",
+               "id": "12",
+               "name": "Gmail",
+               "type": "url",
+               "url": "https://mail.google.com/mail/u/0/#inbox"
+            },
+            {
+               "children": [
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000014",
+                     "id": "14",
+                     "name": "Wells Fargo",
+                     "type": "url",
+                     "url": "https://www.wellsfargo.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000015",
+                     "id": "15",
+                     "name": "State Farm",
+                     "type": "url",
+                     "url": "https://www.statefarm.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000016",
+                     "id": "16",
+                     "name": "Facebook",
+                     "type": "url",
+                     "url": "https://www.facebook.com/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000017",
+                     "id": "17",
+                     "name": "Claude",
+                     "type": "url",
+                     "url": "https://claude.ai/"
+                  },
+                  {
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "guid": "00000000-0000-4000-8000-000000000018",
+                     "id": "18",
+                     "name": "Sunrise Bakery Google profile",
+                     "type": "url",
+                     "url": "https://business.google.com/"
+                  },
+                  {
+                     "children": [
+                        {
+                           "date_added": "13370000000000000",
+                           "date_last_used": "0",
+                           "guid": "00000000-0000-4000-8000-000000000020",
+                           "id": "20",
+                           "name": "Sunrise Bakery menu PDF",
+                           "type": "url",
+                           "url": "https://sunrisebakery.example/menu"
+                        }
+                     ],
+                     "date_added": "13370000000000000",
+                     "date_last_used": "0",
+                     "date_modified": "13370000000000000",
+                     "guid": "00000000-0000-4000-8000-000000000019",
+                     "id": "19",
+                     "name": "old",
+                     "type": "folder"
+                  }
+               ],
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "date_modified": "13370000000000000",
+               "guid": "00000000-0000-4000-8000-000000000013",
+               "id": "13",
+               "name": "New folder (2)",
+               "type": "folder"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000021",
+               "id": "21",
+               "name": "Save to notes",
+               "type": "url",
+               "url": "javascript:void(0)"
+            }
+         ],
+         "date_added": "13370000000000000",
+         "date_last_used": "0",
+         "date_modified": "13370000000000000",
+         "guid": "00000000-0000-4000-8000-000000000001",
+         "id": "1",
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000022",
+               "id": "22",
+               "name": "PayPal",
+               "type": "url",
+               "url": "https://www.paypal.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000023",
+               "id": "23",
+               "name": "Geico",
+               "type": "url",
+               "url": "https://www.geico.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000024",
+               "id": "24",
+               "name": "LinkedIn",
+               "type": "url",
+               "url": "https://www.linkedin.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000025",
+               "id": "25",
+               "name": "YouTube",
+               "type": "url",
+               "url": "https://www.youtube.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000026",
+               "id": "26",
+               "name": "GitHub",
+               "type": "url",
+               "url": "https://github.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000027",
+               "id": "27",
+               "name": "Canva",
+               "type": "url",
+               "url": "https://www.canva.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000028",
+               "id": "28",
+               "name": "Chase",
+               "type": "url",
+               "url": "https://www.chase.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000029",
+               "id": "29",
+               "name": "Weather",
+               "type": "url",
+               "url": "https://weather.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000030",
+               "id": "30",
+               "name": "Bread recipes",
+               "type": "url",
+               "url": "https://www.allrecipes.com/recipes/bread"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000031",
+               "id": "31",
+               "name": "Flour supplier",
+               "type": "url",
+               "url": "https://www.kingarthurbaking.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000032",
+               "id": "32",
+               "name": "QuickBooks",
+               "type": "url",
+               "url": "https://quickbooks.intuit.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000033",
+               "id": "33",
+               "name": "Amazon",
+               "type": "url",
+               "url": "https://www.amazon.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000034",
+               "id": "34",
+               "name": "BBC News",
+               "type": "url",
+               "url": "https://www.bbc.com/news"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000035",
+               "id": "35",
+               "name": "Google Docs",
+               "type": "url",
+               "url": "https://docs.google.com/"
+            },
+            {
+               "date_added": "13370000000000000",
+               "date_last_used": "0",
+               "guid": "00000000-0000-4000-8000-000000000036",
+               "id": "36",
+               "name": "Google Drive",
+               "type": "url",
+               "url": "https://drive.google.com/"
+            }
+         ],
+         "date_added": "13370000000000000",
+         "date_last_used": "0",
+         "date_modified": "13370000000000000",
+         "guid": "00000000-0000-4000-8000-000000000002",
+         "id": "2",
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [],
+         "date_added": "13370000000000000",
+         "date_last_used": "0",
+         "date_modified": "13370000000000000",
+         "guid": "00000000-0000-4000-8000-000000000003",
+         "id": "3",
+         "name": "Mobile bookmarks",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

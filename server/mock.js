@@ -75,9 +75,41 @@ function demoBrowse(u) {
   return done(`What the page says:\n\n${summary}\n\n*Demo mode: a pretend AI drove the helper.*`);
 }
 
+// Organize my bookmarks (Phase 13) in demo mode: the pretend AI sorts by keywords in the address and title,
+// and names a folder after the business (the name given, else the brand that shows up most).
+const BM_TOPICS = [
+  ["Banking & Money", /chase|wellsfargo|bankofamerica|capitalone|paypal|venmo|quickbooks|intuit|amex|\bbank/],
+  ["Insurance", /insurance|progressive|statefarm|geico|allstate|libertymutual/],
+  ["Social", /instagram|facebook|linkedin|tiktok|twitter|\bx\.com|youtube|pinterest/],
+  ["AI", /chatgpt|openai|claude|gemini|perplexity|grok|midjourney/],
+  ["Email & Docs", /mail\.google|docs\.google|drive\.google|outlook|business\.google/],
+  ["Tools", /github|canva|notion|zapier|bookmarklet/],
+  ["Shopping", /amazon|ebay|etsy|walmart/],
+  ["News & Reading", /news|weather|recipe|bbc|cnn|nytimes|wikipedia/],
+];
+function demoBookmarks(u) {
+  const rows = [...u.matchAll(/^(\S+) \| (.*) \| (.*)$/gm)].map((m) => ({ id: m[1], title: m[2], url: m[3] }));
+  const host = (r) => { try { return new URL(r.url).hostname.replace(/^www\./, ""); } catch { return ""; } };
+  const brand = (h) => h.split(".").slice(-2)[0] || "";
+  let biz = (u.match(/^BUSINESS: (.*)$/m) || [])[1] || "";
+  const counts = {};
+  for (const r of rows) { const h = host(r); if (h && !BM_TOPICS.some(([, re]) => re.test(`${h} ${r.title.toLowerCase()}`))) counts[brand(h)] = (counts[brand(h)] || 0) + 1; }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const bizKey = biz ? biz.toLowerCase().split(/\s+/)[0] : top && top[1] >= 2 ? top[0] : "";
+  if (!biz && bizKey) { const r = rows.find((x) => brand(host(x)) === bizKey); biz = r ? r.title.split(/\s+/).slice(0, 2).join(" ") : bizKey; }
+  const folders = {};
+  for (const r of rows) {
+    const hay = `${host(r)} ${r.url} ${r.title}`.toLowerCase();
+    const name = bizKey && hay.replace(/\s+/g, "").includes(bizKey) ? biz : (BM_TOPICS.find(([, re]) => re.test(hay)) || ["Everything else"])[0];
+    (folders[name] ||= []).push(r.id);
+  }
+  return JSON.stringify({ folders: Object.entries(folders).map(([name, items]) => ({ name, items })) });
+}
+
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
+  if (/^You sort browser bookmarks/.test(sys)) return demoBookmarks(u);
   const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
   if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });
