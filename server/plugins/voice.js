@@ -6,7 +6,7 @@ import { DEFAULT_MODE, MODES, coerceSettings, normalizeSettings } from "../../we
 
 export const id = "voice";
 
-const view = (v) => ({ mode: v.mode, silenceStop: !!v.silenceStop, modes: MODES, defaultMode: DEFAULT_MODE });
+const view = (v) => ({ mode: v.mode, silenceStop: !!v.silenceStop, autoSend: !!v.autoSend, modes: MODES, defaultMode: DEFAULT_MODE });
 
 function read(h) {
   const s = h.settings() || {};
@@ -22,7 +22,7 @@ export async function routes(req, res, url, body, h) {
     try { next = normalizeSettings(body || {}, read(h)); }
     catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code || "voice_invalid" }); }
     const cur = h.settings() || {};
-    const voice = { mode: next.mode, silenceStop: !!next.silenceStop };
+    const voice = { mode: next.mode, silenceStop: !!next.silenceStop, autoSend: !!next.autoSend };
     h.putDoc("settings", { ...cur, voice });
     return h.json(res, 200, view(voice));
   }

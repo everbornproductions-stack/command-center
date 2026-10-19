@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, startServer } from "./helpers.js";
 import {
-  EARLY_END, MODES, DEFAULT_MODE, createSession, reduce, normalizeSettings, coerceSettings, formatElapsed, buttonLabel, buttonTitle, hint,
+  EARLY_END, MODES, DEFAULT_MODE, createSession, reduce, normalizeSettings, coerceSettings, formatElapsed, buttonLabel, buttonTitle, hint, shouldAutoSend,
 } from "../web/features/voice-mode.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -20,7 +20,7 @@ test("defaults: tap to talk, labels, elapsed time", () => {
   assert.equal(s.recording, false);
   assert.equal(createSession({ mode: "nope" }).mode, "tap");
   assert.equal(createSession({ mode: "hold", silenceStop: true }).silenceStop, true);
-  assert.deepEqual(coerceSettings(null), { mode: "tap", silenceStop: false });
+  assert.deepEqual(coerceSettings(null), { mode: "tap", silenceStop: false, autoSend: false });
   assert.equal(buttonLabel(s), "Tap to talk");
   assert.equal(buttonLabel({ mode: "tap", recording: true }), "Tap to stop");
   assert.equal(buttonLabel({ mode: "hold", recording: false }), "Hold to talk");
@@ -45,6 +45,25 @@ test("normalize: partial update, rejects junk", () => {
   assert.throws(() => normalizeSettings({ mode: "HOLD" }), /tap or hold/);
   assert.throws(() => normalizeSettings(null), /object/);
   assert.throws(() => normalizeSettings([]), /object/);
+});
+
+test("auto-send (Phase 5): off by default, kept across partial saves, fires only with words and a working mic", () => {
+  assert.equal(createSession().autoSend, false);
+  assert.equal(coerceSettings({ autoSend: "yes" }).autoSend, false, "only a real true turns it on");
+  assert.equal(normalizeSettings({ autoSend: true }, { mode: "hold" }).autoSend, true);
+  assert.equal(normalizeSettings({ mode: "tap" }, { mode: "hold", autoSend: true }).autoSend, true, "a mode change keeps auto-send");
+  assert.equal(normalizeSettings({ silenceStop: true }, { autoSend: true }).autoSend, true);
+  let s = createSession({ autoSend: false });
+  s = reduce(s, { type: "settings", settings: { autoSend: true } }, 0).session;
+  assert.equal(s.autoSend, true, "a settings event turns it on in the live session");
+  assert.equal(shouldAutoSend(s, "draft the caption"), true);
+  assert.equal(shouldAutoSend(s, "   "), false, "nothing heard, nothing sent");
+  assert.equal(shouldAutoSend(s, "draft", true), false, "a blocked or cut-off mic never sends");
+  assert.equal(shouldAutoSend(createSession(), "draft the caption"), false, "off: the words wait in the box");
+  const src = read("web", "features", "voice.js");
+  assert.match(src, /savePrefs\(\{ autoSend: e\.target\.checked \}\)/, "the Command checkbox saves the choice");
+  assert.match(src, /id="vo-auto-set"/, "Settings has the auto-send switch");
+  assert.match(src, /shouldAutoSend\(session, text, sticky\)/, "finish() uses the saved choice, not an unsaved checkbox");
 });
 
 test("tap: press starts on release, second press stops, leave does not", () => {
@@ -250,6 +269,12 @@ test("server: voice mode persists on the settings document, default tap, junk re
     assert.equal(partial.json.mode, "hold");
     assert.equal(partial.json.silenceStop, true);
     assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).voice.silenceStop, true);
+    assert.equal(partial.json.autoSend, false, "auto-send is off until turned on");
+    const auto = await s.api("/voice", { method: "POST", body: { autoSend: true } });
+    assert.equal(auto.json.autoSend, true);
+    assert.equal(auto.json.mode, "hold", "turning on auto-send keeps the mode");
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).voice.autoSend, true, "auto-send is saved with the settings");
+    assert.equal((await s.api("/voice", { method: "POST", body: { mode: "hold" } })).json.autoSend, true, "a later save keeps it");
 
     const bad = await s.api("/voice", { method: "POST", body: { mode: "push" } });
     assert.equal(bad.status, 400);

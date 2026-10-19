@@ -3,7 +3,7 @@
 // Hold to talk: recording stays on for the whole press. Pointer leave, pointer
 // cancel, lost capture, blur and the recognizer ending on its own do not stop a hold.
 // The choice is saved with the app settings (GET/POST /api/voice).
-import { buttonLabel, buttonTitle, createSession, formatElapsed, hint, reduce } from "./voice-mode.js";
+import { buttonLabel, buttonTitle, createSession, formatElapsed, hint, reduce, shouldAutoSend } from "./voice-mode.js";
 
 const { $, toast, api } = window.CC;
 const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -25,7 +25,7 @@ if (!document.getElementById("cc-voice-style")) {
 
 const LS = "cc.voice";
 function readCache() { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } }
-function cache(v) { try { localStorage.setItem(LS, JSON.stringify({ mode: v.mode, silenceStop: !!v.silenceStop })); } catch {} }
+function cache(v) { try { localStorage.setItem(LS, JSON.stringify({ mode: v.mode, silenceStop: !!v.silenceStop, autoSend: !!v.autoSend })); } catch {} }
 
 let session = createSession(readCache());
 let note = "";
@@ -70,6 +70,7 @@ function paint() {
   if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.mode === session.mode));
   const setSilence = document.getElementById("vo-silence-set");
   if (setSilence) setSilence.checked = !!session.silenceStop;
+  for (const id of ["vo-auto", "vo-auto-set"]) { const box = document.getElementById(id); if (box) box.checked = !!session.autoSend; }
 }
 
 function apply(event) {
@@ -181,7 +182,7 @@ function finish() {
   const sticky = note === "microphone blocked" || note === "speech service stopped";
   if (!sticky) note = text ? "captured" : "";
   finalText = "";
-  if (text && !sticky && document.getElementById("vo-auto")?.checked) $("#go")?.click();
+  if (shouldAutoSend(session, text, sticky)) $("#go")?.click();
   paint();
 }
 
@@ -228,7 +229,7 @@ async function savePrefs(patch) {
     const r = await api("/voice", { method: "POST", body: patch });
     if (n !== rev) return r;
     cache(r);
-    if (window.CC.S?.settings) window.CC.S.settings.voice = { mode: r.mode, silenceStop: !!r.silenceStop };
+    if (window.CC.S?.settings) window.CC.S.settings.voice = { mode: r.mode, silenceStop: !!r.silenceStop, autoSend: !!r.autoSend };
     apply({ type: "settings", settings: r });
     return r;
   } catch (e) { toast(e.message, true); throw e; }
@@ -260,6 +261,7 @@ function renderCommand(el) {
   </div>
   <div class="dim small" id="vo-hint" style="margin-top:4px"></div>`;
   wireButton(el.querySelector("#vo-mic"));
+  el.querySelector("#vo-auto").addEventListener("change", (e) => { savePrefs({ autoSend: e.target.checked }).catch(() => { e.target.checked = !!session.autoSend; }); });
   el.querySelector("#vo-silence").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
   paint();
   syncFromServer();
@@ -276,9 +278,12 @@ function renderSettings(el) {
     </div>
     <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-silence-set"> Stop on silence</label>
     <div class="dim small" style="margin-top:6px">Stop on silence applies to tap to talk only. A hold is never cut off by a pause, a timeout, or the pointer sliding off the button.</div>
+    <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-auto-set"> Auto-send</label>
+    <div class="dim small" style="margin-top:6px">When recording stops and words were heard, the orders go out without a second click. Off: the words wait in the box for you to check and send.</div>
   </div>`;
   el.querySelectorAll("#vo-mode button").forEach((b) => b.addEventListener("click", () => { savePrefs({ mode: b.dataset.mode }).catch(() => paint()); }));
   el.querySelector("#vo-silence-set").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
+  el.querySelector("#vo-auto-set").addEventListener("change", (e) => { savePrefs({ autoSend: e.target.checked }).catch(() => { e.target.checked = !!session.autoSend; }); });
   paint();
   syncFromServer();
 }

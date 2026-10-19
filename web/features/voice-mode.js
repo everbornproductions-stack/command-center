@@ -8,7 +8,7 @@
 
 export const MODES = ["tap", "hold"];
 export const DEFAULT_MODE = "tap";
-export const DEFAULTS = { mode: DEFAULT_MODE, silenceStop: false };
+export const DEFAULTS = { mode: DEFAULT_MODE, silenceStop: false, autoSend: false };
 
 // Events that must not end a hold on their own.
 export const EARLY_END = ["pointerleave", "pointerout", "mouseleave", "pointercancel", "lostpointercapture", "blur", "focus", "silence"];
@@ -17,19 +17,21 @@ const bad = (msg) => Object.assign(new Error(msg), { status: 400, code: "voice_i
 
 export function coerceSettings(input) {
   const mode = MODES.includes(input?.mode) ? input.mode : DEFAULT_MODE;
-  return { mode, silenceStop: input?.silenceStop === true };
+  return { mode, silenceStop: input?.silenceStop === true, autoSend: input?.autoSend === true };
 }
 
 // Merge a partial update. Throws on junk so the route can answer 400.
 export function normalizeSettings(input, prev = DEFAULTS) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw bad("body must be an object");
   const base = coerceSettings(prev);
-  const out = { mode: base.mode, silenceStop: base.silenceStop };
+  const out = { mode: base.mode, silenceStop: base.silenceStop, autoSend: base.autoSend };
   if (Object.prototype.hasOwnProperty.call(input, "mode")) {
     if (!MODES.includes(input.mode)) throw bad("mode must be tap or hold");
     out.mode = input.mode;
   }
   if (Object.prototype.hasOwnProperty.call(input, "silenceStop")) out.silenceStop = input.silenceStop === true;
+  // auto-send: a recording that ends with words captured sends the orders without a second click
+  if (Object.prototype.hasOwnProperty.call(input, "autoSend")) out.autoSend = input.autoSend === true;
   return out;
 }
 
@@ -38,6 +40,7 @@ export function createSession(settings) {
   return {
     mode: s.mode,
     silenceStop: s.silenceStop,
+    autoSend: s.autoSend,
     recording: false,
     held: false,
     source: null,
@@ -46,6 +49,11 @@ export function createSession(settings) {
     armed: false,
     startedAt: null,
   };
+}
+
+// Auto-send fires only when it is on, words were captured, and the mic was not blocked or cut off.
+export function shouldAutoSend(session, text, blocked = false) {
+  return !!session?.autoSend && !blocked && String(text || "").trim().length > 0;
 }
 
 export function formatElapsed(ms) {
@@ -118,9 +126,10 @@ export function reduce(session, event, now = 0) {
   switch (ev.type) {
     case "settings": {
       try {
-        const next = normalizeSettings(ev.settings || {}, { mode: s.mode, silenceStop: s.silenceStop });
+        const next = normalizeSettings(ev.settings || {}, { mode: s.mode, silenceStop: s.silenceStop, autoSend: s.autoSend });
         s.mode = next.mode;
         s.silenceStop = next.silenceStop;
+        s.autoSend = next.autoSend;
       } catch { /* keep the current choice when a payload is junk */ }
       return none();
     }
