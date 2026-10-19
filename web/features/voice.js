@@ -1,28 +1,298 @@
-// Voice orders: a mic button next to "Send orders". Uses the browser's speech recognition
-// (Chrome, Edge, the Electron shell). Push-to-talk by default; "auto-send" sends when you stop talking.
-const { $, toast } = window.CC;
+// Voice orders: a mic button next to "Send orders".
+// Tap to talk (default): tap once to start, tap again to stop. Optional stop on silence.
+// Hold to talk: recording stays on for the whole press. Pointer leave, pointer
+// cancel, lost capture, blur and the recognizer ending on its own do not stop a hold.
+// The choice is saved with the app settings (GET/POST /api/voice).
+import { buttonLabel, buttonTitle, createSession, formatElapsed, hint, reduce } from "./voice-mode.js";
 
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const { $, toast, api } = window.CC;
+const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const css = `
+#vo-mic { touch-action: none; user-select: none; -webkit-user-select: none; }
+#vo-mic.vo-live { box-shadow: 0 0 0 3px rgba(248,113,113,.45); }
+.vo-live-ind { display: inline-flex; align-items: center; gap: 6px; color: var(--red); font-weight: 600; font-variant-numeric: tabular-nums; }
+.vo-live-ind[hidden] { display: none !important; }
+.vo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 8px var(--red); animation: vo-pulse 1s ease-in-out infinite; }
+@keyframes vo-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+`;
+if (!document.getElementById("cc-voice-style")) {
+  const style = document.createElement("style");
+  style.id = "cc-voice-style";
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+const LS = "cc.voice";
+function readCache() { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } }
+function cache(v) { try { localStorage.setItem(LS, JSON.stringify({ mode: v.mode, silenceStop: !!v.silenceStop })); } catch {} }
+
+let session = createSession(readCache());
+let note = "";
+let recognition = null;
+let finalText = "";
+let baseText = "";
+let generation = 0;
+let restartTimer = null;
+let tickTimer = null;
+let micStream = null;
+let micPromise = null;
+let startFails = 0;
+let rev = 0;
+let synced = false;
+let globals = false;
+
+function paint() {
+  const btn = document.getElementById("vo-mic");
+  if (btn) {
+    const on = session.recording;
+    btn.classList.toggle("primary", on);
+    btn.classList.toggle("vo-live", on);
+    btn.textContent = buttonLabel(session);
+    btn.title = buttonTitle(session);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  const live = document.getElementById("vo-live");
+  if (live) {
+    live.hidden = !session.recording;
+    const t = document.getElementById("vo-timer");
+    if (t) t.textContent = session.recording && session.startedAt ? formatElapsed(Date.now() - session.startedAt) : "0:00";
+  }
+  const status = document.getElementById("vo-status");
+  if (status) status.textContent = session.recording ? "" : note;
+  const hintEl = document.getElementById("vo-hint");
+  if (hintEl) hintEl.textContent = hint(session);
+  const silence = document.getElementById("vo-silence");
+  const silenceLabel = document.getElementById("vo-silence-label");
+  if (silence) silence.checked = !!session.silenceStop;
+  if (silenceLabel) silenceLabel.hidden = session.mode !== "tap";
+  const seg = document.getElementById("vo-mode");
+  if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.mode === session.mode));
+  const setSilence = document.getElementById("vo-silence-set");
+  if (setSilence) setSilence.checked = !!session.silenceStop;
+}
+
+function apply(event) {
+  const { session: next, effect } = reduce(session, event, Date.now());
+  session = next;
+  if (event?.type === "error" && (event.code === "not-allowed" || event.code === "service-not-allowed")) note = "microphone blocked";
+  if (effect === "start") { note = ""; void begin(); }
+  else if (effect === "stop") finish();
+  else if (effect === "restart") scheduleRestart();
+  paint();
+  return effect;
+}
+
+function startClock() { if (!tickTimer) tickTimer = setInterval(paint, 250); }
+function stopClock() { clearInterval(tickTimer); tickTimer = null; }
+
+function closeMic() {
+  const stream = micStream;
+  micStream = null;
+  try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+}
+
+function ensureMic() {
+  if (!navigator.mediaDevices?.getUserMedia) return Promise.resolve(true);
+  if (micStream && micStream.getTracks().some((t) => t.readyState === "live")) return Promise.resolve(true);
+  if (!micPromise) {
+    micPromise = navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      micStream = stream;
+      return true;
+    }).catch(() => false).finally(() => { micPromise = null; });
+  }
+  return micPromise;
+}
+
+function writeTranscript(interim) {
+  const box = $("#orders");
+  if (!box) return;
+  box.value = (baseText ? baseText + " " : "") + finalText + (interim || "");
+  box.dispatchEvent(new Event("input"));
+}
+
+function scheduleRestart() {
+  if (restartTimer || !session.recording) return;
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    if (!session.recording || recognition) return;
+    void begin({ keep: true });
+  }, 60);
+}
+
+async function begin({ keep = false } = {}) {
+  const myGen = ++generation;
+  if (!keep) {
+    finalText = "";
+    baseText = ($("#orders")?.value || "").trim();
+  }
+  startClock();
+  const ok = await ensureMic();
+  if (myGen !== generation || !session.recording) { if (!session.recording) closeMic(); return; }
+  if (!ok) { apply({ type: "error", code: "not-allowed" }); return; }
+  const Ctor = SR();
+  if (!Ctor || recognition) return;
+  const rec = new Ctor();
+  rec.lang = "en-US";
+  rec.interimResults = true;
+  rec.continuous = true;
+  rec.onresult = (e) => {
+    startFails = 0;
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t + " ";
+      else interim += t;
+    }
+    writeTranscript(interim);
+  };
+  rec.onspeechstart = () => { rec._ccSilence = false; };
+  rec.onspeechend = () => { rec._ccSilence = true; };
+  rec.onerror = (e) => {
+    const code = e.error || "";
+    if (code === "aborted") return;
+    if (code === "not-allowed" || code === "service-not-allowed") apply({ type: "error", code });
+  };
+  rec.onend = () => {
+    if (recognition === rec) recognition = null;
+    if (!session.recording) return;
+    apply({ type: "recognizerend", cause: rec._ccSilence ? "silence" : "end" });
+  };
+  recognition = rec;
+  try { rec.start(); startFails = 0; }
+  catch {
+    if (recognition === rec) recognition = null;
+    startFails += 1;
+    if (startFails > 6) { note = "speech service stopped"; apply({ type: "stop" }); return; }
+    scheduleRestart();
+  }
+}
+
+function finish() {
+  const rec = recognition;
+  recognition = null;
+  generation += 1;
+  clearTimeout(restartTimer);
+  restartTimer = null;
+  try { rec?.abort(); } catch {}
+  closeMic();
+  stopClock();
+  const text = finalText.trim();
+  const sticky = note === "microphone blocked" || note === "speech service stopped";
+  if (!sticky) note = text ? "captured" : "";
+  finalText = "";
+  if (text && !sticky && document.getElementById("vo-auto")?.checked) $("#go")?.click();
+  paint();
+}
+
+function bindGlobal() {
+  if (globals) return;
+  globals = true;
+  window.addEventListener("pointerup", (e) => apply({ type: "pointerup", pointerId: e.pointerId, button: e.button }));
+  window.addEventListener("pointercancel", (e) => apply({ type: "pointercancel", pointerId: e.pointerId, buttons: e.buttons }));
+  window.addEventListener("keyup", (e) => {
+    if (session.source === "key" && session.held) apply({ type: "keyup", key: e.key });
+  });
+  // Blur (a permission prompt, a re-render, the window losing focus) is not a release.
+  window.addEventListener("blur", () => apply({ type: "blur" }));
+}
+
+function wireButton(btn) {
+  btn.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try { btn.setPointerCapture(e.pointerId); } catch {}
+    try { btn.focus({ preventScroll: true }); } catch {}
+    apply({ type: "pointerdown", button: e.button, pointerId: e.pointerId });
+  });
+  // Leave and lost capture are reported and then ignored for a hold.
+  btn.addEventListener("pointerleave", (e) => apply({ type: "pointerleave", pointerId: e.pointerId }));
+  btn.addEventListener("lostpointercapture", (e) => apply({ type: "lostpointercapture", pointerId: e.pointerId }));
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  btn.addEventListener("click", (e) => e.preventDefault());
+  btn.addEventListener("keydown", (e) => {
+    if (e.key !== " " && e.key !== "Enter") return;
+    e.preventDefault();
+    apply({ type: "keydown", key: e.key, repeat: e.repeat });
+  });
+  btn.addEventListener("keyup", (e) => {
+    if (e.key !== " " && e.key !== "Enter") return;
+    e.preventDefault();
+    apply({ type: "keyup", key: e.key });
+  });
+}
+
+async function savePrefs(patch) {
+  const n = ++rev;
+  try {
+    const r = await api("/voice", { method: "POST", body: patch });
+    if (n !== rev) return r;
+    cache(r);
+    if (window.CC.S?.settings) window.CC.S.settings.voice = { mode: r.mode, silenceStop: !!r.silenceStop };
+    apply({ type: "settings", settings: r });
+    return r;
+  } catch (e) { toast(e.message, true); throw e; }
+}
+
+function syncFromServer() {
+  if (synced) return;
+  synced = true;
+  const n = ++rev;
+  api("/voice").then((r) => {
+    if (n !== rev) return;
+    cache(r);
+    apply({ type: "settings", settings: r });
+  }).catch(() => { synced = false; });
+}
+
+function renderCommand(el) {
+  bindGlobal();
+  if (!SR()) {
+    el.innerHTML = `<div class="dim small" style="margin-top:6px">Voice orders need Chrome, Edge or the desktop app (no speech recognition in this browser). Wispr Flow dictation works in the box above.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="row small" style="margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn sm" type="button" id="vo-mic" aria-pressed="false">Tap to talk</button>
+    <label class="row small" style="gap:4px"><input type="checkbox" id="vo-auto"> auto-send</label>
+    <label class="row small" id="vo-silence-label" style="gap:4px"><input type="checkbox" id="vo-silence"> stop on silence</label>
+    <span class="vo-live-ind" id="vo-live" hidden><i class="vo-dot" aria-hidden="true"></i><span>Recording</span><span id="vo-timer" class="mono">0:00</span></span>
+    <span class="dim" id="vo-status" aria-live="polite"></span>
+  </div>
+  <div class="dim small" id="vo-hint" style="margin-top:4px"></div>`;
+  wireButton(el.querySelector("#vo-mic"));
+  el.querySelector("#vo-silence").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
+  paint();
+  syncFromServer();
+}
+
+function renderSettings(el) {
+  bindGlobal();
+  el.innerHTML = `<div class="panel" id="vo-settings">
+    <h3>Voice orders</h3>
+    <div class="dim small">Tap to talk starts on a tap and stops on the next tap. Hold to talk keeps recording for the whole time the button is held.</div>
+    <div class="seg" id="vo-mode" style="margin-top:10px">
+      <button type="button" data-mode="tap">Tap to talk</button>
+      <button type="button" data-mode="hold">Hold to talk</button>
+    </div>
+    <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-silence-set"> Stop on silence</label>
+    <div class="dim small" style="margin-top:6px">Stop on silence applies to tap to talk only. A hold is never cut off by a pause, a timeout, or the pointer sliding off the button.</div>
+  </div>`;
+  el.querySelectorAll("#vo-mode button").forEach((b) => b.addEventListener("click", () => { savePrefs({ mode: b.dataset.mode }).catch(() => paint()); }));
+  el.querySelector("#vo-silence-set").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
+  paint();
+  syncFromServer();
+}
 
 CC.register({
   id: "voice",
-  command: { order: 1, render(el) {
-    if (!SR) { el.innerHTML = `<div class="dim small" style="margin-top:6px">Voice orders need Chrome, Edge or the desktop app (no speech recognition in this browser). Wispr Flow dictation works in the box above.</div>`; return; }
-    el.innerHTML = `<div class="row small" style="margin-top:8px;gap:8px"><button class="btn sm" id="vo-mic" title="Hold to talk, release to stop">🎙 Hold to talk</button><label class="row small" style="gap:4px"><input type="checkbox" id="vo-auto"> auto-send</label><span class="dim" id="vo-status"></span></div>`;
-    const btn = el.querySelector("#vo-mic"), status = el.querySelector("#vo-status");
-    let rec = null, finalText = "";
-    const start = () => {
-      if (rec) return;
-      rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true; finalText = "";
-      const box = $("#orders"); const base = box.value.trim();
-      rec.onresult = (e) => { let interim = ""; for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) finalText += t + " "; else interim += t; } box.value = (base ? base + " " : "") + finalText + interim; box.dispatchEvent(new Event("input")); };
-      rec.onerror = (e) => { status.textContent = e.error === "not-allowed" ? "microphone blocked in the browser" : `mic: ${e.error}`; stop(); };
-      rec.onend = () => { rec = null; btn.classList.remove("primary"); status.textContent = finalText ? "captured" : ""; if (finalText && el.querySelector("#vo-auto").checked) $("#go")?.click(); };
-      try { rec.start(); btn.classList.add("primary"); status.textContent = "listening…"; } catch (e) { toast(e.message, true); rec = null; }
-    };
-    const stop = () => { try { rec?.stop(); } catch {} };
-    btn.addEventListener("mousedown", start); btn.addEventListener("touchstart", (e) => { e.preventDefault(); start(); });
-    btn.addEventListener("mouseup", stop); btn.addEventListener("mouseleave", stop); btn.addEventListener("touchend", stop);
-    btn.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); rec ? stop() : start(); } });
-  } },
+  command: { order: 1, render: renderCommand },
+  settings: { order: 18, render: renderSettings },
+  onState(state) {
+    const v = state?.settings?.voice;
+    if (!v) return;
+    cache(v);
+    const { session: next } = reduce(session, { type: "settings", settings: v }, Date.now());
+    session = next;
+    paint();
+  },
 });

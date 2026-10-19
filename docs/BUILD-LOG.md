@@ -840,3 +840,13 @@ FIX onboarding-repeat DONE (built by Cursor cloud agent)
 - Browser (before the rebase): Live tab, a demo Single chat, Nova on the map with the tooltip "Nova (demo) answering" and $0.0001, and the map on the project page. Not verified: the OS reduced-motion setting in a browser, opening a real Kling or usage page, and a real Grok Bot, browser helper, or Cursor cloud handoff (handoffs were tested with mocked events shaped like the Phase 12 and Phase 27 payloads).
 
 PHASE 29 DONE (built by Cursor cloud agent)
+
+## 2026-10-19: Voice orders, hold stays down and tap to talk (Cursor cloud agent)
+
+- The Hold to talk button stopped on `mouseleave` (and on mouseup / touchend only), so a press ended as soon as the pointer slid off the button, and a re-render or a lost pointer dropped the release. The speech recognizer also ends itself on a pause or its own timeout. A hold now captures the pointer, ignores leave / cancel / blur / lost capture, and restarts the recognizer until the button or key is actually released.
+- Tap to talk is the default: tap once to start, tap again to stop, with a Recording indicator and timer. Stop on silence is optional and never cuts a hold short. Settings > Voice orders switches back to hold to talk. The choice is stored on the settings document (`settings.voice`).
+- The desktop shell grants the local window microphone access so speech recognition is not cut off by a missing media permission.
+- Demo mode on macOS and Linux registers the pretend AIs before saving their in-memory demo keys, so demo can start without an OS keychain. Tests outside Windows load a test-only keychain stand-in (`test/vault-preload.cjs`); the app itself still refuses to save real keys in plain Node.
+- Tests: test/voice.test.js. npm test 191 pass, 1 skipped (Pyodide is not installed here; the real-browser artifacts test ran), npm run smoke all checks pass. No real key, no network provider, temp data dir only.
+
+FIX voice-toggle DONE (built by Cursor cloud agent)
