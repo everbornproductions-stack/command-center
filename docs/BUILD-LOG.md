@@ -53,3 +53,14 @@ PHASE 1 DONE
 - Not verified: the UI (toggles, source chips, Settings panel) was syntax-checked and its API covered by tests, not clicked through in a browser; the real Tavily / Brave / Serper request and response shapes and xAI's `search_parameters` field were written from their published docs and only exercised against mocks; a first real search will confirm them. `.claude/launch.json` and `cc-names.tmp.mjs` are uncommitted work from another session and were left alone.
 
 PHASE 15 DONE
+
+## 2026-10-18 22:35 PT: Phase 17 (Side-by-side comparison), built by Cursor cloud agent
+
+- Compare plugin: `server/plugins/compare.js` and `web/features/compare.js`, mounted from `web/features/index.js`. One prompt goes to 2 to 6 models the person picks. Answers stream in parallel columns with cost and latency. Pick winner writes a Phase 3 rating (`ratings.log` plus `recordOutcome` on the skills table) so the router, and a later learning router, reads it from the same place as a thumbs up. Other answered columns are recorded as not picked. The prompt is not stored on the rating, the skills row, or the ledger line.
+- Cost and speed reuse `streamChat`, `recordCall` (role `compare`), and `noteCall`. A model at its monthly spend cap, or with no key, is skipped with a note and is not called, so it has no ledger line. Every real call has a ledger line. Model-set presets save and reload (`compare.presets`). Runs stay in `compare.runs`, not the mission list.
+- Demo keys on Linux: `server/mock.js` registers the demo providers before saving their keys (memory-only). Tests load `test/safe-storage-preload.mjs` so a fake key can be sealed outside Electron. The app itself still refuses to save real keys on plain Node.
+- Commits: 86a85d9 (feature and tests), plus this log entry.
+- Tests: npm test 87/87 pass (test/compare.test.js adds 2: selection bounds and skip notes, and a server run on the demo models: parallel columns, cost and latency, ledger lines with no prompt text, preset save and reload, winner rating the router reads, spend-cap skip with no call); npm run smoke 16/16 pass. No real provider or key was called.
+- Not verified: a first call against a real provider API. The Compare tab was clicked through in headless Chrome (desktop columns, Pick winner, preset, and the phone width layout).
+
+PHASE 17 DONE (built by Cursor cloud agent)
