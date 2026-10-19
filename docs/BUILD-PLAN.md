@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run them in order. Phase N starts only after BUILD-LOG.md shows "PHASE N-1 DONE".
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12 and 13 were added on 2026-10-18 as high priority). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -59,3 +59,23 @@ This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and f
 
 ### Phase 11: Hardening and polish
 - Full regression pass, accessibility, performance, error states, empty states, README and user guide, release notes. Fix anything flaky found in phases 1–10.
+
+### Phase 12 (HIGH PRIORITY, added 2026-10-18): Grok Bot agent inside the Command Center
+Chris wants the app to be the hub where all his AIs talk and decide who does what best; when Grok Bot (his assistant with its own computer, signed-in browser, Gmail, Drive, Calendar) is the best fit, the app hands it the job.
+- Grok Bot appears as an agent/provider in council, router and mission modes, with capability tags: `signed-in-browsing`, `gmail`, `drive`, `calendar`, `teammate-bots`. The router prefers it for tasks that need those; it is never picked for plain text work another AI does as well.
+- Settings > Integrations > Grok Bot: two fields, webhook URL and sender key, stored in the vault like other secrets (never in git, never logged, never sent to the browser after saving). A third optional field: header name, default `Authorization` with value `Bearer <key>`.
+- Dispatch: POST to the webhook URL with the sender key header and JSON body `{job_id, task, context, workspace, callback_url}`. Only on an explicit mission/council step or user click; never in demo mode unless the mock is selected.
+- Results come back to `POST /api/grokbot/callback/<job_id>?t=<per-job random token>` on the local server (the token is generated per job, stored hashed, compared with timingSafeEqual, single use for `done`). Payload `{status, text, artifacts}`; status is one of `queued`, `working`, `needs_approval`, `done` (plus `failed`). The result lands in that job's thread and graph node; the node shows the status. The UI says results are async and can take minutes.
+- The callback endpoint must be exempt from the local session token (it uses the per-job token instead) and must reject everything else.
+- Tests: a local mock webhook server only (random port); never hit a real URL in tests.
+- Do not build a tunnel and do not deploy anything. Document that `callback_url` only works once Grok Bot can reach it: after the hosted hub exists or a tunnel is set up by Chris. Until then the job stays `queued`/`working` and the user can paste the result in by hand.
+
+### Phase 13 (added 2026-10-18): Organize my existing browser bookmarks
+The first-run step that makes AI bookmarks also offers to organize the user's EXISTING bookmarks into smart, auto-named folders by topic (e.g. their business name, insurance, banking, tools, social), using the user's own API key to categorize.
+- Read bookmarks from Chrome, Edge and Brave `Bookmarks` JSON files (per profile) and Firefox `places.sqlite` if practical (read-only copy). Only after the user picks the browser and clicks allow.
+- Show a preview of the proposed folders; the user can rename folders, move items between folders, and uncheck items before applying.
+- Back up the original bookmarks file first (timestamped copy next to it and in the app data folder) and offer one-click undo that restores the backup.
+- Never delete bookmarks; only reorganize. Exact duplicates (same URL) are merged only after the user confirms the list.
+- Before applying: warn the user to close the browser (Chrome/Edge/Brave overwrite the file while running); detect a running browser process and refuse to apply until it is closed. Remove the `checksum` field so Chromium accepts the edited file.
+- Privacy: bookmark titles and URLs go only to the AI provider the user picked for categorizing, nowhere else; say so in the UI. Demo mode categorizes with the mock provider and a fixture file.
+- Tests with fixture bookmark files in a temp folder; never touch a real browser profile in tests.
