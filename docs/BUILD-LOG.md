@@ -22,3 +22,5 @@ In-app updates (Chris's priority, not a numbered phase), built by Grok Bot: 60fe
 PHASE 8 DONE (built by Grok Bot)
 
 2026-10-18 20:05 PT (Grok Bot): v0.3.1 hotfix shipped outside the phase chain: installed app no longer attaches to a foreign server on port 4747 (root cause of 'fetch failed' key checks), Google Gemini card, custom providers with presets, paste-any-key detection, demo AIs retire after the first real key, clear network vs key errors. Added Phase 25 (Subscriptions and services page) to BUILD-PLAN, run order after 16.
+
+2026-10-18 20:35 PT (Grok Bot): v0.3.2 shipped outside the phase chain: updater in the Electron main process (electron/updater.cjs) with a launch prompt that works without the engine or UI, engine watchdog (electron/watchdog.cjs) with native Restart / Install update dialog, tray Check for updates, local engine-down page (electron/offline.html), Restart engine panel in the web UI after 15 s of reconnecting, second launch focuses the open window.

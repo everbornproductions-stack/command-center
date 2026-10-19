@@ -4,6 +4,8 @@ The Windows app checks for updates when it starts and every 4 hours. People can 
 **Settings > Check for updates**. When a newer version is out, a banner says
 "Update available: vX.Y.Z" with an **Update and restart** button. Nothing downloads until they click it.
 
+Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Command AI vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
+
 Updates come from GitHub Releases in the PUBLIC repo `everbornproductions-stack/command-center-releases`.
 The source code repo (`command-center`) stays private. The releases repo only holds installers and
 release notes. No token is built into the app, so the releases repo must stay public.
