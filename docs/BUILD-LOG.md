@@ -976,3 +976,36 @@ PHASE 4 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 5 DONE
+
+## 2026-10-19 14:45 PT: Phase 6 (Work with files and media)
+- Started after PHASE 5 DONE. No Phase 6 commits existed yet. No conflict with docs/DECISIONS.md: the live view (decision 19) only gained two status words, and the knowledge libraries (Phase 18) are reused, not changed.
+- Already in the code before this session, and kept: the Media tab with Kling, ElevenLabs, Runway and fal.ai adapters, an estimate button and dry runs without a key; knowledge libraries (Phase 18) with chunking, embedding, hybrid search and [L1] citations. Neither covered this phase, so this phase added only what was missing.
+- Media actions (R2):
+  - Gap fixed: missions had no media step. The planner can now mark a step `media` with a kind (video, image or voice) and a prompt. It goes to the best media provider for that kind (one with a key and under its cap first). A voice step speaks the text of the step before it.
+  - Estimate first: the plan's feed line shows each media step's cost. A paid step waits as "waiting for your OK"; Approve (Media tab, or "Media from this mission" under the deliverable) must repeat the estimate, and No thanks spends nothing. When the file is made it lands on the task and in the mission's deliverable, and its cost is added to the mission. Generate on the Media tab now also has to send the estimate it showed (it was never checked before), and editing the form turns Generate off until a new estimate.
+  - Spend caps were not checked for media at all. A provider at its cap, or a job that would push it over, is now refused before any call.
+  - Ledger: one line per paid job (kind credits, the approved estimate, the project), no prompt text. Dry runs write no line, since nothing is spent.
+  - Outputs are saved to the project's media folder as before. A dry run (no key, and demo mode) now also saves a placeholder (an SVG frame for video and image, one second of silence for voice) so the whole flow can be seen.
+  - Files are served with the session token only (nosniff, sandboxed). "Show in folder" now takes a job and file number instead of a path typed by the page, and runs without a shell. Before, it ran a shell command built from that path.
+  - The Kling estimate used the v3 price for a job that runs the cheaper turbo model by default. It now prices the model that will run.
+  - The job engine moved from the plugin into server/media-jobs.js so missions can use it.
+- Chat with files:
+  - "Files in this project" in Command: drop or pick PDFs, Word files, text, code or images. The box shows what will be read, what is skipped and why, and the cost. Add to project must repeat that estimate.
+  - Each project gets its own library ("Project files: <name>"), created on the first drop and attached to that project's chats. The passages are stored per project in that library's index, and single chats, councils and missions in the project cite them as [L1], [L2]. Other projects do not see them. Removing a file removes its passages, and for an image the file too.
+  - Images are saved to the project's files folder and described once by the cheapest AI with a key that can see images (OpenAI, Anthropic or Gemini; the demo AI in demo mode). The description is what is indexed, so any model can answer about the picture later. The description call is in the ledger (role describe-image). For this, a chat message can now carry an image, sent in each API's own format (OpenAI-compatible and Anthropic).
+  - Without an embedding key and with demo mode off, the box says which key is needed and reads nothing. Desktop only for now (hosted answers 501, like libraries).
+- Commits:
+  - 24f9bbe Phase 6: media actions (R2): mission media steps (video, image, voice) with the estimate first, a paid step waits for Approve and its file lands on the mission, Generate needs the current estimate, spend caps checked before any call, one ledger line per paid job, outputs saved to the project, demo and no-key dry runs save a placeholder, Kling estimate priced as the model that runs, tests with a local mock Kling
+  - b3bc67c Phase 6: chat with files: drop PDFs, Word, text or images into a project (Files in this project, in Command), read and estimate first, Add repeats the estimate; each project gets its own library attached to its chats, councils and missions, cited as [L1], [L2]; images saved to the project and described once by an AI that can see them (image parts for OpenAI-compatible and Anthropic APIs, the demo AI in demo mode); remove a file and its passages; README lines for media and files; tests
+- Tests:
+  - New: test/media.test.js (2): a demo mission's media step is a dry run with a placeholder in the project folder and no ledger line; with a local mock Kling on a random port and a made-up key: Generate without, or with an older, estimate is refused, the spend cap refuses, Kling is never called before the click, the JWT is checked against the secret, the job is polled and the file saved to the project, one ledger line; a mission's paid step waits, Approve makes it and updates the mission, No thanks spends nothing. test/projectfiles.test.js (2): image parts in OpenAI and Anthropic shapes; drop a text file, a text PDF and a PNG, estimate then Add, the project's library is attached to its chats only, the demo AI receives the picture, a chat in the project cites the right file, a chat in another project sees nothing, the ledger has no file text, remove, and the no-embedder message.
+  - npm test: 243 tests, 241 pass, 0 fail, 2 skipped. npm run smoke: all checks pass. Run on the final tree before the second commit; the first commit was also run on its own tree (241 tests, 239 pass, 0 fail, 2 skipped; smoke pass). Node 24.21.0. Temp data dirs, demo AIs only, no real key or URL.
+- Not verified:
+  - Real Kling, fal.ai, Runway or ElevenLabs jobs: only the mock Kling was called. The fal, Runway and ElevenLabs adapters were not changed, and their real responses were not tried.
+  - Real image descriptions by OpenAI, Anthropic or Gemini: only the demo AI got an image. The Anthropic image format is checked by a unit test, not against the real API.
+  - Which real model describes images is the cheapest available one from those three providers. A model from them that cannot read images would fail the description; that image is then reported as not added.
+  - The drop box, the Approve buttons, file thumbnails and "Media from this mission" were not opened in a real browser. The routes behind them are tested; the page code only by reading it.
+  - A real planner choosing a media step: the demo planner adds one when the goal says "make a video" (or image, voice-over) and the real planner gets the instruction, but no real model was asked.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 6 DONE
