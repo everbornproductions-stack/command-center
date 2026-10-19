@@ -179,10 +179,10 @@ function createWindow() {
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
+  watchReloads(win); // attach before the first load so it is counted
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
   else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
   // the engine page failed to load (engine gone): show the local "Restart engine" page instead
-  watchReloads(win);
   win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); showOffline(`the window could not load the engine (${desc})`); } });
   // external links open in the system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { shell.openExternal(url); return { action: "deny" }; } return { action: "allow" }; });
@@ -194,9 +194,10 @@ function createWindow() {
 // something is looping, so stop and show the local engine page with Restart / Check for updates.
 const loads = [];
 function watchReloads(w) {
-  w.webContents.on("did-start-navigation", (details) => {
-    const url = (details && details.url) || "";
-    if (!details || !details.isMainFrame || !url.startsWith("http://127.0.0.1")) return;
+  w.webContents.on("did-start-navigation", (details, oldUrl, _inPlace, oldIsMain) => {
+    const url = (details && details.url) || oldUrl || "";
+    const isMain = details && details.isMainFrame !== undefined ? details.isMainFrame : oldIsMain;
+    if (!isMain || !url.startsWith("http://127.0.0.1")) return;
     const t = Date.now(); loads.push(t); while (loads.length && t - loads[0] > 60000) loads.shift();
     log(`window load #${loads.length} in 60 s: ${url.replace(/\?.*$/, "")}`);
     if (loads.length > 6) { log("reload loop detected; showing the engine page instead"); loads.length = 0; setImmediate(() => showOffline("the window kept reloading (reload loop stopped)")); }
