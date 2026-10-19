@@ -59,6 +59,7 @@ One tile per AI at the bottom. Light colours: **green** key works and no inciden
 |---|---|
 | Guided API-key setup: one provider at a time, where to get the key, paste, a test call, then the vault; a refused key is never kept; keys never logged or shown again | Settings → Guided API-key setup, last stop of the tour |
 | Live web search with cited sources: Tavily, Brave Search or Serper with your own key, or the model's own search (Perplexity, Grok); "Search the web" toggle per Single, Council and Mission (off by default); numbered results in the prompt, clickable [1] [2] source chips under the answer; every search in the ledger with its cost, monthly caps; demo mode uses a pretend engine | Command (toggles), Settings → Web search |
+| Side-by-side comparison: one prompt to 2 to 6 models, answers in parallel columns with cost and speed, Pick winner teaches the router, saved model presets; a model at its spend cap is skipped | Compare tab, Command |
 | Pipelines: saved missions with the steps pre-decided (Instagram week, music video from a song, client site launch; save your own from any mission) | Pipelines tab |
 | Rate the result: thumbs up/down per AI under every deliverable, feeds the router | under the deliverable |
 | Project memory: brand voice, offers, never-say list, facts; injected into every prompt for that project; import from HQ client files | Settings → Project memory |
