@@ -8,7 +8,8 @@ import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback } from "./fallback.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { observe } from "./brain.js";
 
 const LETTERS = "ABCDEFGHIJ";
 
@@ -73,11 +74,11 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.searchEngine = council.searchEngine || web.name;
         council.cost += recordNative(m.provider, citations, { missionId: id });
       }
-      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, letter: LETTERS[i], standIn: m.standIn || null };
+      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err.status);
-      council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, letter: LETTERS[i] };
+      council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
       emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
     }
     emit("council.update", { council: pub(council) });
@@ -135,6 +136,14 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     }
   }
 
+  // learning router (Phase 28): every member's job, with its peer score and whether it won the round
+  // (a member that failed because of its account, such as no credits, is smart fallback's business, not held against the model)
+  for (const a of Object.values(council.answers)) {
+    if (!a.text && a.account) continue;
+    const b = council.scoreboard?.[a.model];
+    observe({ provider: a.provider, model: a.model, capability: cls.capability, difficulty: cls.difficulty, runId: id, ok: !!a.text, score: b?.avg ?? null, won: council.winner ? a.model === council.winner : null, cost: a.cost, ms: a.ms, free: a.free });
+  }
+
   // ---- Round 3: chair verdict ----
   {
     let agent = `${id}:${chair.provider}:chair`;
@@ -164,12 +173,14 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
           noteCall(chair.provider, true, ms);
           const e = recordCall({ provider: chair.provider, model: chair.model, usage: ev.usage, missionId: id, role: "chair", ms });
           council.cost += e.cost;
+          observe({ provider: chair.provider, model: chair.model, capability: cls.capability, difficulty: 3, runId: id, ok: true, cost: e.cost, ms, free: e.free });
           emit("agent.done", { agent, provider: chair.provider, model: chair.model, missionId: id, ms, cost: e.cost });
         }
       }
       council.verdict = { provider: chair.provider, model: chair.model, text };
     } catch (err) {
       noteCall(chair.provider, false, Date.now() - s, err.status);
+      if (!troubleKind(err)) observe({ provider: chair.provider, model: chair.model, capability: cls.capability, difficulty: 3, runId: id, ok: false });
       council.verdict = { provider: chair.provider, model: chair.model, error: err.message, text: good.sort((a, b) => (council.scoreboard?.[b.model]?.avg || 0) - (council.scoreboard?.[a.model]?.avg || 0))[0].text };
       emit("agent.error", { agent, provider: chair.provider, model: chair.model, missionId: id, error: err.message });
     }

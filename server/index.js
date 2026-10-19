@@ -16,7 +16,7 @@ import { loadVault, setSecret, getSecret, hasSecret, maskedKey, vaultInfo } from
 import { bus, emit } from "./events.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
 import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall, getStatus } from "./health.js";
-import { availableModels, rank, classify, cheaperRoute, learnedCaps, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { loadProjects, listProjects, saveProject, deleteProject, addLink, removeLink, hqSnapshot } from "./projects.js";
@@ -28,7 +28,8 @@ import { licenseState, activate as activateLicense, redeem as redeemPromo, reche
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
-import { fallbackChat, fallbackRecord, announce as announceFallback } from "./fallback.js";
+import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { observe } from "./brain.js";
 let lastScan = null, lastKeys = null;
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
@@ -183,6 +184,7 @@ async function runChat({ prompt, provider, model, projectId, search, tools }) {
     provider = best.provider; model = best.model;
   }
   let agent = `${id}:${provider}`;
+  const taskType = () => (cls ||= heuristicClassify(prompt));
   const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [] };
   emit("mission.update", { mission: { ...m, title: prompt.slice(0, 90), tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
@@ -210,6 +212,8 @@ async function runChat({ prompt, provider, model, projectId, search, tools }) {
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
         m.cost = +(m.cost + e.cost).toFixed(6);
+        // learning router (Phase 28): the job, its cost and speed; a pinned chat's task type comes from the keyword classifier
+        observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: true, cost: e.cost, ms, free: e.free });
         if (web?.native && ev.citations?.length) { m.sources = sourcesFromCitations(ev.citations); m.searchEngine = web.name; m.cost = +(m.cost + recordNative(provider, ev.citations, { missionId: id })).toFixed(6); }
         emit("agent.done", { agent, provider, model, missionId: id, ms, cost: e.cost });
       }
@@ -218,6 +222,7 @@ async function runChat({ prompt, provider, model, projectId, search, tools }) {
   } catch (err) {
     noteCall(provider, false, Date.now() - s, err.status);
     emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
+    if (!troubleKind(err)) observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     m.status = "failed"; m.error = err.message;
   }
   m.deliverable = text; m.finishedAt = Date.now();

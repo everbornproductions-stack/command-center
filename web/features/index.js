@@ -10,7 +10,7 @@
 //   onEvent(ev) {...},                                                        // optional: every WebSocket event
 //   onState(state) {...},                                                     // optional: after each full state load / tick
 // });
-const FEATURES = ["themes", "brand", "tour", "keysetup", "search", "mcp", "fallback", "pipelines", "ratings", "memory", "receipt", "media", "publish", "reports", "alerts", "share", "voice", "workspaces"];
+const FEATURES = ["themes", "brand", "tour", "keysetup", "search", "mcp", "fallback", "brain", "pipelines", "ratings", "memory", "receipt", "media", "publish", "reports", "alerts", "share", "voice", "workspaces"];
 
 const registry = [];
 window.CC.register = (f) => { if (!f?.id) return; const i = registry.findIndex((x) => x.id === f.id); if (i >= 0) registry[i] = f; else registry.push(f); };

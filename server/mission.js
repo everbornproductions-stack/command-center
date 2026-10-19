@@ -12,7 +12,8 @@ import { emit } from "./events.js";
 import { classify, pick, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback } from "./fallback.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { observe } from "./brain.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -81,6 +82,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
+  const spendEntry = (e) => { spend(e); return e; };
   const explicitSearch = typeof search === "boolean" ? search : undefined;
   // smart fallback (Phase 26): every hop is kept on the mission and announced in the feed
   const stoodIn = (ev, agent, role, taskId = null) => { mission.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, taskId, agentFrom: agent, agentTo: agent, role }); };
@@ -209,6 +211,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               noteCall(t.provider, true, ms);
               const e = recordCall({ provider: t.provider, model: t.model, usage: ev.usage, missionId: id, taskId: t.id, role: "work", ms });
               spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
+              t.work = { cost: e.cost, ms, free: !!e.free };
               emit("agent.done", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, ms, cost: e.cost });
             }
           }
@@ -218,6 +221,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         } catch (err) {
           noteCall(t.provider, false, Date.now() - s, err.status);
           emit("agent.error", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: err.message });
+          // learning router (Phase 28): a model that failed the job itself is marked; account trouble is not held against it
+          if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: t.provider, model: t.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
           // one retry on a different provider
           const alt = rank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
           if (alt && !ctl.signal.aborted) {
@@ -230,9 +235,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               noteCall(alt.provider, true, Date.now() - s2);
               const e = recordCall({ provider: alt.provider, model: alt.model, usage: r.usage, missionId: id, taskId: t.id, role: "work", ms: Date.now() - s2 });
               spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
+              t.work = { cost: e.cost, ms: Date.now() - s2, free: !!e.free };
               t.output = r.text; outputs[t.id] = r.text; t.status = qa ? "review" : "done";
             } catch (err2) {
               noteCall(alt.provider, false, Date.now() - s2, err2.status);
+              if (!troubleKind(err2) && !ctl.signal.aborted) observe({ provider: alt.provider, model: alt.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
               t.status = "failed"; t.error = err2.message;
             }
           } else { t.status = "failed"; t.error = err.message; }
@@ -277,7 +284,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           }
           t.status = "done";
         }
-        if (t.status === "done") done.add(t.id);
+        if (t.status === "done") {
+          done.add(t.id);
+          // learning router (Phase 28): the job, its QA score, what the work call cost and how long it took
+          observe({ provider: t.provider, model: t.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: true, qa: t.review?.score ?? null, cost: t.work?.cost ?? null, ms: t.work?.ms ?? null, free: !!t.work?.free });
+        }
         t.finishedAt = Date.now();
         emit("task.update", { missionId: id, task: pubTask(t) });
         update();
@@ -308,13 +319,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         else if (ev.type === "done") {
           const ms = Date.now() - s5;
           noteCall(asm.provider, true, ms);
-          spend(recordCall({ provider: asm.provider, model: asm.model, usage: ev.usage, missionId: id, role: "assemble", ms }));
+          const e = spendEntry(recordCall({ provider: asm.provider, model: asm.model, usage: ev.usage, missionId: id, role: "assemble", ms }));
+          observe({ provider: asm.provider, model: asm.model, capability: "writing", difficulty: 3, runId: id, ok: true, cost: e.cost, ms, free: e.free });
           emit("agent.done", { agent: aAgent, provider: asm.provider, model: asm.model, missionId: id, ms });
         }
       }
       mission.deliverable = text;
     } catch (err) {
       noteCall(asm.provider, false, Date.now() - s5, err.status);
+      if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: asm.provider, model: asm.model, capability: "writing", difficulty: 3, runId: id, ok: false });
       emit("agent.error", { agent: aAgent, provider: asm.provider, model: asm.model, missionId: id, error: err.message });
       mission.deliverable = finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n");
     }

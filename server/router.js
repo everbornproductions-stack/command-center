@@ -1,12 +1,14 @@
 // The router decides which AI gets which job, and how to do it for fewer credits.
 // Score = learned capability (baseline + what the council taught us) minus a cost penalty
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
+// With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
 import { CAPABILITIES, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc } from "./store.js";
 import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
 import { troubled, freeNow, completeFallback } from "./fallback.js";
+import { adjust } from "./brain.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -44,7 +46,7 @@ export function availableModels() {
     for (const m of p.models) {
       const d = activeDiscount(p.id);
       const pr = modelPrice(m.id);
-      out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
+      out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), baseCaps: m.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
     }
   }
   return out;
@@ -65,8 +67,12 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
   const scored = list.map((m) => {
-    const cost = estimateCostAt(m.model, estIn, estOut, when);
-    const quality = m.caps[capability] ?? 60;
+    const est = estimateCostAt(m.model, estIn, estOut, when);
+    // learning router (Phase 28): the person's own track record for this task type, when there is one,
+    // replaces the older skills shift: base score blended with the record, cost per job, speed
+    const learned = adjust({ model: m.model, baseCaps: m.baseCaps, capability, difficulty, mode, estCost: est });
+    const cost = learned ? learned.cost : est;
+    const quality = learned ? learned.quality : m.caps[capability] ?? 60;
     // hard tasks need quality; easy ones mostly need to be done
     const q = difficulty >= 3 ? quality : difficulty === 2 ? quality * 0.85 + 10 : quality * 0.6 + 30;
     // cost penalty scaled so $0.10 per task ≈ 25 points at weight 1
@@ -79,7 +85,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const free = small && freeNow(m.provider, m.model);
     const bonus = free ? 40 : 0;
     const skipReason = skip[m.provider]?.reason || null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality, healthPenalty: health, warnings, free, skipped: skipReason, score: +(q - penalty - health + bonus).toFixed(1) };
+    const speed = learned ? learned.latencyPenalty : 0;
+    const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus).toFixed(1) };
   });
   return scored.sort((a, b) => b.score - a.score);
 }
