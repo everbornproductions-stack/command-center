@@ -41,7 +41,12 @@ export function summary() {
   for (const p of Object.values(PROVIDERS)) byProvider[p.id] = { month: 0, today: 0, calls: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 };
   let month = 0, today = 0, calls = 0;
   const days = {};
+  // demo AI calls are pretend money: once demo mode is off they leave the totals and filters,
+  // and stay visible in history tagged demo
+  const isDemo = (e) => String(e.provider || "").startsWith("demo-");
+  let demoCalls = 0;
   for (const e of entries) {
+    if (isDemo(e) && !PROVIDERS[e.provider]) { demoCalls++; continue; }
     const b = byProvider[e.provider] || (byProvider[e.provider] = { month: 0, today: 0, calls: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 });
     const c = e.cost || 0;
     if (e.kind === "call") {
@@ -62,7 +67,7 @@ export function summary() {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i).toISOString().slice(0, 10);
     series.push({ d, v: +(days[d] || 0).toFixed(4) });
   }
-  return { month: +month.toFixed(4), today: +today.toFixed(4), calls, byProvider, series, recent: entries.slice(-40).reverse() };
+  return { month: +month.toFixed(4), today: +today.toFixed(4), calls, byProvider, series, recent: entries.slice(-40).reverse().map((e) => (isDemo(e) ? { ...e, demo: true } : e)), demoCalls };
 }
 
 export const allEntries = () => ctx().ledger;

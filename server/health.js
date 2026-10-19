@@ -29,11 +29,21 @@ export function noteCall(id, ok, latencyMs, errStatus) {
   if (ok) {
     const slow = latencyMs > 25000;
     set(id, { status: cur.incident ? "amber" : slow ? "amber" : "green", detail: slow ? `slow (${(latencyMs / 1000).toFixed(0)}s)` : cur.incident ? cur.incident : "ok", latencyMs, lastOk: Date.now() });
-  } else if (errStatus === 401 || errStatus === 403) set(id, { status: "red", detail: "key rejected" });
+  } else if (errStatus === 401 || errStatus === 403) set(id, { status: "red", detail: `Key rejected (${errStatus})` });
   else if (errStatus === 429) set(id, { status: "amber", detail: "rate limited / out of credits" });
   else if (errStatus === 402) set(id, { status: "red", detail: "payment required: no credits" });
   else if (errStatus >= 500) set(id, { status: "amber", detail: `provider error ${errStatus}` });
   else if (errStatus === 0) set(id, { status: "amber", detail: "network error" });
+  else if (errStatus >= 400) set(id, { status: "red", detail: `HTTP ${errStatus} from the provider` });
+}
+
+// "fetch failed" says nothing; dig out the real reason (DNS, refused, TLS, proxy, timeout).
+export function networkCause(e) {
+  if (e?.name === "AbortError" || e?.name === "TimeoutError") return "timed out";
+  const c = e?.cause; const code = c?.code || c?.errors?.[0]?.code;
+  const map = { ENOTFOUND: "address not found (DNS)", EAI_AGAIN: "DNS lookup failed", ECONNREFUSED: "connection refused", ECONNRESET: "connection reset", ETIMEDOUT: "connection timed out", UND_ERR_CONNECT_TIMEOUT: "connection timed out", EHOSTUNREACH: "host unreachable", ENETUNREACH: "network unreachable", CERT_HAS_EXPIRED: "TLS certificate expired", UNABLE_TO_VERIFY_LEAF_SIGNATURE: "TLS certificate could not be verified", SELF_SIGNED_CERT_IN_CHAIN: "TLS certificate not trusted (a proxy or antivirus may be intercepting HTTPS)" };
+  if (code) return `${map[code] || code}${c?.hostname ? ` (${c.hostname})` : ""}`;
+  return c?.message || e?.message || "network error";
 }
 
 async function fetchJson(url, headers = {}, timeout = 12000) {
@@ -49,7 +59,7 @@ async function fetchJson(url, headers = {}, timeout = 12000) {
 }
 
 async function checkStatusPage(p) {
-  if (!p.statusApi) return null;
+  if (!p.statusApi || (process.env.CC_PACKAGED !== "1" && process.env.CC_STATUS_PAGES === "off")) return null; // tests switch status pages off
   try {
     if (p.statusApi === "google-incidents") {
       const r = await fetchJson("https://status.cloud.google.com/incidents.json", {}, 8000);
@@ -90,13 +100,14 @@ export async function checkProvider(id) {
   const t0 = Date.now();
   try {
     let r, balance = null;
-    if (p.api === "anthropic") r = await fetchJson(`${p.baseUrl}/v1/models?limit=100`, { "x-api-key": sec.key, "anthropic-version": "2023-06-01" });
-    else if (p.id === "google") r = await fetchJson(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(sec.key)}`);
+    if (p.api === "anthropic") r = await fetchJson(`${p.baseUrl}/v1/models?limit=100`, { ...(sec.headers || {}), "x-api-key": sec.key, "anthropic-version": "2023-06-01" });
+    else if (p.id === "google") r = await fetchJson(`${p.baseUrl.replace(/\/openai\/?$/, "")}/models?pageSize=200`, { "x-goog-api-key": sec.key });
     else if (p.id === "perplexity") r = { ok: true, status: 200 }; // no cheap list endpoint; verified on first real call
-    else r = await fetchJson(`${p.baseUrl}/models`, { authorization: `Bearer ${sec.key}` });
+    else r = await fetchJson(`${p.baseUrl}/models`, { ...(sec.headers || {}), ...(sec.key && sec.key !== "no-key" ? { authorization: `Bearer ${sec.key}` } : {}) });
     const latencyMs = Date.now() - t0;
     if (!r.ok) {
-      noteCall(id, false, latencyMs, r.status);
+      // Google answers 400 "API key not valid" for a bad key
+      noteCall(id, false, latencyMs, r.status === 400 && /api key|api_key_invalid/i.test(r.text || "") ? 401 : r.status);
       set(id, { incident });
       return getStatus(id);
     }
@@ -123,7 +134,7 @@ export async function checkProvider(id) {
     else if (r.json?.models) liveModels[id] = r.json.models.map((m) => (m.name || "").replace(/^models\//, "")).filter(Boolean);
     set(id, { status: st, detail, latencyMs, incident, balance, lastOk: Date.now() });
   } catch (e) {
-    set(id, { status: "amber", detail: `check failed: ${e.message}`, incident });
+    set(id, { status: "red", detail: `Could not reach ${p.name}: ${networkCause(e)}`, incident, network: true });
   }
   return getStatus(id);
 }

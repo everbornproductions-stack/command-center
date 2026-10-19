@@ -15,7 +15,7 @@ import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, pricingRule
 import { loadVault, setSecret, getSecret, hasSecret, maskedKey, vaultInfo } from "./vault.js";
 import { bus, emit } from "./events.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
-import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall } from "./health.js";
+import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall, getStatus } from "./health.js";
 import { availableModels, rank, classify, cheaperRoute, learnedCaps, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
@@ -95,7 +95,7 @@ function providerView() {
   return Object.values(PROVIDERS)
     .filter((p) => !p.demo || hasSecret(p.id)) // demo AIs only for the user who turned demo on
     .map((p) => ({
-      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo,
+      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
       keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), status: st[p.id] || { status: "grey" },
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), base: m.caps, default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
@@ -106,7 +106,22 @@ function rulesView() {
   return pricingRules().map((r) => { const a = activeDiscount(r.provider); const nx = nextDiscountStart(r.provider); return { ...r, providerName: PROVIDERS[r.provider]?.name || r.provider, color: PROVIDERS[r.provider]?.color || null, activeNow: !!a && a.id === r.id, nextStart: nx && nx.rule.id === r.id ? nx.at.getTime() : null }; });
 }
 
-const summarize = (m) => (m.kind === "council" ? summaryOf(m) : missionSummary(m));
+// runs made with the demo AIs stay in history, tagged demo, after demo mode is switched off
+const isDemoRun = (m) => JSON.stringify([m.members?.map((x) => x.provider), m.tasks?.map((t) => t.provider), m.planner, m.assembler, m.provider]).includes('"demo-');
+const summarize = (m) => { const s = m.kind === "council" ? summaryOf(m) : missionSummary(m); return s && isDemoRun(m) ? { ...s, demo: true } : s; };
+
+// Demo mode retires itself once a real key is saved and validated (built-in or custom provider).
+// The user can turn it back on in Settings; that choice (demoKeep) is respected until they turn it off again.
+const realValidated = (since = 0) => Object.values(PROVIDERS).some((p) => p.kind === "text" && !p.demo && hasSecret(p.id, p.keyEnv) && (getStatus(p.id)?.lastOk || 0) > since && getStatus(p.id)?.status !== "red");
+async function retireDemoIfReal(since = 0) {
+  const s = settings();
+  if (!demoActive() || s.demoKeep || !realValidated(since)) return false;
+  await stopDemo();
+  saveSettings({ ...settings(), demo: false, demoRetiredAt: Date.now(), demoNotice: true });
+  emit("log", { text: "Demo AIs removed now that your own keys are set up. Turn demo mode back on in Settings any time." });
+  emit("demo.retired", {});
+  return true;
+}
 function missionList() {
   return ctx().store.listMissions(summarize).filter(Boolean).sort((a, b) => b.startedAt - a.startedAt).slice(0, 200);
 }
@@ -223,9 +238,12 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
     if (!String(body.key || "").trim()) return json(res, 400, { error: "key required" });
-    await setSecret(body.provider, body.secret ? { key: body.key, secret: body.secret } : body.key);
+    const keepHeaders = PROVIDERS[body.provider].custom ? getSecret(body.provider)?.headers : null; // custom providers keep their extra headers
+    await setSecret(body.provider, body.secret ? { key: body.key, secret: body.secret } : keepHeaders ? { key: String(body.key).trim(), headers: keepHeaders } : body.key);
+    const t0 = Date.now() - 1;
     const st = await checkProvider(body.provider);
-    return json(res, 200, { ok: true, status: st, masked: maskedKey(body.provider) });
+    const demoRetired = await retireDemoIfReal(t0);
+    return json(res, 200, { ok: true, status: st, masked: maskedKey(body.provider), demoRetired });
   }
   if (method === "DELETE" && seg[0] === "keys" && seg[1]) { await setSecret(seg[1], null); await checkProvider(seg[1]); return json(res, 200, { ok: true }); }
   if (method === "POST" && p === "/check") { await checkAll(); return json(res, 200, allStatus()); }
@@ -329,9 +347,11 @@ async function api(req, res, url) {
     if (v.changed) { resetVerifiedTier(); recheckLicense().catch(() => {}); }
     return json(res, 200, { cloud: { url: s.cloud.url, anonKey: s.cloud.anonKey ? "set" : "" }, license: licenseState() });
   }
+  if (method === "POST" && p === "/demo/ack") { saveSettings({ ...settings(), demoNotice: false }); return json(res, 200, { ok: true }); }
   if (method === "POST" && p === "/demo") {
     if (body.on) await startDemo(); else await stopDemo();
-    saveSettings({ ...settings(), demo: !!body.on });
+    // turning demo on while real keys are validated is a deliberate choice: keep it until switched off
+    saveSettings({ ...settings(), demo: !!body.on, demoKeep: !!body.on && realValidated(), demoNotice: false });
     await checkAll();
     emit("log", { text: body.on ? "Demo mode on: three pretend AIs are online. No credits are spent." : "Demo mode off." });
     return json(res, 200, { demo: demoActive(), providers: providerView() });
@@ -381,7 +401,7 @@ const server = http.createServer(async (req, res) => {
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
-    if (url.pathname === "/api/health") return json(res, 200, { ok: true, mode: MODE, version: VERSION, uptime: Math.round(process.uptime()) });
+    if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());
     if (url.pathname === "/api/pair/qr.svg") return pairQr(res, url);
     if (url.pathname.startsWith("/api/")) {
@@ -465,7 +485,7 @@ async function initContext() {
   if (settings().demo) await startDemo().catch((e) => { console.error("[demo]", e.message); emit("log", { text: `Demo mode could not start: ${e.message}`, level: "error" }); });
   restoreScheduled();
   if (HOSTED) await loadHostedLicense();
-  checkAll().catch(() => {});
+  checkAll().then(() => retireDemoIfReal()).catch(() => {});
 }
 
 (async () => {
@@ -479,7 +499,7 @@ async function initContext() {
   }
   setContextInitializer(initContext);
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
-  await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs });
+  await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
     console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);

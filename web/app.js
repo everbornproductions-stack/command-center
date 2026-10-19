@@ -12,7 +12,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const money = (v, d = 2) => "$" + Number(v || 0).toFixed(d);
 const fmtN = (v) => Number(v || 0).toLocaleString();
 const P = (id) => S.providers.find((p) => p.id === id);
-const pname = (id) => P(id)?.name || id;
+const pname = (id) => P(id)?.name || (String(id).startsWith("demo-") ? `${String(id).slice(5).replace(/^./, (c) => c.toUpperCase())} (demo)` : id);
 const pcolor = (id) => P(id)?.color || "#22d3ee";
 const ago = (ts) => { const s = Math.max(0, (Date.now() - ts) / 1000); return s < 60 ? `${s | 0}s` : s < 3600 ? `${(s / 60) | 0}m` : s < 86400 ? `${(s / 3600) | 0}h` : `${(s / 86400) | 0}d`; };
 const favicon = (url) => { try { return `https://www.google.com/s2/favicons?sz=64&domain=${new URL(url).hostname}`; } catch { return ""; } };
@@ -140,6 +140,7 @@ function connect() {
 function applyState(st) {
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir });
   S.plugins = st.plugins || [];
+  if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
 function handle(ev) {
@@ -555,7 +556,7 @@ function renderProjects(v) {
         ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       <div class="panel"><h3>Recent runs</h3>
-        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
       </div>
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
@@ -699,11 +700,13 @@ function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
-      <span class="chip" style="margin-left:auto">${esc(p.status?.detail || "no key")}</span></div>
+      <span class="chip ${p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.status?.detail || "")}">${esc(p.status?.detail || "no key")}</span></div>
+    ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
+    ${p.links?.keys && !p.keyed ? `<div class="row small" style="margin-top:8px"><a class="btn sm" href="${esc(p.links.keys)}" target="_blank" rel="noopener">Get a ${esc(p.name)} API key</a><span class="dim">then paste it below</span></div>` : ""}
     ${!p.hasApi ? `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>` : `<div class="row" style="margin-top:10px">
-      <input type="password" placeholder="${p.keyed ? `saved: ${p.masked}` : p.keyHint || "API key"}" data-key="${p.id}" style="flex:1" autocomplete="off">
+      ${p.noKey ? `<span class="small dim" style="flex:1">No key needed (runs on this PC)</span>` : `<input type="password" placeholder="${p.keyed ? `saved: ${p.masked}` : p.keyHint || "API key"}" data-key="${p.id}" style="flex:1" autocomplete="off">`}
       ${p.id === "kling" ? `<input type="password" placeholder="secret key" data-secret="${p.id}" style="flex:1" autocomplete="off">` : ""}
-      <button class="btn sm" data-save-key="${p.id}">Save &amp; test</button>
+      ${p.noKey ? "" : `<button class="btn sm" data-save-key="${p.id}">Save &amp; test</button>`}
       ${p.keyed ? `<button class="btn sm" data-test="${p.id}">Test</button><button class="btn sm danger" data-rm-key="${p.id}">Remove</button>` : ""}
     </div>`}
     <div class="row small" style="margin-top:8px;gap:12px">${Object.entries(p.links || {}).filter(([, u]) => u).map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${k}</a>`).join("")}</div>
@@ -714,7 +717,9 @@ function renderSettings(v) {
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
-        <div class="grid" style="gap:10px">${textP.map(card).join("")}</div></div>
+        ${anyKeyHtml()}
+        <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
+        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
@@ -761,8 +766,10 @@ function renderSettings(v) {
   $$("[data-save-key]", v).forEach((b) => b.addEventListener("click", async () => {
     const id = b.dataset.saveKey; const key = $(`[data-key="${id}"]`, v).value.trim(); const secret = $(`[data-secret="${id}"]`, v)?.value.trim();
     if (!key) return toast("Paste the key first", true);
+    const sug = await suggestKey(key);
+    if (sug && sug.provider !== id && sug.confidence === "high" && confirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`)) return saveKeyAs(sug, key);
     b.disabled = true; b.textContent = "Testing…";
-    try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret } }); toast(`${pname(id)}: ${r.status.status} · ${r.status.detail}`, r.status.status === "red"); await refresh(); }
+    try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
@@ -782,11 +789,73 @@ function renderSettings(v) {
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
+  wireAnyKey(v);
+  $("#cp-add")?.addEventListener("click", () => openCustomForm());
+  $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
+  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
 }
 
 async function refresh() { applyState(await api("/state")); renderStrip(); renderBudget(); render(); }
+
+// ----- Keys for any provider (v0.3.1) -----
+function keyToast(id, r) {
+  const st = r.status || {};
+  toast(`${pname(id)}: ${st.status === "green" ? "key works" : st.detail || st.status}`, st.status === "red");
+  if (r.demoRetired) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
+}
+async function suggestKey(key) { try { return (await api("/providers/suggest", { method: "POST", body: { key } })).suggestion; } catch { return null; } }
+async function saveKeyAs(sug, key) {
+  if (sug.builtin && P(sug.provider)) { try { const r = await api("/keys", { method: "POST", body: { provider: sug.provider, key } }); keyToast(sug.provider, r); S.focusProvider = sug.provider; await refresh(); } catch (e) { toast(e.message, true); } return; }
+  // a provider we only know as a preset (Together, Fireworks): open the custom form filled in
+  S.view = "settings"; render(); openCustomForm(null, { preset: sug.provider, key });
+}
+function anyKeyHtml() {
+  return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AIza... is Google Gemini, sk-ant-... is Claude, xai-... is Grok).</div>
+    <div class="row"><input type="password" id="anykey" placeholder="paste any API key" style="flex:1" autocomplete="off"><button class="btn sm primary" id="anykey-go">Detect &amp; save</button></div>
+    <div class="small" id="anykey-out" style="margin-top:6px"></div></div>`;
+}
+function wireAnyKey(root) {
+  const go = $("#anykey-go", root); if (!go) return;
+  go.addEventListener("click", async () => {
+    const key = $("#anykey", root).value.trim(); const out = $("#anykey-out", root);
+    if (!key) return toast("Paste the key first", true);
+    const sug = await suggestKey(key);
+    if (!sug) { out.innerHTML = `Not sure which provider this key is for. Paste it into the right card below, or <a href="#" id="anykey-custom">add it as a custom provider</a>.`; $("#anykey-custom", root)?.addEventListener("click", (e) => { e.preventDefault(); openCustomForm(null, { key }); }); return; }
+    out.textContent = `Looks like a ${sug.name} key${sug.confidence === "high" ? "" : " (best guess)"}.`;
+    if (sug.confidence !== "high" && !confirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`)) return;
+    await saveKeyAs(sug, key);
+  });
+}
+async function openCustomForm(editId, pre = {}) {
+  const box = $("#cp-form"); if (!box) return toast("Custom providers are added in the desktop app.", true);
+  let presets = [], existing = null;
+  try { presets = (await api("/providers/presets")).presets; if (editId) existing = (await api("/providers/custom")).custom.find((c) => c.id === editId); } catch (e) { return toast(e.message, true); }
+  const pr = presets.find((x) => x.id === pre.preset);
+  const f = existing || (pr ? { name: pr.name, baseUrl: pr.baseUrl, api: pr.api, noKey: pr.noKey, keysUrl: pr.keys } : { api: "openai" });
+  box.innerHTML = `<div class="route" style="margin-top:10px"><div class="cat-h">${existing ? `Edit ${esc(existing.name)}` : "Add custom provider"}</div>
+    ${existing ? "" : `<div class="row small" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"><span class="dim">Presets:</span>${presets.map((x) => `<button class="ghost small" data-preset="${x.id}" title="${esc(x.baseUrl)}">${esc(x.name)}${x.builtin ? " (built in)" : ""}</button>`).join("")}</div>`}
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+      <label class="small">Name<input type="text" id="cp-name" value="${esc(f.name || "")}" placeholder="My gateway" style="width:100%"></label>
+      <label class="small">API style<select id="cp-api" style="width:100%"><option value="openai" ${f.api !== "anthropic" ? "selected" : ""}>OpenAI-compatible (most providers)</option><option value="anthropic" ${f.api === "anthropic" ? "selected" : ""}>Anthropic-compatible</option></select></label>
+      <label class="small" style="grid-column:1/3">Base URL<input type="text" id="cp-url" value="${esc(f.baseUrl || "")}" placeholder="https://api.example.com/v1" style="width:100%;font-family:var(--mono)"></label>
+      <label class="small">API key<input type="password" id="cp-key" value="${esc(pre.key || "")}" placeholder="${existing?.keyed ? "saved (leave empty to keep)" : "API key"}" style="width:100%" autocomplete="off" ${f.noKey ? "disabled" : ""}></label>
+      <label class="row small" style="gap:6px;align-self:end"><input type="checkbox" id="cp-nokey" ${f.noKey ? "checked" : ""}> No key needed (Ollama, LM Studio)</label>
+      <label class="small" style="grid-column:1/3">Models (comma separated; leave empty to discover from /models)<div class="row"><input type="text" id="cp-models" value="${esc((f.models || []).join(", "))}" placeholder="e.g. llama-3.3-70b, qwen3-32b" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="cp-discover">Discover models</button></div></label>
+      <label class="small" style="grid-column:1/3">Extra headers (optional, one per line as Name: value; stored encrypted)<textarea id="cp-headers" rows="2" style="width:100%;font-family:var(--mono)" placeholder="${existing?.headerNames?.length ? `saved: ${esc(existing.headerNames.join(", "))} (leave empty to keep)` : "X-Org-Id: 1234"}"></textarea></label>
+    </div>
+    ${f.keysUrl ? `<div class="small" style="margin-top:6px"><a href="${esc(f.keysUrl)}" target="_blank" rel="noopener">Get a key for ${esc(f.name)}</a></div>` : ""}
+    <div class="row" style="margin-top:8px"><button class="btn sm primary" id="cp-save">${existing ? "Save changes" : "Add provider"}</button><button class="btn sm" id="cp-cancel">Cancel</button><span class="small dim" id="cp-msg"></span></div></div>`;
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
+  $$("[data-preset]", box).forEach((b) => b.addEventListener("click", () => { const x = presets.find((y) => y.id === b.dataset.preset); if (x.builtin) { S.focusProvider = x.builtin; box.innerHTML = ""; render(); return toast(`${x.name} is built in: paste the key into its card.`); } openCustomForm(null, { preset: x.id, key: $("#cp-key", box).value }); }));
+  $("#cp-nokey", box).addEventListener("change", (e) => { $("#cp-key", box).disabled = e.target.checked; });
+  $("#cp-cancel", box).addEventListener("click", () => { box.innerHTML = ""; });
+  const headers = () => { const t = $("#cp-headers", box).value.trim(); if (!t) return existing ? undefined : {}; return Object.fromEntries(t.split(/\n/).map((l) => l.split(/:(.*)/s)).filter((x) => x[0]?.trim()).map(([n, v]) => [n.trim(), (v || "").trim()])); };
+  const body = () => ({ id: existing?.id, name: $("#cp-name", box).value, baseUrl: $("#cp-url", box).value, api: $("#cp-api", box).value, key: $("#cp-key", box).value, noKey: $("#cp-nokey", box).checked, models: $("#cp-models", box).value, headers: headers(), keysUrl: f.keysUrl || null });
+  $("#cp-discover", box).addEventListener("click", async () => { const m = $("#cp-msg", box); m.textContent = "Asking the provider for its models..."; try { const r = await api("/providers/discover", { method: "POST", body: body() }); $("#cp-models", box).value = r.models.slice(0, 40).join(", "); m.textContent = `${r.models.length} model${r.models.length === 1 ? "" : "s"} found. Trim the list to the ones you want.`; } catch (e) { m.textContent = e.message; } });
+  $("#cp-save", box).addEventListener("click", async (e) => { const b = e.target; b.disabled = true; $("#cp-msg", box).textContent = "Saving and testing..."; try { const r = await api("/providers/custom", { method: "POST", body: body() }); box.innerHTML = ""; keyToast(r.provider.id, r); S.focusProvider = r.provider.id; await refresh(); } catch (err) { $("#cp-msg", box).textContent = err.message; b.disabled = false; } });
+}
 
 // ---------------- boot ----------------
 $("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.view = b.dataset.view; S.openProject = null; render(); });
@@ -902,7 +971,8 @@ function renderSetup(v) {
   v.innerHTML = `<div style="max-width:980px;margin:0 auto" class="grid">
     <div class="panel"><h3>AIs you use <span class="right">${scan ? `${scan.days} days · ${scan.scanned.length} browser profile${scan.scanned.length === 1 ? "" : "s"} scanned` : "history scan skipped"}</span></h3>
       <div class="grid" style="gap:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
-      <div class="dim small" style="margin-top:8px">"Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
+      ${anyKeyHtml()}
+      <div class="dim small" style="margin-top:8px">Not listed? Paste the key above, or add any provider (Google Gemini, OpenRouter, Groq, Ollama...) in <a href="#" id="setup-settings">Settings</a>. "Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
     ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
     ${st.bookmarks && folder.length ? `<div class="panel"><h3>Your AI bookmark folder <span class="right">${folder.reduce((a, c) => a + c.links.length, 0)} links</span></h3>
       <div class="grid cols-3" style="gap:10px">${folder.map((c) => `<div><div class="cat-h" style="margin:4px 0 6px">${esc(c.name)}</div>${c.links.map((l) => `<div class="small" style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><img src="${favicon(l.url)}" style="width:12px;height:12px;vertical-align:-1px;margin-right:6px">${esc(l.name)}</div>`).join("")}</div>`).join("")}</div>
@@ -912,7 +982,9 @@ function renderSetup(v) {
     <div class="row"><button class="btn" id="su-back">← Back</button><button class="btn primary" id="su-done" style="margin-left:auto">Finish setup</button></div></div>`;
   $$("[data-import]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/import-keys", { method: "POST", body: { providers: [b.dataset.import] } }); toast(r2.imported.length ? `${pname(b.dataset.import)} linked` : "Nothing imported", !r2.imported.length); await refresh(); }));
   $$("[data-open]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/open", { method: "POST", body: { provider: b.dataset.open } }); toast(`Opened ${r2.url}`); }));
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); toast(`${pname(b.dataset.savek)}: ${r2.status.status} · ${r2.status.detail}`, r2.status.status === "red"); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  wireAnyKey(v);
+  $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });

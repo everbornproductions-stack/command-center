@@ -22,9 +22,12 @@ export function requireKey(provider) {
   return s.key;
 }
 
+// extra headers saved with a custom provider (kept in the vault next to its key)
+const extraHeaders = (provider) => ({ ...(getSecret(provider.id, provider.keyEnv)?.headers || {}) });
+
 // ---------- Anthropic (official SDK) ----------
 async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal }) {
-  const client = new Anthropic({ apiKey: requireKey(provider), baseURL: provider.baseUrl, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: requireKey(provider), baseURL: provider.baseUrl, maxRetries: 1, defaultHeaders: extraHeaders(provider) });
   const params = {
     model,
     max_tokens: maxTokens,
@@ -65,7 +68,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   if (provider.id === "openai") body.max_completion_tokens = maxTokens;
   else body.max_tokens = maxTokens;
   if (provider.id !== "perplexity") body.stream_options = { include_usage: true };
-  const headers = { "content-type": "application/json", authorization: `Bearer ${key}` };
+  const headers = { ...extraHeaders(provider), "content-type": "application/json", ...(key && key !== "no-key" ? { authorization: `Bearer ${key}` } : {}) };
   if (provider.id === "openrouter") {
     headers["HTTP-Referer"] = "https://everbornproductions.com";
     headers["X-Title"] = "Command AI";

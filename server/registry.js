@@ -43,14 +43,14 @@ export const PROVIDERS = {
     ],
   },
   google: {
-    id: "google", name: "Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", api: "openai",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY", keyHint: "AIza…",
+    id: "google", name: "Google Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", api: "openai",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY", keyHint: "AIza… (from aistudio.google.com/apikey)",
     links: { app: "https://gemini.google.com", console: "https://aistudio.google.com", billing: "https://aistudio.google.com/usage", keys: "https://aistudio.google.com/apikey", status: "https://status.cloud.google.com" },
     statusApi: "google-incidents",
     models: [
       M("gemini-4-argon", "Gemini 4 Argon", "flagship", 2, 10, { reasoning: 94, code: 92, writing: 91, research: 92, creative: 90, analysis: 94, math: 94, fast: 55 }, { default: true }),
       M("gemini-3.8-flash", "Gemini 3.8 Flash", "balanced", 0.75, 3.75, { reasoning: 86, code: 86, writing: 86, research: 86, creative: 84, analysis: 87, math: 88, fast: 88 }),
-      M("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", "economy", 0.25, 1.5, { reasoning: 74, code: 76, writing: 78, research: 76, creative: 74, analysis: 76, math: 78, fast: 97 }),
+      M("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "economy", 0.25, 1.5, { reasoning: 74, code: 76, writing: 78, research: 76, creative: 74, analysis: 76, math: 78, fast: 97 }),
     ],
   },
   perplexity: {
@@ -141,6 +141,9 @@ export const PROVIDERS = {
     links: { app: "https://www.capcut.com", console: "https://www.capcut.com", billing: "https://www.capcut.com", status: null },
   },
 };
+
+// Test and development hook: CC_BASE_URL_<ID> points one provider at a local mock. Installed builds ignore it.
+if (process.env.CC_PACKAGED !== "1") for (const p of Object.values(PROVIDERS)) { const o = process.env[`CC_BASE_URL_${p.id.toUpperCase()}`]; if (o) p.baseUrl = o; }
 
 export const TEXT_PROVIDERS = Object.values(PROVIDERS).filter((p) => p.kind === "text");
 
