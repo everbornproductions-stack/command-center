@@ -292,3 +292,39 @@ PHASE 27 DONE
 - `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
 
 PHASE 13 DONE
+
+## 2026-10-19: Phase 17, side-by-side comparison
+
+- Checked first: docs/DECISIONS.md has nothing this phase conflicts with. No earlier Phase 17 work was committed, so the whole phase was built here.
+- Where: the Compare tab (web/features/compare.js). Server: server/compare.js, server/plugins/compare.js (`/api/compare`).
+- Running a comparison:
+  - One prompt goes to 2 to 6 models the person picks (the same model twice counts once). The tab shows an estimate per model and a total before the Compare click.
+  - Every column streams at the same time. Each one shows its answer, cost (✓ when the provider reported the exact bill), time to first words, total time and tokens.
+  - Each column uses exactly the model that was picked. Smart fallback is deliberately not used here, because a stand-in would spoil the comparison. A failed provider shows its error in its column, and smart fallback's trouble table still hears about it for other jobs.
+  - A provider at 100% of its monthly spend cap (alerts plugin) is skipped with a note and never called. A provider without a saved key is skipped the same way.
+  - Every call is in the ledger (role `compare`, the run id as missionId) and in the health lights. Each column counts as one job of the prompt's task type for the learning router. The task type comes from the keyword classifier, so classifying costs no extra call, and no prompt text is kept in the router's record.
+- Pick winner: a thumbs-up for that model, written through the ratings plugin. `saveRating` was split out of the ratings route so both share it; the route behaves as before. The router (router.js recordOutcome and the Phase 28 learning router) reads it like any other rating. A comparison gets one winner; a second pick is refused (409). Only a column that answered can win.
+- Presets: named model sets, saved per user (a `compare.presets` document), loaded with one click, updated when saved again under the same name, deleted with a confirm.
+- History: the last 30 comparisons are kept per user (answers capped at 20,000 characters each) and listed in the tab.
+- Live updates use their own events (`compare.update`, `compare.delta`), so a comparison never takes over the Command view's live run or graph.
+- Not tier-gated: the plan does not say whether Free should be limited here. Chris decides.
+- Commits: 0f4cff1 (feature, tests, smoke check, README row), plus this log entry.
+- Tests: npm test 127/127 pass. `test/compare.test.js` adds 3:
+  - the running server with the demo AIs only:
+    - model list with estimates; the session token is required;
+    - input checks (one model, duplicates, unknown AI or model, empty prompt);
+    - 3 demo models answer in parallel (every column started before the first finished), and each column reports cost, first-words time, total time and tokens;
+    - 3 ledger entries with matching costs;
+    - picking a winner writes a rating, the learning router shows the thumb on that task type, and its pick reads the record; a second pick is refused; the router export has no prompt text;
+    - a preset saves, updates by name and reloads;
+    - a provider over its cap is skipped with a note, has no ledger entry and cannot win;
+    - columns without a key are skipped once demo mode is off;
+  - a fresh start of the app on a saved preset file reloads it, and delete works;
+  - no em-dashes in the new files.
+- npm run smoke: all checks pass (19, including a new side-by-side check with the 3 demo AIs). Both suites ran in temp data folders with the local mock providers. No real key, account or URL was used.
+- Not verified:
+  - The Compare tab was syntax-checked (node --check) but not opened in a browser or the desktop app. That includes the live column streaming, the model pickers, the preset buttons and the history list.
+  - Real providers streaming side by side were not run. Time to first words is measured on the server, so it includes the provider's queueing but not the trip to the window.
+- `.claude/launch.json` and `cc-names.tmp.mjs` are other sessions' uncommitted work and were left alone. Nothing was pushed (Chris pushes).
+
+PHASE 17 DONE
