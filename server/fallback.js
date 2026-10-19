@@ -275,10 +275,10 @@ export async function* fallbackChat(opts, run = {}) {
       return;
     } catch (e) {
       if (opts.signal?.aborted) throw e;
-      const kind = troubleKind(e);
+      // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
+      const kind = e.code === "cap" ? "cap" : troubleKind(e);
       if (!kind || !settings.on || hop >= settings.maxHops) throw e;
-      noteCall(provider, false, Date.now() - t0, e.status);
-      markTrouble(provider, kind, e.message, { missionId: run.missionId || null });
+      if (kind !== "cap") { noteCall(provider, false, Date.now() - t0, e.status); markTrouble(provider, kind, e.message, { missionId: run.missionId || null }); }
       tried.push({ provider, model });
       const next = nextChoice({ provider, model, tried, cls, mode, small, settings });
       if (!next) throw e;

@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { PROVIDERS } from "./registry.js";
 import { getSecret } from "./vault.js";
+import { doc } from "./store.js";
 
 export class ProviderError extends Error {
   constructor(provider, status, message) {
@@ -178,9 +179,14 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   };
 }
 
+// Spend caps (alerts plugin): a provider at 100% of its monthly cap is never called, even when no
+// other AI is left. Read only; the alerts plugin owns that document.
+function capStopped(pid) { try { return (doc("alerts.state", () => undefined)?.stop || []).includes(pid); } catch { return false; } }
+
 export function streamChat(opts) {
   const provider = typeof opts.provider === "string" ? PROVIDERS[opts.provider] : opts.provider;
   if (!provider || provider.kind !== "text") throw new ProviderError(opts.provider?.id || opts.provider, 400, "Unknown text provider");
+  if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
   const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
   if (provider.api === "anthropic") return anthropicStream(o);
   return openaiCompatStream(o);

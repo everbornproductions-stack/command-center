@@ -326,7 +326,7 @@ async function runChat({ prompt, provider, model, projectId, search, tools, libr
     }
     m.status = "done";
   } catch (err) {
-    noteCall(provider, false, Date.now() - s, err.status);
+    if (err.code !== "cap") noteCall(provider, false, Date.now() - s, err.status); // a spend-cap stop is not the provider's failure
     emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
     if (!troubleKind(err)) observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     m.status = "failed"; m.error = err.message;

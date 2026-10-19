@@ -121,15 +121,16 @@ async function pushAll(h, payload) {
 }
 
 // ---------- events ----------
-export function onEvent(ev, h) {
-  if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search" || ev.entry?.kind === "image")) {
-    const { changes } = recompute(h);
-    for (const c of changes) {
-      const name = nameOf(c.pid);
-      if (c.level === "amber") notify(h, `cap80:${c.pid}:${monthKey()}`, `${name} at ${c.pct}% of its $${c.cap} monthly cap`, `$${c.spend.toFixed(2)} spent this month. It keeps working; the router leans away from it.`, "amber");
-      if (c.level === "stop") notify(h, `cap100:${c.pid}:${monthKey()}`, `${name} hit its $${c.cap} monthly cap`, `Hard stop: the router will not send it new work until the cap is raised or the month rolls over.`, "stop");
-    }
+function alertChanges(h, changes) {
+  for (const c of changes) {
+    const name = nameOf(c.pid);
+    if (c.level === "amber") notify(h, `cap80:${c.pid}:${monthKey()}`, `${name} at ${c.pct}% of its $${c.cap} monthly cap`, `$${c.spend.toFixed(2)} spent this month. It keeps working until 100%.`, "amber");
+    if (c.level === "stop") notify(h, `cap100:${c.pid}:${monthKey()}`, `${name} hit its $${c.cap} monthly cap`, `Hard stop: it gets no new work until the cap is raised or the month rolls over.`, "stop");
   }
+}
+
+export function onEvent(ev, h) {
+  if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search" || ev.entry?.kind === "image")) alertChanges(h, recompute(h).changes);
   if (ev.type === "provider.status" && ev.status === "red") {
     const name = nameOf(ev.provider);
     notify(h, `red:${ev.provider}:${ev.detail}`, `${name} is red`, ev.detail || "key rejected or provider down", "stop");
@@ -168,7 +169,7 @@ export function renewalSweep(h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/alerts/, "");
   if (req.method === "GET" && p === "/state") { const { st } = recompute(h); return h.json(res, 200, { ...st, caps: h.doc(CAPS, () => ({})), prefs: h.doc(PREFS, () => ({ email: "", emailOn: false, pushOn: true })), vapidPublicKey: vapidKeys(h).publicKey, pushDevices: h.doc(SUBS, () => ({ subs: [] })).subs.length }); }
-  if (req.method === "POST" && p === "/caps") { const caps = {}; for (const [k, v] of Object.entries(body.caps || {})) if (PROVIDERS[k] && Number(v) >= 0) caps[k] = Number(v); h.putDoc(CAPS, caps); const { st } = recompute(h); h.emit("log", { text: "Spend caps saved." }); return h.json(res, 200, st); }
+  if (req.method === "POST" && p === "/caps") { const caps = {}; for (const [k, v] of Object.entries(body.caps || {})) if (PROVIDERS[k] && Number(v) >= 0) caps[k] = Number(v); h.putDoc(CAPS, caps); const { st, changes } = recompute(h); h.emit("log", { text: "Spend caps saved." }); alertChanges(h, changes); return h.json(res, 200, st); }
   if (req.method === "POST" && p === "/prefs") { const prefs = { ...h.doc(PREFS, () => ({})), ...(body.email !== undefined ? { email: String(body.email).trim() } : {}), ...(body.emailOn !== undefined ? { emailOn: !!body.emailOn } : {}), ...(body.pushOn !== undefined ? { pushOn: !!body.pushOn } : {}) }; h.putDoc(PREFS, prefs); return h.json(res, 200, prefs); }
   if (req.method === "POST" && p === "/subscribe") { if (!body.endpoint || !body.keys?.p256dh) return h.json(res, 400, { error: "bad subscription" }); const d = h.doc(SUBS, () => ({ subs: [] })); if (!d.subs.some((s) => s.endpoint === body.endpoint)) d.subs.push({ endpoint: body.endpoint, keys: body.keys, addedAt: Date.now() }); h.putDoc(SUBS, d); return h.json(res, 200, { devices: d.subs.length }); }
   if (req.method === "POST" && p === "/test") { await notify(h, `test:${Date.now()}`, "Test alert", "If you can read this on your phone, push works.", "amber"); return h.json(res, 200, { ok: true }); }
