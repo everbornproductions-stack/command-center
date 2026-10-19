@@ -5,8 +5,10 @@
 // tray menu, engine-down dialog or Settings); then it downloads with progress and restarts into
 // the new version. "Later" hides the launch prompt for this version until the next launch.
 // Pure logic with injected autoUpdater and UI hooks, so tests can drive it with fakes.
+// manualInstall (unsigned Mac builds, Phase 14): Apple only lets signed apps replace themselves, so
+// "Install now" opens the release page for the new .dmg (ui.openDownload) and never downloads or quits.
 
-function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0" }) {
+function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false }) {
   const listeners = [];
   let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, checkedAt: 0 };
   let dismissed = null;    // version the person said "Later" to (this launch only)
@@ -67,10 +69,18 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
 
   function later() { dismissed = state.version; log(`update v${state.version}: later`); return state; }
 
+  const MANUAL_NOTE = "This Mac build cannot replace itself yet (it is not signed). Download the new version from the page that just opened.";
+  function openDownload() {
+    log(`update v${state.version}: opening the download page (manual install)`);
+    try { ui.openDownload && ui.openDownload(state.version); } catch (e) { log("could not open the download page:", e && e.message); }
+    return setState({ phase: "available", error: MANUAL_NOTE });
+  }
+
   // download with progress, then quit and run the installer, which relaunches the app
   async function install() {
     if (installing) return state;
     if (!state.version) { const s = await check(); if (!s.version) throw Object.assign(new Error("No update to install."), { code: "no_update" }); }
+    if (manualInstall) return openDownload();
     installing = true;
     setState({ phase: "downloading", percent: state.percent || 0, error: null });
     log(`downloading update v${state.version}`);
@@ -87,11 +97,12 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   const bridge = {
     onEvent: (f) => listeners.push(f),
     async check() { const s = await check(); return s.version ? { version: s.version, notes: s.notes } : { version: currentVersion, notes: "" }; },
-    download: () => autoUpdater.downloadUpdate(),
-    install() { installing = true; try { ui.beforeQuit && ui.beforeQuit(); } catch {} log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
+    download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); openDownload(); return Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" })); },
+    install() {
+      if (manualInstall) return; installing = true; try { ui.beforeQuit && ui.beforeQuit(); } catch {} log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
   };
 
-  return { check, later, install, bridge, onEvent: (f) => listeners.push(f), get state() { return state; } };
+  return { check, later, install, bridge, manualInstall, onEvent: (f) => listeners.push(f), get state() { return state; } };
 }
 
 module.exports = { createUpdateController };

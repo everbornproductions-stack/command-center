@@ -16,6 +16,12 @@ let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free
 const INSTANCE = crypto.randomBytes(12).toString("hex");
 process.env.CC_INSTANCE = INSTANCE;
 const isPackaged = app.isPackaged;
+const IS_MAC = process.platform === "darwin";
+// Mac builds are unsigned until there is an Apple Developer account (docs/RELEASING.md). Apple only lets
+// signed apps replace themselves, so until then "Install now" on a Mac opens the release page for the
+// new .dmg instead of downloading. Set to true once Developer ID signing and notarization are on.
+const MAC_SELF_UPDATE = false;
+const RELEASES_PAGE = "https://github.com/everbornproductions-stack/command-center-releases/releases";
 const ROOT = path.join(__dirname, "..");
 const userData = app.getPath("userData");
 
@@ -79,7 +85,9 @@ function setupUpdater() {
   autoUpdater.logger = { info: (m) => log("updater:", m), warn: (m) => log("updater warn:", m), error: (m) => log("updater error:", m), debug: () => {} };
   updater = createUpdateController({
     autoUpdater, log, currentVersion: app.getVersion(),
+    manualInstall: IS_MAC && !MAC_SELF_UPDATE,
     ui: {
+      openDownload: (version) => shell.openExternal(`${RELEASES_PAGE}/tag/v${version}`),
       state: (st) => {
         sendAll("upd:state", st);
         if (win) { try { win.setProgressBar(st.phase === "downloading" ? (st.percent || 0) / 100 : -1); } catch {} }
@@ -202,7 +210,8 @@ async function startServer() {
   // built-in browser helper (Phase 27): its own window and session; the server finds it on this global
   try { globalThis.__ccBrowserDriver = require("./browser-helper.cjs").createBrowserHelper({ log, icon: path.join(ROOT, "web", "icons", "icon-512.png") }); }
   catch (e) { log("browser helper window unavailable:", e && e.message); }
-  await import(path.join(ROOT, "server", "index.js").replace(/\\/g, "/").replace(/^([A-Za-z]):/, "file:///$1:"));
+  // a file URL on every platform (the Mac bundle path has a space: "/Applications/Command AI.app/...")
+  await import(require("node:url").pathToFileURL(path.join(ROOT, "server", "index.js")).href);
   serverStarted = await waitForServer();
   return serverStarted;
 }
@@ -277,11 +286,30 @@ function trayTemplate() {
   items.push({ type: "separator" }, { label: `Command AI v${app.getVersion()}`, enabled: false }, { label: "Quit", click: () => app.quit() });
   return items;
 }
+// macOS (Phase 14): without an application menu, Cmd+C / Cmd+V / Cmd+A / Cmd+Z do nothing in text
+// fields and Cmd+Q does not quit, so the Mac build gets the standard app, Edit and Window menus.
+// Windows keeps no menu bar.
+function macMenuTemplate() {
+  return [
+    { label: "Command AI", submenu: [
+      { label: "About Command AI", click: () => dialog.showMessageBox({ type: "info", title: "Command AI", message: `Command AI v${app.getVersion()}`, detail: "an Everborn product" }) },
+      { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Command AI", message: "Updates work in the installed app." }) },
+      { type: "separator" }, { role: "hide", label: "Hide Command AI" }, { role: "hideOthers" }, { role: "unhide" },
+      { type: "separator" }, { label: "Quit Command AI", accelerator: "Command+Q", click: () => app.quit() },
+    ] },
+    { role: "editMenu" },
+    { label: "View", submenu: [{ role: "togglefullscreen" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }] },
+    { role: "windowMenu" },
+  ];
+}
+
 function rebuildTrayMenu() { if (tray) { try { tray.setContextMenu(Menu.buildFromTemplate(trayTemplate())); } catch {} } }
 
 function createTray() {
   try {
-    const img = nativeImage.createFromPath(path.join(ROOT, "web", "icons", "icon-512.png")).resize({ width: 16, height: 16 });
+    // the macOS menu bar is 22 pt high and draws 18 pt icons; the Windows tray uses 16 px
+    const size = IS_MAC ? 18 : 16;
+    const img = nativeImage.createFromPath(path.join(ROOT, "web", "icons", "icon-512.png")).resize({ width: size, height: size });
     tray = new Tray(img);
     tray.setToolTip("Command AI, an Everborn product");
     tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
@@ -301,7 +329,7 @@ process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(IS_MAC ? Menu.buildFromTemplate(macMenuTemplate()) : null);
   log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);
   setupIpc();
   // updates first: they must work even if the engine below fails to start

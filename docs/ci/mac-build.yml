@@ -26,8 +26,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run smoke
       - name: Build unsigned dmg and zip
-        run: npx electron-builder --mac dmg zip --x64 --arm64 --publish never
+        run: npm run dist:mac
       - name: Upload to the releases repo
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
@@ -35,7 +36,10 @@ jobs:
           if [ -z "$GH_TOKEN" ]; then echo "RELEASES_TOKEN secret is not set; skipping upload. Files are in the workflow artifacts."; exit 0; fi
           V=$(node -p "require('./package.json').version")
           R=everbornproductions-stack/command-center-releases
-          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --title "Command AI v$V" --notes "Mac build (unsigned)."
+          # Never publish from here: if the Windows release is not up yet, a published Mac-only release would
+          # have no latest.yml and every Windows copy would report an update error. A missing release is
+          # created as a DRAFT; Chris adds the Windows files and publishes it (docs/RELEASING.md).
+          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --draft --title "Command AI v$V" --notes "Mac build (unsigned)."
           gh release upload "v$V" --repo "$R" --clobber dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
       - uses: actions/upload-artifact@v4
         with:

@@ -9,6 +9,7 @@
     "dev": "node --watch server/index.js",
     "electron": "electron .",
     "dist": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac dmg zip --x64 --arm64 --publish never",
     "test": "node --test \"test/*.test.js\"",
     "smoke": "node test/smoke.mjs"
   },
