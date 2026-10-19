@@ -32,6 +32,11 @@ const extraHeaders = (provider) => { const s = getSecret(provider.id, provider.k
 //   { role: "tool", id, name, content: text, isError }                       what the tool answered
 // and "done" carries toolCalls: [{ id, name, args }] when the model stopped to call tools.
 const textOf = (m) => (typeof m.content === "string" ? m.content : (m.content || []).map((c) => c.text || "").join("\n"));
+// Images (Phase 6, chat with files): a user turn's content may be a list of { type: "text", text } and
+// { type: "image", mime, data (base64) } parts; each API gets its own shape.
+const hasImage = (m) => Array.isArray(m.content) && m.content.some((c) => c?.type === "image");
+const openaiParts = (m) => m.content.map((c) => (c.type === "image" ? { type: "image_url", image_url: { url: `data:${c.mime};base64,${c.data}` } } : { type: "text", text: c.text || "" }));
+const anthropicParts = (m) => m.content.map((c) => (c.type === "image" ? { type: "image", source: { type: "base64", media_type: c.mime, data: c.data } } : { type: "text", text: c.text || "" }));
 const parseArgs = (s) => { if (s && typeof s === "object") return s; try { return JSON.parse(s || "{}") || {}; } catch { return {}; } };
 // Anthropic shapes: tool_use blocks on the assistant turn, tool_result blocks grouped into one user turn.
 function anthropicMessages(messages) {
@@ -44,7 +49,7 @@ function anthropicMessages(messages) {
       const last = out[out.length - 1];
       if (last?.role === "user" && Array.isArray(last.content) && last.content.every((b) => b.type === "tool_result")) last.content.push(block);
       else out.push({ role: "user", content: [block] });
-    } else out.push({ role: m.role, content: m.content });
+    } else out.push({ role: m.role, content: hasImage(m) ? anthropicParts(m) : m.content });
   }
   return out;
 }
@@ -53,9 +58,12 @@ function openaiMessages(messages) {
   return messages.map((m) => {
     if (m.role === "assistant" && m.toolCalls?.length) return { role: "assistant", content: textOf(m) || null, tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.args && typeof c.args === "object" ? c.args : {}) } })) };
     if (m.role === "tool") return { role: "tool", tool_call_id: m.id, content: String(m.content ?? "") };
+    if (hasImage(m)) return { role: m.role, content: openaiParts(m) };
     return { role: m.role, content: textOf(m) };
   });
 }
+
+export const messageShapes = { anthropic: anthropicMessages, openai: openaiMessages }; // for tests
 
 // ---------- Anthropic (official SDK) ----------
 async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal, tools }) {
@@ -63,7 +71,7 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
   const params = {
     model,
     max_tokens: maxTokens,
-    messages: tools?.length || messages.some((m) => m.role === "tool" || m.toolCalls) ? anthropicMessages(messages) : messages,
+    messages: tools?.length || messages.some((m) => m.role === "tool" || m.toolCalls || hasImage(m)) ? anthropicMessages(messages) : messages,
     ...(system ? { system } : {}),
     ...(effort ? { output_config: { effort } } : {}),
     ...(tools?.length ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) } : {}),

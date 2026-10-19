@@ -145,10 +145,22 @@ function demoMediaTask(u) {
   return [{ id: "t5", title: `Make the ${kind === "voice" ? "voice-over" : kind}`, capability: "media", difficulty: 1, needWeb: false, deps: [kind === "voice" ? "t2" : "t3"], instructions: `Generate the ${kind} for: ${goal.slice(0, 160)}`, deliverable: `The ${kind} file`, media: { kind, prompt: `${goal.slice(0, 200)} (demo prompt)` } }];
 }
 
+// Chat with files (Phase 6): the pretend AI "describes" a dropped image. It says which file it was given and
+// how big the picture that arrived was, so the image can be seen reaching the model without a key.
+function demoDescribe(u, messages) {
+  const name = u.match(/File name: ([^\n]{1,200})/)?.[1] || "the image";
+  const img = messages.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).find((c) => c?.type === "image_url");
+  const url = img?.image_url?.url || "";
+  const mime = url.match(/^data:([^;]+);base64,/)?.[1] || "none";
+  const kb = Math.round((url.length - url.indexOf(",") - 1) * 0.75 / 1024 * 10) / 10;
+  return `Demo description of ${name}: a picture received as ${mime}, about ${kb} KB. In demo mode no real AI looks at it; with a key for OpenAI, Anthropic or Google Gemini this would list what the image shows, any text in it, colours and layout.`;
+}
+
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
   if (/^You sort browser bookmarks/.test(sys)) return demoBookmarks(u);
+  if (/^You describe an image/.test(sys)) return demoDescribe(u, messages);
   const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
   if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });
@@ -204,7 +216,7 @@ export async function startDemo() {
     }
     if (!Array.isArray(j.messages)) { res.writeHead(400); return res.end(); }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
-    const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+    const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n") : "")).join("\n");
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     // MCP tools (Phase 16): when tools are offered and the orders mention one, the pretend AI calls it
     // once, then answers with the result. Lets Settings > Tools be tried end to end without a key.
