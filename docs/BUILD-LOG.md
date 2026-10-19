@@ -919,3 +919,32 @@ PHASE 2 DONE
 - Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
 
 PHASE 3 DONE
+
+## 2026-10-19 14:05 PT: Phase 4 (Client-facing)
+- Started after PHASE 3 DONE. No conflict with docs/DECISIONS.md.
+- Already in the code before this session, and kept: the share plugin (expiring read-only token page, mirroring one run's tasks, council answers, deliverable and live feed, "show costs" toggle) and the reports plugin (weekly report with spend by AI this week vs last, low credits, renewals, caps, keep / downgrade / cancel suggestions, Reports tab). Neither had tests. This phase added only what was missing.
+- Live-share links (R8):
+  - Brand kit applied: the public view now carries the owner's name, tagline, colours and logo (read in the owner's context), and the share page uses them for its accents and header. Without a kit it shows the Command AI header as before.
+  - Links survived only in memory, so every link died on a restart. In local mode the stored copy now brings a link back; an expired one answers 410.
+  - Feed lines are free text: dollar amounts are now hidden unless costs are shown, and anything shaped like an API key or bearer token is always hidden.
+  - Under the deliverable, the links made for this run are listed with their expiry and a Revoke button. The list is owner only and drops links that expired more than a day ago.
+  - The share page sends no Referer (so the token does not leak to the font host) and asks search engines not to index it.
+- Weekly report (R6):
+  - Gap fixed: with "Email me the report" on and a Resend key in the vault, the report emailed itself every Monday. The phase says nothing is sent automatically, so the plugin no longer sends anything. The Reports tab has Email draft (opens your own mail app with the report filled in; long reports point to the export), Export .md and Copy. The address is kept only to fill in the draft.
+  - The Monday report was only made if the app happened to be running on a Monday after 07:00. It is now made the next time the app runs after Monday 07:00 (checked a minute after start and every 10 minutes), once per week. Run now counts for the week.
+  - "What shipped" listed only a count. It now lists the finished runs of the week by title (up to 15, demo runs tagged).
+  - The title used an en dash; it now says "to".
+- Commits:
+  - 14f54df Phase 4: live-share links (R8): brand kit on the share page, links survive a restart, costs and key-shaped text scrubbed from the feed unless costs are shown, list and revoke under the deliverable, no-referrer page, tests
+  - 29e1afb Phase 4: weekly report (R6): never emails on its own (email draft opens your mail app, export .md, copy), Monday 07:00 report caught up when the app was closed, what shipped lists the finished runs, cancel suggestions, tests
+- Tests:
+  - New: test/share.test.js (4), test/reports.test.js (4). Temp data dirs, demo AIs only, no real key or URL. The share test restarts the server on the same data folder and seeds an expired link.
+  - npm test: 236 tests, 234 pass, 0 fail, 2 skipped. npm run smoke: all checks pass. Both runs were on the final tree, before the two commits.
+- Not verified:
+  - The share page, the brand header on it, the Revoke list and the Reports tab buttons were not opened in a real browser. Source checks and the API behind them are tested.
+  - Email draft in the desktop app: the button navigates to a mailto: link, which electron/main.cjs hands to the system mail app through its will-navigate handler. Not tried on a real install.
+  - The Monday catch-up timer itself: the due rule is tested as a pure function, but no test waits for the timer to fire.
+  - Share links in hosted mode after a hub restart: only local mode restores them from the stored copy.
+- Left alone: `cc-names.tmp.mjs` (another session's file). Nothing pushed (Chris pushes).
+
+PHASE 4 DONE
