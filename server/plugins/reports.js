@@ -97,7 +97,7 @@ export function draftOf(rep, to = "") {
   const body = rep.markdown.replace(/\*\*(.+?)\*\*/g, "$1");
   const enc = encodeURIComponent;
   // mailto bodies over ~1800 characters are cut by some mail apps, so the draft says where the full copy is
-  const short = body.length > 1800 ? body.slice(0, 1800) + "\n\n(cut short: export the full report from Command AI > Reports)" : body;
+  const short = body.length > 1800 ? body.slice(0, 1800) + "\n\n(cut short: export the full report from Meldmind > Reports)" : body;
   return { to, subject, body, mailto: `mailto:${encodeURIComponent(to)}?subject=${enc(subject)}&body=${enc(short)}` };
 }
 

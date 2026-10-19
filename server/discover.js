@@ -171,7 +171,7 @@ export function buildAiFolder(scan, extraLinks = []) {
     if (p.links.keys) add("Billing & Usage", `${p.name} API keys`, p.links.keys);
   }
   for (const l of extraLinks) add(l.cat || "Chat & Agents", l.name, l.url);
-  add("Chat & Agents", "Command AI", `http://localhost:${process.env.CC_PORT || 4747}`);
+  add("Chat & Agents", "Meldmind", `http://localhost:${process.env.CC_PORT || 4747}`);
   const order = ["Chat & Agents", "Video & Image", "Music & Audio", "Dev & Automation", "Billing & Usage"];
   return order.filter((c) => cats[c]?.length).map((c) => ({ name: c, links: dedupe(cats[c]) }));
 }

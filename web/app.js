@@ -155,7 +155,7 @@ async function engineDown(on) {
   if (!el) { el = document.createElement("div"); el.id = "engine-down"; el.setAttribute("role", "alertdialog"); el.style.cssText = "position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(5,8,13,.78)"; document.body.appendChild(el); }
   const desk = !!window.ccDesktop?.restart;
   el.innerHTML = `<div class="panel" style="max-width:520px;padding:24px">
-    <h3 style="margin:0 0 8px">Command AI's engine is not responding</h3>
+    <h3 style="margin:0 0 8px">Meldmind's engine is not responding</h3>
     <div class="small muted">Still trying to reconnect${secs ? ` (${secs} s)` : ""}. Reason: <span class="mono" id="ed-reason"></span></div>
     <div class="row" style="margin-top:14px;gap:8px">${desk ? `<button class="btn primary" id="ed-restart">Restart engine</button><button class="btn" id="ed-update">Check for updates</button>` : `<button class="btn primary" id="ed-retry">Try again</button>`}<button class="btn" id="ed-wait" style="margin-left:auto">Keep waiting</button></div>
     <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
@@ -309,7 +309,7 @@ function feedNode(ev) {
   const t = new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   let who = "", txt = "", cls = "", color = "";
   switch (ev.type) {
-    case "log": who = "Command"; txt = ev.text; cls = ev.level === "error" ? "err" : ""; color = "#22d3ee"; break;
+    case "log": who = "Meldmind"; txt = ev.text; cls = ev.level === "error" ? "err" : ""; color = "#22d3ee"; break;
     case "agent.start": who = pname(ev.provider); txt = ev.label || `${ev.role} started`; color = pcolor(ev.provider); break;
     case "agent.done": who = pname(ev.provider); txt = `done in ${((ev.ms || 0) / 1000).toFixed(1)}s${ev.cost != null ? ` · ${money(ev.cost, 4)}` : ""}`; color = pcolor(ev.provider); break;
     case "agent.error": who = pname(ev.provider); txt = ev.error; cls = "err"; color = pcolor(ev.provider); break;
@@ -376,7 +376,7 @@ function renderUpdateBar() {
   const action = u.desktop
     ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
     : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: Command AI v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+  bar.innerHTML = `<span>↑</span><div><b>Update available: Meldmind v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -388,7 +388,7 @@ function updateBoxHtml() {
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
     : u.available ? `Update available: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
-  return `<b>Command AI</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
+  return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
     + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
     + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
@@ -1054,14 +1054,14 @@ function renderGate(message = "") {
   $("#app").style.visibility = "hidden";
   const unreachable = !CONFIG.supabase;
   g.innerHTML = `<div class="gate-card">
-    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name">COMMAND <b>AI</b></span></div>
+    <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind</span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" required placeholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
     ${(CONFIG.sso || []).length ? `<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">${CONFIG.sso.map((p) => `<button class="btn" type="button" data-sso="${esc(p.id)}" style="flex:1">Continue with ${esc(p.name)}</button>`).join("")}</div>
     <div class="small muted" style="margin-top:6px">Your team may ask you to use your work Google or Microsoft account.</div>` : ""}`}
-    <div class="dim small" style="text-align:center;margin-top:16px">Command AI, an Everborn product by Everborn Productions</div>
+    <div class="dim small" style="text-align:center;margin-top:16px">Meldmind, an Everborn product by Everborn Productions<br>Take command of all your AIs.</div>
     <div id="gate-msg" class="small" style="margin-top:12px;min-height:18px;color:${message ? "var(--amber)" : "var(--green)"}">${esc(message)}</div>
     <details style="margin-top:14px"><summary class="small muted" style="cursor:pointer">Hub address</summary>
       <div class="row" style="margin-top:8px"><input type="text" id="gate-hub" value="${esc(hubAddress())}" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="gate-hub-save">Use</button>${HUB ? `<button class="btn sm" id="gate-hub-reset">Reset</button>` : ""}</div></details>

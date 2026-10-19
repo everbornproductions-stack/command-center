@@ -1,11 +1,11 @@
-// Command AI desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
+// Meldmind desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
-app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Command AI"
+app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController } = require("./updater.cjs");
@@ -34,7 +34,7 @@ process.env.CC_PACKAGED = isPackaged ? "1" : "0";
 let win = null, tray = null, serverStarted = false;
 
 // One copy only: a second launch focuses the window that is already open (Windows shows several
-// "Command AI.exe" processes per copy: main, GPU, network and window helpers; that is normal).
+// "Meldmind.exe" processes per copy: main, GPU, network and window helpers; that is normal).
 const single = app.requestSingleInstanceLock();
 if (!single) { app.quit(); process.exit(0); }
 
@@ -73,7 +73,7 @@ function exposeSafeStorage() {
 
 // In-app updates (installed builds only), run from the main process by electron/updater.cjs so they
 // work even when the local server or the web UI does not. On launch the app checks GitHub Releases
-// before the engine starts and shows "Command AI vX.Y.Z is ready" (Install now / Later). Install now
+// before the engine starts and shows "Meldmind vX.Y.Z is ready" (Install now / Later). Install now
 // downloads with a progress bar, then the installer runs silently and relaunches. App data in
 // %APPDATA%\Everborn Command is outside the install folder, so updates and reinstalls keep it.
 let quittingForUpdate = false, updater = null, updateWin = null;
@@ -94,7 +94,7 @@ function setupUpdater() {
         rebuildTrayMenu();
       },
       prompt: () => showUpdateWindow(),
-      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Command AI", message: "Could not check for updates", detail: st.error }); else dialog.showMessageBox({ type: "info", title: "Command AI", message: `You have the newest version (v${app.getVersion()}).` }); },
+      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Could not check for updates", detail: st.error }); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
       beforeQuit: () => { quittingForUpdate = true; },
     },
   });
@@ -106,7 +106,7 @@ function showUpdateWindow() {
   updateWin = new BrowserWindow({
     width: 480, height: 300, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     parent: win && !win.isDestroyed() ? win : undefined, modal: false, show: false, autoHideMenuBar: true,
-    title: "Command AI update", backgroundColor: "#090d14", icon: path.join(ROOT, "web", "icons", "icon-512.png"),
+    title: "Meldmind update", backgroundColor: "#090d14", icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
   updateWin.setMenu(null);
@@ -146,7 +146,7 @@ function toggleQuick() {
   if (!quickWin || quickWin.isDestroyed()) {
     quickWin = new BrowserWindow({
       width: w, height: hgt, frame: false, resizable: false, movable: true, minimizable: false, maximizable: false, fullscreenable: false,
-      alwaysOnTop: true, skipTaskbar: true, show: false, transparent: true, title: "Command AI quick launcher",
+      alwaysOnTop: true, skipTaskbar: true, show: false, transparent: true, title: "Meldmind quick launcher",
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
     });
     quickWin.loadURL(`http://127.0.0.1:${PORT}/quick.html`);
@@ -188,12 +188,12 @@ async function offerEngineDialog(reason) {
     const canUpdate = !!(st && st.version);
     const buttons = ["Restart app", canUpdate ? `Install update v${st.version}` : "Check for updates", "Wait"];
     const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
-      type: "warning", title: "Command AI", buttons, defaultId: 0, cancelId: 2, noLink: true,
-      message: "Command AI's engine is not responding",
+      type: "warning", title: "Meldmind", buttons, defaultId: 0, cancelId: 2, noLink: true,
+      message: "Meldmind's engine is not responding",
       detail: `Reason: ${reason}.\n\nRestarting usually fixes this. Your settings, keys and history are kept.`,
     });
     if (response === 0) restartApp("engine stuck");
-    else if (response === 1) { if (canUpdate) { showUpdateWindow(); updater.install().catch(() => {}); } else if (updater) updater.check({ manual: true }); else dialog.showMessageBox({ type: "info", title: "Command AI", message: "Updates work in the installed app." }); }
+    else if (response === 1) { if (canUpdate) { showUpdateWindow(); updater.install().catch(() => {}); } else if (updater) updater.check({ manual: true }); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: "Updates work in the installed app." }); }
   } finally { engineDialogOpen = false; }
 }
 
@@ -210,7 +210,7 @@ async function startServer() {
   // built-in browser helper (Phase 27): its own window and session; the server finds it on this global
   try { globalThis.__ccBrowserDriver = require("./browser-helper.cjs").createBrowserHelper({ log, icon: path.join(ROOT, "web", "icons", "icon-512.png") }); }
   catch (e) { log("browser helper window unavailable:", e && e.message); }
-  // a file URL on every platform (the Mac bundle path has a space: "/Applications/Command AI.app/...")
+  // a file URL on every platform (pathToFileURL still encodes a space, as in "/Applications/Command AI.app/..."; the current bundle is Meldmind.app)
   await import(require("node:url").pathToFileURL(path.join(ROOT, "server", "index.js")).href);
   serverStarted = await waitForServer();
   return serverStarted;
@@ -219,7 +219,7 @@ async function startServer() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
-    backgroundColor: "#090d14", title: "Command AI", autoHideMenuBar: true,
+    backgroundColor: "#090d14", title: "Meldmind", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
@@ -275,7 +275,7 @@ function focusWindow() { if (win && !win.isDestroyed()) { if (win.isMinimized())
 function trayTemplate() {
   const st = updater ? updater.state : null;
   const items = [
-    { label: "Open Command AI", click: focusWindow },
+    { label: "Open Meldmind", click: focusWindow },
     { label: hotkey.state.registered ? `Quick launcher (${hotkey.state.accelerator})` : "Quick launcher", enabled: serverStarted, click: toggleQuick },
     { label: "Open in browser", click: () => shell.openExternal(`http://localhost:${PORT}/`) },
     { label: `Data folder`, click: () => shell.openPath(process.env.CC_DATA_DIR) },
@@ -284,7 +284,7 @@ function trayTemplate() {
   if (st && st.version) items.push({ label: st.phase === "downloading" ? `Downloading update ${st.percent || 0}%` : `Install update v${st.version}`, enabled: st.phase !== "downloading", click: () => { showUpdateWindow(); updater.install().catch(() => {}); } });
   items.push({ label: "Check for updates", enabled: !!updater, click: () => updater && updater.check({ manual: true }) });
   items.push({ label: watchdog && watchdog.stuck ? "Restart app (engine not responding)" : "Restart app", click: () => restartApp("tray") });
-  items.push({ type: "separator" }, { label: `Command AI v${app.getVersion()}`, enabled: false }, { label: "Quit", click: () => app.quit() });
+  items.push({ type: "separator" }, { label: `Meldmind v${app.getVersion()}`, enabled: false }, { label: "Quit", click: () => app.quit() });
   return items;
 }
 // macOS (Phase 14): without an application menu, Cmd+C / Cmd+V / Cmd+A / Cmd+Z do nothing in text
@@ -292,11 +292,11 @@ function trayTemplate() {
 // Windows keeps no menu bar.
 function macMenuTemplate() {
   return [
-    { label: "Command AI", submenu: [
-      { label: "About Command AI", click: () => dialog.showMessageBox({ type: "info", title: "Command AI", message: `Command AI v${app.getVersion()}`, detail: "an Everborn product" }) },
-      { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Command AI", message: "Updates work in the installed app." }) },
-      { type: "separator" }, { role: "hide", label: "Hide Command AI" }, { role: "hideOthers" }, { role: "unhide" },
-      { type: "separator" }, { label: "Quit Command AI", accelerator: "Command+Q", click: () => app.quit() },
+    { label: "Meldmind", submenu: [
+      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs." }) },
+      { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Meldmind", message: "Updates work in the installed app." }) },
+      { type: "separator" }, { role: "hide", label: "Hide Meldmind" }, { role: "hideOthers" }, { role: "unhide" },
+      { type: "separator" }, { label: "Quit Meldmind", accelerator: "Command+Q", click: () => app.quit() },
     ] },
     { role: "editMenu" },
     { label: "View", submenu: [{ role: "togglefullscreen" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }] },
@@ -312,7 +312,7 @@ function createTray() {
     const size = IS_MAC ? 18 : 16;
     const img = nativeImage.createFromPath(path.join(ROOT, "web", "icons", "icon-512.png")).resize({ width: size, height: size });
     tray = new Tray(img);
-    tray.setToolTip("Command AI, an Everborn product");
+    tray.setToolTip("Meldmind, an Everborn product. Take command of all your AIs.");
     tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
     tray.on("double-click", focusWindow);
   } catch {}

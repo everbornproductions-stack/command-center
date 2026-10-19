@@ -58,7 +58,7 @@ test("a missing fact halts, a profile fills the gap, and secrets never enter the
   assert.match(run.prompt, /DRAFT ONLY/);
   assert.doesNotMatch(run.prompt, /123-45-6789/);
   assert.doesNotMatch(run.prompt, /123456789012/);
-  assert.match(renderTemplate("speed-to-lead", { lead: "Pat called", offer: "a review" }, {}).prompt, /\[CROA\]/);
+  assert.match(renderTemplate("speed-to-lead", { inquiry: "Pat called about a review" }, {}).prompt, /\[CROA\]/);
 });
 
 test("intent auto-applies a clear phrase, ignores hello, and uses the router only when unsure", async () => {
@@ -82,8 +82,8 @@ test("intent auto-applies a clear phrase, ignores hello, and uses the router onl
 
 test("answers flag invented numbers, CROA, RESPA, and drafts", () => {
   const text = annotateOutput("We gained 40 customers. A case study proved it. Dear Pat, your score will jump. Pay a referral fee.", "the notes had no figures", { scf: true });
-  assert.match(text, /40 customers \[VERIFY\]/);
-  assert.match(text, /case study[\s\S]*\[VERIFY\]/i);
+  assert.match(text, /40 customers\. \[VERIFY\]/);
+  assert.match(text, /case study proved it\. \[VERIFY\]/i);
   assert.match(text, /\[CROA\]/);
   assert.match(text, /\[RESPA REVIEW\]/);
   assert.match(text, /DRAFT ONLY/);
@@ -92,7 +92,7 @@ test("answers flag invented numbers, CROA, RESPA, and drafts", () => {
 test("expandJob keeps the person's words and a removed chip is left alone", () => {
   assert.throws(
     () => expandJob({ prompt: "hi", promptPack: { templateId: "friday-coach", inputs: {} } }, "prompt"),
-    (e) => e.status === 409 && e.code === "prompt_halt" && e.questions.length,
+    (e) => e.status === 409 && e.code === "prompt_halt" && e.questions.length > 0,
   );
   const next = expandJob({
     prompt: "shipped the site",

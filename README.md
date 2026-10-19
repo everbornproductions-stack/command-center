@@ -1,6 +1,8 @@
-# Command AI
+# Meldmind
 
-*an Everborn product* by Everborn Productions. (Internal and repo name: Everborn Command Center / command-center.)
+*an Everborn product* by Everborn Productions. Take command of all your AIs.
+
+(Internal and repo name: Everborn Command Center / command-center.)
 
 One console for every AI you pay for. Give marching orders once; the console picks the right AI for each part, lets them check each other's work, shows you who is working and who is talking to whom in real time, and keeps score of what everything costs.
 
@@ -10,7 +12,7 @@ The local server only answers its own window: it binds 127.0.0.1, pins the `Host
 
 ## Install on Windows (no Node needed)
 
-Run **Command-AI-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen will warn once because the build is not code-signed yet; choose "More info → Run anyway". Build it yourself with `npm run dist`.
+Run **Meldmind-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen will warn once because the build is not code-signed yet; choose "More info → Run anyway". Build it yourself with `npm run dist`.
 
 ## Run from source
 
@@ -72,7 +74,7 @@ One tile per AI at the bottom. Light colours: **green** key works and no inciden
 | Schedules: run an agent, a chat or a mission on a cron schedule, from a webhook (its own secret token, shown once, 401 without it) or when a new file lands in a watched folder; run history; a monthly spend cap per schedule (it pauses and alerts you when reached); a result that is sent to a web address waits in "Needs your approval" until you click Approve; desktop schedules only run while the app is running (the tray counts), always-on schedules need the hosted hub later (see docs/schedules.md) | Schedules tab |
 | Artifacts side panel: web pages, mini apps, charts (bar, line, pie from a small JSON spec), SVG, Markdown, JavaScript and Python from an answer open in a side panel and run in a sandbox (no access to the app, your keys or files, and no network unless you tick Allow internet, which opens https: only); every edit is a new version and old ones stay; re-run, preview an unsaved edit, export any version as a file; Python through Pyodide, downloaded only when you click Run Python | Artifacts tab, "Open in artifacts" under the deliverable, Settings |
 | Quick launcher: a global shortcut (default Alt+Space, your choice) opens a small box over any app; Enter sends it to a Chat or Council here; a shortcut Windows or another app already holds is never taken, and it is released on quit (see docs/extras.md) | desktop app, Settings > Quick launcher, tray |
-| Chrome / Edge extension: right-click or the popup sends the page, a selection or a link to Command AI on this PC only (host permissions 127.0.0.1 / localhost), paired with a code shown once; by default it waits in Marching orders until you press Send, or it asks a chat or council right away | `extension/` (Load unpacked), Settings > Browser extension |
+| Chrome / Edge extension: right-click or the popup sends the page, a selection or a link to Meldmind on this PC only (host permissions 127.0.0.1 / localhost), paired with a code shown once; by default it waits in Marching orders until you press Send, or it asks a chat or council right away | `extension/` (Load unpacked), Settings > Browser extension |
 | Live model prices: list prices from the OpenRouter models API once a day (no key), feeding the router, the ledger estimates and the savings receipts; your own price always wins | Settings > Model prices |
 | Team SSO and workspace keys: "Continue with Google / Microsoft" on the hosted hub (through Supabase Auth), a per-workspace rule "sign in with Google or Microsoft at these domains"; API keys per workspace, used only while that workspace is active (vault on the desktop, encrypted per workspace on the hub, viewers use their own) | hub sign-in page, Settings > Team sign-in, Settings > Workspace API keys |
 | Pipelines: saved missions with the steps pre-decided (Instagram week, music video from a song, client site launch; save your own from any mission) | Pipelines tab |

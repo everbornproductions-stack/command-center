@@ -41,8 +41,8 @@ test("builder config: Mac targets and names, same appId and public releases feed
   assert.match(y, /^appId: com\.everborn\.command/m);
   const mac = y.slice(y.indexOf("\nmac:"), y.indexOf("\ndmg:"));
   assert.match(mac, /target: \[dmg, zip\]/, "zip is what Mac updates use");
-  assert.match(mac, /artifactName: "Command-AI-\$\{version\}-\$\{arch\}\.\$\{ext\}"/, "x64 and arm64 files do not overwrite each other");
-  assert.match(y, /artifactName: "Command-AI-Setup-\$\{version\}\.\$\{ext\}"/, "Windows installer name unchanged");
+  assert.match(mac, /artifactName: "Meldmind-\$\{version\}-\$\{arch\}\.\$\{ext\}"/, "x64 and arm64 files do not overwrite each other");
+  assert.match(y, /artifactName: "Meldmind-Setup-\$\{version\}\.\$\{ext\}"/, "Windows installer is Meldmind-Setup");
   assert.match(y, /repo: command-center-releases/);
   assert.ok(fs.existsSync(path.join(ROOT, "web", "icons", "icon-512.png")), "Mac icon (512 px minimum)");
 });

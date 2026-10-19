@@ -1,7 +1,7 @@
 {
-  "name": "Command AI",
-  "short_name": "Command AI",
-  "description": "Command AI, an Everborn product. One console for every AI you pay for. Council, missions, credits, projects.",
+  "name": "Meldmind",
+  "short_name": "Meldmind",
+  "description": "Meldmind, an Everborn product. Take command of all your AIs. Council, missions, credits, projects.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

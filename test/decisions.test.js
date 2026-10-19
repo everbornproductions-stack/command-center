@@ -10,7 +10,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 
 test("DECISIONS.md exists, is referenced first in CLAUDE.md, and lists every locked item", () => {
   const d = read("docs", "DECISIONS.md");
-  for (const s of ["Command AI", "an Everborn product", "com.everborn.command", "Everborn Command", "command-center-releases", "Command-AI-Setup-${version}.${ext}", "Install now", "requestSingleInstanceLock", "instance id", "4747", "Phase 8", "Google Gemini", "Add custom provider", "Ollama", "AIza", "Demo", "Key rejected (401)", "Could not reach", "safeReload", "1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11", "Live project view (Phase 29)", "Learning router (Phase 28)", "Smart fallback (Phase 26)", "Built-in browser helper (Phase 27)", "agent cards on the hub", "Grok Bot agent", "Onboarding runs once; daily background check only.", "Square", "real API keys", "click"]) assert.ok(d.includes(s), `DECISIONS.md mentions ${s}`);
+  for (const s of ["Meldmind", "an Everborn product", "Take command of all your AIs.", "attorney trademark review", "Cisco MINDMELD", "previous display name was Command AI", "com.everborn.command", "Everborn Command", "command-center-releases", "Meldmind-Setup-${version}.${ext}", "latest.yml", "Install now", "requestSingleInstanceLock", "instance id", "4747", "Phase 8", "Google Gemini", "Add custom provider", "Ollama", "AIza", "Demo", "Key rejected (401)", "Could not reach", "safeReload", "1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11", "Live project view (Phase 29)", "Learning router (Phase 28)", "Smart fallback (Phase 26)", "Built-in browser helper (Phase 27)", "agent cards on the hub", "Grok Bot agent", "Onboarding runs once; daily background check only.", "Square", "real API keys", "click"]) assert.ok(d.includes(s), `DECISIONS.md mentions ${s}`);
   assert.doesNotMatch(d, /\u2014/, "no em-dashes");
   const c = read("CLAUDE.md");
   assert.match(c.split("\n").slice(0, 4).join("\n"), /Read docs\/DECISIONS\.md first/);
@@ -20,9 +20,9 @@ test("DECISIONS.md exists, is referenced first in CLAUDE.md, and lists every loc
 test("locked: branding, appId, data folder, releases feed, dash file names", () => {
   const yml = read("electron-builder.yml"), main = read("electron", "main.cjs");
   assert.match(yml, /^appId: com\.everborn\.command\b/m);
-  assert.match(yml, /^productName: Command AI$/m);
+  assert.match(yml, /^productName: Meldmind$/m);
   assert.match(yml, /repo:\s*command-center-releases/);
-  assert.match(yml, /artifactName: "Command-AI-Setup-\$\{version\}\.\$\{ext\}"/);
+  assert.match(yml, /artifactName: "Meldmind-Setup-\$\{version\}\.\$\{ext\}"/);
   assert.match(yml, /perMachine: false/);
   assert.match(main, /app\.setName\("Everborn Command"\)/);
 });

@@ -2,15 +2,15 @@ import { settings, save, forget, parseCode, ping, send, grabPage } from "./share
 
 const $ = (id) => document.getElementById(id);
 const say = (t, cls = "") => { $("msg").textContent = t; $("msg").className = "msg " + cls; };
-const DONE = { draft: "Sent: it is waiting in Marching orders.", chat: "Sent: the answer is coming in Command AI.", council: "Sent: the council is meeting in Command AI." };
+const DONE = { draft: "Sent: it is waiting in Marching orders.", chat: "Sent: the answer is coming in Meldmind.", council: "Sent: the council is meeting in Meldmind." };
 
 async function show() {
   const s = await settings();
   $("pair").hidden = !!s.code; $("main").hidden = !s.code;
   if (!s.code) return;
   $("action").value = s.action;
-  $("who").textContent = `Paired${s.name ? ` as "${s.name}"` : ""} with Command AI on port ${s.port}.`;
-  try { const p = await ping(s.code, s.port); $("who").textContent = `Paired${p.name ? ` as "${p.name}"` : ""} with Command AI${p.version ? ` v${p.version}` : ""} on port ${p.port}.`; }
+  $("who").textContent = `Paired${s.name ? ` as "${s.name}"` : ""} with Meldmind on port ${s.port}.`;
+  try { const p = await ping(s.code, s.port); $("who").textContent = `Paired${p.name ? ` as "${p.name}"` : ""} with Meldmind${p.version ? ` v${p.version}` : ""} on port ${p.port}.`; }
   catch (e) { say(e.message, "err"); }
 }
 
@@ -24,7 +24,7 @@ $("do-pair").addEventListener("click", async () => {
   } catch (e) { say(e.message, "err"); }
 });
 $("action").addEventListener("change", () => save({ action: $("action").value }));
-$("unpair").addEventListener("click", async () => { await forget(); say("Unpaired here. Also remove it in Command AI > Settings > Browser extension."); show(); });
+$("unpair").addEventListener("click", async () => { await forget(); say("Unpaired here. Also remove it in Meldmind > Settings > Browser extension."); show(); });
 
 async function sendFromTab(selectionOnly) {
   say("Sending…");

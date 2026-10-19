@@ -16,7 +16,7 @@ const read = (f) => fs.readFileSync(path.join(EXT, f), "utf8");
 test("extension files: Manifest V3, talks only to this PC, no secrets, no em-dashes", async () => {
   const man = JSON.parse(read("manifest.json"));
   assert.equal(man.manifest_version, 3);
-  assert.equal(man.name, "Command AI"); assert.match(man.description, /an Everborn product/);
+  assert.equal(man.name, "Meldmind"); assert.match(man.description, /an Everborn product/);
   assert.deepEqual(man.host_permissions, ["http://127.0.0.1/*", "http://localhost/*"], "only this computer");
   assert.deepEqual(man.permissions.sort(), ["activeTab", "contextMenus", "scripting", "storage"]);
   assert.equal(man.content_scripts, undefined, "nothing is injected into pages until you click");
@@ -27,7 +27,7 @@ test("extension files: Manifest V3, talks only to this PC, no secrets, no em-das
   }
   const { parseCode, PORTS } = await import("../extension/shared.js");
   assert.deepEqual(parseCode(" cce.4748.abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG "), { port: 4748, secret: "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG", code: "cce.4748.abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" });
-  assert.throws(() => parseCode("sk-not-a-code"), /not a Command AI pairing code/);
+  assert.throws(() => parseCode("sk-not-a-code"), /not a Meldmind pairing code/);
   assert.equal(PORTS[0], 4747);
   const yml = fs.readFileSync(path.join(ROOT, "electron-builder.yml"), "utf8");
   assert.match(yml, /- extension\/\*\*/); assert.match(yml, /asarUnpack:\s*\n\s*- extension\/\*\*/);
@@ -67,7 +67,7 @@ test("server: pairing code once, messages only with it, origins, host, JSON, dra
     assert.equal((await ext("ping", { code: "cce.4747.wrongwrongwrongwrongwrongwrongwrongwrong123" })).status, 401);
     assert.equal((await ext("ping", { headers: { "x-cc-token": s.token } })).status, 401, "the session token alone is not a pairing");
     let r = await ext("ping", { code: pr.code });
-    assert.equal(r.status, 200); assert.equal(r.json.app, "Command AI"); assert.equal(r.json.name, "Chrome on the laptop"); assert.equal(r.json.port, s.port);
+    assert.equal(r.status, 200); assert.equal(r.json.app, "Meldmind"); assert.equal(r.json.name, "Chrome on the laptop"); assert.equal(r.json.port, s.port);
     assert.equal((await ext("ping", { code: secret })).status, 200, "the bare secret works too");
 
     // a web page cannot call it; the extension's own origin can; the Host pin stays

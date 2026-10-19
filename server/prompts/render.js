@@ -50,7 +50,7 @@ export function renderTemplate(id, inputs = {}, profile = emptyProfile(), { extr
   const scf = !!(template.scf || p.scf);
   const blocks = [
     globalBlock(p),
-    scf ? SCF_TEXT : "",
+    scf && !p.scf ? SCF_TEXT : "",
     `ROLE: ${applyTokens(template.role, values)}`,
     `CONTEXT: ${applyTokens(template.context, values)}`,
     `COMMAND: ${applyTokens(template.command, values)}`,

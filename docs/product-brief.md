@@ -68,6 +68,8 @@ Chris asked about **CommandAI** (2026-10-18). Problem: "Command AI" is an existi
 
 Safer directions that keep the idea: **Marching Orders** (Chris's own phrase; distinctive, memorable, no obvious software conflict found), **Everborn Command** (brand-anchored, current working title), **Command Deck**, **Warroom**. Recommendation: run the store listing as *Marching Orders, by Everborn* and keep "AI command center" as the category phrase in the description, where it is descriptive and not a mark. A $250–400 USPTO search by an attorney before launch is worth it for whichever name wins.
 
+Working display name as of 2026-10-19: **Meldmind**, tagline "an Everborn product", subtitle "Take command of all your AIs." where a subtitle fits. Provisional, pending attorney trademark review before public launch (Cisco MINDMELD risk). The appId, the data folder, and the updater feed stay unchanged.
+
 ## Known limits of v0.1
 
 - Model IDs and prices follow October 2026 research and will drift; the live model list on each Settings card and editable prices cover it.

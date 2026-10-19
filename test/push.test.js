@@ -167,7 +167,7 @@ test("push: subscriptions are checked, messages are encrypted and VAPID-signed, 
 
 test("PWA: installable manifest, icons, served worker files, decisions kept", async () => {
   const manifest = JSON.parse(read("web", "manifest.webmanifest"));
-  assert.equal(manifest.name, "Command AI");
+  assert.equal(manifest.name, "Meldmind");
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.display, "standalone");
   for (const size of ["192x192", "512x512"]) assert.ok(manifest.icons.some((i) => i.sizes === size), `a ${size} icon`);
@@ -200,7 +200,7 @@ test("PWA: installable manifest, icons, served worker files, decisions kept", as
   try {
     const m = await s.raw({ path: "/manifest.webmanifest" });
     assert.equal(m.status, 200);
-    assert.equal(JSON.parse(m.text).short_name, "Command AI");
+    assert.equal(JSON.parse(m.text).short_name, "Meldmind");
     const w = await s.raw({ path: "/features/alerts-sw.js" });
     assert.equal(w.status, 200);
     assert.match(String(w.headers["content-type"]), /javascript/);

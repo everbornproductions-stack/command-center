@@ -3,7 +3,7 @@ const { S, api, toast, esc, money, pname, pcolor } = window.CC;
 
 const urlB64ToU8 = (s) => { const pad = "=".repeat((4 - (s.length % 4)) % 4); const b = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
 
-const DESKTOP_PUSH = "Push is for your phone or browser. Open Command AI there (Add to Home Screen on a phone) and enable push on that device. The desktop app shows alerts in its own window.";
+const DESKTOP_PUSH = "Push is for your phone or browser. Open Meldmind there (Add to Home Screen on a phone) and enable push on that device. The desktop app shows alerts in its own window.";
 
 async function enablePush(st) {
   // the desktop app removes every service worker at start (reload-loop guard), so a push worker there would not survive
@@ -44,7 +44,7 @@ CC.register({
       <div class="cat-h" style="margin-top:14px">Where alerts go</div>
       <div class="row"><label class="row small" style="gap:6px"><input type="checkbox" id="al-push" ${st.prefs?.pushOn ? "checked" : ""}> Push to my devices</label><button class="btn sm" id="al-enable">Enable push here</button><button class="btn sm" id="al-disable">Turn off push here</button><span class="dim small">${st.pushDevices} device${st.pushDevices === 1 ? "" : "s"} registered</span></div>
       <div class="row" style="margin-top:6px"><label class="row small" style="gap:6px"><input type="checkbox" id="al-jobdone" ${st.prefs?.jobDoneOn ? "checked" : ""}> Also push when a chat, council or mission finishes</label></div>
-      <div class="dim small" style="margin-top:4px">Push is opt-in: nothing reaches a device until you click Enable push here on it and allow notifications. ${window.ccDesktop?.desktop ? "On a phone, open Command AI in the browser and use Add to Home Screen first." : "On a phone, use Add to Home Screen first (iPhone needs it for push)."}</div>
+      <div class="dim small" style="margin-top:4px">Push is opt-in: nothing reaches a device until you click Enable push here on it and allow notifications. ${window.ccDesktop?.desktop ? "On a phone, open Meldmind in the browser and use Add to Home Screen first." : "On a phone, use Add to Home Screen first (iPhone needs it for push)."}</div>
       <div class="row" style="margin-top:8px"><label class="row small" style="gap:6px"><input type="checkbox" id="al-emailon" ${st.prefs?.emailOn ? "checked" : ""}> Email</label><input type="text" id="al-email" placeholder="you@example.com" value="${esc(st.prefs?.email || "")}" style="width:260px"><span class="dim small">needs a Resend key saved as provider "resend" (Settings → paste in the field below)</span></div>
       <div class="row" style="margin-top:8px"><input type="password" id="al-resend" placeholder="Resend API key (re_…)" style="width:260px"><button class="btn sm" id="al-resend-save">Save key</button><button class="btn sm" id="al-test" style="margin-left:auto">Send test alert</button><button class="btn sm" id="al-sweep">Check renewals now</button></div>
     </div>`;

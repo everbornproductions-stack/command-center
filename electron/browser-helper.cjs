@@ -112,7 +112,7 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
   }
   function ensure() {
     if (win && !win.isDestroyed()) return;
-    win = new BaseWindow({ width: 1180, height: 880, minWidth: 700, minHeight: 500, title: "Command AI browser helper", icon, autoHideMenuBar: true, backgroundColor: "#090d14" });
+    win = new BaseWindow({ width: 1180, height: 880, minWidth: 700, minHeight: 500, title: "Meldmind browser helper", icon, autoHideMenuBar: true, backgroundColor: "#090d14" });
     bar = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "browser-bar-preload.cjs") } });
     page = new WebContentsView({ webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
     win.contentView.addChildView(page);
@@ -162,7 +162,7 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
       lastState = state;
       if (!win || win.isDestroyed()) return;
       layout();
-      try { win.setTitle(`Command AI browser helper: ${state.job ? state.job.statusLabel : ""}`); } catch {}
+      try { win.setTitle(`Meldmind browser helper: ${state.job ? state.job.statusLabel : ""}`); } catch {}
       if (barReady) bar.webContents.send("bar:state", state);
       if (state.approval) { try { win.show(); win.focus(); } catch {} }
     },

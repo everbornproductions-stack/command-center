@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Command AI · live</title>
+<title>Meldmind · live</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
 <style>
@@ -45,7 +45,7 @@ function applyBrand(b) {
   if (brand.name) document.title = `${brand.name} · live`;
 }
 function brandHead() {
-  if (!brand || (!brand.name && !brand.logo)) return `<span class="brand-mark"></span><span class="brand-name">COMMAND <b style="color:var(--accent-2)">AI</b> · LIVE</span>`;
+  if (!brand || (!brand.name && !brand.logo)) return `<span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind · LIVE</span>`;
   return `${LOGO.test(brand.logo || "") ? `<img class="client-logo" src="${esc(brand.logo)}" alt="">` : ""}<div><div class="client-name">${esc(brand.name)}</div>${brand.tagline ? `<div class="client-tag">${esc(brand.tagline)}</div>` : ""}</div>`;
 }
 async function tick() {
@@ -68,9 +68,9 @@ async function tick() {
     </div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel"><h3>Deliverable</h3><div class="md">${m.deliverable ? md(m.deliverable) : m.verdict?.text ? md(m.verdict.text) : `<div class="empty">${done ? "No deliverable recorded." : "Being written…"}</div>`}</div></div>
-      <div class="panel"><h3>Live feed</h3><div class="feedbox">${d.feed.slice().reverse().map((e) => `<div class="ev ${e.type === "agent.msg" ? "msg" : e.type === "agent.error" ? "err" : ""}"><div class="bar" style="background:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}"></div><div><span class="who" style="color:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}">${esc(e.type === "agent.msg" ? `${pn(e.from)} → ${pn(e.to)}` : e.provider ? pn(e.provider) : "Command")}</span><span class="t">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span><div class="txt">${esc(e.text || e.type)}</div></div></div>`).join("")}</div></div>
+      <div class="panel"><h3>Live feed</h3><div class="feedbox">${d.feed.slice().reverse().map((e) => `<div class="ev ${e.type === "agent.msg" ? "msg" : e.type === "agent.error" ? "err" : ""}"><div class="bar" style="background:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}"></div><div><span class="who" style="color:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}">${esc(e.type === "agent.msg" ? `${pn(e.from)} → ${pn(e.to)}` : e.provider ? pn(e.provider) : "Meldmind")}</span><span class="t">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span><div class="txt">${esc(e.text || e.type)}</div></div></div>`).join("")}</div></div>
     </div>
-    <div class="dim small" style="margin-top:12px;text-align:center">Read-only view · expires ${new Date(d.expiresAt).toLocaleString()} · made with Command AI, an Everborn product</div>`;
+    <div class="dim small" style="margin-top:12px;text-align:center">Read-only view · expires ${new Date(d.expiresAt).toLocaleString()} · made with Meldmind, an Everborn product</div>`;
   if (done) clearInterval(timer);
 }
 const timer = setInterval(tick, 2000); tick();

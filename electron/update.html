@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
-<title>Command AI update</title>
+<title>Meldmind update</title>
 <style>
   body { margin: 0; background: #090d14; color: #e6edf6; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
   .wrap { padding: 22px 24px; }
@@ -18,8 +18,9 @@
   button:disabled { opacity: .5; cursor: default; }
 </style></head>
 <body><div class="wrap">
-  <h1 id="title">Command AI update</h1>
-  <div class="sub" id="sub">an Everborn product</div>
+  <h1 id="title">Meldmind update</h1>
+  <div class="sub">an Everborn product. Take command of all your AIs.</div>
+  <div class="sub" id="sub"></div>
   <div class="notes" id="notes"></div>
   <div class="bar" id="bar"><i id="fill"></i></div>
   <div class="row"><span class="msg" id="msg"></span><button id="later">Later</button><button id="install" class="primary">Install now</button></div>
@@ -27,7 +28,7 @@
 <script>
   const $ = (id) => document.getElementById(id);
   function show(s) {
-    if (s.version) $("title").textContent = `Command AI v${s.version} is ready`;
+    if (s.version) $("title").textContent = `Meldmind v${s.version} is ready`;
     $("sub").textContent = `You have v${s.current}. Your settings, keys and history are kept.`;
     if (s.notes) $("notes").textContent = s.notes;
     const busy = s.phase === "downloading" || s.phase === "downloaded";

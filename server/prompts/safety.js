@@ -20,6 +20,7 @@ export const SCF_TEXT = [
   "SCF / CREDIT-REPAIR MODE (CROA and RESPA):",
   "Do not promise results. Do not say a score will rise, jump, or reach a number.",
   "Do not guarantee approval, deletion, or a timeline.",
+  "Mark any promised result, score jump, or guarantee with " + CROA + ".",
   "Referral rewards, referral fees and kickbacks must be marked " + RESPA + " for a human RESPA review.",
   "Describe process only. The person decides what is sent, and nothing is sent from here.",
 ].join("\n");
@@ -71,30 +72,37 @@ function sourceHas(source, raw) {
 }
 
 // Mark claims in a model answer that were not in the user's inputs.
+function markSentence(sentence, source, scf) {
+  const lead = sentence.match(/^\s*/)?.[0] || "";
+  let s = sentence.trim();
+  if (!s) return sentence;
+  const numbers = [...s.matchAll(/\$?\d[\d,]*(?:\.\d+)?%?/g)].map((m) => m[0]);
+  const unknownNumber = numbers.some((raw) => {
+    const digits = raw.replace(/[^\d.]/g, "");
+    return !sourceHas(source, raw.replace(/[$,]/g, "").trim()) && !(digits && sourceHas(source, digits));
+  });
+  if (unknownNumber && !s.includes(VERIFY)) s = `${s} ${VERIFY}`;
+  if (/\b(?:case study|testimonial|client said|they said|we helped|success story)\b/i.test(s) && !s.includes(VERIFY)) {
+    const quoted = s.replace(/\s+/g, " ").trim();
+    if (!(quoted && source.toLowerCase().includes(quoted.toLowerCase().slice(0, 40)))) s = `${s} ${VERIFY}`;
+  }
+  if (scf && /\b(?:guarantee|guaranteed|we promise|promise you|will raise your(?: credit)? score|score will (?:jump|increase|go up)|raise your score by)\b/i.test(s) && !s.includes(CROA)) {
+    s = `${CROA} ${s}`;
+  }
+  if (scf && /\b(?:referral fee|referral reward|referral bonus|kickback|pay(?:ing)? (?:you )?for (?:the )?referral)\b/i.test(s) && !s.includes(RESPA)) {
+    s = `${RESPA} ${s}`;
+  }
+  return lead + s;
+}
+
+// Mark claims in a model answer that were not in the user's inputs.
 export function annotateOutput(text, source = "", { scf = false } = {}) {
   const src = String(source || "");
   let out = String(text || "");
-  out = out.replace(/(\$?\d[\d,]*(?:\.\d+)?%?|\b\d[\d,]*(?:\.\d+)?\s*(?:points?|pts|customers?|leads?|hours?|days?|weeks?|months?)\b)/gi, (m) => {
-    if (out.slice(out.indexOf(m), out.indexOf(m) + m.length + VERIFY.length + 1).includes(VERIFY)) return m;
-    if (sourceHas(src, m.replace(/[$,]/g, "").trim())) return m;
-    const digits = m.replace(/[^\d.]/g, "");
-    if (digits && sourceHas(src, digits)) return m;
-    return `${m} ${VERIFY}`;
-  });
-  out = out.replace(/([^.?\n]*\b(?:case study|testimonial|client said|they said|we helped|success story)\b[^.?\n]*[.?!]?)/gi, (sentence) => {
-    if (sentence.includes(VERIFY)) return sentence;
-    const quoted = sentence.replace(/\s+/g, " ").trim();
-    if (quoted && src.toLowerCase().includes(quoted.toLowerCase().slice(0, 40))) return sentence;
-    return `${sentence.trim()} ${VERIFY}`;
-  });
-  if (scf) {
-    out = out.replace(/([^.?\n]*\b(?:guarantee|guaranteed|we promise|promise you|will raise your(?: credit)? score|score will (?:jump|increase|go up)|raise your score by)\b[^.?\n]*[.?!]?)/gi, (sentence) => (
-      sentence.includes(CROA) ? sentence : `${CROA} ${sentence.trim()}`
-    ));
-    out = out.replace(/([^.?\n]*\b(?:referral fee|referral reward|referral bonus|kickback|pay(?:ing)? (?:you )?for (?:the )?referral)\b[^.?\n]*[.?!]?)/gi, (sentence) => (
-      sentence.includes(RESPA) ? sentence : `${RESPA} ${sentence.trim()}`
-    ));
-  }
+  out = out.split(/(\n+)/).map((part) => {
+    if (/^\n+$/.test(part)) return part;
+    return part.split(/(?<=[.?!])\s+/).map((sentence) => markSentence(sentence, src, scf)).join(" ");
+  }).join("");
   if (/\b(subject:|dear |hi [A-Z]|email draft|text them|sms)\b/i.test(out) && !/DRAFT ONLY/i.test(out)) {
     out = `DRAFT ONLY. Nothing is sent until you send it yourself.\n\n${out}`;
   }

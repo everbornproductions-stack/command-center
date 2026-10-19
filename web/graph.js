@@ -1,4 +1,4 @@
-// Live ops graph: a hub (Command) in the centre, every AI around it. Nodes glow while an AI works,
+// Live ops graph: a hub (Meldmind) in the centre, every AI around it. Nodes glow while an AI works,
 // and a particle travels along an edge whenever one AI hands something to another.
 const NS = "http://www.w3.org/2000/svg";
 const el = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -24,7 +24,7 @@ export class AgentGraph {
     const g = el("g", { class: "hub" });
     g.append(el("circle", { cx: this.hub.x, cy: this.hub.y, r: 46, class: "hub-ring" }));
     g.append(el("circle", { cx: this.hub.x, cy: this.hub.y, r: 30, fill: "#0b1622", stroke: "#22d3ee", "stroke-width": 1.5, filter: "url(#glow)" }));
-    const t = el("text", { x: this.hub.x, y: this.hub.y + 4, class: "node-label" }); t.textContent = "COMMAND"; t.setAttribute("fill", "#67e8f9");
+    const t = el("text", { x: this.hub.x, y: this.hub.y + 4, class: "node-label", "font-size": "9" }); t.textContent = "MELDMIND"; t.setAttribute("fill", "#67e8f9");
     g.append(t);
     this.hubG = g;
     this.gNodes.appendChild(g);

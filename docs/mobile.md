@@ -25,12 +25,12 @@ Capacitor wraps the existing web app into native shells with no rewrite:
 
 ```
 npm i -D @capacitor/cli @capacitor/core @capacitor/android @capacitor/ios
-npx cap init "Everborn Command" com.everborn.command --web-dir web
+npx cap init "Meldmind" com.everborn.command --web-dir web
 npx cap add android && npx cap add ios
 npx cap sync
 ```
 
-The native app loads the UI from the hub address (configured at first launch or by scanning a QR code shown on the desktop), so the app in the store is thin and updates come from the hub, not from store releases. Native extras worth adding through Capacitor plugins: push notifications (amber/red light, renewal in 3 days, mission finished), biometric lock, share-sheet ("send this to Command").
+The native app loads the UI from the hub address (configured at first launch or by scanning a QR code shown on the desktop), so the app in the store is thin and updates come from the hub, not from store releases. Native extras worth adding through Capacitor plugins: push notifications (amber/red light, renewal in 3 days, mission finished), biometric lock, share-sheet ("send this to Meldmind").
 
 Requirements:
 

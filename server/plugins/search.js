@@ -60,7 +60,7 @@ export async function routes(req, res, url, body, h) {
     const prev = h.getSecret(secretId(eng)); // stored value only, restored if the new key is refused
     try { await h.setSecret(secretId(eng), { key }); } catch (err) { return h.json(res, err.status || 400, { error: err.message, code: err.code }); }
     try {
-      const r = await runSearch("Command AI key check", { engine: eng, maxResults: 1, role: "key-check" });
+      const r = await runSearch("Meldmind key check", { engine: eng, maxResults: 1, role: "key-check" });
       h.emit("log", { text: `${e.name} key saved to the vault (one test search, $${r.cost.toFixed(4)}).` });
       return h.json(res, 200, { ok: true, engine: eng, kept: true, label: "Key works", tone: "green", detail: `${r.sources.length} result returned.`, masked: engineMasked(eng), cost: r.cost, view: view(h) });
     } catch (err) {

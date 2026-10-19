@@ -59,7 +59,7 @@ test("results: text parts joined, images and resources summarised, structured co
 test("stdio client: initialize, tools with annotations, calls, errors, close", async () => {
   const c = McpClient.for({ transport: "stdio", command: process.execPath, args: [DEMO] });
   const init = await c.connect();
-  assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Command AI demo tools");
+  assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
   const tools = await c.listTools();
   assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]);
   assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);

@@ -39,7 +39,7 @@ rl.on("line", (line) => {
   let msg; try { msg = JSON.parse(line); } catch { return write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
   const { id, method, params } = msg;
   if (id === undefined) return; // notifications (initialized, cancelled): nothing to do
-  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Command AI demo tools", version: "1.0.0" }, instructions: "Demo tools for Command AI. Nothing leaves this computer." } });
+  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer." } });
   if (method === "ping") return write({ jsonrpc: "2.0", id, result: {} });
   if (method === "tools/list") return write({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
   if (method === "tools/call") {

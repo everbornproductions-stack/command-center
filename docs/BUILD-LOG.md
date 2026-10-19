@@ -1017,3 +1017,16 @@ PHASE 6 DONE
 - npm test 243 tests, 241 pass, 0 fail, 2 skipped (one earlier run had 1 flaky failure that did not repeat); npm run smoke all pass.
 - Released v0.4.1 (Phases 2-6 + licence key) on command-center-releases with installer, blockmap and latest.yml.
 - Chain re-enabled and started; it resumes at Phase 7 (Phases up to 6 are DONE in this log).
+
+## 2026-10-19: Pro prompts, grouped nav, and the Meldmind name (Cursor cloud agent)
+
+- Phase 30: Pro prompts pack. Each template is ROLE / CONTEXT / COMMAND / FORMAT, filled from the Business Profile, and it halts when a required fact is missing. Safety marks unverified numbers [VERIFY], keeps outbound text as drafts, and strips SSNs, dates of birth, and account numbers. SCF mode adds CROA and RESPA. "Save this as a reusable prompt" stores a custom prompt and does not send it. Friday Coach, Monday Chief of Staff, Friday team check-in, and Daily sundown install as paused chat schedules. Desktop schedules only run while the app is open.
+- Phase 31: intent auto-detect is a keyword heuristic plus one cheap router call when the heuristic is unsure. A chip can be removed. The learning router stores the template id and a count only.
+- The top bar is grouped menus (Work, Create, Business, Connect, Settings). Every existing destination stays reachable. "Open live view" is at the bottom-right of the Live Ops panel. Live stays in the Work menu.
+- User-facing product name is Meldmind. Tagline stays "an Everborn product". Where a subtitle fits, the line is "Take command of all your AIs." The name is provisional, pending attorney trademark review before public launch (Cisco MINDMELD risk). appId `com.everborn.command`, `app.setName("Everborn Command")`, and the updater feed (`command-center-releases`, `latest.yml`) are unchanged, so existing installs keep keys, settings, and history and still auto-update. Installer names are `Meldmind-Setup-<version>.exe` and the matching Mac and portable artifacts.
+- Planned and not built: Phase 32 model-version alerts, Phase 33 bring your own apps, the Phase 26 relay extension (decision 16 unchanged), and Phase 34 hide hosted plumbing (decision 15 unchanged). Phase 34 would ship the hosted Supabase URL and publishable key built in, auto-fill the results callback from our hosted server once it exists, prefill Grok Bot and agent handoff fields where possible, and hide those fields unless "Use your own Supabase" (off by default) or an Advanced toggle is on.
+- Tests after rebase onto main (through Phase 5): npm test 250 tests, 248 pass, 0 fail, 2 skipped. npm run smoke all checks passed. No real key. Temp data dir only. Smoke does not assert the product name. The served page title is Meldmind and the tagline is in the header HTML. Project memory stays on the server, and the weekly report still does not email itself.
+- Not verified here: a packaged installer, a real auto-update against command-center-releases, Alt+Space (that hotkey is the desktop shell; the nav test ignores Alt), and a full click-through of every menu. Phase 14 stays BLOCKED (needs a Mac).
+
+PHASE 30 DONE (built by Cursor cloud agent)
+PHASE 31 DONE (built by Cursor cloud agent)

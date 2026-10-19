@@ -217,3 +217,10 @@ Three ways to connect the person's own tools. Docs only until a later phase.
 2. Add any user MCP server by URL. That covers Zapier, Make, and similar products that expose MCP.
 3. Custom webhook / API tools: a URL, an auth header, and an input schema.
 Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
+
+### Phase 34: Hide hosted plumbing (planned, not built)
+Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
+- The hosted Supabase URL and the publishable key ship built in. The app uses them. There is no setup form for those values.
+- Once our hosted server exists, the results callback URL auto-fills from that server. Until then the app keeps the current local callback.
+- Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
+- Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.

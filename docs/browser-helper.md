@@ -27,7 +27,7 @@ Checked by `assess()` in server/browser.js before every action.
   - Typing into a password field. What was typed is never repeated in the log or to the AI.
   - Card or bank fields.
   - Square (squareup.com, square.site, square.link, cash.app) and billing or payment-method pages.
-  - Command AI's own address (except the built-in demo page).
+  - Meldmind's own address (except the built-in demo page).
   - Anything that is not http(s).
   - Sending email without the send permission.
 

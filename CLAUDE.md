@@ -1,4 +1,4 @@
-# Command AI (repo: command-center)
+# Meldmind (repo: command-center)
 
 **Read docs/DECISIONS.md first.** It lists locked decisions that Chris approved and that are already shipped. Never revert or rework them. If a phase conflicts with one, write `PHASE N BLOCKED: <reason>` in docs/BUILD-LOG.md instead of changing it.
 

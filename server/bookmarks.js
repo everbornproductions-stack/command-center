@@ -176,7 +176,7 @@ export function duplicates(items) {
 
 export async function read({ browser, profile, allow }) {
   if (HOSTED) throw bad("Organizing bookmarks works in the desktop app on your own computer.", 409);
-  if (allow !== true) throw bad("Tick allow first: Command AI reads this browser's bookmarks only with your OK.");
+  if (allow !== true) throw bad("Tick allow first: Meldmind reads this browser's bookmarks only with your OK.");
   const { b, file } = locate(browser, profile);
   let items, synced = false, hash = null;
   if (b.kind === "firefox") items = readFirefox(file);
@@ -356,7 +356,7 @@ export function importHtml(d, plan) {
   const by = new Map(d.items.map((x) => [x.id, x]));
   const moving = new Set(plan.folders.flatMap((f) => f.items));
   const drop = new Set(plan.merge.flatMap((m) => { const keep = m.items.find((x) => moving.has(x)) || m.items[0]; return m.items.filter((x) => x !== keep); }));
-  const out = ["<!DOCTYPE NETSCAPE-Bookmark-file-1>", '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">', "<TITLE>Bookmarks</TITLE>", "<H1>Bookmarks</H1>", "<DL><p>", "    <DT><H3>Organized by Command AI</H3>", "    <DL><p>"];
+  const out = ["<!DOCTYPE NETSCAPE-Bookmark-file-1>", '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">', "<TITLE>Bookmarks</TITLE>", "<H1>Bookmarks</H1>", "<DL><p>", "    <DT><H3>Organized by Meldmind</H3>", "    <DL><p>"];
   for (const f of plan.folders) {
     out.push(`        <DT><H3>${esc(f.name)}</H3>`, "        <DL><p>");
     for (const id of f.items) { const it = by.get(id); if (it && !drop.has(id) && /^https?:/i.test(it.url)) out.push(`            <DT><A HREF="${esc(it.url)}">${esc(it.title || it.url)}</A>`); }
