@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Everborn Command · live</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  body { overflow: auto; }
+  .share { max-width: 1100px; margin: 0 auto; padding: 18px; }
+  .share .top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .share .top .brand-name { letter-spacing: .18em; font-size: 12px; font-weight: 600; color: #cbd5e1; }
+  .agents { display: flex; flex-wrap: wrap; gap: 8px; }
+  .agent { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; background: #0d1420; border: 1px solid var(--line); font-size: 12.5px; }
+  .agent .light { width: 9px; height: 9px; border-radius: 50%; background: #4b5563; }
+  .agent.on .light { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: blink 1s steps(2) infinite; }
+  .feedbox { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+  .expired { text-align: center; padding: 80px 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="share" id="root"><div class="empty">Loading…</div></div>
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function md(s) { s = esc(s); s = s.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h1>$1</h1>").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^(?:[-*] .*(?:\n|$))+/gm, (m) => `<ul>${m.trim().split("\n").map((l) => `<li>${l.replace(/^[-*] /, "")}</li>`).join("")}</ul>\n`); return s.split(/\n{2,}/).map((p) => (/^<(h\d|ul)/.test(p.trim()) ? p : `<p>${p.replace(/\n/g, "<br>")}</p>`)).join(""); }
+const token = new URLSearchParams(location.search).get("t");
+const root = document.getElementById("root");
+let providers = {};
+const pc = (id) => providers[id]?.color || "#22d3ee", pn = (id) => providers[id]?.name || id;
+async function tick() {
+  let r;
+  try { r = await fetch(`/api/share/t/${encodeURIComponent(token)}`); } catch { return; }
+  if (r.status === 410 || r.status === 404) { root.innerHTML = `<div class="expired"><div style="font-size:22px;margin-bottom:8px">This link has expired</div><div>Ask the owner for a fresh one.</div></div>`; clearInterval(timer); return; }
+  const d = await r.json(); providers = d.providers || {};
+  const m = d.mission;
+  if (!m) { root.innerHTML = `<div class="empty">Waiting for the run to start…</div>`; return; }
+  const active = new Set(d.feed.filter((e) => e.type === "agent.start").map((e) => e.provider));
+  for (const e of d.feed) if (e.type === "agent.done" || e.type === "agent.error") active.delete(e.provider);
+  const agentIds = [...new Set([...(m.tasks || []).map((t) => t.provider), ...(m.members || []), ...Object.values(m.answers || {}).map((a) => a.provider)].filter(Boolean))];
+  const done = ["done", "done-with-errors", "failed", "aborted"].includes(m.status);
+  root.innerHTML = `
+    <div class="top"><span class="brand-mark"></span><span class="brand-name">EVERBORN <b style="color:var(--accent-2)">COMMAND</b> · LIVE</span><span class="chip ${done ? "green" : ""}" style="margin-left:auto">${esc(m.kind)} · ${esc(m.status)}</span>${m.cost != null ? `<span class="chip">$${Number(m.cost).toFixed(4)}</span>` : ""}</div>
+    <div class="panel"><h3>${esc(m.title)}</h3>
+      <div class="agents">${agentIds.map((p) => `<div class="agent ${!done && active.has(p) ? "on" : ""}"><span class="light"></span><span class="dot" style="background:${pc(p)}"></span>${esc(pn(p))}</div>`).join("")}</div>
+      ${m.tasks ? `<div class="tasks">${m.tasks.map((t) => `<div class="task"><span class="st ${t.status}"></span><div><div>${esc(t.title)}${t.review ? ` <span class="chip ${t.review.pass ? "green" : "amber"}">QA ${t.review.score ?? ""}</span>` : ""}</div><div class="who" style="color:${pc(t.provider)}">${esc(t.agentName || pn(t.provider))}</div></div><span class="chip">${esc(t.capability)}</span><span class="cost">${t.cost != null ? "$" + Number(t.cost).toFixed(4) : ""}</span><div class="bar"><i style="width:${t.status === "done" ? 100 : t.status === "running" ? 40 : t.status === "review" ? 85 : 0}%;background:${pc(t.provider)}"></i></div></div>`).join("")}</div>` : ""}
+      ${m.answers ? `<div class="council-cols" style="margin-top:12px">${Object.values(m.answers).map((a) => `<div class="ans ${m.winner === a.model ? "winner" : ""}" style="--c:${pc(a.provider)}"><div class="hd"><span class="dot" style="background:${pc(a.provider)}"></span>${esc(pn(a.provider))}<span class="score">${m.scoreboard?.[a.model]?.avg != null ? `peer ${m.scoreboard[a.model].avg}/10` : ""}</span></div><div class="body md">${md(a.text || "")}</div></div>`).join("")}</div>` : ""}
+    </div>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="panel"><h3>Deliverable</h3><div class="md">${m.deliverable ? md(m.deliverable) : m.verdict?.text ? md(m.verdict.text) : `<div class="empty">${done ? "No deliverable recorded." : "Being written…"}</div>`}</div></div>
+      <div class="panel"><h3>Live feed</h3><div class="feedbox">${d.feed.slice().reverse().map((e) => `<div class="ev ${e.type === "agent.msg" ? "msg" : e.type === "agent.error" ? "err" : ""}"><div class="bar" style="background:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}"></div><div><span class="who" style="color:${e.type === "agent.msg" ? "#a78bfa" : pc(e.provider || e.from)}">${esc(e.type === "agent.msg" ? `${pn(e.from)} → ${pn(e.to)}` : e.provider ? pn(e.provider) : "Command")}</span><span class="t">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span><div class="txt">${esc(e.text || e.type)}</div></div></div>`).join("")}</div></div>
+    </div>
+    <div class="dim small" style="margin-top:12px;text-align:center">Read-only view · expires ${new Date(d.expiresAt).toLocaleString()} · made with Everborn Command</div>`;
+  if (done) clearInterval(timer);
+}
+const timer = setInterval(tick, 2000); tick();
+</script>
+</body>
+</html>

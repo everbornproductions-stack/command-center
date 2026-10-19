@@ -60,7 +60,7 @@ function localGate(req, url) {
   if (HOSTED) return null;
   if (!hostOk(req)) return { status: 421, error: `wrong host: open http://localhost:${PORT}/ or http://127.0.0.1:${PORT}/`, code: "host" };
   if (!originOk(req)) return { status: 403, error: "cross-site request refused", code: "origin" };
-  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !tokenOk(req.headers["x-cc-token"])) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
+  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"])) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
   return null;
 }
 // index.html with the per-launch token injected (local mode only).
