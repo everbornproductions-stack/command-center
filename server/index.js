@@ -38,7 +38,20 @@ import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
+import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 let lastScan = null, lastKeys = null;
+
+// The daily check waits until plugins are loaded (custom providers exist) and the
+// first health pass has finished (live model ids). It never scans history or bookmarks.
+let pluginsReady = false;
+let healthReady = false;
+let dailyCtx = null;
+let dailyStarted = false;
+function tryDailyCheck() {
+  if (HOSTED || dailyStarted || !pluginsReady || !healthReady || !dailyCtx) return;
+  dailyStarted = true;
+  runAs(dailyCtx, () => { try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); } });
+}
 
 const PORT = Number(process.env.PORT || process.env.CC_PORT || 4747);
 const MODE = HOSTED ? "hosted" : "local";
@@ -168,6 +181,80 @@ function startMission(opts) {
 }
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
 
+function vaultKeyIds() {
+  const secrets = ctx().secrets || {};
+  return Object.keys(secrets).filter((id) => secrets[id]?.key && !String(id).startsWith("demo-"));
+}
+function countMissionFiles() {
+  try {
+    if (HOSTED) return ctx().store.listMissions(() => ({ ok: 1 })).length;
+    return fs.readdirSync(path.join(DATA_DIR, "missions")).filter((f) => f.endsWith(".json")).length;
+  } catch { return 0; }
+}
+function countBookmarks() {
+  let n = 0;
+  try {
+    for (const p of listProjects()) for (const c of p.categories || []) n += (c.links || []).filter((l) => l?.url).length;
+  } catch { /* projects not loaded yet */ }
+  if (!HOSTED) {
+    try {
+      for (const f of fs.readdirSync(DATA_DIR)) if (f.startsWith("bookmarks-backup-") && f.endsWith(".json")) n += 1;
+    } catch { /* no data dir */ }
+  }
+  return n;
+}
+function onboardingHistory() {
+  return historyReasons({
+    vaultKeyIds: vaultKeyIds(),
+    settings: settings(),
+    defaults: DEFAULT_SETTINGS,
+    ledgerCount: ctx().ledger?.length || 0,
+    missionCount: countMissionFiles(),
+    bookmarkCount: countBookmarks(),
+  });
+}
+function readOnboarding() { return normalizeRecord(ctx().docs?.[DOC_KIND]); }
+function writeOnboarding(record) { return putDoc(DOC_KIND, record); }
+function onboardingPlan() {
+  return planOnboarding({ record: readOnboarding(), history: onboardingHistory(), now: Date.now(), version: ONBOARDING_VERSION });
+}
+function onboardingState() { return publicOnboarding(onboardingPlan()); }
+function catalogNow() {
+  return Object.values(PROVIDERS).filter((p) => p && !p.demo).map((p) => {
+    const models = [];
+    const seen = new Set();
+    for (const m of p.models || []) {
+      if (!m?.id || seen.has(m.id)) continue;
+      seen.add(m.id);
+      models.push({ id: m.id, name: m.name || m.id });
+    }
+    for (const id of liveModels[p.id] || []) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      models.push({ id, name: id });
+    }
+    return { id: p.id, name: p.name, models };
+  });
+}
+function keyedProviderIds() {
+  const have = new Set(vaultKeyIds());
+  return Object.keys(PROVIDERS).filter((id) => have.has(id) && !PROVIDERS[id]?.demo);
+}
+// Mark setup done when a flag or any history already exists. Does not scan or touch bookmarks.
+function prepareOnboarding() {
+  const plan = onboardingPlan();
+  if (plan.changed) writeOnboarding(plan.record);
+  if (!plan.show && settings().onboarded !== true) saveSettings({ ...settings(), onboarded: true });
+  if (plan.changed && !plan.show) console.log(`[onboarding] setup already done (${plan.reason})`);
+  return plan;
+}
+function runDailyCheck() {
+  const result = applyDailyCheck({ record: readOnboarding(), catalog: catalogNow(), keyIds: keyedProviderIds(), now: Date.now() });
+  if (result.ran) writeOnboarding(result.record);
+  if (result.notice) emit("onboarding.notice", { text: result.notice, at: result.record.notice?.at || Date.now() });
+  return result;
+}
+
 function fullState() {
   const c = ctx();
   const s = settings();
@@ -178,6 +265,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(),
+    onboarding: onboardingState(),
   };
 }
 
@@ -383,7 +471,23 @@ async function api(req, res, url) {
     for (const t of body.tools || []) { if (!t?.name) continue; saveSubscription({ id: t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), provider: t.provider || null, name: t.name, plan: "UNKNOWN", monthly: null, unit: "credits", url: t.url, notes: `Found in browser history (${t.visits} visits).` }); added.push(t.name); }
     return json(res, 200, { added });
   }
-  if (method === "POST" && p === "/setup/done") { const s = saveSettings({ ...settings(), onboarded: true }); return json(res, 200, s); }
+  if (method === "POST" && p === "/setup/done") {
+    writeOnboarding(completeRecord(readOnboarding(), Date.now()));
+    const s = saveSettings({ ...settings(), onboarded: true });
+    try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); }
+    return json(res, 200, s);
+  }
+  if (method === "GET" && p === "/onboarding") return json(res, 200, onboardingState());
+  if (method === "POST" && p === "/onboarding/ack") {
+    const rec = readOnboarding();
+    writeOnboarding({ ...rec, notice: null });
+    return json(res, 200, { ok: true });
+  }
+  if (method === "POST" && p === "/onboarding/check") {
+    let result;
+    try { result = runDailyCheck(); } catch (e) { return json(res, 500, { error: e.message }); }
+    return json(res, 200, { ran: !!result.ran, throttled: !!result.throttled, skipped: !!result.skipped, notice: result.notice || null, onboarding: onboardingState() });
+  }
   if (method === "POST" && p === "/update/check") return json(res, 200, await checkForUpdate());
   if (method === "GET" && p === "/update") return json(res, 200, updateState());
   if (method === "POST" && p === "/update/install") { try { return json(res, 202, await installUpdate()); } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, update: updateState() }); } }
@@ -547,7 +651,10 @@ async function initContext() {
   restoreScheduled();
   if (HOSTED) await loadHostedLicense();
   if (HOSTED) await loadWorkspaceKeys().catch((e) => console.error("[workspace-keys]", e.message)); // the active workspace's keys (Phase 24)
-  checkAll().then(() => retireDemoIfReal()).catch(() => {});
+  prepareOnboarding();
+  const userCtx = ctx();
+  const health = checkAll().then(() => retireDemoIfReal()).catch(() => {});
+  if (!HOSTED) health.finally(() => { healthReady = true; dailyCtx = userCtx; tryDailyCheck(); });
 }
 
 (async () => {
@@ -562,6 +669,8 @@ async function initContext() {
   setContextInitializer(initContext);
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
   await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, runChat, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
+  pluginsReady = true;
+  tryDailyCheck();
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
     console.log(`Command AI (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);

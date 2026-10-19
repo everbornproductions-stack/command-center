@@ -94,6 +94,14 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 
 19. **Live project view (Phase 29):** every project and mission shows live which AI or agent is working, the current step, and credits / cost so far, with "Open in <service>" links where the provider has a page for the job (Kling task page, OpenAI / Anthropic / xAI usage dashboards). API chats do not appear in claude.ai, grok.com or ChatGPT history, so the app is the place to watch work.
 
+20. **Onboarding runs once; daily background check only.**
+    - First-run setup (browser history, key import, bookmark organizing) is shown only when this install has no history yet.
+    - History means any of: a key already in the vault, saved settings, past chats or jobs, or bookmarks the app already has. If any of that is present, setup is not shown.
+    - Completion is a flag with a version, stored in the user data folder (`onboarding.json`). That folder survives restarts and updates. The flag is not kept in localStorage or in the caches v0.3.2 clears after an update.
+    - Later launches open the hub. Bookmark organizing does not run on launch.
+    - At most once every 24 hours, in the background, the app compares providers, models and vault keys with the saved history and integrates only what is new. A small notice says "New: X added". It does not open setup.
+    - Settings keeps a manual "Run setup again".
+
 ## Rules (always)
 - Never deploy the hub or anything else. Never touch Square or billing, never charge money.
 - Never use real API keys. Tests use mocks on local ports and never call a real URL.
