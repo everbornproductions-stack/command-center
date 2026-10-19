@@ -1163,3 +1163,12 @@ PHASE 31 DONE (built by Cursor cloud agent)
 - Browser (before this rebase): first-run setup, Settings cards, and guided setup were checked on desktop and at 390px. Not re-checked after Phase 6's Media tab. Not verified: a packaged Electron build, a real provider, or a real MCP server.
 
 FEATURE connect-key-or-mcp DONE (built by Cursor cloud agent)
+
+## 2026-10-19 15:45 PT: chain paused to merge PRs #6 and #7 and release v0.4.2, then resumed (Grok Bot)
+- The chain had finished Phase 11 at 15:41 and stopped on the existing PHASE 14 BLOCKED line (needs a real Mac). Every other phase (1-13, 15-29) is DONE. CC-Build-Chain task disabled at 15:45 while Grok Bot worked; no Claude phase was running.
+- Merged PR #6 (Pro prompts, grouped nav, Meldmind rename, What's new and tour) as 678b8ec. Conflicts with Phases 7-11 resolved keeping both sides: top-bar active state from markNav plus aria-current from markTabs, readable HTTP errors plus error codes, the features list keeps marketplace, growth and prompts, publish settings from Phase 7 plus the tour anchor, Meldmind text with the Phase 11 accessibility attributes.
+- Merged PR #7 (connect services with an API key or MCP) as 5cae163. Kept both plan sections and both DECISIONS test lists. Plan notes renumbered 24-28 so they no longer share numbers with locked decisions 21-23.
+- PR #9 (docs: plan additions, relay terms review) left open: its description says not to merge until Chris reviews.
+- Release v0.4.2 (ebcba79): version bump, What's new 0.4.2, tour steps for Marketplace and publishing connections. npm test 279 pass, 0 fail, 2 skipped (two earlier runs had one timeout each in search and brain waitRun; each test passed when run again, and the full suite passed); npm run smoke passed. Published on command-center-releases as "Meldmind v0.4.2" with Meldmind-Setup-0.4.2.exe (112678771 bytes), blockmap and latest.yml; latest.yml says 0.4.2 and the release is marked Latest.
+- Licence publishable key: already shipped in server/cloud-defaults.json since v0.4.1 (4695f49); v0.4.2 carries it too. No secret or service key is in the repo.
+- CC-Build-Chain task re-enabled. Not restarted: the only phase left is Phase 14 (Mac), which stays BLOCKED until a Mac or the macOS runner is available.
