@@ -218,7 +218,7 @@ async function api(req, res, url) {
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
-  const body = method === "POST" || method === "PUT" ? await readBody(req) : {};
+  const body = method === "POST" || method === "PUT" || method === "PATCH" ? await readBody(req) : {};
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
