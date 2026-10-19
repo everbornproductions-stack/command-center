@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12 and 13 were added on 2026-10-18 as high priority). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15 and 16 were added on 2026-10-18 as high priority; 14, the Mac build, is manual). A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -79,6 +79,20 @@ The first-run step that makes AI bookmarks also offers to organize the user's EX
 - Before applying: warn the user to close the browser (Chrome/Edge/Brave overwrite the file while running); detect a running browser process and refuse to apply until it is closed. Remove the `checksum` field so Chromium accepts the edited file.
 - Privacy: bookmark titles and URLs go only to the AI provider the user picked for categorizing, nowhere else; say so in the UI. Demo mode categorizes with the mock provider and a fixture file.
 - Tests with fixture bookmark files in a temp folder; never touch a real browser profile in tests.
+
+### Phase 15 (HIGH PRIORITY, added 2026-10-18 from a competitor review): Live web search with cited sources
+- Pluggable search provider using the user's own key: Tavily, Brave Search, Serper, or the model's built-in search where supported (Perplexity, xAI). Keys in the vault like other secrets; never logged.
+- A "Search the web" toggle per chat, council and mission (off by default).
+- Results are injected into the prompt with numbered citations; answers show them as clickable source chips ([1], [2], ...) that open the source.
+- Search calls respect spend caps (alerts plugin) and are logged in the ledger with their cost.
+- Works in demo mode with a mock search provider; tests use a local mock only, never a real search API.
+
+### Phase 16 (HIGH PRIORITY, added 2026-10-18 from a competitor review): MCP tool support
+- Users add MCP (Model Context Protocol) servers in Settings > Tools: local stdio commands, and remote Streamable HTTP / SSE servers with OAuth or custom headers. Secrets (headers, tokens, env) go to the vault and are never logged or sent to the browser.
+- The app lists each server's tools and lets the user enable them per workspace (Phase 8 workspaces; "Personal" when none).
+- Any provider that supports tool calling can call enabled tools; calls are routed through the local server, never directly from the browser.
+- Tools that write, send or delete need a per-call approval prompt in the UI (consistent with "nothing posts without a click"); read-only tools can run without one when the user allows it.
+- Use the official `@modelcontextprotocol/sdk`. Tests with a mock MCP server (stdio and HTTP) on a temp dir / random port.
 
 ### Phase 14 (low priority, added 2026-10-18): Mac build
 - `docs/ci/mac-build.yml` (added by Grok Bot; move it to `.github/workflows/` after `gh auth refresh -s workflow`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only).
