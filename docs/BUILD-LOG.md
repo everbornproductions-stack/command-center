@@ -1545,6 +1545,6 @@ Not Phase 56 done. Item 2 stays with Phases 53 and 54. This page does not connec
 - Find a time: open weekday slots, skipping local busy blocks and local holds, drafted as an email. Send is a separate click with the exact text.
 - Each has a try saying line, a How to section, and a Help article.
 - The run-order checks follow the order already on main.
-- Tests: `test/everyday-plan.test.js`. npm test and npm run smoke recorded after this run. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Tests: `test/everyday-plan.test.js`. npm test 402 tests in the main batch, 401 pass, 0 fail, 1 skipped (Pyodide is not installed), after the serial MCP file. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
 
 EVERYDAY DAY PLAN (built by Cursor cloud agent)
