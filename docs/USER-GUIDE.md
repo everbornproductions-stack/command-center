@@ -12,7 +12,7 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
 2. The app opens in its own window and keeps running in the tray when you close the window. Quit from the tray icon.
 3. On the very first start the app shows **Setup**. Every step is optional and runs on your computer only:
    - look through your browser history for the AI tools you already use,
-   - check for API keys already on this PC,
+   - check for API keys already on this PC (OpenRouter is the recommended first key: one key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, and free models are available),
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
    After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each connected account. Add another uses the same connect step. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.

@@ -1293,6 +1293,7 @@ HONEST KEY ERRORS AND DESKTOP TAP TO TALK DONE (built by Cursor cloud agent)
 - An install that already finished setup is not prompted. The Mac Help menu has the same Run setup again item. Windows keeps no menu bar.
 - Command layout: the orders panel was sticky inside the scrolling page and had no overflow of its own, so the wheel moved Live Ops and the left panel could not scroll. On a wide window the orders panel, Live Ops, the deliverable, and the live feed each scroll. At 1250px and on the phone the columns stack and the page scrolls. The panel height follows the view, so a taller top bar does not push the bottom of the form off screen.
 - Gmail and Outlook on Get everything connected list each connected account. Add another calls the same connect step as Connect. Account storage, labels, and defaults stay with the mail-accounts work.
+- The AI keys step leads with a recommended OpenRouter card. One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, and free models are available. The link is openrouter.ai/keys. Add OpenRouter key opens the existing OpenRouter key step. Other keys stay optional below it.
 - Rebased onto origin/main at 35604ce (wider top menus, Live Ops bubble sizes, multiple mail accounts, project picker). Tests: npm test 376 tests, 375 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, no real key. data/ was not touched.
 
 ## 2026-10-20: Start a project walkthroughs (Cursor cloud agent)

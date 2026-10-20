@@ -1224,6 +1224,7 @@ function renderSettings(v) {
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>
+        ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
         ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
@@ -1358,6 +1359,7 @@ function renderSettings(v) {
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
+  wireOpenRouterStart(v);
   wireAnyKey(v);
   $("#cp-add")?.addEventListener("click", () => openCustomForm());
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
@@ -1380,6 +1382,21 @@ async function saveKeyAs(sug, key) {
   if (sug.builtin && P(sug.provider)) { try { const r = await api("/keys", { method: "POST", body: { provider: sug.provider, key } }); keyToast(sug.provider, r); S.focusProvider = sug.provider; await refresh(); } catch (e) { toast(e.message, true); } return; }
   // a provider we only know as a preset (Together, Fireworks): open the custom form filled in
   S.view = "settings"; render(); openCustomForm(null, { preset: sug.provider, key });
+}
+function openRouterStartCard() {
+  const on = !!P("openrouter")?.keyed;
+  return `<div class="route" id="or-start">
+    <span class="chip green">Recommended</span>
+    <div style="margin-top:6px"><b>One key to start: OpenRouter</b></div>
+    <div class="dim small" style="margin-top:4px">One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available.</div>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+      <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get an OpenRouter key</a>
+      ${on ? `<span class="chip green">Connected</span>` : `<button type="button" class="btn sm primary" id="or-start-go">Add OpenRouter key</button>`}
+    </div>
+  </div>`;
+}
+function wireOpenRouterStart(root) {
+  $("#or-start-go", root)?.addEventListener("click", () => window.CC.keysetup?.open?.("openrouter"));
 }
 function anyKeyHtml() {
   return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AQ. and AIza are Google Gemini, sk-ant- is Claude, sk- and sk-proj- are ChatGPT, xai- is Grok, sk-or- is OpenRouter, gsk_ is Groq).</div>
@@ -1622,7 +1639,9 @@ function renderSetup(v) {
   const profiles = r.profiles || [];
   v.innerHTML = `<div style="max-width:980px;margin:0 auto" class="grid">
     <div class="panel"><h3>AIs you use <span class="right">${scan ? `${scan.days} days · ${scan.scanned.length} browser profile${scan.scanned.length === 1 ? "" : "s"} scanned` : "history scan skipped"}</span></h3>
-      <div class="grid" style="gap:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
+      ${openRouterStartCard()}
+      <div class="dim small" style="margin-top:10px">Other keys are optional.</div>
+      <div class="grid" style="gap:8px;margin-top:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
       ${anyKeyHtml()}
       <div class="dim small" style="margin-top:8px">Not listed? Paste the key above, or add any provider (Google Gemini, OpenRouter, Groq, Ollama...) in <a href="#" id="setup-settings">Settings</a>. "Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
     ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
@@ -1637,6 +1656,7 @@ function renderSetup(v) {
   $$("[data-setup-mcp]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupMcp, { mode: "mcp" })));
   $$("[data-setup-key]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupKey, { mode: "key" })));
   $$("[data-open]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/open", { method: "POST", body: { provider: b.dataset.open } }); toast(`Opened ${r2.url}`); }));
+  wireOpenRouterStart(v);
   wireAnyKey(v);
   renderExtras("setup", "#su-extras");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
