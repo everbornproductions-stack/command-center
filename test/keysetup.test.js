@@ -44,6 +44,16 @@ test("verdict: green and amber keep the key; rejected, unreachable and unchecked
   assert.deepEqual(verdict({ status: "green" }), { ok: true, keep: true, label: "Key works", tone: "green" });
   assert.equal(verdict({ status: "amber", detail: "low balance" }).keep, true);
   assert.equal(verdict({ status: "red", detail: "Key rejected (401)" }).label, "Key rejected");
+  assert.equal(verdict({ status: "red", detail: "Key rejected (401)" }).keep, false);
+  assert.equal(verdict({ status: "amber", detail: "Out of credits or spending limit reached. Top up at https://console.x.ai" }).label, "Out of credits");
+  assert.equal(verdict({ status: "amber", detail: "Out of credits or spending limit reached. Top up at https://console.x.ai" }).keep, true);
+  assert.equal(verdict({ status: "red", detail: "Payment required: no credits" }).label, "Payment required");
+  assert.equal(verdict({ status: "red", detail: "Payment required: no credits" }).keep, true);
+  assert.equal(verdict({ status: "amber", detail: "Rate limited" }).label, "Rate limited");
+  assert.equal(verdict({ status: "amber", detail: "Rate limited" }).keep, true);
+  assert.equal(verdict({ status: "red", detail: "HTTP 418 from Grok" }).label, "HTTP 418");
+  assert.equal(verdict({ status: "red", detail: "HTTP 418 from Grok" }).keep, false);
+  assert.equal(verdict({ status: "red", detail: "Access denied (403): model not enabled" }).label, "Access denied");
   assert.equal(verdict({ status: "red", network: true }).label, "Could not reach the provider");
   assert.equal(verdict({ status: "red", network: true }).keep, false);
   assert.equal(verdict({ status: "grey" }).keep, false);

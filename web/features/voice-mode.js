@@ -7,6 +7,25 @@
 // pointer capture, blur, silence and the recognizer ending by itself do not stop it.
 
 export const MODES = ["tap", "hold"];
+// These Web Speech errors must stop the session. Restarting them loops forever
+// (Electron reports "network" because it has no Google speech key).
+export const SPEECH_STOP = ["network", "audio-capture", "language-not-supported"];
+
+export function speechFailure(code) {
+  if (code === "network") return { effect: "server", toast: "Speech recognition could not reach its service. Recording on this computer instead.", error: false };
+  if (code === "audio-capture") return { effect: "stop", toast: "Could not capture audio from the microphone.", error: true };
+  if (code === "language-not-supported") return { effect: "stop", toast: "This browser does not support speech recognition for that language.", error: true };
+  return null;
+}
+
+// Desktop (and a browser whose speech service failed with "network") records locally.
+export function captureMode({ desktop = false, server = false } = {}) {
+  return desktop || server ? "server" : "web";
+}
+
+export function heardNote(text) {
+  return String(text || "").trim() ? "captured" : "No speech heard";
+}
 export const DEFAULT_MODE = "tap";
 export const DEFAULTS = { mode: DEFAULT_MODE, silenceStop: false, autoSend: false };
 
@@ -223,7 +242,7 @@ export function reduce(session, event, now = 0) {
     case "error": {
       const code = String(ev.code || "");
       if (code === "aborted") return none();
-      if (code === "not-allowed" || code === "service-not-allowed") return release(s);
+      if (code === "not-allowed" || code === "service-not-allowed" || SPEECH_STOP.includes(code)) return release(s);
       if (s.recording) return { session: s, effect: "restart" };
       return none();
     }

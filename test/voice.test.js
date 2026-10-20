@@ -6,7 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, startServer } from "./helpers.js";
 import {
-  EARLY_END, MODES, DEFAULT_MODE, createSession, reduce, normalizeSettings, coerceSettings, formatElapsed, buttonLabel, buttonTitle, hint, shouldAutoSend,
+  EARLY_END, MODES, DEFAULT_MODE, SPEECH_STOP, createSession, reduce, normalizeSettings, coerceSettings, formatElapsed, buttonLabel, buttonTitle, hint, shouldAutoSend,
+  speechFailure, captureMode, heardNote,
 } from "../web/features/voice-mode.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -207,6 +208,41 @@ test("switching mode or a blocked mic", () => {
   r = reduce(r.session, { type: "error", code: "not-allowed" }, 3);
   assert.equal(r.effect, "stop");
   assert.equal(r.session.held, false);
+});
+
+test("speech errors that loop are stopped, and the desktop records for a server transcript", () => {
+  assert.deepEqual(SPEECH_STOP, ["network", "audio-capture", "language-not-supported"]);
+  for (const code of SPEECH_STOP) {
+    let r = reduce(createSession(), { type: "keydown", key: " " }, 0);
+    assert.equal(r.effect, "start");
+    r = reduce(r.session, { type: "error", code }, 1);
+    assert.equal(r.effect, "stop", code);
+    assert.equal(r.session.recording, false);
+    const again = reduce(r.session, { type: "recognizerend", cause: "end" }, 2);
+    assert.equal(again.effect, "none", `${code} does not restart`);
+  }
+  assert.equal(reduce(createSession({ mode: "hold" }), { type: "pointerdown", button: 0, pointerId: 1 }, 0).session.recording, true);
+  const held = reduce(createSession({ mode: "hold" }), { type: "pointerdown", button: 0, pointerId: 1 }, 0).session;
+  assert.equal(reduce(held, { type: "error", code: "network" }, 2).effect, "stop");
+  assert.equal(speechFailure("network").effect, "server");
+  assert.match(speechFailure("network").toast, /Recording on this computer/);
+  assert.equal(speechFailure("audio-capture").error, true);
+  assert.match(speechFailure("audio-capture").toast, /microphone/);
+  assert.match(speechFailure("language-not-supported").toast, /language/);
+  assert.equal(speechFailure("no-speech"), null);
+  assert.equal(captureMode({}), "web");
+  assert.equal(captureMode({ desktop: true }), "server");
+  assert.equal(captureMode({ server: true }), "server");
+  assert.equal(heardNote(""), "No speech heard");
+  assert.equal(heardNote("  "), "No speech heard");
+  assert.equal(heardNote("draft the caption"), "captured");
+  const ui = read("web", "features", "voice.js");
+  assert.match(ui, /MediaRecorder/);
+  assert.match(ui, /\/voice\/transcribe/);
+  assert.match(ui, /Transcribing\.\.\./);
+  assert.match(ui, /ccDesktop\?\.desktop/);
+  assert.match(ui, /speechFailure/);
+  assert.doesNotMatch(ui, /\u2014/);
 });
 
 test("desktop mic grant and the button no longer stops on mouseup or mouseleave", () => {

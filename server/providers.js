@@ -7,11 +7,21 @@ import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
 
 export class ProviderError extends Error {
-  constructor(provider, status, message) {
+  constructor(provider, status, message, body) {
     super(message);
     this.provider = provider;
     this.status = status;
+    this.body = body && typeof body === "object" ? body : null;
   }
+}
+
+// Keep the parsed body on the error so health lights can tell credits from a bad key.
+function providerFailure(provider, status, txt) {
+  let j = null;
+  try { j = JSON.parse(txt || ""); } catch { /* not JSON */ }
+  const err = new ProviderError(provider.id, status, `${provider.name}: HTTP ${status} ${providerMessage(j, txt)}`, j);
+  err.text = String(txt || "").slice(0, 400);
+  return err;
 }
 
 function approxTokens(text) {
@@ -100,7 +110,8 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
       },
     };
   } catch (e) {
-    throw new ProviderError(provider.id, e.status || 500, `${provider.name}: ${e.message}`);
+    if (e instanceof ProviderError) throw e;
+    throw new ProviderError(provider.id, e.status || 500, `${provider.name}: ${e.message}`, e.error || null);
   }
 }
 
@@ -140,8 +151,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   catch (e) { throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`); }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    let j = null; try { j = JSON.parse(txt); } catch {}
-    throw new ProviderError(provider.id, res.status, `${provider.name}: HTTP ${res.status} ${providerMessage(j, txt)}`);
+    throw providerFailure(provider, res.status, txt);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -159,7 +169,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
       const data = line.slice(5).trim();
       if (!data || data === "[DONE]") continue;
       let j; try { j = JSON.parse(data); } catch { continue; }
-      if (j.error) throw new ProviderError(provider.id, j.error.code || 400, `${provider.name}: ${providerMessage(j, "")}`);
+      if (j.error) throw new ProviderError(provider.id, j.error.code || 400, `${provider.name}: ${providerMessage(j, "")}`, j);
       if (j.usageMetadata) usage = j.usageMetadata;
       const cand = j.candidates?.[0];
       if (cand?.finishReason) stop = cand.finishReason === "STOP" ? "stop" : cand.finishReason === "MAX_TOKENS" ? "length" : String(cand.finishReason).toLowerCase();
@@ -206,9 +216,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    let msg = txt.slice(0, 300);
-    try { msg = JSON.parse(txt).error?.message || msg; } catch {}
-    throw new ProviderError(provider.id, res.status, `${provider.name}: HTTP ${res.status} ${msg}`);
+    throw providerFailure(provider, res.status, txt);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();

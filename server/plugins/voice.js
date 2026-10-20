@@ -3,6 +3,7 @@
 // settings.json, hosted user_docs kind "settings") under `voice`, so it stays
 // with the rest of the app's settings. The response is only the voice fields.
 import { DEFAULT_MODE, MODES, coerceSettings, normalizeSettings } from "../../web/features/voice-mode.js";
+import { decodeAudio, transcribeAudio } from "../speech.js";
 
 export const id = "voice";
 
@@ -15,6 +16,15 @@ function read(h) {
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/voice/, "") || "/";
+  if (req.method === "POST" && p === "/transcribe") {
+    const audio = decodeAudio(body);
+    if (!audio) return h.json(res, 400, { error: "No audio in that recording.", code: "voice_audio" });
+    const out = await transcribeAudio(audio, {
+      hasSecret: (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv),
+      getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
+    });
+    return h.json(res, 200, { text: out.text, provider: out.provider, model: out.model });
+  }
   if (p !== "" && p !== "/") return false;
   if (req.method === "GET") return h.json(res, 200, view(read(h)));
   if (req.method === "POST") {

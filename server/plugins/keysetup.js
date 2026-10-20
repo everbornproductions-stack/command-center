@@ -53,13 +53,26 @@ export function setupOrder(providers) {
   return list.sort((a, b) => rank(a) - rank(b) || Object.keys(providers).indexOf(a.id) - Object.keys(providers).indexOf(b.id)).map((p) => p.id);
 }
 
-// Pure: what a check result means for the wizard. Red that is not a network problem = refused.
+// Pure: what a check result means for the wizard. Credits, payment and rate limits mean the key
+// itself is valid, so it is kept. Only a refused key or a provider we could not reach is dropped.
 export function verdict(status) {
   const st = status?.status || "grey";
+  const detail = String(status?.detail || "");
+  const low = detail.toLowerCase();
   if (st === "green") return { ok: true, keep: true, label: "Key works", tone: "green" };
+  if (status?.network || /could not reach/.test(low)) return { ok: false, keep: false, label: "Could not reach the provider", tone: "red" };
+  if (/out of credits|spending limit/.test(low)) return { ok: true, keep: true, label: "Out of credits", tone: st === "red" ? "red" : "amber" };
+  if (/payment required/.test(low)) return { ok: true, keep: true, label: "Payment required", tone: "red" };
+  if (/rate limited/.test(low)) return { ok: true, keep: true, label: "Rate limited", tone: "amber" };
+  if (/key rejected/.test(low)) return { ok: false, keep: false, label: "Key rejected", tone: "red" };
+  if (/access denied/.test(low)) return { ok: false, keep: false, label: "Access denied", tone: "red" };
+  const http = detail.match(/\bHTTP (\d+)\b/);
+  if (http && st === "red") return { ok: false, keep: false, label: `HTTP ${http[1]}`, tone: "red" };
   if (st === "amber") return { ok: true, keep: true, label: "Key works, but check your balance", tone: "amber" };
-  if (st === "red" && status?.network) return { ok: false, keep: false, label: "Could not reach the provider", tone: "red" };
-  if (st === "red") return { ok: false, keep: false, label: "Key rejected", tone: "red" };
+  if (st === "red") {
+    const label = detail.split(":")[0].replace(/\s+/g, " ").trim().slice(0, 80) || "Key rejected";
+    return { ok: false, keep: false, label, tone: "red" };
+  }
   return { ok: false, keep: false, label: "Not checked", tone: "grey" };
 }
 

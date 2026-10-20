@@ -4,10 +4,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import fs from "node:fs";
 import { startServer, tmpDir } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-keys-");
-const { explainProviderError, providerMessage } = await import("../server/health.js");
+const { explainProviderError, providerMessage, noteCall, getStatus } = await import("../server/health.js");
+const { newContext, setDefaultContext } = await import("../server/store.js");
+const { PROVIDERS } = await import("../server/registry.js");
+setDefaultContext(newContext("key-map", { putDoc() {} }));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test("provider refusals are explained in plain words, with the provider's message", () => {
@@ -26,6 +30,55 @@ test("provider refusals are explained in plain words, with the provider's messag
   assert.match(explainProviderError(xai, 503, null, "<html>oops</html>").detail, /server error \(503\)$/, "HTML bodies are not shown");
   const masked = providerMessage({ error: { message: "Incorrect API key provided: sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ" } });
   assert.ok(!masked.includes("GHIJKLMNOP"), "key values are masked in messages");
+
+  const xaiLive = PROVIDERS.xai;
+  assert.equal(xaiLive.baseUrl, "https://api.x.ai/v1");
+  assert.equal(xaiLive.links.billing, "https://console.x.ai");
+  for (const word of ["credits", "spending limit", "billing", "quota", "balance"]) {
+    const hit = explainProviderError(xaiLive, word === "quota" ? 402 : 403, { error: `account ${word} problem` });
+    assert.equal(hit.status, "amber", word);
+    assert.match(hit.detail, /^Out of credits or spending limit reached\. Top up at https:\/\/console\.x\.ai/, word);
+  }
+  assert.match(explainProviderError(xaiLive, 401, { error: "balance too low" }).detail, /^Key rejected \(401\)/);
+  assert.match(explainProviderError(xaiLive, 400, { error: { message: "Incorrect API key provided" } }).detail, /^Key rejected \(400\)/);
+  assert.equal(explainProviderError(xaiLive, 403, null, "").detail, "Key rejected (403)");
+  const denied = explainProviderError(xaiLive, 403, { error: { message: "This model is not enabled for the team" } });
+  assert.equal(denied.status, "red");
+  assert.match(denied.detail, /^Access denied \(403\): This model is not enabled/);
+  assert.equal(explainProviderError(xaiLive, 402, {}).detail, "Payment required: no credits");
+  assert.equal(explainProviderError(xaiLive, 429, {}).detail, "Rate limited");
+});
+
+test("noteCall uses the error body, and a later success clears a stale network flag", () => {
+  noteCall("xai", false, 12, { status: 403, body: { error: "Your team has either used all available credits or reached its monthly spending limit." }, message: "ignored" });
+  const credits = getStatus("xai");
+  assert.equal(credits.status, "amber");
+  assert.match(credits.detail, /Out of credits or spending limit reached\. Top up at https:\/\/console\.x\.ai/);
+  assert.match(credits.detail, /used all available credits/);
+  assert.equal(credits.network, false);
+  assert.doesNotMatch(credits.detail, /Key rejected/);
+
+  noteCall("openai", false, 4, 401);
+  assert.match(getStatus("openai").detail, /^Key rejected \(401\)$/);
+  noteCall("openai", false, 4, { status: 400, body: { error: { message: "Incorrect API key provided" } } });
+  assert.match(getStatus("openai").detail, /^Key rejected \(400\)/);
+  noteCall("groq", false, 4, 403);
+  assert.equal(getStatus("groq").detail, "Key rejected (403)");
+  noteCall("openai", false, 4, { status: 403, text: "project is not allowed to use this model" });
+  assert.match(getStatus("openai").detail, /^Access denied \(403\): project is not allowed/);
+  noteCall("openai", false, 4, { status: 402, body: { error: "billing hard limit reached" } });
+  assert.equal(getStatus("openai").status, "amber");
+  assert.match(getStatus("openai").detail, /Top up at https:\/\/platform\.openai\.com/);
+
+  noteCall("mistral", false, 5, 0);
+  assert.equal(getStatus("mistral").network, true);
+  assert.equal(getStatus("mistral").detail, "network error");
+  noteCall("mistral", true, 40);
+  assert.equal(getStatus("mistral").network, false);
+  assert.equal(getStatus("mistral").status, "green");
+  const src = fs.readFileSync(new URL("../server/health.js", import.meta.url), "utf8");
+  const branch = src.slice(src.indexOf("if (!r.ok)"), src.indexOf("balanceApi"));
+  assert.doesNotMatch(branch, /noteCall\(/, "a key check must not report Key rejected before the body is read");
 });
 
 async function mock() {
@@ -93,7 +146,40 @@ test("keys are trimmed, the Claude workspace ID is sent on checks and chats, xAI
     // xAI out of credits: amber with the provider's words, not "key rejected"
     r = await s.api("/keys", { method: "POST", body: { provider: "xai", key: "xai-fakefakefakefakefake" } });
     assert.equal(r.json.status.status, "amber");
-    assert.match(r.json.status.detail, /^Out of credits or spending limit reached: Your team has either used all available credits/);
+    assert.match(r.json.status.detail, /^Out of credits or spending limit reached\. Top up at https:\/\/console\.x\.ai/);
+    assert.match(r.json.status.detail, /used all available credits/);
     assert.doesNotMatch(r.json.status.detail, /Key rejected/);
   } finally { await s.stop(); await m.close(); }
+});
+
+test("a chat 403 about credits is stored as out of credits, not Key rejected", async () => {
+  const seen = [];
+  const srv = http.createServer(async (req, res) => {
+    seen.push(req.url);
+    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
+    if (String(req.url).includes("/models")) return send(200, { data: [{ id: "grok-mock" }] });
+    return send(403, { code: "forbidden", error: "Your team has either used all available credits or reached its monthly spending limit." });
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${srv.address().port}/v1`;
+  const KEY = "xai-chatcreditsfake0001";
+  let s;
+  try {
+    s = await startServer({ env: { CC_BASE_URL_XAI: base, CC_STATUS_PAGES: "off", XAI_API_KEY: "", ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" } });
+    const saved = await s.api("/keys", { method: "POST", body: { provider: "xai", key: KEY } });
+    assert.equal(saved.json.status.status, "green", JSON.stringify(saved.json.status));
+    const model = (await s.api("/state")).json.providers.find((p) => p.id === "xai").models[0].id;
+    await s.api("/chat", { method: "POST", body: { prompt: "hi", provider: "xai", model } });
+    let detail = "";
+    for (let i = 0; i < 40; i++) {
+      await sleep(150);
+      detail = (await s.api("/state")).json.providers.find((p) => p.id === "xai").status.detail || "";
+      if (/Out of credits/.test(detail)) break;
+    }
+    assert.match(detail, /Out of credits or spending limit reached/);
+    assert.match(detail, /Top up at https:\/\/console\.x\.ai/);
+    assert.doesNotMatch(detail, /Key rejected/);
+    assert.equal(s.log.includes(KEY), false);
+    assert.ok(seen.some((u) => String(u).includes("chat/completions")), "the chat reached the mock");
+  } finally { if (s) await s.stop(); await new Promise((r) => srv.close(r)); }
 });

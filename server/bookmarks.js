@@ -252,7 +252,7 @@ export async function categorize({ draft: id, provider, model, business }) {
     let r;
     // the person's chosen AI only: no smart fallback here, so the list never reaches another provider
     try { r = await complete({ provider: p.id, model, system: SYSTEM, maxTokens: Math.min(4000, 200 + batch.length * 12), messages: [{ role: "user", content: user }] }); }
-    catch (e) { noteCall(p.id, false, Date.now() - t0, e.status); throw bad(`${p.name} could not sort the bookmarks: ${clip(e.message, 200)}`, 502); }
+    catch (e) { noteCall(p.id, false, Date.now() - t0, e); throw bad(`${p.name} could not sort the bookmarks: ${clip(e.message, 200)}`, 502); }
     const ms = Date.now() - t0;
     noteCall(p.id, true, ms);
     const e = recordCall({ provider: p.id, model, usage: r.usage, missionId: d.id, role: "bookmarks", ms });

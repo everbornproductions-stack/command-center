@@ -3,7 +3,7 @@
 // Hold to talk: recording stays on for the whole press. Pointer leave, pointer
 // cancel, lost capture, blur and the recognizer ending on its own do not stop a hold.
 // The choice is saved with the app settings (GET/POST /api/voice).
-import { buttonLabel, buttonTitle, createSession, formatElapsed, hint, reduce, shouldAutoSend } from "./voice-mode.js";
+import { buttonLabel, buttonTitle, captureMode, createSession, formatElapsed, heardNote, hint, reduce, shouldAutoSend, speechFailure } from "./voice-mode.js";
 
 const { $, toast, api } = window.CC;
 const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -37,6 +37,8 @@ let restartTimer = null;
 let tickTimer = null;
 let micStream = null;
 let micPromise = null;
+let recorder = null;
+let serverCapture = false;
 let startFails = 0;
 let rev = 0;
 let synced = false;
@@ -105,6 +107,45 @@ function ensureMic() {
   return micPromise;
 }
 
+function wantServer() {
+  return captureMode({ desktop: !!window.ccDesktop?.desktop, server: serverCapture }) === "server";
+}
+
+function blobToB64(blob) {
+  return blob.arrayBuffer().then((buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    const step = 0x8000;
+    for (let i = 0; i < bytes.length; i += step) bin += String.fromCharCode(...bytes.subarray(i, i + step));
+    return btoa(bin);
+  });
+}
+
+function startRecorder() {
+  if (recorder || !micStream || typeof MediaRecorder === "undefined") return false;
+  let rec;
+  try {
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    const mime = types.find((t) => MediaRecorder.isTypeSupported?.(t)) || "";
+    rec = new MediaRecorder(micStream, mime ? { mimeType: mime } : undefined);
+  } catch {
+    return false;
+  }
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise((resolve) => {
+    rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || "audio/webm" }));
+  });
+  try { rec.start(); } catch { return false; }
+  recorder = {
+    stop() {
+      try { if (rec.state !== "inactive") rec.stop(); } catch { /* already stopped */ }
+      return stopped;
+    },
+  };
+  return true;
+}
+
 function writeTranscript(interim) {
   const box = $("#orders");
   if (!box) return;
@@ -131,6 +172,14 @@ async function begin({ keep = false } = {}) {
   const ok = await ensureMic();
   if (myGen !== generation || !session.recording) { if (!session.recording) closeMic(); return; }
   if (!ok) { apply({ type: "error", code: "not-allowed" }); return; }
+  if (wantServer()) {
+    if (!startRecorder()) {
+      note = "Could not capture audio from the microphone.";
+      toast(note, true);
+      apply({ type: "error", code: "audio-capture" });
+    }
+    return;
+  }
   const Ctor = SR();
   if (!Ctor || recognition) return;
   const rec = new Ctor();
@@ -152,10 +201,28 @@ async function begin({ keep = false } = {}) {
   rec.onerror = (e) => {
     const code = e.error || "";
     if (code === "aborted") return;
+    const fail = speechFailure(code);
+    if (fail) {
+      toast(fail.toast, !!fail.error);
+      if (fail.effect === "server") {
+        serverCapture = true;
+        if (recognition === rec) recognition = null;
+        try { rec.abort(); } catch { /* already ended */ }
+        if (session.recording && !startRecorder()) {
+          note = "Could not capture audio from the microphone.";
+          toast(note, true);
+          apply({ type: "error", code: "audio-capture" });
+        }
+        return;
+      }
+      apply({ type: "error", code });
+      return;
+    }
     if (code === "not-allowed" || code === "service-not-allowed") apply({ type: "error", code });
   };
   rec.onend = () => {
     if (recognition === rec) recognition = null;
+    if (serverCapture || recorder) return;
     if (!session.recording) return;
     apply({ type: "recognizerend", cause: rec._ccSilence ? "silence" : "end" });
   };
@@ -172,15 +239,53 @@ async function begin({ keep = false } = {}) {
 function finish() {
   const rec = recognition;
   recognition = null;
+  const cap = recorder;
+  recorder = null;
   generation += 1;
+  const myGen = generation;
   clearTimeout(restartTimer);
   restartTimer = null;
   try { rec?.abort(); } catch {}
-  closeMic();
   stopClock();
+  if (cap) {
+    note = "Transcribing...";
+    paint();
+    void finishServer(cap, myGen);
+    return;
+  }
+  closeMic();
   const text = finalText.trim();
   const sticky = note === "microphone blocked" || note === "speech service stopped";
-  if (!sticky) note = text ? "captured" : "";
+  if (!sticky) note = heardNote(text);
+  finalText = "";
+  if (shouldAutoSend(session, text, sticky)) $("#go")?.click();
+  paint();
+}
+
+async function finishServer(cap, myGen) {
+  let text = "";
+  try {
+    const blob = await cap.stop();
+    if (myGen !== generation) { closeMic(); return; }
+    if (!blob || blob.size < 80) note = "No speech heard";
+    else {
+      const audio = await blobToB64(blob);
+      const r = await api("/voice/transcribe", { method: "POST", body: { mime: blob.type || "audio/webm", audio } });
+      if (myGen !== generation) { closeMic(); return; }
+      text = String(r.text || "").trim();
+      if (text) {
+        finalText = text;
+        writeTranscript("");
+        note = "captured";
+      } else note = "No speech heard";
+    }
+  } catch (e) {
+    if (myGen !== generation) { closeMic(); return; }
+    note = e.message || "Transcription failed";
+    toast(note, true);
+  }
+  closeMic();
+  const sticky = note !== "captured";
   finalText = "";
   if (shouldAutoSend(session, text, sticky)) $("#go")?.click();
   paint();
@@ -248,7 +353,7 @@ function syncFromServer() {
 
 function renderCommand(el) {
   bindGlobal();
-  if (!SR()) {
+  if (!SR() && !window.ccDesktop?.desktop && typeof MediaRecorder === "undefined") {
     el.innerHTML = `<div class="dim small" style="margin-top:6px">Voice orders need Chrome, Edge or the desktop app (no speech recognition in this browser). Wispr Flow dictation works in the box above.</div>`;
     return;
   }

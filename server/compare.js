@@ -143,7 +143,7 @@ async function runColumn(run, c) {
     observe({ provider: c.provider, model: c.model, capability: run.capability, difficulty: run.difficulty, runId: run.id, ok: true, cost: e.cost, ms, free: e.free });
   } catch (err) {
     const ms = Date.now() - s;
-    noteCall(c.provider, false, ms, err.status);
+    noteCall(c.provider, false, ms, err);
     const kind = troubleKind(err);
     if (kind) markTrouble(c.provider, kind, err.message, { quiet: true, missionId: run.id }); // smart fallback learns of it for other jobs
     else observe({ provider: c.provider, model: c.model, capability: run.capability, difficulty: run.difficulty, runId: run.id, ok: false });

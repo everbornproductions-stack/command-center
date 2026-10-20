@@ -148,7 +148,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       plan = extractJson(r.text);
       emit("agent.done", { agent: pAgent, provider: r.provider, model: r.model, missionId: id, ms });
     } catch (err) {
-      noteCall(planner.provider, false, Date.now() - s0, err.status);
+      noteCall(planner.provider, false, Date.now() - s0, err);
       emit("agent.error", { agent: pAgent, provider: planner.provider, model: planner.model, missionId: id, error: err.message });
       throw err;
     }
@@ -333,7 +333,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           outputs[t.id] = text;
           t.status = qa ? "review" : "done";
         } catch (err) {
-          noteCall(t.provider, false, Date.now() - s, err.status);
+          noteCall(t.provider, false, Date.now() - s, err);
           emit("agent.error", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: err.message });
           // learning router (Phase 28): a model that failed the job itself is marked; account trouble is not held against it
           if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: t.provider, model: t.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
@@ -352,7 +352,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               t.work = { cost: e.cost, ms: Date.now() - s2, free: !!e.free };
               t.output = r.text; outputs[t.id] = r.text; t.status = qa ? "review" : "done";
             } catch (err2) {
-              noteCall(alt.provider, false, Date.now() - s2, err2.status);
+              noteCall(alt.provider, false, Date.now() - s2, err2);
               if (!troubleKind(err2) && !ctl.signal.aborted) observe({ provider: alt.provider, model: alt.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
               t.status = "failed"; t.error = err2.message;
             }
@@ -389,10 +389,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
                   const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
                   spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
                   t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
-                } catch (err3) { noteCall(t.provider, false, Date.now() - s4, err3.status); }
+                } catch (err3) { noteCall(t.provider, false, Date.now() - s4, err3); }
               }
             } catch (err) {
-              noteCall(reviewer.provider, false, Date.now() - s3, err.status);
+              noteCall(reviewer.provider, false, Date.now() - s3, err);
               emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: err.message });
             }
           }
@@ -469,7 +469,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       mission.deliverable = text;
     } catch (err) {
-      noteCall(asm.provider, false, Date.now() - s5, err.status);
+      noteCall(asm.provider, false, Date.now() - s5, err);
       if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: asm.provider, model: asm.model, capability: "writing", difficulty: 3, runId: id, ok: false });
       emit("agent.error", { agent: aAgent, provider: asm.provider, model: asm.model, missionId: id, error: err.message });
       mission.deliverable = finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n");

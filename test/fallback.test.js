@@ -173,7 +173,10 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     v = (await s.api("/fallback")).json;
     assert.equal(v.skipped.length, 1); assert.equal(v.skipped[0].provider, "xai"); assert.equal(v.skipped[0].kind, "credits"); assert.ok(v.skipped[0].leftMs > 10 * 60 * 1000);
     assert.equal(v.recent[0].from, "xai"); assert.equal(v.standInsMonth, 1);
-    assert.equal(st.providers.find((p) => p.id === "xai").status.status, "red", "the health light shows it too");
+    const xaiLight = st.providers.find((p) => p.id === "xai").status;
+    assert.equal(xaiLight.status, "amber", "the health light shows the empty balance");
+    assert.match(xaiLight.detail, /Out of credits or spending limit reached\. Top up at https:\/\/console\.x\.ai/);
+    assert.match(xaiLight.detail, /prepaid balance is empty/);
 
     // 2. pre-emptive: xAI is known to be out of credits, so the next pinned chat never even calls it
     m.behave.xai = "ok"; from = m.since(); t0 = Date.now();
