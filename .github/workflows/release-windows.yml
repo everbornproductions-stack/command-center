@@ -2,8 +2,12 @@
 # pre-release) to the public repo everbornproductions-stack/command-center-releases.
 # The releases token is used only for that upload. It is never written into the app.
 #
-# Repo secrets (Settings > Secrets and variables > Actions):
-#   SUPABASE_PUBLISHABLE_KEY  publishable key, sb_publishable_...  Never the service key.
+# Repo secrets or variables (Settings > Secrets and variables > Actions):
+#   CC_SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY
+#                             publishable key, sb_publishable_...  Never the service key.
+#                             The build reads CC_SUPABASE_ANON_KEY first.
+#                             A repository variable of the same name is used when
+#                             the secret is empty. The release stops when neither is set.
 #   RELEASES_TOKEN            fine-grained token, Contents read and write on
 #                             command-center-releases only.
 name: Windows release
@@ -43,21 +47,24 @@ jobs:
       - name: Require the publishable key
         shell: bash
         env:
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${SUPABASE_PUBLISHABLE_KEY}" ]; then
-            echo "Release build stopped: repo secret SUPABASE_PUBLISHABLE_KEY is missing."
-            echo "Add it under Settings, Secrets and variables, Actions."
-            echo "Use the Supabase publishable key (it starts with sb_publishable_). Never use the service key."
-            echo "Without this key every installed copy stays on the Free tier and EVERBORN-OWNER cannot redeem."
-            exit 1
+          # Same check as npm run dist. Prints the variable name only, never the key.
+          # Never use the service key.
+          node scripts/inject-cloud-key.mjs --check
+          if [ -n "${CC_SUPABASE_ANON_KEY}" ]; then
+            echo "Publishable key source: CC_SUPABASE_ANON_KEY"
+          else
+            echo "Publishable key source: SUPABASE_PUBLISHABLE_KEY"
           fi
 
       - name: Build the Windows installer
         shell: bash
         env:
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
         run: npm run dist

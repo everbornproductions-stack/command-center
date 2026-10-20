@@ -1448,3 +1448,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Merged with main at cfd6205 (user-added AI routing). Both the routing and this counter stay.
 
 YOU SAVED COUNTER DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Windows release key check and pull-request package (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read.
+
+- The v0.4.4 Windows release (run 39426698708) passed tests and smoke, then stopped because SUPABASE_PUBLISHABLE_KEY was empty. The job never passed CC_SUPABASE_ANON_KEY, which is the name the build reads first, and it did not look at a repository variable of either name.
+- The release workflow now passes both names, from the secret or from a repository variable when that secret is empty, and uses the same check as npm run dist. It still stops when neither is set. It still does not print the key.
+- `.github/workflows/windows-ci.yml` runs npm ci, npm test, npm run smoke, and npm run dist on windows-latest for every pull request and every push to main. It does not publish and does not read a signing certificate or the releases token. CC_PACK_UNPUBLISHED lets that package build with no publishable key. That installer is not a release.
+- electron-builder uses the winCodeSign 1.1.0 zip toolset. The legacy 7z bundle contains macOS symlinks that a Windows runner cannot unpack.
+- Tests on d3a8b1f: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key.
+
+WINDOWS PR CHECK READY (built by Cursor cloud agent)

@@ -69,9 +69,9 @@ not in the install folder, so updating or reinstalling keeps it.
 
 ## Windows on GitHub Actions
 
-`.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.3` when the version is `0.4.3`).
+`.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.4` when the version is `0.4.4`).
 
-It runs `npm ci`, `npm test`, and `npm run smoke`. It then stops with a clear message if the repo secret `SUPABASE_PUBLISHABLE_KEY` is missing. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
+It runs `npm ci`, `npm test`, and `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
 
 - `Meldmind-Setup-X.Y.Z.exe`
 - `Meldmind-Setup-X.Y.Z.exe.blockmap`
@@ -79,8 +79,10 @@ It runs `npm ci`, `npm test`, and `npm run smoke`. It then stops with a clear me
 
 Add both secrets at https://github.com/everbornproductions-stack/command-center/settings/secrets/actions
 
-- `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Without it the workflow stops, because an empty key would leave every installed copy on the Free tier.
+- `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Set either name as a secret or as a repository variable. Without one of them the workflow stops, because an empty key would leave every installed copy on the Free tier.
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
+
+`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
 
 ## Mac (unsigned for now)
 

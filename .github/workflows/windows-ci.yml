@@ -1,0 +1,74 @@
+# Windows test and package on every pull request and every push to main.
+# This does not publish, and it does not read a signing certificate or the releases token.
+# CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
+# The installer from this job is not a release. Do not upload it.
+name: Windows CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Package the Windows app
+        shell: bash
+        env:
+          CC_PACK_UNPUBLISHED: "1"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run dist
+
+      - name: Check the installer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=$(node -p "require('./package.json').version")
+          EXE="dist/Meldmind-Setup-${V}.exe"
+          MAP="dist/Meldmind-Setup-${V}.exe.blockmap"
+          YML="dist/latest.yml"
+          for f in "$EXE" "$MAP" "$YML"; do
+            if [ ! -f "$f" ]; then
+              echo "Windows package stopped: the build did not produce ${f}."
+              exit 1
+            fi
+          done
+          SIZE=$(wc -c < "$EXE" | tr -d '[:space:]')
+          if [ "$SIZE" -lt 10000000 ]; then
+            echo "Windows package stopped: ${EXE} is ${SIZE} bytes, which is too small to be the installer."
+            exit 1
+          fi
+          if ! grep -q "Meldmind-Setup-${V}.exe" "$YML"; then
+            echo "Windows package stopped: latest.yml does not name Meldmind-Setup-${V}.exe."
+            exit 1
+          fi
+          if ! grep -q "${V}" "$YML"; then
+            echo "Windows package stopped: latest.yml does not mention version ${V}."
+            exit 1
+          fi
+          echo "Windows package produced ${EXE} (${SIZE} bytes), the blockmap, and latest.yml. Nothing was published."
