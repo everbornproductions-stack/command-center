@@ -1499,6 +1499,20 @@ Tests 109 and 147 passed on run 39453428907. Test 207 still times out with no se
 
 On the next Windows run (39456271825) clock + note passed. Two other waits timed out instead: brain "single with learning off" and Grok Bot "late mission". Both are a model call that never returns. Windows reuses a keep-alive socket after a finished mock reply, and the next request sits with no headers. Loopback fetches now use a private agent that sends Connection: close and does not keep the socket. Mock replies close too, and a 1 ms server keep-alive timer (it was racing the client) is gone. CC_NET_TRACE=1 writes each loopback fetch to stderr so a later timeout shows the last start, headers, or body line. Tests here: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
+## 2026-10-20: Windows release flakes on three waits, and one test retry
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
+
+- Release run 39467780863 failed in Test on the merged tree. Three waits expired at about 60 seconds: brain "single with learning off", MCP "tools off for one request", and MCP "demo single without tools". The same three had passed on the pull request check. The model calls that did run finished. The chat the test was waiting on never became a saved mission, while other test files were still starting servers on the same runner.
+- A wait is now a real budget. On Windows that budget is twice the Linux one, and a single poll that does not answer is retried until the budget ends. A finished chat still returns on the next poll.
+- Between tests the child server is reaped (on Windows, the process tree, so the demo stdio server goes with it), its pipes are closed, and every mock server drops its open sockets. Test requests use one socket and give up after 20 seconds so a wait loop can poll again.
+- `npm test` runs test/mcp.test.js alone first (the stdio client, the stdio server, and demo mode), then the other files. On Windows those other files run two at a time.
+- The release workflow still runs `npm test`. If that run fails, it runs `npm test` once more, then stops. The pull request check does not retry. One flake can no longer block publishing by itself.
+- Tests here (Linux): npm test 405 tests, 404 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
+
+WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
+
 ## 2026-10-20: Live Ops reply, Reply to all, and Grok Bot results
 
 Not a numbered phase. No locked decision was changed. Version stays 0.4.5 (this ships as v0.4.6). Phase 14 stays BLOCKED (needs a Mac). data/ was not read.

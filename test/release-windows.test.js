@@ -15,7 +15,11 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(wf, /workflow_dispatch:/);
   assert.match(wf, /tags: \["v\*"\]/);
   assert.match(wf, /run: npm ci/);
-  assert.match(wf, /run: npm test/);
+  const testStep = wf.slice(wf.indexOf("name: Test"), wf.indexOf("name: Smoke"));
+  assert.equal((testStep.match(/npm test/g) || []).length, 2, "the release still runs the suite, then once more if that run fails");
+  assert.match(testStep, /Tests failed once\. Retrying the test step once\./);
+  assert.match(testStep, /shell: bash/);
+  assert.doesNotMatch(testStep, /continue-on-error/);
   assert.match(wf, /run: npm run smoke/);
   assert.match(wf, /run: npm run dist/);
   assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \|\| vars\.CC_SUPABASE_ANON_KEY \}\}/);
@@ -68,4 +72,19 @@ test("Windows CI workflow: test and package on pull requests and main, never pub
   assert.doesNotMatch(wf, /sb_secret_|service_role|sb_publishable_/);
   assert.doesNotMatch(wf, /—/);
   assert.match(read("electron-builder.yml"), /winCodeSign: "1\.1\.0"/, "legacy 7z codesign bundle cannot unpack on a Windows runner");
+  assert.equal((wf.match(/npm test/g) || []).length, 1, "the pull request check runs the suite once, with no retry");
+});
+
+test("npm test runs the MCP stdio and demo file alone, then the other files", () => {
+  const pkg = JSON.parse(read("package.json"));
+  assert.equal(pkg.scripts.test, "node scripts/test-all.mjs");
+  const runner = read("scripts/test-all.mjs");
+  assert.match(runner, /mcp\.test\.js/);
+  assert.match(runner, /--test-concurrency=1/);
+  const serialAt = runner.indexOf("run([serialName], [\"--test-concurrency=1\"])");
+  const restAt = runner.indexOf("run(rest, extra)");
+  assert.ok(serialAt > 0 && restAt > serialAt, "the stdio and demo file runs before the other files");
+  assert.match(runner, /process\.platform === "win32" \? \["--test-concurrency=2"\]/);
+  assert.doesNotMatch(runner, /--test-skip|testNamePattern/);
+  assert.match(read("docs/RELEASING.md"), /runs `npm test` once more before it stops/);
 });

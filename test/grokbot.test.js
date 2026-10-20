@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, waitBudget } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-grokbot-");
 const GB = await import("../server/grokbot.js");
@@ -86,10 +86,16 @@ async function mocks() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(fn, label, ms = 30000, s) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await sleep(150); }
+  let lastError = "";
+  while (Date.now() - t0 < budget) {
+    try { const v = await fn(); if (v) return v; }
+    catch (e) { lastError = e?.message || String(e); }
+    await sleep(250);
+  }
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
-  throw new Error(`timed out waiting for ${label}${trace ? `\n${trace}` : ""}${s ? `\n--- server log tail ---\n${s.log.slice(-800)}` : ""}`);
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${trace ? `\n${trace}` : ""}${s ? `\n--- server log tail ---\n${s.log.slice(-800)}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const tokenOf = (cb) => new URL(cb).searchParams.get("t");

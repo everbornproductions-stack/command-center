@@ -1,7 +1,7 @@
 // Shared test plumbing: start the real server as a child process on a random free port with a
 // temporary CC_DATA_DIR, demo mode only, no real keys, and every outbound address (licence server,
 // update feed) pointed at a local stub. Nothing here touches data/ or the real Supabase project.
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
 import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
@@ -19,6 +19,22 @@ http.ServerResponse.prototype.writeHead = function (...args) {
   return origWriteHead.apply(this, args);
 };
 
+// server.close() waits for idle keep-alive sockets. On Windows that wait outlives
+// the test, and the next file inherits the open port and the open child. Drop them.
+const origClose = http.Server.prototype.close;
+http.Server.prototype.close = function (cb) {
+  try { this.closeAllConnections(); } catch {}
+  return origClose.call(this, cb);
+};
+
+// A wait that is comfortable on Linux expires on a busy Windows runner while the
+// chat is still finishing. The budget is only the ceiling. A finished run returns
+// on the next poll, so a passing test is not slower.
+export function waitBudget(ms) {
+  if (process.platform !== "win32") return ms;
+  return ms * 2;
+}
+
 export function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -30,20 +46,79 @@ export function freePort() {
 export const tmpDir = (prefix = "cc-test-") => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 
 // Raw HTTP request (lets a test set Host / Origin / content-type exactly). Returns { status, headers, text, json }.
-export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body }) {
+// One socket per call, and the call gives up after a real pause so a wait loop can poll again.
+export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body, timeout = 20000 }) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : typeof body === "string" ? body : JSON.stringify(body);
-    const h = { ...headers };
+    const h = { connection: "close", ...headers };
     if (data !== null && h["content-length"] === undefined) h["content-length"] = Buffer.byteLength(data);
-    const req = http.request({ host, port, method, path: p, headers: h }, (res) => {
+    const req = http.request({ host, port, method, path: p, headers: h, agent: false }, (res) => {
       let text = "";
       res.on("data", (c) => (text += c));
       res.on("end", () => { let json = null; try { json = JSON.parse(text); } catch {} resolve({ status: res.statusCode, headers: res.headers, text, json }); });
     });
+    req.setTimeout(timeout, () => req.destroy(new Error(`timed out after ${timeout}ms: ${method} ${p}`)));
     req.on("error", reject);
     if (data !== null) req.write(data);
     req.end();
   });
+}
+
+function destroyPipes(child) {
+  if (!child) return;
+  for (const stream of [child.stdout, child.stderr, child.stdin]) {
+    try { stream?.destroy(); } catch {}
+  }
+}
+
+function killTree(child, force) {
+  const pid = child?.pid;
+  if (!pid) {
+    try { child.kill(force ? "SIGKILL" : undefined); } catch {}
+    return Promise.resolve();
+  }
+  // TerminateProcess does not stop grandchildren. The demo stdio server is one.
+  // taskkill /T stops that tree. A second call with /F is the real stop.
+  if (process.platform === "win32") {
+    const args = ["/PID", String(pid), "/T"];
+    if (force) args.push("/F");
+    return new Promise((resolve) => {
+      execFile("taskkill", args, { windowsHide: true }, () => resolve());
+    });
+  }
+  try { child.kill(force ? "SIGKILL" : "SIGTERM"); } catch {}
+  return Promise.resolve();
+}
+
+// Wait for the exit, then force the tree, then drop the pipes so a stuck child
+// cannot keep the test process or the next test alive.
+function reapChild(child) {
+  return new Promise((resolve) => {
+    if (!child) return resolve();
+    let settled = false;
+    let killTimer;
+    let giveUp;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      clearTimeout(giveUp);
+      destroyPipes(child);
+      resolve();
+    };
+    killTimer = setTimeout(() => { killTree(child, true).catch(() => {}); }, 4000);
+    giveUp = setTimeout(() => { try { child.unref(); } catch {} finish(); }, 8000);
+    child.once("exit", finish);
+    if (child.exitCode !== null || child.signalCode !== null) return finish();
+    killTree(child, false).catch(() => {});
+  });
+}
+
+async function closeQuiet(close) {
+  await Promise.race([
+    Promise.resolve().then(() => close()).catch(() => {}),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]);
 }
 
 // A tiny local stand-in for Supabase, the update feed and the OpenRouter models list (404 unless a test serves one). `rpc` decides what verify_license /
@@ -109,13 +184,14 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   child.stderr.on("data", (c) => (log += c));
   const t0 = Date.now();
   let up = false;
-  while (Date.now() - t0 < 20000 && !up) {
+  const startBudget = waitBudget(20000);
+  while (Date.now() - t0 < startBudget && !up) {
     if (child.exitCode !== null) break;
-    try { const r = await raw({ port, path: "/api/health" }); up = r.status === 200 && r.json?.instance === instance; } catch {}
+    try { const r = await raw({ port, path: "/api/health", timeout: 5000 }); up = r.status === 200 && r.json?.instance === instance; } catch {}
     if (!up) await new Promise((r) => setTimeout(r, 150));
   }
   if (!up) {
-    child.kill(); await stub.close();
+    await reapChild(child); await closeQuiet(() => stub.close());
     const err = new Error("server did not start:\n" + log);
     err.portRace = /EADDRINUSE|port \d+ in use/i.test(log);
     if (err.portRace && !dataDir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
@@ -133,6 +209,10 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   return {
     port, dir, child, stub, token, base: `http://127.0.0.1:${port}`, api, raw: (o) => raw({ port, ...o }),
     get log() { return log; },
-    async stop() { child.kill(); await new Promise((r) => { child.once("exit", r); setTimeout(r, 2000); }); await stub.close(); try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} },
+    async stop() {
+      await reapChild(child);
+      await closeQuiet(() => stub.close());
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    },
   };
 }
