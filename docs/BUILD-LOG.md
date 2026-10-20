@@ -1346,3 +1346,13 @@ Owner request for 0.4.3. Not a numbered phase. No locked decision text was rewri
 - Tests: npm test 377 tests, 376 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. data/ was not read or committed.
 
 SHARED LEARNING DEFAULT ON DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Single runs follow the Command bar priority (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac).
+
+- A Single run was using the saved Default priority even after a click on Quality, Balanced, or Economy. The Command bar choice is now sent with that run. If nothing was clicked, or the value is not one of those three, the saved Default priority is used. Simple mode has no priority bar, so it still uses Default. A chat that already names a provider and model is unchanged.
+- The stand-in path uses the same priority.
+- Tests: `test/chat-priority.test.js`. npm test 379 tests, 378 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local OpenAI mock only. No real key. data/ was not read or committed.
+
+SINGLE RUN PRIORITY DONE (built by Cursor cloud agent)
