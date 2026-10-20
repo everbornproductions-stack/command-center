@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { ROOT } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
-const { createUpdateController } = require("../electron/updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, buttonLabel, cleanError } = require("../electron/updater.cjs");
 const { createWatchdog, describeProbeError } = require("../electron/watchdog.cjs");
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -94,6 +94,74 @@ test("probe errors become plain reasons", () => {
   assert.match(describeProbeError(Object.assign(new Error("x"), { name: "TimeoutError" }), 4748), /not responding \(timed out\)/);
 });
 
+test("public feed is the releases repo, latest.yml, and a failed GitHub check retries that file", async () => {
+  assert.equal(CHECK_EVERY_MS, 30 * 60 * 1000);
+  assert.equal(GITHUB_FEED.provider, "github");
+  assert.equal(GITHUB_FEED.owner, "everbornproductions-stack");
+  assert.equal(GITHUB_FEED.repo, "command-center-releases");
+  assert.equal(GITHUB_FEED.private, false);
+  assert.equal(GENERIC_FEED.channel, "latest");
+  assert.ok(GENERIC_FEED.url.endsWith("/"), "latest.yml must be appended, not substituted");
+  assert.match(GENERIC_FEED.url, /command-center-releases\/releases\/latest\/download\/$/);
+  const logs = [];
+  const au = new EventEmitter();
+  au.calls = [];
+  au.setFeedURL = (feed) => { au.feed = feed; };
+  au.checkForUpdates = async () => {
+    au.calls.push(au.feed.provider);
+    if (au.feed.provider === "github") throw new Error("Cannot parse releases feed\nhttps://github.com/everbornproductions-stack/command-center-releases/releases/latest?jwt=secret");
+    const info = { version: "0.4.2", releaseNotes: "Meldmind" };
+    au.emit("update-available", info);
+    return { updateInfo: info };
+  };
+  au.downloadUpdate = async () => {};
+  au.quitAndInstall = () => {};
+  const seen = { prompts: 0 };
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.4.0", log: (...a) => logs.push(a.join(" ")), ui: { prompt: () => seen.prompts++ } });
+  assert.equal(au.feed, GITHUB_FEED);
+  assert.equal(au.channel, "latest");
+  assert.equal(au.disableDifferentialDownload, true, "renamed installer must not use the old blockmap name");
+  const s = await c.check({ prompt: true });
+  assert.deepEqual(au.calls, ["github", "generic"]);
+  assert.equal(au.feed, GENERIC_FEED);
+  assert.equal(s.phase, "available");
+  assert.equal(s.version, "0.4.2");
+  assert.equal(seen.prompts, 1);
+  assert.equal(buttonLabel(s), "Update available");
+  assert.equal(buttonLabel({ phase: "downloaded", version: "0.4.2" }), "Restart to update");
+  assert.equal(buttonLabel({ phase: "downloading", percent: 40 }), "Downloading 40%");
+  assert.equal(buttonLabel({ phase: "idle" }), null);
+  const joined = logs.join("\n");
+  assert.match(joined, /retrying public latest\.yml/);
+  assert.match(joined, /update available: v0\.4\.2/);
+  assert.doesNotMatch(joined, /jwt=/);
+  assert.equal(cleanError(new Error("nope token ghp_FAKEvalue and Bearer abc.def")), "nope token redacted and Bearer redacted");
+
+  const ok = new EventEmitter();
+  ok.setFeedURL = (feed) => { ok.feed = feed; };
+  ok.calls = [];
+  ok.checkForUpdates = async () => { ok.calls.push(ok.feed.provider); const info = { version: "0.4.1" }; ok.emit("update-available", info); return { updateInfo: info }; };
+  const quiet = createUpdateController({ autoUpdater: ok, currentVersion: "0.4.0" });
+  assert.equal((await quiet.check()).version, "0.4.1");
+  assert.deepEqual(ok.calls, ["github"], "a working GitHub check does not fall back");
+});
+
+test("a check that fails on both feeds is logged and the server bridge keeps the error", async () => {
+  const logs = [];
+  const au = new EventEmitter();
+  au.setFeedURL = (feed) => { au.feed = feed; };
+  au.checkForUpdates = async () => { throw new Error("latest.yml HTTP 404"); };
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.4.1", log: (...a) => logs.push(a.join(" ")) });
+  const s = await c.check({ prompt: true });
+  assert.equal(s.phase, "idle");
+  assert.equal(s.version, null);
+  assert.match(s.error, /latest\.yml HTTP 404/);
+  assert.match(logs.join("\n"), /update check failed: latest\.yml HTTP 404/);
+  const r = await c.bridge.check();
+  assert.equal(r.version, "0.4.1");
+  assert.match(r.error, /latest\.yml HTTP 404/);
+});
+
 test("main process: updater set up before the engine, single instance, tray items, engine-down page", () => {
   const main = fs.readFileSync(path.join(ROOT, "electron", "main.cjs"), "utf8");
   const ready = main.slice(main.indexOf("app.whenReady()"));
@@ -102,6 +170,17 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.match(main, /requestSingleInstanceLock\(\)/);
   assert.match(main, /app\.on\("second-instance", \(\) => \{[^}]*focusWindow\(\)/);
   assert.match(main, /label: "Check for updates"/);
+  assert.match(main, /CHECK_EVERY_MS/);
+  assert.match(main, /periodic update check failed/);
+  assert.doesNotMatch(main, /updater\.check\(\{ prompt: true \}\)\.catch\(\(\) => \{\}\)/);
+  const ui = fs.readFileSync(path.join(ROOT, "web", "features", "updates.js"), "utf8");
+  assert.match(ui, /id = "upd-top"/);
+  assert.match(ui, /Update available/);
+  assert.match(ui, /Restart to update/);
+  assert.match(ui, /data-action='updates'/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8"), /"updates"/);
+  assert.match(fs.readFileSync(path.join(ROOT, "server", "update.js"), "utf8"), /30 \* 60 \* 1000/);
+  assert.doesNotMatch(ui, /\u2014/);
   assert.match(main, /Install update v\$\{st\.version\}/);
   assert.match(main, /label: watchdog && watchdog\.stuck \? "Restart app/);
   assert.match(main, /thresholdMs: 15000/);

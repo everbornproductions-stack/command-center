@@ -7,6 +7,62 @@
 // Pure logic with injected autoUpdater and UI hooks, so tests can drive it with fakes.
 // manualInstall (unsigned Mac builds, Phase 14): Apple only lets signed apps replace themselves, so
 // "Install now" opens the release page for the new .dmg (ui.openDownload) and never downloads or quits.
+//
+// The installed app checks on launch and every CHECK_EVERY_MS. The feed is the PUBLIC repo
+// everbornproductions-stack/command-center-releases, channel latest (latest.yml). private stays
+// false so a GH_TOKEN on the machine is never sent and the private source repo is never read.
+// If the GitHub provider errors (it has to follow several redirects to read latest.yml), one retry
+// uses the same public latest.yml URL directly. Nothing downloads before a click.
+
+const CHECK_EVERY_MS = 30 * 60 * 1000;
+const GITHUB_FEED = {
+  provider: "github",
+  owner: "everbornproductions-stack",
+  repo: "command-center-releases",
+  private: false,
+  releaseType: "release",
+};
+// Must end with a slash: electron-updater joins "latest.yml" onto this URL, and a missing slash
+// replaces the last path segment instead of appending the file.
+const GENERIC_FEED = {
+  provider: "generic",
+  url: "https://github.com/everbornproductions-stack/command-center-releases/releases/latest/download/",
+  channel: "latest",
+};
+
+function cleanError(e) {
+  const message = String((e && e.message) || e || "update check failed").split("\n")[0];
+  return message
+    .replace(/ghp_[A-Za-z0-9]+/g, "ghp_redacted")
+    .replace(/github_pat_[A-Za-z0-9_]+/g, "github_pat_redacted")
+    .replace(/\b(Bearer|token)\s+\S+/gi, "$1 redacted")
+    .replace(/https?:\/\/\S+/g, (url) => url.split("?")[0])
+    .slice(0, 300);
+}
+
+// Top-bar label. Null means no button (no update to offer).
+function buttonLabel(state) {
+  if (!state) return null;
+  if (state.phase === "downloaded" || state.phase === "installing") return "Restart to update";
+  if (state.phase === "downloading") {
+    const n = state.percent != null ? state.percent : state.progress;
+    return `Downloading ${n ?? 0}%`;
+  }
+  if (state.phase === "available" || state.available) return "Update available";
+  return null;
+}
+
+function applyUpdateFeed(autoUpdater, which = "github") {
+  autoUpdater.channel = "latest";
+  autoUpdater.allowPrerelease = false;
+  // Renamed from Command-AI-Setup to Meldmind-Setup. electron-updater builds the previous
+  // blockmap URL by swapping the version inside the new file name, so it looks for
+  // Meldmind-Setup-<old>.exe.blockmap, which was never published. Download the whole installer.
+  autoUpdater.disableDifferentialDownload = true;
+  if (typeof autoUpdater.setFeedURL !== "function") return which;
+  autoUpdater.setFeedURL(which === "generic" ? GENERIC_FEED : GITHUB_FEED);
+  return which;
+}
 
 function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false }) {
   const listeners = [];
@@ -31,6 +87,9 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   autoUpdater.autoDownload = false;          // download only on click
   autoUpdater.autoInstallOnAppQuit = false;  // install only on click
   autoUpdater.allowPrerelease = false;
+  let feed = "github";
+  try { feed = applyUpdateFeed(autoUpdater, "github") || "github"; }
+  catch (e) { log("updater feed failed:", cleanError(e)); }
 
   autoUpdater.on("update-available", (info) => {
     if (!newer(info.version, currentVersion)) return;
@@ -41,24 +100,43 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   autoUpdater.on("download-progress", (p) => { setState({ phase: "downloading", percent: Math.max(0, Math.min(100, Math.round(p.percent || 0))) }); emit({ type: "progress", percent: p.percent }); });
   autoUpdater.on("update-downloaded", () => { setState({ phase: "downloaded", percent: 100 }); emit({ type: "downloaded" }); });
   autoUpdater.on("error", (e) => {
-    const message = (e && e.message || String(e)).split("\n")[0].slice(0, 300);
+    const message = cleanError(e);
+    log("updater error:", message);
     installing = false;
     setState({ phase: state.version ? "available" : "idle", error: message });
     emit({ type: "error", message });
   });
+
+  async function runCheck() {
+    try { return await autoUpdater.checkForUpdates(); }
+    catch (e) {
+      if (feed !== "generic" && typeof autoUpdater.setFeedURL === "function") {
+        log("update check failed:", cleanError(e), "(retrying public latest.yml)");
+        try { feed = applyUpdateFeed(autoUpdater, "generic"); }
+        catch (e2) { log("updater feed failed:", cleanError(e2)); throw e; }
+        return await autoUpdater.checkForUpdates();
+      }
+      throw e;
+    }
+  }
 
   // check({ launch: true }) shows the prompt; a manual check (tray) always shows the result.
   async function check({ prompt = false, manual = false } = {}) {
     if (installing) return state;
     if (!pending) {
       setState({ phase: state.phase === "available" ? "available" : "checking", error: null });
-      pending = Promise.resolve().then(() => autoUpdater.checkForUpdates()).then((r) => {
+      pending = Promise.resolve().then(() => runCheck()).then((r) => {
         const i = r && r.updateInfo;
         const available = !!(i && i.version && newer(i.version, currentVersion));
-        if (available) setState({ phase: state.phase === "downloading" ? "downloading" : "available", version: i.version, notes: notes(i) || state.notes });
-        else setState({ phase: "idle", version: null });
+        if (available) {
+          log(`update available: v${i.version} (have v${currentVersion})`);
+          setState({ phase: state.phase === "downloading" ? "downloading" : "available", version: i.version, notes: notes(i) || state.notes, error: null });
+        } else {
+          log(r ? `update check: no newer release (have v${currentVersion})` : "update check returned nothing");
+          setState({ phase: "idle", version: null, error: null });
+        }
         return setState({ checkedAt: Date.now() });
-      }).catch((e) => setState({ phase: state.version ? "available" : "idle", error: (e && e.message || String(e)).split("\n")[0].slice(0, 300), checkedAt: Date.now() }))
+      }).catch((e) => { const message = cleanError(e); log("update check failed:", message); return setState({ phase: state.version ? "available" : "idle", error: message, checkedAt: Date.now() }); })
         .finally(() => { pending = null; });
     }
     const s = await pending;
@@ -85,7 +163,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     setState({ phase: "downloading", percent: state.percent || 0, error: null });
     log(`downloading update v${state.version}`);
     try { await autoUpdater.downloadUpdate(); }
-    catch (e) { installing = false; const message = (e && e.message || String(e)).split("\n")[0].slice(0, 300); setState({ phase: "available", error: message }); emit({ type: "error", message }); throw e; }
+    catch (e) { installing = false; const message = cleanError(e); log("update download failed:", message); setState({ phase: "available", error: message }); emit({ type: "error", message }); throw e; }
     setState({ phase: "downloaded", percent: 100 });
     log("installing update and restarting");
     try { ui.beforeQuit && ui.beforeQuit(); } catch {}
@@ -96,7 +174,11 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   // what server/update.js expects (globalThis.__ccUpdater), so Settings keeps working
   const bridge = {
     onEvent: (f) => listeners.push(f),
-    async check() { const s = await check(); return s.version ? { version: s.version, notes: s.notes } : { version: currentVersion, notes: "" }; },
+    async check() {
+      const s = await check();
+      const found = !!(s.version && newer(s.version, currentVersion));
+      return found ? { version: s.version, notes: s.notes || "", error: s.error || null } : { version: currentVersion, notes: "", error: s.error || null };
+    },
     download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); openDownload(); return Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" })); },
     install() {
       if (manualInstall) return; installing = true; try { ui.beforeQuit && ui.beforeQuit(); } catch {} log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
@@ -105,4 +187,4 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   return { check, later, install, bridge, manualInstall, onEvent: (f) => listeners.push(f), get state() { return state; } };
 }
 
-module.exports = { createUpdateController };
+module.exports = { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, applyUpdateFeed, buttonLabel, cleanError };

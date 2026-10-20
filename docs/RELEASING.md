@@ -1,8 +1,9 @@
 # Releasing a new version of Meldmind (so the in-app update button finds it)
 
-The Windows app checks for updates when it starts and every 4 hours. People can also press
-**Settings > Check for updates**. When a newer version is out, a banner says
-"Update available: vX.Y.Z" with an **Update and restart** button. Nothing downloads until they click it.
+The Windows app checks for updates when it starts and every 30 minutes. People can also press
+**Help > Check for updates** (the top-bar menu that also has Settings and Take the tour again).
+When a newer version is out, the top bar shows **Update available**. After it has downloaded, the
+same button says **Restart to update**. A banner still offers **Update and restart**. Nothing downloads until they click it.
 
 Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Meldmind vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
 

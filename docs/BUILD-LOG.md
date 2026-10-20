@@ -1254,3 +1254,10 @@ PROMPTS PACK ADDITIONS DONE (built by Cursor cloud agent)
 - Test: `test/prompt-shelves.test.js`.
 
 PROMPTS CATEGORIES DONE (built by Cursor cloud agent)
+
+## 2026-10-19: Windows update prompt never appeared (Cursor cloud agent)
+
+- Installed 0.4.0 and 0.4.1 never offered 0.4.1 or 0.4.2. The public feed was already right: v0.4.2 is the latest release, not a draft, and latest.yml points at Meldmind-Setup-0.4.2.exe. v0.4.1's installer is still named Command-AI-Setup-0.4.1.exe.
+- The app only checked every 4 hours, and a failed check stored the error then threw it away: the launch window opens only when a version is found, the server bridge returned the current version with the error cleared, and the periodic timer swallowed rejections. The top bar had no update button, and Help had no Check for updates.
+- Fix: public GitHub feed pinned at runtime (`private: false`, channel `latest`, no token). One retry reads the same public latest.yml URL if the GitHub provider errors. Differential download is off, because swapping the version inside Meldmind-Setup-0.4.2.exe looks for a Meldmind blockmap that 0.4.0 and 0.4.1 never published. Checks run on startup and every 30 minutes. Errors are logged (query strings and token-shaped text stripped). Top bar shows Update available, then Restart to update. Help has Check for updates. Nothing downloads before that click. The launch window (Install now / Later) and the tray items stay.
+- Not a release. People already on 0.4.0 or 0.4.1 need this build installed once before the new check runs.
