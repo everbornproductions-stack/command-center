@@ -136,6 +136,13 @@ function indexHtml(file) {
 const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind", uiMode: "simple", uiModeChosen: false };
 const settings = () => doc("settings", () => ({ ...DEFAULT_SETTINGS }));
 const saveSettings = (s) => putDoc("settings", s);
+const PRIORITY_MODES = new Set(["quality", "balanced", "economy"]);
+// Command bar choice when the person picked one. Otherwise the saved Default priority.
+function chatPriority(requested) {
+  if (PRIORITY_MODES.has(requested)) return requested;
+  const saved = settings().defaultMode;
+  return PRIORITY_MODES.has(saved) ? saved : "balanced";
+}
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
 
@@ -337,21 +344,22 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }) {
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
   const id = runId || "s-" + Date.now().toString(36);
+  const priority = chatPriority(mode);
   let cls = null;
   // A caller that already asked the router (a walkthrough step) passes that task type.
   // The record then uses it, instead of guessing again from the long prompt.
   const given = capability ? { capability, difficulty: difficulty ?? 2 } : null;
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
-    const best = rank({ ...cls, mode: settings().defaultMode })[0];
+    const best = rank({ ...cls, mode: priority })[0];
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
@@ -383,7 +391,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: settings().defaultMode })) {
+    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
