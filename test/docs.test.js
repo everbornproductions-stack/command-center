@@ -15,7 +15,7 @@ test("docs: user guide and release notes exist, are linked from the README and k
   assert.match(readme, /\(docs\/RELEASE-NOTES\.md\)/);
   assert.match(guide, /^# Command AI user guide/);
   assert.match(guide, /an Everborn product/);
-  assert.match(notes, /^## Next release \(after v0\.4\.1/m);
+  assert.match(notes, /^## v0\.4\.3 /m);
   // the guide describes the locked behaviour (decisions 4, 11, 12, 20)
   assert.match(guide, /Nothing downloads until you click Install now/);
   assert.match(guide, /Key rejected \(401\)/);
