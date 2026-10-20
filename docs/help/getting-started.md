@@ -41,4 +41,4 @@ Add community track records from people who opted in. Quality, Balanced, Max sav
 
 ## Appearance
 
-Settings, Appearance, sets a background colour next to the accent. Built-in restores the original background. Text stays readable.
+Settings, Appearance, sets a background colour next to the accent, plus theme presets, gradients, built-in pictures, and a photo from a file on this computer. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.

@@ -1414,3 +1414,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
 
 V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)
+
+## 2026-10-20: Appearance pictures, gradients, and more presets (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The background colour from the 0.4.4 release stays. Square and billing were not touched.
+
+- Settings, Appearance, adds theme presets Harbor, Ember, Paper, and Aurora. Accent colours add teal, indigo, gold, and magenta. Background colours add charcoal, navy, wine, and fog.
+- Gradients are Aurora, Dusk, Tide, Ember, and Frost. Built-in pictures are Horizon, Orbit, Lattice, and Bloom. Your photo is chosen from a PNG, JPEG, or WebP file on this computer. A web address is refused.
+- A dim, blurred layer sits over a picture or photo so text stays readable. Built-in restores the original background. No picture removes only the gradient, picture, or photo.
+- Tests: `test/themes.test.js`. npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked in the browser: paper set a light page with dark text, Aurora and Horizon painted behind the app, a local PNG became the photo, and Built-in cleared the picture. The Appearance panel has a file picker and no web-address field.
+
+APPEARANCE BACKGROUNDS DONE (built by Cursor cloud agent)
