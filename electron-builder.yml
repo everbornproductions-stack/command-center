@@ -10,6 +10,8 @@ files:
   - web/**
   - extension/**
   - package.json
+  - LICENSE
+  - THIRD-PARTY-NOTICES
   - "!data/**"
   - "!dist/**"
   - "!docs/**"
@@ -25,6 +27,19 @@ files:
 toolsets:
   winCodeSign: "1.1.0"
 asar: true
+# Fuses are flipped on the packaged Electron binary only (not on `electron .`).
+# bytenode is not used. V8 bytecode is tied to one Electron ABI and breaks on the
+# next Electron bump, and it does not load ESM (server/index.js and the renderer are ESM).
+electronFuses:
+  # Off: the packaged binary ignores ELECTRON_RUN_AS_NODE. The built-in demo MCP
+  # server spawns this binary to run server/mcp-demo-server.js. That works in
+  # unpackaged Node and in `electron .`. In the packaged app that spawn will not
+  # run the script as Node. User stdio commands (npx, python, a real node) are
+  # other programs and are not affected. process.fork is not used.
+  runAsNode: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 # the browser extension (Phase 24) is loaded unpacked by Chrome / Edge, so it must sit outside app.asar
 asarUnpack:
   - extension/**

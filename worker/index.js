@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Everborn Productions. All rights reserved.
 // Cloudflare Worker that fronts the hosted hub container (see docs/hosted-hub.md).
 // Every request to hub.meldmind.ai (HTTP and WebSocket) is proxied to one
 // container instance ("hub") running the same Node server as the desktop app in hosted mode.

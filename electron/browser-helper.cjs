@@ -113,8 +113,9 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
   function ensure() {
     if (win && !win.isDestroyed()) return;
     win = new BaseWindow({ width: 1180, height: 880, minWidth: 700, minHeight: 500, title: "Meldmind browser helper", icon, autoHideMenuBar: true, backgroundColor: "#090d14" });
-    bar = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "browser-bar-preload.cjs") } });
-    page = new WebContentsView({ webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+    const devTools = process.env.CC_PACKAGED !== "1";
+    bar = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, devTools, preload: path.join(__dirname, "browser-bar-preload.cjs") } });
+    page = new WebContentsView({ webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, devTools } });
     win.contentView.addChildView(page);
     win.contentView.addChildView(bar);
     layout();

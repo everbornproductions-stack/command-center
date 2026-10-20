@@ -23,7 +23,8 @@ async function renderTab(view) {
   view.querySelector("#rp-email").addEventListener("change", async () => { try { await api("/reports/prefs", { method: "POST", body: { email: view.querySelector("#rp-email").value } }); toast("Saved"); } catch (e) { toast(e.message, true); } });
   if (!r) return;
   view.querySelector("#rp-draft").addEventListener("click", async () => {
-    try { const dr = await api("/reports/draft"); location.href = dr.mailto; // the desktop shell hands mailto: to the system mail app toast("Draft opened in your mail app"); } catch (e) { toast(e.message, true); }
+    // the desktop shell hands mailto: to the system mail app
+    try { const dr = await api("/reports/draft"); location.href = dr.mailto; toast("Draft opened in your mail app"); } catch (e) { toast(e.message, true); }
   });
   view.querySelector("#rp-export").addEventListener("click", () => {
     const a = document.createElement("a");

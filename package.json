@@ -11,7 +11,8 @@
     "dist": "node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never",
     "dist:mac": "node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never",
     "test": "node scripts/test-all.mjs",
-    "smoke": "node test/smoke.mjs"
+    "smoke": "node test/smoke.mjs",
+    "notices": "node scripts/third-party-notices.mjs"
   },
   "license": "UNLICENSED",
   "private": true,
@@ -24,8 +25,9 @@
   "devDependencies": {
     "@cloudflare/containers": "^0.3.7",
     "electron": "^44.9.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
   },
-  "author": "Everborn Productions <everbornproductions@gmail.com>",
+  "author": "Everborn Productions",
   "homepage": "https://everbornproductions.com/command-center/"
 }
