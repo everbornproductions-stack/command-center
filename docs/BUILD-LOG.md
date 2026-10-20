@@ -1563,3 +1563,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Windows pull request check 39499523538 passed on windows-latest: Test, smoke, package, and the installer check. About 14m36s. Head 5e685c5.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
+
+## 2026-10-20: Antigravity CLI agent (0.4.8, first slice)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch). Phases 45 to 51 are still to build on top of this.
+
+- Google Antigravity is an external agent with via local-cli. `server/antigravity-cli.js` runs `agy -p` with `--output-format stream-json`, streams events into the job and the ledger, scrubs output with `stripSecrets()`, and maps sign-in and quota errors to plain sentences.
+- A timeout and Stop kill the process. `agy --version` is pinned. The binary is detected on PATH or in `%LOCALAPPDATA%\agy\bin`. The card says when install or sign-in is still needed. Install and connect runs Google's official installer only after a confirm click, and never puts a key on the command line.
+- The manual handoff target in `server/handoff.js` is unchanged. The router can pick Antigravity only after Allow and a successful sign-in check. Tests use `test/fixtures/fake-agy.mjs`.
+- Tests here (Linux): npm test, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke passed. Node 22. No real key. data/ was not read. Windows CI is the pull request check.
+
+ANTIGRAVITY CLI (built by Cursor cloud agent)

@@ -41,6 +41,7 @@ import { loadProjects, listProjects, saveProject, deleteProject, addLink, remove
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
+import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
@@ -403,7 +404,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   m.memory = ask.includes(MEMORY_MARKER);
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
-  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  const who = PROVIDERS[provider]?.name || localRouteName(provider) || provider;
+  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {

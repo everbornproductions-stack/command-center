@@ -36,5 +36,10 @@ export function missionAgent({ grokbot, browser } = {}) {
 
 export function onAnyJobFinished(fn) { GB.onJobFinished(fn); BH.onJobFinished(fn); }
 
-export const hubAgents = () => [GB.hubCard(), BH.hubCard()];
+const hubExtra = [];
+// A later agent (Antigravity, an allowed app) adds its card here. Grok Bot and the browser helper stay first.
+export function addHubAgent(cardFn) {
+  if (typeof cardFn === "function" && !hubExtra.includes(cardFn)) hubExtra.push(cardFn);
+}
+export const hubAgents = () => [GB.hubCard(), BH.hubCard(), ...hubExtra.map((fn) => { try { return fn(); } catch { return null; } }).filter(Boolean)];
 export const AGENT_IDS = new Set([GB.AGENT_ID, BH.AGENT_ID]);

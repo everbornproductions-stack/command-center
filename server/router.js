@@ -14,6 +14,7 @@ import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
 import { costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
+import { extraRouteModels } from "./route-extras.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -80,6 +81,7 @@ export function availableModels() {
       out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), baseCaps: m.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
     }
   }
+  for (const row of extraRouteModels()) out.push(row);
   return out;
 }
 

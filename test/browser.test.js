@@ -200,7 +200,7 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
     assert.equal((await s.api("/browser", { noToken: true })).status, 401, "the routes need the session token");
     let st = (await s.api("/state")).json;
     assert.ok(st.plugins.includes("browser"));
-    assert.deepEqual(st.providers.filter((p) => p.kind === "agent").map((p) => p.id), ["grokbot", "browser-helper"]);
+    assert.deepEqual(st.providers.filter((p) => p.kind === "agent").map((p) => p.id), ["grokbot", "browser-helper", "antigravity"]);
     let c = await card();
     assert.equal(c.status.status, "grey"); assert.ok(!c.agent.later, "no longer a placeholder"); assert.match(c.status.detail, /no AI is available/);
     assert.equal((await s.api("/browser/jobs", { method: "POST", body: { task: `Open ${m.base}/site/` } })).status, 409);

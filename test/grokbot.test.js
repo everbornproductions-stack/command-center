@@ -118,7 +118,7 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     let st = (await s.api("/state")).json;
     assert.ok(st.plugins.includes("grokbot"));
     const cards = st.providers.filter((p) => p.kind === "agent").map((p) => p.id);
-    assert.deepEqual(cards, ["grokbot", "browser-helper"], "both agents have their own hub cards");
+    assert.deepEqual(cards, ["grokbot", "browser-helper", "antigravity"], "Grok Bot, the browser helper, and Antigravity have hub cards");
     assert.equal(st.providers.find((p) => p.id === "grokbot").status.status, "grey");
     assert.equal((await s.api("/grokbot/jobs", { method: "POST", body: { task: "Check my Gmail inbox" } })).status, 409, "no hand-off before it is set up");
 

@@ -5,6 +5,7 @@ import { PROVIDERS, geminiBase } from "./registry.js";
 import { providerMessage } from "./health.js";
 import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
+import { isLocalRoute, localStream } from "./local-routes.js";
 import { cacheSystem } from "./savings.js";
 import { localFetch, netTrace } from "./loopback-fetch.js";
 
@@ -303,6 +304,8 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
 function capStopped(pid) { try { return (doc("alerts.state", () => undefined)?.stop || []).includes(pid); } catch { return false; } }
 
 export function streamChat(opts) {
+  const pid = typeof opts.provider === "string" ? opts.provider : opts.provider?.id;
+  if (pid && isLocalRoute(pid)) return localStream(pid, opts);
   const provider = typeof opts.provider === "string" ? PROVIDERS[opts.provider] : opts.provider;
   if (!provider || provider.kind !== "text") throw new ProviderError(opts.provider?.id || opts.provider, 400, "Unknown text provider");
   if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
