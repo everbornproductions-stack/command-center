@@ -41,6 +41,7 @@ import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, rou
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
+import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 let lastScan = null, lastKeys = null;
@@ -585,6 +586,8 @@ const server = http.createServer(async (req, res) => {
     const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
+    // Hosted cron tick. The shared secret is the only check. Local mode answers 404 and keeps its own timer.
+    if (url.pathname === TICK_PATH) return handleScheduleTick(req, res, json);
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());

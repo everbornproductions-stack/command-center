@@ -55,7 +55,8 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_OWNER_EMAILS` | no | comma-separated emails that get the owner tier without a licence |
 | `CC_HUB_URL` | no | public https address of the hub, shown in the pairing QR and used as the OAuth redirect on the hub |
 | `CC_IDLE_EVICT_MIN` | no | minutes a hosted user can sit idle before their in-memory context is dropped (default 30). Ignored in local mode |
-| `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token (keep it only on the hub) |
+| `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token, and lets the schedule tick load a user who is not already in memory (keep it only on the hub) |
+| `CC_TICK_SECRET` | for schedules | shared secret for `POST /api/internal/schedules/tick`. Set with `npx wrangler secret put CC_TICK_SECRET`. Never written into `wrangler.jsonc` or git |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
 | `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |
@@ -75,7 +76,7 @@ Checked against the [Containers docs](https://developers.cloudflare.com/containe
 | Long-lived WebSockets | The `Container` class proxies WebSocket upgrades to the container in both directions (`hub.fetch(request)`; the docs warn only that `containerFetch` does not do WebSockets, which the Worker here does not use). The UI reconnects automatically after any drop. |
 | Outbound calls (Supabase, Anthropic, OpenAI, …) | Allowed; egress to North America/Europe has 1 TB/month included. |
 | Memory | `lite` instance = 1/16 vCPU, 256 MiB. The server idles around 70 MB locally. Move to `basic` (1 vCPU, 1 GiB) if `wrangler tail` ever shows OOM restarts. |
-| Durability | Instances can be stopped by platform events (host restarts) and are stopped on purpose after `sleepAfter` (15 min idle). All state is in Supabase, so a restart loses only a mission that was mid-flight (it shows as failed; re-run it). Off-peak **scheduled** missions only fire while the container is awake. |
+| Durability | Instances can be stopped by platform events (host restarts) and are stopped on purpose after `sleepAfter` (15 min idle). All state is in Supabase, so a restart loses only a mission that was mid-flight (it shows as failed; re-run it). Off-peak scheduled missions and cron schedules run while the container is awake. The cron below wakes it every 5 minutes, so those slots keep firing. |
 | Image build | `wrangler deploy` builds the image with **Docker on the PC** and pushes it to Cloudflare's registry. Docker Desktop (free for personal use) must be installed and running once. |
 
 ### Real monthly cost (October 2026, [Cloudflare pricing](https://developers.cloudflare.com/containers/pricing/))
@@ -108,7 +109,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 # 3. Secrets (each command prompts for the value; paste it)
 npx wrangler@latest secret put CC_MASTER_KEY             # the base64 from step 2
 npx wrangler@latest secret put CC_SUPABASE_ANON_KEY      # from data/settings.json → cloud.anonKey (sb_publishable_…)
-# optional: npx wrangler@latest secret put CC_SUPABASE_SERVICE_KEY   (Supabase → Project Settings → API keys → secret)
+npx wrangler@latest secret put CC_TICK_SECRET            # any long random string; the Worker sends it to the schedule tick
+# schedules need this so a freshly woken container can load users who are not in memory:
+npx wrangler@latest secret put CC_SUPABASE_SERVICE_KEY   # Supabase → Project Settings → API keys → secret
 
 # 4. Deploy: builds the Dockerfile with Docker, pushes the image, publishes the Worker, creates the DNS record
 npx wrangler@latest deploy
@@ -118,7 +121,7 @@ curl https://hub.meldmind.ai/api/health   # → {"ok":true,"mode":"hosted",...} 
 npx wrangler@latest tail                                   # live logs
 ```
 
-Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. `CC_OWNER_EMAILS` stays `everbornproductions@gmail.com`. The DNS record for `hub.meldmind.ai` is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS. The Worker name in that file is `meldmind-hub`. Secrets (`CC_MASTER_KEY`, `CC_SUPABASE_ANON_KEY`, and any later shared secret) are never written into `wrangler.jsonc`.
+Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. `CC_OWNER_EMAILS` stays `everbornproductions@gmail.com`. The DNS record for `hub.meldmind.ai` is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS. The Worker name in that file is `meldmind-hub`. Secrets (`CC_MASTER_KEY`, `CC_SUPABASE_ANON_KEY`, `CC_SUPABASE_SERVICE_KEY`, `CC_TICK_SECRET`) are never written into `wrangler.jsonc`.
 
 Then, once, in the Supabase dashboard:
 
@@ -139,10 +142,16 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 ### Operating notes
 
 - `wrangler secret put` and `wrangler deploy` both roll the Worker; the container restarts on the next request. Logs: `npx wrangler tail`. Stop everything: delete the Worker in the dashboard (the plan stays until downgraded).
-- `sleepAfter` is 15 minutes in `worker/index.js`. Longer keeps the hub warm (faster phone opens, scheduled missions fire) at the cost of memory-hours; "always on" is about $1.75/month extra as computed above.
+- `sleepAfter` is 15 minutes in `worker/index.js`. The schedule cron runs every 5 minutes, which is more often than that, so the container stays awake. That is the always-on row in the cost table, about $1.75 extra. The Fly fallback does not run this cron.
 - Supabase free projects pause after 7 days without database activity; a hub with any sign-in keeps it awake, and Pro ($25/month) removes pausing. The hub does not need Supabase Pro for anything else.
 - Master-key rotation: decrypt with the old key, re-encrypt with the new, bump `key_version` (not automated; users can also just re-paste keys).
 - Memory: each loaded user holds their last 35 days of ledger plus docs in RAM. In hosted mode a user who has been idle for `CC_IDLE_EVICT_MIN` minutes (default 30) is dropped from memory after any waiting cloud writes are flushed. They are not dropped while they have a running mission, council, chat or media job, an open WebSocket, a queued off-peak mission, or a write that has not finished. The next request loads them again from Supabase. Local mode keeps its one context and never evicts.
+
+### Schedules on the hub
+
+`wrangler.jsonc` has a cron trigger, `*/5 * * * *`. Cloudflare calls `scheduled()` in `worker/index.js`, which wakes the container and POSTs `https://hub.meldmind.ai/api/internal/schedules/tick` with the header `x-cc-tick-secret`. The value is `CC_TICK_SECRET`, passed into the container the same way as the other secrets. The route answers 401 when the header is missing or wrong, and 404 in local mode. Local mode keeps its own timer and does not call this route.
+
+On each tick the hub runs `schedules.tick()` for every user who has a due cron schedule, whether that user is already in memory or only in Supabase. `CC_SUPABASE_SERVICE_KEY` is what loads a user who is not in memory. A slot is claimed before the run starts, so a second tick does not run it again. A slot older than the 5-minute lookback is not replayed. Spend caps and the Approve click are unchanged: a result that is sent out still waits until you click Approve. Webhooks work on the hub too. A watched folder stays on the desktop app. Desktop schedules still run only while the app is open.
 
 ### Fallback: Fly.io (not chosen)
 

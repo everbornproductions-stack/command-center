@@ -14,6 +14,10 @@
   "durable_objects": { "bindings": [{ "class_name": "Hub", "name": "HUB" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
 
+  // Wake the hub every 5 minutes so a due schedule still falls inside the 5-minute lookback.
+  // CC_TICK_SECRET is set with `npx wrangler secret put CC_TICK_SECRET` and is not stored here.
+  "triggers": { "crons": ["*/5 * * * *"] },
+
   // the hub's address; Cloudflare creates the DNS record for hub.meldmind.ai on deploy
   "routes": [{ "pattern": "hub.meldmind.ai", "custom_domain": true }],
 

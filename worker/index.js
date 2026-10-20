@@ -19,6 +19,8 @@ export class Hub extends Container {
       CC_HUB_URL: env.CC_HUB_URL || "",
       CC_SUPABASE_SERVICE_KEY: env.CC_SUPABASE_SERVICE_KEY || "",
       CC_UPDATE_FEED: env.CC_UPDATE_FEED || "",
+      CC_TICK_SECRET: env.CC_TICK_SECRET || "",
+      CC_IDLE_EVICT_MIN: env.CC_IDLE_EVICT_MIN || "",
     };
   }
 }
@@ -28,5 +30,18 @@ export default {
     // one hub for everyone (users are separated inside the server by their Supabase session)
     const hub = getContainer(env.HUB, "hub");
     return hub.fetch(request);
+  },
+  // Cloudflare cron (wrangler.jsonc triggers). Wakes the container and runs due schedules.
+  // CC_TICK_SECRET is a wrangler secret. It is never written into wrangler.jsonc.
+  async scheduled(_event, env, ctx) {
+    const hub = getContainer(env.HUB, "hub");
+    const req = new Request("https://hub.meldmind.ai/api/internal/schedules/tick", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-cc-tick-secret": env.CC_TICK_SECRET || "",
+      },
+    });
+    ctx.waitUntil(hub.fetch(req));
   },
 };
