@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("ccDesktop", {
   updateState: () => ipcRenderer.invoke("upd:state"),
   engineState: () => ipcRenderer.invoke("engine:state"),
   openLog: () => ipcRenderer.invoke("app:open-log"),
+  openExternal: (url) => ipcRenderer.invoke("app:open-external", String(url || "")),
   logReload: (reason) => ipcRenderer.invoke("app:log-reload", String(reason || "").slice(0, 200)),
   onUpdate: (f) => { ipcRenderer.on("upd:state", (_e, s) => f(s)); },
   onEngine: (f) => { ipcRenderer.on("engine:status", (_e, s) => f(s)); },

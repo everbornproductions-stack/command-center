@@ -21,17 +21,26 @@ function append(e) {
 }
 
 export function recordCall({ provider, model, usage, missionId, taskId, role, ms, estimated }) {
-  const exact = typeof usage.cost === "number";
+  // A manual handoff is not a provider call. usage.manual forces a $0 line and keeps the target name.
+  const manual = usage?.manual === true;
+  const exact = !manual && typeof usage.cost === "number";
   // Phase 26: a call within a free-tier allowance costs nothing; a model reached through OpenRouter
   // without an exact bill is priced as the model it stands in for (usage.priceModel)
-  const free = !!usage.free;
-  const cost = free ? 0 : exact ? usage.cost : estimateCostAt(usage.priceModel || model, usage.input, usage.output);
-  return append({
+  const free = !manual && !!usage.free;
+  const cost = manual || free ? 0 : exact ? usage.cost : estimateCostAt(usage.priceModel || model, usage.input, usage.output);
+  const entry = {
     ts: Date.now(), kind: "call", provider, model, actualModel: usage.actualModel || null,
     inTok: usage.input, outTok: usage.output, cost: +cost.toFixed(6), exact: exact && !free,
-    estimated: !exact && !free && (!!estimated || !!usage.estimated), missionId: missionId || null, taskId: taskId || null, role: role || null, ms: ms || null,
+    estimated: !manual && !exact && !free && (!!estimated || !!usage.estimated), missionId: missionId || null, taskId: taskId || null, role: role || null, ms: ms || null,
     free, fallback: usage.fallback || null,
-  });
+  };
+  if (manual) {
+    entry.manual = true;
+    entry.usage = { manual: true };
+    entry.handoff = String(usage.handoff || model || "").slice(0, 80);
+    entry.cost = 0;
+  }
+  return append(entry);
 }
 
 // Manual media credit spend (Kling, Suno, Flow...). units = credits, cost = optional USD.
