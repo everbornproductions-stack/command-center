@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, waitBudget } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-browser-");
 const R = await import("../server/browser-reader.js");
@@ -171,9 +171,15 @@ async function mocks() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(fn, label, ms = 30000, s) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await sleep(120); }
-  throw new Error(`timed out waiting for ${label}${s ? `\n--- server log tail ---\n${s.log.slice(-2000)}` : ""}`);
+  let lastError = "";
+  while (Date.now() - t0 < budget) {
+    try { const v = await fn(); if (v) return v; }
+    catch (e) { lastError = e?.message || String(e); }
+    await sleep(250);
+  }
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${s ? `\n--- server log tail ---\n${s.log.slice(-2000)}` : ""}`);
 }
 const refOf = (u, re) => { for (const l of u.split("\n")) { const m = l.match(/^\[(e\d+)\] (.*)$/); if (m && re.test(m[2])) return m[1]; } throw new Error(`no element matching ${re} in:\n${u.slice(-1500)}`); };
 const formOf = (u) => (u.match(/\(form (f\d+) /) || [])[1];

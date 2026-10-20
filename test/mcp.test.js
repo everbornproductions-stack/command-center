@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import crypto from "node:crypto";
 import path from "node:path";
-import { startServer, tmpDir, ROOT, raw } from "./helpers.js";
+import { startServer, tmpDir, ROOT, raw, waitBudget } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-mcp-");
 const { McpClient, McpError, spawnSpec, normalizeResult, PROTOCOL_VERSION } = await import("../server/mcp-client.js");
@@ -58,22 +58,28 @@ test("results: text parts joined, images and resources summarised, structured co
 
 test("stdio client: initialize, tools with annotations, calls, errors, close", async () => {
   const c = McpClient.for({ transport: "stdio", command: process.execPath, args: [DEMO] });
-  const init = await c.connect();
-  assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
-  const tools = await c.listTools();
-  assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]);
-  assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
-  const wc = await c.callTool("word_count", { text: "one two three. four!" });
-  assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
-  assert.match((await c.callTool("clock", {})).text, /^20\d\d-/);
-  assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
-  assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
-  assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
-  await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
-  assert.equal(c.alive, true);
-  await c.close();
-  assert.equal(c.alive, false);
-  await assert.rejects(McpClient.for({ transport: "stdio", command: "definitely-not-a-program-xyz", args: [] }).connect(), /command not found|Could not start/);
+  const missing = McpClient.for({ transport: "stdio", command: "definitely-not-a-program-xyz", args: [] });
+  try {
+    const init = await c.connect();
+    assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
+    const tools = await c.listTools();
+    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]);
+    assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
+    const wc = await c.callTool("word_count", { text: "one two three. four!" });
+    assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
+    assert.match((await c.callTool("clock", {})).text, /^20\d\d-/);
+    assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
+    assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
+    assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
+    await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
+    assert.equal(c.alive, true);
+    await c.close();
+    assert.equal(c.alive, false);
+    await assert.rejects(missing.connect(), /command not found|Could not start/);
+  } finally {
+    try { await c.close(); } catch {}
+    try { await missing.close(); } catch {}
+  }
 });
 
 // ---------- in-test mock MCP servers over HTTP ----------
@@ -231,18 +237,35 @@ async function mockModel() {
   return { base: `http://127.0.0.1:${srv.address().port}`, seen, close: () => new Promise((r) => srv.close(r)) };
 }
 async function waitRun(s, pred, label, ms = 60000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
   let last = null;
-  while (Date.now() - t0 < ms) { last = (await s.api("/state")).json; const hit = pred(last); if (hit) return hit; await sleep(300); }
+  let lastError = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      last = (await s.api("/state")).json;
+      const hit = pred(last);
+      if (hit) return hit;
+    } catch (e) { lastError = e?.message || String(e); }
+    await sleep(300);
+  }
   const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
-  throw new Error(`timed out waiting for ${label}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${trace ? `\n${trace}` : ""}`);
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${trace ? `\n${trace}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 async function waitPending(s, ms = 20000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const v = (await s.api("/tools")).json; if (v.pending.length) return v.pending[0]; await sleep(150); }
-  throw new Error("no approval request appeared");
+  let lastError = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const v = (await s.api("/tools")).json;
+      if (v.pending.length) return v.pending[0];
+    } catch (e) { lastError = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`no approval request appeared${lastError ? `\npoll: ${lastError}` : ""}`);
 }
 
 test("server: add stdio server (env in the vault), per-workspace enablement, approvals (allow, deny, read-only policy, overrides), runs record tool calls, manual call, settings off, remove", async () => {
