@@ -48,7 +48,7 @@ function licenseText(dir) {
   try { names = fs.readdirSync(dir); } catch { return ""; }
   const files = names.filter((n) => LICENSE_NAMES.test(n) && fs.statSync(path.join(dir, n)).isFile()).sort();
   if (!files.length) return "";
-  return files.map((n) => fs.readFileSync(path.join(dir, n), "utf8")).join("\n").replace(/\r\n/g, "\n").trim();
+  return files.map((n) => fs.readFileSync(path.join(dir, n), "utf8")).join("\n").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 }
 
 function resolveDep(packages, fromKey, depName) {
@@ -98,11 +98,12 @@ export function collectProduction(root = ROOT) {
       license,
       kind: copyleftKind(license),
       unknown: license === "UNKNOWN",
-      dir,
+      key,
       text: licenseText(dir),
     });
   }
-  packages.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version) || a.dir.localeCompare(b.dir));
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  packages.sort((a, b) => cmp(a.name, b.name) || cmp(a.version, b.version) || cmp(a.key, b.key));
   return {
     packages,
     strong: packages.filter((p) => p.kind === "strong"),

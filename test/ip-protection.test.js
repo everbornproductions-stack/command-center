@@ -121,8 +121,9 @@ test("THIRD-PARTY-NOTICES matches the production tree and names copyleft", () =>
   assert.equal(copyleftKind("LGPL-2.1"), "weak");
   assert.equal(copyleftKind("MPL-2.0"), "weak");
   const report = collectProduction();
-  const text = read("THIRD-PARTY-NOTICES");
-  assert.equal(text, renderNotices(report));
+  const norm = (s) => s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const text = norm(read("THIRD-PARTY-NOTICES"));
+  assert.equal(text, norm(renderNotices(report)));
   for (const name of ["@anthropic-ai/sdk", "electron-updater", "qrcode-generator", "ws", "Electron"]) {
     assert.ok(text.includes(name), name);
   }
