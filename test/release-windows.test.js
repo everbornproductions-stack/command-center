@@ -75,16 +75,23 @@ test("Windows CI workflow: test and package on pull requests and main, never pub
   assert.equal((wf.match(/npm test/g) || []).length, 1, "the pull request check runs the suite once, with no retry");
 });
 
-test("npm test runs the MCP stdio and demo file alone, then the other files", () => {
+test("npm test runs helper-process files one at a time and a hang fails the test", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.scripts.test, "node scripts/test-all.mjs");
   const runner = read("scripts/test-all.mjs");
   assert.match(runner, /mcp\.test\.js/);
   assert.match(runner, /--test-concurrency=1/);
+  assert.match(runner, /--test-timeout=480000/, "a hung test fails instead of holding the job");
+  assert.match(runner, /--test-force-exit/, "open sockets cannot keep the test process alive");
   const serialAt = runner.indexOf("run([serialName], [\"--test-concurrency=1\"])");
-  const restAt = runner.indexOf("run(rest, extra)");
-  assert.ok(serialAt > 0 && restAt > serialAt, "the stdio and demo file runs before the other files");
-  assert.match(runner, /process\.platform === "win32" \? \["--test-concurrency=2"\]/);
+  const winAt = runner.indexOf("process.platform === \"win32\"");
+  const helperAt = runner.indexOf("for (const name of helpers)");
+  const restAt = runner.indexOf("process.exit(run(rest, []))");
+  assert.ok(serialAt > 0 && winAt > serialAt, "the stdio and demo file runs before the other files");
+  assert.ok(helperAt > winAt && restAt > helperAt, "on Windows each helper-process file runs alone, then the pure files");
+  assert.match(runner, /isHelper/);
+  assert.match(runner, /startServer\(/);
+  assert.doesNotMatch(runner, /--test-concurrency=2/);
   assert.doesNotMatch(runner, /--test-skip|testNamePattern/);
   assert.match(read("docs/RELEASING.md"), /runs `npm test` once more before it stops/);
 });

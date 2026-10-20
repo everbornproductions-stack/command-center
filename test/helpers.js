@@ -1,7 +1,7 @@
 // Shared test plumbing: start the real server as a child process on a random free port with a
 // temporary CC_DATA_DIR, demo mode only, no real keys, and every outbound address (licence server,
 // update feed) pointed at a local stub. Nothing here touches data/ or the real Supabase project.
-import { spawn, execFile } from "node:child_process";
+import { spawn, spawnSync, execFile } from "node:child_process";
 import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
@@ -25,6 +25,16 @@ const origClose = http.Server.prototype.close;
 http.Server.prototype.close = function (cb) {
   try { this.closeAllConnections(); } catch {}
   return origClose.call(this, cb);
+};
+// A mock that allows a second request on the same socket is the Windows hang:
+// the next provider call sits with no headers. One request, then the socket closes.
+const origListen = http.Server.prototype.listen;
+http.Server.prototype.listen = function (...args) {
+  try {
+    this.maxRequestsPerSocket = 1;
+    this.keepAliveTimeout = 1;
+  } catch {}
+  return origListen.apply(this, args);
 };
 
 // A wait that is comfortable on Linux expires on a busy Windows runner while the
@@ -71,24 +81,45 @@ function destroyPipes(child) {
   }
 }
 
-function killTree(child, force) {
+function killTree(child) {
   const pid = child?.pid;
   if (!pid) {
-    try { child.kill(force ? "SIGKILL" : undefined); } catch {}
+    try { child.kill("SIGKILL"); } catch {}
     return Promise.resolve();
   }
   // TerminateProcess does not stop grandchildren. The demo stdio server is one.
-  // taskkill /T stops that tree. A second call with /F is the real stop.
+  // taskkill /F /T stops that tree. A graceful kill can sit on an open pipe.
   if (process.platform === "win32") {
-    const args = ["/PID", String(pid), "/T"];
-    if (force) args.push("/F");
     return new Promise((resolve) => {
-      execFile("taskkill", args, { windowsHide: true }, () => resolve());
+      const timer = setTimeout(resolve, 4000);
+      execFile("taskkill", ["/F", "/T", "/PID", String(pid)], { windowsHide: true, timeout: 3000 }, () => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
-  try { child.kill(force ? "SIGKILL" : "SIGTERM"); } catch {}
+  try { child.kill("SIGKILL"); } catch {}
   return Promise.resolve();
 }
+
+const liveChildren = new Set();
+function trackChild(child) {
+  if (!child) return;
+  liveChildren.add(child);
+  child.once("exit", () => liveChildren.delete(child));
+}
+// force-exit still runs this. A child left behind keeps the next Windows job busy.
+process.on("exit", () => {
+  for (const child of liveChildren) {
+    const pid = child?.pid;
+    if (!pid) continue;
+    if (process.platform === "win32") {
+      try { spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { windowsHide: true, timeout: 2000 }); } catch {}
+    } else {
+      try { child.kill("SIGKILL"); } catch {}
+    }
+  }
+});
 
 // Wait for the exit, then force the tree, then drop the pipes so a stuck child
 // cannot keep the test process or the next test alive.
@@ -96,21 +127,20 @@ function reapChild(child) {
   return new Promise((resolve) => {
     if (!child) return resolve();
     let settled = false;
-    let killTimer;
     let giveUp;
     const finish = () => {
       if (settled) return;
       settled = true;
-      clearTimeout(killTimer);
       clearTimeout(giveUp);
       destroyPipes(child);
       resolve();
     };
-    killTimer = setTimeout(() => { killTree(child, true).catch(() => {}); }, 4000);
-    giveUp = setTimeout(() => { try { child.unref(); } catch {} finish(); }, 8000);
+    // The tree is already being killed. This is only so a stuck taskkill
+    // cannot hold the next test. The exit hook kills anything still alive.
+    giveUp = setTimeout(() => { try { child.unref(); } catch {} finish(); }, 5000);
     child.once("exit", finish);
     if (child.exitCode !== null || child.signalCode !== null) return finish();
-    killTree(child, false).catch(() => {});
+    killTree(child).catch(() => {});
   });
 }
 
@@ -168,6 +198,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   const childEnv = {
     ...process.env,
     CC_MODE: "", CC_DATA_DIR: dir, CC_PORT: String(port), CC_DEMO_PORT: String(demoPort),
+    CC_TEST_RUN: "1", CC_DEMO_INSTANT: "1",
     CC_UPDATE_FEED: `${stub.url}/latest.json`, CC_CLOUD_DEFAULTS_FILE: defaultsFile,
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
@@ -179,6 +210,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.
   const child = spawn(process.execPath, ["--import", pathToFileURL(path.join(ROOT, "test", "vault-preload.mjs")).href, path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+  trackChild(child);
   let log = "";
   child.stdout.on("data", (c) => (log += c));
   child.stderr.on("data", (c) => (log += c));

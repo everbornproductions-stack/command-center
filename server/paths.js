@@ -29,9 +29,38 @@ export function readJson(file, fallback) {
     return fallback;
   }
 }
+// A real pause. Windows can refuse a rename while another call still has the
+// destination open (a /state poll reading missions). A tight spin would burn
+// the core; this waits and then tries again.
+function pauseMs(ms) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {}
+  }
+}
 export function writeJson(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
-  fs.renameSync(tmp, file);
+  const tmp = `${file}.${process.pid}.tmp`;
+  const body = JSON.stringify(obj, null, 2);
+  fs.writeFileSync(tmp, body);
+  let last;
+  for (let i = 0; i < 6; i++) {
+    try {
+      fs.renameSync(tmp, file);
+      return;
+    } catch (e) {
+      last = e;
+      if (!/EPERM|EBUSY|EACCES/i.test(e.code || "")) break;
+      pauseMs(20 * (i + 1));
+    }
+  }
+  try {
+    fs.writeFileSync(file, body);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw last || e;
+  }
+  try { fs.unlinkSync(tmp); } catch {}
 }

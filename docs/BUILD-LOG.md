@@ -1512,3 +1512,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
+
+## 2026-10-20: Windows demo chat hang, and a test that can block the job
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
+
+- Pull request 49, Windows run 39485495744, failed `demo mode: the demo tools server...` after about 2 minutes. The wait was `demo single without tools`. The model calls that did run had already finished. Release run 39477941857 stayed in Test for about 25 minutes (brain `single with learning off` also expired) until the job was canceled.
+- A finished loopback reply no longer stays open for the next chat. The demo server and, in tests, the app server and every mock accept one request per socket and send Connection: close. The pretend answer is always ended; a finished request body is not treated as a dropped client. Saving a mission retries a Windows file lock instead of dropping the run. Tests skip the pretend word-by-word delay.
+- `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process runs one at a time. Each run has a per-test timeout of 8 minutes and force-exits, so a hang fails the test instead of holding the job. The release workflow still retries `npm test` once. The pull request check does not.
+- Version stays 0.4.5.
+- Tests here (Linux): npm test 405 tests, 404 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+WINDOWS TEST HANG FIX (built by Cursor cloud agent)

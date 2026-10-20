@@ -218,19 +218,28 @@ export async function startDemo() {
   }
   for (const d of DEMO) if (!hasSecret(d.id)) await setSecret(d.id, "demo-key");
   if (server) return;
+  // One request per socket. A keep-alive reply on Windows leaves the next chat
+  // waiting on a socket this server has already finished.
+  const endJson = (res, code, obj) => {
+    const b = Buffer.from(JSON.stringify(obj));
+    res.writeHead(code, { "content-type": "application/json", connection: "close", "content-length": b.length });
+    res.end(b);
+  };
   server = http.createServer(async (req, res) => {
-    if (req.method === "GET" && req.url.endsWith("/models")) { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) })); }
+    // req "close" fires when the request body is finished, which is normal.
+    // Stop only when the response socket itself is already gone.
+    const canWrite = () => !res.writableEnded && !res.destroyed;
+    if (req.method === "GET" && req.url.endsWith("/models")) return endJson(res, 200, { data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) });
     let body = ""; for await (const c of req) body += c;
-    let j; try { j = JSON.parse(body); } catch { res.writeHead(400); return res.end(); }
+    let j; try { j = JSON.parse(body); } catch { res.writeHead(400, { connection: "close" }); return res.end(); }
     if (req.url.endsWith("/embeddings")) {
       const input = Array.isArray(j.input) ? j.input : [j.input];
-      res.writeHead(200, { "content-type": "application/json" });
-      return res.end(JSON.stringify({ object: "list", model: j.model, data: input.map((t, index) => ({ object: "embedding", index, embedding: demoEmbedding(t) })), usage: { prompt_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0), total_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0) } }));
+      return endJson(res, 200, { object: "list", model: j.model, data: input.map((t, index) => ({ object: "embedding", index, embedding: demoEmbedding(t) })), usage: { prompt_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0), total_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0) } });
     }
-    if (!Array.isArray(j.messages)) { res.writeHead(400); return res.end(); }
+    if (!Array.isArray(j.messages)) { res.writeHead(400, { connection: "close" }); return res.end(); }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
     const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n") : "")).join("\n");
-    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "close" });
     // MCP tools (Phase 16): when tools are offered and the orders mention one, the pretend AI calls it
     // once, then answers with the result. Lets Settings > Tools be tried end to end without a key.
     const toolTurn = demoToolTurn(j, system, user);
@@ -242,15 +251,21 @@ export async function startDemo() {
     }
     const text = answerFor(j.model, system, user, j.messages);
     const words = text.split(/(?<=\s)/);
-    const slow = !/JSON only/.test(system);
+    // The UI streams a word at a time. Tests set CC_DEMO_INSTANT so a chat
+    // finishes when the answer is ready, not after a string of short sleeps.
+    const slow = process.env.CC_DEMO_INSTANT !== "1" && !/JSON only/.test(system);
     for (let i = 0; i < words.length; i++) {
+      if (!canWrite()) return;
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i] }, finish_reason: null }] })}\n\n`);
       if (slow) await sleep(18 + (j.model.length % 3) * 10);
     }
+    if (!canWrite()) return;
     res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: Math.ceil((system.length + user.length) / 4), completion_tokens: Math.ceil(text.length / 4) } })}\n\n`);
     res.write("data: [DONE]\n\n");
     res.end();
   });
+  server.maxRequestsPerSocket = 1;
+  server.keepAliveTimeout = 1;
   const srv = server;
   const listen = (port) => new Promise((resolve, reject) => {
     const onErr = (e) => reject(e);
@@ -271,8 +286,13 @@ export async function startDemo() {
 export async function stopDemo() {
   for (const d of DEMO) if (hasSecret(d.id)) await setSecret(d.id, null);
   if (!server || HOSTED) return; // hosted: other users may still be in demo; the loopback server stays up
-  await new Promise((r) => server.close(r));
+  const srv = server;
   server = null;
+  try { srv.closeAllConnections(); } catch {}
+  await Promise.race([
+    new Promise((r) => srv.close(r)),
+    new Promise((r) => setTimeout(r, 2000)),
+  ]);
   for (const d of DEMO) {
     delete PROVIDERS[d.id];
     const i = TEXT_PROVIDERS.findIndex((p) => p.id === d.id);
