@@ -217,7 +217,9 @@ test("real server: zip upload, preview, import into a project, refusals; sync be
     assert.ok(list.every((m) => m.projectId === projects[0].id));
     const one = (await s1.api(`/missions/${list.find((m) => m.title === "Tagline ideas for a bakery").id}`)).json;
     assert.equal(one.messages.length, 4); assert.equal(one.startedAt, 1760000000123);
-    // "new project" on Free (one project already): imported without a project, with the note
+    // "new project" once Free already has 3: imported without a project, with the note
+    assert.equal((await s1.api("/projects", { method: "POST", body: { name: "Second", categories: [] } })).status, 200);
+    assert.equal((await s1.api("/projects", { method: "POST", body: { name: "Third", categories: [] } })).status, 200);
     const imp2 = await s1.api("/history/import", { method: "POST", body: { token: pv2.json.token, projectId: "new" } });
     assert.equal(imp2.json.added, 2); assert.match(imp2.json.notes[0], /without a project/);
     assert.equal((await s1.api("/history")).json.imported, 4);

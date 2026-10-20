@@ -155,6 +155,11 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "POST" && p === "/prefs") { const pr = { ...prefs(h), ...(body.driveFolder !== undefined ? { driveFolder: String(body.driveFolder).trim() } : {}) }; h.putDoc(PREFS, pr); return h.json(res, 200, { driveFolder: pr.driveFolder }); }
   if (req.method === "POST" && p === "/keys") {
     const token = String(body.token || "").trim();
+    if (token) {
+      const { assertServiceSlots } = await import("../service-limit.js");
+      const catalog = { instagram: "instagram", ghl: "ghl", slack: "slack" };
+      await assertServiceSlots([catalog[body.channel]]);
+    }
     if (body.channel === "instagram") await h.setSecret("meta", token ? { key: token, igUserId: String(body.igUserId || "").trim() } : null);
     else if (body.channel === "ghl") await h.setSecret("ghl", token ? { key: token, locationId: String(body.locationId || "").trim() } : null);
     else if (body.channel === "slack") await h.setSecret("slack", token ? { key: token } : null);

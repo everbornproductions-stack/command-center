@@ -10,6 +10,7 @@ import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { htmlToText } from "./receipts.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
+import { assertServiceSlots } from "./service-limit.js";
 
 const VAULT_ID = "google-helper";
 const DOC = "browser.google";
@@ -144,6 +145,10 @@ export async function finish({ code, state } = {}) {
   if (extra.length) throw fail(400, "The sign-in granted more than the helper asked for (for example full Gmail or Drive access). Nothing was saved; check the OAuth client's scopes.", { code: "scope" });
   const scopes = got.filter((x) => Object.values(SCOPES).includes(x));
   const expiresAt = tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null;
+  const slots = [];
+  if (scopes.includes(SCOPES.gmail) || scopes.includes(SCOPES.send)) slots.push("gmail");
+  if (scopes.includes(SCOPES.drive)) slots.push("drive");
+  await assertServiceSlots(slots);
   if (p.accountId) {
     const a = activeExtra("google", p.accountId);
     if (!a) throw fail(404, "That Google account is not in the list. Nothing was saved.");

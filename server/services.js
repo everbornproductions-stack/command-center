@@ -333,6 +333,10 @@ export async function mailFinish({ code, state }) {
   if (tok.scope && /mail\.(readwrite|send)|gmail\.(modify|send|compose|insert)|https:\/\/mail\.google\.com\/(\s|$)/i.test(tok.scope)) {
     throw fail(400, "The sign-in granted more than read-only mail access. Nothing was saved; check the OAuth client's scopes.");
   }
+  if (p.src === "outlook") {
+    const { assertServiceSlots } = await import("./service-limit.js");
+    await assertServiceSlots(["outlook"]);
+  }
   if (p.accountId) {
     const a = activeExtra(p.src, p.accountId);
     if (!a) throw fail(404, "That mail account is not in the list. Nothing was saved.");

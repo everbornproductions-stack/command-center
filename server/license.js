@@ -14,11 +14,16 @@ import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
 
+const PRO = {
+  missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
+  connectedServices: Infinity, emailAccounts: 8,
+  phone: true, historySearch: true, sharedLearning: true, scores: true,
+};
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 3, projects: 1, subscriptionsTab: false, label: "Free" },
-  pro:    { missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true, label: "Pro" },
-  studio: { missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true, label: "Studio" },
-  owner:  { missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true, label: "Owner" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
+  pro:    { ...PRO, label: "Pro" },
+  studio: { ...PRO, label: "Studio" },
+  owner:  { ...PRO, label: "Owner" },
 };
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the
@@ -100,7 +105,12 @@ export function licenseState() {
   return {
     configured, cloudSource: c.source, cloudUrl: c.url || null,
     tier: r.tier, reason: r.reason,
-    limits: { ...T, councilsPerMonth: T.councilsPerMonth === Infinity ? null : T.councilsPerMonth, projects: T.projects === Infinity ? null : T.projects },
+    limits: {
+      ...T,
+      councilsPerMonth: T.councilsPerMonth === Infinity ? null : T.councilsPerMonth,
+      projects: T.projects === Infinity ? null : T.projects,
+      connectedServices: T.connectedServices === Infinity ? null : T.connectedServices,
+    },
     key: l.key ? l.key.replace(/^(.{3}).*(.{4})$/, "$1-••••-••••-$2") : null,
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
     message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
@@ -214,6 +224,8 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 
 // Throws a 402 with the Pro message when the current user's tier does not allow `feature`.
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
+//   guard("connectedService", { count }) | guard("emailAccounts", { count })
+//   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
 export function guard(feature, info = {}) {
   const s = licenseState();
   const T = TIERS[s.tier];
@@ -231,6 +243,20 @@ export function guard(feature, info = {}) {
       if (n >= T.projects) throw pro("Unlimited projects", `${T.label} includes ${T.projects} project${T.projects === 1 ? "" : "s"}. `);
       return s;
     }
+    case "connectedService": {
+      const n = Number(info.count ?? 0);
+      if (n >= T.connectedServices) throw pro("Every connected service", `${T.label} includes ${T.connectedServices} connected service${T.connectedServices === 1 ? "" : "s"}. `);
+      return s;
+    }
+    case "emailAccounts": {
+      const n = Number(info.count ?? 0);
+      if (n >= T.emailAccounts) throw pro("More email accounts", `${T.label} includes ${T.emailAccounts} email account${T.emailAccounts === 1 ? "" : "s"} per provider. `);
+      return s;
+    }
+    case "phone": if (!T.phone) throw pro("Phone pairing"); return s;
+    case "historySearch": if (!T.historySearch) throw pro("Full history search"); return s;
+    case "sharedLearning": if (!T.sharedLearning) throw pro("Shared learning"); return s;
+    case "scores": if (!T.scores) throw pro("The scores dashboard"); return s;
     default: if (!T[feature]) throw pro("This feature"); return s;
   }
 }

@@ -1,7 +1,8 @@
 // Growth (Phase 9): free trial with credits, the "No keys needed" managed plan, and referral rewards.
 //
-// Everything here is behind a feature flag and OFF unless the host turns it on:
-//   CC_TRIAL=1       free trial: Pro features for a while plus trial credits, a counter and an upgrade prompt
+// The 14-day Pro trial is offered unless the host sets CC_TRIAL=0. It does not start by itself.
+// Managed and referrals stay off unless the host turns them on:
+//   CC_TRIAL=0       hide the free trial (Pro features for a while plus trial credits, a counter and an upgrade prompt)
 //   CC_MANAGED=1     managed plan: calls go through an Everborn-managed key pool, metered per user
 //   CC_REFERRALS=1   referral codes and links, a credit ledger and a rewards view
 // Every price and amount below is a PLACEHOLDER. Chris decides real pricing. Nothing here charges money,
@@ -34,7 +35,7 @@ export const PLACEHOLDER = Object.freeze({
 export const HOMEPAGE = "https://everbornproductions.com/command-center/";
 
 export const flags = () => ({
-  trial: process.env.CC_TRIAL === "1",
+  trial: process.env.CC_TRIAL !== "0",
   managed: process.env.CC_MANAGED === "1",
   referrals: process.env.CC_REFERRALS === "1",
 });

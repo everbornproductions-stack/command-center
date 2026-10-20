@@ -21,7 +21,7 @@ const ledgerFor = async (s, id) => (await s.api("/state")).json.ledger.recent.fi
 
 let savedPresets = null;
 test("side-by-side comparison: parallel columns, ledger, winner rating, presets, spend cap skip", { timeout: 180000 }, async () => {
-  const s = await startServer();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
 

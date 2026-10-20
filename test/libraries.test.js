@@ -240,7 +240,7 @@ async function mockSources() {
 
 test("libraries: Google Drive and Notion through read-only OAuth (mocked)", { timeout: 120000 }, async () => {
   const mock = await mockSources();
-  const s = await startServer({ env: { CC_GOOGLE_AUTH_URL: mock.url, CC_GOOGLE_TOKEN_URL: mock.url, CC_DRIVE_API_URL: mock.url, CC_NOTION_API_URL: mock.url } });
+  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_GOOGLE_AUTH_URL: mock.url, CC_GOOGLE_TOKEN_URL: mock.url, CC_DRIVE_API_URL: mock.url, CC_NOTION_API_URL: mock.url } });
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
     const lib = (await s.api("/libraries", { method: "POST", body: { name: "Shared docs", provider: "demo-nova", model: "nova-embed" } })).json;
