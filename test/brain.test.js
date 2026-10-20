@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, ROOT } from "./helpers.js";
 
 const DIR = tmpDir("cc-brain-");
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || DIR;
@@ -22,8 +22,7 @@ const fresh = () => { B.resetBrain(); B.saveBrainSettings({ on: true, shareOptIn
 const q = (model, mode = "balanced", estCost = 0.01, diff = 2) => B.adjust({ model, baseCaps: BASE, capability: "writing", difficulty: diff, mode, estCost });
 
 test("first-run setup shares anonymous track records until the person clears the box", () => {
-  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
-  const app = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
+  const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
   const note = "Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.";
   assert.match(app, /I am willing to share anonymous track records/);
   assert.match(app, /shareOptIn: true/);
@@ -45,7 +44,7 @@ test("first-run setup shares anonymous track records until the person clears the
     "docs/USER-GUIDE.md",
   ];
   for (const rel of same) {
-    const text = fs.readFileSync(path.join(root, rel), "utf8");
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
     assert.match(text, /Meldmind learns from every job you run/, rel);
     assert.match(text, /pick the best AI for everyone/, rel);
     assert.match(text, /any time in Settings/, rel);
