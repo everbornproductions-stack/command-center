@@ -1535,3 +1535,16 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 - Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, day plan (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. This page does not connect Google Calendar and does not write events there. Phases 35 and 55 were not touched. No locked decision text was rewritten. Version was not bumped.
+
+- Morning briefing: one free weekday routine prepares agenda, inbox note, tasks, a weather line, and a news line. Weather and news are not fetched. A second routine is Pro. Nothing is sent.
+- Email to a task or a calendar hold: preview first, then Save writes both on this computer. A password or an SSN is refused. More than 10 emails shows a count and a sample first.
+- Find a time: open weekday slots, skipping local busy blocks and local holds, drafted as an email. Send is a separate click with the exact text.
+- Each has a try saying line, a How to section, and a Help article.
+- The run-order checks follow the order already on main.
+- Tests: `test/everyday-plan.test.js`. npm test and npm run smoke recorded after this run. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DAY PLAN (built by Cursor cloud agent)
