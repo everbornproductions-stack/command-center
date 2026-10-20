@@ -1525,3 +1525,13 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5 (this 
 - Tests: npm test 407 tests, 406 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read.
 
 LIVE OPS REPLY DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Windows CI on the Live Ops reply branch
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothing was merged. data/ was not read.
+
+- Pull request check 39485495744 failed in Test. The demo chat "Write a two-line welcome." had already finished its model call. The wait still expired. It was looking for a single newer than the test's own clock, and a Windows runner can step that clock. The saved run then never counts as the one just started. A locked mission file can also vanish from the list for that poll.
+- A chat now returns its run id, and that demo wait follows the id. Saving and reading a mission retries a short Windows lock (EPERM, EBUSY). The demo server closes its socket when the reply is done.
+- Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+WINDOWS DEMO WAIT (built by Cursor cloud agent)

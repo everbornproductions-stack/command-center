@@ -219,6 +219,9 @@ export async function startDemo() {
   for (const d of DEMO) if (!hasSecret(d.id)) await setSecret(d.id, "demo-key");
   if (server) return;
   server = http.createServer(async (req, res) => {
+    // The test process closes its own mock sockets. This server runs inside the app
+    // process, so it has to close its own or Windows reuses the socket and the next call waits.
+    res.setHeader("Connection", "close");
     if (req.method === "GET" && req.url.endsWith("/models")) { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) })); }
     let body = ""; for await (const c of req) body += c;
     let j; try { j = JSON.parse(body); } catch { res.writeHead(400); return res.end(); }

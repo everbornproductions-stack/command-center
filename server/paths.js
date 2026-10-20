@@ -22,9 +22,35 @@ if (process.env.CC_MODE !== "hosted") {
   fs.mkdirSync(path.join(DATA_DIR, "missions"), { recursive: true });
 }
 
+// Windows can lock a file it just created (scanner, indexer) and then refuse the
+// rename or the next read with EPERM / EBUSY. A short retry lets that lock go.
+const RETRYABLE = new Set(["EPERM", "EBUSY", "EACCES", "UNKNOWN", "EMFILE"]);
+function pause(ms) {
+  try {
+    const sab = new SharedArrayBuffer(4);
+    Atomics.wait(new Int32Array(sab), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* a lock that needs a real pause */ }
+  }
+}
+export function retrySync(fn) {
+  const waits = [0, 40, 80, 160, 320];
+  let last;
+  for (let i = 0; i < waits.length; i++) {
+    if (waits[i]) pause(waits[i]);
+    try { return fn(); }
+    catch (e) {
+      last = e;
+      if (!RETRYABLE.has(e?.code) || i === waits.length - 1) throw e;
+    }
+  }
+  throw last;
+}
+
 export function readJson(file, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return JSON.parse(retrySync(() => fs.readFileSync(file, "utf8")));
   } catch {
     return fallback;
   }
@@ -32,6 +58,9 @@ export function readJson(file, fallback) {
 export function writeJson(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
-  fs.renameSync(tmp, file);
+  const text = JSON.stringify(obj, null, 2);
+  retrySync(() => {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, file);
+  });
 }

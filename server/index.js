@@ -41,6 +41,7 @@ import { loadProjects, listProjects, saveProject, deleteProject, addLink, remove
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
+import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
@@ -419,6 +420,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
       }
       else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title, tasks: [] } }); }
       else if (ev.type === "done") {
+        netTrace(`mission finishing ${id}`);
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
@@ -441,7 +443,13 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
   m.finishedAt = Date.now();
-  ctx().store.saveMission(m, missionSummary({ ...m, title }));
+  try {
+    ctx().store.saveMission(m, missionSummary({ ...m, title }));
+    netTrace(`mission saved ${m.id} ${m.status}`);
+  } catch (e) {
+    netTrace(`mission save failed ${m.id} ${e?.code || ""} ${e?.message || e}`);
+    throw e;
+  }
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
 }
@@ -537,8 +545,14 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
-    runChat(job).catch((e) => emit("log", { text: `Chat failed: ${e.message}`, level: "error" }));
-    return json(res, 202, { ok: true });
+    // The id is known before the chat runs, so a caller can wait for this run
+    // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
+    const runId = job.runId || ("s-" + Date.now().toString(36));
+    runChat({ ...job, runId }).catch((e) => {
+      netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
+      emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
+    });
+    return json(res, 202, { ok: true, runId });
   }
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }

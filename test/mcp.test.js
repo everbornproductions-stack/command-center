@@ -250,10 +250,12 @@ async function waitRun(s, pred, label, ms = 60000) {
     await sleep(300);
   }
   const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
+  const recent = (last?.missions || []).slice(0, 6).map((m) => ({ id: m.id, kind: m.kind, status: m.status, startedAt: m.startedAt, title: String(m.title || "").slice(0, 60) }));
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
-  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${trace ? `\n${trace}` : ""}`);
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${trace ? `\n${trace}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
+const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
 async function waitPending(s, ms = 20000) {
   const budget = waitBudget(ms);
   const t0 = Date.now();
@@ -480,19 +482,21 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
     assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 4); assert.equal(r.json.server.autoReadOnly, true);
     assert.equal(r.json.server.tools.find((t) => t.name === "clock").needsApproval, false); assert.equal(r.json.server.tools.find((t) => t.name === "save_note").needsApproval, true);
     assert.equal((await s.api("/tools/demo", { method: "POST" })).json.view.servers.length, 1, "added once");
-    let t0 = Date.now();
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "What time is it right now?", provider: "demo-nova", model: "nova-lite" } })).status, 202);
-    let run = await waitRun(s, finished("single", t0 - 1), "demo single with the clock");
+    let posted = await s.api("/chat", { method: "POST", body: { prompt: "What time is it right now?", provider: "demo-nova", model: "nova-lite" } });
+    assert.equal(posted.status, 202);
+    let run = await waitRun(s, settled(posted.json.runId), "demo single with the clock");
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].tool, "clock"); assert.equal(full.toolCalls[0].ok, true);
     assert.match(full.deliverable, /called a tool and got back/); assert.match(full.deliverable, /20\d\d-\d\d-\d\dT/);
     // a prompt with no tool word: no tool call
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome.", provider: "demo-nova", model: "nova-lite" } });
-    run = await waitRun(s, finished("single", t0 - 1), "demo single without tools");
-    assert.deepEqual((await s.api(`/missions/${run.id}`)).json.toolCalls, []);
+    posted = await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome.", provider: "demo-nova", model: "nova-lite" } });
+    assert.equal(posted.status, 202);
+    run = await waitRun(s, settled(posted.json.runId), "demo single without tools");
+    full = (await s.api(`/missions/${run.id}`)).json;
+    assert.equal(full.status, "done", full.error || "");
+    assert.deepEqual(full.toolCalls, []);
     // a mission: specialists get the tools; the goal mentions the time, so the pretend AIs use the clock
-    t0 = Date.now();
+    const t0 = Date.now();
     assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 } })).status, 202);
     run = await waitRun(s, finished("mission", t0 - 1), "demo mission", 180000);
     full = (await s.api(`/missions/${run.id}`)).json;
