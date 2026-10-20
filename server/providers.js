@@ -5,7 +5,7 @@ import { PROVIDERS, geminiBase } from "./registry.js";
 import { providerMessage } from "./health.js";
 import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
-import { cacheSystem } from "./savings.js";
+import { cacheSystem, compatCache, geminiUsage } from "./savings.js";
 
 export class ProviderError extends Error {
   constructor(provider, status, message, body) {
@@ -188,11 +188,10 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
     type: "done",
     stop: toolCalls.length ? "tool_calls" : stop,
     toolCalls: toolCalls.length ? toolCalls : undefined,
-    usage: {
-      input: usage?.promptTokenCount ?? approxTokens([system || "", ...messages.map((m) => textOf(m))].join("\n")),
-      output: usage?.candidatesTokenCount ?? approxTokens(outText),
-      estimated: !usage,
-    },
+    usage: geminiUsage(usage, {
+      input: approxTokens([system || "", ...messages.map((m) => textOf(m))].join("\n")),
+      output: approxTokens(outText),
+    }),
   };
 }
 
@@ -271,8 +270,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       input: usage?.prompt_tokens ?? approxTokens(msgs.map((m) => m.content || "").join("\n")),
       output: usage?.completion_tokens ?? approxTokens(outText),
       estimated: !usage,
-      cacheRead: usage?.prompt_tokens_details?.cached_tokens || 0,
-      cacheRate: "openai",
+      ...compatCache(provider.id, model, usage),
       // OpenRouter returns the exact billed amount in USD; others do not
       cost: typeof usage?.cost === "number" ? usage.cost : undefined,
       actualModel: actualModel && actualModel !== model ? actualModel : undefined,

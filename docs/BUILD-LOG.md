@@ -1414,3 +1414,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
 
 V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)
+
+## 2026-10-20: Remaining legitimate savings (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Square and billing code were not touched. Nothing is sent to a provider batch API. A live run still pays the live price.
+
+- Batch advice stays on the route preview. It is half the list price, so an open off-peak discount is not taken a second time. Mistral is included with ChatGPT, Claude, Gemini, and Groq. DeepSeek off-peak stays the existing estimate only.
+- A reported Gemini cache read (`cachedContentTokenCount`) is priced at one tenth of the input price. ChatGPT stays at half. Grok 4.7 is a quarter, the published cached-input price for that model. Groq, Mistral, DeepSeek, and other OpenAI-compatible providers are no longer priced at ChatGPT's cache rate. An unknown rate bills the live price.
+- The same model from two sellers still keeps the cheaper one. That pick was already in place.
+- Tests: `test/savings.test.js`. npm test 397 tests, 396 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+REMAINING SAVINGS DONE (built by Cursor cloud agent)
