@@ -227,13 +227,16 @@ async function mockModel() {
     const text = toolMsgs.length ? `Tool said: ${toolMsgs.map((m) => m.content).join(" | ")}` : "No tool needed.";
     return sse(res, [{ choices: [{ delta: { content: text } }] }, { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 20, completion_tokens: 8 } }]);
   });
+  srv.keepAliveTimeout = 1;
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   return { base: `http://127.0.0.1:${srv.address().port}`, seen, close: () => new Promise((r) => srv.close(r)) };
 }
 async function waitRun(s, pred, label, ms = 60000) {
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const hit = pred(st); if (hit) return hit; await sleep(300); }
-  throw new Error(`timed out waiting for ${label}`);
+  let last = null;
+  while (Date.now() - t0 < ms) { last = (await s.api("/state")).json; const hit = pred(last); if (hit) return hit; await sleep(300); }
+  const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
+  throw new Error(`timed out waiting for ${label}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 async function waitPending(s, ms = 20000) {

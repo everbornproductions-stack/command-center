@@ -178,6 +178,8 @@ export function awaitJob(id, { timeoutMs = 60000, signal, onUpdate } = {}) {
   const j = findJob(id);
   if (!j) { claimed.delete(id); return Promise.resolve(null); }
   if (TERMINAL.has(j.status)) { claimed.delete(id); return Promise.resolve(publicJob(j)); }
+  // 0 minutes means go on now. A 1 ms timer is swallowed on Windows and the mission never moves on.
+  if (!(Number(timeoutMs) > 0)) { claimed.delete(id); return Promise.resolve(null); }
   return new Promise((resolve) => {
     let timer = null;
     const w = { done: (job) => { clearTimeout(timer); signal?.removeEventListener?.("abort", stop); resolve(job); }, update: (job) => { try { onUpdate?.(job); } catch {} } };

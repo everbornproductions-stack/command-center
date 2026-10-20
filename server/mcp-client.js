@@ -89,6 +89,19 @@ export function spawnSpec(command, args = []) {
   return { file: process.env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", `"${[cmd, ...args].map(q).join(" ")}"`], shell: false, windowsVerbatimArguments: true };
 }
 
+// One JSON line to a child's stdin. writeSync delivers it on a real fd (a Windows
+// pipe otherwise holds the line). Overlapped stdin has no usable fd, so the stream
+// write is the path that actually reaches the child there.
+function writeStdin(child, command, line) {
+  const fd = child.stdin.fd;
+  if (typeof fd === "number" && fd >= 0) {
+    try { fs.writeSync(fd, line); return Promise.resolve(); } catch { /* fall through */ }
+  }
+  return new Promise((resolve, reject) => {
+    child.stdin.write(line, (err) => err ? reject(new McpError(`Could not write to "${command}": ${err.message}`, { network: true })) : resolve());
+  });
+}
+
 // ---------- stdio ----------
 class StdioTransport {
   constructor({ command, args = [], cwd, env = {} }) { this.command = command; this.args = args; this.cwd = cwd || undefined; this.env = env; this.rpc = new Rpc(); this.child = null; this.stderr = ""; this.closed = false; }
@@ -96,7 +109,10 @@ class StdioTransport {
     const spec = spawnSpec(this.command, this.args);
     await new Promise((resolve, reject) => {
       let child;
-      try { child = spawn(spec.file, spec.args, { cwd: this.cwd, env: { ...process.env, ...this.env }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false, windowsVerbatimArguments: spec.windowsVerbatimArguments }); }
+      // Overlapped pipes on Windows. The default pipe is synchronous: a writeSync on
+      // one side blocks the other, and the second tool call in a turn never arrives.
+      const stdio = process.platform === "win32" ? ["overlapped", "overlapped", "pipe"] : ["pipe", "pipe", "pipe"];
+      try { child = spawn(spec.file, spec.args, { cwd: this.cwd, env: { ...process.env, ...this.env }, stdio, windowsHide: true, shell: false, windowsVerbatimArguments: spec.windowsVerbatimArguments }); }
       catch (e) { return reject(new McpError(`Could not start "${this.command}": ${e.message}`, { network: true })); }
       this.child = child;
       let buf = "";
@@ -123,9 +139,7 @@ class StdioTransport {
     const isReq = msg.id !== undefined;
     const p = isReq ? this.rpc.wait(msg.id, timeoutMs, what) : Promise.resolve(null);
     const line = JSON.stringify(msg) + "\n";
-    const fd = this.child.stdin.fd;
-    if (typeof fd === "number") fs.writeSync(fd, line);
-    else await new Promise((resolve, reject) => { this.child.stdin.write(line, (err) => err ? reject(new McpError(`Could not write to "${this.command}": ${err.message}`, { network: true })) : resolve()); });
+    await writeStdin(this.child, this.command, line);
     return p;
   }
   async close() {

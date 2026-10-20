@@ -204,7 +204,7 @@ export async function dispatch({ task, context = "", source = {}, needs = [] } =
   const value = header.toLowerCase() === "authorization" ? `Bearer ${sec.key}` : sec.key;
   let res, reply = null;
   try {
-    res = await fetch(sec.url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", [header]: value }, body: JSON.stringify({ job_id: id, task: j.task, context: j.context, workspace: j.workspace, callback_url }), signal: AbortSignal.timeout(Number(process.env.CC_GROKBOT_TIMEOUT_MS) || 15000), redirect: "error" });
+    res = await fetch(sec.url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", connection: "close", [header]: value }, body: JSON.stringify({ job_id: id, task: j.task, context: j.context, workspace: j.workspace, callback_url }), signal: AbortSignal.timeout(Number(process.env.CC_GROKBOT_TIMEOUT_MS) || 15000), redirect: "error" });
     try { reply = await res.json(); } catch { reply = null; }
   } catch (e) {
     return fail(j, `Could not reach Grok Bot: ${netReason(e)}`);
@@ -294,6 +294,9 @@ export function awaitJob(id, { timeoutMs = 60000, signal, onUpdate } = {}) {
   const j = findJob(id);
   if (!j) { claimed.delete(id); return Promise.resolve(null); }
   if (TERMINAL.has(j.status)) { claimed.delete(id); return Promise.resolve(publicJob(j)); }
+  // 0 minutes means go on now. setTimeout(0) becomes a 1 ms timer, and Windows can
+  // swallow that, so a mission that should not wait sits there until the test gives up.
+  if (!(Number(timeoutMs) > 0)) { claimed.delete(id); return Promise.resolve(null); }
   return new Promise((resolve) => {
     let timer = null;
     const w = {

@@ -29,6 +29,18 @@ function approxTokens(text) {
   return Math.ceil((text || "").length / 4);
 }
 
+// A local mock (and Ollama, LM Studio) often leaves the socket open after [DONE].
+// Windows then reuses that socket and the next round waits forever. Ask it to close,
+// and stop reading at [DONE] so a quiet socket is not a hang.
+function loopbackClose(url) {
+  try {
+    const h = new URL(url).hostname.replace(/^\[|\]$/g, "");
+    if (h === "127.0.0.1" || h === "localhost" || h === "::1") return { connection: "close" };
+  } catch {}
+  return {};
+}
+async function finishReader(reader) { try { await reader.cancel(); } catch {} }
+
 export function requireKey(provider) {
   const s = getSecret(provider.id, provider.keyEnv);
   if (!s) throw new ProviderError(provider.id, 401, `${provider.name}: no API key saved. Add it in Settings.`);
@@ -148,7 +160,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (tools?.length) body.tools = [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description || "", parameters: t.parameters || { type: "object", properties: {} } })) }];
   // Key in the header only. Never a query string, never Authorization: Bearer (that 400s an AQ. key).
-  const headers = { "content-type": "application/json", "x-goog-api-key": key };
+  const headers = { "content-type": "application/json", "x-goog-api-key": key, ...loopbackClose(geminiBase(provider)) };
   const url = `${geminiBase(provider)}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   let res;
   try { res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal }); }
@@ -159,9 +171,9 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", outText = "", stop = null, usage = null;
+  let buf = "", outText = "", stop = null, usage = null, ended = false;
   const calls = [];
-  while (true) {
+  while (!ended) {
     const { value, done } = await reader.read();
     if (done) break;
     buf += dec.decode(value, { stream: true });
@@ -171,7 +183,8 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
       buf = buf.slice(idx + 1);
       if (!line.startsWith("data:")) continue;
       const data = line.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
+      if (!data) continue;
+      if (data === "[DONE]") { ended = true; break; }
       let j; try { j = JSON.parse(data); } catch { continue; }
       if (j.error) throw new ProviderError(provider.id, j.error.code || 400, `${provider.name}: ${providerMessage(j, "")}`, j);
       if (j.usageMetadata) usage = j.usageMetadata;
@@ -183,6 +196,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
       }
     }
   }
+  await finishReader(reader);
   const toolCalls = calls.map((c, i) => ({ id: `call_${i}_${c.name}`, name: c.name, args: c.args }));
   yield {
     type: "done",
@@ -207,7 +221,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   if (provider.id !== "perplexity") body.stream_options = { include_usage: true };
   // the model's own web search (Phase 15): xAI Live Search is asked for explicitly; Perplexity Sonar always searches
   if (webSearch && provider.id === "xai") body.search_parameters = { mode: "on", return_citations: true, max_search_results: Math.min(20, Math.max(1, maxSources || 5)) };
-  const headers = { ...extraHeaders(provider), "content-type": "application/json", ...(key && key !== "no-key" ? { authorization: `Bearer ${key}` } : {}) };
+  const headers = { ...extraHeaders(provider), "content-type": "application/json", ...loopbackClose(provider.baseUrl), ...(key && key !== "no-key" ? { authorization: `Bearer ${key}` } : {}) };
   if (provider.id === "openrouter") {
     headers["HTTP-Referer"] = "https://everbornproductions.com";
     headers["X-Title"] = "Meldmind";
@@ -224,9 +238,9 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", usage = null, outText = "", stop = null, actualModel = null, citations = null, searchResults = null;
+  let buf = "", usage = null, outText = "", stop = null, actualModel = null, citations = null, searchResults = null, ended = false;
   const calls = new Map(); // index -> { id, name, args (json text) } assembled from streamed fragments
-  while (true) {
+  while (!ended) {
     const { value, done } = await reader.read();
     if (done) break;
     buf += dec.decode(value, { stream: true });
@@ -236,7 +250,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       buf = buf.slice(idx + 1);
       if (!line.startsWith("data:")) continue;
       const data = line.slice(5).trim();
-      if (data === "[DONE]") continue;
+      if (data === "[DONE]") { ended = true; break; }
       let j;
       try { j = JSON.parse(data); } catch { continue; }
       if (j.usage) usage = j.usage;
@@ -260,6 +274,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       if (Array.isArray(j.search_results) && j.search_results.length) searchResults = j.search_results;
     }
   }
+  await finishReader(reader);
   const cited = searchResults ? searchResults.map((r) => ({ url: r.url, title: r.title })) : citations;
   const toolCalls = [...calls.values()].filter((c) => c.name).map((c, i) => ({ id: c.id || `call_${Date.now().toString(36)}_${i}`, name: c.name, args: parseArgs(c.args) }));
   yield {

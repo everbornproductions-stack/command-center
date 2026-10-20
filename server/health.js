@@ -105,7 +105,9 @@ async function fetchJson(url, headers = {}, timeout = 12000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
-    const r = await fetch(url, { headers, signal: ctl.signal });
+    const h = { ...headers };
+    try { const host = new URL(url).hostname; if (host === "127.0.0.1" || host === "localhost" || host === "::1") h.connection = "close"; } catch {}
+    const r = await fetch(url, { headers: h, signal: ctl.signal });
     const txt = await r.text();
     let j = null;
     try { j = JSON.parse(txt); } catch {}

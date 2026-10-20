@@ -1481,3 +1481,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 WINDOWS MCP STDIO HANG FIX (built by Cursor cloud agent)
+
+## 2026-10-20: Windows CI on PR 45, three test failures
+
+Not a numbered phase. No locked decision was changed. The v0.4.5 tag was not moved. Nothing was published. data/ was not read.
+
+- Grok Bot's late mission: a wait of 0 minutes was a 1 ms timer, which Windows can swallow, so the mission never moved on. A 0 minute wait now returns immediately. The test mock also closes each socket, because Windows was reusing a keep-alive connection and the next model call never started.
+- Image gallery: the "no provider call before the price" check counted background /models health checks. On Windows two of those land after the baseline (6 instead of 4). Health checks are not image calls, so they are no longer counted.
+- clock + note: the model stream now stops at [DONE] and loopback calls ask the socket to close, so a quiet Windows pipe cannot hold the next round. The demo tool server queues stdin lines instead of readline, and Windows spawns that process with overlapped pipes, so the second tool call is not dropped while the first reply is flushing.
+- Tests here (Linux): npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the PR check.
+
+WINDOWS CI THREE FAILURES (built by Cursor cloud agent)
