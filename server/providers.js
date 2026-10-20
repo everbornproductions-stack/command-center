@@ -5,6 +5,7 @@ import { PROVIDERS, geminiBase } from "./registry.js";
 import { providerMessage } from "./health.js";
 import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
+import { cacheSystem } from "./savings.js";
 
 export class ProviderError extends Error {
   constructor(provider, status, message, body) {
@@ -79,11 +80,12 @@ export const messageShapes = { anthropic: anthropicMessages, openai: openaiMessa
 // ---------- Anthropic (official SDK) ----------
 async function* anthropicStream({ provider, model, system, messages, maxTokens, effort, signal, tools }) {
   const client = new Anthropic({ apiKey: requireKey(provider), baseURL: provider.baseUrl, maxRetries: 1, defaultHeaders: extraHeaders(provider) });
+  const systemBody = cacheSystem(system);
   const params = {
     model,
     max_tokens: maxTokens,
     messages: tools?.length || messages.some((m) => m.role === "tool" || m.toolCalls || hasImage(m)) ? anthropicMessages(messages) : messages,
-    ...(system ? { system } : {}),
+    ...(systemBody ? { system: systemBody } : {}),
     ...(effort ? { output_config: { effort } } : {}),
     ...(tools?.length ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) } : {}),
   };
@@ -107,6 +109,8 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
       usage: {
         input: (final.usage?.input_tokens || 0) + (final.usage?.cache_read_input_tokens || 0) + (final.usage?.cache_creation_input_tokens || 0),
         output: final.usage?.output_tokens || 0,
+        cacheRead: final.usage?.cache_read_input_tokens || 0,
+        cacheRate: "anthropic",
       },
     };
   } catch (e) {
@@ -267,6 +271,8 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       input: usage?.prompt_tokens ?? approxTokens(msgs.map((m) => m.content || "").join("\n")),
       output: usage?.completion_tokens ?? approxTokens(outText),
       estimated: !usage,
+      cacheRead: usage?.prompt_tokens_details?.cached_tokens || 0,
+      cacheRate: "openai",
       // OpenRouter returns the exact billed amount in USD; others do not
       cost: typeof usage?.cost === "number" ? usage.cost : undefined,
       actualModel: actualModel && actualModel !== model ? actualModel : undefined,
