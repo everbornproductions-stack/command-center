@@ -5,15 +5,15 @@ import { CAPABILITIES } from "../registry.js";
 import { rank } from "../router.js";
 import { bestAtWhat, saveBrainSettings, resetBrain, exportBrain, sharePreview, cleanCap, cleanDiff, brainSettings } from "../brain.js";
 import { TIERS, licenseState } from "../license.js";
+import { normalizeMode } from "../modes.js";
 export const id = "brain";
-const MODES = ["quality", "balanced", "economy"];
 
 const scoresOpen = () => !!TIERS[licenseState().tier].scores;
 const scoreView = (mode) => (scoresOpen() ? bestAtWhat({ mode }) : { settings: brainSettings() });
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/brain/, "");
-  const modeOf = (v) => (MODES.includes(v) ? v : h.settings?.().defaultMode || "balanced");
+  const modeOf = (v) => normalizeMode(v) || normalizeMode(h.settings?.().defaultMode) || "balanced";
   if (req.method === "GET" && (p === "" || p === "/")) { h.guard("scores"); return h.json(res, 200, bestAtWhat({ mode: modeOf(url.searchParams.get("mode")) })); }
   if (req.method === "GET" && p === "/settings") return h.json(res, 200, { settings: brainSettings() });
   // who the router would pick right now for one task type, with what the record changed. The router stays free.

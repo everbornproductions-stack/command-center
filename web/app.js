@@ -13,6 +13,11 @@ const S = {
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
+const PRIORITY = [["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
+function priorityNow() {
+  const raw = S.costMode || S.settings?.defaultMode || "balanced";
+  return raw === "economy" ? "savings" : raw;
+}
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -801,7 +806,7 @@ function renderCommand(v) {
         </div>
         <label class="lbl">Priority</label>
         <div class="seg" id="cost-mode" role="group" aria-label="Priority">
-          ${["quality", "balanced", "economy"].map((m) => `<button data-m="${m}" class="${(S.costMode || S.settings.defaultMode) === m ? "on" : ""}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
+          ${PRIORITY.map(([m, label]) => `<button data-m="${m}" class="${priorityNow() === m ? "on" : ""}">${label}</button>`).join("")}
         </div>
         <label class="lbl">When</label>
         <div class="seg" id="when-mode" role="group" aria-label="When">
@@ -971,7 +976,7 @@ async function sendOrders() {
       await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
     else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) {
@@ -1266,7 +1271,7 @@ function renderSettings(v) {
       <div class="panel"><h3>General</h3>
         ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
           <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
-          <div><label class="lbl">Default priority</label><select id="s-mode">${["quality", "balanced", "economy"].map((m) => `<option ${S.settings.defaultMode === m ? "selected" : ""}>${m}</option>`).join("")}</select></div>
+          <div><label class="lbl">Default priority</label><select id="s-mode">${PRIORITY.map(([m, label]) => `<option value="${m}" ${(S.settings.defaultMode === m || (m === "savings" && S.settings.defaultMode === "economy")) ? "selected" : ""}>${label}</option>`).join("")}</select></div>
           <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>

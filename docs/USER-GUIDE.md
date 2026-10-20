@@ -59,7 +59,7 @@ The Simple / Expert switch is in the top bar on every screen. One click changes 
    - **Single**: the best AI for the job answers.
    - **Council**: several AIs answer, review each other without knowing who wrote what, and a chair writes the verdict.
    - **Mission**: the job is split into tasks, each goes to the best-fit AI, a different AI checks every result, and the parts are put together at the end.
-3. **Priority** (Quality, Balanced, Economy) decides how much cost matters. **When > Off-peak** waits for a discount window.
+3. **Priority** (Quality, Balanced, Max savings, Speed) applies to Single, Council and Mission. Quality favours the stronger model, Balanced splits the difference, Max savings picks the cheaper model, and Speed picks the faster one. **When > Off-peak** waits for a discount window.
 4. **Preview route** shows, before anything is spent, who would get the job and roughly what it costs.
 5. The cap (Cap $) stops a mission from spending more than you allow.
 

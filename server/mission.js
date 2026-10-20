@@ -1,6 +1,6 @@
 // Mission mode: marching orders in, a finished deliverable out.
 // 1. A planner model breaks the goal into tasks with a capability tag and dependencies.
-// 2. The router assigns each task to the best available AI (mode: quality / balanced / economy).
+// 2. The router assigns each task to the best available AI (Quality, Balanced, Max savings, or Speed).
 // 3. Tasks run in dependency waves, in parallel, streaming. Each AI may run as several
 //    sub-agents (one per task). A different AI QA-reviews each deliverable when qa is on.
 // 4. An assembler compiles the final deliverable.
@@ -18,6 +18,7 @@ import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import * as MEDIA from "./media-jobs.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
@@ -80,6 +81,9 @@ export function restoreScheduled() {
 }
 
 export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries }) {
+  mode = normalizeMode(mode) || "balanced";
+  const planning = planMode(mode);
+  const looking = reviewMode(mode);
   const id = "m-" + Date.now().toString(36);
   const ctl = new AbortController();
   running.set(id, ctl);
@@ -126,7 +130,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
       : `\nA step that must act on a website (signed-in pages, forms), in the person's Gmail or in their Google Drive gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; the built-in ${MA.name} does those steps in its own browser window (every send, post or form submit waits for the person's OK). Never use "agent" for plain writing, research or analysis.`;
 
     // ---- 1. Plan ----
-    const planner = pick({ capability: "reasoning", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" });
+    const planner = pick({ capability: "reasoning", difficulty: 3, mode: planning });
     if (!planner) throw new Error("No AI is available to plan. Add an API key in Settings.");
     mission.planner = { provider: planner.provider, model: planner.model };
     const pAgent = `${id}:planner`;
@@ -141,7 +145,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
 Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${agentLine}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
-      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
+      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const ms = Date.now() - s0;
       noteCall(r.provider, true, ms);
       spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "plan", ms }));
@@ -199,10 +203,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
     log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
     if (est > budgetUsd) {
-      log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to economy mode.`);
+      log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
         if (t.agent || t.media) continue;
-        const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "economy", needWeb: needsWebModel(t) });
+        const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
     }
@@ -364,7 +368,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // ---- QA by a different AI ----
         if (t.status === "review") {
           // QA is a small job: free tiers first (Phase 26)
-          const reviewer = rank({ capability: "analysis", difficulty: 2, mode: mode === "quality" ? "balanced" : "economy", exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || rank({ capability: "analysis", mode: "economy", small: true })[0];
+          const reviewer = rank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || rank({ capability: "analysis", mode: looking, small: true })[0];
           if (reviewer) {
             const ragent = `${id}:${t.id}:qa`;
             emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
@@ -372,7 +376,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             const s3 = Date.now();
             try {
               const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: ctl.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${t.output.slice(0, 12000)}` }] },
-                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy", avoid: [{ provider: t.provider, model: t.model }] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
+                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
               const ms = Date.now() - s3;
               noteCall(r.provider, true, ms);
               const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
@@ -445,7 +449,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
   async function assemble(plan, planner) {
     const finished = mission.tasks.filter((t) => t.output && !t.media);
     mission.status = "assembling"; update();
-    const asm = { ...(pick({ capability: "writing", difficulty: 3, mode: mode === "economy" ? "balanced" : "quality" }) || planner) };
+    const asm = { ...(pick({ capability: "writing", difficulty: 3, mode: planning }) || planner) };
     mission.assembler = { provider: asm.provider, model: asm.model };
     const aAgent = `${id}:assembler`;
     emit("agent.start", { agent: aAgent, provider: asm.provider, model: asm.model, role: "assemble", missionId: id, label: `${asm.providerName} assembling the deliverable` });
@@ -457,7 +461,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
         system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }],
-      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: mode === "economy" ? "balanced" : "quality" })) {
+      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
         else if (ev.type === "done") {

@@ -31,6 +31,7 @@ import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { normalizeMode } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
@@ -135,14 +136,17 @@ function indexHtml(file) {
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}\n${tag}`) : tag + html;
 }
 const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind", uiMode: "simple", uiModeChosen: false };
-const settings = () => doc("settings", () => ({ ...DEFAULT_SETTINGS }));
+const settings = () => {
+  const s = doc("settings", () => ({ ...DEFAULT_SETTINGS }));
+  const mode = normalizeMode(s.defaultMode);
+  if (!mode || mode === s.defaultMode) return s;
+  return { ...s, defaultMode: mode };
+};
 const saveSettings = (s) => putDoc("settings", s);
-const PRIORITY_MODES = new Set(["quality", "balanced", "economy"]);
 // Command bar choice when the person picked one. Otherwise the saved Default priority.
+// economy is the old name for Max savings.
 function chatPriority(requested) {
-  if (PRIORITY_MODES.has(requested)) return requested;
-  const saved = settings().defaultMode;
-  return PRIORITY_MODES.has(saved) ? saved : "balanced";
+  return normalizeMode(requested) || normalizeMode(settings().defaultMode) || "balanced";
 }
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
@@ -463,7 +467,7 @@ async function api(req, res, url) {
     const prompt = url.searchParams.get("prompt") || "";
     if (!prompt.trim()) return json(res, 400, { error: "prompt required" });
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
-    const mode = url.searchParams.get("mode") || settings().defaultMode;
+    const mode = normalizeMode(url.searchParams.get("mode") || settings().defaultMode) || "balanced";
     const ranked = rank({ ...cls, mode }).slice(0, 6);
     return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
   }
@@ -503,7 +507,7 @@ async function api(req, res, url) {
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
+    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -515,7 +519,7 @@ async function api(req, res, url) {
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: job.goal, mode: job.mode || s.defaultMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
+    const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -639,6 +643,7 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/settings") {
     const { cloud, phonePair: _pair, ...rest } = body; // cloud and phone pairing have their own routes
+    if (rest.defaultMode != null) rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
   if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());

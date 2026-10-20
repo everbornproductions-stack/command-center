@@ -1357,6 +1357,17 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 SINGLE RUN PRIORITY DONE (built by Cursor cloud agent)
 
+## 2026-10-20: Four run priorities (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The registry still uses "economy" as a cheap model tier. That word is not a priority.
+
+- Command, Settings, schedules, pipelines, and the scores view offer Quality, Balanced, Max savings, and Speed. Max savings is the old Economy choice. A saved default of economy still means Max savings.
+- The same choice is sent with Single, Council, and Mission. Council uses three members for Max savings (and for the old lite flag when no priority is sent) and four for the others. An explicit priority wins over lite.
+- Speed changes the ranking: with no track record it adds a bonus from the model's registry speed. Quality, Balanced, and Max savings keep their previous cost weights, so a Quality Single run still prefers GPT-6.1 Sol over GPT-6 Luna when only ChatGPT is keyed.
+- Tests: `test/modes.test.js`. npm test 383 tests, 382 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. data/ was not read or committed.
+
+FOUR RUN PRIORITIES DONE (built by Cursor cloud agent)
+
 ## 2026-10-20: Custom background colour (Cursor cloud agent)
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Accent colours were already there. This adds the page background.
