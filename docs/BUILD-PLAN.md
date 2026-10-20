@@ -226,6 +226,19 @@ Customers never see Supabase or callback / webhook plumbing. Docs only until a l
 - Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
 - Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.
 
+### Phase 53: Google Calendar connection (effort: M)
+OAuth connect to Google Calendar. List, create, and update events. Show it in the setup checklist. Free includes 1 connected service. Pro includes every connected service. Grok Bot's calendar handoff stays as it is (decision 15): tags, webhook, and routing are unchanged.
+- Specified on the docs/new-phases plan, which runs this after Phase 55. Built when asked, while Phases 35 and 55 were still planned.
+- Checklist connect asks for Calendar and keeps Gmail or Drive access already granted. The Browser helper checkboxes stay explicit.
+- Settings, Google Calendar, lists upcoming events. Create and Update run only on a click. Events are not deleted.
+- A second fresh connected service on Free is refused before the token is saved.
+
+### Phase 54: Plain-request actions (effort: M)
+A plain request, for example "email this client and put it on my calendar", is parsed by a cheap fast AI into an email draft plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. No outside AI touches the accounts. The cost is shown, usually a fraction of a cent.
+- Specified on the docs/new-phases plan, which runs this after Phase 53.
+- The model never receives a token. A second click on a finished request does not send again.
+- Guided tour stop "Try saying..." and How-to articles for plain requests and Google Calendar.
+
 ## Planned, not in the run order (Chris, 2026-10-19)
 
 These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start them until Chris adds them to the run order above. They are not phases, and the chain must not build them.
