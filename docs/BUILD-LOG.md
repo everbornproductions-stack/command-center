@@ -1296,3 +1296,14 @@ HONEST KEY ERRORS AND DESKTOP TAP TO TALK DONE (built by Cursor cloud agent)
 - Rebased onto origin/main at aede1b3 (honest key errors, pause unpaid AIs, Pro prompt categories, savings tracker, Windows update checks). Help keeps Replay the tour and Watch example projects, and Check for updates stays. Tests after that rebase: npm test 358 tests, 356 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs only, no real key or URL. data/ was not touched. Example JSON and the per-type help articles are owned by the other builders. This change only loads them, and a missing examples folder becomes a labeled placeholder.
 
 FEATURE start-a-project DONE (built by Cursor cloud agent)
+
+## 2026-10-20 02:11 UTC: Live Ops bubbles sized by use (Cursor cloud agent)
+
+- Each AI on the Command Live Ops graph grows or shrinks with its share of jobs in the last 30 days (ledger calls, images, searches, and credit lines). The busiest reaches 1.6x. Once anything has run, an unused AI shrinks to 0.6x. With no jobs in the window every bubble stays at 1x. While an AI is working it grows a little more, then eases back. The move is ease-out. prefers-reduced-motion resizes with no animation.
+- Names stay at a readable size. On the smallest bubbles the name is hidden and comes back on hover or focus. Circles are pushed apart, and shrunk together if the ring is crowded, so they do not overlap. The hub stays put.
+- The live view flow map uses the same scale. Recomputed when a run finishes. `web/app.js` only passes the 30-day counts into the graph. The ledger summary gains `calls30` and does not change older totals.
+- Rebased onto origin/main at c59fd26 (prompt shelves) before the pull request. Tests: `test/graph-usage.test.js`. npm test 336 tests, 335 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs only. No real key.
+- Checked in the browser on the local app, Expert, demo mode: Nova (8 jobs) drew at 1.6x, Sage (1 job) in between, Atlas (none) at 0.6x with its name hidden until hover. Bubbles did not cover the hub.
+- Not verified: a packaged Electron build. Phase 14 stays BLOCKED (needs a Mac).
+
+LIVE OPS BUBBLE SIZE DONE (built by Cursor cloud agent)

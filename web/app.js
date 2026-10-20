@@ -1,4 +1,5 @@
 import { AgentGraph } from "/graph.js";
+import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { composerAis } from "./composer-ais.js";
@@ -307,7 +308,7 @@ function handle(ev) {
     case "task.update": onTask(ev); return;
     case "mission.update": onMission(ev.mission); return;
     case "council.update": onCouncil(ev.council); return;
-    case "ledger.entry": if (S.ledger && ev.entry.kind === "call") { S.ledger.month += ev.entry.cost; S.ledger.today += ev.entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[ev.entry.provider]; if (b) { b.month += ev.entry.cost; b.today += ev.entry.cost; b.calls++; } renderBudget(); renderStrip(); } return;
+    case "ledger.entry": if (S.ledger && ev.entry.kind === "call") { S.ledger.month += ev.entry.cost; S.ledger.today += ev.entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[ev.entry.provider]; if (b) { b.month += ev.entry.cost; b.today += ev.entry.cost; b.calls++; if (isUsageJob(ev.entry) && (ev.entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; } renderBudget(); renderStrip(); if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage(); } else if (S.ledger && isUsageJob(ev.entry)) { const b = S.ledger.byProvider[ev.entry.provider]; if (b && (ev.entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage(); } return;
     case "log": pushFeed(ev); return;
     case "update.state": S.update = ev.update; renderUpdateBar(); renderUpdateBox(); return;
     case "onboarding.notice": noteOnboarding({ notice: ev.text, noticeAt: ev.at }); if (S.onboarding) S.onboarding = { ...S.onboarding, notice: ev.text, noticeAt: ev.at }; return;
@@ -316,6 +317,7 @@ function handle(ev) {
 
 // ---------------- live run handling ----------------
 let graph = null;
+function refreshGraphUsage() { graph?.setUsage(usageFromSummary(S.ledger)); }
 function ensureLive(id, kind) {
   if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
@@ -342,6 +344,7 @@ function onAgentEnd(ev, err) {
   const a = S.live.agents[ev.agent]; if (a) { a.done = true; a.error = ev.error; a.ms = ev.ms; a.cost = ev.cost; }
   S.activeByProvider[ev.provider] = Math.max(0, (S.activeByProvider[ev.provider] || 1) - 1);
   graph?.deactivate(ev.provider, err ? "error" : ev.ms ? `${(ev.ms / 1000).toFixed(1)}s` : "");
+  if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage();
   renderStrip();
   if (S.view === "command" && ev.agent === S.live.primary) $("#out-md")?.classList.remove("cursor");
 }
@@ -361,14 +364,14 @@ function onMission(m) {
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
-  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) { graph?.resetAll(); S.activeByProvider = {}; renderStrip(); toast(`${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed"); }
+  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) { graph?.resetAll(); S.activeByProvider = {}; refreshGraphUsage(); renderStrip(); toast(`${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed"); }
 }
 function onCouncil(c) {
   ensureLive(c.id, "council");
   S.live.council = c; S.live.status = c.status;
   if (c.verdict?.text) S.live.deliverable = c.verdict.text;
   if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict) renderOutput(); }
-  if (c.status === "done") { const i = S.missions.findIndex((x) => x.id === c.id); const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) }; if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ); graph?.resetAll(); S.activeByProvider = {}; renderStrip(); toast(`Council done · ${money(c.cost, 4)}`); }
+  if (c.status === "done") { const i = S.missions.findIndex((x) => x.id === c.id); const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) }; if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ); graph?.resetAll(); S.activeByProvider = {}; refreshGraphUsage(); renderStrip(); toast(`Council done · ${money(c.cost, 4)}`); }
 }
 
 // ---------------- feed ----------------
@@ -749,6 +752,7 @@ function renderCommand(v) {
   graph.setProviders([...textKeyed, ...textGrey, ...agents, ...media]);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
+  refreshGraphUsage();
   $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
