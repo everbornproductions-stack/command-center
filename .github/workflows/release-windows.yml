@@ -10,6 +10,15 @@
 #                             the secret is empty. The release stops when neither is set.
 #   RELEASES_TOKEN            fine-grained token, Contents read and write on
 #                             command-center-releases only.
+#   AZURE_TENANT_ID           optional signing secret. With AZURE_CLIENT_ID and
+#   AZURE_CLIENT_ID           AZURE_CLIENT_SECRET, the build signs the app and
+#   AZURE_CLIENT_SECRET       the NSIS installer. When all three are absent, the
+#                             unsigned installer is still published. Values are
+#                             never printed.
+#   AZURE_SIGNING_ENDPOINT    repository variables, required only when the
+#   AZURE_SIGNING_ACCOUNT     signing secrets above are set. The publisher name
+#   AZURE_CERT_PROFILE        is the certificate subject. See
+#   AZURE_PUBLISHER_NAME      docs/release/code-signing.md.
 name: Windows release
 
 on:
@@ -74,7 +83,22 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERT_PROFILE: ${{ vars.AZURE_CERT_PROFILE }}
+          AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
         run: npm run dist
+
+      - name: Check latest.yml matches the installer
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: node scripts/verify-latest-yml.mjs
 
       - name: Publish the normal release
         shell: bash

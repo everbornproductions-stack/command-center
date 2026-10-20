@@ -1,5 +1,9 @@
 appId: com.everborn.command   # keep: changing it would install a second app and orphan updates
 productName: Meldmind
+# Optional Azure Trusted Signing. The extends script adds win.azureSignOptions
+# only when the signing secrets are set. With those secrets absent, this build
+# stays unsigned. Secret values are never written here. See docs/release/code-signing.md.
+extends: scripts/windows-signing-config.cjs
 copyright: Copyright © 2026 Everborn Productions
 directories:
   output: dist

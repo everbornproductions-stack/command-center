@@ -44,6 +44,13 @@ not in the install folder, so updating or reinstalling keeps it.
    - `Meldmind-Setup-X.Y.Z.exe` (the installer)
    - `Meldmind-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
    - `latest.yml` (tells the app what the newest version is)
+   Windows code signing is optional. When `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and
+   `AZURE_CLIENT_SECRET` are set, together with the signing variables in
+   [docs/release/code-signing.md](release/code-signing.md), this build signs the app
+   executable and the NSIS installer, then writes `latest.yml` from the signed installer.
+   When those three secrets are absent, the installer stays unsigned and can still be published.
+   Run `node scripts/verify-latest-yml.mjs` before you upload. It checks that the sha512 in
+   `latest.yml` is the installer on disk. Secret values are not printed.
 5. **Publish the release** (replace X.Y.Z):
 
    ```
@@ -62,8 +69,10 @@ not in the install folder, so updating or reinstalling keeps it.
 - Do not publish a release as a draft or pre-release; the app only looks at normal releases.
 - Do not rename the files; `latest.yml` points at the exact installer name.
 - The portable .exe in `dist\` does not self-update. Only the installed (Setup) version does.
-- The app is not code-signed yet, so Windows SmartScreen may warn on the first install
-  ("More info" then "Run anyway"). Updates install without that prompt.
+- Windows code signing is optional. When the Azure signing secrets are set, the release
+  workflow signs the app and the installer (see [docs/release/code-signing.md](release/code-signing.md)).
+  When those secrets are absent, the build stays unsigned and is still published. An unsigned
+  installer can show SmartScreen on the first install ("More info" then "Run anyway").
 - Never put a token, service key, or password into `electron-builder.yml` or the app. The publishable key is injected from `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` at build time and is not committed.
 - The phone / web app updates itself when the hub is updated; it shows "New version available, Refresh".
 
@@ -71,7 +80,7 @@ not in the install folder, so updating or reinstalling keeps it.
 
 `.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.5` when the version is `0.4.5`).
 
-It runs `npm ci`, then `npm test`. If that test run fails, the job runs `npm test` once more before it stops. It then runs `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
+It runs `npm ci`, then `npm test`. If that test run fails, the job runs `npm test` once more before it stops. It then runs `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set. `npm run dist` writes that publishable key into the installer and clears it again. When the Azure signing secrets are set, electron-builder signs the app executable and the NSIS installer before it writes `latest.yml` and the blockmap, so the hash matches the signed installer. When those secrets are absent, signing is skipped and the unsigned installer is still published. The job then runs `node scripts/verify-latest-yml.mjs` and stops when the sha512 or the file size in `latest.yml` does not match the installer. On the Windows runner, a signed build must also have a valid signature on `Meldmind.exe` and the installer. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
 
 - `Meldmind-Setup-X.Y.Z.exe`
 - `Meldmind-Setup-X.Y.Z.exe.blockmap`
@@ -81,8 +90,9 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 
 - `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Set either name as a secret or as a repository variable. Without one of them the workflow stops, because an empty key would leave every installed copy on the Free tier.
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
+- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`: optional signing secrets. Leave all three empty to keep publishing an unsigned installer. Setup, the matching repository variables, and the Defender false-positive review are in [docs/release/code-signing.md](release/code-signing.md). Never print or commit the secret values.
 
-`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer. The hash check still runs, and the package stays unsigned.
 
 ## Mac (unsigned for now)
 

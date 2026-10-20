@@ -1,5 +1,5 @@
 # Windows test and package on every pull request and every push to main.
-# This does not publish, and it does not read a signing certificate or the releases token.
+# This does not publish, and it does not read Azure signing secrets, a certificate, or the releases token.
 # CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
 # The installer from this job is not a release. Do not upload it.
 name: Windows CI
@@ -72,3 +72,7 @@ jobs:
             exit 1
           fi
           echo "Windows package produced ${EXE} (${SIZE} bytes), the blockmap, and latest.yml. Nothing was published."
+
+      - name: Check latest.yml matches the installer
+        shell: bash
+        run: node scripts/verify-latest-yml.mjs

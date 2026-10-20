@@ -1512,3 +1512,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
+
+## 2026-10-20: Optional Windows code signing (Azure Trusted Signing)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. Square and billing were not touched. data/ was not read. No real key was used.
+
+- The Windows release can sign `Meldmind.exe` and the NSIS installer with Azure Trusted Signing (Artifact Signing) through electron-builder `win.azureSignOptions`. The hash in `latest.yml` is written after that signature. `node scripts/verify-latest-yml.mjs` refuses a release whose sha512 or size does not match the installer. On a signed Windows build it also requires a valid Authenticode signature on the app executable and the installer.
+- When `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` are absent, signing is skipped and the unsigned installer is still published. The pull request workflow does not receive those secrets. Secret values are not printed, logged, or committed.
+- Setup, including organization identity validation with an EIN and the Trusted Signing Certificate Profile Signer role, is in `docs/release/code-signing.md`, with the Microsoft Defender false-positive submission steps.
+- Tests: `test/windows-signing.test.js`. npm test 413 tests, 412 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only.
+
+WINDOWS CODE SIGNING READY (built by Cursor cloud agent)

@@ -21,4 +21,4 @@ Ask Meldmind answers from these help articles using a connected AI (a saved key 
 
 ## The installer says Windows protected your PC.
 
-That is SmartScreen for an unsigned installer. Choose More info, then Run anyway. An antivirus warning for the same file is the same situation.
+That is SmartScreen for an unsigned installer. Choose More info, then Run anyway. An antivirus warning for the same file is the same situation. A code-signed release shows the publisher name instead.

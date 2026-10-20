@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.3
 
 # Antivirus and SmartScreen
 
-The Windows installer is unsigned. SmartScreen may warn the first time you open it. Choose More info, then Run anyway.
+The Windows installer is unsigned until a release is code signed. SmartScreen may warn the first time you open an unsigned installer. Choose More info, then Run anyway.
 
 Some antivirus tools show the same kind of warning for an unsigned installer. If the setup file is blocked, allow Meldmind in that tool and run the installer again. After the first install, updates do not show the SmartScreen prompt again.
 

@@ -1,5 +1,6 @@
 data/
 node_modules/
+.windows-signing-mode
 dist/
 release/*.exe
 .env

@@ -14,7 +14,7 @@ The local server only answers its own window: it binds 127.0.0.1, pins the `Host
 
 ## Install on Windows (no Node needed)
 
-Run **Meldmind-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen will warn once because the build is not code-signed yet; choose "More info → Run anyway". Build it yourself with `npm run dist`.
+Run **Meldmind-Setup-<version>.exe** from the `dist` folder (or the portable `.exe`, which needs no install). The app opens in its own window, keeps serving from the tray when the window is closed, and stores everything under `%APPDATA%\Everborn Command\data`. Windows SmartScreen may warn once when the build is not code-signed; choose "More info", then "Run anyway". Build it yourself with `npm run dist`.
 
 ## Run from source
 
