@@ -1509,5 +1509,6 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - `npm test` runs test/mcp.test.js alone first (the stdio client, the stdio server, and demo mode), then the other files. On Windows those other files run two at a time.
 - The release workflow still runs `npm test`. If that run fails, it runs `npm test` once more, then stops. The pull request check does not retry. One flake can no longer block publishing by itself.
 - Tests here (Linux): npm test 405 tests, 404 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
