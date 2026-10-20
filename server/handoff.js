@@ -13,6 +13,8 @@ import { connectionOf } from "./connect.js";
 import { recordCall } from "./ledger.js";
 import { emit } from "./events.js";
 import { missionSummary } from "./mission.js";
+import { observe } from "./brain.js";
+import { heuristicClassify } from "./router.js";
 
 export const DOC = "handoff.registry";
 export const SIGNIN_DOC = "handoff.signin";
@@ -303,6 +305,17 @@ export async function saveManualReply({ targetId, threadId, text, draft, confirm
     role: "manual-handoff",
   });
   emit("log", { text: `Manual handoff saved (${label}).`, missionId: m.id });
+  // The reply is a finished job. Record the target and the task type. The reply text is not stored.
+  const cls = heuristicClassify(String(m.prompt || draft || "").slice(0, 4000));
+  observe({
+    provider: t.provider && PROVIDERS[t.provider] ? t.provider : "manual",
+    model: t.name,
+    capability: cls.capability,
+    difficulty: cls.difficulty,
+    runId: m.id,
+    ok: true,
+    cost: 0,
+  });
   emit("mission.update", { mission: { ...m, title, tasks: m.tasks || [] } });
   return { threadId: m.id, label, manual: true, ledger: { cost: entry.cost, manual: entry.manual === true, usage: entry.usage, handoff: entry.handoff, model: entry.model, role: entry.role, missionId: entry.missionId } };
 }

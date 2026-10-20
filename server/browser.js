@@ -10,7 +10,8 @@
 import crypto from "node:crypto";
 import { HOSTED, doc, putDoc, ctx, runAs } from "./store.js";
 import { emit } from "./events.js";
-import { cheapest } from "./router.js";
+import { cheapest, heuristicClassify } from "./router.js";
+import { observe } from "./brain.js";
 import { PROVIDERS } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { extractJson } from "./providers.js";
@@ -102,6 +103,17 @@ const waiters = new Map(); // jobId -> Set<{ done, update }>
 const claimed = new Set();
 const finishListeners = [];
 export const onJobFinished = (fn) => finishListeners.push(fn);
+const noted = new Set();
+// A click hand-off is its own job. A council or mission records the same job itself.
+function noteOutcome(j) {
+  if (!j || noted.has(j.id)) return;
+  const kind = j.source?.kind;
+  if (kind === "council" || kind === "mission") return;
+  noted.add(j.id);
+  const cls = heuristicClassify(String(j.task || "").slice(0, 4000));
+  const ms = j.updatedAt && j.createdAt ? j.updatedAt - j.createdAt : null;
+  observe({ provider: j.model?.provider || AGENT_ID, model: j.model?.model || AGENT_ID, capability: cls.capability, difficulty: cls.difficulty, runId: j.id, ok: j.status === "done", cost: j.cost || 0, ms });
+}
 const live = new Map(); // jobId -> { c, stopped, ctl, decide: { id, resolve } | null }
 
 export function publicJob(j) {
@@ -152,6 +164,7 @@ function logLine(id, kind, text) {
 }
 
 function settle(j) {
+  noteOutcome(j);
   live.delete(j.id);
   const ws = waiters.get(j.id);
   if (ws?.size) { waiters.delete(j.id); claimed.delete(j.id); for (const w of ws) w.done(publicJob(j)); return; }

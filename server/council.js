@@ -307,7 +307,10 @@ async function lateAnswer(job) {
       }
     } catch (err) { a.scoreError = err.message; }
     observe({ provider: AID, model: AID, capability: c.classification?.capability, difficulty: c.classification?.difficulty, runId: c.id, ok: true, score: a.score ?? null, cost: 0 });
-  } else a.error = job.error || `${ANAME} sent no text`;
+  } else {
+    a.error = job.error || `${ANAME} sent no text`;
+    observe({ provider: AID, model: AID, capability: c.classification?.capability, difficulty: c.classification?.difficulty, runId: c.id, ok: false });
+  }
   c.answers = { ...(c.answers || {}), [AID]: a };
   save(c);
   emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: AID });
