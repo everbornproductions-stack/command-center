@@ -1549,3 +1549,17 @@ No locked decision was changed. Version stays 0.4.5. Phase 14 stays BLOCKED (nee
 
 PHASE 35 DONE
 PHASE 55 DONE
+
+## 2026-10-20: a hung Windows test fails the job instead of holding it
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. This change does not set a version number. Main is already 0.4.6.
+
+- Pull request 49 (commit 8f871f9) already fixed the demo wait: the chat returns its run id, the wait follows that id, saving and reading a mission retries a Windows file lock, and the demo server closes its socket. This change does not do that again.
+- Release run 39477941857 stayed in Test for about 25 minutes and was canceled. A test still has no timeout of its own, so one hang holds the job.
+- `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process then runs one at a time. Each run sets a per-test timeout of 8 minutes and force-exits, so a hang fails the test and an open socket cannot keep the process alive. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). When a test ends, the child server is killed as a tree, including on the way out of the process. The release workflow still retries `npm test` once. The pull request check does not.
+- Windows pull request check 39495943898 passed on windows-latest: Test, smoke, package, and the installer check. 14m14s. Head d6f9ac0.
+- The next check, 39498139773, failed in Test. Main had moved to 0.4.6, and the help catalog was still stamped 0.4.5, so the release gate failed. The catalog and the licence and updates articles are stamped 0.4.6, and What's new has bullets for that version. No new version number was chosen here.
+- Tests here (Linux), after merging main: npm test 414 tests, 413 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Windows pull request check 39499523538 passed on windows-latest: Test, smoke, package, and the installer check. About 14m36s. Head 5e685c5.
+
+WINDOWS TEST HANG FIX (built by Cursor cloud agent)

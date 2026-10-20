@@ -2,7 +2,7 @@
 id: updates
 title: Updates
 summary: Check for updates from Help or Settings. Nothing downloads until you click.
-lastUpdatedVersion: 0.4.5
+lastUpdatedVersion: 0.4.6
 ---
 
 # Updates
@@ -14,3 +14,5 @@ Check for updates is on the Help page and in Settings. The tray menu has it too.
 The startup prompt says Install now and Later. Later at startup waits until the next time you open the app. While the app is open it checks again every hour. That prompt says Restart and update and Later. Restart and update downloads and restarts now. Later downloads the update and installs it when you quit.
 
 Your settings, keys, and projects stay in place across an update. The portable build does not update itself. Use Check for updates in the installed app.
+
+A packaged install includes what the engine needs to start. If the app did not open, install this update.
