@@ -69,14 +69,16 @@ test("API creates a trimmed project, refuses a blank or duplicate, and renames i
   } finally { await s.stop(); }
 });
 
-test("free: a duplicate of the seeded project is refused, and a second new name is still capped", async () => {
+test("free: a duplicate of the seeded project is refused, and a fourth new name is capped", async () => {
   const s = await startServer();
   try {
     const dup = await s.api("/projects", { method: "POST", body: { name: "My project" } });
     assert.equal(dup.status, 400);
     assert.match(dup.json.error, /already exists/);
-    const second = await s.api("/projects", { method: "POST", body: { name: "Second" } });
-    assert.equal(second.status, 402);
-    assert.equal((await s.api("/state")).json.projects.length, 1);
+    assert.equal((await s.api("/projects", { method: "POST", body: { name: "Second" } })).status, 200);
+    assert.equal((await s.api("/projects", { method: "POST", body: { name: "Third" } })).status, 200);
+    const fourth = await s.api("/projects", { method: "POST", body: { name: "Fourth" } });
+    assert.equal(fourth.status, 402);
+    assert.equal((await s.api("/state")).json.projects.length, 3);
   } finally { await s.stop(); }
 });

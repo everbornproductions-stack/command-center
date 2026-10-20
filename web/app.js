@@ -982,6 +982,12 @@ async function sendOrders() {
 }
 
 // ----- Projects -----
+function recentRunRows(rows) {
+  return (rows || []).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
+}
+function wireRunRows(v) {
+  $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+}
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
@@ -1002,11 +1008,34 @@ function renderProjects(v) {
         ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       <div class="panel"><h3>Recent runs</h3>
-        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        <input id="run-search" placeholder="Search all history" value="${esc(S.runQuery || "")}" style="width:100%;margin-bottom:8px" aria-label="Search all history">
+        <div id="run-search-note" class="dim small"></div>
+        <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
-  $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  wireRunRows(v);
+  $("#run-search")?.addEventListener("input", async (e) => {
+    const q = e.target.value;
+    S.runQuery = q;
+    const note = $("#run-search-note");
+    const list = $("#run-list");
+    if (!q.trim()) {
+      if (note) note.textContent = "";
+      if (list) list.innerHTML = recentRunRows(S.missions.slice(0, 12));
+      wireRunRows(v);
+      return;
+    }
+    try {
+      const rows = await api("/missions?q=" + encodeURIComponent(q.trim()));
+      if (note) note.textContent = "";
+      if (list) list.innerHTML = recentRunRows(rows);
+      wireRunRows(v);
+    } catch (err) {
+      if (note) note.textContent = err.message;
+      if (list) list.innerHTML = "";
+    }
+  });
   $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
@@ -1254,7 +1283,7 @@ function renderSettings(v) {
       ${phonePanel()}
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
-        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 3} councils/month, 1 project. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
+        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
         ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
         ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
@@ -1606,10 +1635,10 @@ async function saveShareChoice() {
   st.shareSaved = on;
 }
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true });
+  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
-    api("/brain").then((d) => {
+    api("/brain/settings").then((d) => {
       if (st.shareTouched) return;
       st.shareOptIn = !!d?.settings?.shareOptIn;
       st.shareSaved = st.shareOptIn;

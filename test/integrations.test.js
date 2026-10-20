@@ -68,6 +68,7 @@ before(async () => {
   mock = await startMock();
   s = await startServer({
     env: {
+      CC_DEV_OWNER: "1",
       CC_GOOGLE_AUTH_URL: mock.base, CC_GOOGLE_TOKEN_URL: mock.base, CC_DRIVE_API_URL: mock.base, CC_DRIVE_UPLOAD_URL: mock.base,
       CC_META_AUTH_URL: mock.base, CC_META_GRAPH_URL: mock.base, CC_GHL_AUTH_URL: mock.base, CC_GHL_API_URL: mock.base,
       CC_SLACK_AUTH_URL: mock.base, CC_SLACK_API_URL: `${mock.base}/api`,

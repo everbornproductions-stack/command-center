@@ -50,7 +50,7 @@ test("one thumb is not enough; a changed mind replaces the old thumb, also acros
 });
 
 test("rating a finished chat on the server: feeds both routers, shown apart from council votes", { timeout: 120000 }, async () => {
-  const s = await startServer();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     assert.equal((await s.api("/ratings/summary", { noToken: true })).status, 401);
     assert.equal((await s.api("/ratings", { method: "POST", body: { model: "nova-lite" } })).status, 400);

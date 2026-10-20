@@ -41,6 +41,7 @@ import { streamChat, complete } from "./providers.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
+import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
@@ -206,6 +207,16 @@ async function retireDemoIfReal(since = 0) {
 function missionList() {
   return ctx().store.listMissions(summarize).filter(Boolean).sort((a, b) => b.startedAt - a.startedAt).slice(0, 200);
 }
+function missionSearch(q) {
+  guard("historySearch");
+  const needle = String(q || "").trim().toLowerCase();
+  return ctx().store.listMissions((m) => {
+    const title = String(m.title || "");
+    const prompt = String(m.prompt || m.goal || "");
+    if (!title.toLowerCase().includes(needle) && !prompt.toLowerCase().includes(needle)) return null;
+    return summarize(m);
+  }).filter(Boolean).sort((a, b) => b.startedAt - a.startedAt).slice(0, 200);
+}
 
 // most recent mission/council snapshot per user, so a reloaded UI picks up where it was
 bus.on("event", (ev) => {
@@ -218,7 +229,7 @@ const EMPTY_TOTALS = { known: 0, estimated: 0, count: 0, unconfirmed: 0, locked:
 const subsView = () => (subscriptionsLocked() ? { subscriptions: [], subscriptionTotals: EMPTY_TOTALS, subscriptionsLocked: true } : { subscriptions: subscriptionView(), subscriptionTotals: subTotals(), subscriptionsLocked: false });
 
 // Gated entry points. Routes and plugin helpers both start councils/missions through these, so
-// the Free limits (3 councils per UTC month, no missions, no scheduler) are enforced in one place.
+// the Free limits (5 councils per UTC month, 3 projects, no missions, no scheduler) are enforced in one place.
 function startCouncil(opts) {
   guard("council");
   const c = ctx();
@@ -439,7 +450,11 @@ async function api(req, res, url) {
   if (HOSTED && (seg[0] === "setup" || p === "/open" || p === "/cloud")) return json(res, 400, { error: "Not available on a hosted hub (this is a local-PC feature)." });
 
   if (method === "GET" && p === "/state") return json(res, 200, fullState());
-  if (method === "GET" && p === "/missions") return json(res, 200, missionList());
+  if (method === "GET" && p === "/missions") {
+    const q = url.searchParams.get("q");
+    try { return json(res, 200, q && q.trim() ? missionSearch(q) : missionList()); }
+    catch (e) { return json(res, e.status || 500, { error: e.message, code: e.code }); }
+  }
   if (method === "GET" && seg[0] === "missions" && seg[1]) {
     const m = await ctx().store.getMission(seg[1].replace(/[^a-z0-9-]/gi, ""));
     return m ? json(res, 200, m.kind === "mission" ? publicMission(m) : m) : json(res, 404, { error: "not found" });
@@ -462,6 +477,8 @@ async function api(req, res, url) {
     const prev = getOwnSecret(body.provider); // never a workspace's key (Phase 24)
     const key = String(body.key || "").trim() || (body.workspaceId !== undefined && !prev?.fromEnv ? prev?.key || "" : "");
     if (!key) return json(res, 400, { error: "key required" });
+    try { await assertServiceSlots([body.provider]); }
+    catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const keepHeaders = PROVIDERS[body.provider].custom ? prev?.headers : null; // custom providers keep their extra headers
     const value = { key };
     if (body.secret) value.secret = String(body.secret).trim();
@@ -625,7 +642,10 @@ async function api(req, res, url) {
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
   if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());
-  if (p === "/pairing" && method === "POST") return json(res, 200, await withPairLock(() => setPhonePair(!!body.on)));
+  if (p === "/pairing" && method === "POST") {
+    try { return json(res, 200, await withPairLock(() => setPhonePair(!!body.on))); }
+    catch (e) { return json(res, e.status || 500, { error: e.message, code: e.code }); }
+  }
   if (p === "/pairing/qr.svg" && method === "GET") return pairingQr(res);
   if (method === "GET" && p === "/hq") return json(res, 200, hqSnapshot());
   if (method === "POST" && p === "/open") {
@@ -837,6 +857,7 @@ async function setPhonePair(on) {
     emit("log", { text: "Phone pairing off. This PC answers only on this computer." });
     return pairingView();
   }
+  guard("phone");
   const address = preferredLanIPv4(readInterfaces());
   if (!address) {
     pairingError = NO_LAN;

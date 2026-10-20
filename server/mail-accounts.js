@@ -16,6 +16,7 @@ import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
 import { getSecret, setSecret } from "./vault.js";
 import { emit } from "./events.js";
+import { guard, TIERS, licenseState } from "./license.js";
 
 export const PROVIDERS = ["google", "gmail", "outlook"];
 const LEGACY_VAULT = { google: "google-helper", gmail: "mail-gmail", outlook: "mail-outlook" };
@@ -121,7 +122,11 @@ export function addAccount({ provider, label } = {}) {
   assertProvider(provider);
   const name = cleanLabel(label);
   const existing = rowsFor(provider);
-  if (existing.length >= MAX) throw fail(400, `Eight ${NAMES[provider]} accounts is the limit.`);
+  const cap = TIERS[licenseState().tier].emailAccounts ?? MAX;
+  if (existing.length >= cap) {
+    if (cap >= MAX) throw fail(400, `Eight ${NAMES[provider]} accounts is the limit.`);
+    guard("emailAccounts", { count: existing.length });
+  }
   const d = state();
   const id = "ma_" + crypto.randomBytes(6).toString("base64url");
   d.accounts.push({ id, provider, label: name, vaultId: `mail-acct-${id}`, scopes: [], connectedAt: null, needsSignIn: false });

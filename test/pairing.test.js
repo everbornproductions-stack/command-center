@@ -85,7 +85,7 @@ test("private address choice, firewall args, and the Settings copy", async () =>
 test("pairing stays on this computer until it is turned on, then the phone must present the code", { timeout: 90000 }, async () => {
   const ip = preferredLanIPv4(readInterfaces());
   assert.ok(ip, "this machine needs a private IPv4 for the pairing test");
-  const s = await startServer();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     assert.equal(await canConnect(ip, s.port), false, "LAN is closed while pairing is off");
     assert.equal((await s.api("/health")).status, 200);
@@ -188,6 +188,7 @@ test("no private address leaves the server on this computer", { timeout: 60000 }
   const ip = preferredLanIPv4(readInterfaces());
   const s = await startServer({
     env: {
+      CC_DEV_OWNER: "1",
       CC_PAIR_IFACES: JSON.stringify({
         eth0: [{ address: "8.8.8.8", family: "IPv4", internal: false }],
         lo: [{ address: "127.0.0.1", family: "IPv4", internal: true }],
