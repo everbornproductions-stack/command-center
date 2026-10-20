@@ -1,13 +1,13 @@
 ---
 id: phone
 title: Phone pairing
-summary: Turn on a Wi-Fi link in Settings so a phone on the same network can open Meldmind.
-lastUpdatedVersion: 0.4.3
+summary: Turn on a Wi-Fi link in Settings so a phone on the same network can open Meldmind. Turning it on is Pro.
+lastUpdatedVersion: 0.4.4
 ---
 
 # Phone pairing
 
-Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. The QR code and the link both include the pairing code. It stays off until you turn it on.
+Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. Turning phone pairing on is Pro. Turning it off stays free. The QR code and the link both include the pairing code. It stays off until you turn it on.
 
 1. On the PC, open Settings, then Phone and other devices.
 2. Turn on Phone pairing. Leave it off if you do not want a phone to connect. While it is off, this PC answers only on this computer.

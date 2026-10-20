@@ -1404,3 +1404,13 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: `test/community.test.js`. npm test 383 tests, 382 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
 
 COMMUNITY LEARNING DONE (built by Cursor cloud agent)
+
+## 2026-10-20: v0.4.4 release tree (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Square and billing code were not touched. Nothing is uploaded. The share preview stays sent false.
+
+- This tree keeps the Windows fallback hang fix, Free and Pro limits, Quality / Balanced / Max savings / Speed, free local models first, community track records for every priority, and the custom background colour.
+- Version is 0.4.4. What's new and Help (getting started, licence, phone) say the same things.
+- Tests: npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)
