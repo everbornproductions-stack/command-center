@@ -65,6 +65,9 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
   assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
   const wc = await c.callTool("word_count", { text: "one two three. four!" });
   assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
+  assert.match((await c.callTool("clock", {})).text, /^20\d\d-/);
+  assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
+  assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
   assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
   await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
   assert.equal(c.alive, true);
@@ -192,13 +195,19 @@ test("http client: session id and protocol version headers, JSON and SSE answers
 
 // ---------- the running server with a mock tool-calling model ----------
 const KEYS = { groq: "gsk_fakefakefakefakefake" };
-function sse(res, chunks) { res.writeHead(200, { "content-type": "text/event-stream" }); for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+function sse(res, chunks) {
+  // Close the socket. Windows CI reuses a keep-alive connection and the next model round can wait forever.
+  res.writeHead(200, { "content-type": "text/event-stream", connection: "close" });
+  for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`);
+  res.write("data: [DONE]\n\n");
+  res.end();
+}
 // An OpenAI-compatible model that calls the first tool whose name matches a word in the orders, then answers with the result.
 async function mockModel() {
   const seen = [];
   const srv = http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
-    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
+    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json", connection: "close" }); res.end(JSON.stringify(j)); };
     if (req.url.endsWith("/v1/models")) return send(200, { data: [{ id: "openai/gpt-oss-120b" }] });
     if (!req.url.endsWith("/chat/completions")) return send(404, {});
     const j = JSON.parse(body); seen.push(j);

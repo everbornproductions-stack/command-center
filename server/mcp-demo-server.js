@@ -3,6 +3,7 @@
 // Tools: clock (read-only), word_count (read-only), save_note (writes to a notes list kept in memory
 // for the life of the process; marked destructive: false but it is still a write and needs approval).
 // Run: node server/mcp-demo-server.js   (talks newline-delimited JSON-RPC on stdin / stdout)
+import fs from "node:fs";
 import readline from "node:readline";
 
 const notes = [];
@@ -13,7 +14,9 @@ const TOOLS = [
   { name: "list_notes", description: "Lists the notes saved so far (title and first line).", inputSchema: { type: "object", properties: {} } }, // no annotations on purpose: the app must treat it as a write until the person marks it read-only
 ];
 
-const write = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
+// writeSync so a Windows pipe does not hold the JSON line in a block buffer.
+// A buffered reply leaves the client waiting, and the chat never finishes.
+const write = (msg) => { fs.writeSync(1, JSON.stringify(msg) + "\n"); };
 const text = (t, extra = {}) => ({ content: [{ type: "text", text: t }], ...extra });
 
 function call(name, args = {}) {

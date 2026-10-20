@@ -8,6 +8,7 @@
 // The interface is the one the official @modelcontextprotocol/sdk exposes for a client (connect, listTools,
 // callTool, close), so the transport layer can be swapped for the SDK without touching server/mcp.js.
 // Nothing here logs a header, token or environment value.
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { networkCause } from "./health.js";
 
@@ -121,7 +122,10 @@ class StdioTransport {
     if (this.closed || !this.child?.stdin.writable) throw new McpError(`"${this.command}" is not running`, { network: true });
     const isReq = msg.id !== undefined;
     const p = isReq ? this.rpc.wait(msg.id, timeoutMs, what) : Promise.resolve(null);
-    this.child.stdin.write(JSON.stringify(msg) + "\n");
+    const line = JSON.stringify(msg) + "\n";
+    const fd = this.child.stdin.fd;
+    if (typeof fd === "number") fs.writeSync(fd, line);
+    else await new Promise((resolve, reject) => { this.child.stdin.write(line, (err) => err ? reject(new McpError(`Could not write to "${this.command}": ${err.message}`, { network: true })) : resolve()); });
     return p;
   }
   async close() {
