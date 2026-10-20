@@ -1549,3 +1549,15 @@ No locked decision was changed. Version stays 0.4.5. Phase 14 stays BLOCKED (nee
 
 PHASE 35 DONE
 PHASE 55 DONE
+
+## 2026-10-20: Everyday actions, docs, meetings, and lead drafts (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- Find and summarize reads a local doc, and Google Drive and Notion when those libraries are already connected. The summary keeps the first three sentences. Save a copy writes on this computer. Drive and Notion are not written.
+- Meeting prep reads notes and related docs on this computer. A transcript summary lists action items. Adding those to-dos is a click. This build does not record calls.
+- A new lead follow-up is Pro. It drafts an email and a text on this computer. HighLevel is not called. Send is one click for one channel and lands in a local outbox, or a loopback stub. Twilio is not contacted and no price is looked up.
+- Each has a try saying line, a How to section, and a Help article. The Work menu label is Docs and follow-up.
+- Tests: `test/everyday-work.test.js`. npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. After the menu label, `test/nav.test.js` passed (5). Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DOCS MEETINGS LEADS (built by Cursor cloud agent)

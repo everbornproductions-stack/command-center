@@ -102,6 +102,7 @@ export const LABELS = {
   libraries: "Libraries",
   artifacts: "Artifacts",
   history: "History",
+  "everyday-work": "Docs and follow-up",
   brain: "Who's best",
   prompts: "Pro prompts",
   images: "Images",
