@@ -19,6 +19,8 @@
 import { CAPABILITIES, PROVIDERS, findModel } from "./registry.js";
 import { doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
+import { COST_WEIGHT, latencyWeight, normalizeMode } from "./modes.js";
+export { LATENCY_WEIGHT } from "./modes.js";
 
 export const KIND = "brain";
 export const VERSION = 1;
@@ -31,8 +33,7 @@ export const COST_K = 3, LATENCY_K = 3;
 export const THUMB_WEIGHT = 2;
 // a thumbs up / down as a quality signal on the 0-100 scale
 export const THUMB_SCORE = { up: 95, down: 15 };
-// latency weight per priority: quality cares least about speed
-export const LATENCY_WEIGHT = { quality: 0.3, balanced: 0.8, economy: 0.6 };
+// latency weight per priority lives in server/modes.js (quality cares least; Speed cares most)
 const MAX_RUNS = 600;
 const TASK_CAPS = CAPABILITIES;
 
@@ -185,7 +186,7 @@ export function adjust({ model, baseCaps = {}, capability = "reasoning", difficu
   const obsSec = s.msN > 0 ? s.ms / s.msN / 1000 : null;
   const prior = priorSec(baseCaps.fast);
   const sec = obsSec == null ? prior : prior * (1 - lc) + obsSec * lc;
-  const latencyPenalty = +((latPoints(sec) - latPoints(prior)) * (LATENCY_WEIGHT[mode] ?? 0.8)).toFixed(2);
+  const latencyPenalty = +((latPoints(sec) - latPoints(prior)) * latencyWeight(mode)).toFixed(2);
   return {
     quality: +quality.toFixed(1), base, cost, latencyPenalty, confidence: +conf.toFixed(2),
     jobs: Math.round(s.jobs), signals: +ev.signals.toFixed(1), failRate: +failRate.toFixed(2),
@@ -194,13 +195,13 @@ export function adjust({ model, baseCaps = {}, capability = "reasoning", difficu
 }
 
 // ---------- "Who's best at what" ----------
-const COST_WEIGHT = { quality: 0.15, balanced: 0.5, economy: 1.1 };
 function modelMeta(id) {
   const m = findModel(id);
   const pid = brain().stats[id]?.provider;
   return { name: m?.name || id, provider: pid || null, providerName: PROVIDERS[pid]?.name || pid || "", color: PROVIDERS[pid]?.color || null, baseCaps: m?.caps || {} };
 }
 export function bestAtWhat({ mode = "balanced", top = 5 } = {}) {
+  mode = normalizeMode(mode) || "balanced";
   const b = brain();
   const caps = [];
   for (const cap of TASK_CAPS) {

@@ -6,6 +6,7 @@ import {
   TYPES, typeById, resolveExperience, present, parsePlan, scaffoldPlan, planPrompt,
   assignRoute, formatAnswers, missingAnswers, exportMarkdown, slugTitle, exampleEvents, labelsFor,
 } from "../walkthroughs.js";
+import { normalizeMode } from "../modes.js";
 
 export const id = "walkthrough";
 const KIND = "walkthrough.items";
@@ -121,17 +122,19 @@ function attachProject(h, w) {
 
 function priorityFor(w, exp, body) {
   const asked = String(body?.priority || w.priority || "balanced").toLowerCase();
-  if (exp === "expert" && ["quality", "balanced", "economy"].includes(asked)) return asked;
+  if (exp === "expert") return normalizeMode(asked) || "balanced";
   return "balanced";
 }
 
 async function runPlan(h, w, exp) {
   const type = typeById(w.type);
   try {
+    const expertMode = exp === "expert" ? priorityFor(w, exp) : null;
     const council = await h.runCouncil({
       prompt: planPrompt(type, w),
       projectId: w.projectId || null,
       lite: exp !== "expert",
+      ...(expertMode ? { mode: expertMode } : {}),
       qa: true,
       search: false,
       tools: false,

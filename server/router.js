@@ -12,6 +12,7 @@ import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
+import { costWeight, normalizeMode, speedBoost } from "./modes.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -81,9 +82,10 @@ export function availableModels() {
   return out;
 }
 
-// mode: quality | balanced | economy
+// mode: quality | balanced | savings (alias: economy) | speed
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
-  const costWeight = { quality: 0.15, balanced: 0.5, economy: 1.1 }[mode] ?? 0.5;
+  mode = normalizeMode(mode) || "balanced";
+  const weight = costWeight(mode);
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web));
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
   const capped = doc("alerts.state", () => null)?.stop || [];
@@ -109,7 +111,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     // hard tasks need quality; easy ones mostly need to be done
     const q = difficulty >= 3 ? quality : difficulty === 2 ? quality * 0.85 + 10 : quality * 0.6 + 30;
     // cost penalty scaled so $0.10 per task ≈ 25 points at weight 1
-    const penalty = Math.log10(1 + cost * 100) * 25 * costWeight;
+    const penalty = Math.log10(1 + cost * 100) * 25 * weight;
     // health penalty: amber (incident, rate-limited, slow, low balance) costs 12 points; low prepaid balance another 8
     let health = 0, warnings = [];
     if (m.status === "amber") { health += 12; warnings.push(m.statusDetail || "amber"); }
@@ -120,8 +122,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const skipReason = skip[m.provider]?.reason || null;
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
+    const fast = speedBoost(mode, m.baseCaps?.fast ?? m.caps?.fast);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   });
   return applyPreferFree(scored.sort((a, b) => b.score - a.score), readPreferFree());
 }

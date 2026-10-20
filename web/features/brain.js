@@ -4,7 +4,7 @@
 const { S, api, toast, esc, money } = window.CC;
 
 const CAP_LABEL = { reasoning: "Reasoning", code: "Code", writing: "Writing", research: "Research", creative: "Creative", analysis: "Analysis", math: "Math", fast: "Quick jobs" };
-const MODE_LABEL = { quality: "Quality first", balanced: "Balanced", economy: "Economy" };
+const MODE_LABEL = { quality: "Quality first", balanced: "Balanced", savings: "Max savings", speed: "Speed" };
 const pct = (v) => (v == null ? "n/a" : `${Math.round(v * 100)}%`);
 const secs = (v) => (v == null ? "n/a" : v < 10 ? `${v.toFixed(1)} s` : `${Math.round(v)} s`);
 let mode = null;
@@ -30,6 +30,7 @@ function table(c) {
 async function renderTab(view) {
   view.innerHTML = `<div class="empty">Loading…</div>`;
   mode ||= S.costMode || S.settings?.defaultMode || "balanced";
+  if (mode === "economy") mode = "savings";
   let d; try { d = await api(`/brain?mode=${encodeURIComponent(mode)}`); } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const on = d.settings.on !== false;
   view.innerHTML = `<div class="grid" style="grid-template-columns: minmax(0,1fr) 320px">

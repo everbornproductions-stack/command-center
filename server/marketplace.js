@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { ctx, doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
 import { exportBundle, getAgent, getPrompt, importBundle, listListings, scanForListing } from "./custom-agents.js";
+import { normalizeMode } from "./modes.js";
 
 export const FORMAT = "command-ai/template";
 export const FORMAT_VERSION = 1;
@@ -128,7 +129,7 @@ function cleanPipeline(p) {
     inputs,
     steps,
     assembly: str(p?.assembly, 400),
-    mode: ["quality", "balanced", "economy"].includes(p?.mode) ? p.mode : "balanced",
+    mode: normalizeMode(p?.mode) || "balanced",
     qa: p?.qa !== false,
     budgetUsd: Math.min(20, Math.max(0.5, Number(p?.budgetUsd) || 3)),
   };

@@ -4,12 +4,12 @@
 import { CAPABILITIES } from "../registry.js";
 import { rank } from "../router.js";
 import { bestAtWhat, saveBrainSettings, resetBrain, exportBrain, sharePreview, cleanCap, cleanDiff } from "../brain.js";
+import { normalizeMode } from "../modes.js";
 export const id = "brain";
-const MODES = ["quality", "balanced", "economy"];
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/brain/, "");
-  const modeOf = (v) => (MODES.includes(v) ? v : h.settings?.().defaultMode || "balanced");
+  const modeOf = (v) => normalizeMode(v) || normalizeMode(h.settings?.().defaultMode) || "balanced";
   if (req.method === "GET" && (p === "" || p === "/")) return h.json(res, 200, bestAtWhat({ mode: modeOf(url.searchParams.get("mode")) }));
   // who the router would pick right now for one task type, with what the record changed
   if (req.method === "GET" && p === "/pick") {
