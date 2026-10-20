@@ -5,6 +5,7 @@ name: Windows test repeat
 
 on:
   workflow_dispatch:
+  pull_request:
 
 permissions:
   contents: read
