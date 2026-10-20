@@ -36,7 +36,7 @@ export async function routes(req, res, url, body, h) {
       if (m === "POST" && seg[1] === "start") {
         const origin = String(body?.origin || "").replace(/\/$/, "");
         if (!/^https?:\/\/[^\s/]+$/.test(origin)) return h.json(res, 400, { error: "origin required" });
-        return h.json(res, 200, G.start({ want: { gmail: !!body?.gmail, drive: !!body?.drive, send: !!body?.send }, redirectUri: `${origin}/`, accountId: body?.accountId || null }));
+        return h.json(res, 200, G.start({ want: { gmail: !!body?.gmail, drive: !!body?.drive, send: !!body?.send, calendar: !!body?.calendar }, redirectUri: `${origin}/`, accountId: body?.accountId || null, keep: !!body?.keep }));
       }
       if (m === "POST" && seg[1] === "finish") return h.json(res, 200, await G.finish({ code: body?.code, state: body?.state }));
       if (m === "DELETE" && !seg[1]) return h.json(res, 200, await G.disconnect());
