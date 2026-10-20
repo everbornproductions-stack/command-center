@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "business-plan",
+  "walkthroughType": "business-plan",
+  "name": "Business plan",
+  "category": "Planning",
+  "business": "Bright Kettle",
+  "idea": "A short plan for Bright Kettle, a monthly tea delivery for offices, to decide whether a 10-office pilot is worth buying inventory for.",
+  "questions": [
+    {
+      "key": "business",
+      "label": "The business in one sentence",
+      "required": true,
+      "placeholder": "A monthly tea club for offices",
+      "answer": "A monthly tea club for offices."
+    },
+    {
+      "key": "pays",
+      "label": "Who pays, and for what?",
+      "required": true,
+      "placeholder": "Office managers pay for a monthly delivery",
+      "answer": "Office managers pay for a monthly delivery."
+    },
+    {
+      "key": "facts",
+      "label": "Facts you already know",
+      "required": false,
+      "placeholder": "Twelve offices asked for a sample. No revenue yet.",
+      "answer": "Example fact: twelve offices asked for a sample. No revenue yet."
+    },
+    {
+      "key": "decision",
+      "label": "What decision should this plan support?",
+      "required": false,
+      "placeholder": "Whether to buy inventory for a pilot",
+      "answer": "Whether to buy inventory for a 10-office pilot."
+    }
+  ],
+  "plan": {
+    "title": "Bright Kettle pilot decision",
+    "source": "example",
+    "assembly": "The decision, the facts, the gaps, the choice.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "The decision",
+        "capability": "reasoning",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "State the decision and nothing wider. Do not add a second product or a fundraising story.",
+        "deliverable": "Decision",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the decision statement to GPT. The step is one narrow question and nothing wider, and the example treats that narrowing as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Decision this plan can support: whether Bright Kettle should buy inventory for a pilot of 10 offices.\n\nNot this plan: a full company plan, a bank packet, or a price for investors.\n\nBright Kettle is fictional. Office managers would pay for a monthly tea delivery. That price is [ASK]."
+      },
+      {
+        "id": "t2",
+        "title": "Facts on hand",
+        "capability": "research",
+        "difficulty": 1,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "List only the given facts. Do not turn the twelve sample requests into revenue.",
+        "deliverable": "Facts",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes the fact list to Claude. The step is a strict list of what was given, with no added numbers, and the example treats that care as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Facts given in this sample:\n- Bright Kettle would be a monthly tea club for offices.\n- Office managers would pay for a monthly delivery.\n- Example fact: twelve offices asked for a sample.\n- No revenue yet.\n- The decision is about inventory for 10 offices, not for all twelve.\n\nNot facts: sample-to-order rate, cost of tea, delivery cost, price per office. Those stay [ASK]."
+      },
+      {
+        "id": "t3",
+        "title": "Gaps and a choice",
+        "capability": "analysis",
+        "difficulty": 2,
+        "deps": [
+          "t2"
+        ],
+        "instructions": "Do not invent the missing money. Show the choice as buy, wait, or [ASK], and say which inputs are missing.",
+        "deliverable": "Choice",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the gaps and the choice to Grok. The step is a check that missing money stays blank, and the example treats that check as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "Missing before a buy decision:\n- Price an office would pay [ASK]\n- Cost of inventory for 10 offices [ASK]\n- Delivery cost [ASK]\n- How many of the twelve samples would become orders [ASK]\n\nChoice, with those gaps still open: do not buy inventory on this page. Waiting is the only option the given facts support. A buy decision needs the [ASK] lines filled with figures you have, not figures this sample made up.\n\nTwelve sample requests are not revenue."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t3",
+      "note": "Twelve sample requests are not revenue. Do not turn them into a sales forecast.",
+      "change": "The choice section leaves inventory cost and expected orders as [ASK], and it does not recommend a buy."
+    }
+  ],
+  "deliverableSummary": "Example data: a short decision page for fictional Bright Kettle. Twelve offices asked for a sample and there is no revenue yet. Inventory cost stays [ASK], so the sample does not recommend a buy.",
+  "deliverable": "Bright Kettle pilot decision (Example data)\n\nBright Kettle is fictional. The only decision in this draft is whether to buy inventory for a 10-office pilot of a monthly tea delivery.\n\nFacts. Office managers would pay for the delivery. The price is [ASK]. Example fact: twelve offices asked for a sample. No revenue yet.\n\nGaps. Inventory cost, delivery cost, and how many samples would become orders are [ASK].\n\nChoice. The given facts support waiting, not buying. The sample review blocked a forecast that treated twelve requests as sales.\n\nThis is a draft for you. It is not sent to a bank, a partner, or a client. If a figure came from this example, it is not your figure.",
+  "nextSteps": [
+    "Do not treat [ASK] as a number. Fill it only when you have the fact.",
+    "This is a draft for you. It is not sent to a bank, a partner, or a client.",
+    "If a figure came from the example walk, it is not your figure."
+  ],
+  "answers": {
+    "business": "A monthly tea club for offices.",
+    "pays": "Office managers pay for a monthly delivery.",
+    "facts": "Example fact: twelve offices asked for a sample. No revenue yet.",
+    "decision": "Whether to buy inventory for a 10-office pilot."
+  },
+  "totals": {
+    "costUsd": 0.07,
+    "timeMinutes": 7
+  }
+}

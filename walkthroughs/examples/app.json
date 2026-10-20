@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "app",
+  "walkthroughType": "app",
+  "name": "App/software",
+  "category": "Software",
+  "business": "Fieldnote",
+  "idea": "Fieldnote is a phone outline for small contractors. A crew lead takes a job-site photo, adds a note, and saves it to the job before leaving.",
+  "questions": [
+    {
+      "key": "job",
+      "label": "Who uses it, and what job does it do?",
+      "required": true,
+      "placeholder": "Crew leads log job-site photos before they leave",
+      "answer": "Crew leads log photos and a short note on the job before they leave the site."
+    },
+    {
+      "key": "must",
+      "label": "What must the first version do?",
+      "required": true,
+      "placeholder": "Take a photo, add a note, save it to the job",
+      "answer": "Take a photo, add a note, save it to the job."
+    },
+    {
+      "key": "platform",
+      "label": "Phone, web, or desktop?",
+      "required": false,
+      "placeholder": "Phone first",
+      "answer": "Phone first. A clickable outline, not a store release."
+    },
+    {
+      "key": "done",
+      "label": "What does done look like for this pass?",
+      "required": false,
+      "placeholder": "A clickable outline, not a store release",
+      "answer": "Three screens a person can click through."
+    }
+  ],
+  "plan": {
+    "title": "Fieldnote first pass",
+    "source": "example",
+    "assembly": "User and job, then three screens, then what is out of scope.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "User and job",
+        "capability": "research",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "Who it is for and what done means. Stay inside the must-have list: photo, note, save to the job.",
+        "deliverable": "Brief",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes the user brief to Claude. The step is a careful read of one job and a done line, and the example treats that brief as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Who: a crew lead on a small contractor job.\nJob: before leaving the site, take a photo, add a short note, and save both to that job.\nDone for this pass: three screens a person can click through on a phone. Not a store release.\n\nFieldnote is fictional. No customer list was used.\nCompany name on the job, and how many jobs a lead has, are [ASK]."
+      },
+      {
+        "id": "t2",
+        "title": "Three screens",
+        "capability": "code",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "Name the screens and what each button does. No account system. This is an outline, not shipped code.",
+        "deliverable": "Screen list",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the screen list to GPT. The step is a build outline of three screens and their buttons, and the example treats that structure as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.04,
+        "timeMinutes": 4,
+        "output": "Screen 1, Jobs. A list of today's jobs. One row opens a job. Adding a job is [ASK] and is not a button in this pass.\n\nScreen 2, Job. The job name, a Photo button, a note field, and Save. Save keeps the photo and the note on that job in the outline only.\n\nScreen 3, Saved. Shows the photo and the note that were just saved, with a Back to job button.\n\nNo login, no payment, no store listing. This is a click path, not a build. No code was shipped."
+      },
+      {
+        "id": "t3",
+        "title": "Out of scope",
+        "capability": "analysis",
+        "difficulty": 1,
+        "deps": [
+          "t2"
+        ],
+        "instructions": "What this pass will not do. Cut anything that is not photo, note, and save.",
+        "deliverable": "Cuts",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the cut list to Grok. The step is a hard stop on anything past photo, note, and save, and the example treats that cut as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Out of this pass:\n- Accounts and passwords\n- Payments and invoices\n- A store release\n- Sharing the photo with a client\n- Offline sync details [ASK]\n- Who else on the crew can see the note [ASK]\n\nIf it is not \"take a photo, add a note, save it to the job,\" it waits.\nThis walk does not deploy or ship code."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t3",
+      "note": "The first pass should not grow a login system. Keep the outline to photo, note, and save.",
+      "change": "Out of scope now lists accounts, payments, and a store release."
+    }
+  ],
+  "deliverableSummary": "Example data: a phone outline for fictional Fieldnote. Three screens let a crew lead photograph a job, add a note, and save it. Accounts, payments, and a store release stay out. No code was shipped.",
+  "deliverable": "Fieldnote first pass (Example data)\n\nFieldnote is a fictional app. A crew lead takes a job-site photo, adds a note, and saves it to the job before leaving.\n\nBrief. Done means three screens on a phone, not a store release. The number of jobs a lead has is [ASK].\n\nScreens. Jobs opens one job. Job has Photo, a note, and Save. Saved shows what was just kept and a way back. Save in this outline does not talk to a real server.\n\nCuts. No accounts, no payments, no store release, no client share. The sample review put login on the cut list.\n\nThis is a plan, not finished software. You start the build yourself. Nothing was deployed.",
+  "nextSteps": [
+    "Treat the outline as a plan, not as finished software.",
+    "Cut anything that is not on the must-have list before you build.",
+    "You start the build yourself. This walk does not deploy or ship code."
+  ],
+  "answers": {
+    "job": "Crew leads log photos and a short note on the job before they leave the site.",
+    "must": "Take a photo, add a note, save it to the job.",
+    "platform": "Phone first. A clickable outline, not a store release.",
+    "done": "Three screens a person can click through."
+  },
+  "totals": {
+    "costUsd": 0.08,
+    "timeMinutes": 8
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everbornproductions.com/meldmind/walkthrough-example.schema.json",
+  "title": "Meldmind Start a project example",
+  "description": "One finished sample for a guided Start a project walkthrough. Every file is example data: realistic, fictional, and not a live run. type is the file name. walkthroughType is the id the walkthrough code uses (marketing-campaign maps to marketing, social-reels maps to reels). Costs and times are sample ledger lines for the story. Nothing was sent and no AI was called.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "example",
+    "fictional",
+    "readonly",
+    "costsAreSample",
+    "label",
+    "type",
+    "walkthroughType",
+    "name",
+    "category",
+    "business",
+    "disclaimer",
+    "idea",
+    "questions",
+    "answers",
+    "plan",
+    "reviewNotes",
+    "deliverableSummary",
+    "deliverable",
+    "nextSteps",
+    "totals"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "example": { "const": true },
+    "fictional": { "const": true },
+    "readonly": { "const": true },
+    "costsAreSample": { "const": true },
+    "label": { "const": "Example data" },
+    "type": {
+      "enum": ["website", "music-video", "marketing-campaign", "app", "business-plan", "social-reels"]
+    },
+    "walkthroughType": {
+      "enum": ["website", "music-video", "marketing", "app", "business-plan", "reels"]
+    },
+    "name": { "type": "string", "minLength": 3, "maxLength": 40 },
+    "category": { "type": "string", "minLength": 3, "maxLength": 40 },
+    "business": { "type": "string", "minLength": 3, "maxLength": 80 },
+    "disclaimer": {
+      "const": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called."
+    },
+    "idea": { "type": "string", "minLength": 40, "maxLength": 500 },
+    "questions": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/question" }
+    },
+    "answers": {
+      "type": "object",
+      "minProperties": 4,
+      "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 400 }
+    },
+    "plan": { "$ref": "#/$defs/plan" },
+    "reviewNotes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/reviewNote" }
+    },
+    "deliverableSummary": { "type": "string", "minLength": 40, "maxLength": 600 },
+    "deliverable": { "type": "string", "minLength": 80, "pattern": "Example data" },
+    "nextSteps": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 10, "maxLength": 240 }
+    },
+    "totals": { "$ref": "#/$defs/totals" }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "required", "placeholder", "answer"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z][a-z0-9]{1,20}$" },
+        "label": { "type": "string", "minLength": 8, "maxLength": 120 },
+        "required": { "type": "boolean" },
+        "placeholder": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "answer": { "type": "string", "minLength": 1, "maxLength": 400 }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "source", "assembly", "steps"],
+      "properties": {
+        "title": { "type": "string", "minLength": 8, "maxLength": 80 },
+        "source": { "const": "example" },
+        "assembly": { "type": "string", "minLength": 20, "maxLength": 300 },
+        "steps": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "capability",
+        "difficulty",
+        "deps",
+        "instructions",
+        "deliverable",
+        "status",
+        "provider",
+        "model",
+        "agentName",
+        "why",
+        "costUsd",
+        "timeMinutes",
+        "output"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^t[1-5]$" },
+        "title": { "type": "string", "minLength": 3, "maxLength": 80 },
+        "capability": {
+          "enum": ["reasoning", "code", "writing", "research", "creative", "analysis", "math"]
+        },
+        "difficulty": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "deps": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "type": "string", "pattern": "^t[1-5]$" }
+        },
+        "instructions": { "type": "string", "minLength": 20, "maxLength": 600 },
+        "deliverable": { "type": "string", "minLength": 3, "maxLength": 80 },
+        "status": { "const": "done" },
+        "provider": { "enum": ["anthropic", "openai", "google", "xai"] },
+        "model": { "const": "example" },
+        "agentName": { "enum": ["Claude", "GPT", "Gemini", "Grok"] },
+        "why": { "type": "string", "minLength": 40, "maxLength": 500 },
+        "costUsd": { "type": "number", "minimum": 0, "maximum": 2 },
+        "timeMinutes": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "output": { "type": "string", "minLength": 80, "maxLength": 2500 }
+      }
+    },
+    "reviewNote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "note", "change"],
+      "properties": {
+        "stepId": { "type": "string", "pattern": "^t[1-5]$" },
+        "note": { "type": "string", "minLength": 20, "maxLength": 400 },
+        "change": { "type": "string", "minLength": 20, "maxLength": 400 }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["costUsd", "timeMinutes"],
+      "properties": {
+        "costUsd": { "type": "number", "minimum": 0, "maximum": 8 },
+        "timeMinutes": { "type": "integer", "minimum": 3, "maximum": 60 }
+      }
+    }
+  }
+}

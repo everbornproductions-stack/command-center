@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "music-video",
+  "walkthroughType": "music-video",
+  "name": "Music video",
+  "category": "Music Videos",
+  "business": "Lumen Park",
+  "idea": "A short music video for Glass Orchard by Lumen Park: one person walking home after a shop closes, wet street, one warm window.",
+  "questions": [
+    {
+      "key": "song",
+      "label": "Song title, and what it is about",
+      "required": true,
+      "placeholder": "Glass Orchard, a walk home after the shop closes",
+      "answer": "Glass Orchard, a quiet walk home after work."
+    },
+    {
+      "key": "look",
+      "label": "Look and mood",
+      "required": true,
+      "placeholder": "Night, wet pavement, one warm window",
+      "answer": "Night, wet pavement, one warm window, no crowd."
+    },
+    {
+      "key": "who",
+      "label": "Who is on camera?",
+      "required": false,
+      "placeholder": "One singer, no crowd",
+      "answer": "One singer. Mouth mostly closed. Small movements."
+    },
+    {
+      "key": "length",
+      "label": "Length and where it will be posted",
+      "required": false,
+      "placeholder": "About 30 seconds, for Instagram",
+      "answer": "About 30 seconds, for a social post."
+    }
+  ],
+  "plan": {
+    "title": "Glass Orchard, 30 seconds",
+    "source": "example",
+    "assembly": "Concept, then the shot list, then prompts, then what not to generate yet.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "Concept",
+        "capability": "creative",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "One paragraph and the beats. One person, night, wet pavement, one warm window. About 30 seconds. No crowd.",
+        "deliverable": "Concept",
+        "status": "done",
+        "provider": "google",
+        "model": "example",
+        "agentName": "Gemini",
+        "why": "This sample routes the concept to Gemini. The step is a visual mood built from the song idea, and the example treats that picture-making as Gemini's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "Glass Orchard is a 30 second walk home. One singer, coat buttoned, mouth mostly closed. The street is wet. One window is warm. No crowd, no dance, no second character.\n\nBeats:\n0 to 8 seconds: shop light goes out, door closes.\n8 to 20 seconds: walk, one look back, breath you can almost see.\n20 to 30 seconds: the warm window, a small stop, end on the coat and the light.\n\nThe song title in this sample is Glass Orchard by Lumen Park. Both are fictional."
+      },
+      {
+        "id": "t2",
+        "title": "Shot list",
+        "capability": "creative",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "Short shots, calm motion. Mouth mostly closed. Same coat and the same warm window in every shot that shows them.",
+        "deliverable": "Shot list",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes the shot list to Claude. The step is a careful sequence with the same wardrobe and light, and the example treats that consistency as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.04,
+        "timeMinutes": 4,
+        "output": "1. Door, interior, shop light clicks off. 4 seconds. Hands only.\n2. Door closing from the street. 4 seconds. Singer small in frame.\n3. Wet pavement, footsteps, no face. 5 seconds.\n4. Profile, mouth closed, one glance down. 5 seconds.\n5. Look back at the dark shop. 4 seconds. Small movement.\n6. Warm window ahead, singer stops. 4 seconds.\n7. Coat and window light, hold. 4 seconds.\n\nAll shots: night, one practical window, dark coat, no crowd. Mouth stays mostly closed, so no lip-sync is planned in this sample."
+      },
+      {
+        "id": "t3",
+        "title": "Prompts per shot",
+        "capability": "writing",
+        "difficulty": 2,
+        "deps": [
+          "t2"
+        ],
+        "instructions": "Write a short prompt for each shot. Repeat the coat color and the single warm window. Do not ask for a crowd or a dance.",
+        "deliverable": "Prompts",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the prompts to GPT. The step is tight wording that keeps every shot on the same coat and light, and the example treats that prompt writing as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "Use the same line on every prompt: night street, wet pavement, dark wool coat, one warm window, no crowd, calm motion.\n\nShot 1: interior shop, a hand switches off one lamp, door still open.\nShot 2: street side of a closing door, singer small, coat collar up.\nShot 3: low angle, wet pavement, two slow steps, no face.\nShot 4: profile, mouth closed, eyes down, window light on the coat.\nShot 5: singer looks back once at a dark doorway, then turns away.\nShot 6: singer stops under one warm window, hands in pockets.\nShot 7: hold on coat and window light, almost still.\n\nThese are text prompts only. No clip was generated."
+      },
+      {
+        "id": "t4",
+        "title": "What waits for you",
+        "capability": "analysis",
+        "difficulty": 1,
+        "deps": [
+          "t3"
+        ],
+        "instructions": "Say what must not be generated until the shot list is approved. Clip cost stays [ASK].",
+        "deliverable": "Hold list",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the hold list to Grok. The step is a check that no clip starts before approval, and the example treats that stop as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.01,
+        "timeMinutes": 2,
+        "output": "Do not generate clips from this packet yet.\n\nWait for approval of the seven shots, the coat, and the single window.\nA paid video step waits until you click Approve. Nothing in this sample called a video tool.\nClip cost is [ASK]. Retry count is [ASK].\nLip-sync is out of this pass because the mouth stays mostly closed.\nWhere it will be posted is a social post. The account name is [ASK]."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t4",
+      "note": "Leave the clips unmade until the shot list is approved. Do not invent a video credit cost.",
+      "change": "The packet ends on a hold list. No clip was generated and the clip cost stays [ASK]."
+    }
+  ],
+  "deliverableSummary": "Example data: a 30 second concept for Glass Orchard by Lumen Park, with seven calm shots and matching prompts. No clip was generated. The video cost stays [ASK] until you approve a generation.",
+  "deliverable": "Glass Orchard, 30 seconds (Example data)\n\nA 30 second walk home. Lumen Park and the song are fictional. One singer, dark coat, wet night street, one warm window, no crowd.\n\nConcept. The shop light goes out, the walk is quiet, and the end holds on the coat and the window.\n\nShot list. Seven shots, about 4 or 5 seconds each. Mouth mostly closed. No lip-sync in this pass.\n\nPrompts. Each prompt repeats the same coat, the wet pavement, and the single warm window. They are text only.\n\nHold. No clip was generated. A paid video step waits until you click Approve. Clip cost is [ASK]. Nothing was posted.",
+  "nextSteps": [
+    "Approve the shot list before any clip is made.",
+    "A paid video step waits until you click Approve. Nothing is generated on its own.",
+    "Keep the same wardrobe and light notes on every prompt so the shots match."
+  ],
+  "answers": {
+    "song": "Glass Orchard, a quiet walk home after work.",
+    "look": "Night, wet pavement, one warm window, no crowd.",
+    "who": "One singer. Mouth mostly closed. Small movements.",
+    "length": "About 30 seconds, for a social post."
+  },
+  "totals": {
+    "costUsd": 0.11,
+    "timeMinutes": 12
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "website",
+  "walkthroughType": "website",
+  "name": "Website",
+  "category": "Website",
+  "business": "Harbor and Rye",
+  "idea": "A small website for Harbor and Rye, a weekend bakery on the Astoria riverfront. People should be able to see this week's bread and ask about a cake.",
+  "questions": [
+    {
+      "key": "audience",
+      "label": "Who is the site for?",
+      "required": true,
+      "placeholder": "Neighbors who want bread on the weekend",
+      "answer": "Neighbors and weekend visitors who want bread or a cake."
+    },
+    {
+      "key": "action",
+      "label": "What should a visitor do?",
+      "required": true,
+      "placeholder": "Order ahead, or ask about a cake",
+      "answer": "Read the menu and send a cake question."
+    },
+    {
+      "key": "pages",
+      "label": "Which pages do you need?",
+      "required": false,
+      "placeholder": "Home, menu, about, contact",
+      "answer": "Home, menu, about, contact."
+    },
+    {
+      "key": "proof",
+      "label": "Facts you can stand behind",
+      "required": false,
+      "placeholder": "Open since 2019. Leave blank if you have none yet.",
+      "answer": "Example fact only: the shop in this sample opened in 2019 and bakes on Friday and Saturday."
+    }
+  ],
+  "plan": {
+    "title": "Harbor and Rye website",
+    "source": "example",
+    "assembly": "Home first, then menu, about, contact, then the checklist.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "Who the site is for",
+        "capability": "research",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "Name the visitor and the one job of the site. Use only the idea and the facts given. Mark anything missing as [ASK].",
+        "deliverable": "Audience notes",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes audience research to Claude. The step is a careful read of who the visitor is, from facts already given, and the example treats that as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Visitor: a neighbor or a weekend guest who wants bread, or who wants to ask about a cake.\n\nThe one job of the site: show this week's bread and give a way to ask about a cake. This sample is not an online shop.\n\nUsed: the idea, plus the example fact that the shop opened in 2019 and bakes on Friday and Saturday.\n\nLeft as [ASK]: weekday hours, prices, phone number, and the street address."
+      },
+      {
+        "id": "t2",
+        "title": "Page list and jobs",
+        "capability": "analysis",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "Give each page one job. Keep the order Home, menu, about, contact. Say what this pass will not include.",
+        "deliverable": "Site map",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the page list to GPT. The step is structure: one job per page, in a fixed order, and the example treats that outlining as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Home: show this week's bread and the cake question. One job.\nMenu: list Friday and Saturday bakes. One job.\nAbout: who bakes, and the 2019 example fact, labeled as example data. One job.\nContact: a cake question the visitor can fill in. The form is a draft. It does not send itself. One job.\n\nOrder: Home, Menu, About, Contact.\nNot in this pass: online payment, a blog, a loyalty page."
+      },
+      {
+        "id": "t3",
+        "title": "Home and menu copy",
+        "capability": "writing",
+        "difficulty": 2,
+        "deps": [
+          "t2"
+        ],
+        "instructions": "Write the words for home and menu. Do not invent prices or weekday hours. Keep the example fact labeled as example data.",
+        "deliverable": "Copy",
+        "status": "done",
+        "provider": "google",
+        "model": "example",
+        "agentName": "Gemini",
+        "why": "This sample routes the page copy to Gemini. The step is short visitor-facing writing, and the example treats that wording as Gemini's job. The model id stays example because no live model was called.",
+        "costUsd": 0.04,
+        "timeMinutes": 4,
+        "output": "Home\nHeadline: Bread on Friday and Saturday.\nSubhead: Harbor and Rye bakes for the weekend. See this week's loaves, or ask about a cake.\nBody: Example data: in this sample the shop opened in 2019. Weekday hours are [ASK]. Prices are [ASK].\nButton: Ask about a cake.\n\nMenu\nFriday: country loaf, sesame, olive. Times and prices are [ASK].\nSaturday: the Friday list, plus one special. The special is [ASK].\nCakes: tell us the date, the size, and the flavor you want. We answer the question. We do not take payment on this page."
+      },
+      {
+        "id": "t4",
+        "title": "Launch checklist",
+        "capability": "analysis",
+        "difficulty": 1,
+        "deps": [
+          "t3"
+        ],
+        "instructions": "List what to check before anyone outside the sample sees the site. Nothing is published from this step.",
+        "deliverable": "Checklist",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the launch checklist to Grok. The step is a last pass over what must stay unpublished, and the example treats that check as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.01,
+        "timeMinutes": 2,
+        "output": "Before anyone else sees this draft:\n1. Replace every [ASK] with a fact you can stand behind, or delete the line.\n2. Confirm Friday and Saturday baking. The 2019 line is example data only.\n3. Read the cake form and confirm it does not send until you connect it yourself.\n4. Check the page order: Home, Menu, About, Contact.\n5. Do not publish from this walk. You hand the draft off when you want to."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t3",
+      "note": "Do not print weekday hours. This sample only knows Friday and Saturday, and even that is an example fact.",
+      "change": "Home copy names Friday and Saturday only. Weekday hours stay [ASK]."
+    }
+  ],
+  "deliverableSummary": "Example data: a four-page draft for Harbor and Rye. Visitors can read the weekend bread list and ask about a cake. Prices, weekday hours, and the address stay [ASK]. Nothing was published.",
+  "deliverable": "Harbor and Rye website (Example data)\n\nBread on Friday and Saturday. Neighbors and weekend visitors can read the menu and ask about a cake. This packet is a draft. Nothing was published.\n\nHome. Headline: Bread on Friday and Saturday. Subhead: see this week's loaves, or ask about a cake. Example data: the shop in this sample opened in 2019. Weekday hours are [ASK]. Prices are [ASK].\n\nMenu. Friday and Saturday bakes are named in the sample copy. Times, prices, and the Saturday special are [ASK]. Cake questions collect a date, a size, and a flavor. The form does not send itself.\n\nAbout. One page for who bakes, using only the example fact above.\n\nContact. A cake question, after the visitor chooses to send it from their own form.\n\nChecklist. Replace every [ASK], confirm the weekend hours, and hand the draft off yourself. The sample review kept weekday hours off the page.",
+  "nextSteps": [
+    "Read the copy and replace every [ASK] with a fact you can stand behind.",
+    "Nothing is published from here. You send or hand off the draft yourself when you want to.",
+    "Open Live to see which step went to which AI."
+  ],
+  "answers": {
+    "audience": "Neighbors and weekend visitors who want bread or a cake.",
+    "action": "Read the menu and send a cake question.",
+    "pages": "Home, menu, about, contact.",
+    "proof": "Example fact only: the shop in this sample opened in 2019 and bakes on Friday and Saturday."
+  },
+  "totals": {
+    "costUsd": 0.09,
+    "timeMinutes": 10
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "marketing-campaign",
+  "walkthroughType": "marketing",
+  "name": "Marketing campaign",
+  "category": "Campaigns",
+  "business": "Northline Outdoor",
+  "idea": "A one-month campaign for Northline Outdoor offering a repair kit for last year's rain jacket, aimed at people who already bought one.",
+  "questions": [
+    {
+      "key": "offer",
+      "label": "What are you offering?",
+      "required": true,
+      "placeholder": "A repair kit for last year's jacket",
+      "answer": "A mail-in repair kit for the 2024 jacket."
+    },
+    {
+      "key": "audience",
+      "label": "Who is it for?",
+      "required": true,
+      "placeholder": "People who already bought the jacket",
+      "answer": "People who already own that jacket."
+    },
+    {
+      "key": "channels",
+      "label": "Where should it show up?",
+      "required": false,
+      "placeholder": "Email and Instagram",
+      "answer": "One email and two Instagram posts."
+    },
+    {
+      "key": "result",
+      "label": "The one result you want",
+      "required": false,
+      "placeholder": "Booked repairs this month",
+      "answer": "Kit requests from current owners. Count is [ASK]."
+    }
+  ],
+  "plan": {
+    "title": "Northline repair kit month",
+    "source": "example",
+    "assembly": "Offer, then the three pieces, then what must be checked.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "Offer in one line",
+        "capability": "reasoning",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "Say the offer without new claims. If the price, the kit contents, or the deadline is missing, write [ASK].",
+        "deliverable": "Offer line",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the offer line to GPT. The step is a tight claim with no new facts, and the example treats that narrowing as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Offer: mail-in repair kit for the 2024 Northline jacket, for people who already own it.\n\nNot claimed: price [ASK], what is in the kit [ASK], deadline [ASK], how many requests you want [ASK].\n\nDo not say the kit fits any other year. Do not say shipping is free. Those facts were not given.\n\nNorthline Outdoor is fictional. This is example data."
+      },
+      {
+        "id": "t2",
+        "title": "Email draft",
+        "capability": "writing",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "Write a short email to current owners. It is a draft. It is not sent. Leave the price as [ASK].",
+        "deliverable": "Email draft",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes the email draft to Claude. The step is careful wording to people who already bought, and the example treats that draft as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "Subject: A repair kit for your 2024 jacket\n\nYou already own the 2024 Northline jacket. This note is about a mail-in repair kit for that jacket only.\n\nThe kit price is [ASK]. What is in the box is [ASK]. The last day to ask is [ASK].\n\nIf you want one, reply to this email. This draft was not sent. The from-address is [ASK].\n\nExample data. Northline Outdoor is fictional."
+      },
+      {
+        "id": "t3",
+        "title": "Two posts",
+        "capability": "creative",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "Two Instagram posts: a hook, a caption, and what to show. Do not invent a price. These are not posted.",
+        "deliverable": "Posts",
+        "status": "done",
+        "provider": "google",
+        "model": "example",
+        "agentName": "Gemini",
+        "why": "This sample routes the two posts to Gemini. The step is short creative captions from one offer, and the example treats that as Gemini's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "Post 1\nHook: Still wearing last year's jacket?\nShow: the 2024 jacket on a hook, no logo we did not supply.\nCaption: Owners of the 2024 jacket can ask for a mail-in repair kit. Price [ASK]. Reply in the email, not in a comment. Not posted.\n\nPost 2\nHook: Repair it. Do not replace it yet.\nShow: a zipper and a cuff, close up.\nCaption: The kit is for the 2024 jacket only. Contents [ASK]. Deadline [ASK]. Not posted.\n\nExample data. No post went live."
+      },
+      {
+        "id": "t4",
+        "title": "Checks",
+        "capability": "analysis",
+        "difficulty": 1,
+        "deps": [
+          "t2",
+          "t3"
+        ],
+        "instructions": "List every claim a person must verify before the email or the posts are used. Nothing is sent from this step.",
+        "deliverable": "Checklist",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the claim check to Grok. The step is a list of what must stay [ASK] until a real fact exists, and the example treats that check as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "Check before you use any of this:\n1. The kit really fits only the 2024 jacket.\n2. Price, contents, and deadline are still [ASK]. Do not fill them with a guess.\n3. The request count goal is [ASK].\n4. The email from-address is [ASK].\n5. Nothing was emailed or posted from this sample. You send it yourself, after you check the claims."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t2",
+      "note": "The repair kit price is not a fact we have. Do not put a dollar amount in the email.",
+      "change": "The email draft says the kit price is [ASK]. No amount was added."
+    }
+  ],
+  "deliverableSummary": "Example data: a one-month repair-kit campaign for fictional Northline Outdoor. One email and two posts stay drafts. Price, kit contents, and the request goal stay [ASK]. Nothing was emailed or posted.",
+  "deliverable": "Northline repair kit month (Example data)\n\nNorthline Outdoor is fictional. The offer is a mail-in repair kit for the 2024 jacket, only for people who already own it.\n\nOffer line. No price, no kit contents, no deadline. Each of those is [ASK].\n\nEmail draft. Subject: A repair kit for your 2024 jacket. The price line is [ASK]. The draft was not sent. The from-address is [ASK].\n\nTwo posts. One hook is \"Still wearing last year's jacket?\" and the other is \"Repair it. Do not replace it yet.\" Captions repeat the [ASK] marks. Neither post was published.\n\nChecks. Confirm the jacket year, leave unknown amounts blank, and send the pieces yourself only after that. The sample review refused a made-up price.",
+  "nextSteps": [
+    "Check every claim against a fact you can stand behind. Leave [ASK] until you can.",
+    "Drafts stay here. Nothing is emailed or posted until you do that yourself.",
+    "Open Live if you want to see who wrote which piece."
+  ],
+  "answers": {
+    "offer": "A mail-in repair kit for the 2024 jacket.",
+    "audience": "People who already own that jacket.",
+    "channels": "One email and two Instagram posts.",
+    "result": "Kit requests from current owners. Count is [ASK]."
+  },
+  "totals": {
+    "costUsd": 0.1,
+    "timeMinutes": 10
+  }
+}
