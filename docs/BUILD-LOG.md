@@ -1414,3 +1414,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
 
 V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)
+
+## 2026-10-20: Background images, gradients, and a local photo (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The colour backgrounds stay: ink, midnight, slate, pine, paper, sand, or any #rrggbb colour.
+
+- Settings, Appearance, also offers four built-in gradients (Dusk, Tide, Ember, Grove) and three built-in images (Night, Dunes, Harbor). Grove uses dark text. The others use light text.
+- Your photo is a JPEG, PNG, or WebP chosen from this computer. A web address is refused. The file is stored with the other theme settings on this PC, capped so a huge file is not kept. Built-in and Reset clear it.
+- A dark scrim sits over a photo or built-in image so the text stays readable.
+- Tests: `test/themes.test.js`. npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs only. No real key. data/ was not read or committed.
+
+BACKGROUND IMAGES DONE (built by Cursor cloud agent)
