@@ -20,6 +20,10 @@ files:
   - "!release/**"
   - "!Start Command Center.cmd"
   - "!**/*.map"
+# Zip codesign toolset. The legacy 7z bundle contains macOS symlinks, and a
+# Windows runner cannot unpack those, so packaging stops before the installer exists.
+toolsets:
+  winCodeSign: "1.1.0"
 asar: true
 # the browser extension (Phase 24) is loaded unpacked by Chrome / Edge, so it must sit outside app.asar
 asarUnpack:

@@ -8,7 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ROOT } from "./helpers.js";
-import { BAD_KEY, MISSING_KEY, prepareCloudDefaults, publishableFromEnv, publishableShape } from "../scripts/inject-cloud-key.mjs";
+import { BAD_KEY, MISSING_KEY, prepareCloudDefaults, publishableFromEnv, publishableShape, unpublishedPack } from "../scripts/inject-cloud-key.mjs";
 
 const script = path.join(ROOT, "scripts", "inject-cloud-key.mjs");
 const SAMPLE = "sb_publishable_testkeyvalue";
@@ -79,6 +79,23 @@ test("a release build writes the publishable key and restore clears it", () => {
   assert.equal(fs.readFileSync(file, "utf8"), before);
   result.restore();
   assert.equal(fs.readFileSync(file, "utf8"), before);
+});
+
+test("an unpublished package may omit the key and still refuses a service key", () => {
+  assert.equal(unpublishedPack({}), false);
+  assert.equal(unpublishedPack({ CC_PACK_UNPUBLISHED: "1" }), true);
+  const file = tempDefaults("");
+  const before = fs.readFileSync(file, "utf8");
+  const result = prepareCloudDefaults({ file, env: { CC_PACK_UNPUBLISHED: "1" }, release: true });
+  assert.equal(result.wrote, false);
+  assert.equal(result.warned, true);
+  assert.equal(fs.readFileSync(file, "utf8"), before);
+  assert.throws(() => prepareCloudDefaults({ file, env: { CC_PACK_UNPUBLISHED: "1", CC_SUPABASE_ANON_KEY: "sb_secret_notapublishablekey" }, release: true }), (err) => {
+    assert.equal(err.code, "bad_publishable_key");
+    assert.doesNotMatch(err.message, /sb_secret_notapublishablekey/);
+    return true;
+  });
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).anonKey, "");
 });
 
 test("dev and tests do not fail or write when the key is missing", () => {

@@ -18,6 +18,12 @@ export function publishableFromEnv(env = process.env) {
   return String(env.CC_SUPABASE_ANON_KEY || "").trim() || String(env.SUPABASE_PUBLISHABLE_KEY || "").trim();
 }
 
+// CI packaging only. A missing key does not throw, and nothing is written.
+// A service key is still refused. Release builds must not set this.
+export function unpublishedPack(env = process.env) {
+  return String(env.CC_PACK_UNPUBLISHED || "").trim() === "1";
+}
+
 export function publishableShape(key) {
   const k = String(key || "").trim();
   if (!k) return "missing";
@@ -40,7 +46,9 @@ export function prepareCloudDefaults({ file = DEFAULTS_FILE, env = process.env, 
   const key = publishableFromEnv(env);
   const shape = publishableShape(key);
   if (shape !== "ok") {
-    if (!release) return { ok: true, warned: shape === "missing", wrote: false, restore() {} };
+    if (!release || (shape === "missing" && unpublishedPack(env))) {
+      return { ok: true, warned: shape === "missing", wrote: false, restore() {} };
+    }
     const err = new Error(shape === "missing" ? MISSING_KEY : BAD_KEY);
     err.code = shape === "missing" ? "missing_publishable_key" : "bad_publishable_key";
     throw err;
@@ -77,7 +85,11 @@ function runBuild(builderArgs) {
   let prepared;
   try { prepared = prepareCloudDefaults({ release: true }); }
   catch (e) { console.error(e.message); return 1; }
-  console.log("Licence server publishable key written for this build. It is cleared again when the build finishes, so it is not committed.");
+  if (prepared.wrote) {
+    console.log("Licence server publishable key written for this build. It is cleared again when the build finishes, so it is not committed.");
+  } else if (unpublishedPack()) {
+    console.log("Unpublished package: no publishable key was written. Do not publish this installer.");
+  }
   let status = 1;
   try {
     const require = createRequire(import.meta.url);
