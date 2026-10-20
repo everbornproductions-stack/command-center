@@ -5,7 +5,13 @@
 import { estimateCostAt } from "./registry.js";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-const CACHE_RATE = { anthropic: 0.1, openai: 0.5 };
+// Fraction of the input price for a reported cache read. Only rates checked against the
+// provider's own pricing are listed. An unknown provider is not given a discount.
+// google: Gemini 2.5 and later, including implicit cache hits, bill cached tokens at 10%.
+// xai: Grok 4.7 bills cached input at $0.50 per 1M when input is $2 (a quarter). Other Grok
+// models publish a different cached price, so they are not discounted here.
+const CACHE_RATE = { anthropic: 0.1, openai: 0.5, google: 0.1, xai: 0.25 };
+const XAI_CACHE_MODELS = new Set(["grok-4.7"]);
 
 export function isBlockedFree(p) {
   const hay = `${p?.provider || ""} ${p?.id || ""} ${p?.name || ""} ${p?.providerName || ""} ${p?.baseUrl || ""}`.toLowerCase();
@@ -73,13 +79,39 @@ export function keepCheapestSeller(scored) {
 }
 
 // Cache reads are cheaper. input already includes the cached tokens. rate is the fraction of the input price.
+// A missing or unknown rate bills the whole call at the live price. It does not borrow another provider's rate.
 export function cachedCallCost(model, usage, when = new Date()) {
   const input = Number(usage?.input) || 0;
   const output = Number(usage?.output) || 0;
   const read = Math.min(input, Math.max(0, Number(usage?.cacheRead) || 0));
-  const rate = CACHE_RATE[usage?.cacheRate] ?? 0.1;
+  const rate = CACHE_RATE[usage?.cacheRate];
+  if (!(read > 0) || rate == null) return estimateCostAt(model, input, output, when);
   const fresh = Math.max(0, input - read);
   return estimateCostAt(model, fresh, output, when) + estimateCostAt(model, read, 0, when) * rate;
+}
+
+// Gemini usageMetadata. promptTokenCount already includes cached tokens.
+export function geminiUsage(meta, fallback = {}) {
+  const reported = meta && (meta.promptTokenCount != null || meta.candidatesTokenCount != null);
+  const cacheRead = Math.max(0, Number(meta?.cachedContentTokenCount) || 0);
+  return {
+    input: meta?.promptTokenCount ?? fallback.input,
+    output: meta?.candidatesTokenCount ?? fallback.output,
+    estimated: !reported,
+    ...(cacheRead > 0 ? { cacheRead, cacheRate: "google" } : {}),
+  };
+}
+
+// OpenAI-compatible usage. Only ChatGPT and Grok 4.7 get a cache rate. Groq, Mistral, DeepSeek,
+// and the rest keep the live price: their cache fields are not the OpenAI half-price rate.
+// DeepSeek's published hit price is not a fraction of the peak price in this table, and the
+// off-peak rule already discounts that peak price, so a second fraction would stack.
+export function compatCache(providerId, model, usage) {
+  const read = Math.max(0, Number(usage?.prompt_tokens_details?.cached_tokens) || Number(usage?.prompt_cache_hit_tokens) || 0);
+  if (!(read > 0)) return {};
+  if (providerId === "openai") return { cacheRead: read, cacheRate: "openai" };
+  if (providerId === "xai" && XAI_CACHE_MODELS.has(model)) return { cacheRead: read, cacheRate: "xai" };
+  return {};
 }
 
 // Anthropic bills a cache breakpoint. Only long system text is marked, so short calls stay as they are.
@@ -88,10 +120,18 @@ export function cacheSystem(system) {
   return [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
 }
 
-export const BATCH_PROVIDERS = new Set(["openai", "anthropic", "google", "groq"]);
+export const BATCH_PROVIDERS = new Set(["openai", "anthropic", "google", "groq", "mistral"]);
 
-export function batchNote(provider, estCost) {
+// estCost is the live price (already including an off-peak discount when one is open).
+// listCost is the same call with no time discount. Batch is half the list price, so it
+// does not also take the off-peak discount.
+export function batchNote(provider, estCost, listCost) {
   if (!BATCH_PROVIDERS.has(provider) || !(Number(estCost) > 0)) return null;
-  const half = (Number(estCost) / 2).toFixed(4);
+  const live = Number(estCost);
+  const list = Number(listCost) > 0 ? Number(listCost) : live;
+  const half = (list / 2).toFixed(4);
+  if (list > live * 1.01) {
+    return `Batch price is about $${half} (half the list price) when this can wait. A run you send now pays the live price. The batch price does not also take the off-peak discount.`;
+  }
   return `Batch price is about $${half} (half the live price) when this can wait. A run you send now pays the live price. An off-peak discount is already in the estimate when one is open.`;
 }

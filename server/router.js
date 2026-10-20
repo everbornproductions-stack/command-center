@@ -127,7 +127,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const meta = PROVIDERS[m.provider];
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), priceCost: free ? 0 : +est.toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   });
   const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), readPreferFree()), mode);
   return ordered;
@@ -214,7 +214,7 @@ export function cheaperRoute(cls) {
   const econ = pick({ ...cls, mode: "economy" });
   if (!best || !econ || best.model === econ.model) {
     const same = best?.estCost > 0 ? best : econ;
-    return { best, econ, advice: null, savingsPct: 0, batchNote: batchNote(same?.provider, same?.estCost) };
+    return { best, econ, advice: null, savingsPct: 0, batchNote: batchNote(same?.provider, same?.priceCost ?? same?.estCost, same?.listCost) };
   }
   const savings = best.estCost > 0 ? Math.round((1 - econ.estCost / best.estCost) * 100) : 0;
   const qualityDrop = Math.max(0, (best.caps[cls.capability] || 0) - (econ.caps[cls.capability] || 0));
@@ -222,5 +222,5 @@ export function cheaperRoute(cls) {
     ? `${econ.name} can do this for about ${savings}% less than ${best.name} with little quality loss.`
     : `${econ.name} would be about ${savings}% cheaper, but it is noticeably weaker at ${cls.capability}. Keep ${best.name} for this one.`;
   const priced = best?.estCost > 0 ? best : econ;
-  return { best, econ, advice, savingsPct: savings, qualityDrop, batchNote: batchNote(priced?.provider, priced?.estCost) };
+  return { best, econ, advice, savingsPct: savings, qualityDrop, batchNote: batchNote(priced?.provider, priced?.priceCost ?? priced?.estCost, priced?.listCost) };
 }

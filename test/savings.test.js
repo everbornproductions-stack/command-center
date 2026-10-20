@@ -10,9 +10,9 @@ const DIR = tmpDir("cc-savings-");
 process.env.CC_DATA_DIR = DIR;
 const store = await import("../server/store.js");
 store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
-const { PROVIDERS, TEXT_PROVIDERS, estimateCostAt } = await import("../server/registry.js");
-const { rank } = await import("../server/router.js");
-const { cachedCallCost, cacheSystem, isBlockedFree, isLocalFree, batchNote } = await import("../server/savings.js");
+const { PROVIDERS, TEXT_PROVIDERS, estimateCostAt, saveRules, DEFAULT_RULES } = await import("../server/registry.js");
+const { rank, cheaperRoute } = await import("../server/router.js");
+const { cachedCallCost, cacheSystem, isBlockedFree, isLocalFree, batchNote, geminiUsage, compatCache } = await import("../server/savings.js");
 const ledger = await import("../server/ledger.js");
 
 const CAPS = { reasoning: 90, code: 92, writing: 90, research: 84, creative: 87, analysis: 90, math: 88, fast: 70 };
@@ -120,6 +120,53 @@ test("a reported cache read costs less, and a live call is not priced as a batch
   assert.match(note, /pays the live price/);
   assert.equal(note.includes("\u2014"), false);
   assert.equal(batchNote("ollama", 0), null);
+  assert.match(batchNote("mistral", 0.02), /half the live price/);
+  const stacked = batchNote("openai", 0.01, 0.02);
+  assert.match(stacked, /\$0\.0100/);
+  assert.match(stacked, /half the list price/);
+  assert.match(stacked, /does not also take the off-peak discount/);
+  assert.doesNotMatch(stacked, /\$0\.0050/);
+  const google = cachedCallCost("gemini-4-argon", { input: 1000, output: 100, cacheRead: 500, cacheRate: "google" });
+  const googleFull = cachedCallCost("gemini-4-argon", { input: 1000, output: 100, cacheRead: 500 });
+  assert.ok(google < googleFull);
+  assert.equal(google, cachedCallCost("claude-sonnet-5-5", { input: 1000, output: 100, cacheRead: 500, cacheRate: "anthropic" }));
+  const xai = cachedCallCost("grok-4.7", { input: 1000, output: 100, cacheRead: 500, cacheRate: "xai" });
+  const xaiOpen = cachedCallCost("grok-4.7", { input: 1000, output: 100, cacheRead: 500, cacheRate: "openai" });
+  const xaiFull = cachedCallCost("grok-4.7", { input: 1000, output: 100, cacheRead: 500 });
+  assert.ok(xai < xaiOpen && xaiOpen < xaiFull);
+  const usage = geminiUsage({ promptTokenCount: 100, candidatesTokenCount: 20, cachedContentTokenCount: 40 }, { input: 1, output: 1 });
+  assert.equal(usage.cacheRead, 40);
+  assert.equal(usage.cacheRate, "google");
+  assert.equal(usage.input, 100);
+  assert.equal(geminiUsage({ promptTokenCount: 4, candidatesTokenCount: 3 }, { input: 1, output: 1 }).cacheRead, undefined);
+  assert.deepEqual(compatCache("openai", "gpt-6-luna", { prompt_tokens_details: { cached_tokens: 12 } }), { cacheRead: 12, cacheRate: "openai" });
+  assert.deepEqual(compatCache("xai", "grok-4.7", { prompt_tokens_details: { cached_tokens: 12 } }), { cacheRead: 12, cacheRate: "xai" });
+  assert.deepEqual(compatCache("xai", "grok-4.3", { prompt_tokens_details: { cached_tokens: 12 } }), {});
+  assert.deepEqual(compatCache("groq", "openai/gpt-oss-120b", { prompt_tokens_details: { cached_tokens: 12 } }), {});
+  assert.deepEqual(compatCache("deepseek", "deepseek-v4-pro", { prompt_cache_hit_tokens: 80 }), {});
+  const unknown = ledger.recordCall({ provider: "groq", model: "openai/gpt-oss-120b", usage: { input: 8000, output: 200, cacheRead: 6000 } });
+  const groqPlain = ledger.recordCall({ provider: "groq", model: "openai/gpt-oss-120b", usage: { input: 8000, output: 200 } });
+  assert.equal(unknown.cost, groqPlain.cost);
+});
+
+test("an open off-peak discount is not halved again in the batch note", () => {
+  saveRules([
+    ...DEFAULT_RULES,
+    { id: "openai-test-offpeak", provider: "openai", name: "Test off-peak", pct: 50, tz: "UTC", peakHours: [], weekendPeak: false, enabled: true, note: "test only" },
+  ]);
+  try {
+    useKeys({ openai: { key: "sk-test-not-real" } });
+    const route = cheaperRoute({ capability: "writing", difficulty: 1 });
+    assert.equal(route.best.model, "gpt-6.1-sol");
+    assert.ok(route.best.listCost > route.best.priceCost * 1.5);
+    assert.match(route.batchNote, /\$0\.0055/);
+    assert.match(route.batchNote, /half the list price/);
+    assert.match(route.batchNote, /pays the live price/);
+    assert.doesNotMatch(route.batchNote, /\$0\.0028/);
+    assert.equal(route.batchNote.includes("\u2014"), false);
+  } finally {
+    saveRules(structuredClone(DEFAULT_RULES));
+  }
 });
 
 test("Freebuff is refused and never ranked", async () => {
