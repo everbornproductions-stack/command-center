@@ -156,10 +156,7 @@ const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; cha
 
 function json(res, status, body) {
   const b = JSON.stringify(body);
-  const headers = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(b) };
-  // Tests open a new socket per call. Leaving it alive on Windows makes the next call wait.
-  if (process.env.CC_TEST_RUN === "1") headers.connection = "close";
-  res.writeHead(status, headers);
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(b) });
   res.end(b);
 }
 function readBody(req) {
@@ -373,7 +370,6 @@ async function runChat({ prompt, provider, model, projectId, search, tools, libr
 }
 async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
   const id = runId || "s-" + Date.now().toString(36);
-  netTrace(`chat begin ${id}`);
   const priority = chatPriority(mode);
   let cls = null;
   // A caller that already asked the router (a walkthrough step) passes that task type.
@@ -409,7 +405,6 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
-  netTrace(`chat stream ${id} ${provider || ""}`);
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
@@ -784,12 +779,6 @@ function text(res, status, body) {
 }
 
 const server = http.createServer(handleHttp);
-if (process.env.CC_TEST_RUN === "1") {
-  // One request per socket. A finished keep-alive socket on Windows never
-  // delivers the next request's headers, and the chat waits out the job.
-  server.maxRequestsPerSocket = 1;
-  server.keepAliveTimeout = 1;
-}
 const socketServers = [];
 const send = (ws, obj) => { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); };
 function trackSocket(ws, c) {

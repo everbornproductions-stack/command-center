@@ -7,13 +7,11 @@
 import fs from "node:fs";
 import { Agent } from "undici";
 
-// One request per socket. A keep-alive pool on Windows hands the next chat a
-// socket the server has already finished, and that chat waits with no headers.
 const agent = new Agent({
   pipelining: 0,
   connections: 256,
-  keepAliveTimeout: 1,
-  keepAliveMaxTimeout: 1,
+  keepAliveTimeout: 1000,
+  keepAliveMaxTimeout: 1000,
 });
 
 export function isLoopback(url) {

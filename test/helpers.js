@@ -26,16 +26,6 @@ http.Server.prototype.close = function (cb) {
   try { this.closeAllConnections(); } catch {}
   return origClose.call(this, cb);
 };
-// A mock that allows a second request on the same socket is the Windows hang:
-// the next provider call sits with no headers. One request, then the socket closes.
-const origListen = http.Server.prototype.listen;
-http.Server.prototype.listen = function (...args) {
-  try {
-    this.maxRequestsPerSocket = 1;
-    this.keepAliveTimeout = 1;
-  } catch {}
-  return origListen.apply(this, args);
-};
 
 // A wait that is comfortable on Linux expires on a busy Windows runner while the
 // chat is still finishing. The budget is only the ceiling. A finished run returns
@@ -198,7 +188,6 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   const childEnv = {
     ...process.env,
     CC_MODE: "", CC_DATA_DIR: dir, CC_PORT: String(port), CC_DEMO_PORT: String(demoPort),
-    CC_TEST_RUN: "1", CC_DEMO_INSTANT: "1",
     CC_UPDATE_FEED: `${stub.url}/latest.json`, CC_CLOUD_DEFAULTS_FILE: defaultsFile,
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),

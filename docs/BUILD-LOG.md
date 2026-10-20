@@ -1536,14 +1536,14 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
 
-## 2026-10-20: Windows demo chat hang, and a test that can block the job
+## 2026-10-20: a hung Windows test fails the job instead of holding it
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
 
-- Pull request 49, Windows run 39485495744, failed `demo mode: the demo tools server...` after about 2 minutes. The wait was `demo single without tools`. The model calls that did run had already finished. Release run 39477941857 stayed in Test for about 25 minutes (brain `single with learning off` also expired) until the job was canceled. Main then saved the chat by its run id. A hang can still hold the job, because a test has no timeout of its own.
-- A finished loopback reply no longer stays open for the next chat. The demo server and, in tests, the app server and every mock accept one request per socket and send Connection: close. The pretend answer is always ended; a finished request body is not treated as a dropped client. If a Windows file lock outlasts the rename retries, the mission is written directly instead of being dropped. Tests skip the pretend word-by-word delay.
-- `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process runs one at a time. Each run has a per-test timeout of 8 minutes and force-exits, so a hang fails the test instead of holding the job. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). The release workflow still retries `npm test` once. The pull request check does not.
+- Pull request 49 (commit 8f871f9) already fixed the demo wait: the chat returns its run id, the wait follows that id, saving and reading a mission retries a Windows file lock, and the demo server closes its socket. This change does not do that again.
+- Release run 39477941857 stayed in Test for about 25 minutes and was canceled. A test still has no timeout of its own, so one hang holds the job.
+- `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process then runs one at a time. Each run sets a per-test timeout of 8 minutes and force-exits, so a hang fails the test and an open socket cannot keep the process alive. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). When a test ends, the child server is killed as a tree, including on the way out of the process. The release workflow still retries `npm test` once. The pull request check does not.
 - Version stays 0.4.5. Phase 14 stays in the locked run order (decision 14), ahead of phase 2. A step that needs a Mac is still `PHASE 14 BLOCKED`.
-- Tests here (Linux), after merging main: npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)

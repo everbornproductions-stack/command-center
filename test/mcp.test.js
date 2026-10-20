@@ -250,11 +250,9 @@ async function waitRun(s, pred, label, ms = 60000) {
     await sleep(300);
   }
   const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
-  const lines = (s?.log || "").split("\n");
-  const trace = lines.filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
-  const notes = lines.filter((l) => /Chat failed|waiting for your OK|EADDRINUSE|EPERM|ECONNRESET|mission save failed/.test(l)).slice(-8).join("\n");
   const recent = (last?.missions || []).slice(0, 6).map((m) => ({ id: m.id, kind: m.kind, status: m.status, startedAt: m.startedAt, title: String(m.title || "").slice(0, 60) }));
-  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${notes ? `\n${notes}` : ""}${trace ? `\n${trace}` : ""}`);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${trace ? `\n${trace}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));

@@ -57,26 +57,10 @@ export function readJson(file, fallback) {
 }
 export function writeJson(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  // A pid in the temp name keeps two writers from sharing one .tmp file.
-  const tmp = `${file}.${process.pid}.tmp`;
+  const tmp = file + ".tmp";
   const text = JSON.stringify(obj, null, 2);
-  try {
-    retrySync(() => {
-      fs.writeFileSync(tmp, text);
-      fs.renameSync(tmp, file);
-    });
-  } catch (e) {
-    // The lock outlasted the retries. Write the destination directly so the
-    // mission is not dropped, then remove the temp file.
-    if (!RETRYABLE.has(e?.code)) {
-      try { fs.unlinkSync(tmp); } catch {}
-      throw e;
-    }
-    try { fs.writeFileSync(file, text); }
-    catch (e2) {
-      try { fs.unlinkSync(tmp); } catch {}
-      throw e2;
-    }
-    try { fs.unlinkSync(tmp); } catch {}
-  }
+  retrySync(() => {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, file);
+  });
 }
