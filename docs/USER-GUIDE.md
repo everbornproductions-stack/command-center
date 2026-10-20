@@ -34,7 +34,7 @@ You can also paste a key into the box at the top of Settings. The app recognizes
 - Paste a key anywhere and the app suggests which provider it belongs to.
 - The light on the provider's tile turns green when the key works.
 - "Key rejected (401)" means the provider refused the key. "Could not reach <provider>" means a network problem, not a bad key.
-- **Add custom provider** connects any OpenAI-compatible or Anthropic-compatible service (OpenRouter, Groq, DeepSeek, Mistral, a local Ollama, LM Studio, Aider, OpenCode, or another OpenAI-compatible endpoint on this PC). Freebuff is not used. Aider starts at Ollama's address. Change it if Aider uses another server. OpenCode is only for when it serves an OpenAI-compatible /v1. The default port is 4096. Change the address if yours is different.
+- **Add custom provider** connects any OpenAI-compatible or Anthropic-compatible service (OpenRouter, Groq, DeepSeek, Mistral, a local Ollama, LM Studio, Aider, OpenCode, or another OpenAI-compatible endpoint on this PC). Freebuff is not used. Aider starts at Ollama's address. Change it if Aider uses another server. OpenCode is only for when it serves an OpenAI-compatible /v1. The default port is 4096. Change the address if yours is different. Meldmind learns what that app or AI is good at from its name, or from the task types you tick. Matching tasks go to it. Scores from your jobs make the pick sharper.
 
 Keys are never shown again after saving and never written to a log.
 
