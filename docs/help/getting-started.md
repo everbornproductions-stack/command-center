@@ -1,8 +1,8 @@
 ---
 id: getting-started
 title: Getting started
-summary: First open, priorities, free local models, community track records, and the background colour.
-lastUpdatedVersion: 0.4.4
+summary: First open, priorities, You saved, custom providers, and Appearance pictures.
+lastUpdatedVersion: 0.4.5
 ---
 
 # Getting started
@@ -39,6 +39,14 @@ A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or anothe
 
 Add community track records from people who opted in. Quality, Balanced, Max savings, and Speed all learn from them. Nothing is uploaded. This stays on this computer.
 
+## You saved
+
+The top bar shows You saved this month and all time. It is an estimate based on token counts and list prices.
+
+## Custom providers
+
+Add a custom provider and tick Good at for the task types it should take. Matching tasks go to it. Scores from your jobs make the pick sharper. Leave none ticked and Meldmind learns from the name.
+
 ## Appearance
 
-Settings, Appearance, sets a background colour next to the accent, plus theme presets, gradients, built-in pictures, and a photo from a file on this computer. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.
+Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.

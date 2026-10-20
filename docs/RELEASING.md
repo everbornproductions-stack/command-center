@@ -69,7 +69,7 @@ not in the install folder, so updating or reinstalling keeps it.
 
 ## Windows on GitHub Actions
 
-`.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.4` when the version is `0.4.4`).
+`.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.5` when the version is `0.4.5`).
 
 It runs `npm ci`, `npm test`, and `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
 
