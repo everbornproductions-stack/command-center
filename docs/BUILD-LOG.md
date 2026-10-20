@@ -1478,5 +1478,6 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Windows release run 39445588419 failed in Test, not on the publishable key. `test/mcp.test.js` timed out waiting for "clock + note" (the single that calls clock and save_note).
 - The demo tool server now writes each JSON line with writeSync, so a Windows pipe cannot hold the reply. The stdio client writes the request the same way when the pipe has a file descriptor. The test's mock model closes the socket after each reply.
 - The tag v0.4.5 still points at 30ce770. This fix is a pull request. The release was not retried.
+- Tests: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 WINDOWS MCP STDIO HANG FIX (built by Cursor cloud agent)
