@@ -331,6 +331,8 @@ function handle(ev) {
 
 // ---------------- live run handling ----------------
 let graph = null;
+// Drafts for the reply boxes. A live update redraws Live Ops, and the text the person is typing stays.
+const replyDrafts = {};
 // Jobs logged for the mission on screen. Kept until that mission ends, so a finished AI stays large while the run is still going.
 let runJobs = {};
 function activeIds() { return Object.entries(S.activeByProvider).filter(([, n]) => n > 0).map(([id]) => id); }
@@ -348,6 +350,15 @@ function onAgentStart(ev) {
   if (quietProvider(P(ev.provider))) return;
   ensureLive(ev.missionId);
   S.live.agents[ev.agent] = { ...ev, text: "", done: false };
+  if (ev.role === "followup" || ev.followup) {
+    S.live.replying = { scope: ev.scope || "job", target: ev.target || "" };
+    S.activeByProvider[ev.provider] = (S.activeByProvider[ev.provider] || 0) + 1;
+    graph?.activate(ev.provider, "replying");
+    refreshGraphUsage();
+    renderStrip();
+    if (S.view === "command") renderOps();
+    return;
+  }
   if (["chair", "assemble", "answer"].includes(ev.role) && (S.live.kind !== "council" || ev.role === "chair")) S.live.primary = ev.agent;
   if (S.live.kind === "single") S.live.primary = ev.agent;
   S.activeByProvider[ev.provider] = (S.activeByProvider[ev.provider] || 0) + 1;
@@ -357,6 +368,13 @@ function onAgentStart(ev) {
   if (S.view === "command") renderOps();
 }
 function onAgentDelta(ev) {
+  if (ev.role === "followup" || ev.followup) {
+    const a = S.live.agents[ev.agent] || (S.live.agents[ev.agent] = { ...ev, text: "", done: false });
+    a.text += ev.text;
+    const slot = document.querySelector(`[data-reply-live="${CSS.escape((ev.scope || "job") + ":" + (ev.target || ""))}"]`);
+    if (slot) { slot.hidden = false; slot.innerHTML = md(a.text); }
+    return;
+  }
   const a = S.live.agents[ev.agent]; if (!a) return;
   a.text += ev.text;
   if (S.view !== "command") return;
@@ -380,25 +398,53 @@ function onTask(ev) {
   S.live.tasks[ev.task.id] = ev.task;
   if (S.view === "command") renderTasks();
 }
+function replyTurns(run) {
+  if (!run) return 0;
+  let n = (run.thread || []).length + (run.answerThread || []).length;
+  for (const t of run.tasks || []) n += (t.thread || []).length;
+  for (const a of Object.values(run.answers || {})) n += (a.thread || []).length;
+  return n;
+}
 function onMission(m) {
   if (m.kind === "council") return; // councils arrive through council.update
+  const before = S.live.id === m.id ? replyTurns(S.live.mission) : 0;
   ensureLive(m.id, m.kind);
   S.live.mission = m; S.live.status = m.status;
   for (const t of m.tasks || []) S.live.tasks[t.id] = t;
   if (m.deliverable) S.live.deliverable = m.deliverable;
+  if (replyTurns(m) > before) S.live.replying = null;
   const i = S.missions.findIndex((x) => x.id === m.id);
   const summ = { id: m.id, kind: m.kind, title: m.title, projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt, cost: m.cost, tasks: (m.tasks || []).length, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
-  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) { graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip(); toast(`${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed"); }
+  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) {
+    const stamp = `${m.id}|${m.status}|${m.finishedAt || 0}|${replyTurns(m)}`;
+    if (S.live.finishStamp !== stamp) {
+      S.live.finishStamp = stamp;
+      graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
+      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
+    }
+  }
 }
 function onCouncil(c) {
+  const before = S.live.id === c.id ? replyTurns(S.live.council) : 0;
   ensureLive(c.id, "council");
   S.live.council = c; S.live.status = c.status;
   if (c.verdict?.text) S.live.deliverable = c.verdict.text;
-  if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict) renderOutput(); }
-  if (c.status === "done") { const i = S.missions.findIndex((x) => x.id === c.id); const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) }; if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ); graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip(); toast(`Council done · ${money(c.cost, 4)}`); }
+  if (replyTurns(c) > before) S.live.replying = null;
+  if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict || replyTurns(c) > 0) renderOutput(); }
+  if (c.status === "done") {
+    const i = S.missions.findIndex((x) => x.id === c.id);
+    const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) };
+    if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
+    const stamp = `${c.id}|${c.status}|${c.finishedAt || 0}|${replyTurns(c)}`;
+    if (S.live.finishStamp !== stamp) {
+      S.live.finishStamp = stamp;
+      graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
+      toast(replyTurns(c) > 0 ? `Reply in · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+    }
+  }
 }
 
 // ---------------- feed ----------------
@@ -759,6 +805,75 @@ function wireProjectPicker() {
 }
 
 // ----- Command -----
+const REPLIED = new Set(["done", "done-with-errors", "failed", "aborted"]);
+function replyReady() { return !!(S.live?.id && REPLIED.has(S.live.status)); }
+function draftKey(scope, target) { return `${S.live?.id || ""}|${scope}:${target || ""}`; }
+function grokWaitHtml() { return `<div class="grok-wait">waiting on Grok Bot</div>`; }
+function isGrokId(x) { return x === "grokbot" || x?.provider === "grokbot" || x?.model === "grokbot" || x?.id === "grokbot"; }
+function partBody(p) {
+  if (p?.error) return `<div class="small" style="color:var(--red)">${esc(p.error)}</div>`;
+  if (p?.pending && isGrokId(p)) return grokWaitHtml();
+  return `<div class="md">${md(p?.text || "")}</div>`;
+}
+function turnHtml(t) {
+  if (!t) return "";
+  const who = t.role === "user" ? "You" : (t.label || "Reply");
+  const parts = (t.parts || []).map((p) => `<div class="reply-part"><span class="dim small">${esc(p.name || p.model || "AI")}</span>${partBody(p)}</div>`).join("");
+  const body = t.error ? `<div class="small" style="color:var(--red)">${esc(t.error)}</div>` : (t.text ? `<div class="md">${md(t.text)}</div>` : "");
+  return `<div class="reply-turn ${t.role === "user" ? "reply-you" : "reply-ai"}"><span class="dim small">${esc(who)}</span>${body}${parts}</div>`;
+}
+function jobThread() {
+  if (S.live?.kind === "council") return S.live.council?.thread || [];
+  return S.live?.mission?.thread || [];
+}
+function partsFor(key) {
+  const out = [];
+  if (!key) return out;
+  for (const t of jobThread()) {
+    for (const p of t?.parts || []) {
+      if (p && (p.target === key || p.model === key || p.provider === key)) out.push(p);
+    }
+  }
+  return out;
+}
+function grokReplyHtml(key) {
+  return partsFor(key).filter((p) => isGrokId(p) && !p.pending && (p.text || p.error)).map((p) => `<div class="reply-part"><span class="dim small">Grok Bot</span>${partBody(p)}</div>`).join("");
+}
+function threadHtml(turns) {
+  if (!turns?.length) return "";
+  return `<div class="reply-thread">${turns.map(turnHtml).join("")}</div>`;
+}
+function liveSlot(scope, target) {
+  return `<div class="reply-live md" data-reply-live="${esc(`${scope}:${target || ""}`)}" hidden></div>`;
+}
+function replyForm({ scope, target, label, placeholder }) {
+  const key = `${scope}:${target || ""}`;
+  const busy = !!S.live.replying;
+  const field = `reply-${scope}-${(target || "job").replace(/[^A-Za-z0-9_-]/g, "-")}`;
+  return `<form class="reply-box" data-reply-scope="${esc(scope)}" data-reply-target="${esc(target || "")}">
+    <label class="lbl" for="${esc(field)}">${esc(label)}</label>
+    <textarea id="${esc(field)}" class="reply-text" rows="2" placeholder="${esc(placeholder)}" ${busy ? "disabled" : ""}>${esc(replyDrafts[draftKey(scope, target)] || "")}</textarea>
+    ${liveSlot(scope, target)}
+    <button class="btn sm primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "Sending" : "Send reply"}</button>
+  </form>`;
+}
+function answerReply(target, label) {
+  if (!replyReady() || !target) return "";
+  return replyForm({ scope: "answer", target, label: label || "Reply to this AI", placeholder: "Write a reply to this AI." });
+}
+function jobReply() {
+  if (!replyReady()) return "";
+  const kind = S.live.kind;
+  const label = "Reply to all";
+  const placeholder = kind === "council" ? "This goes to every AI on the council." : kind === "mission" ? "This goes to every AI on the mission." : "This goes to the AI on this chat.";
+  const extra = [];
+  if (kind === "council") extra.push(...(S.live.council?.members || []).map((m) => m.model), "chair");
+  if (kind === "mission") extra.push(...Object.values(S.live.tasks || {}).filter((t) => t.output && t.status === "done" && !t.agent).map((t) => t.id));
+  return `${extra.map((t) => liveSlot("job", t)).join("")}${replyForm({ scope: "job", target: "", label, placeholder })}`;
+}
+function mergedSingleTurns(run) {
+  return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
+}
 function renderSimpleChat(v) {
   v.innerHTML = `
   <div class="cmd simple-chat">
@@ -777,6 +892,7 @@ function renderSimpleChat(v) {
     <div class="panel output">
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
+      <div id="out-follow"></div>
       <div id="deliv-extras"></div>
     </div>
   </div>`;
@@ -836,6 +952,7 @@ function renderCommand(v) {
     <div class="panel output">
       <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
+      <div id="out-follow"></div>
       <div id="deliv-extras"></div>
     </div>
   </div>`;
@@ -896,12 +1013,19 @@ function renderTasks() {
   box.innerHTML = tasks.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
+    const isGrok = isGrokId(t);
+    const wrote = t.output && t.status === "done" && !t.agent;
+    const grokWaiting = isGrok && !t.output && t.status !== "failed";
+    const grokPending = isGrok && !!t.output && (t.followPending || partsFor(t.id).some((p) => p.pending) || partsFor("grokbot").some((p) => p.pending));
+    const grokBlock = isGrok ? `<div class="task-follow">${grokWaiting ? grokWaitHtml() : `<div class="task-answer"><div class="md">${md(t.output || "")}</div></div>`}${grokPending ? grokWaitHtml() : ""}${grokReplyHtml(t.id)}${threadHtml(t.thread)}</div>` : "";
+    const follow = wrote ? `<div class="task-follow"><div class="task-answer"><div class="md">${md(t.output)}</div>${threadHtml(t.thread)}</div>${answerReply(t.id, "Reply to this AI")}</div>` : grokBlock;
     return `<div class="task" data-task="${t.id}">
       <span class="st ${t.status}"></span>
       <div><div>${esc(t.title)} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
       <span class="chip">${t.capability}</span>
       <span class="cost">${money(t.cost || t.estCost || 0, 4)}</span>
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
+      ${follow}
     </div>`;
   }).join("");
 }
@@ -912,31 +1036,89 @@ function renderCouncil() {
   // outside agents (Grok Bot) sit next to the AIs; their answers arrive asynchronously
   const agentText = (g) => `*${g.name}: ${{ queued: "queued", working: "working", needs_approval: "needs your approval in Grok Bot", failed: "failed" }[g.status] || g.status}. Results are async and can take minutes; this answer joins the council when it comes back.*`;
   const answers = c.members.map((m) => c.answers?.[m.model] || { provider: m.provider, model: m.model, letter: "?" })
-    .concat((c.agents || []).map((g) => { const a = c.answers?.[g.id]; return a?.text || a?.error ? a : { provider: g.id, model: g.id, letter: g.letter, text: agentText(g) }; }));
+    .concat((c.agents || []).map((g) => {
+      const a = c.answers?.[g.id];
+      if (a?.text || a?.error) return a;
+      if (g.id === "grokbot") return { ...(a || {}), provider: g.id, model: g.id, letter: g.letter || a?.letter, agent: true };
+      return { provider: g.id, model: g.id, letter: g.letter, text: agentText(g) };
+    }));
   box.innerHTML = `<div class="cat-h" style="margin-top:14px">Answers ${c.classification ? `<span class="chip">${c.classification.capability}</span>` : ""}</div>
   <div class="council-cols">${answers.map((a) => {
     const sb = c.scoreboard?.[a.model];
     const live = Object.values(S.live.agents).find((x) => x.model === a.model && x.role === "answer");
     const text = a.text || live?.text || (a.error ? `**Error:** ${a.error}` : "");
+    const stored = c.answers?.[a.model];
+    const isGrok = isGrokId(a);
+    const can = stored?.text && !stored.pending && !stored.agent;
+    const waiting = isGrok && !text && !a.error;
+    const followWait = isGrok && !!text && (stored?.followPending || partsFor(a.model).some((p) => p.pending));
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
       <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
       <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span></div>
-      <div class="body md">${md(text)}</div></div>`;
+      <div class="body md">${waiting ? grokWaitHtml() : md(text)}</div>
+      ${followWait ? grokWaitHtml() : ""}
+      ${grokReplyHtml(a.model)}
+      ${threadHtml(stored?.thread)}
+      ${can ? answerReply(a.model, "Reply to this AI") : ""}
+    </div>`;
   }).join("")}</div>
   ${Object.keys(c.reviews || {}).length ? `<div class="cat-h">Where they disagreed</div><div class="small muted">${Object.values(c.reviews).map((r) => `<div><b style="color:${pcolor(r.provider)}">${esc(pname(r.provider))}</b>: ${esc(r.disagreement || "none")}</div>`).join("")}</div>` : ""}`;
 }
 function renderOutput() {
   const o = $("#out-md"), h = $("#out-head"); if (!o) return;
+  const follow = $("#out-follow");
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; return; }
+  const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); return; }
   h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
-  if (!text) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; return; }
-  o.innerHTML = md(text);
-  if (prim && !prim.done) o.classList.add("cursor"); else o.classList.remove("cursor");
+  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); return; }
+  o.innerHTML = text ? md(text) : "";
+  if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
+  paintFollow(outputFollowHtml());
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
+}
+function outputFollowHtml() {
+  const l = S.live;
+  const simple = S.uiMode !== "expert";
+  const blocks = [];
+  if (l.kind === "single") {
+    const run = l.mission || {};
+    blocks.push(threadHtml(mergedSingleTurns({ answerThread: run.answerThread, thread: run.thread || l.thread })));
+    if (run.model || l.agents?.[l.primary]?.model) blocks.push(answerReply(run.model || l.agents?.[l.primary]?.model, "Reply to this AI"));
+    blocks.push(jobReply());
+    return blocks.join("");
+  }
+  if (simple && l.kind === "council" && l.council) {
+    const c = l.council;
+    blocks.push((c.members || []).map((m) => {
+      const a = c.answers?.[m.model];
+      if (!a?.text) return "";
+      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
+    }).join(""));
+    blocks.push((c.agents || []).filter((g) => g.id === "grokbot").map(() => {
+      const a = c.answers?.grokbot || {};
+      const waiting = !a.text && !a.error;
+      const followWait = !!a.text && (a.followPending || partsFor("grokbot").some((p) => p.pending));
+      return `<div class="ans" data-ans="grokbot"><div class="hd"><span class="dot" style="background:${pcolor("grokbot")}"></span>${esc(pname("grokbot"))}</div><div class="body md">${waiting ? grokWaitHtml() : (a.error ? `<div class="small" style="color:var(--red)">${esc(a.error)}</div>` : md(a.text))}</div>${followWait ? grokWaitHtml() : ""}${grokReplyHtml("grokbot")}${threadHtml(a.thread)}</div>`;
+    }).join(""));
+  }
+  if (simple && l.kind === "mission") {
+    blocks.push(Object.values(l.tasks || {}).filter((t) => (t.output && t.status === "done" && !t.agent) || isGrokId(t)).map((t) => {
+      if (isGrokId(t)) {
+        const waiting = !t.output && t.status !== "failed";
+        const followWait = !!t.output && (t.followPending || partsFor(t.id).some((p) => p.pending));
+        return `<div class="task-follow"><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))}</div>${waiting ? grokWaitHtml() : `<div class="task-answer"><div class="md">${md(t.output || "")}</div></div>`}${followWait ? grokWaitHtml() : ""}${grokReplyHtml(t.id)}${threadHtml(t.thread)}</div>`;
+      }
+      return `<div class="task-follow"><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))}</div><div class="task-answer"><div class="md">${md(t.output)}</div>${threadHtml(t.thread)}</div>${answerReply(t.id, "Reply to this AI")}</div>`;
+    }).join(""));
+  }
+  const jobTurns = l.kind === "council" ? (l.council?.thread || []) : (l.mission?.thread || []);
+  if (l.kind !== "single") blocks.push(threadHtml(jobTurns));
+  blocks.push(jobReply());
+  return blocks.join("");
 }
 async function previewRoute() {
   const prompt = $("#orders").value.trim(); if (!prompt) return;
@@ -1076,8 +1258,8 @@ async function openRun(id) {
     const m = await api(`/missions/${id}`);
     S.live = newLive(); S.live.id = m.id; S.live.kind = m.kind; S.live.status = m.status;
     if (m.kind === "council") { S.live.council = m; S.live.deliverable = m.verdict?.text || ""; }
-    else if (m.kind === "mission") { S.live.mission = m; for (const t of m.tasks) S.live.tasks[t.id] = t; S.live.deliverable = m.deliverable || ""; }
-    else { S.live.deliverable = m.deliverable || ""; S.live.agents.x = { provider: m.provider, model: m.model, text: m.deliverable, done: true }; S.live.primary = "x"; }
+    else if (m.kind === "mission") { S.live.mission = m; for (const t of m.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = m.deliverable || ""; }
+    else { S.live.mission = m; S.live.deliverable = m.deliverable || ""; S.live.agents.x = { provider: m.provider, model: m.model, text: m.deliverable, done: true, role: "answer" }; S.live.primary = "x"; }
     S.view = "command"; render();
   } catch (e) { toast(e.message, true); }
 }
@@ -1537,6 +1719,43 @@ watchNavLayout((layout) => {
   ensureFeatureTabs();
 });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
+document.addEventListener("input", (e) => {
+  const form = e.target.closest?.(".reply-box");
+  if (!form || e.target.tagName !== "TEXTAREA" || !S.live?.id) return;
+  replyDrafts[`${S.live.id}|${form.dataset.replyScope}:${form.dataset.replyTarget || ""}`] = e.target.value;
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return;
+  const form = e.target.closest?.(".reply-box");
+  if (!form) return;
+  e.preventDefault();
+  form.requestSubmit();
+});
+document.addEventListener("submit", (e) => {
+  const form = e.target?.closest?.(".reply-box") || (e.target?.classList?.contains("reply-box") ? e.target : null);
+  if (!form) return;
+  e.preventDefault();
+  sendReply(form);
+});
+async function sendReply(form) {
+  const text = form.querySelector("textarea")?.value.trim() || "";
+  if (!text) return toast("Type a reply first", true);
+  if (!S.live?.id) return;
+  const scope = form.dataset.replyScope;
+  const target = form.dataset.replyTarget || "";
+  const key = `${S.live.id}|${scope}:${target}`;
+  S.live.replying = { scope, target };
+  replyDrafts[key] = "";
+  renderOps();
+  try {
+    await api("/followup", { method: "POST", body: { runId: S.live.id, text, scope, target: target || undefined } });
+  } catch (err) {
+    S.live.replying = null;
+    replyDrafts[key] = text;
+    renderOps();
+    toast(err.message, true);
+  }
+}
 $("#mode-toggle")?.addEventListener("click", (e) => { const b = e.target.closest("button[data-ui-mode]"); if (!b) return; setUiMode(b.dataset.uiMode); });
 $("#mobile-nav").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;

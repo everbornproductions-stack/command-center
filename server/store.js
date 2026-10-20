@@ -8,7 +8,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
-import { readJson, writeJson } from "./paths.js";
+import { readJson, writeJson, retrySync } from "./paths.js";
 
 export const HOSTED = process.env.CC_MODE === "hosted";
 export const als = new AsyncLocalStorage();
@@ -83,7 +83,7 @@ export class FileStore {
     if (fs.existsSync(lf)) for (const line of fs.readFileSync(lf, "utf8").split("\n")) { if (!line.trim()) continue; try { c.ledger.push(JSON.parse(line)); } catch {} }
   }
   putDoc(kind, value) { writeJson(path.join(this.dir, DOC_FILES[kind] || `${kind}.json`), value); }
-  appendLedger(e) { fs.appendFileSync(path.join(this.dir, "ledger.jsonl"), JSON.stringify(e) + "\n"); }
+  appendLedger(e) { const line = JSON.stringify(e) + "\n"; retrySync(() => fs.appendFileSync(path.join(this.dir, "ledger.jsonl"), line)); }
   saveMission(m) { writeJson(path.join(this.dir, "missions", m.id + ".json"), m); }
   listMissions(summarize) {
     const dir = path.join(this.dir, "missions"), out = [];
