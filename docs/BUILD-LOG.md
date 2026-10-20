@@ -1393,3 +1393,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: `test/savings.test.js`. npm test 386 tests, 385 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
 
 FREE LOCAL MODELS FIRST DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Community track records teach every priority (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Decision 18 still holds: nothing in this build is sent. The share preview stays `sent: false`.
+
+- Who's best can take a file of anonymous totals from people who opted in (task type, which model, score, and the other counts already in the share preview). Quality, Balanced, Max savings, and Speed all use those totals when learning is on. Turning the share box off does not hide totals already on this computer. Learning off ignores them, the same as a personal record.
+- A row with any other field, including a prompt or a key, is refused. The file stays on this computer. Nothing is uploaded.
+- Reset what the router learned also clears those community totals, so picks start again from the built-in scores.
+- Tests: `test/community.test.js`. npm test 383 tests, 382 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+COMMUNITY LEARNING DONE (built by Cursor cloud agent)

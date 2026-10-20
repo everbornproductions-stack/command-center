@@ -21,6 +21,7 @@ import { doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
 import { COST_WEIGHT, latencyWeight, normalizeMode } from "./modes.js";
 export { LATENCY_WEIGHT } from "./modes.js";
+import { clearCommunity, communityModels, communityStat } from "./community.js";
 
 export const KIND = "brain";
 export const VERSION = 1;
@@ -137,6 +138,15 @@ export function noteTemplate({ id, action } = {}) {
 }
 
 // ---------- reading the record ----------
+function addStat(a, b) {
+  const out = emptyStat();
+  for (const f of Object.keys(out)) {
+    if (f === "last") out.last = Math.max(a?.last || 0, b?.last || 0);
+    else out[f] = (a?.[f] || 0) + (b?.[f] || 0);
+  }
+  return out;
+}
+
 function merged(model, cap, diff) {
   const m = brain().stats[model];
   const out = emptyStat();
@@ -169,7 +179,7 @@ const latPoints = (sec) => Math.log10(1 + Math.max(0, sec)) * 10;
 export function adjust({ model, baseCaps = {}, capability = "reasoning", difficulty = 2, mode = "balanced", estCost = 0 }) {
   if (!learningOn()) return null;
   const cap = cleanCap(capability), diff = cleanDiff(difficulty);
-  const s = merged(model, cap, diff);
+  const s = addStat(merged(model, cap, diff), communityStat(model, cap));
   if (s.jobs <= 0 && s.up + s.down <= 0) return null;
   const base = baseCaps[cap] ?? 60;
   const ev = evidence(s);
@@ -204,11 +214,16 @@ export function bestAtWhat({ mode = "balanced", top = 5 } = {}) {
   mode = normalizeMode(mode) || "balanced";
   const b = brain();
   const caps = [];
+  const ids = new Set([...Object.keys(b.stats), ...communityModels()]);
   for (const cap of TASK_CAPS) {
     const rows = [];
-    for (const [model, m] of Object.entries(b.stats)) {
-      if (!Object.keys(m.t).some((k) => k.startsWith(cap + ":"))) continue;
-      const s = merged(model, cap, null);
+    for (const model of ids) {
+      const personal = b.stats[model];
+      const hasPersonal = !!personal && Object.keys(personal.t || {}).some((k) => k.startsWith(cap + ":"));
+      const comm = communityStat(model, cap);
+      const hasCommunity = comm.jobs > 0 || comm.up + comm.down > 0;
+      if (!hasPersonal && !hasCommunity) continue;
+      const s = addStat(merged(model, cap, null), comm);
       if (s.jobs <= 0 && s.up + s.down <= 0) continue;
       const meta = modelMeta(model);
       const a = adjust({ model, baseCaps: meta.baseCaps, capability: cap, difficulty: 2, mode, estCost: s.costN > 0 ? s.cost / s.costN : 0 }) || {};
@@ -245,6 +260,7 @@ export function resetBrain() {
   save(next);
   // the older skills table (council wins and thumbs, before Phase 28) is learned history too
   putDoc("skills", {});
+  clearCommunity();
   emit("brain.update", { reset: true });
   return next;
 }
