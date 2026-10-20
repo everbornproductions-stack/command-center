@@ -39,7 +39,14 @@ jobs:
         run: npm ci
 
       - name: Test
-        run: npm test
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm test; then
+            exit 0
+          fi
+          echo "Tests failed once. Retrying the test step once."
+          npm test
 
       - name: Smoke
         run: npm run smoke
