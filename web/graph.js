@@ -1,7 +1,8 @@
-// Live ops graph: a hub (Meldmind) in the centre, every AI around it. Bubble size follows each
-// AI's share of jobs in the last 30 days. Nodes glow while an AI works, and a particle travels
-// along an edge whenever one AI hands something to another.
-import { ringPositions, usageScale, peakCount, isTiny, displayScale, easeOutCubic, layoutBubbles, SIZE_MS } from "./graph-usage.js";
+// Live ops graph: a hub (Meldmind) in the centre, every AI around it.
+// At rest, bubble size follows each AI's share of jobs in the last 30 days.
+// During a run, AIs in that run grow (the busiest the largest) and the others shrink.
+// Nodes glow while an AI works, and a particle travels along an edge when one AI hands work to another.
+import { ringPositions, bubbleScales, isTiny, easeOutCubic, layoutBubbles, SIZE_MS, USAGE_MAX } from "./graph-usage.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const el = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -41,6 +42,9 @@ export class AgentGraph {
     this.hub = { x: 400, y: 170 };
     this.active = new Map(); // providerId -> count
     this.counts = null;
+    this.runLive = false;
+    this.runCounts = {};
+    this.runActive = [];
     this.fit = 1;
     this._raf = 0;
     this.drawHub();
@@ -91,23 +95,37 @@ export class AgentGraph {
     this.nodes.set(p.id, node);
     this.setStatus(p.id, p.status?.status || "grey");
   }
-  setUsage(counts) {
+  setUsage(counts, run) {
     this.counts = counts || {};
-    const ids = [...this.nodes.keys()];
-    const peak = peakCount(this.counts, ids);
-    this.peak = peak;
-    for (const id of ids) {
-      const n = this.nodes.get(id);
-      n.usage = usageScale(this.counts[id] || 0, peak);
-      n.tiny = isTiny(n.usage, peak);
+    if (run) {
+      this.runLive = !!run.live;
+      this.runCounts = { ...(run.runCounts || {}) };
+      this.runActive = run.activeIds || [];
     }
+    this.syncScales();
     this.relayout();
   }
+  syncScales() {
+    const ids = [...this.nodes.keys()];
+    const frame = bubbleScales(ids, this.counts || {}, {
+      live: !!this.runLive,
+      runCounts: this.runCounts,
+      activeIds: this.runActive,
+    });
+    this.peak = frame.peak;
+    this.runLive = frame.live;
+    for (const id of ids) {
+      const n = this.nodes.get(id);
+      n.usage = frame.scales[id];
+      n.tiny = isTiny(n.usage, frame.peak);
+    }
+  }
   relayout() {
+    // Reserve the large size so a run can grow a bubble without covering its neighbours.
     const items = [...this.nodes.values()].map((n) => ({
       id: n.id, x: n.homeX, y: n.homeY,
-      r: n.baseR * displayScale(n.usage ?? 1, true),
-      tail: n.tiny ? 2 : 16,
+      r: n.baseR * USAGE_MAX,
+      tail: (n.usage ?? 1) < 1 ? 2 : 16,
     }));
     items.push({ id: "hub", x: this.hub.x, y: this.hub.y, r: 36, pin: true, tail: 0 });
     const placed = layoutBubbles(items, { width: 800, height: 340, pad: 8, margin: 8 });
@@ -125,8 +143,7 @@ export class AgentGraph {
     const reduced = this.reduced();
     let changed = false;
     for (const [id, n] of this.nodes) {
-      const working = (this.active.get(id) || 0) > 0;
-      const targetR = n.baseR * displayScale(n.usage ?? 1, working) * (this.fit || 1);
+      const targetR = n.baseR * (n.usage ?? 1) * (this.fit || 1);
       const targetX = n.tx ?? n.homeX;
       const targetY = n.ty ?? n.homeY;
       if (reduced || !n.seen) {
@@ -138,7 +155,7 @@ export class AgentGraph {
       }
       n.wantX = targetX; n.wantY = targetY; n.wantR = targetR;
       n.g.classList.toggle("tiny", !!n.tiny);
-      const tip = n.name + (n.tiny ? " (rarely used)" : "");
+      const tip = n.name + (n.tiny ? (this.runLive ? " (not in this run)" : " (rarely used)") : "");
       const title = n.g.querySelector("title");
       if (title) title.textContent = tip;
     }
@@ -204,6 +221,9 @@ export class AgentGraph {
     n.edge.classList.add("hot"); n.edge.setAttribute("stroke", n.color);
     n.sub.textContent = (label || "working").slice(0, 26);
     this.spin(n);
+    this.runActive = [...this.active.entries()].filter(([, c]) => c > 0).map(([k]) => k);
+    this.runLive = this.runActive.length > 0;
+    this.syncScales();
     this.aim(false);
   }
   deactivate(id, label) {
@@ -218,6 +238,9 @@ export class AgentGraph {
       n.sub.textContent = label ? label.slice(0, 26) : "";
       n.spinner?.remove(); n.spinner = null;
     }
+    this.runActive = [...this.active.entries()].filter(([, c]) => c > 0).map(([k]) => k);
+    this.runLive = this.runActive.length > 0;
+    this.syncScales();
     this.aim(false);
   }
   spin(n) {
@@ -257,6 +280,9 @@ export class AgentGraph {
     setTimeout(() => { dot.remove(); path.remove(); }, 1600);
   }
   resetAll() {
+    this.runCounts = {};
+    this.runActive = [];
+    this.runLive = false;
     for (const [id] of this.nodes) { this.active.set(id, 1); this.deactivate(id); }
   }
 }

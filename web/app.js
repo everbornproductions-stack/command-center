@@ -308,7 +308,14 @@ function handle(ev) {
     case "task.update": onTask(ev); return;
     case "mission.update": onMission(ev.mission); return;
     case "council.update": onCouncil(ev.council); return;
-    case "ledger.entry": if (S.ledger && ev.entry.kind === "call") { S.ledger.month += ev.entry.cost; S.ledger.today += ev.entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[ev.entry.provider]; if (b) { b.month += ev.entry.cost; b.today += ev.entry.cost; b.calls++; if (isUsageJob(ev.entry) && (ev.entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; } renderBudget(); renderStrip(); if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage(); } else if (S.ledger && isUsageJob(ev.entry)) { const b = S.ledger.byProvider[ev.entry.provider]; if (b && (ev.entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage(); } return;
+    case "ledger.entry": {
+      const entry = ev.entry;
+      if (S.ledger && entry.kind === "call") { S.ledger.month += entry.cost; S.ledger.today += entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[entry.provider]; if (b) { b.month += entry.cost; b.today += entry.cost; b.calls++; if (isUsageJob(entry) && (entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; } renderBudget(); renderStrip(); }
+      else if (S.ledger && isUsageJob(entry)) { const b = S.ledger.byProvider[entry.provider]; if (b && (entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; }
+      noteRunJob(entry);
+      refreshGraphUsage();
+      return;
+    }
     case "log": pushFeed(ev); return;
     case "update.state": S.update = ev.update; renderUpdateBar(); renderUpdateBox(); return;
     case "onboarding.notice": noteOnboarding({ notice: ev.text, noticeAt: ev.at }); if (S.onboarding) S.onboarding = { ...S.onboarding, notice: ev.text, noticeAt: ev.at }; return;
@@ -317,9 +324,18 @@ function handle(ev) {
 
 // ---------------- live run handling ----------------
 let graph = null;
-function refreshGraphUsage() { graph?.setUsage(usageFromSummary(S.ledger)); }
+// Jobs logged for the mission on screen. Kept until that mission ends, so a finished AI stays large while the run is still going.
+let runJobs = {};
+function activeIds() { return Object.entries(S.activeByProvider).filter(([, n]) => n > 0).map(([id]) => id); }
+function graphRun() { const ids = activeIds(); return { live: ids.length > 0, runCounts: runJobs, activeIds: ids }; }
+function refreshGraphUsage() { graph?.setUsage(usageFromSummary(S.ledger), graphRun()); }
+function noteRunJob(entry) {
+  if (!isUsageJob(entry) || !S.live.id) return;
+  if (entry.missionId && entry.missionId !== S.live.id) return;
+  runJobs[entry.provider] = (Number(runJobs[entry.provider]) || 0) + 1;
+}
 function ensureLive(id, kind) {
-  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
+  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
   if (quietProvider(P(ev.provider))) return;
@@ -329,6 +345,7 @@ function onAgentStart(ev) {
   if (S.live.kind === "single") S.live.primary = ev.agent;
   S.activeByProvider[ev.provider] = (S.activeByProvider[ev.provider] || 0) + 1;
   graph?.activate(ev.provider, ev.label?.replace(/^[^:]+:\s*/, "") || ev.role);
+  refreshGraphUsage();
   renderStrip();
   if (S.view === "command") renderOps();
 }
@@ -343,8 +360,11 @@ function onAgentDelta(ev) {
 function onAgentEnd(ev, err) {
   const a = S.live.agents[ev.agent]; if (a) { a.done = true; a.error = ev.error; a.ms = ev.ms; a.cost = ev.cost; }
   S.activeByProvider[ev.provider] = Math.max(0, (S.activeByProvider[ev.provider] || 1) - 1);
+  // A finished AI stays in this run's tally while someone else is still working, then the resting sizes return.
+  if (activeIds().length && ev.provider) runJobs[ev.provider] = Math.max(Number(runJobs[ev.provider]) || 0, 1);
+  if (activeIds().length) refreshGraphUsage();
   graph?.deactivate(ev.provider, err ? "error" : ev.ms ? `${(ev.ms / 1000).toFixed(1)}s` : "");
-  if (!Object.values(S.activeByProvider).some((n) => n > 0)) refreshGraphUsage();
+  if (!activeIds().length) refreshGraphUsage();
   renderStrip();
   if (S.view === "command" && ev.agent === S.live.primary) $("#out-md")?.classList.remove("cursor");
 }
@@ -364,14 +384,14 @@ function onMission(m) {
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
-  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) { graph?.resetAll(); S.activeByProvider = {}; refreshGraphUsage(); renderStrip(); toast(`${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed"); }
+  if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) { graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip(); toast(`${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed"); }
 }
 function onCouncil(c) {
   ensureLive(c.id, "council");
   S.live.council = c; S.live.status = c.status;
   if (c.verdict?.text) S.live.deliverable = c.verdict.text;
   if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict) renderOutput(); }
-  if (c.status === "done") { const i = S.missions.findIndex((x) => x.id === c.id); const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) }; if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ); graph?.resetAll(); S.activeByProvider = {}; refreshGraphUsage(); renderStrip(); toast(`Council done · ${money(c.cost, 4)}`); }
+  if (c.status === "done") { const i = S.missions.findIndex((x) => x.id === c.id); const summ = { id: c.id, kind: "council", title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt, cost: c.cost, members: c.members.map((m) => m.provider) }; if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ); graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip(); toast(`Council done · ${money(c.cost, 4)}`); }
 }
 
 // ---------------- feed ----------------

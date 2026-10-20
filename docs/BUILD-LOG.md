@@ -1297,13 +1297,14 @@ HONEST KEY ERRORS AND DESKTOP TAP TO TALK DONE (built by Cursor cloud agent)
 
 FEATURE start-a-project DONE (built by Cursor cloud agent)
 
-## 2026-10-20 02:11 UTC: Live Ops bubbles sized by use (Cursor cloud agent)
+## 2026-10-20 02:30 UTC: Live Ops bubbles sized by the run, then by recent use (Cursor cloud agent)
 
-- Each AI on the Command Live Ops graph grows or shrinks with its share of jobs in the last 30 days (ledger calls, images, searches, and credit lines). The busiest reaches 1.6x. Once anything has run, an unused AI shrinks to 0.6x. With no jobs in the window every bubble stays at 1x. While an AI is working it grows a little more, then eases back. The move is ease-out. prefers-reduced-motion resizes with no animation.
-- Names stay at a readable size. On the smallest bubbles the name is hidden and comes back on hover or focus. Circles are pushed apart, and shrunk together if the ring is crowded, so they do not overlap. The hub stays put.
-- The live view flow map uses the same scale. Recomputed when a run finishes. `web/app.js` only passes the 30-day counts into the graph. The ledger summary gains `calls30` and does not change older totals.
-- Rebased onto origin/main at c59fd26 (prompt shelves) before the pull request. Tests: `test/graph-usage.test.js`. npm test 336 tests, 335 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs only. No real key.
-- Checked in the browser on the local app, Expert, demo mode: Nova (8 jobs) drew at 1.6x, Sage (1 job) in between, Atlas (none) at 0.6x with its name hidden until hover. Bubbles did not cover the hub.
+- During a run the Live Ops bubbles follow that run. AIs working or already used in it grow, the busiest to 1.6x and every other one in the run still large (from 1.3x up). AIs not in the run shrink to 0.6x. The change eases out over about half a second. prefers-reduced-motion resizes with no animation.
+- When nothing is running, size follows each AI's share of jobs in the last 30 days (ledger calls, images, searches, and credit lines). The busiest reaches 1.6x. Once anything has run, an unused AI shrinks to 0.6x. With no jobs in the window every bubble stays at 1x.
+- Names stay at a readable size. On the smallest bubbles the name is hidden and comes back on hover or focus. Circles are laid out at the large size, and shrunk together if the ring is crowded, so a bubble can grow without covering a neighbour. The hub stays put.
+- The live view flow map uses the same rule. Sizes update when an AI starts, when a job is logged, when an AI finishes, and when the run ends. `web/app.js` passes the 30-day counts and the current run into the graph. The ledger summary gains `calls30` and does not change older totals.
+- Rebased onto origin/main at 2cff914. Paused providers still stay out of Live Ops (they are not opened as working). Tests: `test/graph-usage.test.js`. npm test 366 tests, 365 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs only. No real key.
+- Checked in the browser on the local app, Expert, demo mode. At rest Atlas (8 jobs) drew at 1.6x (radius 35.2), Sage (1 job) in between (15.95), and Nova (none) at 0.6x (13.2) with its name hidden. During a single answer Nova grew to 35.2 and Atlas and Sage shrank to 13.2, then eased back to the 30-day sizes. Nova's resting size rose a little, because that answer is now in the tally.
 - Not verified: a packaged Electron build. Phase 14 stays BLOCKED (needs a Mac).
 
 LIVE OPS BUBBLE SIZE DONE (built by Cursor cloud agent)

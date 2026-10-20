@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  USAGE_MIN, USAGE_MAX, WORKING_BOOST, usageScale, peakCount, isTiny, displayScale,
+  USAGE_MIN, USAGE_MAX, RUN_FLOOR, usageScale, peakCount, isTiny, runScale, bubbleScales,
   eased, easeOutCubic, jobCounts, windowStart, usageFromSummary, ringPositions,
   layoutBubbles, circlesOverlap,
 } from "../web/graph-usage.js";
@@ -28,8 +28,36 @@ test("size scale: busiest is 1.6x, unused is 0.6x, even field stays 1x", () => {
   assert.equal(isTiny(0.6, peak), true);
   assert.equal(isTiny(1.6, peak), false);
   assert.equal(isTiny(1, 0), false, "no history yet, names stay visible");
-  assert.equal(displayScale(1.6, true), 1.6 + WORKING_BOOST);
-  assert.equal(displayScale(1.6, false), 1.6);
+});
+
+test("during a run the AIs in it grow and the ones sitting out shrink", () => {
+  const ids = ["nova", "sage", "atlas"];
+  const resting = { nova: 8, sage: 1, atlas: 0 };
+  const idle = bubbleScales(ids, resting);
+  assert.equal(idle.live, false);
+  assert.equal(idle.scales.nova, USAGE_MAX);
+  assert.equal(idle.scales.atlas, USAGE_MIN);
+  assert.ok(Math.abs(idle.scales.sage - (USAGE_MIN + (1 / 8) * (USAGE_MAX - USAGE_MIN))) < 1e-9);
+
+  const empty = bubbleScales(ids, {});
+  assert.equal(empty.scales.nova, 1);
+  assert.equal(empty.scales.atlas, 1);
+  assert.equal(empty.scales.sage, 1);
+
+  const live = bubbleScales(ids, resting, { live: true, runCounts: { nova: 4, sage: 1 }, activeIds: ["sage"] });
+  assert.equal(live.live, true);
+  assert.equal(live.scales.nova, USAGE_MAX);
+  assert.equal(live.scales.atlas, USAGE_MIN);
+  assert.ok(Math.abs(live.scales.sage - runScale(1, 4)) < 1e-9);
+  assert.ok(live.scales.sage >= RUN_FLOOR && live.scales.sage < USAGE_MAX);
+
+  const started = bubbleScales(ids, resting, { live: true, runCounts: {}, activeIds: ["atlas"] });
+  assert.equal(started.scales.atlas, USAGE_MAX, "the only AI working is the biggest");
+  assert.equal(started.scales.nova, USAGE_MIN, "a heavy user sitting out this run shrinks");
+
+  const quiet = bubbleScales(ids, resting, { live: false, runCounts: { atlas: 9 }, activeIds: ["atlas"] });
+  assert.equal(quiet.scales.nova, USAGE_MAX);
+  assert.equal(quiet.scales.atlas, USAGE_MIN, "resting sizes ignore a run that has stopped");
 });
 
 test("easing: reduced motion jumps, otherwise it eases out", () => {
@@ -64,8 +92,8 @@ test("job counts use the last 30 days and ignore older rows", () => {
 });
 
 test("crowded rings stay apart, including the hub", () => {
-  const text = Array.from({ length: 8 }, (_, i) => ({ id: "t" + i, r: 22 * (1.6 + WORKING_BOOST), tail: 16 }));
-  const media = Array.from({ length: 6 }, (_, i) => ({ id: "m" + i, r: 15 * (1.6 + WORKING_BOOST), tail: 16 }));
+  const text = Array.from({ length: 8 }, (_, i) => ({ id: "t" + i, r: 22 * USAGE_MAX, tail: 16 }));
+  const media = Array.from({ length: 6 }, (_, i) => ({ id: "m" + i, r: 15 * USAGE_MAX, tail: 16 }));
   const home = [
     ...ringPositions(text, { hx: 400, hy: 170, rx: 300, ry: 118, start: Math.PI * 1.08, end: Math.PI * 1.92 }),
     ...ringPositions(media, { hx: 400, hy: 170, rx: 330, ry: 140, start: Math.PI * 0.12, end: Math.PI * 0.88 }),
@@ -115,9 +143,21 @@ test("ledger summary stores a 30-day job count the graph can read", async () => 
     { ledger: store.ctx().ledger },
   );
   const byId = Object.fromEntries(flow.nodes.map((n) => [n.id, n]));
-  assert.ok(byId.openai.radius > byId.anthropic.radius, "the busier AI is the larger bubble");
+  assert.equal(byId.openai.usageScale, USAGE_MAX, "the AI working this run is the largest");
+  assert.equal(byId.anthropic.usageScale, USAGE_MIN, "an AI on the run that is not in use shrinks");
+  assert.ok(byId.openai.radius > byId.anthropic.radius);
   assert.equal(byId.openai.tiny, false);
+  assert.equal(byId.anthropic.tiny, true);
   assert.equal(circlesOverlap(flow.nodes.map((n) => ({ x: n.x, y: n.y, r: n.radius || 18 })), 8), false);
+
+  const idle = lv.makeFlow(
+    [{ id: "m1", providerIds: ["openai", "anthropic"], workers: [], handoffs: [], links: [], cost: 0 }],
+    { pulses: [] },
+    { ledger: store.ctx().ledger },
+  );
+  const idleBy = Object.fromEntries(idle.nodes.map((n) => [n.id, n]));
+  assert.equal(idleBy.openai.usageScale, USAGE_MAX, "with nobody working, the 30-day leader is largest");
+  assert.ok(idleBy.anthropic.usageScale > USAGE_MIN && idleBy.anthropic.usageScale < USAGE_MAX);
 });
 
 test("graph and live map hide tiny names, ease size, and honor reduced motion", () => {
@@ -131,6 +171,9 @@ test("graph and live map hide tiny names, ease size, and honor reduced motion", 
   assert.match(graph, /classList\.toggle\("tiny"/);
   assert.match(live, /lv-tiny/);
   assert.match(live, /aimNode/);
+  assert.match(graph, /bubbleScales/);
   assert.match(app, /refreshGraphUsage/);
   assert.match(app, /usageFromSummary/);
+  assert.match(app, /runJobs/);
+  assert.match(app, /noteRunJob/);
 });

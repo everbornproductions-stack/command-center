@@ -5,7 +5,7 @@
 // the person's browser opens after they click.
 import { PROVIDERS } from "./registry.js";
 import { canonAgent, handoffLink, normalizeHandoff, resolveExternalAgent, STATUS_LABEL } from "./external-agents.js";
-import { jobCounts, peakCount, usageScale, displayScale, isTiny, layoutBubbles } from "../web/graph-usage.js";
+import { jobCounts, isUsageJob, isTiny, bubbleScales, layoutBubbles, USAGE_MAX } from "../web/graph-usage.js";
 
 export const HISTORY_NOTE = "API chats do not appear in claude.ai, grok.com or ChatGPT history. Watch the work here.";
 export const HUB_TIP = "Router. Each step goes out to the AI that should do it, and the result comes back.";
@@ -439,6 +439,17 @@ function latestHandoff(providerId, runs) {
   return best;
 }
 
+// Jobs that belong to the runs on screen. Rows with no mission id stay in the 30-day resting tally.
+function jobsInRuns(runs, ledger) {
+  const runIds = new Set((runs || []).map((r) => r && r.id).filter(Boolean));
+  const counts = {};
+  for (const e of ledger || []) {
+    if (!isUsageJob(e) || !e.missionId || !runIds.has(e.missionId)) continue;
+    counts[e.provider] = (counts[e.provider] || 0) + 1;
+  }
+  return counts;
+}
+
 export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledger = [], reducedMotion = false, width = 680, height = 320 } = {}) {
   const ids = new Set();
   const active = new Set();
@@ -448,13 +459,17 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
   }
   const ordered = sortIds(ids);
   const laid = layoutNodes(["hub", ...ordered], { width, height });
-  const counts = jobCounts(ledger);
-  const peak = peakCount(counts, ordered);
+  const live = active.size > 0;
+  const frame = bubbleScales(ordered, jobCounts(ledger), {
+    live,
+    runCounts: live ? jobsInRuns(runs, ledger) : {},
+    activeIds: [...active],
+  });
   const bubbles = laid.map((n) => {
     if (n.id === "hub") return { id: "hub", x: n.x, y: n.y, r: 26, pin: true };
-    const usage = usageScale(counts[n.id] || 0, peak);
-    const live = active.has(n.id);
-    return { id: n.id, x: n.x, y: n.y, r: 18 * displayScale(usage, live), pin: false, usageScale: usage, tiny: isTiny(usage, peak), tail: isTiny(usage, peak) ? 2 : 14 };
+    const scale = frame.scales[n.id] ?? 1;
+    // Lay out at the largest size so a bubble can grow during the run without covering a neighbour.
+    return { id: n.id, x: n.x, y: n.y, r: 18 * USAGE_MAX, pin: false, usageScale: scale, tiny: isTiny(scale, frame.peak), tail: isTiny(scale, frame.peak) ? 2 : 14 };
   });
   const placed = layoutBubbles(bubbles, { width, height, pad: 8, margin: 4 });
   const pos = new Map(placed.map((n) => [n.id, { ...n }]));
@@ -486,7 +501,7 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
       active: on, presence: on ? "live" : "ghost", external: !!ext || kindOf(n.id, providers) === "external",
       handoff: ext ? { status: ext.status, statusLabel: ext.statusLabel, task: ext.task, result: ext.result, sentAt: ext.sentAt, sentLabel: ext.sentLabel } : null,
       step, cost: spend.cost, credits: spend.credits, pending: spend.pending, health: h, x: at.x, y: at.y,
-      usageScale: pos.get(n.id)?.usageScale ?? 1, tiny: !!pos.get(n.id)?.tiny, radius: pos.get(n.id)?.r ?? (n.id === "hub" ? 26 : 18),
+      usageScale: at.usageScale ?? 1, tiny: !!at.tiny, radius: 18 * (at.usageScale ?? 1) * (at.fit || 1),
       tip: "", spin: false,
     };
     node.tip = tipOf(node);

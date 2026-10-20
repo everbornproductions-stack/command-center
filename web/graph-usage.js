@@ -1,10 +1,12 @@
-// How big each AI bubble should be. Share of jobs in the last 30 days, from the ledger.
-// The busiest grows to 1.6x. An unused one, once anything has run, shrinks to 0.6x.
-// With no jobs in the window every bubble stays at 1x.
+// Bubble size. At rest, share of jobs in the last 30 days: busiest 1.6x, unused 0.6x,
+// and 1x for everyone when that window is empty.
+// During a run the scale follows that run: AIs in it grow (the busiest to 1.6x),
+// and AIs not in it shrink to 0.6x. When the run stops, the resting sizes return.
 
 export const USAGE_MIN = 0.6;
 export const USAGE_MAX = 1.6;
-export const WORKING_BOOST = 0.15;
+// Anyone working or already used in the current run stays clearly large. The busiest reaches 1.6x.
+export const RUN_FLOOR = 1.3;
 export const TINY_BELOW = 0.85;
 export const SIZE_MS = 560;
 export const WINDOW_DAYS = 30;
@@ -58,8 +60,37 @@ export function isTiny(scale, peak) {
   return scale < TINY_BELOW;
 }
 
-export function displayScale(usage, working) {
-  return (Number(usage) || 0) + (working ? WORKING_BOOST : 0);
+// In the current run: 0 jobs means not in it (0.6x). The busiest is 1.6x. Everyone else in it
+// sits between RUN_FLOOR and 1.6x, so a light participant is still big.
+export function runScale(count, peak) {
+  const n = Math.max(0, Number(count) || 0);
+  const max = Math.max(0, Number(peak) || 0);
+  if (n <= 0 || max <= 0) return USAGE_MIN;
+  return RUN_FLOOR + (n / max) * (USAGE_MAX - RUN_FLOOR);
+}
+
+// live: a run is on. runCounts are jobs already logged for it. activeIds are working right now
+// and count as in use even before a ledger line.
+export function bubbleScales(ids, restingCounts, { live = false, runCounts = {}, activeIds = [] } = {}) {
+  const list = ids || [];
+  if (!live) {
+    const peak = peakCount(restingCounts, list);
+    const scales = {};
+    for (const id of list) scales[id] = usageScale(restingCounts?.[id] || 0, peak);
+    return { live: false, peak, scales };
+  }
+  const counts = { ...(runCounts || {}) };
+  for (const id of activeIds || []) {
+    if (!id) continue;
+    counts[id] = Math.max(Number(counts[id]) || 0, 1);
+  }
+  const peak = peakCount(counts, list);
+  const scales = {};
+  for (const id of list) {
+    const n = Number(counts[id]) || 0;
+    scales[id] = n > 0 ? runScale(n, peak) : USAGE_MIN;
+  }
+  return { live: true, peak, scales };
 }
 
 export function easeOutCubic(t) {
