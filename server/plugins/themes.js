@@ -1,23 +1,89 @@
-// Colour themes (Phase 1): light / dark / follow-the-system plus an accent colour, saved per user
-// in the "themes.prefs" document (local: data/themes.prefs.json; hosted: a user_docs row), so every
-// device of one user sees the same look. The browser module (web/features/themes.js) applies the
-// values; this side only validates and stores them. Nothing here touches keys or the ledger.
+// Colour themes (Phase 1): light / dark / follow-the-system, an accent, a background colour,
+// and an optional wallpaper (built-in gradient, built-in image, or a photo from a local file).
+// Saved per user in the "themes.prefs" document (local: data/themes.prefs.json; hosted: a user_docs
+// row). The browser module (web/features/themes.js) paints them. This side only validates and stores
+// them. A wallpaper cannot be a web address. Nothing here touches keys or the ledger.
 export const id = "themes";
 
 const KIND = "themes.prefs";
 export const MODES = ["dark", "light", "system"];
 // Named presets the picker shows; any other #rrggbb value is accepted as a custom accent.
-export const ACCENTS = { cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635" };
-export const BACKGROUNDS = { ink: "#090d14", midnight: "#0b1020", slate: "#1e293b", pine: "#10241c", paper: "#f4f1ea", sand: "#f6f1e7" };
-export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null };
+export const ACCENTS = {
+  cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635",
+  teal: "#2dd4bf", indigo: "#818cf8", gold: "#e8b86d", magenta: "#e879f9",
+};
+export const BACKGROUNDS = {
+  ink: "#090d14", midnight: "#0b1020", slate: "#1e293b", pine: "#10241c", paper: "#f4f1ea", sand: "#f6f1e7",
+  charcoal: "#18181b", navy: "#0c1b33", wine: "#2a1218", fog: "#e7e5e4",
+};
+export const GRADIENTS = ["aurora", "dusk", "tide", "ember", "frost"];
+export const IMAGES = ["horizon", "orbit", "lattice", "bloom"];
+// Theme presets: a mode, an accent name, a background name (or null), and a wallpaper id (or null).
+export const LOOKS = {
+  harbor: { mode: "dark", accent: "teal", background: "navy", wallpaper: null },
+  ember: { mode: "dark", accent: "gold", background: null, wallpaper: "gradient:ember" },
+  paper: { mode: "light", accent: "blue", background: "paper", wallpaper: null },
+  aurora: { mode: "dark", accent: "violet", background: null, wallpaper: "gradient:aurora" },
+};
+export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null, wallpaper: null, photo: null };
+export const PHOTO_LIMIT = 900 * 1024;
 const HEX = /^#[0-9a-f]{6}$/;
+const DATA_URL = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/;
 
 const bad = (msg) => Object.assign(new Error(msg), { status: 400, code: "theme_invalid" });
+
+export function validatePhoto(dataUrl) {
+  const s = String(dataUrl ?? "").trim();
+  if (/^https?:/i.test(s) || s.startsWith("//") || /url\s*\(/i.test(s)) throw bad("a photo must be a file on this computer, not a web address");
+  const m = s.match(DATA_URL);
+  if (!m) throw bad("photo must be a PNG, JPEG, or WebP from a file on this computer");
+  const bytes = Buffer.from(m[2], "base64");
+  if (!bytes.length) throw bad("photo is empty");
+  if (bytes.length > PHOTO_LIMIT) throw bad(`photo is too large (the limit is ${Math.round(PHOTO_LIMIT / 1024)} KB)`);
+  const kind = m[1];
+  const ok = kind === "png" ? bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    : kind === "jpeg" ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    : bytes.length > 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (!ok) throw bad(`photo bytes do not match ${kind.toUpperCase()}`);
+  return `data:image/${kind};base64,${m[2]}`;
+}
+
+function parseWallpaper(raw) {
+  const w = String(raw ?? "").trim().toLowerCase();
+  if (!w) return null;
+  if (/url\s*\(|https?:|javascript:|data:|\\|\s|\/\//i.test(w)) throw bad("wallpaper must be a built-in gradient, a built-in image, photo, or empty");
+  if (w === "photo") return "photo";
+  const g = /^gradient:([a-z]+)$/.exec(w);
+  if (g) {
+    if (!GRADIENTS.includes(g[1])) throw bad("unknown gradient");
+    return `gradient:${g[1]}`;
+  }
+  const im = /^image:([a-z]+)$/.exec(w);
+  if (im) {
+    if (!IMAGES.includes(im[1])) throw bad("unknown image");
+    return `image:${im[1]}`;
+  }
+  throw bad("wallpaper must be a built-in gradient, a built-in image, photo, or empty");
+}
+
+function colour(input, table, field) {
+  const a = String(input ?? "").trim().toLowerCase();
+  const named = table[a];
+  const hex = named || (a.length === 4 && a[0] === "#" ? `#${a[1]}${a[1]}${a[2]}${a[2]}${a[3]}${a[3]}` : a);
+  if (!HEX.test(hex)) throw bad(`${field} must be a #rrggbb colour, a preset name, or empty`);
+  return hex;
+}
 
 // Pure: merge a partial update into the previous prefs, rejecting anything that is not a theme.
 export function normalize(input = {}, prev = DEFAULTS) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw bad("body must be an object");
-  const out = { mode: prev.mode || DEFAULTS.mode, accent: prev.accent || DEFAULTS.accent, background: prev.background ?? null };
+  const out = {
+    mode: prev.mode || DEFAULTS.mode,
+    accent: prev.accent || DEFAULTS.accent,
+    background: prev.background ?? null,
+    wallpaper: prev.wallpaper ?? null,
+    photo: prev.photo ?? null,
+  };
   if (input.mode !== undefined) {
     if (!MODES.includes(input.mode)) throw bad(`mode must be one of ${MODES.join(", ")}`);
     out.mode = input.mode;
@@ -30,21 +96,32 @@ export function normalize(input = {}, prev = DEFAULTS) {
     out.accent = hex;
   }
   if (input.background !== undefined) {
-    if (input.background === null || input.background === "") out.background = null;
-    else {
-      const a = String(input.background).trim().toLowerCase();
-      const named = BACKGROUNDS[a];
-      const hex = named || (a.length === 4 && a[0] === "#" ? `#${a[1]}${a[1]}${a[2]}${a[2]}${a[3]}${a[3]}` : a);
-      if (!HEX.test(hex)) throw bad("background must be a #rrggbb colour, a preset name, or empty");
-      out.background = hex;
-    }
+    out.background = input.background === null || input.background === "" ? null : colour(input.background, BACKGROUNDS, "background");
   }
+  if (input.photo !== undefined) {
+    out.photo = input.photo === null || input.photo === "" ? null : validatePhoto(input.photo);
+    if (input.wallpaper === undefined) out.wallpaper = out.photo ? "photo" : (prev.wallpaper === "photo" ? null : out.wallpaper);
+  }
+  if (input.wallpaper !== undefined) {
+    out.wallpaper = input.wallpaper === null || input.wallpaper === "" ? null : parseWallpaper(input.wallpaper);
+    if (out.wallpaper !== "photo") out.photo = null;
+  }
+  if (out.wallpaper === "photo" && !out.photo) throw bad("choose a photo from a file on this computer");
+  if (out.wallpaper !== "photo") out.photo = null;
   out.updatedAt = Date.now();
   return out;
 }
 
 const current = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
-const view = (h) => ({ ...current(h), presets: ACCENTS, backgrounds: BACKGROUNDS, modes: MODES });
+const view = (h) => ({
+  ...current(h),
+  presets: ACCENTS,
+  backgrounds: BACKGROUNDS,
+  gradients: GRADIENTS,
+  images: IMAGES,
+  looks: LOOKS,
+  modes: MODES,
+});
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/themes/, "");

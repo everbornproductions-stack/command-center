@@ -1415,6 +1415,18 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)
 
+## 2026-10-20: Appearance pictures, gradients, and more presets (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The background colour from the 0.4.4 release stays. Square and billing were not touched.
+
+- Settings, Appearance, adds theme presets Harbor, Ember, Paper, and Aurora. Accent colours add teal, indigo, gold, and magenta. Background colours add charcoal, navy, wine, and fog.
+- Gradients are Aurora, Dusk, Tide, Ember, and Frost. Built-in pictures are Horizon, Orbit, Lattice, and Bloom. Your photo is chosen from a PNG, JPEG, or WebP file on this computer. A web address is refused.
+- A dim, blurred layer sits over a picture or photo so text stays readable. Built-in restores the original background. No picture removes only the gradient, picture, or photo.
+- Tests: `test/themes.test.js`. npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked in the browser: paper set a light page with dark text, Aurora and Horizon painted behind the app, a local PNG became the photo, and Built-in cleared the picture. The Appearance panel has a file picker and no web-address field.
+
+APPEARANCE BACKGROUNDS DONE (built by Cursor cloud agent)
+
 ## 2026-10-20: User-added apps and AIs learn what they are good at (Cursor cloud agent)
 
 Not Phase 33. Phase 33 stays planned. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Decision 9 stays: a custom provider is still a name, address, key, models, and headers. Decision 18 stays: scores are task type and numbers, never the prompt.
@@ -1422,6 +1434,6 @@ Not Phase 33. Phase 33 stays planned. No locked decision was changed. Phase 14 s
 - A user-added app or AI learns task types from its name and model ids (Aider, OpenCode, and a model id that says coder start at code). Tick Good at to name the task types yourself. Leave them blank and a plain gateway stays even.
 - Matching tasks go to it. A code model is tried for code. A writing task stays with the stronger writing model while the code model has no writing record.
 - Scores from jobs raise a task type that the starting guess had low. The settings card names the task types scores have raised.
-- Tests: `test/added-caps.test.js`. npm test 400 tests, 399 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed. Phase 33 was not built.
+- Tests: `test/added-caps.test.js`. npm test 400 tests, 399 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed. Phase 33 was not built. Merged with main after appearance pictures landed.
 
 USER-ADDED APPS AND AIS DONE (built by Cursor cloud agent)
