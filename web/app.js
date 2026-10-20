@@ -1,6 +1,6 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
+import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { composerAis } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
@@ -690,9 +690,15 @@ function ensureMobileMore() {
 function ensureFeatureTabs() {
   const root = $("#tabs");
   const mode = S.uiMode === "expert" ? "expert" : "simple";
-  const layout = navLayout(readNavWidth());
+  let layout = currentNavLayout();
+  if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
   if (root) installNav(root, knownViews(), mode, layout);
+  // Eight menus that still overflow this window merge back to the compact row.
+  if (mode === "expert" && root && root.dataset.navLayout === "normal" && rowOverflows(root)) {
+    root.dataset.nav = "";
+    installNav(root, knownViews(), mode, "narrow");
+  }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
@@ -1725,7 +1731,7 @@ async function openCustomForm(editId, pre = {}) {
 $("#tabs").addEventListener("click", (e) => {
   const root = $("#tabs");
   const trigger = e.target.closest(".nav-trigger");
-  if (trigger && root.contains(trigger) && !root.classList.contains("nav-wide")) {
+  if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
     const wasOpen = menu.classList.contains("open");
     closeNav(root);

@@ -3,7 +3,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, NAV_NORMAL, NAV_WIDE } from "../web/nav.js";
+import { createRequire } from "node:module";
+import { EventEmitter } from "node:events";
+import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, navSingleRow, eightMenuMin, NAV_LAYOUT_WAIT_MS, watchNavLayout, resetNavMeasure, isSettingsItem, menuLabeledSettings, rowOverflows } from "../web/nav.js";
+
+const require = createRequire(import.meta.url);
+const { createNavDisplayWatch } = require("../electron/nav-display.cjs");
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
 
@@ -48,29 +54,28 @@ test("keyboard: Space opens, Escape closes, Alt+Space is ignored", () => {
   assert.equal(navKey(closed, "ArrowDown", { metaKey: true }).action, "ignore");
 });
 
-test("breakpoint: narrow stays at five menus, normal splits to eight, wide is inline", () => {
-  assert.equal(NAV_NORMAL, 1280);
-  assert.equal(NAV_WIDE, 1600);
+test("breakpoint: narrow stays at the compact menus, a wider window splits to eight dropdowns", () => {
   assert.equal(navLayout(0), "narrow");
   assert.equal(navLayout(900), "narrow");
-  assert.equal(navLayout(1279), "narrow");
-  assert.equal(navLayout(1280), "normal");
-  assert.equal(navLayout(1440), "normal");
-  assert.equal(navLayout(1599), "normal");
-  assert.equal(navLayout(1600), "wide");
-  assert.equal(navLayout(2560), "wide");
+  assert.equal(navLayout(1024), "narrow");
+  assert.equal(navLayout(eightMenuMin() - 1), "narrow");
+  assert.equal(navLayout(eightMenuMin()), "normal");
+  assert.equal(navLayout(1366), "normal");
+  assert.equal(navLayout(1920), "normal");
+  assert.equal(navLayout(2560), "normal");
+  assert.equal(navLayout(3440), "normal");
   assert.equal(navLayout(Number.NaN), "narrow");
+  assert.equal(navLayout(2560, { width: 2560, height: 1080 }), "normal");
 
   const views = [...VIEWS, "help"];
   const narrow = menuModel(views, "narrow");
   const normal = menuModel(views, "normal");
-  const wide = menuModel(views, "wide");
   assert.deepEqual(narrow.map((g) => g.id), GROUP_ORDER);
   assert.deepEqual(normal.map((g) => g.id), SPLIT_ORDER);
   assert.equal(normal.length, 8);
-  assert.deepEqual(wide.map((g) => g.id), normal.map((g) => g.id));
+  assert.ok(narrow.length <= 5);
 
-  for (const model of [narrow, normal, wide]) {
+  for (const model of [narrow, normal]) {
     const homes = model.flatMap((g) => g.items.filter((i) => i.home).map((i) => i.view));
     assert.equal(new Set(homes).size, homes.length);
     for (const view of views) assert.ok(homes.includes(view), view);
@@ -80,7 +85,8 @@ test("breakpoint: narrow stays at five menus, normal splits to eight, wide is in
     assert.ok(labels.includes("Start a project"));
     assert.ok(model.some((g) => g.items.some((i) => i.view === "liveview" && i.label === "Live")));
   }
-  assert.equal(narrow.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 1);
+  assert.equal(narrow.find((g) => g.id === "work").items.filter((i) => i.view === "start").length, 1);
+  assert.equal(narrow.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 0);
 
   const help = normal.find((g) => g.id === "guides");
   assert.equal(help.label, "Help");
@@ -89,17 +95,29 @@ test("breakpoint: narrow stays at five menus, normal splits to eight, wide is in
     ["Help", "Run setup again", "Replay the tour", "Watch example projects"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
-  assert.equal(groupIdFor("liveview", "wide"), "work");
   assert.equal(groupIdFor("agents", "normal"), "agents");
   assert.equal(groupIdFor("settings", "narrow"), "help");
   assert.equal(groupFor("liveview"), "work");
 
   const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
   const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
-  assert.match(navSrc, /addEventListener\?\.\("resize", apply\)/);
+  const main = fs.readFileSync(new URL("../electron/main.cjs", import.meta.url), "utf8");
+  const preload = fs.readFileSync(new URL("../electron/desk-preload.cjs", import.meta.url), "utf8");
+  assert.match(navSrc, /addEventListener\?\.\("resize", onCss\)/);
   assert.match(navSrc, /matchMedia/);
   assert.match(navSrc, /min-device-width/);
+  assert.match(navSrc, /max-width/);
+  assert.match(navSrc, /flex-wrap: nowrap/);
+  assert.doesNotMatch(navSrc, /flex-wrap:\s*wrap/);
+  assert.doesNotMatch(navSrc, /nav-wide/);
+  assert.match(navSrc, /onNavDisplay/);
   assert.match(app, /watchNavLayout/);
+  assert.match(app, /currentNavLayout/);
+  assert.match(main, /display-metrics-changed|createNavDisplayWatch/);
+  assert.match(main, /nav:display/);
+  assert.match(main, /loadURL\(`http:\/\/127\.0\.0\.1:\$\{PORT\}\/`\)/);
+  assert.doesNotMatch(main, /demo \$\{process\.env\.CC_DEMO_PORT\}/);
+  assert.match(preload, /nav:display/);
   assert.doesNotMatch(navSrc, /\u2014/);
 });
 
@@ -112,4 +130,150 @@ test("the app wires the menus and does not drop the setup tab id", () => {
   assert.match(html, /id="tab-setup"/);
   assert.match(features, /"prompts"/);
   assert.doesNotMatch(app, /\u2014/);
+});
+
+test("the nav is one row of dropdowns at 1024, 1366, 1920 and 2560", () => {
+  const views = [...VIEWS, "help"];
+  const css = fs.readFileSync(new URL("../web/styles.css", import.meta.url), "utf8");
+  const topbar = css.slice(css.indexOf(".topbar {"), css.indexOf(".brand {"));
+  assert.match(topbar, /flex-wrap:\s*nowrap/);
+  const tabs = css.slice(css.indexOf(".tabs {"), css.indexOf(".tabs button"));
+  assert.match(tabs, /flex-wrap:\s*nowrap/);
+  for (const width of [1024, 1366, 1920, 2560]) {
+    const layout = navLayout(width);
+    assert.notEqual(layout, "wide", `${width} has no full-tab row`);
+    assert.equal(navSingleRow(width), true, `${width} stays on one row`);
+    const model = menuModel(views, layout);
+    assert.ok(model.length >= 5 && model.length <= 8, `${width} has ${model.length} dropdowns`);
+    assert.ok(model.every((g) => g.label && g.items.length > 0), width);
+  }
+  assert.equal(menuModel(views, navLayout(1024)).length, GROUP_ORDER.length);
+  assert.equal(menuModel(views, navLayout(1366)).length, 8);
+  assert.equal(menuModel(views, navLayout(1920)).length, 8);
+  assert.equal(menuModel(views, navLayout(2560)).length, 8);
+  const overflow = { scrollWidth: 900, clientWidth: 400, parentElement: { scrollWidth: 900, clientWidth: 400 } };
+  assert.equal(rowOverflows(overflow), true);
+  assert.equal(rowOverflows(null), false);
+});
+
+test("Settings holds only settings items, and Start a project is in Work", () => {
+  const views = ["command", "projects", "settings", "setup", "help", "start", "liveview"];
+  for (const layout of ["narrow", "normal"]) {
+    const model = menuModel(views, layout);
+    const settings = menuLabeledSettings(model);
+    assert.ok(settings, layout);
+    assert.ok(settings.items.length > 0, layout);
+    for (const item of settings.items) {
+      assert.equal(isSettingsItem(item), true, `${layout}: ${item.label}`);
+      assert.notEqual(item.view, "start");
+      assert.notEqual(item.label, "Start a project");
+    }
+    const work = model.find((g) => g.id === "work");
+    assert.equal(work.items.filter((i) => i.view === "start").length, 1, layout);
+  }
+  assert.equal(groupFor("start"), "work");
+  assert.equal(groupIdFor("start", "narrow"), "work");
+  assert.equal(groupIdFor("start", "normal"), "work");
+});
+
+test("layout follows the window from wide to normal to small and back", async () => {
+  resetNavMeasure();
+  const seen = [];
+  const listeners = {};
+  const win = {
+    innerWidth: 2560,
+    devicePixelRatio: 1,
+    screen: { width: 2560, height: 1440 },
+    addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { listeners[type] = (listeners[type] || []).filter((f) => f !== fn); },
+    matchMedia() { return { addEventListener() {}, removeEventListener() {} }; },
+    visualViewport: { addEventListener() {}, removeEventListener() {} },
+    dispatch(type) { for (const fn of listeners[type] || []) fn(); },
+  };
+  let desktopFn = null;
+  win.ccDesktop = { onNavDisplay(fn) { desktopFn = fn; return () => { desktopFn = null; }; } };
+  const stop = watchNavLayout((layout) => seen.push(layout), win);
+  try {
+    assert.equal(seen.at(-1), "normal");
+    const step = async (width, screen, layout) => {
+      win.innerWidth = width;
+      win.screen = screen;
+      win.dispatch("resize");
+      await wait(NAV_LAYOUT_WAIT_MS + 300);
+      assert.equal(seen.at(-1), layout, `width ${width}`);
+      assert.equal(navSingleRow(width), true, `${width} is one row`);
+    };
+    await step(1920, { width: 1920, height: 1080 }, "normal");
+    await step(1024, { width: 1024, height: 768 }, "narrow");
+    await step(1366, { width: 1366, height: 768 }, "normal");
+    await step(2560, { width: 2560, height: 1440 }, "normal");
+    // A move onto a smaller monitor can leave innerWidth stale. The desktop report wins.
+    win.innerWidth = 2560;
+    desktopFn({ width: 1024, screenWidth: 1024, screenHeight: 768 });
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(seen.at(-1), "narrow", "stale innerWidth still follows the smaller display");
+    win.innerWidth = 2560;
+    win.screen = { width: 2560, height: 1440 };
+    win.dispatch("resize");
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(seen.at(-1), "normal");
+  } finally {
+    stop();
+    resetNavMeasure();
+  }
+});
+
+test("desktop display watch reports resize, move, and display changes, then stops", async () => {
+  const sends = [];
+  const winBus = new EventEmitter();
+  const screenBus = new EventEmitter();
+  const win = {
+    bounds: { x: 0, y: 0, width: 3440, height: 1440 },
+    content: { width: 3440, height: 1400 },
+    isDestroyed() { return false; },
+    getBounds() { return this.bounds; },
+    getContentBounds() { return this.content; },
+    webContents: { getZoomFactor() { return 1; } },
+    on(ev, fn) { winBus.on(ev, fn); },
+    removeListener(ev, fn) { winBus.removeListener(ev, fn); },
+  };
+  const screen = {
+    display: { bounds: { width: 3440, height: 1440 }, scaleFactor: 1 },
+    getDisplayMatching() { return this.display; },
+    on(ev, fn) { screenBus.on(ev, fn); },
+    removeListener(ev, fn) { screenBus.removeListener(ev, fn); },
+  };
+  const stop = createNavDisplayWatch({ screen, win, send: (p) => sends.push(p) });
+  try {
+    winBus.emit("resize");
+    await wait(400);
+    assert.equal(sends.at(-1).width, 3440);
+    assert.equal(sends.at(-1).screenWidth, 3440);
+    win.content = { width: 1920, height: 1080 };
+    win.bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+    screen.display = { bounds: { width: 1920, height: 1080 }, scaleFactor: 1 };
+    winBus.emit("moved");
+    screenBus.emit("display-metrics-changed");
+    await wait(400);
+    assert.equal(sends.at(-1).width, 1920);
+    assert.equal(sends.at(-1).screenHeight, 1080);
+    win.content = { width: 1100, height: 700 };
+    winBus.emit("resize");
+    await wait(400);
+    assert.equal(sends.at(-1).width, 1100);
+    win.content = { width: 3440, height: 1400 };
+    screen.display = { bounds: { width: 3440, height: 1440 }, scaleFactor: 1.25 };
+    screenBus.emit("display-metrics-changed");
+    await wait(400);
+    assert.equal(sends.at(-1).width, 3440);
+    assert.equal(sends.at(-1).scaleFactor, 1.25);
+    const n = sends.length;
+    stop();
+    winBus.emit("resize");
+    screenBus.emit("display-metrics-changed");
+    await wait(400);
+    assert.equal(sends.length, n, "a stopped watch does not send");
+  } finally {
+    stop();
+  }
 });

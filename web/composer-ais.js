@@ -11,12 +11,19 @@ export function keyRejected(p) {
   return p?.status?.status === "red" && /rejected|\b401\b/i.test(detail);
 }
 
+function unreachable(p) {
+  const st = p?.status;
+  if (!st || st.lastOk > 0) return false;
+  if (st.network === true) return true;
+  return st.status === "red" && /could not reach|connection refused|ECONNREFUSED|ENOTFOUND|\bnetwork\b/i.test(String(st.detail || ""));
+}
+
 export function isConnectedAi(p) {
   if (!p || isDemoAi(p)) return false;
   const mcp = !!(p.connect?.mcp?.configured);
   const key = !!(p.keyed || p.connect?.key?.configured);
   if (mcp) return true;
-  if (!key || keyRejected(p)) return false;
+  if (!key || keyRejected(p) || unreachable(p)) return false;
   return true;
 }
 

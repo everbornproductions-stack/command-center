@@ -18,6 +18,7 @@ import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { doc, putDoc } from "./store.js";
 import { hasSecret } from "./vault.js";
+import { demosHidden, realJobSkipsDemo } from "./demo-visibility.js";
 import { heuristicClassify } from "./router.js";
 import { observe } from "./brain.js";
 import { troubleKind, markTrouble } from "./fallback.js";
@@ -46,7 +47,7 @@ export function compareModels({ chars = 400, maxTokens = 1200 } = {}) {
   const inTok = tokens(chars) + 40, outTok = Math.round(Math.min(Number(maxTokens) || 1200, 4000) * 0.6);
   const out = [];
   for (const p of Object.values(PROVIDERS).filter((x) => x.kind === "text")) { // custom and demo AIs included
-    if (p.demo && !hasSecret(p.id)) continue;
+    if (p.demo && (!hasSecret(p.id) || demosHidden())) continue;
     const k = keyed(p);
     for (const m of p.models || []) out.push({ provider: p.id, providerName: p.name, color: p.color || null, model: m.id, name: m.name, tier: m.tier || null, keyed: k, capped: stop.includes(p.id), demo: !!p.demo, estCost: +estimateCostAt(m.id, inTok, outTok).toFixed(6) });
   }
@@ -101,6 +102,7 @@ export function startCompare({ prompt, columns, maxTokens = 1200, projectId = nu
       const p = PROVIDERS[c.provider];
       const base = { i, provider: c.provider, providerName: p.name, color: p.color || null, model: c.model, name: modelName(c.model), status: "queued", note: null, text: "", ms: null, ttftMs: null, cost: null, inTok: null, outTok: null, exact: false, startedAt: null, finishedAt: null };
       if (stop.includes(c.provider)) return { ...base, status: "skipped", note: `Skipped: ${p.name} has reached its monthly spend cap. Raise the cap in Settings > Spend caps to include it.` };
+      if (realJobSkipsDemo(p)) return { ...base, status: "skipped", note: `Skipped: ${p.name} is a demo AI, and a real AI is connected.` };
       if (!keyed(p)) return { ...base, status: "skipped", note: `Skipped: no API key saved for ${p.name}. Add it in Settings.` };
       return base;
     }),

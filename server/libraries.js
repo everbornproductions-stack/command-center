@@ -25,6 +25,7 @@ import { getSecret, hasSecret } from "./vault.js";
 import { recordEmbedding } from "./ledger.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
+import { demosHidden, realJobSkipsDemo } from "./demo-visibility.js";
 import { networkCause, providerMessage } from "./health.js";
 import { localFetch } from "./loopback-fetch.js";
 
@@ -62,7 +63,7 @@ export function embedderChoices() {
   for (const [pid, models] of Object.entries(EMBEDDERS)) {
     const p = PROVIDERS[pid];
     if (!p) continue;
-    if (p.demo && !demoActive()) continue;
+    if (p.demo && (!demoActive() || demosHidden())) continue;
     const keyed = hasSecret(p.id, p.keyEnv);
     for (const m of models) out.push({ provider: pid, providerName: p.name, model: m.id, name: m.name, per1M: m.per1M, keyed, capped: stop.includes(pid), demo: !!p.demo, custom: false });
   }
@@ -128,6 +129,7 @@ export function createLibrary({ name, provider, model, per1M } = {}) {
     if (!/^[\w.:/@+-]{1,120}$/.test(id)) throw bad("Type the embedding model name (for example nomic-embed-text).");
     m = { id, name: id, per1M: 0 };
   }
+  if (realJobSkipsDemo(p)) throw bad("The demo embedder stays off while a real AI is connected. Pick your own embedding key.");
   if (p.demo && !demoActive()) throw bad("The demo embedder is only there in demo mode.");
   const price = per1M === undefined || per1M === null || per1M === "" ? m.per1M : Number(per1M);
   if (!(price >= 0) || price > 1000) throw bad("The price per 1M tokens must be a number from 0 up.");
@@ -251,6 +253,7 @@ export class EmbedError extends Error { constructor(provider, status, message, e
 function checkEmbedder(embed) {
   const p = PROVIDERS[embed.provider];
   if (!p) throw new EmbedError(embed.provider, 400, `The embedding provider ${embed.provider} is not set up any more.`, { unavailable: true });
+  if (realJobSkipsDemo(p)) throw new EmbedError(p.id, 400, "The demo embedder stays off while a real AI is connected. Make this library with your own embedding key.", { unavailable: true });
   if (p.demo && !demoActive()) throw new EmbedError(p.id, 400, "The demo embedder is only there in demo mode. Turn demo mode on, or make a library with your own embedding key.", { unavailable: true });
   if (capped().includes(p.id)) throw new EmbedError(p.id, 402, `${p.name} has reached its monthly spend cap, so no embedding call was made. Raise the cap in Settings > Spend caps or wait for the month to roll over.`, { capped: true });
   const sec = getSecret(p.id, p.keyEnv);

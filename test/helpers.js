@@ -53,9 +53,13 @@ export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", h
     const h = { connection: "close", ...headers };
     if (data !== null && h["content-length"] === undefined) h["content-length"] = Buffer.byteLength(data);
     const req = http.request({ host, port, method, path: p, headers: h, agent: false }, (res) => {
-      let text = "";
-      res.on("data", (c) => (text += c));
-      res.on("end", () => { let json = null; try { json = JSON.parse(text); } catch {} resolve({ status: res.statusCode, headers: res.headers, text, json }); });
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        let json = null; try { json = JSON.parse(text); } catch {}
+        resolve({ status: res.statusCode, headers: res.headers, text, json });
+      });
     });
     req.setTimeout(timeout, () => req.destroy(new Error(`timed out after ${timeout}ms: ${method} ${p}`)));
     req.on("error", reject);

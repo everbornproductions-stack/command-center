@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.2
 
 # Start a website
 
-Open **Start a project** on the Command home screen, or from the Settings menu. Pick **Website** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
+Open **Start a project** on the Command home screen, or from the Work menu. Pick **Website** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
 
 1. Describe the idea. A sentence or two is enough. Click **Continue**.
 2. Answer the questions. Required: **Who is the site for?** and **What should a visitor do?** Optional: **Which pages do you need?** and **Facts you can stand behind**. Optional questions can stay blank. Empty facts stay empty. Click **Continue**.

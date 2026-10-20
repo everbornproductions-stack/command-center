@@ -81,13 +81,14 @@ test("each example plays on the flow map and stays labeled example data", () => 
 
 test("Help lists Start a project, and the home card and tour mention it", () => {
   const model = menuModel(["command", "settings"]);
-  const help = model.find((g) => g.id === "help").items;
-  assert.equal(help.filter((i) => i.view === "start").length, 1);
-  assert.equal(groupFor("start"), "help");
+  const work = model.find((g) => g.id === "work").items;
+  assert.equal(work.filter((i) => i.view === "start").length, 1);
+  assert.equal(model.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 0);
+  assert.equal(groupFor("start"), "work");
   const withStart = menuModel(["command", "settings", "start"]);
-  const help2 = withStart.find((g) => g.id === "help").items.filter((i) => i.view === "start");
-  assert.equal(help2.length, 1);
-  assert.equal(help2[0].label, "Start a project");
+  const work2 = withStart.find((g) => g.id === "work").items.filter((i) => i.view === "start");
+  assert.equal(work2.length, 1);
+  assert.equal(work2[0].label, "Start a project");
   const ui = read("web/features/walkthrough.js");
   assert.match(ui, /id="sp-home"/);
   assert.match(ui, /Watch an example/);
