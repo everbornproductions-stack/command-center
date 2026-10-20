@@ -7,6 +7,10 @@ lastUpdatedVersion: 0.4.3
 
 # Missions, media, costs, and approvals
 
+## What a mission is
+
+Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result.
+
 A mission can include a video, an image, or a voice clip. Meldmind shows the estimate first. A paid step waits until you click Approve. Nothing is spent on that step before Approve.
 
 The same rule covers files you drop into a project. You see what will be read and the cost. Nothing is added until you confirm.

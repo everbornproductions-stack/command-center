@@ -44,12 +44,12 @@ async function renderTab(view) {
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>Learning</h3>
         <label class="row small" style="gap:6px"><input type="checkbox" id="br-on" ${on ? "checked" : ""}> Learn from every job</label>
-        <div class="dim small" style="margin-top:6px">Stored with your own data on this computer (on the hosted hub, in your own account rows). It is exported and deleted with the rest of your data.</div>
+        <div class="dim small" style="margin-top:6px">Meldmind learns from every job you run. Stored with your own data on this computer (on the hosted hub, in your own account rows). It is exported and deleted with the rest of your data. Prompts, files, and keys are never used. You can turn it off any time in Settings.</div>
         <div class="row" style="gap:8px;margin-top:10px"><button class="btn sm" id="br-export">Export</button><button class="btn sm" id="br-reset" style="margin-left:auto">Reset what it learned</button></div>
       </div>
       <div class="panel"><h3>Help build a better router</h3>
         <label class="row small" style="gap:6px"><input type="checkbox" id="br-share" ${d.settings.shareOptIn ? "checked" : ""}> I am willing to share anonymous track records</label>
-        <div class="dim small" style="margin-top:6px">Later, anonymous totals from people who opt in may train a small routing model of our own. Off by default. Only per-model counts and averages, no prompts, no run ids, no account details. This version sends nothing; the preview shows exactly what would be shared.</div>
+        <div class="dim small" style="margin-top:6px">Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds. We never use your prompts, files, or keys. You can turn it off any time in Settings. On Who's best, clear I am willing to share anonymous track records. This switch is off until you choose it. This version sends nothing. Show what would be shared lists the anonymous totals on this computer.</div>
         <button class="btn sm" id="br-preview" style="margin-top:8px">Show what would be shared</button>
         <pre id="br-preview-out" class="small mono" style="display:none;max-height:240px;overflow:auto;margin-top:8px"></pre>
       </div>

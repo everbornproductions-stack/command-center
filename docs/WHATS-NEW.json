@@ -45,7 +45,7 @@
       "Tap to talk works in the desktop app. It transcribes with an OpenAI, Groq, ElevenLabs, or Gemini key, and it names the key to add when none is saved.",
       "A fresh install shows Get everything connected after the AI setup: Gmail, Drive, Calendar, HighLevel, CapCut, Kling, and the rest. Each row is Connected, Not connected, or Handoff. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Run setup again is in Settings and in the Help menu.",
       "The AI keys step leads with one OpenRouter key. It reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, and free models are available. Other keys stay optional.",
-      "First-run setup asks if you are willing to share anonymous track records. It stays off until you turn it on. Only anonymous scores, task types, cost, and speed are used. Prompts, files, and keys are never used. Turn it off any time in Settings.",
+      "Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. First-run setup asks if you are willing to share anonymous track records. It stays off until you turn it on. Only anonymous scores, task types, cost, and speed are used. Prompts, files, and keys are never used. Turn it off any time in Settings.",
       "This note shows once after an update. Take the tour again any time from Settings."
     ]
   },
