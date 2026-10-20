@@ -1,4 +1,12 @@
 {
+  "0.4.6": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "What's new offers each new connection and each new action. Try it runs a sample and does not send. Skip hides that row. Remind me later waits 3 days, then 7 days, then the row moves to Settings.",
+      "Suggest a connection or idea from Settings. You read the exact note, then click Send. Chat is not included.",
+      "Google Calendar sign-in still starts only from the checklist row. Nothing connects from the What's new card."
+    ]
+  },
   "0.4.5": {
     "title": "What's new in Meldmind",
     "bullets": [
