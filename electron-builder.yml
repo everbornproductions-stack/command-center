@@ -34,6 +34,7 @@ win:
   icon: build/icon.ico
   artifactName: "Meldmind-${version}-${arch}-${os}.${ext}"
 nsis:
+  include: build/firewall.nsh
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

@@ -6,7 +6,7 @@ import { composerAis } from "./composer-ais.js";
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null,
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -92,10 +92,30 @@ async function api(path, opts = {}) {
 }
 // Error states: never a bare "Failed to fetch" or an empty message. A network failure names the engine
 // (or the hub) and what to do; an error answer without a message names the HTTP status.
+function isPrivateIPv4(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip || ""));
+  if (!m) return false;
+  const n = m.slice(1).map(Number);
+  if (n.some((x) => x > 255)) return false;
+  if (n[0] === 10) return true;
+  if (n[0] === 192 && n[1] === 168) return true;
+  return n[0] === 172 && n[1] >= 16 && n[1] <= 31;
+}
+// The phone opened this PC's Wi-Fi address (or a pairing link). A failed fetch is that, not a dead local engine.
+function phoneSide() {
+  try {
+    if (isPrivateIPv4(location.hostname)) return true;
+    if (new URL(location.href).searchParams.has("pair")) return true;
+    if (HUB && isPrivateIPv4(new URL(HUB).hostname)) return true;
+  } catch {}
+  return false;
+}
+const PHONE_FETCH = "This phone cannot reach the PC. Use the same Wi-Fi, turn on phone pairing in Settings, and allow Meldmind on private networks in Windows Firewall.";
 async function apiFetch(url, opts) {
   try { return await fetch(url, opts); }
   catch (e) {
     if (e?.name === "AbortError") throw e;
+    if (phoneSide()) throw new Error(PHONE_FETCH);
     throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Command AI's engine. Check that the app is still running, then try again.");
   }
 }
@@ -178,7 +198,7 @@ window.ccDesktop?.onEngine?.((st) => { desktopReason = st.reason || null; if (st
 async function engineReason() {
   if (desktopReason) return desktopReason;
   try { const r = await fetch(`${HUB || ""}/api/health`, { cache: "no-store", signal: AbortSignal.timeout(4000) }); return r.ok ? "the live connection keeps dropping, although the engine answers" : `the engine answered HTTP ${r.status}`; }
-  catch { return HUB ? `the hub at ${HUB} cannot be reached (offline, or the hub is down)` : `the local engine at ${location.host} is not answering (it stopped or never started)`; }
+  catch { return phoneSide() ? PHONE_FETCH : HUB ? `the hub at ${HUB} cannot be reached (offline, or the hub is down)` : `the local engine at ${location.host} is not answering (it stopped or never started)`; }
 }
 async function engineDown(on) {
   let el = document.getElementById("engine-down");
@@ -243,7 +263,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null });
   S.plugins = st.plugins || [];
   syncUiMode();
   noteOnboarding(S.onboarding);
@@ -1015,6 +1035,38 @@ function renderSubscriptions(v) {
 }
 
 // ----- Settings -----
+function hubFields() {
+  return `<label class="lbl">Hub address</label>
+    <div class="row"><input type="text" id="hub-addr" value="${esc(hubAddress())}" placeholder="https://your-hub.fly.dev" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="hub-save" type="button">Use this hub</button>${HUB ? `<button class="btn sm" id="hub-reset" type="button" title="Go back to the hub that served this page">Reset</button>` : ""}</div>`;
+}
+function phonePanel() {
+  if (S.mode === "hosted") {
+    return `<div class="panel" id="phone-pair"><h3>Phone &amp; other devices <span class="right">pairing</span></h3>
+      <div class="grid" style="grid-template-columns: 1fr 150px; gap: 14px; align-items: start">
+        <div>
+          ${hubFields()}
+          <div class="dim small" style="margin-top:8px">Scan the code with your phone camera to open this hub there, then Share → Add to Home Screen (iPhone) or Install app (Android). Any browser works: the phone talks to the hub, so your PC can be off.</div>
+          <div class="row small" style="margin-top:8px"><a href="${esc(hubAddress())}" target="_blank" rel="noopener" class="mono">${esc(hubAddress())}</a><button class="ghost small" id="hub-copy" type="button">copy link</button></div>
+        </div>
+        <img id="hub-qr" alt="QR code for ${esc(hubAddress())}" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px">
+      </div></div>`;
+  }
+  const p = S.pairing || {};
+  const err = p.error ? `<div id="pair-error" role="alert" class="small" style="margin-top:8px;color:var(--amber)">${esc(p.error)}</div>` : "";
+  const live = p.on && p.url ? `<div style="margin-top:12px">
+      <img id="pair-qr" alt="QR code for phone pairing" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px;display:block">
+      <div id="pair-url" class="mono small">${esc(p.url)}</div>
+      <button class="btn sm" id="pair-copy" type="button">Copy</button>
+      <div class="dim small" style="margin-top:8px">The phone and this PC need the same Wi-Fi. Scan the code, or copy the address under it.</div>
+    </div>` : `<div class="dim small" style="margin-top:8px">Turn this on to show a code your phone can scan. Until then, this PC answers only on this computer.</div>`;
+  return `<div class="panel" id="phone-pair"><h3>Phone &amp; other devices <span class="right">pairing</span></h3>
+    <label class="row small" style="gap:8px"><input type="checkbox" id="pair-on" ${p.on ? "checked" : ""}> Phone pairing</label>
+    ${live}${err}
+    <details style="margin-top:12px"><summary class="small muted" style="cursor:pointer">Use a hosted hub instead</summary>
+      <div style="margin-top:8px">${hubFields()}</div>
+      <div class="dim small" style="margin-top:8px">A hosted hub is a server elsewhere. The phone can use that address when this PC is off.</div>
+    </details></div>`;
+}
 function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
@@ -1077,16 +1129,7 @@ function renderSettings(v) {
       </div>
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
-      <div class="panel"><h3>Phone &amp; other devices <span class="right">pairing</span></h3>
-        <div class="grid" style="grid-template-columns: 1fr 150px; gap: 14px; align-items: start">
-          <div>
-            <label class="lbl">Hub address</label>
-            <div class="row"><input type="text" id="hub-addr" value="${esc(hubAddress())}" placeholder="https://your-hub.fly.dev" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="hub-save">Use this hub</button>${HUB ? `<button class="btn sm" id="hub-reset" title="Go back to the hub that served this page">Reset</button>` : ""}</div>
-            <div class="dim small" style="margin-top:8px">Scan the code with your phone camera to open this hub there, then Share → Add to Home Screen (iPhone) or Install app (Android). Any browser works: the phone talks to the hub, so your PC can be off${S.mode === "hosted" ? "" : " once the hub is hosted (see docs/hosted-hub.md)"}.</div>
-            <div class="row small" style="margin-top:8px"><a href="${esc(hubAddress())}" target="_blank" rel="noopener" class="mono">${esc(hubAddress())}</a><button class="ghost small" id="hub-copy">copy link</button></div>
-          </div>
-          <img id="hub-qr" alt="QR code for ${esc(hubAddress())}" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px">
-        </div></div>
+      ${phonePanel()}
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 3} councils/month, 1 project. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
@@ -1153,10 +1196,30 @@ function renderSettings(v) {
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
-  $("#hub-save").addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
+  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
-  $("#hub-copy").addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
-  apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
+  $("#hub-copy")?.addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
+  if ($("#hub-qr")) apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
+  $("#pair-on")?.addEventListener("change", async (e) => {
+    const box = e.target;
+    box.disabled = true;
+    try {
+      const r = await api("/pairing", { method: "POST", body: { on: box.checked } });
+      S.pairing = r;
+      if (r.error) toast(r.error, true);
+      render();
+    } catch (err) {
+      toast(err.message, true);
+      box.checked = !box.checked;
+      box.disabled = false;
+    }
+  });
+  $("#pair-copy")?.addEventListener("click", async () => {
+    const url = S.pairing?.url || $("#pair-url")?.textContent || "";
+    try { await navigator.clipboard.writeText(url); toast("Link copied"); }
+    catch { toast("Could not copy. Select the address and copy it.", true); }
+  });
+  if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
   $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
   $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });

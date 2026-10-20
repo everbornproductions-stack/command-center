@@ -330,3 +330,5 @@ body.hosted #tab-setup { display: none; }
 .brand-tag { margin-left: 8px; letter-spacing: .02em; white-space: nowrap; }
 @media (max-width: 760px) { .brand-tag { display: none; } }
 #cc-tour .card::after { content: "Meldmind, an Everborn product. Take command of all your AIs."; display: block; margin-top: 10px; font-size: 11px; color: var(--dim, #7b8798); text-align: right; }
+#pair-url { word-break: break-all; overflow-wrap: anywhere; margin-top: 8px; }
+#pair-copy { margin-top: 8px; }

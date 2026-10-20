@@ -27,6 +27,7 @@ const STEPS = [
   { id: "publish", target: "#pub-tour", view: "publish", title: "Publishing preview", body: "Publishing always shows a preview first. Nothing posts, schedules, or saves until you click Confirm. If credentials are not saved yet, the preview says it will record a dry run. Connect Google Drive, Instagram, HighLevel and Slack with your own sign-in in Settings, Publishing." },
   { id: "marketplace", view: "marketplace", title: "Marketplace", body: "Browse and install templates other people shared. Every template is signed and checked before it installs, and nothing runs until you start it. You can share one of your own pipelines here too." },
   { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again.", action: "keys" },
+  { id: "phone", for: "both", target: "#phone-pair", view: "settings", title: "Phone pairing", body: "Settings, Phone and other devices, turns on a link for a phone on the same Wi-Fi. The QR code and the address under it include the pairing code. It stays off until you turn it on. Copy works if the camera cannot scan." },
 ];
 
 const css = `

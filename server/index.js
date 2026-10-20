@@ -1,7 +1,8 @@
 // Everborn Command Center server: static UI + JSON API + WebSocket event stream.
-// Local mode (default): one user, data/ folder, binds 127.0.0.1. `node server/index.js` and done.
+// Local mode (default): one user, data/ folder, binds 127.0.0.1 until phone pairing is turned on. `node server/index.js` and done.
 // Hosted mode (CC_MODE=hosted): Supabase sign-in, one context per user, binds 0.0.0.0. See docs/hosted-hub.md.
 import http from "node:http";
+import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -17,6 +18,11 @@ import { loadVault, setSecret, getSecret, getOwnSecret, hasSecret, maskedKey, va
 import { loadForActive as loadWorkspaceKeys } from "./workspace-keys.js";
 import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso.js";
 import { bus, emit } from "./events.js";
+import {
+  BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket, isPrivateIPv4,
+  lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairTokenOk, pairUrl,
+  preferredLanIPv4, probePort, readInterfaces, unreachableError,
+} from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
 import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall, getStatus } from "./health.js";
 import { connectionOf } from "./connect.js";
@@ -68,13 +74,18 @@ const MODE = HOSTED ? "hosted" : "local";
 //     every /api call must carry it in X-CC-Token (except /api/health and /api/config) and it must be
 //     the first WebSocket message ({ type: "auth", token }).
 //  2. Host must be 127.0.0.1:<port> or localhost:<port> (421 otherwise), on every request including static files.
+//     Phone pairing adds the PC's private IPv4 only while it is on. Any other host is still refused.
 //  3. If an Origin header is present it must be the loopback origin (403 otherwise), also on the WebSocket upgrade.
+//     While phone pairing is on, the origin http://<private-ip>:<port> is allowed too.
 //  4. POST/PUT/DELETE with a body must be application/json (415), in hosted mode too.
 // Hosted mode keeps its bearer-token sign-in; only 4 applies there.
 const LOCAL_TOKEN = HOSTED ? null : crypto.randomBytes(32).toString("hex");
-const LOCAL_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`]);
-const LOCAL_ORIGINS = new Set([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`]);
 const PUBLIC_API = new Set(["/api/health", "/api/config"]);
+let firewallStatus = { ok: true, skipped: true };
+let pairingError = null;
+let lanServer = null;
+let lanWss = null;
+let pairLock = Promise.resolve();
 const hasBody = (req) => Number(req.headers["content-length"] || 0) > 0 || !!req.headers["transfer-encoding"];
 const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
 // the one raw upload: an export zip for the history import (not a CORS-safelisted type, so still preflighted)
@@ -84,8 +95,23 @@ function tokenOk(presented) {
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-const hostOk = (req) => LOCAL_HOSTS.has(String(req.headers.host || "").toLowerCase());
-const originOk = (req) => !req.headers.origin || LOCAL_ORIGINS.has(String(req.headers.origin).toLowerCase());
+const hostOk = (req) => loopbackHost(req.headers.host, PORT) || (phonePair().on && lanHostOk(req.headers.host, PORT, readInterfaces()));
+const originOk = (req) => {
+  if (!req.headers.origin) return true;
+  const o = String(req.headers.origin).toLowerCase();
+  if ([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`].includes(o)) return true;
+  return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
+};
+function phonePair() {
+  const p = settings().phonePair;
+  if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
+  return { on: true, token: p.token };
+}
+function pairPresented(req, url) {
+  const token = phonePair().token;
+  if (!token) return false;
+  return pairTokenOk(url.searchParams.get("pair"), token) || pairTokenOk(cookieValue(req.headers.cookie, "cc-pair"), token);
+}
 // Returns { status, error } to send, or null when the request may proceed.
 function localGate(req, url) {
   if (HOSTED) return null;
@@ -270,7 +296,22 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(),
-    onboarding: onboardingState(),
+    onboarding: onboardingState(), pairing: pairingView(),
+  };
+}
+
+function pairingView() {
+  const saved = phonePair();
+  const address = preferredLanIPv4(readInterfaces());
+  const listening = !!(lanServer && address && lanServer.listening);
+  const url = saved.on && listening ? pairUrl(address, PORT, saved.token) : null;
+  return {
+    on: !!url,
+    url,
+    address: address || null,
+    port: PORT,
+    error: pairingError,
+    firewall: firewallStatus.skipped ? null : { ok: !!firewallStatus.ok, error: firewallStatus.error || null },
   };
 }
 
@@ -532,9 +573,12 @@ async function api(req, res, url) {
     return json(res, 200, { demo: demoActive(), providers: providerView() });
   }
   if (method === "POST" && p === "/settings") {
-    const { cloud, ...rest } = body; // cloud has its own route
+    const { cloud, phonePair: _pair, ...rest } = body; // cloud and phone pairing have their own routes
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
+  if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());
+  if (p === "/pairing" && method === "POST") return json(res, 200, await withPairLock(() => setPhonePair(!!body.on)));
+  if (p === "/pairing/qr.svg" && method === "GET") return pairingQr(res);
   if (method === "GET" && p === "/hq") return json(res, 200, hqSnapshot());
   if (method === "POST" && p === "/open") {
     // open a local folder or file in Explorer (Windows) — the project hub uses it for local outputs
@@ -568,7 +612,7 @@ function cors(req, res) {
   res.setHeader("access-control-max-age", "600");
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleHttp(req, res) {
   let url;
   try { url = new URL(req.url, `http://127.0.0.1:${PORT}`); } catch { return json(res, 400, { error: "bad url" }); }
   try {
@@ -585,6 +629,14 @@ const server = http.createServer(async (req, res) => {
     }
     const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
+    // A phone on the LAN does not receive the session token until it presents the pairing code.
+    if (!HOSTED && isLanSocket(req.socket?.remoteAddress) && !url.pathname.startsWith("/api/") && !pairPresented(req, url)) {
+      return text(res, 401, BAD_LINK);
+    }
+    if (!HOSTED && isLanSocket(req.socket?.remoteAddress) && pairTokenOk(url.searchParams.get("pair"), phonePair().token)) {
+      res.setHeader("set-cookie", pairCookie(phonePair().token));
+      res.setHeader("referrer-policy", "no-referrer");
+    }
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     // Hosted cron tick. The shared secret is the only check. Local mode answers 404 and keeps its own timer.
     if (url.pathname === TICK_PATH) return handleScheduleTick(req, res, json);
@@ -622,13 +674,19 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache", ...(etag ? { etag } : {}), "content-length": st.size });
     fs.createReadStream(file).on("error", () => res.destroy()).pipe(res);
   } catch (e) {
-    console.error(e);
+    console.error(e && e.message ? e.message : e);
     json(res, 500, { error: e.message });
   }
-});
+}
 
-// ---------- WebSocket: one hello per client, events fanned out per user ----------
-const wss = new WebSocketServer({ server, path: "/ws" });
+function text(res, status, body) {
+  const b = Buffer.from(String(body || ""));
+  res.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "content-length": b.length });
+  res.end(b);
+}
+
+const server = http.createServer(handleHttp);
+const socketServers = [];
 const send = (ws, obj) => { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); };
 function trackSocket(ws, c) {
   if (!c) return;
@@ -638,7 +696,7 @@ function trackSocket(ws, c) {
     c.lastSeen = Date.now();
   });
 }
-wss.on("connection", (ws, req) => {
+function onWs(ws, req) {
   if (!HOSTED) {
     // local: same Host/Origin pinning as HTTP, then the per-launch token as the first message
     if (!hostOk(req) || !originOk(req)) { ws.close(4403, "cross-site refused"); return; }
@@ -663,15 +721,117 @@ wss.on("connection", (ws, req) => {
       send(ws, { type: "hello", state: runAs(c, fullState) });
     } catch (e) { send(ws, { type: "auth.error", error: e.message }); ws.close(4401, "unauthorized"); }
   });
-});
+}
+function attachWs(httpServer) {
+  const w = new WebSocketServer({ server: httpServer, path: "/ws" });
+  w.on("connection", onWs);
+  w.on("error", () => {});
+  socketServers.push(w);
+  return w;
+}
+attachWs(server);
+function eachClient(fn) { for (const w of socketServers) for (const c of w.clients) fn(c); }
+
+function withPairLock(fn) {
+  const run = pairLock.then(fn, fn);
+  pairLock = run.then(() => {}, () => {});
+  return run;
+}
+async function closeLan() {
+  const lan = lanServer;
+  const w = lanWss;
+  lanServer = null;
+  lanWss = null;
+  if (w) {
+    const i = socketServers.indexOf(w);
+    if (i >= 0) socketServers.splice(i, 1);
+    try { for (const client of w.clients) client.close(1001, "pairing off"); } catch {}
+    try { w.close(); } catch {}
+  }
+  // server.close() stops new connections but leaves a phone's open socket up, so the
+  // phone would never see that pairing turned off. Drop those sockets too.
+  if (lan) {
+    try { lan.closeAllConnections(); } catch {}
+    await new Promise((resolve) => lan.close(() => resolve()));
+  }
+}
+async function openLan(ip) {
+  if (!ip || !isPrivateIPv4(ip)) throw Object.assign(new Error(NO_LAN), { code: "lan" });
+  if (lanServer && lanServer.listening && lanWss) {
+    const bound = lanServer.address();
+    if (bound && bound.address === ip) return;
+  }
+  await closeLan();
+  const lan = http.createServer(handleHttp);
+  await new Promise((resolve, reject) => {
+    const fail = (e) => { lan.off("error", fail); reject(e); };
+    lan.once("error", fail);
+    lan.listen(PORT, ip, () => { lan.off("error", fail); resolve(); });
+  });
+  lanWss = attachWs(lan);
+  lanServer = lan;
+  const reached = await probePort(ip, PORT, net);
+  if (!reached) {
+    await closeLan();
+    throw Object.assign(new Error(unreachableError(ip, PORT)), { code: "reach" });
+  }
+}
+async function setPhonePair(on) {
+  if (HOSTED) { pairingError = "Phone pairing is for the desktop app on this PC."; return pairingView(); }
+  if (!on) {
+    await closeLan();
+    const next = { ...settings() };
+    delete next.phonePair;
+    saveSettings(next);
+    pairingError = null;
+    firewallStatus = { ok: true, skipped: true };
+    console.log("Phone pairing off. This PC answers only on this computer.");
+    emit("log", { text: "Phone pairing off. This PC answers only on this computer." });
+    return pairingView();
+  }
+  const address = preferredLanIPv4(readInterfaces());
+  if (!address) {
+    pairingError = NO_LAN;
+    console.log(pairingError);
+    emit("log", { text: pairingError });
+    return pairingView();
+  }
+  const prev = phonePair();
+  const token = prev.on && prev.token ? prev.token : newPairToken();
+  saveSettings({ ...settings(), phonePair: { on: true, token } });
+  try { await openLan(address); }
+  catch (e) {
+    await closeLan();
+    const next = { ...settings() };
+    delete next.phonePair;
+    saveSettings(next);
+    pairingError = e.code === "reach" ? e.message : BIND_FAIL;
+    console.log(pairingError);
+    emit("log", { text: pairingError });
+    return pairingView();
+  }
+  firewallStatus = await ensureWindowsFirewall();
+  pairingError = firewallStatus.error || null;
+  console.log(`Phone pairing on at ${address}:${PORT}.`);
+  emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+  return pairingView();
+}
+function pairingQr(res) {
+  const view = pairingView();
+  if (!view.url) return json(res, 404, { error: view.error || "Phone pairing is off." });
+  const qr = qrcode(0, "M"); qr.addData(view.url); qr.make();
+  const svg = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-store" });
+  res.end(svg);
+}
 bus.on("event", (ev) => {
   const msg = JSON.stringify(ev);
-  for (const c of wss.clients) if (c.readyState === 1 && c.ctx && (!ev.user || c.ctx.userId === ev.user)) c.send(msg);
+  eachClient((c) => { if (c.readyState === 1 && c.ctx && (!ev.user || c.ctx.userId === ev.user)) c.send(msg); });
 });
 // Periodic state refresh (ledger totals, subscription view) so the UI never drifts
 setInterval(() => {
   const byCtx = new Map();
-  for (const c of wss.clients) { if (c.readyState !== 1 || !c.ctx) continue; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); }
+  eachClient((c) => { if (c.readyState !== 1 || !c.ctx) return; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); });
   for (const [c, clients] of byCtx) {
     const msg = runAs(c, () => JSON.stringify({ type: "tick", ledger: ledgerSummary(), ...subsView(), providers: providerView(), now: Date.now() }));
     for (const ws of clients) ws.send(msg);
@@ -712,19 +872,32 @@ async function initContext() {
   // A taken port is a clear message and exit code 1, not a stack trace. The desktop app picks a free port
   // and then trusts only its own instance id (decision 6), so it never mistakes another server for this one.
   // ws re-emits the HTTP server's errors on wss; that copy is handled here, so it is ignored there.
-  wss.on("error", () => {});
   server.on("error", (e) => {
     console.error(e.code === "EADDRINUSE" ? `Command AI could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Command AI server error: ${e.message}`);
     process.exit(1);
   });
-  server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", () => {
+  server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", async () => {
     console.log(`Meldmind (${MODE})  →  http://localhost:${PORT}`);
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);
     else console.log(`data: ${DATA_DIR}\nHQ:   ${HQ_DIR || "(not linked; set CC_HQ_DIR)"}`);
+    if (!HOSTED && phonePair().on) {
+      const address = preferredLanIPv4(readInterfaces());
+      try {
+        await openLan(address);
+        firewallStatus = await ensureWindowsFirewall();
+        pairingError = firewallStatus.error || null;
+        console.log(`Phone pairing on at ${address}:${PORT}.`);
+        emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+      } catch (e) {
+        pairingError = e.code === "reach" || e.code === "lan" ? (e.message || BIND_FAIL) : BIND_FAIL;
+        console.log(pairingError);
+        emit("log", { text: pairingError });
+      }
+    }
     startHealthLoop();
     startUpdateLoop();
     startLicenseLoop();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
-    if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => [...wss.clients].filter((ws) => ws.readyState === 1 && ws.ctx === c).length }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
+    if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
   });
 })().catch((e) => { console.error(e.message); process.exit(1); });

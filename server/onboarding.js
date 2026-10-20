@@ -55,7 +55,7 @@ export function normalizeRecord(raw) {
 // written on a brand-new launch do not count. `onboarded` is the legacy flag.
 // `uiMode` is the Simple / Expert choice. It must not count as history, or the
 // first-run question would close setup before the person finishes it.
-const SAVED_IGNORE = new Set(["onboarded", "uiMode", "uiModeChosen"]);
+const SAVED_IGNORE = new Set(["onboarded", "uiMode", "uiModeChosen", "phonePair"]);
 
 export function settingsSaved(settings, defaults) {
   if (!settings || typeof settings !== "object") return false;

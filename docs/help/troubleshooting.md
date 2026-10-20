@@ -15,4 +15,5 @@ Other messages:
 
 - "Key rejected (401)": the provider refused the key. Make a new one and paste it again.
 - "Could not reach": a network problem. Check the connection, then try the same action again.
+- "This phone cannot reach the PC": use the same Wi-Fi, turn on phone pairing in Settings, under Phone and other devices, and allow Meldmind on private networks in Windows Firewall.
 - The engine panel after a long wait: Restart engine, Check for updates, or Keep waiting. Your keys and history stay on this computer.
