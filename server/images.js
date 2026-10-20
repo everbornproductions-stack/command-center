@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { DATA_DIR } from "./paths.js";
+import { localFetch } from "./loopback-fetch.js";
 import { HOSTED, doc, putDoc } from "./store.js";
 import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret } from "./vault.js";
@@ -203,7 +204,7 @@ const dataUrl = (s) => `data:${s.mime};base64,${s.bytes.toString("base64")}`;
 // ---------- HTTP plumbing ----------
 async function call(pv, url, opts, timeout = 120000) {
   let res;
-  try { res = await fetch(url, { ...opts, signal: AbortSignal.timeout(timeout) }); }
+  try { res = await localFetch(url, { ...opts, signal: AbortSignal.timeout(timeout) }); }
   catch (e) { throw bad(`Could not reach ${pv.name}: ${networkCause(e)}`, 502, { network: true }); }
   const txt = await res.text().catch(() => "");
   let j = null; try { j = JSON.parse(txt); } catch {}
@@ -220,7 +221,7 @@ async function download(pv, u, base) {
   const ok = /^https:\/\//i.test(u) || (process.env.CC_PACKAGED !== "1" && base && /^http:\/\/127\.0\.0\.1[:/]/.test(base) && u.startsWith(new URL(base).origin));
   if (!ok) throw bad(`${pv.name} sent back an image address that is not https.`, 502);
   let r;
-  try { r = await fetch(u, { signal: AbortSignal.timeout(60000) }); } catch (e) { throw bad(`Could not download the image from ${pv.name}: ${networkCause(e)}`, 502); }
+  try { r = await localFetch(u, { signal: AbortSignal.timeout(60000) }); } catch (e) { throw bad(`Could not download the image from ${pv.name}: ${networkCause(e)}`, 502); }
   if (!r.ok) throw bad(`Could not download the image from ${pv.name} (HTTP ${r.status}).`, 502);
   const mime = String(r.headers.get("content-type") || "").split(";")[0].trim();
   return { bytes: Buffer.from(await r.arrayBuffer()), mime: MIMES[mime] && mime !== "image/svg+xml" ? mime : sniff(u) };

@@ -11,6 +11,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+// Every mock in this process closes its socket. Windows CI reuses a keep-alive
+// socket after a finished reply, and the next provider call then waits forever.
+const origWriteHead = http.ServerResponse.prototype.writeHead;
+http.ServerResponse.prototype.writeHead = function (...args) {
+  try { if (!this.headersSent) this.setHeader("Connection", "close"); } catch {}
+  return origWriteHead.apply(this, args);
+};
+
 export function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -90,6 +98,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
     CC_INSTANCE: instance,
+    CC_NET_TRACE: "1",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];

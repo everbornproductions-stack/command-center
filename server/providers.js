@@ -6,6 +6,7 @@ import { providerMessage } from "./health.js";
 import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
 import { cacheSystem } from "./savings.js";
+import { localFetch, netTrace } from "./loopback-fetch.js";
 
 export class ProviderError extends Error {
   constructor(provider, status, message, body) {
@@ -163,7 +164,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   const headers = { "content-type": "application/json", "x-goog-api-key": key, ...loopbackClose(geminiBase(provider)) };
   const url = `${geminiBase(provider)}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   let res;
-  try { res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal }); }
+  try { res = await localFetch(url, { method: "POST", headers, body: JSON.stringify(body), signal }); }
   catch (e) { throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`); }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -197,6 +198,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
     }
   }
   await finishReader(reader);
+  netTrace(`body done ${provider.id}`);
   const toolCalls = calls.map((c, i) => ({ id: `call_${i}_${c.name}`, name: c.name, args: c.args }));
   yield {
     type: "done",
@@ -228,7 +230,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   let res;
   try {
-    res = await fetch(`${provider.baseUrl}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body), signal });
+    res = await localFetch(`${provider.baseUrl}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body), signal });
   } catch (e) {
     throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`);
   }
@@ -275,6 +277,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
     }
   }
   await finishReader(reader);
+  netTrace(`body done ${provider.id}`);
   const cited = searchResults ? searchResults.map((r) => ({ url: r.url, title: r.title })) : citations;
   const toolCalls = [...calls.values()].filter((c) => c.name).map((c, i) => ({ id: c.id || `call_${Date.now().toString(36)}_${i}`, name: c.name, args: parseArgs(c.args) }));
   yield {

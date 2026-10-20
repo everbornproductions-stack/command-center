@@ -12,6 +12,7 @@ import { recordSearch, summary as ledgerSummary } from "./ledger.js";
 import { networkCause } from "./health.js";
 import { demoActive } from "./mock.js";
 import { PROVIDERS } from "./registry.js";
+import { localFetch } from "./loopback-fetch.js";
 
 export const KIND = "search.settings";
 export const MODES = ["single", "council", "mission"];
@@ -135,7 +136,7 @@ export function sourcesFromCitations(citations, offset = 0) {
 
 async function fetchWithTimeout(url, opts, ms = 15000) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-  try { return await fetch(url, { ...opts, signal: ctl.signal }); } finally { clearTimeout(t); }
+  try { return await localFetch(url, { ...opts, signal: ctl.signal }); } finally { clearTimeout(t); }
 }
 
 export class SearchError extends Error { constructor(engine, status, message, { network = false, rejected = false } = {}) { super(message); this.engine = engine; this.status = status; this.network = network; this.rejected = rejected; } }

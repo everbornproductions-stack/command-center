@@ -26,6 +26,7 @@ import { recordEmbedding } from "./ledger.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
 import { networkCause, providerMessage } from "./health.js";
+import { localFetch } from "./loopback-fetch.js";
 
 let DatabaseSync = null;
 try { ({ DatabaseSync } = await import("node:sqlite")); } catch { DatabaseSync = null; }
@@ -264,7 +265,7 @@ async function embedGemini(p, sec, embed, texts, { missionId = null, role = "emb
   const body = { requests: texts.map((text) => ({ model: `models/${model}`, content: { parts: [{ text }] } })) };
   let res;
   try {
-    res = await fetch(`${geminiBase(p)}/models/${encodeURIComponent(model)}:batchEmbedContents`, {
+    res = await localFetch(`${geminiBase(p)}/models/${encodeURIComponent(model)}:batchEmbedContents`, {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": sec.key }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000),
     });
   } catch (e) { throw new EmbedError(p.id, 0, `Could not reach ${p.name}: ${networkCause(e)}`, { network: true }); }
@@ -289,7 +290,7 @@ export async function embed(embed, texts, { missionId = null, role = "embed" } =
   const t0 = Date.now();
   const headers = { "content-type": "application/json", ...(sec?.key && !p.noKey ? { authorization: `Bearer ${sec.key}` } : {}), ...(p.custom ? sec?.headers || {} : {}) };
   let res;
-  try { res = await fetch(`${p.baseUrl}/embeddings`, { method: "POST", headers, body: JSON.stringify({ model: embed.model, input: texts }), signal: AbortSignal.timeout(60000) }); }
+  try { res = await localFetch(`${p.baseUrl}/embeddings`, { method: "POST", headers, body: JSON.stringify({ model: embed.model, input: texts }), signal: AbortSignal.timeout(60000) }); }
   catch (e) { throw new EmbedError(p.id, 0, `Could not reach ${p.name}: ${networkCause(e)}`, { network: true }); }
   const txt = await res.text().catch(() => "");
   let j = null; try { j = JSON.parse(txt); } catch {}

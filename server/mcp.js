@@ -18,6 +18,7 @@ import { emit } from "./events.js";
 import { McpClient, McpError, mcpTrace } from "./mcp-client.js";
 import { PROVIDERS } from "./registry.js";
 import { streamChat } from "./providers.js";
+import { localFetch } from "./loopback-fetch.js";
 import { networkCause } from "./health.js";
 
 export const SERVERS_DOC = "mcp.servers";
@@ -392,7 +393,7 @@ const oauthPending = new Map(); // state -> { serverId, verifier, redirectUri, t
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 async function fetchJsonOk(url, opts = {}) {
   let res;
-  try { res = await fetch(url, { ...opts, signal: AbortSignal.timeout(12000) }); } catch (e) { throw new McpError(`Could not reach ${new URL(url).host}: ${networkCause(e)}`, { network: true }); }
+  try { res = await localFetch(url, { ...opts, signal: AbortSignal.timeout(12000) }); } catch (e) { throw new McpError(`Could not reach ${new URL(url).host}: ${networkCause(e)}`, { network: true }); }
   const txt = await res.text().catch(() => ""); let j = null; try { j = JSON.parse(txt); } catch {}
   if (!res.ok) throw new McpError(`${new URL(url).host} answered HTTP ${res.status}${j?.error_description || j?.error ? `: ${j.error_description || j.error}` : ""}`, { status: res.status });
   if (!j) throw new McpError(`${new URL(url).host} did not answer with JSON`);

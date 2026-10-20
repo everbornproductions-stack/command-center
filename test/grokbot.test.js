@@ -44,11 +44,11 @@ test("checkUrl and words: https anywhere, http only for this computer, no creden
 const XAI_KEY = "xai-fakefakefakefakefake";
 const SENDER = "gbk_test_sender_key_0123456789";
 function sse(res, text) {
-  // Close the socket. Windows CI reuses a keep-alive connection and the next model round waits forever.
-  res.writeHead(200, { "content-type": "text/event-stream", connection: "close" });
-  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
-  res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 30, completion_tokens: 10 } })}\n\n`);
-  res.write("data: [DONE]\n\n"); res.end();
+  // One body with a length, then close the socket. A chunked keep-alive reply is what
+  // Windows reuses, and the next model round then waits until this test gives up.
+  const body = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 30, completion_tokens: 10 } })}\n\ndata: [DONE]\n\n`;
+  res.writeHead(200, { "content-type": "text/event-stream", "content-length": Buffer.byteLength(body), connection: "close" });
+  res.end(body);
 }
 function answerFor(j) {
   const sys = j.messages.find((m) => m.role === "system")?.content || "";
@@ -68,7 +68,7 @@ async function mocks() {
   const chats = [];
   const srv = http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
-    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json", connection: "close" }); res.end(JSON.stringify(j)); };
+    const send = (code, j) => { const body = JSON.stringify(j); res.writeHead(code, { "content-type": "application/json", "content-length": Buffer.byteLength(body), connection: "close" }); res.end(body); };
     const url = new URL(req.url, "http://127.0.0.1");
     if (url.pathname === "/hook") {
       hook.hits.push({ method: req.method, headers: req.headers, body: JSON.parse(body || "null") });
@@ -80,7 +80,6 @@ async function mocks() {
     if (url.pathname === "/xai/v1/chat/completions") { const j = JSON.parse(body); chats.push(j); return sse(res, answerFor(j)); }
     send(404, { error: `mock: no route ${url.pathname}` });
   });
-  srv.keepAliveTimeout = 1;
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   return { base, hook, chats, close: () => new Promise((r) => srv.close(r)) };
@@ -89,7 +88,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(fn, label, ms = 30000, s) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await sleep(150); }
-  throw new Error(`timed out waiting for ${label}${s ? `\n--- server log tail ---\n${s.log.slice(-1500)}` : ""}`);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
+  throw new Error(`timed out waiting for ${label}${trace ? `\n${trace}` : ""}${s ? `\n--- server log tail ---\n${s.log.slice(-800)}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const tokenOf = (cb) => new URL(cb).searchParams.get("t");
