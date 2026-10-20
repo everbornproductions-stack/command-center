@@ -13,16 +13,16 @@
 //    fallback's business (Phase 26) and is not held against the model; a model that errors on the job is.
 //  - Stored as the user's own document "brain" (local: data/brain.json; hosted: their own user_docs row),
 //    so it is exported and deleted with the rest of their data. Reset clears it and the older skills table.
-//  - Sharing (a later stage): an anonymous aggregate could train a small routing model of our own. It is
-//    off by default, opt-in only, and nothing is sent anywhere by this build; the preview shows what it
-//    would contain.
+//  - Sharing: an anonymous aggregate could train a small routing model of our own. New setups start
+//    with it on. The person can turn it off any time. Nothing is sent anywhere by this build; the
+//    preview shows what it would contain.
 import { CAPABILITIES, PROVIDERS, findModel } from "./registry.js";
 import { doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
 
 export const KIND = "brain";
 export const VERSION = 1;
-export const DEFAULTS = { on: true, shareOptIn: false };
+export const DEFAULTS = { on: true, shareOptIn: true };
 // how many quality signals before the record counts as much as the registry score
 export const QUALITY_K = 4;
 // how many jobs before observed cost / latency count as much as the estimate

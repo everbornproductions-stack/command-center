@@ -83,9 +83,22 @@ function renderTab(view) {
   });
 
   list.innerHTML = `<div class="dim small">Loading...</div>`;
-  api("/help").then((d) => { articles = d.articles || []; showList(view.querySelector("#help-search")?.value || ""); }).catch((e) => {
+  api("/help").then((d) => {
+    articles = d.articles || [];
+    showList(view.querySelector("#help-search")?.value || "");
+    const focus = window.CC.S?.helpArticle;
+    if (focus && articles.some((a) => a.id === focus)) {
+      openArticle(focus);
+      window.CC.S.helpArticle = null;
+    }
+  }).catch((e) => {
     list.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   });
 }
+
+window.CC.openHelp = (id) => {
+  window.CC.S.helpArticle = id;
+  window.CC.go("help");
+};
 
 CC.register({ id: "help", tab: { label: "Help", short: "Help", icon: "?", order: 4, render: renderTab } });

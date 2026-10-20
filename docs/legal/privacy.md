@@ -1,6 +1,6 @@
 # Privacy
 
-Meldmind is an Everborn product by Everborn Productions. This note says what stays on your computer, and what shared learning may use if you opt in.
+Meldmind is an Everborn product by Everborn Productions. This note says what stays on your computer, and what shared learning may use.
 
 ## Your keys, files, and chats
 
@@ -10,16 +10,18 @@ The learning router on your computer keeps scores, cost, speed, and the type of 
 
 ## Shared learning
 
-Shared learning is a separate choice. It is off until you turn it on.
+Shared learning is a separate choice. A new setup checks **I am willing to share anonymous track records**.
 
-Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone.
+Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 
-If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds.
+## What we share
 
-We never use your prompts, files, or keys. We do not use your name, your account, or the text of a chat.
+We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys. We do not use your name, your account, or the text of a chat.
 
-You can turn it off any time in Settings. On **Who's best**, clear **I am willing to share anonymous track records**.
+If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
-**Show what would be shared** lists the anonymous totals before you decide. This version keeps that preview on your computer and does not send it.
+You can change this any time in Settings. On **Who's best**, clear **I am willing to share anonymous track records**.
 
-The same words are the opt-in copy in docs/legal/shared-learning.md.
+**Show what would be shared** lists the anonymous totals on this computer. This version does not send them.
+
+The same words are in docs/legal/shared-learning.md.
