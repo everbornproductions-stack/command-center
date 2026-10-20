@@ -1512,3 +1512,16 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
+
+## 2026-10-20 22:45 UTC: Phases 53 and 54 (Cursor cloud agent)
+
+Phases 35 and 55 are still planned. The docs/new-phases plan runs 53 after 55. This work was requested directly, so 53 and 54 were built now. No locked decision was changed. Decision 15 stays: Grok Bot's calendar tags, webhook, and routing are unchanged. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version stays 0.4.5. data/ was not read. No key was printed.
+
+- Phase 53 commit f8ffec2: Google Calendar OAuth (`calendar.events`). The setup checklist connects Calendar and keeps Gmail or Drive access already granted. List, create, and update run on the primary calendar. Nothing is deleted. Free still allows 1 connected service. Pro allows all. A second fresh service on Free is refused before the token is saved. The Calendar row is a Google sign-in, not a Grok Bot handoff. Grok Bot's own row stays Handoff.
+- Phase 54 commit e46ad2b: a sentence such as "email this client and put it on my calendar" is drafted by a cheap fast model into an email plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. The model never receives a token. A second click does not send again. The cost is shown, usually a fraction of a cent. The guided tour has a Try saying... stop. Help has Plain requests and Google Calendar.
+- Tests: `test/calendar.test.js`, `test/actions.test.js`. npm test 411 tests, 410 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only (127.0.0.1). No real Google host and no real model.
+- Checked in the browser on the local app: Settings, Google Calendar, says it is not connected and does not list or create events. Browser helper has a Google Calendar checkbox. Chat, Try saying..., drafts the example in demo mode, shows a cost that is a fraction of a cent, and Approve refuses with "Nothing was sent" until Gmail sending is connected. The tour stop Try saying... is present. Help lists both articles. The connected send path was checked against a local Google mock in `test/actions.test.js`, not against a real account.
+- Not verified here: a real Google account, a real model provider, the packaged Electron app, and the Windows pull request check.
+
+PHASE 53 DONE
+PHASE 54 DONE
