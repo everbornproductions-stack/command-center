@@ -5,13 +5,14 @@
 const { S, api, toast, esc } = window.CC;
 
 const LS = "cc.theme";
-const DEFAULTS = { mode: "dark", accent: "#22d3ee" };
+const DEFAULTS = { mode: "dark", accent: "#22d3ee", background: null };
 let prefs = read();
 let presets = { cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635" };
+let backgrounds = { ink: "#090d14", midnight: "#0b1020", slate: "#1e293b", pine: "#10241c", paper: "#f4f1ea", sand: "#f6f1e7" };
 let synced = false;
 
 function read() { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(LS) || "{}") }; } catch { return { ...DEFAULTS }; } }
-function remember(p) { try { localStorage.setItem(LS, JSON.stringify({ mode: p.mode, accent: p.accent })); } catch {} }
+function remember(p) { try { localStorage.setItem(LS, JSON.stringify({ mode: p.mode, accent: p.accent, background: p.background || null })); } catch {} }
 
 // ---- colour maths (no library) ----
 function rgb(hex) { const h = hex.replace("#", ""); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); }
@@ -34,7 +35,28 @@ export function apply(p = prefs) {
   root.style.setProperty("--accent-deep", mix(a, "#000000", 0.28));
   root.style.setProperty("--accent-soft", alpha(a, 0.14));
   root.style.setProperty("--accent-glow", alpha(a, 0.55));
-  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = theme === "dark" ? "#0b111b" : "#f3f5f9";
+  paintBackground(root, prefs.background);
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = prefs.background || (theme === "dark" ? "#0b111b" : "#f3f5f9");
+}
+
+const BG_VARS = ["--bg", "--bg-2", "--text", "--muted", "--dim", "--panel", "--panel-solid", "--line", "--line-2"];
+function paintBackground(root, color) {
+  if (!color) {
+    root.removeAttribute("data-bg");
+    for (const v of BG_VARS) root.style.removeProperty(v);
+    return;
+  }
+  root.dataset.bg = "custom";
+  const light = luminance(color) > 0.55;
+  root.style.setProperty("--bg", color);
+  root.style.setProperty("--bg-2", mix(color, light ? "#ffffff" : "#000000", 0.35));
+  root.style.setProperty("--text", light ? "#111827" : "#e5e7eb");
+  root.style.setProperty("--muted", light ? "#566071" : "#8b95a7");
+  root.style.setProperty("--dim", light ? "#7b8595" : "#5b667a");
+  root.style.setProperty("--panel", light ? "#ffffffd9" : "#111827cc");
+  root.style.setProperty("--panel-solid", light ? "#ffffff" : "#111827");
+  root.style.setProperty("--line", light ? "#d9dfe8" : "#1f2937");
+  root.style.setProperty("--line-2", light ? "#c3ccd9" : "#273449");
 }
 
 async function save(patch) {
@@ -42,7 +64,7 @@ async function save(patch) {
   catch (e) { toast(e.message, true); throw e; }
 }
 async function sync() {
-  try { const r = await api("/themes"); presets = r.presets || presets; apply({ mode: r.mode, accent: r.accent }); synced = true; } catch {}
+  try { const r = await api("/themes"); presets = r.presets || presets; backgrounds = r.backgrounds || backgrounds; apply({ mode: r.mode, accent: r.accent, background: r.background || null }); synced = true; } catch {}
 }
 
 // ---- the style block: accent wiring for both themes + a full light palette ----
@@ -108,6 +130,9 @@ html[data-theme="light"] .mobile-nav { background: #ffffff; }
 html[data-theme="light"] .mobile-nav button.active { background: #e8edf5; }
 html[data-theme="light"] .gate { background: radial-gradient(1200px 600px at 20% -10%, var(--accent-soft) 0%, transparent 60%), var(--bg); }
 html[data-theme="light"] .update-bar { background: linear-gradient(90deg, var(--accent-soft), transparent 60%), #ffffff; }
+html[data-bg="custom"] body, html[data-bg="custom"] .gate {
+  background: radial-gradient(1200px 600px at 20% -10%, var(--accent-soft) 0%, transparent 55%), var(--bg);
+}
 `;
 const style = document.createElement("style"); style.id = "cc-themes"; style.textContent = css; document.head.appendChild(style);
 
@@ -117,17 +142,23 @@ window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change"
 
 function renderPanel(el) {
   const swatches = Object.entries(presets).map(([n, c]) => `<button class="cc-swatch ${prefs.accent === c ? "on" : ""}" data-accent="${c}" title="${esc(n)}" style="background:${c}"></button>`).join("");
+  const backs = Object.entries(backgrounds).map(([n, c]) => `<button class="cc-swatch ${prefs.background === c ? "on" : ""}" data-bg="${c}" title="${esc(n)}" style="background:${c}"></button>`).join("");
   el.innerHTML = `<div class="panel"><h3>Appearance <span class="right">${esc(resolved())} · ${esc(prefs.accent)}</span></h3>
     <label class="lbl">Theme</label>
     <div class="seg cc-theme-seg" id="cc-theme-mode">${["dark", "light", "system"].map((m) => `<button data-m="${m}" class="${prefs.mode === m ? "on" : ""}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}</div>
     <label class="lbl">Accent colour</label>
-    <div class="row" style="gap:8px">${swatches}<input type="color" id="cc-theme-custom" value="${esc(prefs.accent)}" title="Custom colour" style="width:34px;height:28px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:transparent"><button class="ghost small" id="cc-theme-reset" style="margin-left:auto">reset</button></div>
+    <div class="row" style="gap:8px">${swatches}<input type="color" id="cc-theme-custom" value="${esc(prefs.accent)}" title="Custom colour" style="width:34px;height:28px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:transparent"></div>
+    <label class="lbl" style="margin-top:10px">Background</label>
+    <div class="row" style="gap:8px">${backs}<input type="color" id="cc-bg-custom" value="${esc(prefs.background || "#090d14")}" title="Custom background" style="width:34px;height:28px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:transparent"><button class="ghost small" id="cc-bg-clear">Built-in</button><button class="ghost small" id="cc-theme-reset" style="margin-left:auto">reset</button></div>
     <div class="cc-theme-preview"><div class="box"><span class="dot green"></span> Panel text <span class="chip">chip</span></div><button class="btn primary sm">Primary</button><button class="btn sm">Button</button></div>
-    <div class="dim small" style="margin-top:8px">Saved to your account${S.mode === "hosted" ? " in the hub" : " on this PC"}; every device you sign in on follows it.</div>
+    <div class="dim small" style="margin-top:8px">Saved to your account${S.mode === "hosted" ? " in the hub" : " on this PC"}; every device you sign in on follows it. A custom background stays on this computer with your other settings. Text switches to dark or light so it stays readable.</div>
   </div>`;
   el.querySelector("#cc-theme-mode").addEventListener("click", async (e) => { const b = e.target.closest("button"); if (!b) return; await save({ mode: b.dataset.m }); renderPanel(el); });
   el.querySelectorAll("[data-accent]").forEach((b) => b.addEventListener("click", async () => { await save({ accent: b.dataset.accent }); renderPanel(el); }));
   el.querySelector("#cc-theme-custom").addEventListener("change", async (e) => { await save({ accent: e.target.value }); renderPanel(el); });
+  el.querySelectorAll("[data-bg]").forEach((b) => b.addEventListener("click", async () => { await save({ background: b.dataset.bg }); renderPanel(el); }));
+  el.querySelector("#cc-bg-custom").addEventListener("change", async (e) => { await save({ background: e.target.value }); renderPanel(el); });
+  el.querySelector("#cc-bg-clear").addEventListener("click", async () => { await save({ background: "" }); renderPanel(el); });
   el.querySelector("#cc-theme-reset").addEventListener("click", async () => { try { const r = await api("/themes", { method: "DELETE" }); apply(r); renderPanel(el); toast("Theme reset"); } catch (e) { toast(e.message, true); } });
 }
 

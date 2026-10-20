@@ -23,6 +23,8 @@ Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and su
 
 **Settings > Demo mode** brings three pretend AIs online (Nova, Atlas and Sage). Everything works with them and nothing is spent. When you save your first real key, the demo AIs leave on their own and a message tells you so. Past demo runs stay in your history, marked "demo". You can turn demo mode back on in Settings at any time.
 
+**Settings > Appearance** sets dark, light, or match the system, an accent colour, and a background colour. Built-in puts the original background back. Text switches so it stays readable. The choice is saved on this PC.
+
 ## 3. Add your API keys
 
 **Settings > Guided API-key setup** walks you through one provider at a time: where to get the key, paste it, a test call, then it is locked in the vault. A key that the provider refuses is never kept.
