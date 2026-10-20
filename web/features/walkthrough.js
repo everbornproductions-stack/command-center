@@ -1,4 +1,4 @@
-// Start a project. The home card and the Settings menu open the same wizard.
+// Start a project. The home card and the Work menu open the same wizard.
 // Simple is the default. Expert is read from the Simple/Expert work when that
 // setting exists (CC.experience, settings.experience, settings.uiMode). This
 // file does not own the mode switch.

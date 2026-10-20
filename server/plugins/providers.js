@@ -206,7 +206,8 @@ export async function routes(req, res, url, body, h) {
     save(items.filter((x) => x.id !== pid));
     unregister(pid);
     await setSecret(pid, null);
-    return h.json(res, 200, { ok: true });
+    if (h.retireDemoIfReal) await h.retireDemoIfReal();
+    return h.json(res, 200, { ok: true, demo: h.demoActive ? h.demoActive() : undefined });
   }
   return false;
 }

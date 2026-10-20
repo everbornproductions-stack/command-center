@@ -2,6 +2,13 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.7 (2026-10-20)
+
+**Better**
+- The top bar is one row of dropdown menus. A wider window splits them into more menus, and a narrower window merges them back. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away.
+- Start a project is in the Work menu, with Projects. The Settings menu keeps Settings, setup, the tour, and Check for updates.
+- Nova, Atlas and Sage, the demo AIs, hide once a real AI is connected. They come back only when every real AI is removed. Real jobs are not sent to them while a real AI is connected.
+
 ## v0.4.5 (2026-10-20)
 
 **New**

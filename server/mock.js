@@ -207,6 +207,13 @@ function answerFor(model, system, user, messages = []) {
 // them when a demo key sits in their vault (so one hosted user's demo never shows up for another).
 export function demoActive() { return !!server && hasSecret(DEMO[0].id); }
 
+export function demoListenPort() {
+  try {
+    const addr = server && server.address && server.address();
+    return addr && typeof addr === "object" ? addr.port : null;
+  } catch { return null; }
+}
+
 export async function startDemo() {
   // Register the pretend providers before saving their keys. On macOS and Linux without the
   // desktop keychain, vault.js keeps a demo key in memory and refuses every other save.

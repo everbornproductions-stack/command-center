@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld("ccDesktop", {
   logReload: (reason) => ipcRenderer.invoke("app:log-reload", String(reason || "").slice(0, 200)),
   onUpdate: (f) => { ipcRenderer.on("upd:state", (_e, s) => f(s)); },
   onEngine: (f) => { ipcRenderer.on("engine:status", (_e, s) => f(s)); },
+  // Window size and the current display. The page remeasures the top bar from this.
+  onNavDisplay: (f) => {
+    if (typeof f !== "function") return () => {};
+    const listener = (_e, payload) => f(payload);
+    ipcRenderer.on("nav:display", listener);
+    return () => ipcRenderer.removeListener("nav:display", listener);
+  },
   // quick launcher (Phase 24): close it, and optionally bring the main window forward
   quickDone: (o) => ipcRenderer.invoke("quick:done", { open: !!(o && o.open) }),
   quickHide: () => ipcRenderer.invoke("quick:hide"),

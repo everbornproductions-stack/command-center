@@ -41,6 +41,10 @@ test("unconnected providers stay hidden, and Demo shows only until a real AI is 
   });
   assert.deepEqual(composerAis([rejectedButMcp]).map((c) => c.id), ["kling"]);
 
+  const offline = real("google", { name: "Google Gemini", keyed: true, status: { status: "red", detail: "Could not reach Google Gemini: connection refused", network: true } });
+  assert.equal(isConnectedAi(offline), false, "a provider that could not be reached is not a connected AI");
+  assert.deepEqual(composerAis([nova, offline]).map((c) => c.id), ["demo-nova"]);
+
   const broke = real("anthropic", { name: "Claude", keyed: true, status: { status: "red", detail: "out of credits" } });
   assert.equal(isConnectedAi(broke), true, "a key that ran out of credits is still connected");
   assert.deepEqual(composerAis([nova, broke]).map((c) => c.id), ["anthropic"]);

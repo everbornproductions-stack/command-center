@@ -1563,3 +1563,13 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Windows pull request check 39499523538 passed on windows-latest: Test, smoke, package, and the installer check. About 14m36s. Head 5e685c5.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
+
+## 2026-10-20: v0.4.7 nav layout, Start a project menu, demo AIs
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read.
+
+- The top bar is one row of dropdowns. There is no full-tab layout. A wider window uses about eight menus when they fit. A narrower window merges back to about five. The row is measured against the window, so it does not wrap or spill past the edge. Resize, move, and display changes measure the width again. Start a project stays in Work. Demo AIs hide once a real text AI is connected.
+- Start a project is in the Work menu. Settings keeps settings items.
+- Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
+- Version is 0.4.7.
+- Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
