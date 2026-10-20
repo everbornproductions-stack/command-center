@@ -1560,5 +1560,6 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Windows pull request check 39495943898 passed on windows-latest: Test, smoke, package, and the installer check. 14m14s. Head d6f9ac0.
 - The next check, 39498139773, failed in Test. Main had moved to 0.4.6, and the help catalog was still stamped 0.4.5, so the release gate failed. The catalog and the licence and updates articles are stamped 0.4.6, and What's new has bullets for that version. No new version number was chosen here.
 - Tests here (Linux), after merging main: npm test 414 tests, 413 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Windows pull request check 39499523538 passed on windows-latest: Test, smoke, package, and the installer check. About 14m36s. Head 5e685c5.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
