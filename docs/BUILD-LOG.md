@@ -1467,5 +1467,6 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 - Version is 0.4.5. What's new, release notes, and Help (getting started) say the same things: Appearance pictures and a photo from this computer, You saved this month and all time, and Good at on a custom provider.
 - The v0.4.2 installer did not read a GitHub secret. The publishable key was already in server/cloud-defaults.json (commit 4695f49) and was still there at the v0.4.2 release commit. scripts/inject-cloud-key.mjs did not exist yet. Commit c9c1d61 cleared that field. This token cannot list Actions secret or variable names.
+- Tests: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 V0.4.5 VERSION BUMP READY (built by Cursor cloud agent)
