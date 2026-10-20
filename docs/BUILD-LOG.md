@@ -1356,3 +1356,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: `test/chat-priority.test.js`. npm test 379 tests, 378 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local OpenAI mock only. No real key. data/ was not read or committed.
 
 SINGLE RUN PRIORITY DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Custom background colour (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Accent colours were already there. This adds the page background.
+
+- Settings, Appearance, has a background colour next to the accent colour: ink, midnight, slate, pine, paper, sand, or any colour from the picker. Built-in restores the original background. Reset clears both.
+- A light background uses dark text. A dark background uses light text. A web address is refused, so a background cannot be a remote image.
+- The choice is saved with the other theme settings on this PC.
+- Tests: `test/themes.test.js`. npm test 381 tests, 380 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked in the browser on the local app, Expert: choosing paper turned the page background paper and kept the text readable, and Built-in cleared it.
+
+CUSTOM BACKGROUND DONE (built by Cursor cloud agent)
