@@ -21,17 +21,23 @@ const BASE = { writing: 80, analysis: 80, fast: 70 };
 const fresh = () => { B.resetBrain(); B.saveBrainSettings({ on: true, shareOptIn: false }); };
 const q = (model, mode = "balanced", estCost = 0.01, diff = 2) => B.adjust({ model, baseCaps: BASE, capability: "writing", difficulty: diff, mode, estCost });
 
-test("first-run setup offers the existing share opt-in, off until chosen", () => {
-  const app = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "web", "app.js"), "utf8");
-  assert.match(app, /I am willing to share anonymous track records/);
-  assert.match(app, /Meldmind learns from every job you run/);
-  assert.match(app, /anonymous scores from each job \(task type, cost, speed\) also help it pick the best AI for everyone/);
-  assert.match(app, /anonymous scores, task types, cost, and speed/);
-  assert.match(app, /picking the best AI for savings and builds/);
-  assert.match(app, /never use your prompts, files, or keys/);
-  assert.match(app, /turn it off any time in Settings/);
+test("first-run setup shares anonymous track records until the person clears the box", () => {
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
+  const app = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
+  const note = "Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.";
+  assert.match(app, /I am willing to share anonymous track records/);
+  assert.match(app, /shareOptIn: true/);
+  assert.match(app, /id="su-share-note"/);
+  assert.match(app, /id="su-share-what">What we share/);
+  assert.match(app, /Meldmind learns from every job you run/);
+  assert.match(app, /pick the best AI for everyone/);
+  assert.match(app, /the task type, which AI, and the score/);
+  assert.match(app, /never share prompts, content, or keys/);
+  assert.match(app, /any time in Settings/);
+  assert.match(app, new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(B.DEFAULTS.shareOptIn, true);
   const same = [
+    "web/app.js",
     "web/features/brain.js",
     "docs/legal/privacy.md",
     "docs/legal/shared-learning.md",
@@ -43,11 +49,13 @@ test("first-run setup offers the existing share opt-in, off until chosen", () =>
     assert.match(text, /Meldmind learns from every job you run/, rel);
     assert.match(text, /pick the best AI for everyone/, rel);
     assert.match(text, /any time in Settings/, rel);
+    assert.match(text, /What we share/, rel);
+    assert.match(text, /the task type, which AI, and the score/, rel);
+    assert.match(text, /never share prompts, content, or keys/, rel);
+    assert.match(text, /Meldmind learns from the community/, rel);
     assert.equal(text.includes("\u2014"), false, rel);
   }
   assert.match(app, /shareOptIn: on/);
-  assert.match(app, /shareOptIn: false/);
-  assert.doesNotMatch(app.slice(app.indexOf("su-share"), app.indexOf("su-share") + 400), /checked="checked"/);
 });
 
 test("no record means no change: the router starts from the registry exactly", () => {
@@ -250,7 +258,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     // free tiers off so nothing here is priced at $0
     await s.api("/fallback/settings", { method: "POST", body: { freeTiers: { google: { on: false }, openrouter: { on: false }, groq: { on: false } } } });
     let v = (await s.api("/brain")).json;
-    assert.equal(v.jobs, 0); assert.deepEqual(v.capabilities, []); assert.equal(v.settings.on, true); assert.equal(v.settings.shareOptIn, false);
+    assert.equal(v.jobs, 0); assert.deepEqual(v.capabilities, []); assert.equal(v.settings.on, true); assert.equal(v.settings.shareOptIn, true, "new setups share");
     const baseline = (await s.api("/brain/pick?capability=writing&difficulty=2&mode=balanced")).json.ranked;
     assert.ok(baseline.length >= 3);
     for (const r of baseline) assert.equal(r.learned, null, "no record yet");
@@ -335,7 +343,9 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     assert.equal(ex.status, 200); assert.match(ex.headers["content-disposition"], /attachment; filename="command-ai-learning-router-/);
     assert.ok(ex.json.stats["grok-4.3"]); assert.doesNotMatch(ex.text, /ZEBRAFINCH/);
     const sp = (await s.api("/brain/share-preview")).json;
-    assert.equal(sp.sent, false); assert.equal(sp.optedIn, false); assert.ok(sp.rows.length >= 3);
+    assert.equal(sp.sent, false); assert.equal(sp.optedIn, true, "new setups share"); assert.ok(sp.rows.length >= 3);
+    assert.equal((await s.api("/brain/settings", { method: "POST", body: { shareOptIn: false } })).json.settings.shareOptIn, false);
+    assert.equal((await s.api("/brain/share-preview")).json.optedIn, false);
     assert.equal((await s.api("/brain/settings", { method: "POST", body: { shareOptIn: true } })).json.settings.shareOptIn, true);
     assert.equal((await s.api("/brain/share-preview")).json.sent, false, "opting in sends nothing in this build");
     await s.api("/brain/settings", { method: "POST", body: { on: false } });

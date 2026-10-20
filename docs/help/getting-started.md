@@ -17,6 +17,12 @@ Until you add a key, Demo can answer in the chat and nothing is spent. Demo does
 
 ## Learning from each job
 
-Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone.
+Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 
-The first setup screen asks: I am willing to share anonymous track records. It is off until you turn it on. If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds. We never use your prompts, files, or keys. You can turn it off any time in Settings. On Who's best, clear I am willing to share anonymous track records.
+A new setup checks I am willing to share anonymous track records. You can change this any time in Settings. On Who's best, clear I am willing to share anonymous track records.
+
+## What we share
+
+We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys.
+
+If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.

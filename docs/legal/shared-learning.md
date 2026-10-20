@@ -1,15 +1,17 @@
 # Shared learning
 
-Meldmind is an Everborn product. Shared learning is off until you turn it on.
+Meldmind is an Everborn product. A new setup checks **I am willing to share anonymous track records**. You can change this any time in Settings.
 
-Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone.
+Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 
-If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds.
+## What we share
 
-We never use your prompts, files, or keys. We do not use your name, your account, or the text of a chat.
+We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys. We do not share your name, your account, or the text of a chat.
 
-You can turn it off any time in Settings. On **Who's best**, clear **I am willing to share anonymous track records**. That switch is off until you choose it.
+If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
-Before you choose, click **Show what would be shared**. The preview lists anonymous totals only: scores, task types, cost, and speed. This version keeps that preview on your computer and does not send it.
+You can change this any time in Settings. On **Who's best**, clear **I am willing to share anonymous track records**.
 
-Your own router still learns on this computer when **Learn from every job** is on. That local record is separate. Shared learning is only the anonymous opt-in above.
+**Show what would be shared** lists the anonymous totals on this computer. This version does not send them.
+
+Your own router still learns on this computer when **Learn from every job** is on. That local record is separate. Shared learning is only the anonymous track records above.

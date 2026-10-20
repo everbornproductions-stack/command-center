@@ -1334,3 +1334,15 @@ Gmail, the browser helper Google sign-in, and Outlook were each one account. Thi
 - Not verified: a real Google or Microsoft sign-in, and a packaged Electron window.
 
 MULTI-ACCOUNT MAIL DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Shared learning starts on for a new setup (Cursor cloud agent)
+
+Owner request for 0.4.3. Not a numbered phase. No locked decision text was rewritten. Phase 14 stays BLOCKED (needs a Mac).
+
+- A new brain starts with shareOptIn on. A setup that already saved the box off stays off. First-run setup and Who's best both show the box checked until the person clears it.
+- Clearing it shows: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
+- What we share opens Help, Getting started. That note, the privacy note, and the shared-learning note say we share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys. The person can change it any time in Settings.
+- This build still sends nothing. Show what would be shared stays on this computer.
+- Tests: npm test 377 tests, 376 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. data/ was not read or committed.
+
+SHARED LEARNING DEFAULT ON DONE (built by Cursor cloud agent)

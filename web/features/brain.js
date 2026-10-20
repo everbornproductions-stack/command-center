@@ -49,7 +49,8 @@ async function renderTab(view) {
       </div>
       <div class="panel"><h3>Help build a better router</h3>
         <label class="row small" style="gap:6px"><input type="checkbox" id="br-share" ${d.settings.shareOptIn ? "checked" : ""}> I am willing to share anonymous track records</label>
-        <div class="dim small" style="margin-top:6px">Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds. We never use your prompts, files, or keys. You can turn it off any time in Settings. On Who's best, clear I am willing to share anonymous track records. This switch is off until you choose it. This version sends nothing. Show what would be shared lists the anonymous totals on this computer.</div>
+        <div class="dim small" id="br-share-note" ${d.settings.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div>
+        <div class="dim small" style="margin-top:6px">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings. On Who's best, clear I am willing to share anonymous track records. <a href="#what-we-share" id="br-share-what">What we share</a> This version sends nothing. Show what would be shared lists the anonymous totals on this computer.</div>
         <button class="btn sm" id="br-preview" style="margin-top:8px">Show what would be shared</button>
         <pre id="br-preview-out" class="small mono" style="display:none;max-height:240px;overflow:auto;margin-top:8px"></pre>
       </div>
@@ -58,6 +59,10 @@ async function renderTab(view) {
   const saveSettings = async (patch) => { try { await api("/brain/settings", { method: "POST", body: { ...patch, mode } }); toast("Saved"); renderTab(view); } catch (e) { toast(e.message, true); } };
   view.querySelector("#br-on").addEventListener("change", (e) => saveSettings({ on: e.target.checked }));
   view.querySelector("#br-share").addEventListener("change", (e) => saveSettings({ shareOptIn: e.target.checked }));
+  view.querySelector("#br-share-what")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    window.CC.openHelp?.("getting-started");
+  });
   view.querySelector("#br-reset").addEventListener("click", async () => {
     if (!confirm("Reset what the router has learned? Picks start again from the built-in scores. Your runs and ledger are kept.")) return;
     try { await api("/brain/reset", { method: "POST", body: { confirm: true, mode } }); toast("Learning router reset"); renderTab(view); } catch (e) { toast(e.message, true); }
