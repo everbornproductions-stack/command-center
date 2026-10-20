@@ -1,5 +1,6 @@
 // Pro prompts pack. Each template is a ROLE / CONTEXT / COMMAND / FORMAT brief.
 // The owner's own structures. Nothing here is copied from a named coach.
+import { MORE_TEMPLATES } from "./pack-more.js";
 
 const C = {
   ops: "Strategy/ops",
@@ -628,6 +629,8 @@ export const TEMPLATES = [
     output: "A My Voice card.",
   }),
 ];
+
+for (const row of MORE_TEMPLATES) TEMPLATES.push(t(row));
 
 const byId = new Map(TEMPLATES.map((row) => [row.id, row]));
 

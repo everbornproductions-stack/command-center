@@ -1,4 +1,5 @@
 // Pro prompts: browse by category, fill from the Business Profile, and halt when a fact is missing.
+import { marketplacePacks, mountPromptBoard } from "./prompt-board.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -145,13 +146,49 @@ async function consider(text, keepApplied) {
   } catch { /* a failed detect leaves the orders as typed */ }
 }
 
+function openCustom(item) {
+  const box = document.getElementById("pp-form");
+  if (!box || !item) return;
+  box.innerHTML = `<div class="panel"><h3>${esc(item.name)}</h3>
+    <div class="small dim">Your prompt. Nothing is sent until you put it in the orders box and send it yourself.</div>
+    <pre class="small" style="white-space:pre-wrap;margin-top:8px">${esc(item.text || "")}</pre>
+    <button class="btn sm primary" type="button" id="pp-custom-orders">Put in orders</button>
+  </div>`;
+  box.querySelector("#pp-custom-orders").addEventListener("click", () => {
+    const text = item.text || item.name;
+    const orders = document.getElementById("orders");
+    if (orders) orders.value = text;
+    window.CC.S.lastOrders = text;
+    toast("In the orders box. Nothing is sent.");
+    go("command");
+  });
+}
+
+function openPack(item) {
+  const box = document.getElementById("pp-form");
+  if (!box || !item) return;
+  const expert = window.CC.S?.uiMode === "expert" || window.CC.uiMode?.() === "expert";
+  box.innerHTML = `<div class="panel"><h3>${esc(item.name)}</h3>
+    <div class="small dim">${esc(item.description || "Marketplace prompt pack")}</div>
+    <div class="small dim" style="margin-top:6px">This pack stays in the Marketplace category. Nothing is installed or sent from here.</div>
+    ${expert ? `<button class="btn sm" type="button" id="pp-pack-open">Open in Marketplace</button>` : ""}
+  </div>`;
+  box.querySelector("#pp-pack-open")?.addEventListener("click", () => go("marketplace"));
+}
+
 async function renderTab(view) {
-  let data = { templates: [], categories: [], note: NOTE, schedules: [], integrations: {} };
+  let data = { templates: [], categories: [], note: NOTE, schedules: [], integrations: {}, custom: [] };
   try { data = await api("/prompts"); } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  const saved = await api("/prompts/saved").catch(() => ({ items: [] }));
+  const market = await api("/marketplace").catch(() => null);
+  const model = {
+    templates: data.templates || [],
+    custom: data.custom || [],
+    marketplace: marketplacePacks(market),
+  };
   view.innerHTML = `<div class="grid" style="gap:14px">
     <div class="panel"><h3>Pro prompts</h3><p class="small" style="margin:6px 0 0">${esc(data.note || NOTE)}</p>
       <input id="pp-q" placeholder="Search prompts" style="width:100%;margin-top:10px" aria-label="Search prompts">
+      <div id="pp-tools" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px" hidden></div>
     </div>
     <div id="pp-list"></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
@@ -161,21 +198,19 @@ async function renderTab(view) {
     </div>
     <div id="pp-form"></div>
     <div id="pp-interview"></div>
-    ${saved.items?.length ? `<div class="panel"><h3>Saved from chats</h3>${saved.items.map((p) => `<div class="small" style="padding:4px 0">${esc(p.name)}</div>`).join("")}</div>` : ""}
   </div>`;
-  const draw = () => {
-    const q = view.querySelector("#pp-q").value.trim().toLowerCase();
-    const groups = {};
-    for (const t of data.templates) {
-      const blob = `${t.name} ${t.description} ${t.category}`.toLowerCase();
-      if (q && !blob.includes(q)) continue;
-      (groups[t.category] ||= []).push(t);
-    }
-    view.querySelector("#pp-list").innerHTML = (data.categories || []).filter((c) => groups[c]?.length).map((c) => `<div class="panel"><h3>${esc(c)}</h3><div class="grid" style="gap:8px">${groups[c].map((t) => `<button class="btn" type="button" data-open="${esc(t.id)}" style="text-align:left"><b>${esc(t.name)}</b><div class="small dim">${esc(t.description)}</div></button>`).join("")}</div></div>`).join("") || `<div class="empty">No prompts match.</div>`;
-    view.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openTemplate(data, b.dataset.open)));
-  };
-  view.querySelector("#pp-q").addEventListener("input", draw);
-  draw();
+  mountPromptBoard(view, model, {
+    esc,
+    toast,
+    onOpen: (id) => openTemplate(data, id),
+    onCustom: openCustom,
+    onPack: openPack,
+    onMove: async (id, shelf) => {
+      const saved = await api("/prompts/shelf", { method: "POST", body: { id, shelf } });
+      const row = model.custom.find((p) => p.id === id);
+      if (row) row.shelf = saved.shelf || shelf;
+    },
+  });
   view.querySelector("#pp-sched").addEventListener("click", async () => {
     try { const r = await api("/prompts/schedules", { method: "POST", body: {} }); toast(r.note || "Schedules added, paused."); } catch (e) { toast(e.message, true); }
   });
