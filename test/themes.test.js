@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { startServer, ROOT } from "./helpers.js";
-import { normalize, DEFAULTS, ACCENTS, BACKGROUNDS, MODES } from "../server/plugins/themes.js";
+import { normalize, validatePhoto, DEFAULTS, ACCENTS, BACKGROUNDS, GRADIENTS, IMAGES, LOOKS, MODES, PHOTO_LIMIT } from "../server/plugins/themes.js";
+
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 test("normalize: defaults, presets, short hex, rejects junk", () => {
   const d = normalize({}, DEFAULTS);
@@ -19,7 +21,30 @@ test("normalize: defaults, presets, short hex, rejects junk", () => {
   assert.equal(normalize({ background: "#345" }, DEFAULTS).background, "#334455");
   assert.equal(normalize({ background: "" }, { ...DEFAULTS, background: "#112233" }).background, null);
   assert.equal(normalize({ accent: "#ff7000" }, { ...DEFAULTS, background: "#112233" }).background, "#112233");
+  assert.equal(normalize({ accent: "teal" }, DEFAULTS).accent, ACCENTS.teal);
+  assert.equal(normalize({ accent: "magenta" }, DEFAULTS).accent, ACCENTS.magenta);
+  assert.equal(normalize({ background: "charcoal" }, DEFAULTS).background, BACKGROUNDS.charcoal);
+  assert.equal(normalize({ background: "fog" }, DEFAULTS).background, BACKGROUNDS.fog);
+  assert.equal(normalize({}, DEFAULTS).wallpaper, null);
+  assert.equal(normalize({ wallpaper: "gradient:aurora" }, DEFAULTS).wallpaper, "gradient:aurora");
+  assert.equal(normalize({ wallpaper: "gradient:aurora" }, DEFAULTS).photo, null);
+  assert.equal(normalize({ wallpaper: "image:horizon" }, { ...DEFAULTS, background: "#112233" }).background, "#112233");
+  assert.equal(normalize({ wallpaper: "IMAGE:Bloom" }, DEFAULTS).wallpaper, "image:bloom");
+  const withPhoto = normalize({ wallpaper: "photo", photo: PNG }, DEFAULTS);
+  assert.equal(withPhoto.wallpaper, "photo");
+  assert.equal(withPhoto.photo, PNG);
+  assert.equal(normalize({ photo: PNG }, DEFAULTS).wallpaper, "photo");
+  assert.equal(normalize({ wallpaper: "" }, { ...DEFAULTS, wallpaper: "gradient:dusk", photo: PNG }).wallpaper, null);
+  assert.equal(normalize({ wallpaper: "" }, { ...DEFAULTS, wallpaper: "photo", photo: PNG }).photo, null);
+  assert.equal(normalize({ accent: "gold" }, { ...DEFAULTS, wallpaper: "image:orbit" }).wallpaper, "image:orbit");
+  assert.equal(LOOKS.harbor.background, "navy");
+  assert.equal(LOOKS.aurora.wallpaper, "gradient:aurora");
   for (const badBg of ["red", "url(http://x)", "javascript:alert(1)", "#22d3ee;background:url(x)"]) assert.throws(() => normalize({ background: badBg }, DEFAULTS), /background must be/);
+  for (const badWall of ["https://example.com/a.png", "url(https://example.com/a.png)", "javascript:alert(1)", "//cdn.example/a.png", "gradient:nope", "image:nope", "photo"]) {
+    assert.throws(() => normalize({ wallpaper: badWall }, DEFAULTS), /wallpaper|photo|gradient|image|choose a photo/);
+  }
+  assert.throws(() => normalize({ photo: "https://example.com/a.jpg" }, DEFAULTS), /web address/);
+  assert.throws(() => normalize({ photo: "data:image/svg+xml;base64,PHN2Zy8+" }, DEFAULTS), /PNG, JPEG, or WebP/);
   // a partial update keeps the other field
   assert.equal(normalize({ accent: "#ff7000" }, { mode: "light", accent: "#000000" }).mode, "light");
   for (const badMode of ["blue", "", null, 1, "DARK"]) assert.throws(() => normalize({ mode: badMode }, DEFAULTS), /mode must be/);
@@ -27,6 +52,12 @@ test("normalize: defaults, presets, short hex, rejects junk", () => {
   assert.throws(() => normalize([], DEFAULTS), /object/);
   assert.throws(() => normalize(null, DEFAULTS), /object/);
   assert.deepEqual(MODES, ["dark", "light", "system"]);
+  assert.deepEqual(GRADIENTS, ["aurora", "dusk", "tide", "ember", "frost"]);
+  assert.deepEqual(IMAGES, ["horizon", "orbit", "lattice", "bloom"]);
+  const big = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(PHOTO_LIMIT)]);
+  assert.throws(() => validatePhoto(`data:image/png;base64,${big.toString("base64")}`), /too large/);
+  assert.throws(() => validatePhoto("data:image/jpeg;base64," + Buffer.from("not-a-jpeg").toString("base64")), /do not match/);
+  assert.equal(validatePhoto(PNG), PNG);
 });
 
 let s;
@@ -39,8 +70,15 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
   assert.equal(g.status, 200);
   assert.equal(g.json.mode, "dark"); assert.equal(g.json.accent, "#22d3ee");
   assert.equal(g.json.background, null);
+  assert.equal(g.json.wallpaper, null);
+  assert.equal(g.json.photo, null);
   assert.equal(g.json.backgrounds.paper, BACKGROUNDS.paper);
+  assert.equal(g.json.backgrounds.navy, BACKGROUNDS.navy);
   assert.equal(g.json.presets.violet, ACCENTS.violet);
+  assert.equal(g.json.presets.gold, ACCENTS.gold);
+  assert.deepEqual(g.json.gradients, GRADIENTS);
+  assert.deepEqual(g.json.images, IMAGES);
+  assert.equal(g.json.looks.paper.mode, "light");
   assert.deepEqual(g.json.modes, MODES);
 
   const p = await s.api("/themes", { method: "POST", body: { mode: "light", accent: "rose" } });
@@ -73,9 +111,41 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
   assert.equal(badBg.status, 400);
   assert.equal((await s.api("/themes")).json.background, null);
 
+  const grad = await s.api("/themes", { method: "POST", body: { wallpaper: "gradient:tide" } });
+  assert.equal(grad.status, 200);
+  assert.equal(grad.json.wallpaper, "gradient:tide");
+  assert.equal(grad.json.photo, null);
+  assert.equal(grad.json.accent, "#ff7000", "a gradient keeps the accent");
+  const picture = await s.api("/themes", { method: "POST", body: { wallpaper: "image:lattice" } });
+  assert.equal(picture.json.wallpaper, "image:lattice");
+  const kept = await s.api("/themes", { method: "POST", body: { accent: "indigo" } });
+  assert.equal(kept.json.wallpaper, "image:lattice", "an accent change keeps the picture");
+  assert.equal(kept.json.accent, ACCENTS.indigo);
+  const photo = await s.api("/themes", { method: "POST", body: { wallpaper: "photo", photo: PNG } });
+  assert.equal(photo.status, 200);
+  assert.equal(photo.json.wallpaper, "photo");
+  assert.equal(photo.json.photo, PNG);
+  const stored = JSON.parse(fs.readFileSync(path.join(s.dir, "themes.prefs.json"), "utf8"));
+  assert.equal(stored.photo, PNG);
+  assert.equal(stored.photo.includes("http"), false);
+  for (const wallpaper of ["https://example.com/a.png", "url(https://example.com/a.png)", "image:remote", "javascript:alert(1)"]) {
+    const refused = await s.api("/themes", { method: "POST", body: { wallpaper } });
+    assert.equal(refused.status, 400, wallpaper);
+  }
+  const refusedPhoto = await s.api("/themes", { method: "POST", body: { photo: "https://example.com/me.jpg" } });
+  assert.equal(refusedPhoto.status, 400);
+  const still = await s.api("/themes");
+  assert.equal(still.json.wallpaper, "photo");
+  assert.equal(still.json.photo, PNG);
+  const noPicture = await s.api("/themes", { method: "POST", body: { wallpaper: "" } });
+  assert.equal(noPicture.json.wallpaper, null);
+  assert.equal(noPicture.json.photo, null);
+
   const reset = await s.api("/themes", { method: "DELETE" });
   assert.equal(reset.status, 200); assert.equal(reset.json.mode, "dark"); assert.equal(reset.json.accent, "#22d3ee");
   assert.equal(reset.json.background, null);
+  assert.equal(reset.json.wallpaper, null);
+  assert.equal(reset.json.photo, null);
   assert.equal((await s.api("/themes/other")).status, 404, "unknown sub-path falls through to 404");
   const st = await s.api("/state");
   assert.ok(st.json.plugins.includes("themes"), "plugin is listed in state");
@@ -86,6 +156,19 @@ test("appearance panel offers a custom background and has no em-dash", () => {
   assert.match(ui, /Background/);
   assert.match(ui, /id="cc-bg-custom"/);
   assert.match(ui, /Built-in/);
+  assert.match(ui, /Theme presets/);
+  assert.match(ui, /Your photo/);
+  assert.match(ui, /No picture/);
+  assert.match(ui, /type="file"/);
+  assert.match(ui, /accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(ui, /Choose a photo from this computer/);
+  assert.match(ui, /blur\(10px\)/);
+  assert.match(ui, /dim, blurred layer/);
+  assert.equal(/type="url"/.test(ui), false);
+  assert.equal(ui.includes("<script"), false);
+  for (const id of ["teal", "indigo", "gold", "magenta", "charcoal", "navy", "wine", "fog"]) assert.match(ui, new RegExp(id));
+  for (const id of GRADIENTS) assert.match(ui, new RegExp(`${id}:\\s*"`));
+  for (const id of IMAGES) assert.match(ui, new RegExp(`${id}:\\s*svgUri`));
   assert.equal(ui.includes("\u2014"), false);
   assert.equal(fs.readFileSync(path.join(ROOT, "server", "plugins", "themes.js"), "utf8").includes("\u2014"), false);
 });
