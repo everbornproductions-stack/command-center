@@ -2,6 +2,13 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.5 (2026-10-20)
+
+**New**
+- Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer. A web address is not accepted. Built-in restores the original background.
+- The top bar shows You saved this month and all time. It is an estimate based on token counts and list prices.
+- Add a custom provider and tick Good at for the task types it should take. Matching tasks go to it. Scores from your jobs make the pick sharper.
+
 ## v0.4.4 (2026-10-20)
 
 **New**
