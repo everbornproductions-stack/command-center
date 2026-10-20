@@ -4,6 +4,7 @@
 // for the life of the process; marked destructive: false but it is still a write and needs approval).
 // Run: node server/mcp-demo-server.js   (talks newline-delimited JSON-RPC on stdin / stdout)
 import fs from "node:fs";
+import http from "node:http";
 
 const notes = [];
 const TOOLS = [
@@ -11,6 +12,9 @@ const TOOLS = [
   { name: "word_count", title: "Word count", description: "Counts the words, sentences and characters in a text.", inputSchema: { type: "object", properties: { text: { type: "string", description: "The text to count" } }, required: ["text"], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
   { name: "save_note", title: "Save a note", description: "Saves a short note under a title. Notes live only while this demo server runs.", inputSchema: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } }, required: ["title", "body"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
   { name: "list_notes", description: "Lists the notes saved so far (title and first line).", inputSchema: { type: "object", properties: {} } }, // no annotations on purpose: the app must treat it as a write until the person marks it read-only
+  { name: "list_agents", title: "List Meldmind agents", description: "Lists the agents Meldmind can hand work to. Names only. No chats and no keys.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { title: "List Meldmind agents", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+  { name: "get_result", title: "Get a Meldmind result", description: "Reads one Meldmind job by id. The text is the reply already stored. Nothing new is sent.", inputSchema: { type: "object", properties: { job_id: { type: "string", description: "The job id from submit_job" } }, required: ["job_id"], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+  { name: "submit_job", title: "Submit a Meldmind job", description: "Asks Meldmind to queue a task for one agent. Does not send email, buy, or delete.", inputSchema: { type: "object", properties: { task: { type: "string" }, agent: { type: "string", description: "Optional agent id, such as antigravity" } }, required: ["task"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
 ];
 
 // writeSync so a Windows pipe does not hold the JSON line in a block buffer.
@@ -23,7 +27,49 @@ const write = (msg) => {
 };
 const text = (t, extra = {}) => ({ content: [{ type: "text", text: t }], ...extra });
 
-function call(name, args = {}) {
+const LOCAL_AGENTS = [
+  { id: "grokbot", name: "Grok Bot" },
+  { id: "browser-helper", name: "Browser helper" },
+  { id: "antigravity", name: "Google Antigravity" },
+];
+
+function bridgeConfigured() {
+  const port = Number(process.env.MELDMIND_PORT || 0);
+  const tokenFile = String(process.env.MELDMIND_TOKEN_FILE || "");
+  if (!port || port < 1 || port > 65535 || !tokenFile) return null;
+  let token = "";
+  try { token = fs.readFileSync(tokenFile, "utf8").trim(); } catch { return null; }
+  if (!token || token.length > 200) return null;
+  return { port, token };
+}
+
+function bridgeCall(method, pathname, payload) {
+  const cfg = bridgeConfigured();
+  if (!cfg) return Promise.resolve(null);
+  const body = payload ? JSON.stringify(payload) : "";
+  return new Promise((resolve) => {
+    const req = http.request({
+      host: "127.0.0.1",
+      port: cfg.port,
+      path: pathname,
+      method,
+      headers: { "content-type": "application/json", "x-meldmind-bridge": cfg.token, connection: "close", ...(body ? { "content-length": Buffer.byteLength(body) } : {}) },
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        try { resolve({ status: res.statusCode || 0, json: JSON.parse(raw) }); } catch { resolve({ status: res.statusCode || 0, json: null }); }
+      });
+    });
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.on("error", () => resolve(null));
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function call(name, args = {}) {
   if (name === "clock") { const d = new Date(); return text(`${d.toISOString()} (${Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}, ${d.toLocaleString()})`, { structuredContent: { iso: d.toISOString(), epochMs: d.getTime() } }); }
   if (name === "word_count") {
     const s = String(args.text ?? "");
@@ -37,6 +83,28 @@ function call(name, args = {}) {
     return text(`Saved note "${args.title}" (${notes.length} note${notes.length === 1 ? "" : "s"} in this session).`);
   }
   if (name === "list_notes") return text(notes.length ? notes.map((n, i) => `${i + 1}. ${n.title}: ${n.body.split("\n")[0].slice(0, 80)}`).join("\n") : "No notes yet.");
+  if (name === "list_agents") {
+    const live = await bridgeCall("GET", "/api/bridge/agents");
+    const rows = Array.isArray(live?.json?.agents) && live.json.agents.length ? live.json.agents : LOCAL_AGENTS;
+    const safe = rows.map((a) => ({ id: String(a.id || ""), name: String(a.name || a.id || "") })).filter((a) => a.id);
+    return text(safe.map((a) => `${a.name} (${a.id})`).join("\n"), { structuredContent: { agents: safe } });
+  }
+  if (name === "get_result") {
+    const id = String(args.job_id || "").trim();
+    if (!id) return text("job_id is required", { isError: true });
+    const live = await bridgeCall("GET", "/api/bridge/jobs/" + encodeURIComponent(id));
+    if (!live) return text("Meldmind is not running on this computer, so there is no result to read.", { isError: true });
+    if (!live.json?.job) return text(live.json?.error || "No such job.", { isError: true });
+    return text(String(live.json.job.text || live.json.job.status || "No reply yet."), { structuredContent: { job: live.json.job } });
+  }
+  if (name === "submit_job") {
+    const task = String(args.task || "").trim();
+    if (!task) return text("task is required", { isError: true });
+    const live = await bridgeCall("POST", "/api/bridge/jobs", { task: task.slice(0, 8000), agent: String(args.agent || "").slice(0, 40) });
+    if (!live) return text("Meldmind is not running on this computer. Start Meldmind, then try again. Nothing was sent.", { isError: true });
+    if ((live.status || 500) >= 400) return text(live.json?.error || "Meldmind did not take the job.", { isError: true });
+    return text(`Queued in Meldmind. Job id: ${live.json.job?.id || "unknown"}.`, { structuredContent: { job: live.json.job || null } });
+  }
   return null;
 }
 
@@ -46,16 +114,16 @@ function call(name, args = {}) {
 let buf = "";
 const queue = [];
 let busy = false;
-function handle(line) {
+async function handle(line) {
   line = line.trim(); if (!line) return;
   let msg; try { msg = JSON.parse(line); } catch { return write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
   const { id, method, params } = msg;
   if (id === undefined) return; // notifications (initialized, cancelled): nothing to do
-  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer." } });
+  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer. submit_job queues work in the local app. It does not send mail or spend money on its own." } });
   if (method === "ping") return write({ jsonrpc: "2.0", id, result: {} });
   if (method === "tools/list") return write({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
   if (method === "tools/call") {
-    const r = call(params?.name, params?.arguments || {});
+    const r = await call(params?.name, params?.arguments || {});
     if (!r) return write({ jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown tool: ${params?.name}` } });
     return write({ jsonrpc: "2.0", id, result: r });
   }
@@ -66,8 +134,7 @@ function pump() {
   const line = queue.shift();
   if (line === undefined) return;
   busy = true;
-  try { handle(line); } finally { busy = false; }
-  if (queue.length) pump();
+  Promise.resolve(handle(line)).finally(() => { busy = false; if (queue.length) pump(); });
 }
 process.stdin.setEncoding("utf8");
 trace(`stdin encoding=utf8 platform=${process.platform}`);

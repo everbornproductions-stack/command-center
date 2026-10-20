@@ -45,6 +45,7 @@ import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
+import { bridgeAuthorized } from "./meldmind-bridge.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
@@ -120,6 +121,13 @@ function phonePair() {
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
   return { on: true, token: p.token };
 }
+// The Antigravity MCP process has no browser session. It may call only the
+// job bridge, and only with the token that stays in the data folder.
+function bridgeLoopbackOk(req, url) {
+  const p = url.pathname;
+  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && !p.startsWith("/api/bridge/jobs/")) return false;
+  return bridgeAuthorized(req.headers["x-meldmind-bridge"]);
+}
 function pairPresented(req, url) {
   const token = phonePair().token;
   if (!token) return false;
@@ -130,7 +138,7 @@ function localGate(req, url) {
   if (HOSTED) return null;
   if (!hostOk(req)) return { status: 421, error: `wrong host: open http://localhost:${PORT}/ or http://127.0.0.1:${PORT}/`, code: "host" };
   if (!originOk(req)) return { status: 403, error: "cross-site request refused", code: "origin" };
-  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"])) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
+  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"]) && !bridgeLoopbackOk(req, url)) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
   return null;
 }
 // index.html with the per-launch token injected (local mode only).

@@ -55,6 +55,23 @@ Recurring pay link (Square, live 2026-10-18): **https://square.link/u/dbU38mQC**
 
 Positioning line (Grok's draft, kept): "One place to talk. It picks the right AI (ChatGPT, Claude, Grok…), routes for speed and cost, and coordinates them to actually finish the project." Sell the savings and the finished work, not "orchestration".
 
+## Marketing: Meldmind can use the apps on your desktop, safely
+
+Headline feature for 0.4.8. The longer page is docs/marketing.md. Use this when the story is the desktop, not another chat window.
+
+| Point | What to say |
+|---|---|
+| Works with apps that have no API | MCP first, then a website in the system browser, then a Windows app in its own window. A screenshot path stays off until the person opts in. |
+| Approval for each app | An app stays off until Allow is on for that app. It can be turned off in Settings. |
+| Confirm before send, buy, or delete | The first click prepares the step. The second click is the one that sends, buys, or deletes. |
+| Stop banner | While an app is in use, a banner says Meldmind is using that app, and Stop ends it. |
+| No passwords stored | Sign-in happens in the app or in the browser. Meldmind does not keep the password, and it does not put a key on a command line. |
+| Self-healing when apps change | Controls are found by role, name, and shortcut. If a control moves, Meldmind tries the other ways it knows, then a manual handoff, and says so in plain words. |
+
+Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in. Add to Antigravity connects Meldmind as a local MCP server after a confirm click. The first-run setup screen and, after an update to 0.4.8, a one-time card (Not now reminds once, Never hides it) both offer the same choice.
+
+Do not claim that Meldmind posts, sends, or spends on its own. Do not mention income. Square and billing stay out of this story.
+
 ## Launch marketing (from the Grok chat, matches the Everborn Reels workflow)
 
 - Organic first: 3–7 Reels a week on Instagram, cross-posted to Facebook. Hook in the first 2 seconds, then a screen recording of the console: orders typed, the graph lighting up, the deliverable landing, the cost line at the end.

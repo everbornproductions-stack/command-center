@@ -1,5 +1,12 @@
 # Roadmap: the twelve (approved by Chris 2026-10-18, "get all this done")
 
+## Release line (2026-10-20)
+
+- 0.4.6 is the engine hotfix. It shipped.
+- 0.4.7 is the quick patch: the adaptive menu fix for laptops and wide screens, Start a project out of Settings, and hide demo bots when real AIs are connected.
+- 0.4.8 is desktop and app control (phases 45 to 51). Google Antigravity is the first app. The same release keeps the previously planned Calendar, everyday actions, What's new, and idea box work, and it routes a task to whichever AI already has the login or the prior work. The user-facing story is in docs/marketing.md: Meldmind can use the apps on your desktop, safely.
+- Windows code signing (Azure) is pending Microsoft verification. It stays in Do last until that verification lands. Do not treat the installer as signed before then.
+
 Build order is by payoff and by what can run in parallel without two sessions editing the same file.
 
 ## Shared plumbing first (main session)

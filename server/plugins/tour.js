@@ -9,10 +9,12 @@ import path from "node:path";
 import { demoActive } from "../mock.js";
 import { ROOT } from "../paths.js";
 import { VERSION } from "../update.js";
+import { applyDesktopPrompt, desktopPromptCopy, shouldShowDesktopPrompt } from "../desktop-prompt.js";
 export const id = "tour";
 
 const KIND = "tour.state";
 const NEWS_KIND = "whatsnew.state";
+const DESKTOP_KIND = "desktop.prompt";
 export const NEWS_PATH = path.join(ROOT, "docs", "WHATS-NEW.json");
 export const DEFAULTS = { completed: false, completedAt: null, skippedAt: null, sampleRuns: 0, lastSampleAt: null };
 export const SAMPLE_GOAL = "Plan a one-week Instagram launch for a small coffee roaster: five post ideas with hooks, short captions and a posting schedule.";
@@ -47,7 +49,15 @@ function pendingNews(h) {
   try { return whatsNewFor(VERSION, readChangelog()); }
   catch { return null; }
 }
-const view = (h) => ({ ...state(h), demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions, sample: { goal: SAMPLE_GOAL }, whatsNew: pendingNews(h) });
+const desktopState = (h) => {
+  const saved = h.doc(DESKTOP_KIND, () => ({ status: "pending", laterCount: 0 }));
+  return { status: saved?.status || "pending", laterCount: Number(saved?.laterCount) || 0 };
+};
+function pendingDesktop(h) {
+  if (!shouldShowDesktopPrompt({ version: VERSION, ...desktopState(h) })) return null;
+  return desktopPromptCopy();
+}
+const view = (h) => ({ ...state(h), demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions, sample: { goal: SAMPLE_GOAL }, whatsNew: pendingNews(h), desktopPrompt: pendingDesktop(h) });
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/tour/, "");
@@ -57,6 +67,12 @@ export async function routes(req, res, url, body, h) {
   if (p === "/skip") { save(h, { skippedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/reset") { h.putDoc(KIND, { ...DEFAULTS }); return h.json(res, 200, view(h)); }
   if (p === "/whats-new/seen") { h.putDoc(NEWS_KIND, { seen: VERSION }); return h.json(res, 200, view(h)); }
+  if (p === "/desktop") {
+    const action = body?.action === "never" || body?.action === "done" || body?.action === "later" ? body.action : "";
+    if (!action) return h.json(res, 400, { error: "Choose Not now, Never, or continue." });
+    h.putDoc(DESKTOP_KIND, applyDesktopPrompt(desktopState(h), action));
+    return h.json(res, 200, view(h));
+  }
   if (p === "/sample") {
     const d = sampleDecision({ demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions });
     if (!d.ok) return h.json(res, 400, { error: d.error, code: d.code });

@@ -30,3 +30,5 @@ The six samples, and what they show:
 Do not publish them. Figures, names, and claims in a sample are not yours. In Simple, steps say an example AI. In Expert, the sample shows made-up routes so you can see how a plan reads. Either way, no AI is called.
 
 To run your own, see the how-to for that type: Start a website, Start a music video, Start a marketing campaign, Start an app, Start a business plan, or Start social reels.
+
+These samples are not desktop control. Letting Meldmind use an app on this PC, such as Google Antigravity, is a separate choice in setup and in Settings. See Apps on your desktop.

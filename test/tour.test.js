@@ -94,6 +94,7 @@ test("what's new is returned once per version and a tour reset does not show it 
   try {
     const g = await s.api("/tour");
     assert.equal(g.json.whatsNew.version, pkg.version);
+    assert.equal(g.json.desktopPrompt, null, "the desktop card waits until 0.4.8");
     assert.ok(g.json.whatsNew.bullets.length > 0);
     const seen = await s.api("/tour/whats-new/seen", { method: "POST" });
     assert.equal(seen.status, 200);
@@ -110,7 +111,7 @@ test("what's new is returned once per version and a tour reset does not show it 
 test("tour steps cover the current app and What's new shows before the invite", () => {
   const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
   const steps = src.slice(src.indexOf("const STEPS"), src.indexOf("const css"));
-  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair"]) {
+  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair", "Apps on your desktop", "Passwords are not stored"]) {
     assert.ok(steps.includes(phrase), `tour step missing ${phrase}`);
   }
   const waysAt = steps.indexOf('title: "Single, Council, Mission, Pipelines"');

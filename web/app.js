@@ -1918,7 +1918,7 @@ function renderSetup(v) {
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. The scans below run on this PC only; nothing from them is uploaded.</div>
+          <div class="muted">These steps are optional. The scans below run on this PC only; nothing from them is uploaded.</div>
           <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
         <div id="su-share-block" style="margin-top:18px">
           <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings.</div><div class="dim small" id="su-share-note" ${st.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div></div></label>
@@ -1928,6 +1928,14 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
+        </div>
+        <div class="panel" id="su-desktop" style="margin-top:16px">
+          <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
+          <div class="dim small">Meldmind can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Skip this and change it later in Settings.</div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
+            <button class="btn sm" id="su-agy-install" type="button">Install and connect</button>
+          </div>
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
@@ -1954,6 +1962,22 @@ function renderSetup(v) {
       }
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
+    });
+    $("#su-agy-allow")?.addEventListener("click", async () => {
+      try { await api("/antigravity/allow", { method: "POST", body: { allow: true } }); toast("Antigravity is allowed. Change this any time in Settings."); }
+      catch (e) { toast(e.message, true); }
+    });
+    $("#su-agy-install")?.addEventListener("click", async () => {
+      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      try {
+        const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+        toast(r.message || "Installer finished", !r.ok);
+        if (r.ok) {
+          await api("/antigravity/allow", { method: "POST", body: { allow: true } });
+          const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+          toast(s.message || "Sign-in opened", !s.ok);
+        }
+      } catch (e) { toast(e.message, true); }
     });
     $("#su-skip").addEventListener("click", async () => {
       try { await saveShareChoice(); }
