@@ -1,10 +1,22 @@
 // Grouped main menu. Every existing view stays reachable in Expert.
 // Simple shows Chat, Projects, Create, Help, and Settings.
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
+//
+// Width (window, not a one-time screen snapshot):
+//   narrow  < 1280   the five compact dropdowns
+//   normal  1280-1599  eight dropdowns, Work and Settings split
+//   wide    >= 1600  those groups open into inline buttons
 
 import { CREATE_VIEWS } from "./mode.js";
 
+export const NAV_NORMAL = 1280;
+export const NAV_WIDE = 1600;
+
 export const GROUP_ORDER = ["work", "create", "business", "connect", "help"];
+
+// Work (the largest menu) splits into Work, Agents, and Library. Live stays in Work.
+// Settings splits off a Help menu so Replay the tour and Watch example projects fit.
+export const SPLIT_ORDER = ["work", "agents", "library", "create", "business", "connect", "settings", "guides"];
 
 export const GROUPS = {
   work: { id: "work", label: "Work" },
@@ -12,6 +24,17 @@ export const GROUPS = {
   business: { id: "business", label: "Business" },
   connect: { id: "connect", label: "Connect" },
   help: { id: "help", label: "Settings" },
+};
+
+const SPLIT_GROUPS = {
+  work: { id: "work", label: "Work" },
+  agents: { id: "agents", label: "Agents" },
+  library: { id: "library", label: "Library" },
+  create: { id: "create", label: "Create" },
+  business: { id: "business", label: "Business" },
+  connect: { id: "connect", label: "Connect" },
+  settings: { id: "settings", label: "Settings" },
+  guides: { id: "guides", label: "Help" },
 };
 
 const HOME = {
@@ -40,6 +63,34 @@ const HOME = {
   start: "help",
 };
 
+// Same pages, fewer items per dropdown. groupFor() stays on HOME so mobile and
+// the locked menu tests keep the compact group for each view.
+const SPLIT_HOME = {
+  command: "work",
+  projects: "work",
+  compare: "work",
+  pipelines: "work",
+  liveview: "work",
+  agents: "agents",
+  schedules: "agents",
+  libraries: "library",
+  artifacts: "library",
+  history: "library",
+  brain: "library",
+  prompts: "create",
+  images: "create",
+  media: "create",
+  publish: "create",
+  subscriptions: "business",
+  credits: "business",
+  workspaces: "business",
+  reports: "business",
+  settings: "settings",
+  setup: "settings",
+  start: "settings",
+  help: "guides",
+};
+
 export const LABELS = {
   command: "Command",
   projects: "Projects",
@@ -66,6 +117,40 @@ export const LABELS = {
   start: "Start a project",
 };
 
+const TOUR_ITEM = { id: "tour", label: "Take the tour again", action: "tour", home: false };
+const REPLAY_ITEM = { id: "replay-tour", label: "Replay the tour", action: "replay-tour", home: false };
+const EXAMPLES_ITEM = { id: "watch-examples", label: "Watch example projects", action: "examples", home: false };
+const UPDATES_ITEM = { id: "updates", label: "Check for updates", action: "updates", home: false };
+const START_ITEM = { id: "start-project", label: "Start a project", view: "start", home: false };
+
+function ensureStart(bucket) {
+  if (!bucket.some((i) => i.view === "start")) bucket.push({ ...START_ITEM });
+}
+
+export function navLayout(width) {
+  const w = Number(width);
+  if (!Number.isFinite(w) || w < NAV_NORMAL) return "narrow";
+  if (w >= NAV_WIDE) return "wide";
+  return "normal";
+}
+
+export function readNavWidth(win = globalThis) {
+  const inner = win?.innerWidth;
+  if (Number.isFinite(inner) && inner > 0) return inner;
+  const client = win?.document?.documentElement?.clientWidth;
+  if (Number.isFinite(client) && client > 0) return client;
+  return 0;
+}
+
+function splitLayout(layout) {
+  return layout === "normal" || layout === "wide";
+}
+
+export function groupIdFor(view, layout = "narrow") {
+  if (splitLayout(layout) && SPLIT_HOME[view]) return SPLIT_HOME[view];
+  return groupFor(view);
+}
+
 // Same Settings page, scrolled to the panel. Not a second copy of the app.
 export const CONNECT_LINKS = [
   { id: "keys", label: "Keys and providers", view: "settings", focus: "#settings-keys" },
@@ -78,19 +163,32 @@ export function groupFor(view) {
   return HOME[view] || "work";
 }
 
-export function menuModel(views) {
-  const buckets = Object.fromEntries(GROUP_ORDER.map((id) => [id, []]));
+export function menuModel(views, layout = "narrow") {
+  const split = splitLayout(layout);
+  const order = split ? SPLIT_ORDER : GROUP_ORDER;
+  const groups = split ? SPLIT_GROUPS : GROUPS;
+  const buckets = Object.fromEntries(order.map((id) => [id, []]));
   const seen = new Set();
   for (const view of views || []) {
     if (!view || seen.has(view)) continue;
     seen.add(view);
-    buckets[groupFor(view)].push({ view, label: LABELS[view] || view, home: true });
+    const gid = groupIdFor(view, layout);
+    (buckets[gid] || buckets[groupFor(view)]).push({ view, label: LABELS[view] || view, home: true });
   }
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
-  if (!buckets.help.some((i) => i.view === "start")) buckets.help.push({ id: "start-project", label: "Start a project", view: "start", home: false });
-  buckets.help.push({ id: "tour", label: "Take the tour again", action: "tour", home: false });
-  buckets.help.push({ id: "updates", label: "Check for updates", action: "updates", home: false });
-  return GROUP_ORDER.map((id) => ({ ...GROUPS[id], items: buckets[id] }));
+  if (split) {
+    ensureStart(buckets.settings);
+    buckets.settings.push({ ...TOUR_ITEM });
+    buckets.settings.push({ ...UPDATES_ITEM });
+    if (!buckets.guides.some((i) => i.view === "help")) buckets.guides.unshift({ view: "help", label: "Help", home: true });
+    buckets.guides.push({ ...REPLAY_ITEM });
+    buckets.guides.push({ ...EXAMPLES_ITEM });
+  } else {
+    ensureStart(buckets.help);
+    buckets.help.push({ ...TOUR_ITEM });
+    buckets.help.push({ ...UPDATES_ITEM });
+  }
+  return order.map((id) => ({ ...groups[id], items: buckets[id] }));
 }
 
 // Keyboard inside one menu. Alt, Ctrl, and Meta are not handled here.
@@ -125,6 +223,16 @@ const CSS = `
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }
 .nav-panel button.active { color: var(--accent-2); }
+.nav-menu:nth-last-child(-n+3) .nav-panel { left: auto; right: 0; }
+.tabs.nav-split, .tabs.nav-wide { flex: 1 1 520px; min-width: 0; flex-wrap: wrap; }
+.tabs.nav-split .nav-trigger { padding: 6px 10px; }
+.topbar:has(.tabs.nav-split), .topbar:has(.tabs.nav-wide) { height: auto; min-height: 56px; flex-wrap: wrap; row-gap: 6px; padding-top: 6px; padding-bottom: 6px; }
+.app:has(.tabs.nav-split), .app:has(.tabs.nav-wide) { grid-template-rows: auto minmax(0, 1fr) var(--strip-h); }
+.tabs.nav-wide { gap: 2px 10px; background: transparent; border: 0; padding: 0; align-items: center; }
+.tabs.nav-wide .nav-menu { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.tabs.nav-wide .nav-trigger { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px 4px 2px; cursor: default; pointer-events: none; }
+.tabs.nav-wide .nav-panel { position: static; display: flex; flex-direction: row; flex-wrap: wrap; gap: 2px; min-width: 0; max-height: none; overflow: visible; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.tabs.nav-wide .nav-panel button { padding: 4px 8px; white-space: nowrap; }
 .mobile-more-label { grid-column: 1 / -1; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 6px 4px 0; }
 .mobile-more-group { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 `;
@@ -186,8 +294,16 @@ function buttonFor(buttons, view, label) {
   return btn;
 }
 
-function mountExpert(root, views, buttons) {
-  const model = menuModel(views);
+function helpMenu(buttons) {
+  const help = menuShell("guides", "Help");
+  help.panel.appendChild(buttonFor(buttons, "help", "Help"));
+  help.panel.appendChild(itemButton(REPLAY_ITEM));
+  help.panel.appendChild(itemButton(EXAMPLES_ITEM));
+  return help.menu;
+}
+
+function mountExpert(root, views, buttons, layout) {
+  const model = menuModel(views, layout);
   for (const group of model) {
     const { menu, panel } = menuShell(group.id, group.label);
     for (const item of group.items) {
@@ -196,15 +312,9 @@ function mountExpert(root, views, buttons) {
     }
     root.appendChild(menu);
   }
-  root.appendChild(helpMenu(buttons));
-}
-
-function helpMenu(buttons) {
-  const help = menuShell("guides", "Help");
-  help.panel.appendChild(buttonFor(buttons, "help", "Help"));
-  help.panel.appendChild(itemButton({ id: "replay-tour", label: "Replay the tour", action: "replay-tour" }));
-  help.panel.appendChild(itemButton({ id: "watch-examples", label: "Watch example projects", action: "examples" }));
-  return help.menu;
+  // Narrow keeps the compact menus and still mounts the walkthrough Help menu.
+  // Normal and wide already include that menu in the split model.
+  if (!model.some((g) => g.id === "guides")) root.appendChild(helpMenu(buttons));
 }
 
 function mountSimple(root, views, buttons) {
@@ -223,36 +333,84 @@ function mountSimple(root, views, buttons) {
     if (have.has(view)) create.panel.appendChild(buttonFor(buttons, view, LABELS[view]));
   }
   root.appendChild(create.menu);
-
   root.appendChild(helpMenu(buttons));
 
   const settings = menuShell("settings", "Settings");
   settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
   if (have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
   if (have.has("start")) settings.panel.appendChild(buttonFor(buttons, "start", "Start a project"));
-  settings.panel.appendChild(itemButton({ id: "tour", label: "Take the tour again", action: "tour" }));
+  settings.panel.appendChild(itemButton(TOUR_ITEM));
   root.appendChild(settings.menu);
 }
 
-// Rebuilds when the mode changes. Same mode is left in place so a re-render does not drop focus.
-export function installNav(root, views, mode = "expert") {
+function applyWide(root) {
+  root.querySelectorAll(".nav-menu").forEach((menu) => {
+    const trigger = menu.querySelector(".nav-trigger");
+    if (trigger) {
+      trigger.tabIndex = -1;
+      trigger.setAttribute("aria-hidden", "true");
+      trigger.removeAttribute("aria-haspopup");
+      trigger.removeAttribute("aria-expanded");
+    }
+    menu.querySelector(".nav-panel")?.removeAttribute("role");
+    menu.querySelectorAll("[role='menuitem']").forEach((b) => b.removeAttribute("role"));
+  });
+}
+
+// Rebuilds when the mode or the width layout changes. The same pair is left in place so a re-render does not drop focus.
+export function installNav(root, views, mode = "expert", layout = "narrow") {
   if (!root) return root;
   mode = mode === "simple" ? "simple" : "expert";
-  if (root.dataset.nav === "1" && root.dataset.uiMode === mode) return root;
+  layout = layout === "wide" || layout === "normal" ? layout : "narrow";
+  if (root.dataset.nav === "1" && root.dataset.uiMode === mode && root.dataset.navLayout === layout) return root;
   ensureNavStyle();
   const buttons = [...root.querySelectorAll("button[data-view]")].filter((b) => !b.dataset.focus && !b.dataset.action);
   for (const b of buttons) b.remove();
   root.textContent = "";
   root.classList.add("nav-ready");
+  root.classList.toggle("nav-wide", layout === "wide");
+  root.classList.toggle("nav-split", layout === "normal");
   root.dataset.nav = "1";
   root.dataset.uiMode = mode;
+  root.dataset.navLayout = layout;
   if (mode === "simple") mountSimple(root, views, buttons);
-  else mountExpert(root, views, buttons);
+  else mountExpert(root, views, buttons, layout);
+  if (layout === "wide") applyWide(root);
   if (!root.dataset.navKeys) {
     root.dataset.navKeys = "1";
     root.addEventListener("keydown", onNavKey);
   }
   return root;
+}
+
+// resize plus matchMedia. min-width tracks the window. resolution and device-width
+// fire when the window moves onto another monitor, including one where resize does not.
+export function watchNavLayout(onChange, win = globalThis) {
+  if (!win || typeof win.matchMedia !== "function" || typeof onChange !== "function") return () => {};
+  const apply = () => onChange(navLayout(readNavWidth(win)));
+  win.addEventListener?.("resize", apply);
+  const queries = [
+    `(min-width: ${NAV_NORMAL}px)`,
+    `(min-width: ${NAV_WIDE}px)`,
+    `(min-device-width: ${NAV_NORMAL}px)`,
+    `(min-device-width: ${NAV_WIDE}px)`,
+  ];
+  const lists = queries.map((q) => win.matchMedia(q));
+  for (const mq of lists) mq.addEventListener?.("change", apply);
+  let ratio = win.devicePixelRatio || 1;
+  const watchRatio = () => {
+    const mq = win.matchMedia(`(resolution: ${ratio}dppx)`);
+    const onRes = () => {
+      ratio = win.devicePixelRatio || ratio;
+      apply();
+      watchRatio();
+    };
+    mq.addEventListener?.("change", onRes);
+  };
+  watchRatio();
+  win.visualViewport?.addEventListener?.("resize", apply);
+  apply();
+  return () => win.removeEventListener?.("resize", apply);
 }
 
 function menuState(menu) {
@@ -262,6 +420,7 @@ function menuState(menu) {
 }
 
 function onNavKey(e) {
+  if (e.target.closest?.(".nav-wide")) return;
   const trigger = e.target.closest?.(".nav-trigger");
   const item = e.target.closest?.("[role='menuitem']");
   const menu = (trigger || item)?.closest?.(".nav-menu");
@@ -303,19 +462,33 @@ function onNavKey(e) {
   }
 }
 
+function tuneItem(root, btn) {
+  if (root?.dataset?.navLayout === "wide") btn.removeAttribute("role");
+  return btn;
+}
+
 export function placeNavItem(root, view, label) {
   if (!root) return;
   if (root.dataset.uiMode === "simple") {
     if (view === "start") {
       const panel = root.querySelector("#nav-panel-settings");
       if (!panel || panel.querySelector('button[data-view="start"]')) return;
-      const btn = itemButton({ view, label: label || "Start a project" });
+      const btn = tuneItem(root, itemButton({ view, label: label || "Start a project" }));
       const tour = panel.querySelector("button[data-action='tour']");
       if (tour) panel.insertBefore(btn, tour);
       else panel.appendChild(btn);
       return;
     }
     if (view === "help") {
+      const panel = root.querySelector("#nav-panel-guides");
+      if (panel) {
+        if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
+        const btn = tuneItem(root, itemButton({ view, label: label || "Help" }));
+        const replay = panel.querySelector("button[data-action='replay-tour']");
+        if (replay) panel.insertBefore(btn, replay);
+        else panel.appendChild(btn);
+        return;
+      }
       if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
       const btn = itemButton({ view, label: label || "Help" });
       btn.classList.add("nav-direct");
@@ -329,17 +502,17 @@ export function placeNavItem(root, view, label) {
     const panel = root.querySelector(`#nav-panel-${view === "setup" ? "settings" : "create"}`);
     if (!panel) return;
     if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-    const btn = itemButton({ view, label: label || LABELS[view] || view, home: true });
+    const btn = tuneItem(root, itemButton({ view, label: label || LABELS[view] || view, home: true }));
     const tour = panel.querySelector("button[data-action='tour']");
     if (tour) panel.insertBefore(btn, tour);
     else panel.appendChild(btn);
     return;
   }
-  const group = groupFor(view);
+  const group = groupIdFor(view, root.dataset.navLayout || "narrow");
   let panel = root.querySelector(`#nav-panel-${group}`);
   if (!panel) return;
   if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-  const btn = itemButton({ view, label: label || LABELS[view] || view, home: true });
+  const btn = tuneItem(root, itemButton({ view, label: label || LABELS[view] || view, home: true }));
   const links = panel.querySelector("button[data-focus]");
   if (links) panel.insertBefore(btn, links);
   else panel.appendChild(btn);
