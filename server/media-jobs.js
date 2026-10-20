@@ -249,6 +249,12 @@ async function runPaid(job, a) {
   return out.result;
 }
 async function runJob(job) {
+  const user = ctx();
+  user.mediaJobsInFlight = (user.mediaJobsInFlight || 0) + 1;
+  try { await runJobBody(job); }
+  finally { user.mediaJobsInFlight = Math.max(0, (user.mediaJobsInFlight || 1) - 1); }
+}
+async function runJobBody(job) {
   const a = ADAPTERS[job.provider];
   const agent = `media:${job.id}`;
   const label = `${a.name} ${job.dryRun ? "dry run:" : "generating"} ${job.kind}`;

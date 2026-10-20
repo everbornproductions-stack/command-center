@@ -54,6 +54,7 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_MASTER_KEY` | yes | base64 of 32 random bytes; **losing it loses every stored API key** (users re-paste them) |
 | `CC_OWNER_EMAILS` | no | comma-separated emails that get the owner tier without a licence |
 | `CC_HUB_URL` | no | public address of the hub, shown in the pairing QR |
+| `CC_IDLE_EVICT_MIN` | no | minutes a hosted user can sit idle before their in-memory context is dropped (default 30). Ignored in local mode |
 | `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token (keep it only on the hub) |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
@@ -139,7 +140,7 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 - `sleepAfter` is 15 minutes in `worker/index.js`. Longer keeps the hub warm (faster phone opens, scheduled missions fire) at the cost of memory-hours; "always on" is about $1.75/month extra as computed above.
 - Supabase free projects pause after 7 days without database activity; a hub with any sign-in keeps it awake, and Pro ($25/month) removes pausing. The hub does not need Supabase Pro for anything else.
 - Master-key rotation: decrypt with the old key, re-encrypt with the new, bump `key_version` (not automated; users can also just re-paste keys).
-- Memory: each loaded user holds their last 35 days of ledger plus docs in RAM; contexts are never evicted in this version (fine for a handful of users on 256 MiB; add idle eviction before selling widely).
+- Memory: each loaded user holds their last 35 days of ledger plus docs in RAM. In hosted mode a user who has been idle for `CC_IDLE_EVICT_MIN` minutes (default 30) is dropped from memory after any waiting cloud writes are flushed. They are not dropped while they have a running mission, council, chat or media job, an open WebSocket, a queued off-peak mission, or a write that has not finished. The next request loads them again from Supabase. Local mode keeps its one context and never evicts.
 
 ### Fallback: Fly.io (not chosen)
 
