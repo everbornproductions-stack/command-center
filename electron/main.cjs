@@ -8,7 +8,7 @@ const fs = require("node:fs");
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
-const { createUpdateController, CHECK_EVERY_MS } = require("./updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const { createHotkey } = require("./hotkey.cjs");
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
@@ -74,7 +74,9 @@ function exposeSafeStorage() {
 // In-app updates (installed builds only), run from the main process by electron/updater.cjs so they
 // work even when the local server or the web UI does not. On launch the app checks GitHub Releases
 // before the engine starts and shows "Meldmind vX.Y.Z is ready" (Install now / Later). Install now
-// downloads with a progress bar, then the installer runs silently and relaunches. App data in
+// downloads with a progress bar, then the installer runs silently and relaunches. While the app
+// is open, the same check runs every hour and the prompt says "Restart and update" / "Later".
+// Later on that prompt downloads the update and installs it when you quit. App data in
 // %APPDATA%\Everborn Command is outside the install folder, so updates and reinstalls keep it.
 let quittingForUpdate = false, updater = null, updateWin = null;
 const sendAll = (channel, payload) => { for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send(channel, payload); } catch {} } };
@@ -99,7 +101,7 @@ function setupUpdater() {
     },
   });
   globalThis.__ccUpdater = updater.bridge; // Settings > Check for updates keeps working through the server
-  setInterval(() => updater.check({ prompt: true }).catch((e) => log("periodic update check failed:", e && e.message)), CHECK_EVERY_MS).unref();
+  setInterval(() => updater.check({ prompt: true, running: true }).catch((e) => log("periodic update check failed:", e && e.message)), CHECK_EVERY_MS).unref();
 }
 function showUpdateWindow() {
   if (updateWin && !updateWin.isDestroyed()) { updateWin.show(); updateWin.focus(); return; }
@@ -134,7 +136,14 @@ function setupIpc() {
   handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
   handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
   handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); showUpdateWindow(); return updater.install(); });
-  handle("upd:later", () => { updater && updater.later(); if (updateWin && !updateWin.isDestroyed()) updateWin.close(); return true; });
+  handle("upd:later", async () => {
+    const job = updater ? updater.later() : null;
+    const wait = !!(updater && updater.state.offer === "running" && updater.state.installOnQuit);
+    if (!wait && updateWin && !updateWin.isDestroyed()) updateWin.close();
+    const s = await Promise.resolve(job).catch(() => updater && updater.state);
+    if (wait && updateWin && !updateWin.isDestroyed() && updater.state.phase === "downloaded") updateWin.close();
+    return s || true;
+  });
   handle("engine:state", () => ({ port: PORT, stuck: !!(watchdog && watchdog.stuck), reason: watchdog ? watchdog.reason : null }));
   handle("quick:hide", () => { hideQuick(); return true; });
   handle("quick:done", (o) => { hideQuick(); if (o && o.open) focusWindow(); return true; });
@@ -368,6 +377,23 @@ function allowMicrophone() {
 }
 
 app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
+// Running prompt: Later downloads the update, and quit installs it. The launch prompt's Later does not.
+let holdingQuitForUpdate = false;
+app.on("before-quit", (event) => {
+  if (!updater || quittingForUpdate) return;
+  const action = quitInstallAction(updater.state);
+  if (action === "skip") return;
+  event.preventDefault();
+  const go = () => { quittingForUpdate = true; updater.installDownloaded(); };
+  if (action === "install") { go(); return; }
+  if (holdingQuitForUpdate) return;
+  holdingQuitForUpdate = true;
+  updater.whenQuitInstallReady().then((ok) => {
+    holdingQuitForUpdate = false;
+    if (ok) go();
+    else { quittingForUpdate = true; app.quit(); }
+  });
+});
 // give the quick-launcher shortcut back on quit (only the one this app registered)
 app.on("will-quit", () => { try { hotkey.dispose(); globalShortcut.unregisterAll(); } catch {} });
 app.on("window-all-closed", () => { if (quittingForUpdate) app.quit(); /* otherwise keep serving in the tray */ });
