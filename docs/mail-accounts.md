@@ -2,7 +2,7 @@
 
 Gmail, Google (the browser helper) and Outlook can each have more than one account. The first account for a provider is the one that already existed: its token stays on the vault id it has always used (`google-helper`, `mail-gmail`, `mail-outlook`). Each account added after that stores its token in the same vault under `mail-acct-<id>`.
 
-Nothing in this module logs a token, a refresh token, an authorization code, or a client secret. The setup wizard is a separate change. It should call this API and should not add its own copy of these routes.
+Nothing in this module logs a token, a refresh token, an authorization code, or a client secret. Get everything connected lists these accounts and calls this API to add another. It does not add its own copy of these routes.
 
 ## Functions (`server/mail-accounts.js`)
 

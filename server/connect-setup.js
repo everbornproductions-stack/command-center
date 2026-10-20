@@ -10,6 +10,7 @@ import * as Google from "./google.js";
 import * as OA from "./publish/oauth.js";
 import { sourceView } from "./library-sources.js";
 import { readiness } from "./grokbot.js";
+import { listAccounts } from "./mail-accounts.js";
 import { mailView } from "./services.js";
 import { doc, putDoc } from "./store.js";
 
@@ -69,17 +70,22 @@ export function statusOf({ auth, connected, handoff } = {}) {
   return "Not connected";
 }
 
-// Connected accounts only, and only the label. Tokens stay on the mail sign-in.
-function connectedAccounts(list, { connected = false, fallback = "" } = {}) {
-  const out = [];
-  for (const a of Array.isArray(list) ? list : []) {
-    if (!a || typeof a !== "object" || !a.connected || a.needsSignIn) continue;
-    const label = String(a.label || a.email || a.name || "").replace(/[\r\n]/g, " ").trim().slice(0, 80);
-    if (!label || out.some((x) => x.label === label)) continue;
-    out.push({ label });
-  }
-  if (!out.length && connected && fallback) out.push({ label: fallback });
-  return out;
+// Public mail rows only. Tokens stay in the vault behind /api/mail-accounts.
+function publicMail(a) {
+  if (!a || typeof a !== "object") return null;
+  const id = String(a.id || "");
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) return null;
+  return {
+    id,
+    label: String(a.label || "").replace(/[\r\n]/g, " ").trim().slice(0, 40),
+    connected: !!a.connected && !a.needsSignIn,
+    isDefault: !!a.isDefault,
+  };
+}
+
+function mailRows(deps, provider) {
+  try { return (deps.mailAccounts?.(provider) || []).map(publicMail).filter(Boolean); }
+  catch { return []; }
 }
 
 function row(item) {
@@ -93,9 +99,9 @@ function row(item) {
     flow: item.flow,
     skipped: false,
   };
-  if (item.addAnother) {
-    out.addAnother = true;
-    out.accounts = connectedAccounts(item.accounts, { connected: status === "Connected", fallback: item.name });
+  if (item.mail) {
+    out.mail = { provider: item.mail.provider };
+    out.accounts = Array.isArray(item.accounts) ? item.accounts : [];
   }
   return out;
 }
@@ -150,16 +156,18 @@ function integrationRows(deps) {
   let outlook = {};
   try { outlook = deps.outlook?.() || {}; } catch { outlook = {}; }
   const outlookClient = !!(outlook.clientId || outlook.clientIdFromEnv) && !!outlook.clientSecretSaved;
+  const googleMail = mailRows(deps, "google");
+  const outlookMail = mailRows(deps, "outlook");
 
   return [
     row({
       id: "gmail", name: "Gmail",
-      blurb: "Read mail with your Google sign-in.",
+      blurb: "Read mail with your Google sign-in. Add another account with a label.",
       detail: "Uses the browser helper Google sign-in. The client secret stays in the vault.",
-      status: statusOf({ connected: googleOn && scopes.has("gmail") }),
+      status: statusOf({ connected: (googleOn && scopes.has("gmail")) || googleMail.some((a) => a.connected) }),
       flow: { type: "browser-google", want: { gmail: true }, clientReady: googleClient, focus: "[data-feature='browser']" },
-      addAnother: true,
-      accounts: g.accounts,
+      mail: { provider: "google" },
+      accounts: googleMail,
     }),
     row({
       id: "drive", name: "Google Drive",
@@ -235,10 +243,10 @@ function integrationRows(deps) {
       id: "outlook", name: "Outlook",
       blurb: "Read Outlook mail for receipts.",
       detail: "The same mailbox sign-in as Subscriptions. The token stays in the vault.",
-      status: statusOf({ connected: !!outlook.connected && !outlook.needsSignIn }),
+      status: statusOf({ connected: outlookMail.some((a) => a.connected) || (!!outlook.connected && !outlook.needsSignIn) }),
       flow: { type: "mail", provider: "outlook", clientReady: outlookClient, focusView: "subscriptions" },
-      addAnother: true,
-      accounts: outlook.accounts,
+      mail: { provider: "outlook" },
+      accounts: outlookMail,
     }),
   ];
 }
@@ -267,6 +275,7 @@ function liveDeps() {
         return Array.isArray(list) && list.length > 0;
       } catch { return false; }
     },
+    mailAccounts: (provider) => { try { return listAccounts(provider); } catch { return []; } },
     outlook: () => {
       try {
         const v = mailView()?.outlook || {};
