@@ -10,7 +10,6 @@ import * as Google from "./google.js";
 import * as OA from "./publish/oauth.js";
 import { sourceView } from "./library-sources.js";
 import { readiness } from "./grokbot.js";
-import { listAccounts } from "./mail-accounts.js";
 import { mailView } from "./services.js";
 import { doc, putDoc } from "./store.js";
 
@@ -70,17 +69,17 @@ export function statusOf({ auth, connected, handoff } = {}) {
   return "Not connected";
 }
 
-function publicAccount(a) {
-  if (!a || typeof a !== "object") return null;
-  const id = String(a.id || "");
-  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) return null;
-  return {
-    id,
-    label: String(a.label || "").replace(/[\r\n]/g, " ").slice(0, 40),
-    connected: !!a.connected && !a.needsSignIn,
-    needsSignIn: !!a.needsSignIn,
-    isDefault: !!a.isDefault,
-  };
+// Connected accounts only, and only the label. Tokens stay on the mail sign-in.
+function connectedAccounts(list, { connected = false, fallback = "" } = {}) {
+  const out = [];
+  for (const a of Array.isArray(list) ? list : []) {
+    if (!a || typeof a !== "object" || !a.connected || a.needsSignIn) continue;
+    const label = String(a.label || a.email || a.name || "").replace(/[\r\n]/g, " ").trim().slice(0, 80);
+    if (!label || out.some((x) => x.label === label)) continue;
+    out.push({ label });
+  }
+  if (!out.length && connected && fallback) out.push({ label: fallback });
+  return out;
 }
 
 function row(item) {
@@ -94,7 +93,10 @@ function row(item) {
     flow: item.flow,
     skipped: false,
   };
-  if (Array.isArray(item.groups) && item.groups.length) out.groups = item.groups;
+  if (item.addAnother) {
+    out.addAnother = true;
+    out.accounts = connectedAccounts(item.accounts, { connected: status === "Connected", fallback: item.name });
+  }
   return out;
 }
 
@@ -145,29 +147,23 @@ function integrationRows(deps) {
   const lib = (k) => deps.library(k) || {};
   const gb = deps.grokbot() || {};
   const gbReady = !!gb.ready;
-  const accountsOf = (provider) => {
-    try { return (deps.mailAccounts?.(provider) || []).map(publicAccount).filter(Boolean); }
-    catch { return []; }
-  };
-  const mailReady = (src) => { try { return !!deps.mailReady?.(src); } catch { return false; } };
-  const googleAccounts = accountsOf("google");
-  const gmailOn = (googleOn && scopes.has("gmail")) || googleAccounts.some((a) => a.connected);
+  let outlook = {};
+  try { outlook = deps.outlook?.() || {}; } catch { outlook = {}; }
+  const outlookClient = !!(outlook.clientId || outlook.clientIdFromEnv) && !!outlook.clientSecretSaved;
 
   return [
     row({
       id: "gmail", name: "Gmail",
-      blurb: "More than one Google account. Label each one, pick a default, and add another.",
-      detail: "Browser helper sign-in for Gmail. Receipt mail is a separate read-only mailbox. Tokens stay in the vault. A task with no account uses the default.",
-      status: statusOf({ connected: gmailOn }),
+      blurb: "Read mail with your Google sign-in.",
+      detail: "Uses the browser helper Google sign-in. The client secret stays in the vault.",
+      status: statusOf({ connected: googleOn && scopes.has("gmail") }),
       flow: { type: "browser-google", want: { gmail: true }, clientReady: googleClient, focus: "[data-feature='browser']" },
-      groups: [
-        { provider: "google", title: "Google sign-in", kind: "browser-google", clientReady: googleClient, focus: "[data-feature='browser']", focusView: "settings", want: { gmail: true }, accounts: googleAccounts },
-        { provider: "gmail", title: "Receipt mailbox", kind: "mail", clientReady: mailReady("gmail"), focus: "", focusView: "subscriptions", accounts: accountsOf("gmail") },
-      ],
+      addAnother: true,
+      accounts: g.accounts,
     }),
     row({
       id: "drive", name: "Google Drive",
-      blurb: "Read Google Drive with the same Google accounts as Gmail.",
+      blurb: "Read Google Drive with your Google sign-in.",
       detail: "Uses the browser helper Google sign-in. The client secret stays in the vault.",
       status: statusOf({ connected: googleOn && scopes.has("drive") }),
       flow: { type: "browser-google", want: { drive: true }, clientReady: googleClient, focus: "[data-feature='browser']" },
@@ -237,13 +233,12 @@ function integrationRows(deps) {
     }),
     row({
       id: "outlook", name: "Outlook",
-      blurb: "Read-only Outlook mail for receipts. Label each account and pick a default.",
-      detail: "The same mailbox sign-in as Subscriptions. The token stays in the vault. A scan with no account uses the default.",
-      status: statusOf({ connected: accountsOf("outlook").some((a) => a.connected) }),
-      flow: { type: "mail", provider: "outlook", clientReady: mailReady("outlook"), focusView: "subscriptions" },
-      groups: [
-        { provider: "outlook", title: "", kind: "mail", clientReady: mailReady("outlook"), focus: "", focusView: "subscriptions", accounts: accountsOf("outlook") },
-      ],
+      blurb: "Read Outlook mail for receipts.",
+      detail: "The same mailbox sign-in as Subscriptions. The token stays in the vault.",
+      status: statusOf({ connected: !!outlook.connected && !outlook.needsSignIn }),
+      flow: { type: "mail", provider: "outlook", clientReady: outlookClient, focusView: "subscriptions" },
+      addAnother: true,
+      accounts: outlook.accounts,
     }),
   ];
 }
@@ -272,12 +267,11 @@ function liveDeps() {
         return Array.isArray(list) && list.length > 0;
       } catch { return false; }
     },
-    mailAccounts: (provider) => { try { return listAccounts(provider); } catch { return []; } },
-    mailReady: (src) => {
+    outlook: () => {
       try {
-        const v = mailView()?.[src] || {};
-        return !!(v.clientId || v.clientIdFromEnv) && !!v.hasClientSecret;
-      } catch { return false; }
+        const v = mailView()?.outlook || {};
+        return { connected: !!v.connected, needsSignIn: !!v.needsSignIn, accounts: v.accounts, clientId: v.clientId, clientIdFromEnv: v.clientIdFromEnv, clientSecretSaved: !!v.hasClientSecret };
+      } catch { return {}; }
     },
   };
 }

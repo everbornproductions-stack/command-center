@@ -50,23 +50,6 @@ function focusSettings(sel, message, view) {
   if (message) toast(message);
 }
 
-async function startMail(group, accountId) {
-  if (!group.clientReady) {
-    const where = group.focusView === "subscriptions" ? "Subscriptions" : "Settings";
-    return focusSettings(group.focus, `Add the sign-in client in ${where}, then connect. The secret stays in the vault.`, group.focusView);
-  }
-  if (group.kind === "mail") {
-    const r = await api("/services/mail/start", { method: "POST", body: { source: group.provider, origin: location.origin, ...(accountId ? { accountId } : {}) } });
-    localStorage.setItem("cc.mail.oauth", group.provider);
-    window.open(r.url, "_blank", "noopener");
-    toast("Sign in and allow read-only mail. This page finishes the link when you come back.");
-    return;
-  }
-  const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: true, drive: !!group.want?.drive, send: false, ...(accountId ? { accountId } : {}) } });
-  window.open(r.url, "_blank", "noopener");
-  toast("Sign in with Google. This page finishes the link when you come back.");
-}
-
 async function runFlow(item) {
   const f = item.flow || {};
   if (f.expertOnly && !expert()) {
@@ -101,7 +84,11 @@ async function runFlow(item) {
     return;
   }
   if (f.type === "mail") {
-    await startMail({ provider: f.provider, kind: "mail", clientReady: f.clientReady, focus: f.focus, focusView: f.focusView });
+    if (!f.clientReady) return focusSettings("", "Add the sign-in client in Subscriptions, then connect. The secret stays in the vault.", f.focusView || "subscriptions");
+    const r = await api("/services/mail/start", { method: "POST", body: { source: f.provider, origin: location.origin } });
+    localStorage.setItem("cc.mail.oauth", f.provider);
+    window.open(r.url, "_blank", "noopener");
+    toast("Sign in and allow read-only mail. This page finishes the link when you come back.");
     return;
   }
   if (f.type === "publish") {
@@ -123,20 +110,12 @@ async function runFlow(item) {
 }
 
 function accountBlock(it) {
-  const groups = it.groups || [];
-  if (!groups.length) return "";
-  return groups.map((g) => `<div class="cs-accounts" data-provider="${esc(g.provider)}">
-    ${g.title ? `<div class="dim small">${esc(g.title)}</div>` : ""}
-    ${(g.accounts || []).map((a) => `<div class="cs-acct">
-      <input type="text" data-acct-label="${esc(a.id)}" value="${esc(a.label)}" aria-label="Account label" maxlength="40" style="width:160px;padding:4px 6px">
-      ${chip(a.connected ? "Connected" : "Not connected")}${a.needsSignIn ? ` <span class="chip amber">Sign in again</span>` : ""}${a.isDefault ? ` <span class="chip">Default</span>` : ` <button type="button" class="btn sm" data-acct-default="${esc(a.id)}">Make default</button>`}
-      <button type="button" class="btn sm" data-acct-connect="${esc(a.id)}" data-provider="${esc(g.provider)}">Connect</button>
-    </div>`).join("")}
-    <div class="cs-acct">
-      <input type="text" data-add-label="${esc(g.provider)}" placeholder="Label, e.g. Business" aria-label="Label for another account" maxlength="40" style="width:180px;padding:4px 6px">
-      <button type="button" class="btn sm" data-add-account="${esc(g.provider)}">Add another</button>
-    </div>
-  </div>`).join("");
+  if (!it.addAnother) return "";
+  const accounts = it.accounts || [];
+  return `<div class="cs-accounts">
+    ${accounts.map((a) => `<div class="cs-acct"><span>${esc(a.label || "")}</span> ${chip("Connected")}</div>`).join("")}
+    <div class="cs-acct"><button type="button" class="btn sm" data-add="${esc(it.id)}">Add another</button></div>
+  </div>`;
 }
 
 function renderInto(v) {
@@ -176,40 +155,14 @@ function renderInto(v) {
     busy = false;
     if (S.connectWizard && S.view === "setup") render();
   }));
-  v.querySelectorAll("[data-acct-connect]").forEach((b) => b.addEventListener("click", async () => {
-    const item = items.find((x) => (x.groups || []).some((g) => g.provider === b.dataset.provider));
-    const group = item?.groups?.find((g) => g.provider === b.dataset.provider);
-    if (!group || busy) return;
+  v.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", async () => {
+    const item = items.find((x) => x.id === b.dataset.add);
+    if (!item || busy) return;
     busy = true; b.disabled = true;
-    try { await startMail(group, b.dataset.acctConnect); }
+    try { await runFlow(item); }
     catch (e) { toast(e.message, true); }
     busy = false;
     if (S.connectWizard && S.view === "setup") render();
-  }));
-  v.querySelectorAll("[data-acct-default]").forEach((b) => b.addEventListener("click", async () => {
-    try { await api(`/mail-accounts/${encodeURIComponent(b.dataset.acctDefault)}/default`, { method: "POST", body: {} }); toast("Default account updated"); await reload(); }
-    catch (e) { toast(e.message, true); }
-  }));
-  v.querySelectorAll("[data-acct-label]").forEach((input) => input.addEventListener("change", async () => {
-    const label = input.value.trim();
-    if (!label) return toast("Give this account a label.", true);
-    try { await api(`/mail-accounts/${encodeURIComponent(input.dataset.acctLabel)}/label`, { method: "POST", body: { label } }); await reload(); }
-    catch (e) { toast(e.message, true); }
-  }));
-  v.querySelectorAll("[data-add-account]").forEach((b) => b.addEventListener("click", async () => {
-    const item = items.find((x) => (x.groups || []).some((g) => g.provider === b.dataset.addAccount));
-    const group = item?.groups?.find((g) => g.provider === b.dataset.addAccount);
-    const label = v.querySelector(`[data-add-label="${b.dataset.addAccount}"]`)?.value.trim();
-    if (!group) return;
-    if (!label) return toast("Give this account a label.", true);
-    if (busy) return;
-    busy = true; b.disabled = true;
-    try {
-      const created = await api("/mail-accounts", { method: "POST", body: { provider: group.provider, label } });
-      await startMail(group, created.account?.id);
-    } catch (e) { toast(e.message, true); }
-    busy = false;
-    if (S.connectWizard && S.view === "setup") { try { await reload(); } catch { render(); } }
   }));
   v.querySelectorAll("[data-skip]").forEach((b) => b.addEventListener("click", async () => {
     try { data = await api("/connectsetup/skip", { method: "POST", body: { id: b.dataset.skip } }); S.connectSetup = data; render(); }
