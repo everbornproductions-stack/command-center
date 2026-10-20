@@ -53,6 +53,7 @@ test("onboarding is not shown when the completed flag or existing keys are prese
 
 test("saved settings, past jobs and bookmarks each count as setup already done", () => {
   assert.deepEqual(hist({ settings: { ...DEFAULTS, budgetMonthly: 40 } }), ["settings"]);
+  assert.deepEqual(hist({ settings: { ...DEFAULTS, uiMode: "expert", uiModeChosen: true } }), [], "the Simple / Expert choice is not setup history");
   assert.equal(open(hist({ settings: { ...DEFAULTS, budgetMonthly: 40 } }), null).show, false);
   assert.deepEqual(hist({ settings: { ...DEFAULTS, onboarded: true } }), ["flag"]);
   assert.equal(open(hist({ settings: { ...DEFAULTS, onboarded: false } }), null).show, true, "factory settings plus an explicit false flag are still a new install");

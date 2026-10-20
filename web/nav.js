@@ -1,5 +1,8 @@
-// Grouped main menu. Every existing view stays reachable.
+// Grouped main menu. Every existing view stays reachable in Expert.
+// Simple shows Chat, Projects, Create, Help, and Settings.
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
+
+import { CREATE_VIEWS } from "./mode.js";
 
 export const GROUP_ORDER = ["work", "create", "business", "connect", "help"];
 
@@ -33,6 +36,7 @@ const HOME = {
   reports: "business",
   settings: "help",
   setup: "help",
+  help: "help",
 };
 
 export const LABELS = {
@@ -57,6 +61,7 @@ export const LABELS = {
   reports: "Reports",
   settings: "Settings",
   setup: "Setup",
+  help: "Help",
 };
 
 // Same Settings page, scrolled to the panel. Not a second copy of the app.
@@ -148,42 +153,92 @@ function itemButton(item) {
   return b;
 }
 
-export function installNav(root, views) {
-  if (!root || root.dataset.nav === "1") return root;
-  ensureNavStyle();
+function menuShell(id, label) {
+  const menu = document.createElement("div");
+  menu.className = "nav-menu";
+  menu.dataset.menu = id;
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "nav-trigger";
+  trigger.textContent = label;
+  trigger.setAttribute("aria-haspopup", "true");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-controls", `nav-panel-${id}`);
+  const panel = document.createElement("div");
+  panel.className = "nav-panel";
+  panel.id = `nav-panel-${id}`;
+  panel.setAttribute("role", "menu");
+  panel.setAttribute("aria-label", label);
+  menu.append(trigger, panel);
+  return { menu, panel };
+}
+
+function buttonFor(buttons, view, label) {
+  const existing = buttons.find((b) => b.dataset.view === view && !b.dataset.focus);
+  const btn = existing || itemButton({ view, label });
+  btn.textContent = label || btn.textContent || LABELS[view] || view;
+  btn.setAttribute("role", "menuitem");
+  if (view === "setup") btn.id = "tab-setup";
+  return btn;
+}
+
+function mountExpert(root, views, buttons) {
   const model = menuModel(views);
-  const buttons = [...root.querySelectorAll("button[data-view]")];
+  for (const group of model) {
+    const { menu, panel } = menuShell(group.id, group.label);
+    for (const item of group.items) {
+      if (item.home && item.view) panel.appendChild(buttonFor(buttons, item.view, item.label));
+      else panel.appendChild(itemButton(item));
+    }
+    root.appendChild(menu);
+  }
+}
+
+function mountSimple(root, views, buttons) {
+  const have = new Set(views || []);
+  const chat = buttonFor(buttons, "command", "Chat");
+  chat.classList.add("nav-direct");
+  chat.removeAttribute("role");
+  root.appendChild(chat);
+  const projects = buttonFor(buttons, "projects", "Projects");
+  projects.classList.add("nav-direct");
+  projects.removeAttribute("role");
+  root.appendChild(projects);
+
+  const create = menuShell("create", "Create");
+  for (const view of CREATE_VIEWS) {
+    if (have.has(view)) create.panel.appendChild(buttonFor(buttons, view, LABELS[view]));
+  }
+  root.appendChild(create.menu);
+
+  if (have.has("help")) {
+    const help = buttonFor(buttons, "help", "Help");
+    help.classList.add("nav-direct");
+    help.removeAttribute("role");
+    root.appendChild(help);
+  }
+
+  const settings = menuShell("settings", "Settings");
+  settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
+  if (have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
+  settings.panel.appendChild(itemButton({ id: "tour", label: "Take the tour again", action: "tour" }));
+  root.appendChild(settings.menu);
+}
+
+// Rebuilds when the mode changes. Same mode is left in place so a re-render does not drop focus.
+export function installNav(root, views, mode = "expert") {
+  if (!root) return root;
+  mode = mode === "simple" ? "simple" : "expert";
+  if (root.dataset.nav === "1" && root.dataset.uiMode === mode) return root;
+  ensureNavStyle();
+  const buttons = [...root.querySelectorAll("button[data-view]")].filter((b) => !b.dataset.focus && !b.dataset.action);
+  for (const b of buttons) b.remove();
   root.textContent = "";
   root.classList.add("nav-ready");
   root.dataset.nav = "1";
-  for (const group of model) {
-    const menu = document.createElement("div");
-    menu.className = "nav-menu";
-    menu.dataset.menu = group.id;
-    const trigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "nav-trigger";
-    trigger.textContent = group.label;
-    trigger.setAttribute("aria-haspopup", "true");
-    trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-controls", `nav-panel-${group.id}`);
-    const panel = document.createElement("div");
-    panel.className = "nav-panel";
-    panel.id = `nav-panel-${group.id}`;
-    panel.setAttribute("role", "menu");
-    panel.setAttribute("aria-label", group.label);
-    for (const item of group.items) {
-      if (item.home && item.view) {
-        const existing = buttons.find((b) => b.dataset.view === item.view);
-        const btn = existing || itemButton(item);
-        btn.setAttribute("role", "menuitem");
-        if (!btn.textContent) btn.textContent = item.label;
-        panel.appendChild(btn);
-      } else panel.appendChild(itemButton(item));
-    }
-    menu.append(trigger, panel);
-    root.appendChild(menu);
-  }
+  root.dataset.uiMode = mode;
+  if (mode === "simple") mountSimple(root, views, buttons);
+  else mountExpert(root, views, buttons);
   if (!root.dataset.navKeys) {
     root.dataset.navKeys = "1";
     root.addEventListener("keydown", onNavKey);
@@ -241,6 +296,27 @@ function onNavKey(e) {
 
 export function placeNavItem(root, view, label) {
   if (!root) return;
+  if (root.dataset.uiMode === "simple") {
+    if (view === "help") {
+      if (root.querySelector(`button.nav-direct[data-view="${globalThis.CSS.escape(view)}"]`)) return;
+      const btn = itemButton({ view, label: label || "Help" });
+      btn.classList.add("nav-direct");
+      btn.removeAttribute("role");
+      const settingsMenu = root.querySelector(".nav-menu[data-menu='settings']");
+      if (settingsMenu) root.insertBefore(btn, settingsMenu);
+      else root.appendChild(btn);
+      return;
+    }
+    if (!CREATE_VIEWS.includes(view) && view !== "setup") return;
+    const panel = root.querySelector(`#nav-panel-${view === "setup" ? "settings" : "create"}`);
+    if (!panel) return;
+    if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
+    const btn = itemButton({ view, label: label || LABELS[view] || view, home: true });
+    const tour = panel.querySelector("button[data-action='tour']");
+    if (tour) panel.insertBefore(btn, tour);
+    else panel.appendChild(btn);
+    return;
+  }
   const group = groupFor(view);
   let panel = root.querySelector(`#nav-panel-${group}`);
   if (!panel) return;
@@ -256,7 +332,11 @@ export function markNav(root, view, menuId) {
   root.querySelectorAll("button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view && !b.dataset.focus));
   root.querySelectorAll(".nav-trigger").forEach((t) => {
     const id = t.closest(".nav-menu")?.dataset.menu;
-    const on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
+    let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
+    if (root.dataset.uiMode === "simple" && !menuId) {
+      if (id === "create") on = CREATE_VIEWS.includes(view);
+      else if (id === "settings") on = view === "settings" || view === "setup";
+    }
     t.classList.toggle("active", !!on);
   });
 }

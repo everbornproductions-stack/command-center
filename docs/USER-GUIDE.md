@@ -26,6 +26,8 @@ Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and su
 
 **Settings > Guided API-key setup** walks you through one provider at a time: where to get the key, paste it, a test call, then it is locked in the vault. A key that the provider refuses is never kept.
 
+You can also paste a key into the box at the top of Settings. The app recognizes Gemini (AQ. and AIza), Claude (sk-ant-), ChatGPT (sk- and sk-proj-), Grok (xai-), OpenRouter (sk-or-), and Groq (gsk_). If it cannot tell, pick the provider from the list. The key is tested and is never written to the log.
+
 - Paste a key anywhere and the app suggests which provider it belongs to.
 - The light on the provider's tile turns green when the key works.
 - "Key rejected (401)" means the provider refused the key. "Could not reach <provider>" means a network problem, not a bad key.
@@ -36,6 +38,18 @@ Keys are never shown again after saving and never written to a log.
 ## 4. Give orders (the Command tab)
 
 1. Type what you want in **Marching orders**. One line is enough. Press **Send orders** (or Ctrl+Enter).
+
+### Simple and Expert
+
+New installs open in Simple. The first time, Meldmind asks "Keep it simple or show me everything?"
+
+Simple is one chat box. You say what you want, and the council picks the AI. The top bar shows Chat, Projects, Create, Help, and Settings. The chips under the box list only AIs you have connected (a saved key the provider accepted, or an MCP server). Demo shows there only while none are connected.
+
+Help searches the guides. Ask Meldmind answers from those guides with a connected AI. With no AI connected, it searches and does not invent steps. Take the tour again and Check for updates are on that page.
+
+Expert is the full console: the council debate, router scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu.
+
+The Simple / Expert switch is in the top bar on every screen. One click changes it. Chats, projects, and keys stay where they are. You can switch back the same way. Hidden tools are still there in Expert, and the keyboard shortcuts keep working in both.
 2. Pick how to run it:
    - **Single**: the best AI for the job answers.
    - **Council**: several AIs answer, review each other without knowing who wrote what, and a chair writes the verdict.

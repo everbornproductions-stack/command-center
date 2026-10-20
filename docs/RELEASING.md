@@ -22,8 +22,13 @@ not in the install folder, so updating or reinstalling keeps it.
    Then add that same version to `docs/WHATS-NEW.json` with plain-language bullets. The app shows
    that note once after the update (and once on a first launch). If the release adds or changes
    something people see, add or update a step in the onboarding tour (`web/features/tour.js`).
-   `npm test` fails when `package.json` version has no What's new entry. The installer keeps
-   `docs/WHATS-NEW.json` even though the rest of `docs/` is left out.
+   `npm test` fails when `package.json` version has no What's new entry. Also set
+   `docs/help/catalog.json` `lastUpdatedVersion` to that same version, and update the help
+   article a person would open for each What's new bullet (set that article's
+   `lastUpdatedVersion` to the new version). `npm test` fails when the catalog is behind,
+   when no article is stamped with the new version, or when a What's new bullet has no
+   matching words in those updated articles. The installer keeps `docs/WHATS-NEW.json` and
+   `docs/help/` even though the rest of `docs/` is left out.
 2. **Test.** `npm test` and `npm run smoke`. Both must pass.
 3. **Commit and push** the version bump: `git add package.json package-lock.json` then
    `git commit -m "Release vX.Y.Z"` and `git push`.

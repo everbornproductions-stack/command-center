@@ -86,6 +86,27 @@ async function mocks() {
     if (/\/models$/.test(url.pathname)) return send(200, prefix === "google" ? { models: [{ name: "models/gemini-3.8-flash" }, { name: "models/gemini-3.5-flash-lite" }] } : { data: [{ id: "mock" }] });
     if (url.pathname === "/or/v1/key") return send(200, { data: { limit_remaining: 10, usage: 1, limit: 11 } });
     if (url.pathname === "/ds/user/balance") return send(200, { balance_infos: [{ total_balance: "5.00", currency: "USD" }] });
+    // Gemini chat is the native stream, not /chat/completions. A Bearer header is the bug this route rejects.
+    if (/:streamGenerateContent|:generateContent/.test(url.pathname)) {
+      if (req.headers.authorization) return send(400, { error: { message: "Multiple authentication credentials received" } });
+      const raw = JSON.parse(body || "{}");
+      const model = decodeURIComponent((url.pathname.split("/models/")[1] || "").split(":")[0]);
+      const system = (raw.systemInstruction?.parts || []).map((p) => p.text || "").join("\n");
+      const user = (raw.contents || []).filter((c) => c.role === "user").flatMap((c) => c.parts || []).map((p) => p.text || "").join("\n");
+      const j = { model, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
+      seen.push({ prefix, model, auth: req.headers.authorization || null, system });
+      const b = behave[prefix];
+      if (b === "drop") return req.socket.destroy();
+      if (b === 402) return send(402, { error: { message: "Payment required: your prepaid balance is empty." } });
+      if (b === "403credits") return send(403, { code: "forbidden", error: "Your team has either used all available credits or reached its monthly spending limit." });
+      if (b === 429) return send(429, { error: { message: "Rate limit reached for this model. Try again in 20s." } });
+      if (b === 401) return send(401, { error: { message: "Incorrect API key provided: sk-xxxx." } });
+      if (b === 500) return send(500, { error: { message: "internal error" } });
+      const text = answerFor(j);
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.end(`data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 10 } })}\n\n`);
+      return;
+    }
     if (!/\/chat\/completions$/.test(url.pathname)) return send(404, { error: `mock: no route ${url.pathname}` });
     const j = JSON.parse(body);
     seen.push({ prefix, model: j.model, auth: req.headers.authorization || null, system: j.messages.find((m) => m.role === "system")?.content || "" });

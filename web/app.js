@@ -1,11 +1,13 @@
 import { AgentGraph } from "/graph.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS } from "./nav.js";
+import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { composerAis } from "./composer-ais.js";
 
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
   view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null,
-  navMenu: "", navFocus: "",
+  navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
 const $ = (s, r = document) => r.querySelector(s);
@@ -234,9 +236,16 @@ function noteOnboarding(ob) {
   toast(ob.notice);
   api("/onboarding/ack", { method: "POST" }).catch(() => {});
 }
+function syncUiMode() {
+  const fresh = isFreshInstall({ onboarding: S.onboarding, settings: S.settings });
+  S.uiMode = resolveMode(S.settings, { fresh });
+  S.askMode = shouldAskMode(S.settings, { fresh });
+  if (document.body) document.body.dataset.ui = S.uiMode;
+}
 function applyState(st) {
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null });
   S.plugins = st.plugins || [];
+  syncUiMode();
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
@@ -395,6 +404,7 @@ function renderStrip() {
     </div>`;
   }).join("");
   $$(".tile", strip).forEach((t) => t.addEventListener("click", () => { S.view = "settings"; S.focusProvider = t.dataset.p; render(); }));
+  renderComposerAis();
 }
 function renderBudget() {
   const b = S.settings.budgetMonthly || 0, m = S.ledger?.month || 0;
@@ -442,7 +452,88 @@ async function installUpdate() {
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
 function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function btnLabel(btn, text) {
+  if (!btn) return;
+  const icon = btn.querySelector("i");
+  btn.textContent = "";
+  if (icon) btn.appendChild(icon);
+  btn.append(document.createTextNode(text));
+}
+function syncChrome() {
+  const simple = S.uiMode !== "expert";
+  if (document.body) document.body.dataset.ui = simple ? "simple" : "expert";
+  $("#mode-simple")?.setAttribute("aria-pressed", String(simple));
+  $("#mode-expert")?.setAttribute("aria-pressed", String(!simple));
+  btnLabel($("#mobile-nav button[data-view='command']"), simple ? "Chat" : "Command");
+  $$("#mobile-nav [data-expert-nav]").forEach((b) => { b.hidden = simple; });
+  const create = $("#mobile-nav [data-simple-create]");
+  if (create) create.hidden = !simple;
+  const more = $("#mobile-nav [data-more]");
+  if (more) more.hidden = simple;
+  if (simple) $("#mobile-more")?.classList.remove("open");
+  if (!simple) $("#simple-create")?.classList.remove("open");
+}
+function renderAsk() {
+  let box = document.getElementById("cc-mode-ask");
+  if (!S.askMode) { box?.remove(); return; }
+  if (box) return;
+  box = document.createElement("div");
+  box.id = "cc-mode-ask";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-mode-ask-title"><h4 id="cc-mode-ask-title">${esc(ASK.title)}</h4><p>${esc(ASK.body)}</p><div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="cc-mode-ask-simple">${esc(ASK.simple)}</button><button class="btn" type="button" id="cc-mode-ask-expert">${esc(ASK.expert)}</button></div></div>`;
+  document.body.appendChild(box);
+  box.querySelector("#cc-mode-ask-simple").addEventListener("click", () => setUiMode("simple"));
+  box.querySelector("#cc-mode-ask-expert").addEventListener("click", () => setUiMode("expert"));
+}
+function setUiMode(mode) {
+  if (mode !== "simple" && mode !== "expert") return;
+  const prev = S.uiMode;
+  S.uiMode = mode;
+  S.askMode = false;
+  S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
+  if (mode === "simple" && !simpleAllows(S.view)) {
+    S.returnView = S.view;
+    S.view = "command";
+  } else if (mode === "expert" && prev !== "expert" && S.returnView) {
+    S.view = S.returnView;
+    S.returnView = null;
+  }
+  const root = $("#tabs");
+  if (root) root.dataset.nav = "";
+  render();
+  window.CC?.tour?.onMode?.();
+  api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } })
+    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, uiMode: mode, uiModeChosen: true }; })
+    .catch((e) => toast(e.message, true));
+}
+function toggleSimpleCreate() {
+  let sheet = document.getElementById("simple-create");
+  if (!sheet) {
+    sheet = document.createElement("div");
+    sheet.id = "simple-create";
+    sheet.setAttribute("role", "menu");
+    sheet.setAttribute("aria-label", "Create");
+    document.body.appendChild(sheet);
+  }
+  if (sheet.classList.contains("open")) { sheet.classList.remove("open"); return; }
+  const items = [
+    ["prompts", "Pro prompts"],
+    ["images", "Images"],
+    ["media", "Media"],
+    ["publish", "Publish"],
+  ];
+  sheet.innerHTML = items.map(([view, label]) => `<button type="button" data-view="${view}">${esc(label)}</button>`).join("");
+  sheet.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    sheet.classList.remove("open");
+    S.view = b.dataset.view;
+    S.openProject = null;
+    S.navMenu = "create";
+    render();
+  }));
+  sheet.classList.add("open");
+}
 function render() {
+  syncChrome();
+  renderAsk();
   markTabs();
   $("#feed")?.classList.remove("open");
   const v = $("#view");
@@ -459,7 +550,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -484,9 +575,12 @@ function ensureMobileMore() {
 }
 function ensureFeatureTabs() {
   const root = $("#tabs");
-  if (root && root.dataset.nav !== "1") installNav(root, knownViews());
+  const mode = S.uiMode === "expert" ? "expert" : "simple";
+  if (root) installNav(root, knownViews(), mode);
   for (const f of window.CC?.byKind?.("tab") || []) {
+    if (mode === "simple" && f.id !== "help" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
+    if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
     const more = ensureMobileMore();
     const gid = groupFor(f.id);
@@ -513,14 +607,51 @@ function ensureFeatureTabs() {
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
-  for (const f of window.CC?.byKind?.(kind) || []) { const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; } }
+  const simple = S.uiMode === "simple";
+  for (const f of window.CC?.byKind?.(kind) || []) {
+    if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;
+    if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
+    const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
+  }
 }
 function projectOptions(sel) {
   return `<option value="">No project</option>` + S.projects.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
 }
 
 // ----- Command -----
+function renderSimpleChat(v) {
+  v.innerHTML = `
+  <div class="cmd simple-chat">
+    <div class="orders">
+      <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+        <h3>Chat</h3>
+        <textarea id="orders" aria-label="What do you want?" placeholder="Say what you want. The council picks the AI.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <label class="lbl">Project</label>
+        <select id="proj" aria-label="Project">${projectOptions(S.project)}</select>
+        <div id="cmd-extras"></div>
+        <div class="row" style="padding-top:4px">
+          <button class="btn primary" id="go" style="margin-left:auto">Send</button>
+        </div>
+        <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+      </div>
+    </div>
+    <div class="panel output">
+      <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
+      <div class="md" id="out-md"></div>
+      <div id="deliv-extras"></div>
+    </div>
+  </div>`;
+  $("#proj").addEventListener("change", (e) => { S.project = e.target.value; localStorage.setItem("cc.project", S.project); });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $("#go").addEventListener("click", sendOrders);
+  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
+  renderOutput();
+  renderExtras("command", "#cmd-extras");
+  renderComposerAis();
+}
 function renderCommand(v) {
+  if (S.uiMode !== "expert") return renderSimpleChat(v);
   const modeSel = S.cmdMode || "mission";
   v.innerHTML = `
   <div class="cmd">
@@ -555,6 +686,7 @@ function renderCommand(v) {
           <button class="btn" id="preview">Preview route</button>
           <button class="btn primary" id="go" style="margin-left:auto">Send orders ⏎</button>
         </div>
+        <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
     <div class="panel ops">
@@ -591,8 +723,24 @@ function renderCommand(v) {
   $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
   renderOps();
   renderExtras("command", "#cmd-extras");
+  renderComposerAis();
 }
-function renderOps() { renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
+function renderComposerAis() {
+  const box = $("#cc-composer-ais");
+  if (!box) return;
+  const chips = composerAis(S.providers);
+  if (!chips.length) {
+    box.innerHTML = `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
+    return;
+  }
+  box.innerHTML = chips.map((c) => {
+    const model = c.model ? `<span class="composer-model">${esc(c.model)}</span>` : "";
+    const hint = c.demo ? "Demo AI. Connect a real one and this leaves." : "Connected. Open its settings.";
+    return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}" data-p="${esc(c.id)}" title="${esc(hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
+  }).join("");
+  $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
+}
+function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
 function renderOpsHead() {
   const h = $("#ops-head"); if (!h) return;
   const l = S.live;
@@ -643,7 +791,7 @@ function renderOutput() {
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
-  if (!l.id) { o.innerHTML = `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; return; }
   h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
   if (!text) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; return; }
   o.innerHTML = md(text);
@@ -670,8 +818,11 @@ async function previewRoute() {
 }
 async function sendOrders() {
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
-  const mode = S.cmdMode || "mission", costMode = S.costMode || S.settings.defaultMode;
-  const qa = $("#qa").checked, budgetUsd = Number($("#budget").value) || 2, projectId = $("#proj").value || null;
+  const simple = S.uiMode === "simple";
+  const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
+  const qa = simple ? S.settings.qa !== false : $("#qa").checked;
+  const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
+  const projectId = $("#proj")?.value || null;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
   const pp = window.CC?.promptPack;
   if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
@@ -727,7 +878,7 @@ function renderProjectDetail(v, p) {
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
   v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
-    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">Use in Command</button><button class="btn sm danger" id="del">Delete</button></div>
+    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button><button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
       ${p.categories.map((c) => `<div class="cat-h">${esc(c.name)} <button class="ghost small" data-add="${c.id}">+ link</button></div>
@@ -910,11 +1061,11 @@ function renderSettings(v) {
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
-        <div class="grid cols-3">
+        ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
           <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
           <div><label class="lbl">Default priority</label><select id="s-mode">${["quality", "balanced", "economy"].map((m) => `<option ${S.settings.defaultMode === m ? "selected" : ""}>${m}</option>`).join("")}</select></div>
           <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
-        </div>
+        </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
         <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
@@ -990,7 +1141,15 @@ function renderSettings(v) {
     catch (e) { toast(e.message, true); b.disabled = false; }
   }));
   $$("[data-price]", v).forEach((b) => b.addEventListener("click", async () => { const row = b.closest(".mrow"); await api("/pricing", { method: "POST", body: { model: row.dataset.model, in: Number($("[data-in]", row).value), out: Number($("[data-out]", row).value) } }); toast("Price saved"); }));
-  $("#s-save").addEventListener("click", async () => { S.settings = await api("/settings", { method: "POST", body: { budgetMonthly: Number($("#s-budget").value), defaultMode: $("#s-mode").value, missionBudget: Number($("#s-mcap").value) } }); renderBudget(); toast("Saved"); });
+  $("#s-save").addEventListener("click", async () => {
+    const body = {
+      budgetMonthly: $("#s-budget") ? Number($("#s-budget").value) : S.settings.budgetMonthly,
+      defaultMode: $("#s-mode") ? $("#s-mode").value : S.settings.defaultMode,
+      missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
+    };
+    S.settings = await api("/settings", { method: "POST", body });
+    renderBudget(); toast("Saved");
+  });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
@@ -1028,9 +1187,14 @@ async function saveKeyAs(sug, key) {
   S.view = "settings"; render(); openCustomForm(null, { preset: sug.provider, key });
 }
 function anyKeyHtml() {
-  return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AIza... is Google Gemini, sk-ant-... is Claude, xai-... is Grok).</div>
+  return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AQ. and AIza are Google Gemini, sk-ant- is Claude, sk- and sk-proj- are ChatGPT, xai- is Grok, sk-or- is OpenRouter, gsk_ is Groq).</div>
     <div class="row"><input type="password" id="anykey" placeholder="paste any API key" style="flex:1" autocomplete="off"><button class="btn sm primary" id="anykey-go">Detect &amp; save</button></div>
     <div class="small" id="anykey-out" style="margin-top:6px"></div></div>`;
+}
+function unknownKeyHtml() {
+  const opts = (S.providers || []).filter((p) => !p.demo && !p.noKey && (p.hasApi || p.kind === "text"));
+  const pick = opts.length ? `<div class="row" style="margin-top:6px"><label class="small">Provider <select id="anykey-pick" aria-label="Provider">${opts.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select></label><button class="btn sm" type="button" id="anykey-pick-save">Save and test</button></div>` : "";
+  return `Could not tell which provider this key is for. Pick one and it is tested with a cheap call, or <a href="#" id="anykey-custom">add it as a custom provider</a>.${pick}`;
 }
 function wireAnyKey(root) {
   const go = $("#anykey-go", root); if (!go) return;
@@ -1038,7 +1202,16 @@ function wireAnyKey(root) {
     const key = $("#anykey", root).value.trim(); const out = $("#anykey-out", root);
     if (!key) return toast("Paste the key first", true);
     const sug = await suggestKey(key);
-    if (!sug) { out.innerHTML = `Not sure which provider this key is for. Paste it into the right card below, or <a href="#" id="anykey-custom">add it as a custom provider</a>.`; $("#anykey-custom", root)?.addEventListener("click", (e) => { e.preventDefault(); openCustomForm(null, { key }); }); return; }
+    if (!sug) {
+      out.innerHTML = unknownKeyHtml();
+      $("#anykey-custom", root)?.addEventListener("click", (e) => { e.preventDefault(); openCustomForm(null, { key }); });
+      $("#anykey-pick-save", root)?.addEventListener("click", async () => {
+        const id = $("#anykey-pick", root)?.value;
+        if (!id) return;
+        await saveKeyAs({ provider: id, name: pname(id), builtin: true, confidence: "high" }, key);
+      });
+      return;
+    }
     out.textContent = `Looks like a ${sug.name} key${sug.confidence === "high" ? "" : " (best guess)"}.`;
     if (sug.confidence !== "high" && !confirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`)) return;
     await saveKeyAs(sug, key);
@@ -1097,7 +1270,15 @@ $("#tabs").addEventListener("click", (e) => {
 });
 document.addEventListener("click", (e) => { const root = $("#tabs"); if (root && !root.contains(e.target)) closeNav(root); });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
-$("#mobile-nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; } S.view = b.dataset.view; S.openProject = null; render(); });
+$("#mode-toggle")?.addEventListener("click", (e) => { const b = e.target.closest("button[data-ui-mode]"); if (!b) return; setUiMode(b.dataset.uiMode); });
+$("#mobile-nav").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.hasAttribute("data-simple-create")) { toggleSimpleCreate(); return; }
+  document.getElementById("simple-create")?.classList.remove("open");
+  if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; }
+  if (!b.dataset.view) return;
+  S.view = b.dataset.view; S.openProject = null; render();
+});
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
 // click activates it, and the page then reloads once. The desktop app never uses a service worker:
 // old workers and caches from earlier versions (or another program on the same port) are removed,
@@ -1184,7 +1365,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 

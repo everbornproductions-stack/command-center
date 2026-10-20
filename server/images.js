@@ -18,7 +18,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { DATA_DIR } from "./paths.js";
 import { HOSTED, doc, putDoc } from "./store.js";
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret } from "./vault.js";
 import { summary as ledgerSummary, recordImage } from "./ledger.js";
 import { emit } from "./events.js";
@@ -247,7 +247,7 @@ const ADAPTERS = {
     return (j.data || []).filter((d) => d.b64_json).map((d) => b64img(d.b64_json, `image/${j.output_format === "jpeg" ? "jpeg" : j.output_format === "webp" ? "webp" : "png"}`));
   },
   async google(job, sec, src) {
-    const pv = IMAGE_PROVIDERS.google, base = PROVIDERS.google.baseUrl.replace(/\/openai\/?$/, "");
+    const pv = IMAGE_PROVIDERS.google, base = geminiBase(PROVIDERS.google);
     const out = [];
     for (let i = 0; i < job.n; i++) {
       const parts = [{ text: job.prompt }, ...(src ? [{ inline_data: { mime_type: src.mime, data: src.bytes.toString("base64") } }] : [])];

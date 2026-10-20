@@ -32,10 +32,12 @@ export const PRESETS = [
 ];
 
 // Which provider does a pasted key belong to? Order matters: specific prefixes first.
+// Google AI Studio: new auth keys start with AQ. (since May 2026); older standard keys start with AIza (39 characters).
 const KEY_RULES = [
   [/^sk-ant-/, "anthropic", "high"],
   [/^sk-or-/, "openrouter", "high"],
   [/^xai-/, "xai", "high"],
+  [/^AQ\.[A-Za-z0-9_.-]{8,}$/, "google", "high"],
   [/^AIza[0-9A-Za-z_-]{20,}$/, "google", "high"],
   [/^pplx-/, "perplexity", "high"],
   [/^gsk_/, "groq", "high"],
@@ -46,8 +48,11 @@ const KEY_RULES = [
   [/^sk-[0-9a-f]{32}$/, "deepseek", "medium"],
   [/^sk-[A-Za-z0-9_-]{20,}$/, "openai", "low"],
 ];
+export function normalizePastedKey(key) {
+  return String(key || "").trim().replace(/^\uFEFF/, "").replace(/^['"]+|['"]+$/g, "").replace(/^bearer\s+/i, "").trim();
+}
 export function suggestProvider(key) {
-  const k = String(key || "").trim();
+  const k = normalizePastedKey(key);
   if (!k) return null;
   for (const [re, provider, confidence] of KEY_RULES) if (re.test(k)) {
     const p = PROVIDERS[provider] || PRESETS.find((x) => x.id === provider);
@@ -132,7 +137,7 @@ export async function routes(req, res, url, body, h) {
   const method = req.method;
 
   if (method === "GET" && seg[0] === "presets") return h.json(res, 200, { presets: PRESETS.map((p) => ({ ...p, builtin: p.builtin && PROVIDERS[p.builtin] ? p.builtin : null })) });
-  if (method === "POST" && seg[0] === "suggest") return h.json(res, 200, { suggestion: suggestProvider(body.key) });
+  if (method === "POST" && seg[0] === "suggest") return h.json(res, 200, { suggestion: suggestProvider(body.key) }); // suggestion only: the key is never echoed or logged
   if (method === "GET" && seg[0] === "custom" && !seg[1]) return h.json(res, 200, { hosted: HOSTED, custom: list().map(view) });
   if (HOSTED && seg[0] === "custom") return h.json(res, 400, { error: "Custom providers are added in the desktop app for now." });
 

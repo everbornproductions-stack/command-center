@@ -1173,6 +1173,16 @@ FEATURE connect-key-or-mcp DONE (built by Cursor cloud agent)
 - Licence publishable key: already shipped in server/cloud-defaults.json since v0.4.1 (4695f49); v0.4.2 carries it too. No secret or service key is in the repo.
 - CC-Build-Chain task re-enabled. Not restarted: the only phase left is Phase 14 (Mac), which stays BLOCKED until a Mac or the macOS runner is available.
 
+## 2026-10-19: Simple and Expert, Gemini AQ. keys, and Help (Cursor cloud agent)
+
+- Simple is the default for a new install. The first screen asks "Keep it simple or show me everything?" The Simple / Expert switch is in the top bar on every screen. One click keeps chats, projects, and keys. Simple shows Chat, Projects, Create, Help, and Settings. Expert keeps the debate, scores, spend caps, live map, marketplace, MCP, webhooks, and every menu. The choice is not setup history.
+- The chips under the chat box list only AIs with a saved key the provider accepted, or an MCP server. Demo fills that row only while no real AI is connected.
+- Pasting a key recognizes Gemini auth keys (AQ.) and older AIza keys, plus Claude, ChatGPT, Grok, OpenRouter, and Groq. Gemini chat, the models check, images, and embeddings use generativelanguage.googleapis.com with x-goog-api-key. If the prefix does not match, the paste box offers a provider picker. The key is never logged.
+- Help is a tab in Simple and in Expert. Guides live in docs/help and ship with the app. Ask Meldmind answers from those articles with a connected AI. With no connected AI, or if that AI cannot be reached, the reply is a search of the same articles. Take the tour again and Check for updates are on the Help page.
+- Releasing: docs/help/catalog.json lastUpdatedVersion must match package.json, and each What's new bullet for that version must match an article stamped with it. npm test fails otherwise. The installer keeps docs/help as well as docs/WHATS-NEW.json. Version is 0.4.3.
+- Tests: npm test 294 tests, 293 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dir, local mocks, no real key.
+- Browser: first-run question, skip setup, What's new, tour invite, Simple bar including Help, search for SmartScreen and AQ., Ask Meldmind with no key (search only), Check for updates, Take the tour again, text kept across Simple and Expert, Help inside the Expert Settings menu, and the same Help search at 390px. All of those worked. Not verified: a packaged installer, a real Gemini key, or a connected AI answering Help (covered by the local mock in test/help.test.js).
+
 ## 2026-10-20: Phase 26 extension, manual handoff (Cursor cloud agent)
 
 - Decision 16 is unchanged. Smart fallback still skips a provider that is out of credits, rate limited, or refusing its key, retries the same model through OpenRouter when a key exists, and sends the work to the next model. This pass adds a manual handoff on top of that. It does not replace the ledger or the spend caps.

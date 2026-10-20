@@ -43,8 +43,8 @@ export const PROVIDERS = {
     ],
   },
   google: {
-    id: "google", name: "Google Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", api: "openai",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY", keyHint: "AIza… (from aistudio.google.com/apikey)",
+    id: "google", name: "Google Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", api: "gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta", keyEnv: "GEMINI_API_KEY", keyHint: "AQ.… or AIza… (from aistudio.google.com/apikey)",
     links: { app: "https://gemini.google.com", console: "https://aistudio.google.com", billing: "https://aistudio.google.com/usage", keys: "https://aistudio.google.com/apikey", status: "https://status.cloud.google.com" },
     statusApi: "google-incidents",
     models: [
@@ -153,6 +153,12 @@ export const PROVIDERS = {
 
 // Test and development hook: CC_BASE_URL_<ID> points one provider at a local mock. Installed builds ignore it.
 if (process.env.CC_PACKAGED !== "1") for (const p of Object.values(PROVIDERS)) { const o = process.env[`CC_BASE_URL_${p.id.toUpperCase()}`]; if (o) p.baseUrl = o; }
+
+// Native Gemini root. A test may still point CC_BASE_URL_GOOGLE at the old .../v1beta/openai mock path;
+// strip that suffix so chat, images, embeddings and the key check never call the OpenAI-compatible route.
+export function geminiBase(provider = PROVIDERS.google) {
+  return String(provider?.baseUrl || "").replace(/\/openai\/?$/, "").replace(/\/+$/, "");
+}
 
 export const TEXT_PROVIDERS = Object.values(PROVIDERS).filter((p) => p.kind === "text");
 

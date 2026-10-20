@@ -101,7 +101,7 @@ function indexHtml(file) {
   const tag = `<meta name="cc-token" content="${LOCAL_TOKEN}" />`;
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}\n${tag}`) : tag + html;
 }
-const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind" };
+const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true, missionBudget: 2, name: "Meldmind", uiMode: "simple", uiModeChosen: false };
 const settings = () => doc("settings", () => ({ ...DEFAULT_SETTINGS }));
 const saveSettings = (s) => putDoc("settings", s);
 

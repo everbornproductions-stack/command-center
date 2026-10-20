@@ -4,6 +4,13 @@
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
+  { id: "mode", for: "both", target: "#mode-toggle", view: "command", title: "Simple or Expert", body: "Simple is one chat box. You say what you want and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. This switch is on every screen. One click changes it, and nothing you already did is lost." },
+  { id: "simple-welcome", for: "simple", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. You are in Simple. Type what you want in the chat box. The council picks the AI. This tour uses pretend AIs, so nothing is spent." },
+  { id: "simple-nav", for: "simple", target: "#tabs", view: "command", title: "Chat, Projects, Create, and Settings", body: "Chat, Projects, Create, and Settings stay at the top, and Help sits with them. Chat is this box. Projects keeps one client or campaign together. Create holds prompts, images, media, and publishing. Settings is where a key goes. Everything else is one click away in Expert." },
+  { id: "help-tab", for: "both", target: "#help-search", view: "help", title: "Help", body: "Search the guides here. Ask Meldmind answers from these articles with a connected AI. If no AI is connected, you get the search only. Take the tour again and Check for updates are on this page." },
+  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
+  { id: "simple-answer", for: "simple", target: "#out-md", view: "command", title: "The answer", body: "The answer lands here. Copy it when you want. Switch to Expert any time to see the debate, the scores, and the live map." },
+  { id: "simple-settings", for: "simple", target: "#settings-keys", view: "settings", title: "Add a key when you are ready", body: "Settings is where a real key goes. Until then, demo AIs can answer and nothing is spent. MCP, webhooks, and spend caps stay in Expert.", action: "keys" },
   { id: "welcome", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour uses three pretend AIs, so nothing is spent." },
   { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus: Work, Create, Business, Connect, and Settings. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
   { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
@@ -63,8 +70,13 @@ function hideNews() {
   box?.remove();
   newsOpen = false;
 }
+function steps() {
+  const mode = window.CC.uiMode?.() || "expert";
+  return STEPS.filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
+}
 function maybeInvite() {
   if (idx >= 0) return;
+  if (window.CC.askingMode?.()) { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (S.view === "setup") { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
   if (newsOpen) return;
@@ -128,20 +140,23 @@ function close() {
 function onKey(e) { if (e.key === "Escape") skip(); else if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") back(); }
 async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} toast("Tour skipped. Take the tour again from the Settings menu, or from the Settings page."); }
 async function finish() { close(); try { tour = await api("/tour/complete", { method: "POST" }); } catch {} toast("Tour done. Add a key in Settings when you are ready for real answers."); }
-function next() { if (idx >= STEPS.length - 1) return finish(); msg = ""; show(idx + 1); }
+function next() { const list = steps(); if (idx >= list.length - 1) return finish(); msg = ""; show(idx + 1); }
 function back() { if (idx > 0) { msg = ""; show(idx - 1); } }
 
 function show(i) {
-  idx = i; const st = STEPS[i];
+  const list = steps();
+  if (!list.length) return close();
+  if (i >= list.length) i = list.length - 1;
+  idx = i; const st = list[i];
   if (st.view && S.view !== st.view) { go(st.view); }
-  const last = i === STEPS.length - 1;
+  const last = i === list.length - 1;
   const card = el.querySelector(".card");
-  card.innerHTML = `<div class="row" style="gap:8px"><h4>${esc(st.title)}</h4><span class="step">${i + 1} / ${STEPS.length}</span></div>
+  card.innerHTML = `<div class="row" style="gap:8px"><h4>${esc(st.title)}</h4><span class="step">${i + 1} / ${list.length}</span></div>
     <div class="muted">${esc(st.body)}</div>
     ${st.action === "sample" ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-sample" ${busy ? "disabled" : ""}>${busy ? "Starting…" : "Run the sample now"}</button><span class="dim small">about 30 seconds</span></div>` : ""}
     ${st.action === "keys" ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-keys">Set up my keys</button><span class="dim small">or finish and do it later in Settings</span></div>` : ""}
     ${msg ? `<div class="msg">${msg}</div>` : ""}
-    <div class="dots">${STEPS.map((_, k) => `<i class="${k === i ? "on" : k < i ? "done" : ""}"></i>`).join("")}</div>
+    <div class="dots">${list.map((_, k) => `<i class="${k === i ? "on" : k < i ? "done" : ""}"></i>`).join("")}</div>
     <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next →"}</button></div>`;
   card.querySelector("#cc-tour-skip").addEventListener("click", skip);
   card.querySelector("#cc-tour-back")?.addEventListener("click", back);
@@ -153,7 +168,7 @@ function show(i) {
 
 function position() {
   if (!el) return;
-  const st = STEPS[idx]; const spot = el.querySelector(".spot"), card = el.querySelector(".card");
+  const st = steps()[idx]; const spot = el.querySelector(".spot"), card = el.querySelector(".card");
   const t = st?.target ? document.querySelector(st.target) : null;
   const r = t?.getBoundingClientRect();
   const vw = window.innerWidth, vh = window.innerHeight, cw = card.offsetWidth || 380, ch = card.offsetHeight || 220, pad = 14;
@@ -189,13 +204,14 @@ async function runSample() {
 function renderPanel(el2) {
   const t = tour || {};
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${STEPS.length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${steps().length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });
 }
 
-window.CC.tour = { start, open: start, state: () => tour };
+function onMode() { if (idx >= 0) { msg = ""; show(0); } }
+window.CC.tour = { start, open: start, state: () => tour, onMode };
 
 CC.register({
   id: "tour",

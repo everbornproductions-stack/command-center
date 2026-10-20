@@ -1,0 +1,63 @@
+// Simple / Expert. Simple is the default for a new install. An existing install with no
+// saved choice stays on Expert, so an update does not hide the console they already use.
+// The choice itself is not "history": answering it must not skip first-run setup.
+
+export const CREATE_VIEWS = ["prompts", "images", "media", "publish"];
+
+export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", ...CREATE_VIEWS]);
+
+// Command widgets and settings panels that Simple does not draw. The modules stay loaded,
+// so a hotkey or a switch back to Expert still reaches them.
+export const EXPERT_COMMAND = new Set([
+  "pipelines", "agents", "liveview", "mcp", "fallback", "grokbot", "browser",
+  "libraries", "search", "alerts", "growth", "receipt", "images",
+]);
+
+export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
+
+export const ASK = {
+  title: "Keep it simple or show me everything?",
+  body: "Simple is one chat box. You say what you want, and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. You can switch any time from the top bar. Nothing you already did is lost.",
+  simple: "Keep it simple",
+  expert: "Show me everything",
+};
+
+export function normalizeMode(value) {
+  return value === "simple" || value === "expert" ? value : null;
+}
+
+export function isFreshInstall({ onboarding, settings } = {}) {
+  if (onboarding && typeof onboarding.show === "boolean") return onboarding.show === true;
+  return settings?.onboarded !== true;
+}
+
+// A saved choice wins. A stored uiMode is kept after setup finishes, so skipping the
+// question does not flip a new install to Expert. No uiMode at all means an install
+// from before this switch: Expert, so the console they already use stays put.
+export function resolveMode(settings, { fresh = false } = {}) {
+  const mode = normalizeMode(settings?.uiMode);
+  if (settings?.uiModeChosen === true && mode) return mode;
+  if (mode) return mode;
+  if (!fresh) return "expert";
+  return "simple";
+}
+
+export function shouldAskMode(settings, { fresh = false } = {}) {
+  if (!fresh) return false;
+  return settings?.uiModeChosen !== true;
+}
+
+export function simpleAllows(view) {
+  return SIMPLE_VIEWS.has(view);
+}
+
+// Top-level labels. Create and Settings open what belongs under them. Help is its own tab.
+export function simpleTop(views) {
+  const have = new Set(views || []);
+  return {
+    labels: ["Chat", "Projects", "Create", "Help", "Settings"],
+    create: CREATE_VIEWS.filter((id) => have.has(id)),
+    settings: ["settings", ...(have.has("setup") ? ["setup"] : []), "tour"],
+    hidden: [...have].filter((id) => !SIMPLE_VIEWS.has(id)),
+  };
+}
