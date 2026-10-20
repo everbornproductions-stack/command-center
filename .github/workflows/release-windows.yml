@@ -1,0 +1,126 @@
+# Windows installer for Meldmind. Publishes a normal release (not a draft, not a
+# pre-release) to the public repo everbornproductions-stack/command-center-releases.
+# The releases token is used only for that upload. It is never written into the app.
+#
+# Repo secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_PUBLISHABLE_KEY  publishable key, sb_publishable_...  Never the service key.
+#   RELEASES_TOKEN            fine-grained token, Contents read and write on
+#                             command-center-releases only.
+name: Windows release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Require the publishable key
+        shell: bash
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_PUBLISHABLE_KEY}" ]; then
+            echo "Release build stopped: repo secret SUPABASE_PUBLISHABLE_KEY is missing."
+            echo "Add it under Settings, Secrets and variables, Actions."
+            echo "Use the Supabase publishable key (it starts with sb_publishable_). Never use the service key."
+            echo "Without this key every installed copy stays on the Free tier and EVERBORN-OWNER cannot redeem."
+            exit 1
+          fi
+
+      - name: Build the Windows installer
+        shell: bash
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run dist
+
+      - name: Publish the normal release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Release publish stopped: repo secret RELEASES_TOKEN is missing."
+            echo "Add a fine-grained personal access token with Contents read and write on everbornproductions-stack/command-center-releases only."
+            echo "Do not put that token in the app."
+            exit 1
+          fi
+          V=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${V}" ]; then
+            echo "Release stopped: tag ${GITHUB_REF_NAME} does not match package.json version v${V}."
+            exit 1
+          fi
+          EXE="dist/Meldmind-Setup-${V}.exe"
+          MAP="dist/Meldmind-Setup-${V}.exe.blockmap"
+          YML="dist/latest.yml"
+          for f in "$EXE" "$MAP" "$YML"; do
+            if [ ! -f "$f" ]; then
+              echo "Release stopped: the build did not produce ${f}."
+              exit 1
+            fi
+          done
+          SIZE=$(wc -c < "$EXE" | tr -d '[:space:]')
+          if [ "$SIZE" -lt 10000000 ]; then
+            echo "Release stopped: ${EXE} is ${SIZE} bytes, which is too small to be the installer."
+            exit 1
+          fi
+          if ! grep -q "Meldmind-Setup-${V}.exe" "$YML"; then
+            echo "Release stopped: latest.yml does not name Meldmind-Setup-${V}.exe."
+            exit 1
+          fi
+          if ! grep -q "${V}" "$YML"; then
+            echo "Release stopped: latest.yml does not mention version ${V}."
+            exit 1
+          fi
+          node -e 'const fs=require("fs"); const v=require("./package.json").version; const notes=fs.readFileSync("docs/RELEASE-NOTES.md","utf8"); const head="## v"+v+" "; const i=notes.indexOf(head); let text=""; if(i>=0){ const rest=notes.slice(i); const nl=rest.indexOf("\n"); const n=rest.slice(nl+1).search(/^## /m); text=n<0?rest:rest.slice(0,nl+1+n);} else { const news=JSON.parse(fs.readFileSync("docs/WHATS-NEW.json","utf8")); const b=(news[v]&&news[v].bullets)||[]; text=b.length?("Meldmind v"+v+"\n\n"+b.map(function(x){return "- "+x;}).join("\n")):("Meldmind v"+v);} fs.writeFileSync("release-notes.txt", text.trim()+"\n");'
+          R=everbornproductions-stack/command-center-releases
+          TAG="v${V}"
+          if gh release view "$TAG" --repo "$R" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$R" --clobber "$EXE" "$MAP" "$YML"
+            gh release edit "$TAG" --repo "$R" --draft=false --latest --title "Meldmind v${V}" --notes-file release-notes.txt
+          else
+            gh release create "$TAG" --repo "$R" --title "Meldmind v${V}" --latest --notes-file release-notes.txt "$EXE" "$MAP" "$YML"
+          fi
+          gh release view "$TAG" --repo "$R" --json isDraft,isPrerelease,assets --jq '.assets[].name' > release-assets.txt
+          DRAFT=$(gh release view "$TAG" --repo "$R" --json isDraft,isPrerelease --jq '.isDraft')
+          PRE=$(gh release view "$TAG" --repo "$R" --json isDraft,isPrerelease --jq '.isPrerelease')
+          if [ "$DRAFT" != "false" ] || [ "$PRE" != "false" ]; then
+            echo "Release stopped: ${TAG} is not a normal release (draft=${DRAFT}, prerelease=${PRE})."
+            exit 1
+          fi
+          for name in "Meldmind-Setup-${V}.exe" "Meldmind-Setup-${V}.exe.blockmap" "latest.yml"; do
+            if ! grep -qx "$name" release-assets.txt; then
+              echo "Release stopped: ${name} is not on the release."
+              exit 1
+            fi
+          done
+          echo "Published ${TAG} to ${R} with the installer, blockmap, and latest.yml."
