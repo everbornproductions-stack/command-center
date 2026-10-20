@@ -1593,15 +1593,34 @@ import("/features/index.js").then(() => { if (S.providers.length) render(); }).c
 boot();
 
 // ----- Setup (first run) -----
+async function saveShareChoice() {
+  const st = S.setup;
+  const on = !!$("#su-share")?.checked;
+  if (st) st.shareOptIn = on;
+  if (!st || on === !!st.shareSaved) return;
+  await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
+  st.shareSaved = on;
+}
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false });
+  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: false });
+  if (!st.shareKnown && !st.shareLoading) {
+    st.shareLoading = true;
+    api("/brain").then((d) => {
+      if (st.shareTouched) return;
+      st.shareOptIn = !!d?.settings?.shareOptIn;
+      st.shareSaved = st.shareOptIn;
+      st.shareKnown = true;
+      if (S.view === "setup" && !S.connectWizard && !st.result) render();
+    }).catch(() => { st.shareKnown = true; }).finally(() => { st.shareLoading = false; });
+  }
   if (st.step === 1 || !st.result) {
     v.innerHTML = `<div style="max-width:860px;margin:0 auto">
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. Everything below runs on this PC only; nothing is uploaded anywhere.</div>
+          <div class="muted">Three optional steps. The scans below run on this PC only; nothing from them is uploaded.</div>
           <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
+        <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start;margin-top:18px"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds. We never use your prompts, files, or keys. You can turn it off any time in Settings. On Who's best, clear I am willing to share anonymous track records. This switch is off until you choose it.</div></div></label>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
@@ -1610,14 +1629,23 @@ function renderSetup(v) {
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
       </div></div>`;
+    $("#su-share")?.addEventListener("change", () => { st.shareTouched = true; st.shareOptIn = !!$("#su-share").checked; });
     $("#su-go").addEventListener("click", async () => {
       st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
       st.busy = true; render();
-      try { st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } }); st.step = 2; }
+      try {
+        await saveShareChoice();
+        st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
+        st.step = 2;
+      }
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
     });
-    $("#su-skip").addEventListener("click", () => finishAiSetup("settings"));
+    $("#su-skip").addEventListener("click", async () => {
+      try { await saveShareChoice(); }
+      catch (e) { toast(e.message, true); return; }
+      finishAiSetup("settings");
+    });
     window.CC.mountPromptInterview?.($("#su-prompts"));
     return;
   }
