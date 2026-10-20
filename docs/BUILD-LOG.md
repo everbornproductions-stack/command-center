@@ -1545,5 +1545,6 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process then runs one at a time. Each run sets a per-test timeout of 8 minutes and force-exits, so a hang fails the test and an open socket cannot keep the process alive. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). When a test ends, the child server is killed as a tree, including on the way out of the process. The release workflow still retries `npm test` once. The pull request check does not.
 - Version stays 0.4.5. Phase 14 stays in the locked run order (decision 14), ahead of phase 2. A step that needs a Mac is still `PHASE 14 BLOCKED`.
 - Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Windows pull request check 39495943898 passed on windows-latest: Test, smoke, package, and the installer check. 14m14s. Head d6f9ac0.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
