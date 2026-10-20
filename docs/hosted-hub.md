@@ -4,7 +4,9 @@ Goal: the command center runs as a hub in the cloud so Chris, and later every su
 
 ## Decision from Chris (relayed 2026-10-18, updated the same afternoon)
 
-First call: free or cheapest host. Updated call: **everything under Cloudflare**, which already runs the Everborn sites and DNS. So: Cloudflare Containers on the Workers Paid plan ($5/month) running the existing Node 24 image, a thin Worker in front (also carries the WebSocket), hub at **command.everbornproductions.com** through Cloudflare DNS, the Windows installer served from **R2** at downloads.everbornproductions.com (Pages caps files at 25 MB; the installer is 112 MB). Supabase stays the database and auth (no D1 migration). Chris runs the plan upgrade and the deploy himself. Fly.io stays documented as the fallback only.
+First call: free or cheapest host. Updated call: **everything under Cloudflare**, which already runs the Everborn sites and DNS. So: Cloudflare Containers on the Workers Paid plan ($5/month) running the existing Node 24 image, a thin Worker in front (also carries the WebSocket), hub at **hub.meldmind.ai** through Cloudflare DNS. The Worker is named **meldmind-hub**. The Windows installer is served from **R2** at downloads.everbornproductions.com (Pages caps files at 25 MB; the installer is 112 MB). Supabase stays the database and auth (no D1 migration). Chris runs the plan upgrade and the deploy himself. Fly.io stays documented as the fallback only, with the same public address.
+
+The appId (`com.everborn.command`), the updater feed (`everbornproductions-stack/command-center-releases`, `latest.yml`), the installer names (`Meldmind-Setup-<version>`) and `CC_OWNER_EMAILS` are unchanged. Moving the hub address does not move existing desktop installs.
 
 ## Status (end of 2026-10-18 build)
 
@@ -82,7 +84,7 @@ Checked against the [Containers docs](https://developers.cloudflare.com/containe
 | Hub on `lite` with 15-minute sleep, used a few hours a day | inside the included allowance → **$0 extra** |
 | Hub if it never sleeps (always awake, worst case) | memory 0.25 GiB × 730 h = 182 GiB-h, 157 over → ≈ $1.41; disk ≈ $0.30; CPU pennies → **≈ $1.75 extra** |
 | R2 for the installer | 10 GB storage, 1 M writes, 10 M reads per month free, **no egress fee** → $0 at this scale |
-| DNS, TLS, `command.` and `downloads.` subdomains | $0 (zone already on Cloudflare) |
+| DNS, TLS, `hub.meldmind.ai` and `downloads.` | $0 (zones already on Cloudflare) |
 | **Expected total** | **$5/month; $7 at the very worst** |
 
 Overage rates if ever exceeded: $0.0000025 per GiB-second memory, $0.000020 per vCPU-second, $0.00000007 per GB-second disk, $0.025 per GB egress beyond 1 TB.
@@ -109,19 +111,19 @@ npx wrangler@latest secret put CC_SUPABASE_ANON_KEY      # from data/settings.js
 npx wrangler@latest deploy
 
 # 5. Check
-curl https://command.everbornproductions.com/api/health   # → {"ok":true,"mode":"hosted",...}  (first call wakes the container, ~5-10 s)
+curl https://hub.meldmind.ai/api/health   # → {"ok":true,"mode":"hosted",...}  (first call wakes the container, ~5-10 s)
 npx wrangler@latest tail                                   # live logs
 ```
 
-Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. The DNS record for `command.everbornproductions.com` is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS.
+Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. `CC_OWNER_EMAILS` stays `everbornproductions@gmail.com`. The DNS record for `hub.meldmind.ai` is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS. The Worker name in that file is `meldmind-hub`. Secrets (`CC_MASTER_KEY`, `CC_SUPABASE_ANON_KEY`, and any later shared secret) are never written into `wrangler.jsonc`.
 
 Then, once, in the Supabase dashboard:
 
 1. **SQL editor → run `supabase/hosted.sql`** (creates the four tables and their RLS). Already loaded in the editor in the Claude browser pane on 2026-10-18; it only needs Run.
-2. **Authentication → URL configuration**: Site URL = `https://command.everbornproductions.com`; add `https://command.everbornproductions.com/**` to Redirect URLs. (The magic link only returns to listed addresses; anything else falls back to the Site URL, which today is the default `http://localhost:3000`.) Add `http://localhost:3000/**` too if you want to keep testing hosted mode on the PC.
+2. **Authentication → URL configuration**: Site URL = `https://hub.meldmind.ai`; add `https://hub.meldmind.ai/**` to Redirect URLs. (The magic link only returns to listed addresses; anything else falls back to the Site URL, which today is the default `http://localhost:3000`.) Add `http://localhost:3000/**` too if you want to keep testing hosted mode on the PC.
 3. Optional: Authentication → Email templates → Magic Link: put "Everborn Command" in the subject.
 
-Open `https://command.everbornproductions.com`, enter your email, open the link from the email on the same device, you are in. Settings → *Phone & other devices* shows the QR to scan with the phone.
+Open `https://hub.meldmind.ai`, enter your email, open the link from the email on the same device, you are in. Settings → *Phone & other devices* shows the QR to scan with the phone.
 
 ### Installer download on R2 (downloads.everbornproductions.com)
 
@@ -141,7 +143,7 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 
 ### Fallback: Fly.io (not chosen)
 
-Same `Dockerfile`; `fly.toml` is in the folder. Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in.
+Same `Dockerfile`; `fly.toml` is in the folder. Its public address is the same route, `https://hub.meldmind.ai` (`CC_HUB_URL` in `[env]`). The Fly app name stays `everborn-command` (that is the fallback app, not the Cloudflare Worker). Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in. Point the `hub.meldmind.ai` DNS record at Fly only if you are using this fallback instead of Cloudflare.
 
 ## Teams and shared workspaces (Studio tier, Phase 8)
 

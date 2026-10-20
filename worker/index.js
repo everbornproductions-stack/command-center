@@ -1,5 +1,5 @@
 // Cloudflare Worker that fronts the hosted hub container (see docs/hosted-hub.md).
-// Every request to command.everbornproductions.com (HTTP and WebSocket) is proxied to one
+// Every request to hub.meldmind.ai (HTTP and WebSocket) is proxied to one
 // container instance ("hub") running the same Node server as the desktop app in hosted mode.
 // Secrets are set with `wrangler secret put` and handed to the container as environment variables.
 import { Container, getContainer } from "@cloudflare/containers";
