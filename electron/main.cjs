@@ -122,6 +122,14 @@ function setupIpc() {
   const handle = (ch, f) => ipcMain.handle(ch, async (e, ...a) => { if (!trustedSender(e)) throw new Error("not allowed"); return f(...a); });
   handle("app:restart", () => restartApp("asked from the window"));
   handle("app:open-log", () => shell.openPath(userData));
+  // Manual handoff opens the provider's own page in the default browser. http(s) only. No second window.
+  handle("app:open-external", (url) => {
+    const s = String(url || "").trim();
+    let u;
+    try { u = new URL(s); } catch { throw new Error("That address is not a valid URL."); }
+    if ((u.protocol !== "http:" && u.protocol !== "https:") || u.username || u.password) throw new Error("Only an http or https address can be opened.");
+    return shell.openExternal(u.toString());
+  });
   handle("app:log-reload", (reason) => { log("renderer:", reason); return true; });
   handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
   handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
