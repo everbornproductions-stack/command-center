@@ -1535,3 +1535,15 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 - Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
+
+## 2026-10-20: Packaged app smoke so a missing runtime dependency cannot ship
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.6. Nothing was published. data/ was not read.
+
+- v0.4.5 imported undici from server/loopback-fetch.js without listing it in dependencies. The packaged engine crashed at startup (ERR_MODULE_NOT_FOUND) and nothing listened on port 4747. Unit tests passed because node_modules had undici from another package. 0.4.6 added undici to dependencies.
+- `scripts/check-runtime-deps.mjs` reads server/ and electron/ for bare package imports (import, export from, require, require.resolve, and import()). It fails when one is not in dependencies. Node built-ins and electron are allowed. A devDependency does not count. `npm test` runs this, and `npm run check:deps` runs it on its own.
+- `npm run smoke:packaged` builds the unpacked app with electron-builder --win --dir (no publishable key is written), starts it headless with a temporary user-data folder, and waits up to 60 seconds for /api/health. The job fails if the engine does not answer or the log contains "server failed". It then stops the process tree and removes the temporary folder. Updates and the live price fetch are off for that launch, so it does not call a real URL.
+- Windows CI (pull requests and main) runs this before the installer build. The Windows release workflow runs it after the publishable-key check and before the installer build, so a broken engine is not published. The release workflow file does not set CC_PACK_UNPUBLISHED; the smoke script does, and it strips key and token variables.
+- Tests here (Linux): npm test 417 tests, 411 pass, 5 fail, 1 skipped (Pyodide is not installed). The 5 failures are already on origin/main without this change: the run order in BUILD-PLAN.md no longer matches the older sentence the connect and decisions tests expect, and 0.4.6 has no What's new bullets or help-catalog stamp. The new dependency and packaged-smoke tests passed, including a real wait for a silent engine and a process-tree cleanup. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The Windows unpacked launch is the pull request check; this machine cannot start Meldmind.exe.
+
+PACKAGED APP SMOKE (built by Cursor cloud agent)

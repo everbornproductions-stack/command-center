@@ -21,6 +21,12 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(testStep, /shell: bash/);
   assert.doesNotMatch(testStep, /continue-on-error/);
   assert.match(wf, /run: npm run smoke/);
+  const packaged = wf.indexOf("name: Packaged app smoke");
+  const build = wf.indexOf("name: Build the Windows installer");
+  const publish = wf.indexOf("name: Publish the normal release");
+  assert.ok(packaged > 0 && packaged < build && build < publish, "the unpacked app is started before the installer is built and before publishing");
+  assert.match(wf.slice(packaged, build), /npm run smoke:packaged/);
+  assert.doesNotMatch(wf.slice(packaged, build), /secrets\./, "the packaged smoke does not receive the publishable key");
   assert.match(wf, /run: npm run dist/);
   assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \|\| vars\.CC_SUPABASE_ANON_KEY \}\}/);
   assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY \|\| vars\.SUPABASE_PUBLISHABLE_KEY \}\}/);
@@ -48,6 +54,9 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(releasing, /release-windows\.yml/);
   assert.match(releasing, /CC_SUPABASE_ANON_KEY/);
   assert.match(releasing, /windows-ci\.yml/);
+  assert.match(releasing, /smoke:packaged/);
+  assert.match(releasing, /electron-builder --dir/);
+  assert.match(releasing, /60 seconds/);
   assert.doesNotMatch(releasing, /—/);
 });
 
@@ -59,6 +68,10 @@ test("Windows CI workflow: test and package on pull requests and main, never pub
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: npm run smoke/);
+  const packaged = wf.indexOf("name: Packaged app smoke");
+  const built = wf.indexOf("name: Package the Windows app");
+  assert.ok(packaged > 0 && packaged < built, "pull requests start the unpacked app before the installer is built");
+  assert.match(wf.slice(packaged, built), /npm run smoke:packaged/);
   assert.match(wf, /run: npm run dist/);
   assert.match(wf, /CC_PACK_UNPUBLISHED: "1"/);
   assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);

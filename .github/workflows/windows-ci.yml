@@ -36,6 +36,13 @@ jobs:
       - name: Smoke
         run: npm run smoke
 
+      - name: Packaged app smoke
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run smoke:packaged
+
       - name: Package the Windows app
         shell: bash
         env:
