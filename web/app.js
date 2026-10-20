@@ -1,5 +1,5 @@
 import { AgentGraph } from "/graph.js";
-import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS } from "./nav.js";
+import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { composerAis } from "./composer-ais.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -613,9 +613,11 @@ function ensureMobileMore() {
 function ensureFeatureTabs() {
   const root = $("#tabs");
   const mode = S.uiMode === "expert" ? "expert" : "simple";
-  if (root) installNav(root, knownViews(), mode);
+  const layout = navLayout(readNavWidth());
+  if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
+  if (root) installNav(root, knownViews(), mode, layout);
   for (const f of window.CC?.byKind?.("tab") || []) {
-    if (mode === "simple" && f.id !== "help" && !CREATE_VIEWS.includes(f.id)) continue;
+    if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
@@ -1348,7 +1350,7 @@ async function openCustomForm(editId, pre = {}) {
 $("#tabs").addEventListener("click", (e) => {
   const root = $("#tabs");
   const trigger = e.target.closest(".nav-trigger");
-  if (trigger && root.contains(trigger)) {
+  if (trigger && root.contains(trigger) && !root.classList.contains("nav-wide")) {
     const menu = trigger.closest(".nav-menu");
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
@@ -1368,6 +1370,13 @@ $("#tabs").addEventListener("click", (e) => {
   render();
 });
 document.addEventListener("click", (e) => { const root = $("#tabs"); if (root && !root.contains(e.target)) closeNav(root); });
+watchNavLayout((layout) => {
+  const root = $("#tabs");
+  if (!root || root.dataset.navLayout === layout) return;
+  if (!S.navFocus) S.navMenu = "";
+  root.dataset.nav = "";
+  ensureFeatureTabs();
+});
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
 $("#mode-toggle")?.addEventListener("click", (e) => { const b = e.target.closest("button[data-ui-mode]"); if (!b) return; setUiMode(b.dataset.uiMode); });
 $("#mobile-nav").addEventListener("click", (e) => {

@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { menuModel, navKey, groupFor, CONNECT_LINKS, GROUP_ORDER } from "../web/nav.js";
+import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, NAV_NORMAL, NAV_WIDE } from "../web/nav.js";
 
 const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
 
@@ -46,6 +46,61 @@ test("keyboard: Space opens, Escape closes, Alt+Space is ignored", () => {
   assert.equal(navKey({ open: true, index: 0, count: 4 }, " ", { altKey: true }).action, "ignore");
   assert.equal(navKey(closed, " ", { ctrlKey: true }).action, "ignore");
   assert.equal(navKey(closed, "ArrowDown", { metaKey: true }).action, "ignore");
+});
+
+test("breakpoint: narrow stays at five menus, normal splits to eight, wide is inline", () => {
+  assert.equal(NAV_NORMAL, 1280);
+  assert.equal(NAV_WIDE, 1600);
+  assert.equal(navLayout(0), "narrow");
+  assert.equal(navLayout(900), "narrow");
+  assert.equal(navLayout(1279), "narrow");
+  assert.equal(navLayout(1280), "normal");
+  assert.equal(navLayout(1440), "normal");
+  assert.equal(navLayout(1599), "normal");
+  assert.equal(navLayout(1600), "wide");
+  assert.equal(navLayout(2560), "wide");
+  assert.equal(navLayout(Number.NaN), "narrow");
+
+  const views = [...VIEWS, "help"];
+  const narrow = menuModel(views, "narrow");
+  const normal = menuModel(views, "normal");
+  const wide = menuModel(views, "wide");
+  assert.deepEqual(narrow.map((g) => g.id), GROUP_ORDER);
+  assert.deepEqual(normal.map((g) => g.id), SPLIT_ORDER);
+  assert.equal(normal.length, 8);
+  assert.deepEqual(wide.map((g) => g.id), normal.map((g) => g.id));
+
+  for (const model of [narrow, normal, wide]) {
+    const homes = model.flatMap((g) => g.items.filter((i) => i.home).map((i) => i.view));
+    assert.equal(new Set(homes).size, homes.length);
+    for (const view of views) assert.ok(homes.includes(view), view);
+    const labels = model.flatMap((g) => g.items.map((i) => i.label));
+    assert.ok(labels.includes("Check for updates"));
+    assert.ok(labels.includes("Take the tour again"));
+    assert.ok(labels.includes("Start a project"));
+    assert.ok(model.some((g) => g.items.some((i) => i.view === "liveview" && i.label === "Live")));
+  }
+  assert.equal(narrow.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 1);
+
+  const help = normal.find((g) => g.id === "guides");
+  assert.equal(help.label, "Help");
+  assert.deepEqual(
+    help.items.map((i) => i.label),
+    ["Help", "Replay the tour", "Watch example projects"],
+  );
+  assert.equal(groupIdFor("liveview", "normal"), "work");
+  assert.equal(groupIdFor("liveview", "wide"), "work");
+  assert.equal(groupIdFor("agents", "normal"), "agents");
+  assert.equal(groupIdFor("settings", "narrow"), "help");
+  assert.equal(groupFor("liveview"), "work");
+
+  const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
+  const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
+  assert.match(navSrc, /addEventListener\?\.\("resize", apply\)/);
+  assert.match(navSrc, /matchMedia/);
+  assert.match(navSrc, /min-device-width/);
+  assert.match(app, /watchNavLayout/);
+  assert.doesNotMatch(navSrc, /\u2014/);
 });
 
 test("the app wires the menus and does not drop the setup tab id", () => {
