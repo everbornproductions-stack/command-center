@@ -5,6 +5,7 @@ import { estimateCostAt, PROVIDERS } from "./registry.js";
 import { emit } from "./events.js";
 import { isManaged } from "./vault.js";
 import { snapshotCall } from "./receipt-math.js";
+import { isUsageJob, windowStart } from "../web/graph-usage.js";
 
 // Freeze the savings receipt on the call itself (actual, baseline, difference, price-table date)
 // before the line is written, so a later price change cannot rewrite it.
@@ -79,8 +80,9 @@ export function summary() {
   const now = new Date();
   const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const start30 = windowStart(now.getTime());
   const byProvider = {};
-  for (const p of Object.values(PROVIDERS)) byProvider[p.id] = { month: 0, today: 0, calls: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 };
+  for (const p of Object.values(PROVIDERS)) byProvider[p.id] = { month: 0, today: 0, calls: 0, calls30: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 };
   let month = 0, today = 0, calls = 0, searches = 0, searchMonth = 0;
   const days = {};
   // demo AI calls are pretend money: once demo mode is off they leave the totals and filters,
@@ -89,11 +91,12 @@ export function summary() {
   let demoCalls = 0;
   for (const e of entries) {
     if (isDemo(e) && !PROVIDERS[e.provider]) { demoCalls++; continue; }
-    const b = byProvider[e.provider] || (byProvider[e.provider] = { month: 0, today: 0, calls: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 });
+    const b = byProvider[e.provider] || (byProvider[e.provider] = { month: 0, today: 0, calls: 0, calls30: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 });
     const c = e.cost || 0;
     if (e.kind === "call") {
       b.calls++; b.inTok += e.inTok || 0; b.outTok += e.outTok || 0;
     }
+    if (e.ts >= start30 && isUsageJob(e)) b.calls30 = (b.calls30 || 0) + 1;
     if (e.kind === "credits") {
       b.units += e.units || 0;
       if (e.ts >= startMonth) b.unitsMonth += e.units || 0;

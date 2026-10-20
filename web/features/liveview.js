@@ -1,6 +1,7 @@
 // Phase 29: live project view. Who is working, the current step, ledger cost,
 // Open in <service> links, outside-agent handoffs, and a flow map driven by the same job events.
 // The map is SVG and CSS. prefers-reduced-motion keeps the highlights and drops the moving light.
+import { eased, SIZE_MS } from "../graph-usage.js";
 const { S, api, esc, money, go } = window.CC;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -13,7 +14,9 @@ const css = `
 .lv-node.lv-ghost { opacity: .28; }
 .lv-node.lv-gone { opacity: .16; }
 .lv-node text { font-family: var(--sans, Inter, sans-serif); text-anchor: middle; pointer-events: none; }
-.lv-node .lv-name { font-size: 11px; font-weight: 600; }
+.lv-node .lv-name { font-size: 11px; font-weight: 600; transition: opacity .35s ease; }
+.lv-node.lv-tiny .lv-name { opacity: 0; }
+.lv-node.lv-tiny:hover .lv-name, .lv-node.lv-tiny:focus .lv-name { opacity: 1; }
 .lv-node .lv-init { font-size: 11px; font-weight: 700; }
 .lv-halo { opacity: 0; transition: opacity .7s ease; transform-box: fill-box; transform-origin: center; }
 .lv-node.lv-live .lv-halo { opacity: .9; animation: lv-pulse 2.4s ease-in-out infinite; }
@@ -120,6 +123,57 @@ function bindMap(map) {
   map.addEventListener("focusin", (e) => { const n = e.target.closest?.(".lv-node"); if (n && map.contains(n)) showTip(n, e); });
   map.addEventListener("focusout", hideTip);
 }
+const nodeTweens = new Map();
+let nodeRaf = 0;
+function paintGeom(g, geom) {
+  const x = geom.x, y = geom.y, r = geom.r;
+  const halo = g.querySelector(".lv-halo");
+  halo.setAttribute("cx", x); halo.setAttribute("cy", y); halo.setAttribute("r", r + 12);
+  const core = g.querySelector(".lv-core");
+  core.setAttribute("cx", x); core.setAttribute("cy", y); core.setAttribute("r", r);
+  const spin = g.querySelector(".lv-spin");
+  spin.setAttribute("cx", x); spin.setAttribute("cy", y); spin.setAttribute("r", r + 7);
+  const init = g.querySelector(".lv-init");
+  init.setAttribute("x", x); init.setAttribute("y", y + 4);
+  init.setAttribute("font-size", r < 14 ? "8" : "11");
+  const name = g.querySelector(".lv-name");
+  name.setAttribute("x", x); name.setAttribute("y", y + r + 16);
+}
+function aimNode(g, x, y, r, reduced) {
+  const cur = g._geom;
+  if (reduced || !cur) {
+    g._geom = { x, y, r };
+    paintGeom(g, g._geom);
+    nodeTweens.delete(g);
+    return;
+  }
+  if (Math.abs(cur.x - x) < 0.15 && Math.abs(cur.y - y) < 0.15 && Math.abs(cur.r - r) < 0.15) {
+    g._geom = { x, y, r };
+    paintGeom(g, g._geom);
+    nodeTweens.delete(g);
+    return;
+  }
+  nodeTweens.set(g, { from: { ...cur }, to: { x, y, r }, t0: performance.now() });
+  if (!nodeRaf) nodeRaf = requestAnimationFrame(stepNodes);
+}
+function stepNodes(now) {
+  const reduced = motionReduced();
+  for (const [g, tw] of nodeTweens) {
+    const t = (now - tw.t0) / SIZE_MS;
+    if (reduced || t >= 1) {
+      g._geom = { ...tw.to };
+      nodeTweens.delete(g);
+    } else {
+      g._geom = {
+        x: eased(tw.from.x, tw.to.x, t, false),
+        y: eased(tw.from.y, tw.to.y, t, false),
+        r: eased(tw.from.r, tw.to.r, t, false),
+      };
+    }
+    paintGeom(g, g._geom);
+  }
+  nodeRaf = nodeTweens.size ? requestAnimationFrame(stepNodes) : 0;
+}
 function syncMap(map, flow) {
   if (!flow) return;
   const reduced = motionReduced() || !!flow.reducedMotion || flow.motion === "calm";
@@ -187,7 +241,7 @@ function syncMap(map, flow) {
   for (const n of nodes) {
     seenN.add(n.id);
     let g = nodeG.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
-    const r = n.id === "hub" ? 26 : 18;
+    const r = n.radius || (n.id === "hub" ? 26 : 18);
     if (!g) {
       g = svgEl("g", { class: "lv-node", tabindex: "0", "data-id": n.id });
       g.appendChild(svgEl("circle", { class: "lv-halo" }));
@@ -204,26 +258,25 @@ function syncMap(map, flow) {
     g.classList.toggle("lv-live", live);
     g.classList.toggle("lv-ghost", ghost);
     g.classList.toggle("lv-hub", n.id === "hub");
+    g.classList.toggle("lv-tiny", n.id !== "hub" && !!n.tiny);
     g.classList.remove("lv-gone");
-    g.dataset.tip = n.tip || "";
+    g.dataset.tip = n.tip || n.name || "";
     g.querySelector("title").textContent = n.tip || n.name || "";
     const halo = g.querySelector(".lv-halo");
-    halo.setAttribute("cx", n.x); halo.setAttribute("cy", n.y); halo.setAttribute("r", r + 12); halo.setAttribute("fill", color);
+    halo.setAttribute("fill", color);
     const core = g.querySelector(".lv-core");
-    core.setAttribute("cx", n.x); core.setAttribute("cy", n.y); core.setAttribute("r", r);
     core.setAttribute("fill", "#0b1018"); core.setAttribute("stroke", color); core.setAttribute("stroke-width", live ? "2.4" : "1.15");
     const spin = g.querySelector(".lv-spin");
-    spin.setAttribute("cx", n.x); spin.setAttribute("cy", n.y); spin.setAttribute("r", r + 7);
     spin.setAttribute("fill", "none"); spin.setAttribute("stroke", color); spin.setAttribute("stroke-width", "1.35");
     spin.setAttribute("stroke-dasharray", "8 26"); spin.setAttribute("stroke-linecap", "round");
     spin.style.display = live && n.spin ? "" : "none";
     const init = g.querySelector(".lv-init");
-    init.setAttribute("x", n.x); init.setAttribute("y", n.y + 4); init.setAttribute("fill", color);
+    init.setAttribute("fill", color);
     init.textContent = n.initials || "";
     const name = g.querySelector(".lv-name");
-    name.setAttribute("x", n.x); name.setAttribute("y", n.y + r + 16);
     name.setAttribute("fill", ghost ? "#64748b" : "#e2e8f0");
     name.textContent = n.name || "";
+    aimNode(g, n.x, n.y, r, reduced);
   }
   nodeG.querySelectorAll("[data-id]").forEach((g) => {
     if (seenN.has(g.getAttribute("data-id"))) return;

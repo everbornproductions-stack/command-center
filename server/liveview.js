@@ -5,6 +5,7 @@
 // the person's browser opens after they click.
 import { PROVIDERS } from "./registry.js";
 import { canonAgent, handoffLink, normalizeHandoff, resolveExternalAgent, STATUS_LABEL } from "./external-agents.js";
+import { jobCounts, isUsageJob, isTiny, bubbleScales, layoutBubbles, USAGE_MAX } from "../web/graph-usage.js";
 
 export const HISTORY_NOTE = "API chats do not appear in claude.ai, grok.com or ChatGPT history. Watch the work here.";
 export const HUB_TIP = "Router. Each step goes out to the AI that should do it, and the result comes back.";
@@ -438,6 +439,17 @@ function latestHandoff(providerId, runs) {
   return best;
 }
 
+// Jobs that belong to the runs on screen. Rows with no mission id stay in the 30-day resting tally.
+function jobsInRuns(runs, ledger) {
+  const runIds = new Set((runs || []).map((r) => r && r.id).filter(Boolean));
+  const counts = {};
+  for (const e of ledger || []) {
+    if (!isUsageJob(e) || !e.missionId || !runIds.has(e.missionId)) continue;
+    counts[e.provider] = (counts[e.provider] || 0) + 1;
+  }
+  return counts;
+}
+
 export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledger = [], reducedMotion = false, width = 680, height = 320 } = {}) {
   const ids = new Set();
   const active = new Set();
@@ -447,7 +459,20 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
   }
   const ordered = sortIds(ids);
   const laid = layoutNodes(["hub", ...ordered], { width, height });
-  const pos = new Map(laid.map((n) => [n.id, { ...n }]));
+  const live = active.size > 0;
+  const frame = bubbleScales(ordered, jobCounts(ledger), {
+    live,
+    runCounts: live ? jobsInRuns(runs, ledger) : {},
+    activeIds: [...active],
+  });
+  const bubbles = laid.map((n) => {
+    if (n.id === "hub") return { id: "hub", x: n.x, y: n.y, r: 26, pin: true };
+    const scale = frame.scales[n.id] ?? 1;
+    // Lay out at the largest size so a bubble can grow during the run without covering a neighbour.
+    return { id: n.id, x: n.x, y: n.y, r: 18 * USAGE_MAX, pin: false, usageScale: scale, tiny: isTiny(scale, frame.peak), tail: isTiny(scale, frame.peak) ? 2 : 14 };
+  });
+  const placed = layoutBubbles(bubbles, { width, height, pad: 8, margin: 4 });
+  const pos = new Map(placed.map((n) => [n.id, { ...n }]));
   const runIds = new Set(runs.map((r) => r.id));
   const inScope = (p) => !p.missionId || runIds.has(p.missionId);
   const pulses = (state?.pulses || []).filter(inScope).slice(-8).map((p) => {
@@ -463,7 +488,8 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
   for (const id of active) if (pos.has(id)) edgeMap.set(`hub>${id}`, { from: "hub", to: id });
   const edges = [...edgeMap.values()].map((e) => ({ ...e, path: edgePath(pos.get(e.from), pos.get(e.to)), hot: active.has(e.to) || active.has(e.from) }));
   const nodes = laid.map((n) => {
-    if (n.id === "hub") return { id: "hub", name: "Router", initials: "R", kind: "hub", color: "#22d3ee", active: false, presence: "anchor", external: false, handoff: null, step: null, cost: 0, credits: 0, pending: 0, health: null, x: n.x, y: n.y, tip: HUB_TIP, spin: false };
+    const at = pos.get(n.id) || n;
+    if (n.id === "hub") return { id: "hub", name: "Router", initials: "R", kind: "hub", color: "#22d3ee", active: false, presence: "anchor", external: false, handoff: null, step: null, cost: 0, credits: 0, pending: 0, health: null, x: at.x, y: at.y, usageScale: 1, tiny: false, radius: 26, tip: HUB_TIP, spin: false };
     const spend = providerSpend(n.id, runs, ledger);
     const step = providerStep(n.id, runs);
     const h = publicHealth(health[n.id]);
@@ -474,7 +500,9 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
       id: n.id, name, initials: initials(name), kind: kindOf(n.id, providers), color: colorOf(n.id, providers),
       active: on, presence: on ? "live" : "ghost", external: !!ext || kindOf(n.id, providers) === "external",
       handoff: ext ? { status: ext.status, statusLabel: ext.statusLabel, task: ext.task, result: ext.result, sentAt: ext.sentAt, sentLabel: ext.sentLabel } : null,
-      step, cost: spend.cost, credits: spend.credits, pending: spend.pending, health: h, x: n.x, y: n.y, tip: "", spin: false,
+      step, cost: spend.cost, credits: spend.credits, pending: spend.pending, health: h, x: at.x, y: at.y,
+      usageScale: at.usageScale ?? 1, tiny: !!at.tiny, radius: 18 * (at.usageScale ?? 1) * (at.fit || 1),
+      tip: "", spin: false,
     };
     node.tip = tipOf(node);
     return node;
