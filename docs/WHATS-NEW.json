@@ -1,4 +1,12 @@
 {
+  "0.4.6": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Every weekday at 8: agenda, inbox, tasks, weather, and news. The briefing only reads. Weather and news are not fetched. A second routine is Pro.",
+      "Turn this email into a task and a calendar hold. Saving writes both on this computer. Google Calendar is not written.",
+      "Find 3 open 30 min slots next week for Ana. The email stays a draft until you click Send."
+    ]
+  },
   "0.4.5": {
     "title": "What's new in Meldmind",
     "bullets": [

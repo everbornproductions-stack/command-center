@@ -2,7 +2,7 @@
 id: everyday-find-time
 title: How to find a time and propose it by email
 summary: Try saying to find open slots. The proposal email waits until you click Send.
-lastUpdatedVersion: 0.4.5
+lastUpdatedVersion: 0.4.6
 ---
 
 # How to find a time and propose it by email
@@ -18,3 +18,5 @@ Try saying: Find 3 open 30 min slots next week for Ana
 5. Click **Send**. That click sends the text on screen. Until Gmail send is connected, the draft stays.
 
 Nothing is booked. The other person still has to reply.
+
+Find 3 open 30 min slots next week for Ana. The email stays a draft until you click Send.

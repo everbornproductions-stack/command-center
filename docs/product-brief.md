@@ -47,7 +47,7 @@ Chris's call on 2026-10-18: this is a subscription service. Grok's advice in the
 | Tier | Price | What you get | Notes |
 |---|---|---|---|
 | Free | $0 | Bring your own keys, 1 project, Single mode, status strip, 3 councils/month | Enough to feel the routing; converts through the Credits tab ("here is what you would have saved") |
-| Pro | **$15.99 / month** (Chris, 2026-10-18); annual ≈ $149 | Everything: Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | Under the $20 anchor every chat subscription sits at; Grok suggested $19–39, research said $15–29 |
+| Pro | **$15.99 / month** (Chris, 2026-10-18); **$159 / year**; lifetime founder $299 for the first 100, then $499, capped at 500 (Chris, 2026-10-20) | Everything: Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | Under the $20 anchor every chat subscription sits at; Grok suggested $19–39, research said $15–29 |
 | Studio / Agency | $49–79 / month | Shared projects, team view, client workspaces, white-label hub links | For people running work for clients the way Everborn does |
 | Managed keys (later) | Pro + usage at cost + 10% | We hold the provider accounts for people who do not want API keys | Only with a live, itemised ledger; this is where the "hybrid" model lives |
 

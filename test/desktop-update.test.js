@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { ROOT } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
-const { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, buttonLabel, cleanError } = require("../electron/updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, buttonLabel, promptButtons, quitInstallAction, cleanError } = require("../electron/updater.cjs");
 const { createWatchdog, describeProbeError } = require("../electron/watchdog.cjs");
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -34,9 +34,15 @@ test("launch check prompts 'vX is ready' once, never downloads, and Later holds 
   assert.equal(au.autoDownload, false); assert.equal(au.autoInstallOnAppQuit, false);
   const s = await c.check({ prompt: true });
   assert.equal(s.phase, "available"); assert.equal(s.version, "9.9.9"); assert.equal(s.notes, "Faster & safer");
+  assert.equal(s.offer, "launch");
+  assert.equal(promptButtons(s).primary, "Install now");
+  assert.equal(promptButtons(s).secondary, "Later");
   assert.equal(seen.prompts, 1);
   assert.deepEqual(au.calls, ["check"], "a check never downloads");
   c.later();
+  assert.equal(c.state.installOnQuit, false);
+  assert.equal(au.autoInstallOnAppQuit, false);
+  assert.deepEqual(au.calls, ["check"], "launch Later does not download");
   await c.check({ prompt: true });
   assert.equal(seen.prompts, 1, "Later: the periodic check stays quiet for this version");
   await c.check({ manual: true });
@@ -94,8 +100,60 @@ test("probe errors become plain reasons", () => {
   assert.match(describeProbeError(Object.assign(new Error("x"), { name: "TimeoutError" }), 4748), /not responding \(timed out\)/);
 });
 
+test("while the app is running, Later downloads and installs on quit", async () => {
+  const au = fakeUpdater();
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  au.downloadUpdate = async () => {
+    au.calls.push("download");
+    await gate;
+    au.emit("download-progress", { percent: 40 });
+    au.emit("update-downloaded", {});
+  };
+  const seen = { prompts: 0 };
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", ui: { prompt: () => seen.prompts++ } });
+  const s = await c.check({ prompt: true, running: true });
+  assert.equal(s.offer, "running");
+  assert.equal(promptButtons(s).primary, "Restart and update");
+  assert.equal(promptButtons(s).secondary, "Later");
+  assert.equal(quitInstallAction(s), "skip");
+  assert.equal(quitInstallAction({ installOnQuit: true, phase: "downloading" }), "wait");
+  assert.equal(quitInstallAction({ installOnQuit: true, phase: "downloaded" }), "install");
+  assert.equal(quitInstallAction({ installOnQuit: false, phase: "downloaded" }), "skip");
+  const pending = c.later();
+  assert.equal(c.state.phase, "downloading");
+  assert.equal(quitInstallAction(c.state), "wait");
+  const ready = c.whenQuitInstallReady();
+  release();
+  assert.equal(await ready, true);
+  await pending;
+  assert.equal(au.autoInstallOnAppQuit, false, "quit install is the app's before-quit path");
+  assert.ok(au.calls.includes("download"));
+  assert.equal(c.state.phase, "downloaded");
+  assert.equal(c.state.installOnQuit, true);
+  assert.equal(quitInstallAction(c.state), "install");
+  assert.ok(!au.calls.some((x) => Array.isArray(x) && x[0] === "quitAndInstall"), "Later does not restart now");
+  await c.check({ prompt: true, running: true });
+  assert.equal(c.state.phase, "downloaded", "a later check keeps the downloaded update");
+  assert.equal(seen.prompts, 1, "Later keeps the hourly prompt quiet for this version");
+  c.installDownloaded();
+  await tick();
+  assert.deepEqual(au.calls.at(-1), ["quitAndInstall", true, true]);
+});
+
+test("an unsigned Mac build does not download on Later", async () => {
+  const au = fakeUpdater();
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", manualInstall: true });
+  const s = await c.check({ prompt: true, running: true });
+  assert.equal(s.offer, "launch");
+  assert.equal(promptButtons(s).primary, "Install now");
+  await c.later();
+  assert.deepEqual(au.calls, ["check"]);
+  assert.equal(c.state.installOnQuit, false);
+});
+
 test("public feed is the releases repo, latest.yml, and a failed GitHub check retries that file", async () => {
-  assert.equal(CHECK_EVERY_MS, 30 * 60 * 1000);
+  assert.equal(CHECK_EVERY_MS, 60 * 60 * 1000);
   assert.equal(GITHUB_FEED.provider, "github");
   assert.equal(GITHUB_FEED.owner, "everbornproductions-stack");
   assert.equal(GITHUB_FEED.repo, "command-center-releases");
@@ -171,6 +229,9 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.match(main, /app\.on\("second-instance", \(\) => \{[^}]*focusWindow\(\)/);
   assert.match(main, /label: "Check for updates"/);
   assert.match(main, /CHECK_EVERY_MS/);
+  assert.match(main, /prompt: true, running: true/);
+  assert.match(main, /quitInstallAction/);
+  assert.match(main, /before-quit/);
   assert.match(main, /periodic update check failed/);
   assert.doesNotMatch(main, /updater\.check\(\{ prompt: true \}\)\.catch\(\(\) => \{\}\)/);
   const ui = fs.readFileSync(path.join(ROOT, "web", "features", "updates.js"), "utf8");
@@ -179,7 +240,7 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.match(ui, /Restart to update/);
   assert.match(ui, /data-action='updates'/);
   assert.match(fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8"), /"updates"/);
-  assert.match(fs.readFileSync(path.join(ROOT, "server", "update.js"), "utf8"), /30 \* 60 \* 1000/);
+  assert.match(fs.readFileSync(path.join(ROOT, "server", "update.js"), "utf8"), /60 \* 60 \* 1000/);
   assert.doesNotMatch(ui, /\u2014/);
   assert.match(main, /Install update v\$\{st\.version\}/);
   assert.match(main, /label: watchdog && watchdog\.stuck \? "Restart app/);
@@ -193,7 +254,10 @@ test("main process: updater set up before the engine, single instance, tray item
     assert.match(html, /Content-Security-Policy/); assert.doesNotMatch(html, /https?:\/\//, `${f} loads nothing remote`); assert.doesNotMatch(html, /\u2014/, "no em-dashes");
   }
   assert.match(fs.readFileSync(path.join(ROOT, "electron", "update.html"), "utf8"), /is ready/);
-  assert.match(fs.readFileSync(path.join(ROOT, "electron", "update.html"), "utf8"), /Install now/);
+  const updatePage = fs.readFileSync(path.join(ROOT, "electron", "update.html"), "utf8");
+  assert.match(updatePage, /Install now/);
+  assert.match(updatePage, /Restart and update/);
+  assert.match(updatePage, /installs it when you quit/);
 });
 
 test("web UI: 'reconnecting' turns into a Restart engine panel with a reason after about 15 s", () => {

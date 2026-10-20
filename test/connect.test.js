@@ -62,7 +62,7 @@ test("UI and plan: the choice is on the cards and in guided setup; welcome email
   assert.match(wiz, /conn\?\.council/, "guided setup shows the council note from the server");
   const plan = read("docs", "BUILD-PLAN.md");
   const order = plan.split("\n").find((l) => l.startsWith("Each phase"));
-  assert.match(order, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56,/);
+  assert.match(order, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55,/);
   assert.doesNotMatch(order, /Welcome email|Use your own Supabase/);
   assert.match(plan, /## Planned, not in the run order/);
   assert.match(plan, /Do not start them until Chris adds them to the run order/);

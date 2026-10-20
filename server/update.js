@@ -1,7 +1,7 @@
 // Update notifier and in-app updater.
 // Desktop app (Electron installer): electron/main.cjs hands this module a bridge to electron-updater
 // (globalThis.__ccUpdater) before the server starts. The app checks GitHub Releases on launch and every
-// 30 minutes; nothing downloads until the person clicks "Update available" or "Restart to update".
+// hour; nothing downloads until the person clicks "Update available" or "Restart to update".
 // Web / hosted / dev: there is no installer to replace, so the app asks a small JSON feed what the latest
 // version is (once at start, then every 6 hours) and the banner links to the download page.
 // User data lives in the per-user app-data folder (CC_DATA_DIR), never in the install folder, so updates keep it.
@@ -81,5 +81,5 @@ export function startUpdateLoop() {
   const b = bridge();
   if (b && typeof b.onEvent === "function") b.onEvent(desktopEvent);
   checkForUpdate();
-  setInterval(checkForUpdate, (b ? 30 * 60 * 1000 : 6 * 3600 * 1000)).unref();
+  setInterval(checkForUpdate, (b ? 60 * 60 * 1000 : 6 * 3600 * 1000)).unref();
 }

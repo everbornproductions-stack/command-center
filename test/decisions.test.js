@@ -36,9 +36,12 @@ test("locked: own server with launch-ID handshake, single instance, main-process
   assert.match(read("server", "index.js"), /instance: process\.env\.CC_INSTANCE/);
 });
 
-test("locked: run order is the same in DECISIONS.md and BUILD-PLAN.md; Phase 8 is DONE", () => {
+test("locked: original run order stays in DECISIONS.md; the plan extends it and Phase 8 is DONE", () => {
+  // Decision 14 keeps the 2026-10-18 order. Chris extended the plan on 2026-10-20 and moved the Mac build to Do last.
+  assert.match(read("docs", "DECISIONS.md"), /1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11/);
   const plan = read("docs", "BUILD-PLAN.md");
-  assert.match(plan, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56,/);
+  assert.match(plan, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55,/);
+  assert.match(plan, /Do last: 14,/);
   assert.match(read("docs", "BUILD-LOG.md"), /^\s*PHASE 8 DONE/m);
 });
 

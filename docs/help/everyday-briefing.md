@@ -2,7 +2,7 @@
 id: everyday-briefing
 title: How to run a morning briefing
 summary: Try saying a weekday briefing. It reads agenda, inbox, and tasks, and it does not send anything.
-lastUpdatedVersion: 0.4.5
+lastUpdatedVersion: 0.4.6
 ---
 
 # How to run a morning briefing
@@ -19,3 +19,5 @@ Try saying: Every weekday at 8: agenda, inbox, tasks, weather, and news
 The briefing does not send email, book anything, or post. Outgoing mail from Find a time still waits for Send.
 
 Show the examples on the page walks this phrase. Take the tour again stops on it too.
+
+Every weekday at 8: agenda, inbox, tasks, weather, and news. The briefing only reads. Weather and news are not fetched. A second routine is Pro.
