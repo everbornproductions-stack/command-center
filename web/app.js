@@ -273,6 +273,8 @@ function applyState(st) {
 }
 function handle(ev) {
   for (const f of window.CC?.features || []) { if (f.onEvent) { try { f.onEvent(ev); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
+  // Start a project examples and the walk overlay are for the live view. They are not missions.
+  if (ev?.example === true || ev?.overlay === true) return;
   switch (ev.type) {
     case "hello": {
       applyState(ev.state);
@@ -1355,7 +1357,8 @@ $("#tabs").addEventListener("click", (e) => {
   }
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
-  if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.view = "start"; render(); } return; }
   if (!b.dataset.view) return;
   S.view = b.dataset.view;
   S.openProject = null;

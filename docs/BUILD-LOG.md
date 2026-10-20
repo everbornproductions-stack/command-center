@@ -1285,3 +1285,14 @@ v0.4.3 hotfix, outside the phase chain. No locked decision was changed. Rebased 
 - Not verified: a packaged Electron window, a real microphone, and a live OpenAI, Groq, ElevenLabs, or Gemini transcription. The health light and the transcribe route were exercised against local stubs.
 
 HONEST KEY ERRORS AND DESKTOP TAP TO TALK DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Start a project walkthroughs (Cursor cloud agent)
+
+- Guided Start a project for six types: Website, Music video, Marketing campaign, App/software, Business plan, Social media reels. Stages: idea, clarifying questions, a council plan, steps routed with the existing router, review and revise, then export and next steps. Each click is explicit. Nothing is posted.
+- Watch an example plays the fictional samples in walkthroughs/examples/. They are labeled Example data, read-only, and they do not call an AI. Playback uses the same live-view events so the flow map moves. Those events are marked as an example, so Command does not toast them as a finished mission.
+- Simple and Expert follow the mode switch. Simple hides model picks. Expert shows the route and can edit the plan. This change does not add a second switch.
+- Entry points: a Start a project card on Command (Chat in Simple mode), a Start a project item in the Settings menu, and a Start a project button on the Help tab. Help and the top-bar Help menu also have Replay the tour and Watch example projects, so the console tour and any sample or saved walk can be opened again. Per-type guides already live in Help. How this works reads those guides when they are present. If walkthroughs/examples/ is missing, each type still plays a labeled Example data placeholder and no AI is called.
+- Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac).
+- Rebased onto origin/main at aede1b3 (honest key errors, pause unpaid AIs, Pro prompt categories, savings tracker, Windows update checks). Help keeps Replay the tour and Watch example projects, and Check for updates stays. Tests after that rebase: npm test 358 tests, 356 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs only, no real key or URL. data/ was not touched. Example JSON and the per-type help articles are owned by the other builders. This change only loads them, and a missing examples folder becomes a labeled placeholder.
+
+FEATURE start-a-project DONE (built by Cursor cloud agent)

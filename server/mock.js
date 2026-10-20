@@ -164,6 +164,19 @@ function answerFor(model, system, user, messages = []) {
   const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
   if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });
+  // Start a project asks the council for a step list. Demo mode returns a short plan so the walk can be tried with no key.
+  if (/WALKTHROUGH_PLAN/.test(u)) {
+    const idea = (u.match(/IDEA:\n([\s\S]*?)\n\nANSWERS:/) || [, ""])[1].replace(/\s+/g, " ").trim().slice(0, 60);
+    return JSON.stringify({
+      title: (idea || "Project plan").slice(0, 48),
+      steps: [
+        { id: "t1", title: "Frame who it is for", capability: "research", difficulty: 2, deps: [], instructions: "Describe the audience and the one action they should take, using only facts from the idea and answers.", deliverable: "Audience and goal notes" },
+        { id: "t2", title: "Draft the main piece", capability: "writing", difficulty: 2, deps: ["t1"], instructions: "Write the main deliverable in plain language. Do not invent numbers. Mark gaps as [ASK].", deliverable: "Draft" },
+        { id: "t3", title: "Checks and next actions", capability: "analysis", difficulty: 1, deps: ["t2"], instructions: "List what to check before this is used, and the next three actions for the person. Do not send or post anything.", deliverable: "Checklist" },
+      ],
+      assembly: "One document: audience, draft, then checklist.",
+    });
+  }
   if (/Break the goal into/.test(sys)) return JSON.stringify({ title: "Demo plan: " + u.replace(/^GOAL:\s*/i, "").slice(0, 30), tasks: [
     { id: "t1", title: "Research the audience and angle", capability: "research", difficulty: 2, needWeb: false, deps: [], instructions: "List who this is for and the three angles that would land.", deliverable: "Audience notes and 3 angles" },
     { id: "t2", title: "Draft the core content", capability: "writing", difficulty: 2, needWeb: false, deps: ["t1"], instructions: "Write the main copy using the strongest angle.", deliverable: "Draft copy" },
