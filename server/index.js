@@ -31,6 +31,7 @@ import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
@@ -172,7 +173,7 @@ function providerView() {
     .map((p) => {
       const plan = planInfo(p.id);
       return {
-      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
+      id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined, addedCapabilities: p.custom ? p.addedCapabilities || [] : undefined, addedSource: p.custom ? p.addedSource || "general" : undefined, addedStrengths: p.custom ? learnedStrengths(p.models) : undefined,
       keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" }, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, learned: learnedDeltas(m.id), default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],

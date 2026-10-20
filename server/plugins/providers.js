@@ -12,6 +12,7 @@ import { PROVIDERS, TEXT_PROVIDERS } from "../registry.js";
 import { setSecret, getSecret } from "../vault.js";
 import { checkProvider } from "../health.js";
 import { isBlockedFree } from "../savings.js";
+import { capsFor, learnedStrengths, profileFor } from "../added-caps.js";
 
 export const id = "providers";
 const DOC = "providers.custom";
@@ -96,7 +97,8 @@ function toProvider(e, i = 0) {
     baseUrl: e.baseUrl, keyEnv: null, keyHint: e.noKey ? "no key needed" : "API key",
     links: { keys: e.keysUrl || null, console: e.baseUrl.replace(/\/v\d+.*$/, "") || null },
     statusApi: null,
-    models: (e.models || []).map((m, j) => ({ id: m, name: m, tier: j === 0 ? "balanced" : "economy", in: 0, out: 0, caps: { reasoning: 75, code: 75, writing: 75, research: 70, creative: 72, analysis: 75, math: 72, fast: 75 }, default: j === 0 })),
+    addedCapabilities: e.capabilities || [], addedSource: e.capabilitiesSource || "general",
+    models: (e.models || []).map((m, j) => ({ id: m, name: m, tier: j === 0 ? "balanced" : "economy", in: 0, out: 0, caps: capsFor(e.capabilities), default: j === 0 })),
   };
 }
 function register(e, i) {
@@ -132,7 +134,14 @@ export async function discoverModels({ baseUrl, api = "openai", key, headers = {
   return ids.filter(Boolean).map(String).slice(0, 400);
 }
 
-const view = (e) => ({ id: e.id, name: e.name, baseUrl: e.baseUrl, api: e.api, models: e.models, noKey: !!e.noKey, keysUrl: e.keysUrl || null, headerNames: Object.keys(getSecret(e.id)?.headers || {}), keyed: !!getSecret(e.id), createdAt: e.createdAt });
+const view = (e) => {
+  const models = (e.models || []).map((id) => ({ id, caps: capsFor(e.capabilities) }));
+  return {
+    id: e.id, name: e.name, baseUrl: e.baseUrl, api: e.api, models: e.models, noKey: !!e.noKey, keysUrl: e.keysUrl || null,
+    headerNames: Object.keys(getSecret(e.id)?.headers || {}), keyed: !!getSecret(e.id), createdAt: e.createdAt,
+    capabilities: e.capabilities || [], capabilitiesSource: e.capabilitiesSource || "general", strengths: learnedStrengths(models),
+  };
+};
 
 export async function init() { try { registerAll(); } catch (e) { console.error("[providers] could not load custom providers:", e.message); } }
 
@@ -177,7 +186,8 @@ export async function routes(req, res, url, body, h) {
       catch (e) { throw err(400, `${e.message} Type the model names instead (comma separated).`); }
       if (!models.length) throw err(400, "The provider listed no models. Type the model names instead (comma separated).");
     }
-    const entry = { id: pid, name, baseUrl, api, models, noKey, keysUrl: body.keysUrl ? String(body.keysUrl).slice(0, 300) : editing?.keysUrl || null, color: editing?.color, createdAt: editing?.createdAt || Date.now(), updatedAt: Date.now() };
+    const profile = profileFor({ name, models, capabilities: body.capabilities, previous: editing });
+    const entry = { id: pid, name, baseUrl, api, models, noKey, keysUrl: body.keysUrl ? String(body.keysUrl).slice(0, 300) : editing?.keysUrl || null, color: editing?.color, capabilities: profile.capabilities, capabilitiesSource: profile.capabilitiesSource, createdAt: editing?.createdAt || Date.now(), updatedAt: Date.now() };
     await setSecret(pid, Object.keys(headers).length ? { key, headers } : { key });
     const next = editing ? items.map((x) => (x.id === pid ? entry : x)) : [...items, entry];
     save(next);
