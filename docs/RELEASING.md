@@ -22,12 +22,24 @@ not in the install folder, so updating or reinstalling keeps it.
    Then add that same version to `docs/WHATS-NEW.json` with plain-language bullets. The app shows
    that note once after the update (and once on a first launch). If the release adds or changes
    something people see, add or update a step in the onboarding tour (`web/features/tour.js`).
-   `npm test` fails when `package.json` version has no What's new entry. The installer keeps
-   `docs/WHATS-NEW.json` even though the rest of `docs/` is left out.
+   `npm test` fails when `package.json` version has no What's new entry. Also set
+   `docs/help/catalog.json` `lastUpdatedVersion` to that same version, and update the help
+   article a person would open for each What's new bullet (set that article's
+   `lastUpdatedVersion` to the new version). `npm test` fails when the catalog is behind,
+   when no article is stamped with the new version, or when a What's new bullet has no
+   matching words in those updated articles. The installer keeps `docs/WHATS-NEW.json` and
+   `docs/help/` even though the rest of `docs/` is left out.
 2. **Test.** `npm test` and `npm run smoke`. Both must pass.
 3. **Commit and push** the version bump: `git add package.json package-lock.json` then
    `git commit -m "Release vX.Y.Z"` and `git push`.
-4. **Build.** `npm run dist`. This makes three files in `dist\` that matter:
+4. **Build.** Set `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` to the Supabase
+   publishable key (it starts with `sb_publishable_`). Never use the service key, and do not
+   commit the value. `npm run dist` (and `npm run dist:mac`) writes that key into
+   `server/cloud-defaults.json` for the installer, then puts the empty value back.
+   If neither variable is set, the release build stops and says so. Without the key every
+   installed copy stays on the Free tier and `EVERBORN-OWNER` cannot redeem.
+   On GitHub Actions the same names are repo secrets (see `docs/ci/mac-build.yml`).
+   This makes three files in `dist\` that matter:
    - `Meldmind-Setup-X.Y.Z.exe` (the installer)
    - `Meldmind-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
    - `latest.yml` (tells the app what the newest version is)
@@ -51,7 +63,7 @@ not in the install folder, so updating or reinstalling keeps it.
 - The portable .exe in `dist\` does not self-update. Only the installed (Setup) version does.
 - The app is not code-signed yet, so Windows SmartScreen may warn on the first install
   ("More info" then "Run anyway"). Updates install without that prompt.
-- Never put a token, key or password into `electron-builder.yml` or the app.
+- Never put a token, service key, or password into `electron-builder.yml` or the app. The publishable key is injected from `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` at build time and is not committed.
 - The phone / web app updates itself when the hub is updated; it shows "New version available, Refresh".
 
 ## Mac (unsigned for now)

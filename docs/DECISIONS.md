@@ -49,7 +49,8 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
 ## Providers and keys
 8. **Google Gemini is first-class.**
    - It has a "Google Gemini" card with "Get a Google Gemini API key" (https://aistudio.google.com/apikey).
-   - It uses the OpenAI-compatible endpoint `https://generativelanguage.googleapis.com/v1beta/openai`, with current Pro and Flash defaults and pricing.
+   - It calls the native endpoint `https://generativelanguage.googleapis.com/v1beta` (models list, generateContent, streamGenerateContent, batchEmbedContents) with the `x-goog-api-key` header. The OpenAI-compatible `/v1beta/openai` Bearer route is not used: it rejects new AQ. auth keys.
+   - Current Pro and Flash defaults and pricing stay.
    - The key check sends the key in a header, not in the URL.
 9. **Custom providers.**
    - "Add custom provider" accepts any OpenAI-compatible (default) or Anthropic-compatible API: name, base URL, key, models or /models discovery, and optional extra headers.
@@ -58,7 +59,8 @@ Tests guard most items (see `test/decisions.test.js` and the files named below).
    - Presets: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama (http://localhost:11434/v1, no key) and LM Studio.
    - Implemented in server/plugins/providers.js.
 10. **Key auto-detect.**
-    - Pasting a key suggests its provider (AIza = Google, sk-ant- = Anthropic, xai- = xAI, sk-or- = OpenRouter, gsk_ = Groq, and so on).
+    - Pasting a key suggests its provider (AQ. and AIza = Google Gemini, sk-ant- = Anthropic, sk- and sk-proj- = OpenAI, xai- = xAI, sk-or- = OpenRouter, gsk_ = Groq, and so on).
+    - If nothing matches, the paste box says so and offers a provider picker. The key is never logged.
     - A key pasted into the wrong card asks first.
 11. **Demo AIs leave on their own.**
     - Nova, Atlas and Sage (demo) are removed from every list after the first real key is saved and validated, including a custom provider's key.

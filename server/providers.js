@@ -1,7 +1,8 @@
 // Streaming chat adapters. One async generator per API family.
 // Yields { type: "delta", text } ... then { type: "done", usage: { input, output }, stop }.
 import Anthropic from "@anthropic-ai/sdk";
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, geminiBase } from "./registry.js";
+import { providerMessage } from "./health.js";
 import { getSecret } from "./vault.js";
 import { doc } from "./store.js";
 
@@ -103,7 +104,85 @@ async function* anthropicStream({ provider, model, system, messages, maxTokens, 
   }
 }
 
-// ---------- OpenAI-compatible chat completions (OpenAI, xAI, Gemini, OpenRouter, Perplexity, DeepSeek, Groq, Mistral) ----------
+// ---------- Google Gemini native (generativelanguage). AQ. auth keys are rejected on the OpenAI-compatible Bearer route. ----------
+function geminiContents(messages) {
+  const out = [];
+  for (const m of messages) {
+    if (m.role === "system") continue;
+    if (m.role === "assistant" && m.toolCalls?.length) {
+      out.push({ role: "model", parts: [...(textOf(m).trim() ? [{ text: textOf(m) }] : []), ...m.toolCalls.map((c) => ({ functionCall: { name: c.name, args: c.args && typeof c.args === "object" ? c.args : {} } }))] });
+    } else if (m.role === "tool") {
+      const block = { functionResponse: { name: m.name || "tool", response: { result: String(m.content ?? "") } } };
+      const last = out[out.length - 1];
+      if (last?.role === "user" && Array.isArray(last.parts) && last.parts.every((p) => p.functionResponse)) last.parts.push(block);
+      else out.push({ role: "user", parts: [block] });
+    } else if (hasImage(m)) {
+      out.push({ role: m.role === "assistant" ? "model" : "user", parts: m.content.map((c) => (c.type === "image" ? { inlineData: { mimeType: c.mime, data: c.data } } : { text: c.text || "" })) });
+    } else {
+      const text = textOf(m);
+      if (!text) continue;
+      out.push({ role: m.role === "assistant" ? "model" : "user", parts: [{ text }] });
+    }
+  }
+  return out;
+}
+async function* geminiStream({ provider, model, system, messages, maxTokens, signal, tools }) {
+  const key = requireKey(provider);
+  const contents = geminiContents(messages);
+  const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens } };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
+  if (tools?.length) body.tools = [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description || "", parameters: t.parameters || { type: "object", properties: {} } })) }];
+  // Key in the header only. Never a query string, never Authorization: Bearer (that 400s an AQ. key).
+  const headers = { "content-type": "application/json", "x-goog-api-key": key };
+  const url = `${geminiBase(provider)}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  let res;
+  try { res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal }); }
+  catch (e) { throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`); }
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    let j = null; try { j = JSON.parse(txt); } catch {}
+    throw new ProviderError(provider.id, res.status, `${provider.name}: HTTP ${res.status} ${providerMessage(j, txt)}`);
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", outText = "", stop = null, usage = null;
+  const calls = [];
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      let j; try { j = JSON.parse(data); } catch { continue; }
+      if (j.error) throw new ProviderError(provider.id, j.error.code || 400, `${provider.name}: ${providerMessage(j, "")}`);
+      if (j.usageMetadata) usage = j.usageMetadata;
+      const cand = j.candidates?.[0];
+      if (cand?.finishReason) stop = cand.finishReason === "STOP" ? "stop" : cand.finishReason === "MAX_TOKENS" ? "length" : String(cand.finishReason).toLowerCase();
+      for (const part of cand?.content?.parts || []) {
+        if (part.text) { outText += part.text; yield { type: "delta", text: part.text }; }
+        if (part.functionCall?.name) calls.push({ name: part.functionCall.name, args: part.functionCall.args && typeof part.functionCall.args === "object" ? part.functionCall.args : parseArgs(part.functionCall.args) });
+      }
+    }
+  }
+  const toolCalls = calls.map((c, i) => ({ id: `call_${i}_${c.name}`, name: c.name, args: c.args }));
+  yield {
+    type: "done",
+    stop: toolCalls.length ? "tool_calls" : stop,
+    toolCalls: toolCalls.length ? toolCalls : undefined,
+    usage: {
+      input: usage?.promptTokenCount ?? approxTokens([system || "", ...messages.map((m) => textOf(m))].join("\n")),
+      output: usage?.candidatesTokenCount ?? approxTokens(outText),
+      estimated: !usage,
+    },
+  };
+}
+
+// ---------- OpenAI-compatible chat completions (OpenAI, xAI, OpenRouter, Perplexity, DeepSeek, Groq, Mistral) ----------
 async function* openaiCompatStream({ provider, model, system, messages, maxTokens, signal, webSearch, maxSources, tools }) {
   const key = requireKey(provider);
   const msgs = [...(system ? [{ role: "system", content: system }] : []), ...openaiMessages(messages)];
@@ -197,6 +276,7 @@ export function streamChat(opts) {
   if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
   const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
   if (provider.api === "anthropic") return anthropicStream(o);
+  if (provider.api === "gemini" || provider.id === "google") return geminiStream(o);
   return openaiCompatStream(o);
 }
 

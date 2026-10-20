@@ -13,8 +13,9 @@ files:
   - "!data/**"
   - "!dist/**"
   - "!docs/**"
-  # The What's new screen reads this file at runtime, so the installer keeps it.
+  # What's new and Help read these at runtime, so the installer keeps them.
   - docs/WHATS-NEW.json
+  - docs/help/**
   - "!supabase/**"
   - "!release/**"
   - "!Start Command Center.cmd"
@@ -33,6 +34,7 @@ win:
   icon: build/icon.ico
   artifactName: "Meldmind-${version}-${arch}-${os}.${ext}"
 nsis:
+  include: build/firewall.nsh
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

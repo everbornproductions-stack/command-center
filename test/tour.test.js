@@ -110,7 +110,7 @@ test("what's new is returned once per version and a tour reset does not show it 
 test("tour steps cover the current app and What's new shows before the invite", () => {
   const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
   const steps = src.slice(src.indexOf("const STEPS"), src.indexOf("const css"));
-  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys"]) {
+  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair"]) {
     assert.ok(steps.includes(phrase), `tour step missing ${phrase}`);
   }
   assert.doesNotMatch(src, /\u2014/);

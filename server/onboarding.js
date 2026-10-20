@@ -53,10 +53,14 @@ export function normalizeRecord(raw) {
 // Saved settings means the person changed something, or the app stored a choice
 // (demo, cloud, a budget that is not the factory number). The factory defaults
 // written on a brand-new launch do not count. `onboarded` is the legacy flag.
+// `uiMode` is the Simple / Expert choice. It must not count as history, or the
+// first-run question would close setup before the person finishes it.
+const SAVED_IGNORE = new Set(["onboarded", "uiMode", "uiModeChosen", "phonePair"]);
+
 export function settingsSaved(settings, defaults) {
   if (!settings || typeof settings !== "object") return false;
   for (const [k, v] of Object.entries(settings)) {
-    if (k === "onboarded") continue;
+    if (SAVED_IGNORE.has(k)) continue;
     if (!Object.prototype.hasOwnProperty.call(defaults, k) || defaults[k] !== v) return true;
   }
   return false;

@@ -25,6 +25,20 @@
       "This note shows once after an update. Take the tour again any time from the Settings menu."
     ]
   },
+  "0.4.3": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Simple and Expert. A new install starts in Simple: one chat box, and the council picks the AI.",
+      "The first time you open Meldmind it asks: Keep it simple or show me everything?",
+      "A Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.",
+      "Simple shows Chat, Projects, Create, and Settings. Expert keeps the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu.",
+      "The chips under the chat box list only AIs you have connected. Demo stays there only until a real AI is connected.",
+      "Pasting a key recognizes Gemini auth keys (AQ.) and older AIza keys, plus Claude, ChatGPT, Grok, OpenRouter, and Groq. Gemini is checked on Google's own models list.",
+      "Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour again and Check for updates are both there.",
+      "Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. The QR code and the link both include the pairing code. It stays off until you turn it on.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
   "0.4.2": {
     "title": "What's new in Meldmind",
     "bullets": [

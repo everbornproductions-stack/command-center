@@ -20,12 +20,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { DATA_DIR } from "./paths.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret, hasSecret } from "./vault.js";
 import { recordEmbedding } from "./ledger.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
-import { networkCause } from "./health.js";
+import { networkCause, providerMessage } from "./health.js";
 
 let DatabaseSync = null;
 try { ({ DatabaseSync } = await import("node:sqlite")); } catch { DatabaseSync = null; }
@@ -258,8 +258,34 @@ function checkEmbedder(embed) {
 }
 const unit = (v) => { let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1; return Float32Array.from(v, (x) => x / n); };
 // texts → unit vectors. One HTTP call per batch, each one a ledger line.
+async function embedGemini(p, sec, embed, texts, { missionId = null, role = "embed" } = {}) {
+  const t0 = Date.now();
+  const model = String(embed.model || "").replace(/^models\//, "");
+  const body = { requests: texts.map((text) => ({ model: `models/${model}`, content: { parts: [{ text }] } })) };
+  let res;
+  try {
+    res = await fetch(`${geminiBase(p)}/models/${encodeURIComponent(model)}:batchEmbedContents`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": sec.key }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000),
+    });
+  } catch (e) { throw new EmbedError(p.id, 0, `Could not reach ${p.name}: ${networkCause(e)}`, { network: true }); }
+  const txt = await res.text().catch(() => "");
+  let j = null; try { j = JSON.parse(txt); } catch {}
+  if (!res.ok) {
+    const msg = providerMessage(j, txt);
+    if (res.status === 401 || res.status === 403) throw new EmbedError(p.id, res.status, `Key rejected (${res.status})${msg ? `: ${msg}` : ""}`, { rejected: true });
+    if (res.status === 402 || res.status === 429) throw new EmbedError(p.id, res.status, `${p.name}: ${res.status === 429 ? "rate limited or out of quota" : "out of credits"}${msg ? ` (${msg})` : ""}`);
+    throw new EmbedError(p.id, res.status, `${p.name}: HTTP ${res.status}${msg ? ` ${msg}` : ""}`);
+  }
+  const rows = Array.isArray(j?.embeddings) ? j.embeddings : [];
+  if (rows.length !== texts.length || !rows.every((r) => Array.isArray(r.values) && r.values.length)) throw new EmbedError(p.id, 502, `${p.name} sent back ${rows.length} embeddings for ${texts.length} texts.`);
+  const tokens = tokensOf(texts.reduce((a, t) => a + t.length, 0));
+  const cost = (tokens / 1e6) * Number(embed.per1M || 0);
+  const entry = recordEmbedding({ provider: p.id, model: embed.model, tokens, cost, estimated: true, missionId, role, ms: Date.now() - t0, inputs: texts.length });
+  return { vectors: rows.map((r) => unit(r.values)), tokens, cost: entry.cost };
+}
 export async function embed(embed, texts, { missionId = null, role = "embed" } = {}) {
   const { p, sec } = checkEmbedder(embed);
+  if (p.id === "google" || p.api === "gemini") return embedGemini(p, sec, embed, texts, { missionId, role });
   const t0 = Date.now();
   const headers = { "content-type": "application/json", ...(sec?.key && !p.noKey ? { authorization: `Bearer ${sec.key}` } : {}), ...(p.custom ? sec?.headers || {} : {}) };
   let res;
@@ -268,7 +294,7 @@ export async function embed(embed, texts, { missionId = null, role = "embed" } =
   const txt = await res.text().catch(() => "");
   let j = null; try { j = JSON.parse(txt); } catch {}
   if (!res.ok) {
-    const msg = String(j?.error?.message || j?.message || j?.error || "").replace(/\s+/g, " ").slice(0, 160);
+    const msg = providerMessage(j, txt);
     if (res.status === 401 || res.status === 403) throw new EmbedError(p.id, res.status, `Key rejected (${res.status})${msg ? `: ${msg}` : ""}`, { rejected: true });
     if (res.status === 402 || res.status === 429) throw new EmbedError(p.id, res.status, `${p.name}: ${res.status === 429 ? "rate limited or out of quota" : "out of credits"}${msg ? ` (${msg})` : ""}`);
     throw new EmbedError(p.id, res.status, `${p.name}: HTTP ${res.status}${msg ? ` ${msg}` : ""}`);

@@ -1173,6 +1173,16 @@ FEATURE connect-key-or-mcp DONE (built by Cursor cloud agent)
 - Licence publishable key: already shipped in server/cloud-defaults.json since v0.4.1 (4695f49); v0.4.2 carries it too. No secret or service key is in the repo.
 - CC-Build-Chain task re-enabled. Not restarted: the only phase left is Phase 14 (Mac), which stays BLOCKED until a Mac or the macOS runner is available.
 
+## 2026-10-19: Simple and Expert, Gemini AQ. keys, and Help (Cursor cloud agent)
+
+- Simple is the default for a new install. The first screen asks "Keep it simple or show me everything?" The Simple / Expert switch is in the top bar on every screen. One click keeps chats, projects, and keys. Simple shows Chat, Projects, Create, Help, and Settings. Expert keeps the debate, scores, spend caps, live map, marketplace, MCP, webhooks, and every menu. The choice is not setup history.
+- The chips under the chat box list only AIs with a saved key the provider accepted, or an MCP server. Demo fills that row only while no real AI is connected.
+- Pasting a key recognizes Gemini auth keys (AQ.) and older AIza keys, plus Claude, ChatGPT, Grok, OpenRouter, and Groq. Gemini chat, the models check, images, and embeddings use generativelanguage.googleapis.com with x-goog-api-key. If the prefix does not match, the paste box offers a provider picker. The key is never logged.
+- Help is a tab in Simple and in Expert. Guides live in docs/help and ship with the app. Ask Meldmind answers from those articles with a connected AI. With no connected AI, or if that AI cannot be reached, the reply is a search of the same articles. Take the tour again and Check for updates are on the Help page.
+- Releasing: docs/help/catalog.json lastUpdatedVersion must match package.json, and each What's new bullet for that version must match an article stamped with it. npm test fails otherwise. The installer keeps docs/help as well as docs/WHATS-NEW.json. Version is 0.4.3.
+- Tests: npm test 294 tests, 293 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dir, local mocks, no real key.
+- Browser: first-run question, skip setup, What's new, tour invite, Simple bar including Help, search for SmartScreen and AQ., Ask Meldmind with no key (search only), Check for updates, Take the tour again, text kept across Simple and Expert, Help inside the Expert Settings menu, and the same Help search at 390px. All of those worked. Not verified: a packaged installer, a real Gemini key, or a connected AI answering Help (covered by the local mock in test/help.test.js).
+
 ## 2026-10-20: Phase 26 extension, manual handoff (Cursor cloud agent)
 
 - Decision 16 is unchanged. Smart fallback still skips a provider that is out of credits, rate limited, or refusing its key, retries the same model through OpenRouter when a key exists, and sends the work to the next model. This pass adds a manual handoff on top of that. It does not replace the ledger or the spend caps.
@@ -1198,3 +1208,17 @@ Code and config only. Nothing was deployed, bought, or signed up for. appId `com
 - Rebased onto origin/main at 4c27e28 (manual handoff) before the pull request. The four commits on this branch, oldest first: Move the hosted hub to hub.meldmind.ai; Evict idle hosted users from memory; Use https OAuth redirects on the hosted hub; Run hosted schedules from a Cloudflare cron (this log entry is in that commit).
 - Tests after that rebase: npm test 306 tests, 305 pass, 0 fail, 1 skipped. npm run smoke: all smoke checks passed. Node 22.23.3. Mocks only (local HTTP stubs, no real Supabase, no real provider). New tests: test/hub-domain.test.js, test/idle.test.js (fake clock), test/oauth-redirect.test.js, test/schedule-tick.test.js (401 on a bad secret, each due slot once for two users, no secrets in wrangler.jsonc).
 - Not verified: no deploy, no real Supabase project, no real Meta, Slack, HighLevel or Google sign-in, and the container wake time was not measured. Phase 14 stays BLOCKED (needs a Mac).
+
+## 2026-10-20: Phone pairing on this PC's Wi-Fi address (Cursor cloud agent)
+
+- Phone pairing stays off until it is turned on in Settings, under Phone and other devices. The desktop engine keeps listening on 127.0.0.1. Turning it on adds a second listener on this PC's private IPv4 (a 192.168 address, then 10, then 172.16-31) at the same port. The QR code and the address under it use that Wi-Fi address and a pairing code. Copy sits under the address. Turning it off closes that listener and drops a phone that was already connected. Saving settings cannot open the port. The pairing code is not written to the log.
+- A phone that does not present the code gets a plain refusal and not the app. With the code, the phone loads Meldmind. If that phone later cannot reach the PC, the page says so. The Windows installer, and the first time pairing is turned on in a packaged app, add an inbound firewall rule for Meldmind.exe on private networks only.
+- Help article docs/help/phone.md, a What's new bullet, a tour step, and a short note in the user guide.
+- Tests after rebase onto origin/main (through the manual handoff): npm test 308 tests, 307 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dir, no real key.
+- Browser: with pairing off there is no localhost QR. Turning it on shows the QR, the Wi-Fi address under it, and Copy (toast: Link copied). That address opens the app. An incognito window without the code sees the invalid-link sentence. Turning pairing off hides the address, the open phone tab says the phone cannot reach the PC, and a reload is connection refused. The panel stays readable at 390px. Not verified: a packaged Windows installer actually adding the firewall rule, or a physical phone (this machine is not Windows).
+
+## 2026-10-20: Publishable licence key injected at release build (Cursor cloud agent)
+
+- `server/cloud-defaults.json` keeps the Supabase project URL and an empty `anonKey` in git. `npm run dist` and `npm run dist:mac` read `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`, write that publishable key into the file for the installer, then clear it. A service key is refused. If neither variable is set, the release build stops and names both variables, because an empty key leaves every copy on the Free tier and EVERBORN-OWNER cannot redeem. Dev runs and `npm test` do not require it.
+- The value was not available in this environment, so it is not filled in. Add one of those names as a repo secret, or set it in the shell, before the next release build.
+- Tests after rebase onto origin/main (hosted hub readiness): npm test 329 tests, 328 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. The missing-key check prints no key value.

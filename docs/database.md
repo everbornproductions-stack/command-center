@@ -41,7 +41,7 @@ Run in the SQL editor, in filename order, after `schema.sql`:
 
 Settings → Licence & cloud. **Every copy starts on the Free tier.** Owner comes only from an active owner licence row (the `EVERBORN-OWNER` promo or an owner key), from `CC_OWNER_EMAILS` on a hosted hub, or from `CC_DEV_OWNER=1` in an unpackaged developer run (installed builds ignore it). With no licence server configured or reachable the app is Free, never owner.
 
-Where the licence server address comes from (local mode, in order): Settings → Cloud if both fields are filled in; else the shipped `server/cloud-defaults.json` (project URL + publishable key, committed with the app and bundled by electron-builder); else `CC_SUPABASE_URL` / `CC_SUPABASE_ANON_KEY`. Saving an empty URL or key in Settings is refused (400); an installed build cannot be pointed at a different project; changing the project resets the verified tier and re-checks, so a switch can never raise the tier.
+Where the licence server address comes from (local mode, in order): Settings → Cloud if both fields are filled in; else the shipped `server/cloud-defaults.json` (project URL, plus the publishable key written in at release build time); else `CC_SUPABASE_URL` / `CC_SUPABASE_ANON_KEY`. The publishable key is not committed. `npm run dist` and `npm run dist:mac` read `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`, write it into that file for the installer, then clear it. A release build with neither variable set stops. Saving an empty URL or key in Settings is refused (400); an installed build cannot be pointed at a different project; changing the project resets the verified tier and re-checks, so a switch can never raise the tier.
 
 Tiers: Free = Single mode, 3 councils per calendar month (UTC), 1 project, no Subscriptions tab; Pro unlocks missions, scheduler, unlimited councils and projects, Subscriptions. The key is re-checked every 12 hours and on start. If the server cannot be reached, the last known good tier is kept until `current_period_end` or 7 days after the last successful check, whichever is sooner, then the copy drops to Free. Promo codes redeem in the same panel.
 
@@ -53,7 +53,7 @@ Tiers: Free = Single mode, 3 councils per calendar month (UTC), 1 project, no Su
 | Project | everborn-command, ref `ezbpstloczzdlcxwliwu`, West US (Oregon) |
 | URL | https://ezbpstloczzdlcxwliwu.supabase.co |
 | Dashboard | https://supabase.com/dashboard/project/ezbpstloczzdlcxwliwu |
-| Publishable (anon) key | shipped in `server/cloud-defaults.json` (`anonKey`; fill it in from Project Settings → API → publishable key); also in Chris's `data/settings.json` → `cloud.anonKey`. Safe to ship in the client; never the service key |
+| Publishable (anon) key | not committed. A release build injects it from `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` into `server/cloud-defaults.json`. From source, paste it in Settings → Cloud. Never the service key |
 | Database password | `data/supabase-db-password.txt` (local only; reset in Project Settings → Database if lost) |
 | Schema | `supabase/schema.sql` applied once via the SQL editor ("Success. No rows returned") |
 
@@ -63,6 +63,6 @@ Free-tier note: the project pauses after 7 days without activity; the app's 12-h
 
 1. Sign in at supabase.com → New project `everborn-command` (free, region US West), set a strong database password (Supabase keeps it; the app never needs it).
 2. SQL editor → paste `supabase/schema.sql` → Run.
-3. Project Settings → API: copy the Project URL and the publishable key into `server/cloud-defaults.json` (ships with every build). From source you can also paste them in Settings → Cloud or set `CC_SUPABASE_URL` / `CC_SUPABASE_ANON_KEY`.
+3. Project Settings → API: the project URL stays in `server/cloud-defaults.json`. For a release build, set `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` to the publishable key (do not commit it). From source you can paste both fields in Settings → Cloud or set `CC_SUPABASE_URL` / `CC_SUPABASE_ANON_KEY`.
 4. Redeem `EVERBORN-OWNER` in Settings with your email → owner licence.
 5. Later, for customers: `supabase functions deploy square-webhook --no-verify-jwt`, set the secrets, paste the function URL into Square Developer → Webhooks, subscribe to the four event types.

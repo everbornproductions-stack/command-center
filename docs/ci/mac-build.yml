@@ -1,8 +1,12 @@
 # Mac build for Meldmind: unsigned .dmg and .zip, uploaded to the public releases repo.
 # Runs on manual dispatch (Actions tab > Mac build > Run workflow) or when a v* tag is pushed.
-# Needs one repo secret: RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
-# on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
-# never built into the app.
+# Needs repo secrets:
+#   RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
+#     on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
+#     never built into the app.
+#   CC_SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY = the Supabase publishable key (sb_publishable_...).
+#     The release build writes it into server/cloud-defaults.json and then clears it. Never the service key.
+#     Without it, npm run dist:mac stops and every installed copy would stay on the Free tier.
 # TODO (needs an Apple Developer account, $99/year): code signing and notarization. Until then macOS
 # Gatekeeper blocks the first open (right-click > Open), and in-app updates do not work on Mac
 # (Squirrel.Mac only installs signed builds). See docs/RELEASING.md.
@@ -28,6 +32,9 @@ jobs:
       - run: npm test
       - run: npm run smoke
       - name: Build unsigned dmg and zip
+        env:
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: npm run dist:mac
       - name: Upload to the releases repo
         env:

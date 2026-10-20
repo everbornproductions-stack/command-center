@@ -1,6 +1,6 @@
 // Health lights. green = key works and no incident. amber = incident on the status page,
 // slow, or balance running low. red = auth/5xx failure. grey = no key saved.
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret } from "./vault.js";
 import { emit } from "./events.js";
 import { ctx, allContexts, runAs } from "./store.js";
@@ -43,7 +43,7 @@ export function providerMessage(json, text) {
   const e = json?.error;
   let m = (typeof e === "string" ? e : e?.message) || json?.message || json?.detail || json?.error_description || (typeof text === "string" && !/^\s*</.test(text) ? text : "") || "";
   if (Array.isArray(json) && json[0]?.error?.message) m = json[0].error.message; // Google sometimes wraps errors in an array
-  return String(m).replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1…").replace(/\b(xai-|AIza|gsk_|pplx-|fw_|tgp_)[A-Za-z0-9_-]{4,}/g, "$1…").replace(/\s+/g, " ").trim().slice(0, 180);
+  return String(m).replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1…").replace(/\bAQ\.[A-Za-z0-9_.-]{4,}/g, "AQ.…").replace(/\b(xai-|AIza|gsk_|pplx-|fw_|tgp_)[A-Za-z0-9_-]{4,}/g, "$1…").replace(/\s+/g, " ").trim().slice(0, 180);
 }
 export function explainProviderError(p, status, json, text) {
   const msg = providerMessage(json, text);
@@ -127,7 +127,7 @@ export async function checkProvider(id) {
   try {
     let r, balance = null;
     if (p.api === "anthropic") r = await fetchJson(`${p.baseUrl}/v1/models?limit=100`, { ...(sec.headers || {}), ...(sec.workspaceId ? { "anthropic-workspace-id": sec.workspaceId } : {}), "x-api-key": sec.key, "anthropic-version": "2023-06-01" });
-    else if (p.id === "google") r = await fetchJson(`${p.baseUrl.replace(/\/openai\/?$/, "")}/models?pageSize=200`, { "x-goog-api-key": sec.key });
+    else if (p.id === "google" || p.api === "gemini") r = await fetchJson(`${geminiBase(p)}/models?pageSize=200`, { "x-goog-api-key": sec.key });
     else if (p.id === "perplexity") r = { ok: true, status: 200 }; // no cheap list endpoint; verified on first real call
     else r = await fetchJson(`${p.baseUrl}/models`, { ...(sec.headers || {}), ...(sec.key && sec.key !== "no-key" ? { authorization: `Bearer ${sec.key}` } : {}) });
     const latencyMs = Date.now() - t0;
