@@ -1535,3 +1535,14 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 - Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, inbox summary and reminders (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 (calendar agenda and create or move) stays with Phases 53 and 54. Phases 35 and 55 were not touched. No locked decision text was rewritten. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version was not bumped.
+
+- Inbox and tasks: a summary across connected Google mailboxes, sample mailboxes when you click Try this example, and a reply draft that uses How to talk to me and My voice. Send is a separate click and posts the To, subject, and body on screen. Without send access the draft stays. Reminders and to-dos are plain text on this computer. More than 10 lines asks for a count and a sample first.
+- Each of those has a try saying line on the welcome tour, a How to section on the page, and a Help article.
+- The run-order checks now follow the order already merged on main. docs/DECISIONS.md was not edited.
+- Tests: `test/everyday-inbox.test.js`. npm test 402 tests, 401 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY INBOX AND REMINDERS (built by Cursor cloud agent)
