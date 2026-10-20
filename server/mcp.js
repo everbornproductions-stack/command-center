@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { doc, putDoc, HOSTED, ctx } from "./store.js";
 import { getSecret, setSecret, hasSecret } from "./vault.js";
 import { emit } from "./events.js";
-import { McpClient, McpError } from "./mcp-client.js";
+import { McpClient, McpError, mcpTrace } from "./mcp-client.js";
 import { PROVIDERS } from "./registry.js";
 import { streamChat } from "./providers.js";
 import { networkCause } from "./health.js";
@@ -286,9 +286,11 @@ export async function executeTool(entry, args, { missionId = null, taskId = null
   const s = entry.server, t = entry.tool;
   const t0 = Date.now();
   const base = { serverId: s.id, serverName: s.name, tool: t.name, missionId, taskId };
+  mcpTrace(`execute ${t.name} approval=${!manual && entry.needsApproval}`);
   if (!manual && entry.needsApproval) {
     emit("log", { text: `${PROVIDERS[provider]?.name || "The model"} wants to run "${t.name}" on ${s.name}: waiting for your OK.`, missionId });
     const ok = await requestApproval({ ...base, args, provider, model, readOnly: entry.readOnly, description: t.description || "" });
+    mcpTrace(`execute ${t.name} allowed=${ok}`);
     if (!ok) {
       logCall({ ts: Date.now(), ...base, ok: false, denied: true, ms: Date.now() - t0 });
       emit("mcp.call", { ...base, denied: true, ok: false, ms: Date.now() - t0 });
@@ -296,8 +298,10 @@ export async function executeTool(entry, args, { missionId = null, taskId = null
     }
   }
   try {
+    mcpTrace(`execute ${t.name} call`);
     const sess = await connectServer(s.id);
     const r = await sess.client.callTool(t.name, args);
+    mcpTrace(`execute ${t.name} back ok=${!r.isError} ms=${Date.now() - t0}`);
     let text = r.text || "(the tool returned nothing)";
     if (text.length > RESULT_MAX_CHARS) text = text.slice(0, RESULT_MAX_CHARS) + `\n[result truncated at ${RESULT_MAX_CHARS} characters]`;
     const ms = Date.now() - t0;

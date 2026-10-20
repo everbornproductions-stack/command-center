@@ -236,7 +236,8 @@ async function waitRun(s, pred, label, ms = 60000) {
   let last = null;
   while (Date.now() - t0 < ms) { last = (await s.api("/state")).json; const hit = pred(last); if (hit) return hit; await sleep(300); }
   const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
-  throw new Error(`timed out waiting for ${label}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}`);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE")).slice(-40).join("\n");
+  throw new Error(`timed out waiting for ${label}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${trace ? `\n${trace}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 async function waitPending(s, ms = 20000) {
@@ -247,7 +248,7 @@ async function waitPending(s, ms = 20000) {
 
 test("server: add stdio server (env in the vault), per-workspace enablement, approvals (allow, deny, read-only policy, overrides), runs record tool calls, manual call, settings off, remove", async () => {
   const model = await mockModel();
-  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_BASE_URL_GROQ: `${model.base}/v1`, GROQ_API_KEY: "" } });
+  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_MCP_TRACE: "1", CC_BASE_URL_GROQ: `${model.base}/v1`, GROQ_API_KEY: "" } });
   const SECRET = "sekrit-env-value-9f8e7d";
   try {
     assert.equal((await s.api("/tools", { noToken: true })).status, 401, "session token required");

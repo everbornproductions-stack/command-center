@@ -15,7 +15,12 @@ const TOOLS = [
 
 // writeSync so a Windows pipe does not hold the JSON line in a block buffer.
 // A buffered reply leaves the client waiting, and the chat never finishes.
-const write = (msg) => { fs.writeSync(1, JSON.stringify(msg) + "\n"); };
+const trace = (s) => { if (process.env.CC_MCP_TRACE === "1") { try { fs.writeSync(2, `MCPTRACE demo ${s}\n`); } catch {} } };
+const write = (msg) => {
+  const line = JSON.stringify(msg) + "\n";
+  trace(`stdout id=${msg.id} bytes=${Buffer.byteLength(line)} cr=${line.includes("\r")} ${line.trim().slice(0, 180)}`);
+  fs.writeSync(1, line);
+};
 const text = (t, extra = {}) => ({ content: [{ type: "text", text: t }], ...extra });
 
 function call(name, args = {}) {
@@ -65,7 +70,9 @@ function pump() {
   if (queue.length) pump();
 }
 process.stdin.setEncoding("utf8");
+trace(`stdin encoding=utf8 platform=${process.platform}`);
 process.stdin.on("data", (chunk) => {
+  trace(`stdin chunk bytes=${Buffer.byteLength(chunk)} cr=${String(chunk).includes("\r")}`);
   buf += chunk;
   let idx;
   while ((idx = buf.indexOf("\n")) >= 0) { queue.push(buf.slice(0, idx)); buf = buf.slice(idx + 1); }

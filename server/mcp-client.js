@@ -12,6 +12,13 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { networkCause } from "./health.js";
 
+// Test-only. CC_MCP_TRACE=1 writes one line per JSON-RPC frame to stderr with writeSync,
+// so a Windows CI log shows the last frame before a hang. Off unless that variable is set.
+export function mcpTrace(s) {
+  if (process.env.CC_MCP_TRACE !== "1") return;
+  try { fs.writeSync(2, `MCPTRACE ${s}\n`); } catch {}
+}
+
 export const PROTOCOL_VERSION = "2025-06-18";
 const OLDER_VERSIONS = ["2025-03-26", "2024-11-05"];
 export const CLIENT_INFO = { name: "Meldmind", version: "0.3.2" };
@@ -94,11 +101,15 @@ export function spawnSpec(command, args = []) {
 // write is the path that actually reaches the child there.
 function writeStdin(child, command, line) {
   const fd = child.stdin.fd;
+  const cr = line.includes("\r");
+  const preview = line.trim().slice(0, 220);
   if (typeof fd === "number" && fd >= 0) {
-    try { fs.writeSync(fd, line); return Promise.resolve(); } catch { /* fall through */ }
+    mcpTrace(`send writeSync fd=${fd} cr=${cr} bytes=${Buffer.byteLength(line)} ${preview}`);
+    try { fs.writeSync(fd, line); mcpTrace(`send writeSync done fd=${fd}`); return Promise.resolve(); } catch (e) { mcpTrace(`send writeSync failed fd=${fd} ${e.message}`); }
   }
+  mcpTrace(`send stream.write fd=${String(fd)} cr=${cr} bytes=${Buffer.byteLength(line)} ${preview}`);
   return new Promise((resolve, reject) => {
-    child.stdin.write(line, (err) => err ? reject(new McpError(`Could not write to "${command}": ${err.message}`, { network: true })) : resolve());
+    child.stdin.write(line, (err) => { mcpTrace(`send stream.write ${err ? "err " + err.message : "done"}`); err ? reject(new McpError(`Could not write to "${command}": ${err.message}`, { network: true })) : resolve(); });
   });
 }
 
@@ -112,6 +123,7 @@ class StdioTransport {
       // Overlapped pipes on Windows. The default pipe is synchronous: a writeSync on
       // one side blocks the other, and the second tool call in a turn never arrives.
       const stdio = process.platform === "win32" ? ["overlapped", "overlapped", "pipe"] : ["pipe", "pipe", "pipe"];
+      mcpTrace(`spawn file=${spec.file} shell=false windowsHide=true stdio=${stdio.join(",")} platform=${process.platform}`);
       try { child = spawn(spec.file, spec.args, { cwd: this.cwd, env: { ...process.env, ...this.env }, stdio, windowsHide: true, shell: false, windowsVerbatimArguments: spec.windowsVerbatimArguments }); }
       catch (e) { return reject(new McpError(`Could not start "${this.command}": ${e.message}`, { network: true })); }
       this.child = child;
@@ -121,14 +133,19 @@ class StdioTransport {
         buf += chunk;
         let idx;
         while ((idx = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          const raw = buf.slice(0, idx); buf = buf.slice(idx + 1);
+          const line = raw.trim();
           if (!line) continue;
-          let msg; try { msg = JSON.parse(line); } catch { continue; } // servers sometimes print banners on stdout; ignore non-JSON lines
+          mcpTrace(`recv cr=${raw.includes("\r")} bytes=${Buffer.byteLength(raw)} ${line.slice(0, 220)}`);
+          let msg; try { msg = JSON.parse(line); } catch { mcpTrace(`recv not json`); continue; } // servers sometimes print banners on stdout; ignore non-JSON lines
           if (Array.isArray(msg)) msg.forEach((m) => this.rpc.accept(m)); else this.rpc.accept(msg);
         }
       });
       child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (c) => { this.stderr = (this.stderr + c).slice(-4000); });
+      child.stderr.on("data", (c) => {
+        this.stderr = (this.stderr + c).slice(-4000);
+        if (process.env.CC_MCP_TRACE === "1") { try { fs.writeSync(2, c); } catch {} }
+      });
       child.once("error", (e) => { const err = new McpError(`Could not start "${this.command}": ${e.code === "ENOENT" ? "command not found" : e.message}`, { network: true }); this.closed = true; this.rpc.failAll(err); reject(err); });
       child.once("spawn", () => resolve());
       child.once("exit", (code, sig) => { this.closed = true; this.rpc.failAll(new McpError(`"${this.command}" exited (${sig || code})${this.stderr.trim() ? `: ${this.stderr.trim().split("\n").at(-1).slice(0, 200)}` : ""}`, { network: true })); });
