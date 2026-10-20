@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, then 14 last (35 to 52 were added on 2026-10-20 and run after 31 to 34, with 35, yearly and lifetime founder billing, next right after 0.4.6; 14 moved to the Do last section at the end; 12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, then Do last: 14, Windows code signing, App Store and Google Play listings, 52 (35 to 52 were added on 2026-10-20 and run after 31 to 34, with 35, yearly and lifetime founder billing, next right after 0.4.6; Do last is the paid distribution work at the end and needs Chris's OK before paying; 12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -282,9 +282,6 @@ UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focu
 ### Phase 51: Screenshot fallback (effort: L) (planned, not built)
 Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
 
-### Phase 52: Hosted online (web) version (effort: L) (planned, not built)
-A hosted web version of the app, so it can be used in a browser without installing. Nothing deploys without Chris's go-ahead.
-
 ## Planned, not in the run order (Chris, 2026-10-19)
 
 These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start them until Chris adds them to the run order above. They are not phases, and the chain must not build them.
@@ -303,5 +300,16 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 
 ## Do last (Chris, 2026-10-20)
 
+These items cost money to distribute the app everywhere. They run after every other phase. Nothing is bought, paid for, or put live without Chris's OK first.
+
 ### Phase 14: Mac build
-Runs last, after every other phase, as written in Phase 14 above.
+As written in Phase 14 above. Needs an Apple Developer account ($99 a year) for signing and notarization.
+
+### Windows code-signing certificate (planned, not built)
+Buy a code-signing certificate and sign the Windows installer so SmartScreen stops warning on first run. Certificate secrets go in repo secrets only.
+
+### App Store and Google Play listings (planned, not built)
+Publish the phone app on the Apple App Store (uses the Apple Developer account) and Google Play (one-time developer fee). Store listings, screenshots, and privacy text.
+
+### Phase 52: Hosted online (web) version (effort: L) (planned, not built)
+A hosted web version of the app, so it can be used in a browser without installing. Needs paid hosting. Going live needs Chris's OK before paying for anything.
