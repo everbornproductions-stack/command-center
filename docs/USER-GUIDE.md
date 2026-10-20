@@ -15,7 +15,7 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
    - check for API keys already on this PC,
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
-   After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Connect uses the same sign-in, key, or MCP step as Settings. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
+   After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each account, with a label, a default, and Add another. Connect uses the same sign-in, key, or MCP step as Settings. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
 
 Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and survive updates and reinstalls.
 

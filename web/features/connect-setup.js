@@ -6,6 +6,8 @@ const css = `
 .cs-wrap { max-width: 860px; margin: 0 auto; }
 .cs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .cs-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.cs-accounts { margin-top: 8px; display: grid; gap: 6px; }
+.cs-acct { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 640px) {
   .cs-row { grid-template-columns: 1fr; }
   .cs-actions { justify-content: flex-start; }
@@ -40,12 +42,29 @@ async function reload() {
   if (S.connectWizard && S.view === "setup") render();
 }
 
-function focusSettings(sel, message) {
+function focusSettings(sel, message, view) {
   S.connectWizard = false;
-  S.view = "settings";
+  S.view = view || "settings";
   S.navFocus = sel || "";
   render();
   if (message) toast(message);
+}
+
+async function startMail(group, accountId) {
+  if (!group.clientReady) {
+    const where = group.focusView === "subscriptions" ? "Subscriptions" : "Settings";
+    return focusSettings(group.focus, `Add the sign-in client in ${where}, then connect. The secret stays in the vault.`, group.focusView);
+  }
+  if (group.kind === "mail") {
+    const r = await api("/services/mail/start", { method: "POST", body: { source: group.provider, origin: location.origin, ...(accountId ? { accountId } : {}) } });
+    localStorage.setItem("cc.mail.oauth", group.provider);
+    window.open(r.url, "_blank", "noopener");
+    toast("Sign in and allow read-only mail. This page finishes the link when you come back.");
+    return;
+  }
+  const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: true, drive: !!group.want?.drive, send: false, ...(accountId ? { accountId } : {}) } });
+  window.open(r.url, "_blank", "noopener");
+  toast("Sign in with Google. This page finishes the link when you come back.");
 }
 
 async function runFlow(item) {
@@ -81,6 +100,10 @@ async function runFlow(item) {
     toast("Sign in with Google. This page finishes the link when you come back.");
     return;
   }
+  if (f.type === "mail") {
+    await startMail({ provider: f.provider, kind: "mail", clientReady: f.clientReady, focus: f.focus, focusView: f.focusView });
+    return;
+  }
   if (f.type === "publish") {
     if (!f.clientReady) return focusSettings(f.focus, "Add the sign-in client in Settings, Publishing, then connect. The secret stays in the vault.");
     const r = await api(`/publish/connect/${encodeURIComponent(f.connector)}/start`, { method: "POST", body: { origin: location.origin } });
@@ -99,6 +122,23 @@ async function runFlow(item) {
   toast("Connect is not available for this row yet.", true);
 }
 
+function accountBlock(it) {
+  const groups = it.groups || [];
+  if (!groups.length) return "";
+  return groups.map((g) => `<div class="cs-accounts" data-provider="${esc(g.provider)}">
+    ${g.title ? `<div class="dim small">${esc(g.title)}</div>` : ""}
+    ${(g.accounts || []).map((a) => `<div class="cs-acct">
+      <input type="text" data-acct-label="${esc(a.id)}" value="${esc(a.label)}" aria-label="Account label" maxlength="40" style="width:160px;padding:4px 6px">
+      ${chip(a.connected ? "Connected" : "Not connected")}${a.needsSignIn ? ` <span class="chip amber">Sign in again</span>` : ""}${a.isDefault ? ` <span class="chip">Default</span>` : ` <button type="button" class="btn sm" data-acct-default="${esc(a.id)}">Make default</button>`}
+      <button type="button" class="btn sm" data-acct-connect="${esc(a.id)}" data-provider="${esc(g.provider)}">Connect</button>
+    </div>`).join("")}
+    <div class="cs-acct">
+      <input type="text" data-add-label="${esc(g.provider)}" placeholder="Label, e.g. Business" aria-label="Label for another account" maxlength="40" style="width:180px;padding:4px 6px">
+      <button type="button" class="btn sm" data-add-account="${esc(g.provider)}">Add another</button>
+    </div>
+  </div>`).join("");
+}
+
 function renderInto(v) {
   const items = data?.items || [];
   const showDetail = expert();
@@ -113,6 +153,7 @@ function renderInto(v) {
             <b>${esc(it.name)}</b> ${chip(it.status)}${it.skipped ? ` <span class="chip">Skipped</span>` : ""}
             <div class="dim small" style="margin-top:4px">${esc(it.blurb || "")}</div>
             ${showDetail && it.detail ? `<div class="dim small cs-detail" style="margin-top:4px">${esc(it.detail)}</div>` : ""}
+            ${accountBlock(it)}
           </div>
           <div class="cs-actions">
             <button type="button" class="btn sm primary" data-connect="${esc(it.id)}">Connect</button>
@@ -134,6 +175,41 @@ function renderInto(v) {
     catch (e) { toast(e.message, true); }
     busy = false;
     if (S.connectWizard && S.view === "setup") render();
+  }));
+  v.querySelectorAll("[data-acct-connect]").forEach((b) => b.addEventListener("click", async () => {
+    const item = items.find((x) => (x.groups || []).some((g) => g.provider === b.dataset.provider));
+    const group = item?.groups?.find((g) => g.provider === b.dataset.provider);
+    if (!group || busy) return;
+    busy = true; b.disabled = true;
+    try { await startMail(group, b.dataset.acctConnect); }
+    catch (e) { toast(e.message, true); }
+    busy = false;
+    if (S.connectWizard && S.view === "setup") render();
+  }));
+  v.querySelectorAll("[data-acct-default]").forEach((b) => b.addEventListener("click", async () => {
+    try { await api(`/mail-accounts/${encodeURIComponent(b.dataset.acctDefault)}/default`, { method: "POST", body: {} }); toast("Default account updated"); await reload(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  v.querySelectorAll("[data-acct-label]").forEach((input) => input.addEventListener("change", async () => {
+    const label = input.value.trim();
+    if (!label) return toast("Give this account a label.", true);
+    try { await api(`/mail-accounts/${encodeURIComponent(input.dataset.acctLabel)}/label`, { method: "POST", body: { label } }); await reload(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  v.querySelectorAll("[data-add-account]").forEach((b) => b.addEventListener("click", async () => {
+    const item = items.find((x) => (x.groups || []).some((g) => g.provider === b.dataset.addAccount));
+    const group = item?.groups?.find((g) => g.provider === b.dataset.addAccount);
+    const label = v.querySelector(`[data-add-label="${b.dataset.addAccount}"]`)?.value.trim();
+    if (!group) return;
+    if (!label) return toast("Give this account a label.", true);
+    if (busy) return;
+    busy = true; b.disabled = true;
+    try {
+      const created = await api("/mail-accounts", { method: "POST", body: { provider: group.provider, label } });
+      await startMail(group, created.account?.id);
+    } catch (e) { toast(e.message, true); }
+    busy = false;
+    if (S.connectWizard && S.view === "setup") { try { await reload(); } catch { render(); } }
   }));
   v.querySelectorAll("[data-skip]").forEach((b) => b.addEventListener("click", async () => {
     try { data = await api("/connectsetup/skip", { method: "POST", body: { id: b.dataset.skip } }); S.connectSetup = data; render(); }

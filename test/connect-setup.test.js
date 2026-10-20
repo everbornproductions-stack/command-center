@@ -29,6 +29,12 @@ function catalog() {
     library: () => ({ connected: false, clientReady: false, clientId: "must-not-leak" }),
     grokbot: () => ({ ready: false, url: "https://secret.example/hook", key: "sk-not-real" }),
     extensionPaired: () => false,
+    mailAccounts: (provider) => provider === "google" ? [
+      { id: "google", label: "Business", connected: true, isDefault: true },
+      { id: "ma_personal", label: "Personal", connected: false, isDefault: false },
+      { id: "ma_partner", label: "Partner", connected: false, isDefault: false, access: "must-not-leak", refresh: "must-not-leak" },
+    ] : provider === "outlook" ? [{ id: "outlook", label: "Work mail", connected: false, isDefault: true }] : [],
+    mailReady: () => false,
   });
 }
 
@@ -46,6 +52,11 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(items.find((it) => it.id === "capcut").status, "Not connected");
   assert.equal(items.find((it) => it.id === "kling").status, "Connected");
   assert.equal(items.find((it) => it.id === "gmail").status, "Connected");
+  const gmailAccounts = items.find((it) => it.id === "gmail").groups.find((g) => g.provider === "google").accounts;
+  assert.deepEqual(gmailAccounts.map((a) => a.label), ["Business", "Personal", "Partner"]);
+  assert.equal(gmailAccounts.find((a) => a.label === "Business").isDefault, true);
+  assert.deepEqual(Object.keys(gmailAccounts[2]).sort(), ["connected", "id", "isDefault", "label", "needsSignIn"]);
+  assert.equal(items.find((it) => it.id === "outlook").groups[0].provider, "outlook");
   assert.equal(items.find((it) => it.id === "drive").status, "Not connected");
   assert.equal(items.find((it) => it.id === "calendar").status, "Not connected");
   assert.equal(items.find((it) => it.id === "ghl").flow.type, "publish");
@@ -81,6 +92,9 @@ test("the page, Help menu, and Settings can run setup again, and Simple hides th
   assert.match(ui, /\/publish\/connect\//);
   assert.match(ui, /\/libraries\//);
   assert.match(ui, /\/setup\/open/);
+  assert.match(ui, /Add another/);
+  assert.match(ui, /\/mail-accounts/);
+  assert.match(ui, /accountId/);
   assert.doesNotMatch(ui, /type="password"/);
   assert.doesNotMatch(ui, /\/keys/);
   assert.match(ui, /cs-detail/);
@@ -108,6 +122,13 @@ test("a fresh install offers the checklist, a finished install does not, and a k
     assert.equal(view.json.items.find((it) => it.id === "cursor").status, "Connected");
     assert.equal(view.json.items.find((it) => it.id === "capcut").status, "Not connected");
     assert.equal((await fresh.api("/onboarding")).json.show, true, "AI setup is still the first step");
+    const added = await fresh.api("/mail-accounts", { method: "POST", body: { provider: "google", label: "Business" } });
+    assert.equal(added.status, 200);
+    const listed = await fresh.api("/connectsetup");
+    const acct = listed.json.items.find((it) => it.id === "gmail").groups.find((g) => g.provider === "google").accounts.find((a) => a.label === "Business");
+    assert.equal(acct.connected, false);
+    assert.deepEqual(Object.keys(acct).sort(), ["connected", "id", "isDefault", "label", "needsSignIn"]);
+    assert.equal(JSON.stringify(listed.json).includes(fake), false);
     const skipped = await fresh.api("/connectsetup/skip", { method: "POST", body: { id: "kling", key: fake } });
     assert.equal(skipped.status, 200);
     assert.equal(skipped.json.items.find((it) => it.id === "kling").skipped, true);
