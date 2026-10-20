@@ -1237,3 +1237,12 @@ Extension of the Phase 2 savings receipt. Phase 2 stays DONE. This does not chan
 - Not verified: a packaged Electron build, a real provider price list, and a long-lived session after a live OpenRouter price refresh. Phase 14 stays BLOCKED (needs a Mac).
 
 MONEY SAVED TRACKER DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Nine more Pro prompts (Cursor cloud agent)
+
+- Added nine templates beside the existing pack: Coaching conversation (SBI), Delegation hand-off plan, Contrarian hooks (four outlines; the original 12-hook template stays), DM sequence to booked call, Weekly time audit, Pre-launch risk audit, Thought leadership article outline, Win back a lost lead, and Hand off 'only I can do it' tasks.
+- Rows live in `server/prompts/pack-more.js` and join `server/prompts/catalog.js` with one import and one push, so the pack file stays a small edit. Each row is still ROLE / CONTEXT / COMMAND / FORMAT and halts when a required fact is missing.
+- Sales and marketing templates carry the line "no fabricated results, testimonials or income claims." Time templates say "hourly value of my time" and do not use a named coach's terms. Outbound messages stay drafts.
+- Test: `test/prompts-pack-more.test.js`.
+
+PROMPTS PACK ADDITIONS DONE (built by Cursor cloud agent)
