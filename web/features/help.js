@@ -19,8 +19,10 @@ function renderTab(view) {
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <button class="btn sm primary" type="button" id="help-ask">Ask Meldmind</button>
         <button class="btn sm" type="button" id="help-start">Start a project</button>
-        <button class="btn sm" type="button" id="help-tour">Take the tour again</button>
+        <button class="btn sm" type="button" id="help-replay">Replay the tour</button>
+        <button class="btn sm" type="button" id="help-examples">Watch example projects</button>
         <button class="btn sm" type="button" id="help-upd">Check for updates</button>
+        <p class="dim small" style="margin:8px 0 0">Take the tour again any time. Watch example projects replays a labeled sample. No AI is called for an example.</p>
       </div>
       <div id="help-answer" class="help-answer"></div>
     </div>
@@ -66,7 +68,8 @@ function renderTab(view) {
     }
   });
   view.querySelector("#help-start").addEventListener("click", () => { (window.CC.startProject?.open || window.CC.go)?.("start"); });
-  view.querySelector("#help-tour").addEventListener("click", () => { window.CC.tour?.start?.(); });
+  view.querySelector("#help-replay").addEventListener("click", () => { window.CC.tour?.start?.(); });
+  view.querySelector("#help-examples").addEventListener("click", () => { (window.CC.startProject?.examples || window.CC.startProject?.open || window.CC.go)?.(); });
   view.querySelector("#help-upd").addEventListener("click", async () => {
     try {
       const S = window.CC.S;

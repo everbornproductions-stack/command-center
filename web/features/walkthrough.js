@@ -111,12 +111,16 @@ async function refreshWalk(id) {
   } catch (e) { stopPoll(); toast(e.message, true); }
 }
 
+let wantExamples = false;
 async function renderTab(view) {
   stopPoll();
+  const examples = wantExamples;
+  wantExamples = false;
   view.innerHTML = `<div class="sp-wrap" id="sp-root"><div class="empty">Loading…</div></div>`;
   try {
     const data = await api(`/walkthrough?${qexp()}`);
-    paintPicker(data);
+    if (examples) paintExamples(data);
+    else paintPicker(data);
   } catch (e) {
     const root = document.getElementById("sp-root");
     if (root) root.innerHTML = `<div class="empty" role="alert">${esc(e.message)}</div>`;
@@ -146,6 +150,30 @@ function paintPicker(data) {
     ${(data.walks || []).length ? `<div class="panel"><h3>Your projects</h3>${data.walks.slice(0, 8).map((w) => `<button class="btn sm" type="button" data-open="${esc(w.id)}" style="margin:0 6px 6px 0">${esc(w.typeName)}: ${esc(w.plan?.title || w.idea || "In progress")}</button>`).join("")}</div>` : ""}`;
   root.querySelector("#sp-help").addEventListener("click", toggleHelp);
   root.querySelectorAll("[data-start]").forEach((b) => b.addEventListener("click", () => begin(b.dataset.start)));
+  root.querySelectorAll("[data-example]").forEach((b) => b.addEventListener("click", () => watchExample(b.dataset.example)));
+  root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openWalk(b.dataset.open)));
+}
+
+function paintExamples(data) {
+  const root = document.getElementById("sp-root");
+  if (!root) return;
+  root.innerHTML = `
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <h3 style="margin:0">Watch example projects</h3>
+      <span class="chip">Example data</span>
+      <button class="btn sm" type="button" id="sp-all" style="margin-left:auto">Start a project</button>
+    </div>
+    <div class="sp-banner" role="note">Example data. Replay any sample, or reopen one of your projects. A sample does not call an AI and cannot be edited.</div>
+    <div class="sp-types">${(data.types || []).map((t) => `
+      <div class="sp-type" style="border-top:3px solid ${esc(t.color || "#22d3ee")}">
+        <h4>${esc(t.name)}</h4>
+        <div class="small dim">${esc(t.blurb || "")}</div>
+        <div class="sp-actions" style="margin-top:8px">
+          <button class="btn sm primary" type="button" data-example="${esc(t.id)}">Watch an example</button>
+        </div>
+      </div>`).join("")}</div>
+    ${(data.walks || []).length ? `<div class="panel"><h3>Your projects</h3><p class="small dim">Open one to continue it. This is your work, not example data.</p>${data.walks.slice(0, 8).map((w) => `<button class="btn sm" type="button" data-open="${esc(w.id)}" style="margin:0 6px 6px 0">${esc(w.typeName)}: ${esc(w.plan?.title || w.idea || "In progress")}</button>`).join("")}</div>` : ""}`;
+  root.querySelector("#sp-all").addEventListener("click", () => paintPicker(data));
   root.querySelectorAll("[data-example]").forEach((b) => b.addEventListener("click", () => watchExample(b.dataset.example)));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openWalk(b.dataset.open)));
 }
@@ -415,4 +443,8 @@ window.CC.register({
   tab: { label: "Start a project", short: "Start", icon: "✦", order: 4, render: renderTab },
   command: { order: 0, render: renderHome },
 });
-window.CC.startProject = { experience: clientExperience, open: () => go("start") };
+window.CC.startProject = {
+  experience: clientExperience,
+  open: () => { wantExamples = false; go("start"); },
+  examples: () => { wantExamples = true; go("start"); },
+};

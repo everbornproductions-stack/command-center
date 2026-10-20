@@ -1357,7 +1357,8 @@ $("#tabs").addEventListener("click", (e) => {
   }
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
-  if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.view = "start"; render(); } return; }
   if (!b.dataset.view) return;
   S.view = b.dataset.view;
   S.openProject = null;

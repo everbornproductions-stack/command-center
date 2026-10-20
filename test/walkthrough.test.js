@@ -96,6 +96,10 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
   assert.match(ui, /Expert mode shows which AI/);
   assert.match(read("web/features/index.js"), /"walkthrough"/);
   assert.match(read("web/features/tour.js"), /Start a project/);
+  assert.match(read("web/nav.js"), /Replay the tour/);
+  assert.match(read("web/nav.js"), /Watch example projects/);
+  assert.match(read("web/features/help.js"), /Replay the tour/);
+  assert.match(read("web/features/help.js"), /Watch example projects/);
   assert.match(read("web/app.js"), /ev\?\.example === true \|\| ev\?\.overlay === true/, "example playback does not become a mission toast");
   for (const f of FILES) assert.ok(!read(f).includes("\u2014") && !read(f).includes("\u2013"), `dash in ${f}`);
 });
