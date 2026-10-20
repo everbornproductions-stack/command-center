@@ -164,6 +164,7 @@ test("route preview shows the batch note, and the new words have no em-dash", ()
   const guide = fs.readFileSync(path.join(ROOT, "docs", "USER-GUIDE.md"), "utf8");
   assert.match(app, /r\.cheaper\?\.batchNote/);
   assert.match(app, /No key needed \(Ollama, LM Studio, Aider, OpenCode\)/);
+  assert.match(app, /Aider, OpenCode, or a company gateway\. Freebuff is not used/);
   assert.match(guide, /Freebuff is not used/);
   assert.match(guide, /pays the live price/);
   for (const file of ["server/savings.js", "web/app.js", "docs/USER-GUIDE.md", "server/plugins/providers.js"]) {

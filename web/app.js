@@ -1232,7 +1232,7 @@ function renderSettings(v) {
         ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
-        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
+        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff is not used.</span></div><div id="cp-form"></div>`}</div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
