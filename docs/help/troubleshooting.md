@@ -14,6 +14,8 @@ Some antivirus tools show the same kind of warning for an unsigned installer. If
 Other messages:
 
 - "Key rejected (401)": the provider refused the key. Make a new one and paste it again.
+- Out of credits is no longer shown as Key rejected. A spending limit or an empty balance says to top up, and the key stays saved. For Grok, top up at https://console.x.ai.
+- Tap to talk works in the desktop app. It transcribes with an OpenAI, Groq, ElevenLabs, or Gemini key, and it names the key to add when none is saved. While that runs the status says Transcribing. If a take ends with no words, it says No speech heard.
 - "Could not reach": a network problem. Check the connection, then try the same action again.
 - "This phone cannot reach the PC": use the same Wi-Fi, turn on phone pairing in Settings, under Phone and other devices, and allow Meldmind on private networks in Windows Firewall.
 - The engine panel after a long wait: Restart engine, Check for updates, or Keep waiting. Your keys and history stay on this computer.

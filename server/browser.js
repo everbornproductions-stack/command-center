@@ -432,7 +432,7 @@ async function run(id) {
           { missionId: j.source?.runId || id, role: "browse", small: true, tools: false, cls: { capability: "analysis", difficulty: 1 }, mode: "economy" });
       } catch (e) {
         if (L.stopped) return;
-        noteCall(choice.provider, false, Date.now() - t0, e.status);
+        noteCall(choice.provider, false, Date.now() - t0, e);
         return finish("failed", `the AI could not take the next step: ${e.message}`, { error: `The AI driving the browser failed: ${clip(e.message, 200)}`, artifacts: links.slice(0, 8) });
       }
       const ms = Date.now() - t0;

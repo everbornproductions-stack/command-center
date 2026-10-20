@@ -41,6 +41,8 @@
       "Each provider shows how it connects: No key, Not connected, Handoff, or Local app.",
       "Set a provider to Free, Paid, or Unknown. Simple mode can prefer free AIs when quality is similar.",
       "After a run, one upgrade tip can name an AI that usually does that task better, with a link to add credits or a key. Tips stay off during a run.",
+      "Out of credits is no longer shown as Key rejected. A spending limit or an empty balance says to top up, and the key stays saved.",
+      "Tap to talk works in the desktop app. It transcribes with an OpenAI, Groq, ElevenLabs, or Gemini key, and it names the key to add when none is saved.",
       "This note shows once after an update. Take the tour again any time from Settings."
     ]
   },

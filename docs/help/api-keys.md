@@ -15,6 +15,10 @@ If Meldmind cannot tell which provider a key is for, it says so and shows a prov
 
 A green light means the key was accepted. "Key rejected (401)" means the provider refused it. "Could not reach" means a network problem, not a bad key. A rejected key is not treated as connected.
 
+Out of credits is no longer shown as Key rejected. A spending limit, a quota, or an empty balance says to top up, and the key stays saved. Payment required and rate limited keep the key too, because the key itself is valid. For Grok, top up at https://console.x.ai.
+
+Tap to talk in the desktop app uses one of those keys to transcribe: OpenAI, Groq, ElevenLabs, or Gemini. It names the key to add when none is saved.
+
 The chips under the chat box list only AIs you have connected. Demo stays there only until a real AI is connected.
 
 Each provider shows how it connects: No key, Not connected, Handoff, or Local app. No key is only for a real API key. Not connected, with a Connect button, is for sign-in or MCP. Handoff is for a site you open yourself. Local app is for an app on this PC, such as Cursor.

@@ -137,7 +137,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
-      noteCall(m.provider, false, Date.now() - s, err.status);
+      noteCall(m.provider, false, Date.now() - s, err);
       council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
       emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
     }
@@ -172,7 +172,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.reviews[reviewer.model] = { provider: r.provider, model: r.model, scores: j.scores || {}, best: j.best, notes: j.notes || {}, disagreement: j.disagreement || "", cost: e.cost, standIn: r.fallback ? { for: reviewer.provider, forModel: reviewer.model, reason: r.fallback[r.fallback.length - 1].reason, via: r.via } : null };
         emit("agent.done", { agent, provider: r.provider, model: r.model, missionId: id, ms, cost: e.cost });
       } catch (err) {
-        noteCall(reviewer.provider, false, Date.now() - s, err.status);
+        noteCall(reviewer.provider, false, Date.now() - s, err);
         emit("agent.error", { agent, provider: reviewer.provider, model: reviewer.model, missionId: id, error: err.message });
       }
       emit("council.update", { council: pub(council) });
@@ -242,7 +242,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       }
       council.verdict = { provider: chair.provider, model: chair.model, text };
     } catch (err) {
-      noteCall(chair.provider, false, Date.now() - s, err.status);
+      noteCall(chair.provider, false, Date.now() - s, err);
       if (!troubleKind(err)) observe({ provider: chair.provider, model: chair.model, capability: cls.capability, difficulty: 3, runId: id, ok: false });
       council.verdict = { provider: chair.provider, model: chair.model, error: err.message, text: good.sort((a, b) => (council.scoreboard?.[b.model]?.avg || 0) - (council.scoreboard?.[a.model]?.avg || 0))[0].text };
       emit("agent.error", { agent, provider: chair.provider, model: chair.model, missionId: id, error: err.message });

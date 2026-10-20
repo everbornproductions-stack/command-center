@@ -401,7 +401,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     }
     m.status = "done";
   } catch (err) {
-    if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err.status); // a spend-cap stop is not the provider's failure; a pause was already known
+    if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
     if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
     if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     m.status = "failed"; m.error = err.message;

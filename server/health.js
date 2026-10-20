@@ -19,22 +19,41 @@ export function allStatus() {
 function set(id, patch) {
   const t = table();
   const prev = t[id] || GREY();
-  t[id] = { ...prev, ...patch, checkedAt: Date.now() };
-  if (prev.status !== t[id].status || prev.detail !== t[id].detail) emit("provider.status", { provider: id, ...t[id] });
+  const next = { ...prev, ...patch, checkedAt: Date.now() };
+  // A later check that reached the provider must not keep an old "could not reach" flag.
+  if (patch.network !== true) next.network = false;
+  t[id] = next;
+  if (prev.status !== next.status || prev.detail !== next.detail) emit("provider.status", { provider: id, ...next });
 }
 
-// Mark from a real call outcome (called by council/mission on success or error)
-export function noteCall(id, ok, latencyMs, errStatus) {
+// Pull a status code and the provider's body off a failed call. Callers may pass a number
+// (status only) or the error object (status plus body / message).
+function callParts(errStatus, body) {
+  if (errStatus && typeof errStatus === "object") { body = errStatus; errStatus = Number(errStatus.status); }
+  let json = null, text = "";
+  if (typeof body === "string") text = body;
+  else if (body && typeof body === "object") {
+    if (body.body && typeof body.body === "object") json = body.body;
+    else if (body.json && typeof body.json === "object") json = body.json;
+    text = String(body.text || body.message || "");
+  }
+  return { status: Number(errStatus), json, text };
+}
+
+// Mark from a real call outcome (called by council/mission on success or error).
+// The body is explained the same way as a key check, so a 403 that is really
+// "out of credits" is not stored as "Key rejected".
+export function noteCall(id, ok, latencyMs, errStatus, body) {
   const cur = getStatus(id);
   if (ok) {
     const slow = latencyMs > 25000;
     set(id, { status: cur.incident ? "amber" : slow ? "amber" : "green", detail: slow ? `slow (${(latencyMs / 1000).toFixed(0)}s)` : cur.incident ? cur.incident : "ok", latencyMs, lastOk: Date.now() });
-  } else if (errStatus === 401 || errStatus === 403) set(id, { status: "red", detail: `Key rejected (${errStatus})` });
-  else if (errStatus === 429) set(id, { status: "amber", detail: "rate limited / out of credits" });
-  else if (errStatus === 402) set(id, { status: "red", detail: "payment required: no credits" });
-  else if (errStatus >= 500) set(id, { status: "amber", detail: `provider error ${errStatus}` });
-  else if (errStatus === 0) set(id, { status: "amber", detail: "network error" });
-  else if (errStatus >= 400) set(id, { status: "red", detail: `HTTP ${errStatus} from the provider` });
+    return;
+  }
+  const parts = callParts(errStatus, body);
+  if (parts.status === 0) { set(id, { status: "amber", detail: "network error", network: true }); return; }
+  const p = PROVIDERS[id] || { id, name: id };
+  set(id, explainProviderError(p, parts.status, parts.json, parts.text));
 }
 
 // Turn a provider's refusal into words a person can act on, keeping the provider's own message
@@ -45,16 +64,28 @@ export function providerMessage(json, text) {
   if (Array.isArray(json) && json[0]?.error?.message) m = json[0].error.message; // Google sometimes wraps errors in an array
   return String(m).replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1…").replace(/\bAQ\.[A-Za-z0-9_.-]{4,}/g, "AQ.…").replace(/\b(xai-|AIza|gsk_|pplx-|fw_|tgp_)[A-Za-z0-9_-]{4,}/g, "$1…").replace(/\s+/g, " ").trim().slice(0, 180);
 }
+const BILLING_WORDS = /credit|spending limit|spend limit|quota|billing|insufficient_quota|exceeded your current|balance/;
+const BAD_KEY_WORDS = /api key not valid|api_key_invalid|invalid api key|incorrect api key/;
+
 export function explainProviderError(p, status, json, text) {
   const msg = providerMessage(json, text);
   const low = msg.toLowerCase();
   const tail = msg ? `: ${msg}` : "";
-  if (/credit|spending limit|spend limit|quota|billing|insufficient_quota|exceeded your current|balance/.test(low) && status !== 401)
-    return { status: "amber", detail: `Out of credits or spending limit reached${tail}` };
+  const billing = BILLING_WORDS.test(low);
+  // 401 is a refused key even when the body mentions a balance. Every other
+  // credits / quota / billing refusal is amber, with the provider's top-up page.
+  if (billing && status !== 401) {
+    const url = p?.links?.billing;
+    const lead = url ? `Out of credits or spending limit reached. Top up at ${url}` : "Out of credits or spending limit reached";
+    return { status: "amber", detail: `${lead}${tail}` };
+  }
   if (p.api === "anthropic" && /workspace/.test(low))
     return { status: "red", detail: `This key needs a workspace: pick or paste your Anthropic workspace ID${tail}` };
-  if (status === 400 && /api key not valid|api_key_invalid|invalid api key|incorrect api key/.test(low)) return { status: "red", detail: `Key rejected (${status})${tail}` };
-  if (status === 401 || status === 403) return { status: "red", detail: `Key rejected (${status})${tail}` };
+  if ((status === 400 || status === 403) && BAD_KEY_WORDS.test(low)) return { status: "red", detail: `Key rejected (${status})${tail}` };
+  if (status === 401) return { status: "red", detail: `Key rejected (${status})${tail}` };
+  // A 403 with no words at all is treated as a refused key. Any other 403 keeps the provider's detail.
+  if (status === 403 && !msg) return { status: "red", detail: `Key rejected (${status})` };
+  if (status === 403) return { status: "red", detail: `Access denied (403)${tail}` };
   if (status === 402) return { status: "red", detail: `Payment required: no credits${tail}` };
   if (status === 429) return { status: "amber", detail: `Rate limited${tail}` };
   if (status >= 500) return { status: "amber", detail: `${p.name} had a server error (${status})${tail}` };
@@ -111,7 +142,8 @@ export async function checkProvider(id) {
     try {
       if (p.id === "elevenlabs") {
         const t0 = Date.now();
-        const r = await fetchJson("https://api.elevenlabs.io/v1/user/subscription", { "xi-api-key": sec.key });
+        const root = (process.env.CC_PACKAGED !== "1" && process.env.CC_BASE_URL_ELEVENLABS) || "https://api.elevenlabs.io";
+        const r = await fetchJson(`${String(root).replace(/\/$/, "")}/v1/user/subscription`, { "xi-api-key": sec.key });
         if (r.ok) {
           const used = r.json.character_count, limit = r.json.character_limit;
           const pct = limit ? used / limit : 0;
@@ -132,8 +164,8 @@ export async function checkProvider(id) {
     else r = await fetchJson(`${p.baseUrl}/models`, { ...(sec.headers || {}), ...(sec.key && sec.key !== "no-key" ? { authorization: `Bearer ${sec.key}` } : {}) });
     const latencyMs = Date.now() - t0;
     if (!r.ok) {
-      noteCall(id, false, latencyMs, r.status); // keeps the call stats; the words come from the provider's own message
-      set(id, { ...explainProviderError(p, r.status, r.json, r.text), incident });
+      // One write, so the light never flashes a refused key before the body is read.
+      set(id, { ...explainProviderError(p, r.status, r.json, r.text), incident, latencyMs });
       return getStatus(id);
     }
     if (p.balanceApi === "openrouter-key") {
