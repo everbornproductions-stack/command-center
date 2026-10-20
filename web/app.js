@@ -3,6 +3,7 @@ import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { composerAis } from "./composer-ais.js";
+import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 
 // ---------------- state ----------------
@@ -677,7 +678,77 @@ function renderExtras(kind, sel, ...args) {
   }
 }
 function projectOptions(sel) {
-  return `<option value="">No project</option>` + S.projects.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+  return projectOptionsHtml(S.projects, sel);
+}
+function projectField() {
+  return `<label class="lbl">Project</label>
+    <div class="row" id="proj-row">
+      <select id="proj" aria-label="Project" style="flex:1;width:auto;min-width:160px">${projectOptions(S.project)}</select>
+      <button type="button" class="btn sm" id="proj-rename"${S.project ? "" : " hidden"}>Rename</button>
+    </div>
+    <form id="proj-form" hidden style="margin-top:6px">
+      <div class="row">
+        <input type="text" id="proj-name" aria-label="Project name" maxlength="80" autocomplete="off" placeholder="Project name" style="flex:1;min-width:140px">
+        <button type="submit" class="btn sm primary" id="proj-save">Create</button>
+        <button type="button" class="ghost small" id="proj-cancel">Cancel</button>
+      </div>
+      <div class="small" id="proj-err" role="alert" style="color:var(--red)"></div>
+    </form>`;
+}
+function wireProjectPicker() {
+  const sel = $("#proj");
+  const form = $("#proj-form");
+  const input = $("#proj-name");
+  const err = $("#proj-err");
+  const saveBtn = $("#proj-save");
+  const renameBtn = $("#proj-rename");
+  if (!sel || !form || !input) return;
+  let mode = "create";
+  const close = () => {
+    form.hidden = true;
+    err.textContent = "";
+    input.value = "";
+    if (sel.value === NEW_PROJECT) sel.value = S.project || "";
+  };
+  const open = (next) => {
+    mode = next;
+    form.hidden = false;
+    err.textContent = "";
+    const current = (S.projects || []).find((p) => p.id === S.project);
+    input.value = next === "rename" ? (current?.name || "") : "";
+    input.setAttribute("aria-label", next === "rename" ? "New name" : "Project name");
+    saveBtn.textContent = next === "rename" ? "Save" : "Create";
+    input.focus();
+    if (next === "rename") input.select();
+  };
+  sel.addEventListener("change", () => {
+    if (sel.value === NEW_PROJECT) { sel.value = S.project || ""; open("create"); return; }
+    close();
+    S.project = sel.value;
+    localStorage.setItem("cc.project", S.project);
+    if (renameBtn) renameBtn.hidden = !S.project;
+  });
+  renameBtn?.addEventListener("click", () => { if (!S.project) return; sel.value = S.project; open("rename"); });
+  $("#proj-cancel")?.addEventListener("click", close);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = input.value.trim();
+    const exceptId = mode === "rename" ? S.project : "";
+    const problem = projectNameError(name, S.projects, exceptId);
+    if (problem) { err.textContent = problem; input.focus(); return; }
+    saveBtn.disabled = true;
+    try {
+      if (mode === "rename") {
+        await api("/projects", { method: "POST", body: { id: S.project, name } });
+        toast("Project renamed");
+      } else {
+        const created = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); }
+        toast("Project created");
+      }
+      await refresh();
+    } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
+  });
 }
 
 // ----- Command -----
@@ -688,8 +759,7 @@ function renderSimpleChat(v) {
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" placeholder="Say what you want. The council picks the AI.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
-        <label class="lbl">Project</label>
-        <select id="proj" aria-label="Project">${projectOptions(S.project)}</select>
+        ${projectField()}
         <div id="cmd-extras"></div>
         <div class="row" style="padding-top:4px">
           <button class="btn primary" id="go" style="margin-left:auto">Send</button>
@@ -703,7 +773,7 @@ function renderSimpleChat(v) {
       <div id="deliv-extras"></div>
     </div>
   </div>`;
-  $("#proj").addEventListener("change", (e) => { S.project = e.target.value; localStorage.setItem("cc.project", S.project); });
+  wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
@@ -740,8 +810,7 @@ function renderCommand(v) {
           <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>
           <label class="row small" style="gap:6px;margin-left:auto">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label>
         </div>
-        <label class="lbl">Project</label>
-        <select id="proj" aria-label="Project">${projectOptions(S.project)}</select>
+        ${projectField()}
         <div id="route" class="route" style="margin-top:10px;display:none"></div>
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
@@ -777,7 +846,7 @@ function renderCommand(v) {
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
-  $("#proj").addEventListener("change", (e) => { S.project = e.target.value; localStorage.setItem("cc.project", S.project); });
+  wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);

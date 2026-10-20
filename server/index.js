@@ -35,6 +35,7 @@ import { runCouncil, summaryOf } from "./council.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { loadProjects, listProjects, saveProject, deleteProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
 import { startDemo, stopDemo, demoActive } from "./mock.js";
@@ -506,9 +507,17 @@ async function api(req, res, url) {
   }
 
   if (method === "POST" && p === "/projects") {
-    if (!body.id && !String(body.name || "").trim()) return json(res, 400, { error: "name required" });
-    const id = body.id || String(body.name).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    if (typeof body.name === "string") body.name = body.name.trim();
+    const name = typeof body.name === "string" ? body.name : "";
+    if (!body.id && !name) return json(res, 400, { error: "name required" });
+    if (body.id && body.name != null && !name) return json(res, 400, { error: "name required" });
     const existing = listProjects();
+    const updating = !!(body.id && existing.some((x) => x.id === body.id));
+    if (name) {
+      const problem = projectNameError(name, existing, updating ? body.id : "");
+      if (problem) return json(res, 400, { error: problem === "Type a project name." ? "name required" : problem });
+    }
+    const id = body.id || projectSlug(name);
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
     return json(res, 200, saveProject(body));
   }
