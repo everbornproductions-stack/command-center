@@ -57,13 +57,13 @@ async function handle(req, res, url, body, h) {
     if (m === "POST" && seg[1] === "start") {
       const origin = String(body.origin || "");
       if (!/^https?:\/\/[^\s/]+$/.test(origin.replace(/\/$/, ""))) return h.json(res, 400, { error: "origin required" });
-      return h.json(res, 200, mailStart(String(body.source || ""), { redirectUri: `${origin.replace(/\/$/, "")}/` }));
+      return h.json(res, 200, mailStart(String(body.source || ""), { redirectUri: `${origin.replace(/\/$/, "")}/`, accountId: body.accountId || null }));
     }
     if (m === "POST" && seg[1] === "finish") { const r = await mailFinish({ code: body.code, state: body.state }); return h.json(res, 200, { ...r, mail: mailView() }); }
     if (m === "POST" && seg[1] === "scan") {
       const src = String(body.source || "");
       if (src !== "demo" && !MAIL_SOURCES.includes(src)) return h.json(res, 400, { error: "source must be gmail, outlook or demo" });
-      const r = await scanMail(src, { days: body.days, max: body.max, subs: subscriptionView() });
+      const r = await scanMail(src, { days: body.days, max: body.max, subs: subscriptionView(), accountId: body.accountId || null });
       h.emit("log", { text: `Receipt scan (${src === "demo" ? "sample emails" : src}): ${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood.` });
       return h.json(res, 200, { ...r, view: servicesView() });
     }

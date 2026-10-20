@@ -9,6 +9,7 @@ import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { htmlToText } from "./receipts.js";
+import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 
 const VAULT_ID = "google-helper";
 const DOC = "browser.google";
@@ -33,18 +34,39 @@ const saveDoc = (d) => putDoc(DOC, d);
 const secret = () => getSecret(VAULT_ID) || null;
 const clientId = () => gdoc().clientId || (!HOSTED ? process.env.CC_GOOGLE_CLIENT_ID || "" : "") || null;
 
-// granted scopes as the short names gmail / drive / send
-export function granted() {
+// granted scopes as the short names gmail / drive / send.
+// No accountId (and no added account chosen as the default) keeps the original single-account token.
+export function granted(accountId) {
+  const extra = activeExtra("google", accountId);
+  if (extra) {
+    const s = getSecret(extra.vaultId);
+    if (!s?.access && !s?.refresh) return [];
+    return Object.entries(SCOPES).filter(([, v]) => (extra.scopes || []).includes(v)).map(([k]) => k);
+  }
   const s = secret(), d = gdoc();
   if (!s?.access && !s?.refresh) return [];
   return Object.entries(SCOPES).filter(([, v]) => (d.scopes || []).includes(v)).map(([k]) => k);
 }
-export const connected = () => granted().length > 0 && !gdoc().needsSignIn;
-export const canSend = () => connected() && granted().includes("send");
+export function connected(accountId) {
+  const extra = activeExtra("google", accountId);
+  if (extra) return granted(accountId).length > 0 && !extra.needsSignIn;
+  return granted().length > 0 && !gdoc().needsSignIn;
+}
+export const canSend = (accountId) => connected(accountId) && granted(accountId).includes("send");
+
+// The account a task picked. Null means "use the default when the job runs".
+export function useAccount(accountId) {
+  if (!accountId) return null;
+  const a = listAccounts("google").find((x) => x.id === String(accountId));
+  if (!a) throw fail(400, "That Google account is not in the list. Add it under Settings, then pick it on the task.");
+  return { id: a.id, label: a.label };
+}
 
 export function view() {
   const d = gdoc(), s = secret();
-  return { clientId: d.clientId || null, clientIdFromEnv: !d.clientId && !!clientId(), clientSecretSaved: !!s?.clientSecret, connected: connected(), scopes: granted().map((k) => ({ id: k, label: SCOPE_LABEL[k] })), connectedAt: d.connectedAt || null, needsSignIn: !!d.needsSignIn, setup: SETUP, consoleUrl: "https://console.cloud.google.com/apis/credentials" };
+  const accounts = listAccounts("google");
+  const def = accounts.find((a) => a.isDefault);
+  return { clientId: d.clientId || null, clientIdFromEnv: !d.clientId && !!clientId(), clientSecretSaved: !!s?.clientSecret, connected: connected(def?.id), scopes: granted(def?.id).map((k) => ({ id: k, label: SCOPE_LABEL[k] })), connectedAt: def?.connectedAt || d.connectedAt || null, needsSignIn: def ? !!def.needsSignIn : !!d.needsSignIn, accounts, setup: SETUP, consoleUrl: "https://console.cloud.google.com/apis/credentials" };
 }
 
 export async function setClient({ clientId: id, clientSecret } = {}) {
@@ -62,21 +84,27 @@ export async function setClient({ clientId: id, clientSecret } = {}) {
   return view();
 }
 
-const pending = new Map(); // state -> { verifier, redirectUri, scopes, user, at }
+const pending = new Map(); // state -> { verifier, redirectUri, scopes, user, at, accountId }
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 const b64url = (b) => Buffer.from(b).toString("base64url");
 
-export function start({ want = {}, redirectUri } = {}) {
+export function start({ want = {}, redirectUri, accountId } = {}) {
   const id = clientId();
   if (!id) throw fail(400, `Add your Google OAuth client ID first. ${SETUP}`, { code: "client_id" });
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
   const keys = ["gmail", "drive", "send"].filter((k) => want[k]);
   if (!keys.length) throw fail(400, "Pick at least one: read Gmail, read Google Drive or send email.");
+  let extraId = null;
+  if (accountId && accountId !== "google") {
+    const a = activeExtra("google", accountId);
+    if (!a) throw fail(404, "That Google account is not in the list.");
+    extraId = a.id;
+  }
   for (const [k, p] of pending) if (Date.now() - p.at > 10 * 60 * 1000 || p.user === userId()) pending.delete(k);
   const verifier = b64url(crypto.randomBytes(48));
   const state = "bh-" + b64url(crypto.randomBytes(24));
   const scopes = keys.map((k) => SCOPES[k]);
-  pending.set(state, { verifier, redirectUri, scopes, user: userId(), at: Date.now() });
+  pending.set(state, { verifier, redirectUri, scopes, user: userId(), at: Date.now(), accountId: extraId });
   const u = new URL(authUrl());
   u.searchParams.set("response_type", "code"); u.searchParams.set("client_id", id); u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("scope", scopes.join(" ")); u.searchParams.set("code_challenge", b64url(crypto.createHash("sha256").update(verifier).digest()));
@@ -114,9 +142,20 @@ export async function finish({ code, state } = {}) {
   const got = String(tok.scope || p.scopes.join(" ")).split(/\s+/).filter(Boolean);
   const extra = got.filter((x) => !p.scopes.includes(x) && !HARMLESS.has(x));
   if (extra.length) throw fail(400, "The sign-in granted more than the helper asked for (for example full Gmail or Drive access). Nothing was saved; check the OAuth client's scopes.", { code: "scope" });
+  const scopes = got.filter((x) => Object.values(SCOPES).includes(x));
+  const expiresAt = tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null;
+  if (p.accountId) {
+    const a = activeExtra("google", p.accountId);
+    if (!a) throw fail(404, "That Google account is not in the list. Nothing was saved.");
+    await setSecret(a.vaultId, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || null, expiresAt });
+    markAccount(a.id, { scopes, connectedAt: Date.now(), needsSignIn: false });
+    const names = Object.entries(SCOPES).filter(([, v]) => scopes.includes(v)).map(([k]) => SCOPE_LABEL[k]);
+    emit("log", { text: `Google account "${a.label}" connected for the browser helper (${names.join(", ")}). The token is in the vault.` });
+    return view();
+  }
   const cur = secret() || {};
-  await setSecret(VAULT_ID, { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || null, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
-  const d = gdoc(); d.scopes = got.filter((x) => Object.values(SCOPES).includes(x)); d.connectedAt = Date.now(); d.needsSignIn = false; saveDoc(d);
+  await setSecret(VAULT_ID, { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || null, expiresAt });
+  const d = gdoc(); d.scopes = scopes; d.connectedAt = Date.now(); d.needsSignIn = false; saveDoc(d);
   emit("log", { text: `Google connected for the browser helper (${granted().map((k) => SCOPE_LABEL[k]).join(", ")}). The token is in the vault.` });
   return view();
 }
@@ -129,8 +168,26 @@ export async function disconnect() {
   return view();
 }
 
-function markSignIn() { const d = gdoc(); d.needsSignIn = true; saveDoc(d); }
-async function accessToken() {
+function markSignIn(accountId) {
+  const extra = accountId ? activeExtra("google", accountId) : null;
+  if (extra) { markAccount(extra.id, { needsSignIn: true }); return; }
+  const d = gdoc(); d.needsSignIn = true; saveDoc(d);
+}
+async function accessToken(accountId) {
+  const extra = activeExtra("google", accountId);
+  if (extra) {
+    const s = getSecret(extra.vaultId) || null;
+    if (!s?.access) throw fail(400, `Google account "${extra.label}" is not connected. Connect it in Settings > Integrations > Browser helper.`, { code: "not_connected" });
+    if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
+      if (!s.refresh) { markAccount(extra.id, { needsSignIn: true }); throw fail(409, `The Google sign-in for "${extra.label}" expired. Connect it again.`, { code: "sign_in" }); }
+      try {
+        const tok = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refresh });
+        await setSecret(extra.vaultId, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || s.refresh, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
+        return tok.access_token;
+      } catch (e) { if (e.network) throw e; markAccount(extra.id, { needsSignIn: true }); throw fail(409, `The Google sign-in for "${extra.label}" expired (${e.message}). Connect it again.`, { code: "sign_in" }); }
+    }
+    return s.access;
+  }
   const s = secret();
   if (!s?.access) throw fail(400, "Google is not connected to the browser helper. Connect it in Settings > Integrations > Browser helper.", { code: "not_connected" });
   if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
@@ -145,18 +202,18 @@ async function accessToken() {
 }
 
 // One call to a Google API. A 401 means "sign in again" (409 to our caller, never 401).
-async function call(url, { method = "GET", body, raw = false } = {}) {
-  const token = await accessToken();
+async function call(url, { method = "GET", body, raw = false } = {}, accountId) {
+  const token = await accessToken(accountId);
   let r;
   try { r = await fetch(url, { method, headers: { authorization: `Bearer ${token}`, accept: raw ? "*/*" : "application/json", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000), redirect: "error" }); }
   catch (e) { throw fail(502, `Could not reach Google: ${netReason(e)}`, { network: true }); }
-  if (r.status === 401) { markSignIn(); throw fail(409, "Google refused the sign-in (401). Connect it again.", { code: "sign_in" }); }
+  if (r.status === 401) { markSignIn(accountId); throw fail(409, "Google refused the sign-in (401). Connect it again.", { code: "sign_in" }); }
   if (r.status === 403) throw fail(403, "Google said no (403): the sign-in does not allow this.");
   if (!r.ok) throw fail(502, `Google answered HTTP ${r.status}.`);
   return raw ? (await r.text()) : r.json();
 }
 
-const need = (k) => { if (!granted().includes(k)) throw fail(403, `The Google sign-in does not include "${SCOPE_LABEL[k]}". Connect again with it ticked.`, { code: "scope" }); };
+const need = (k, accountId) => { if (!granted(accountId).includes(k)) throw fail(403, `The Google sign-in does not include "${SCOPE_LABEL[k]}". Connect again with it ticked.`, { code: "scope" }); };
 const header = (payload, name) => (payload?.headers || []).find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
 const dec = (s) => Buffer.from(String(s || ""), "base64url").toString("utf8");
 function bodyText(payload) {
@@ -167,21 +224,21 @@ function bodyText(payload) {
 }
 
 // ---------- the helper's Google actions ----------
-export async function gmailSearch(query, max = 8) {
-  need("gmail");
+export async function gmailSearch(query, max = 8, accountId) {
+  need("gmail", accountId);
   const base = gmailApi();
-  const list = await call(`${base}/gmail/v1/users/me/messages?${new URLSearchParams({ q: String(query || "").slice(0, 300), maxResults: String(Math.min(10, Math.max(1, max))) })}`);
+  const list = await call(`${base}/gmail/v1/users/me/messages?${new URLSearchParams({ q: String(query || "").slice(0, 300), maxResults: String(Math.min(10, Math.max(1, max))) })}`, {}, accountId);
   const out = [];
   for (const m of (list.messages || []).slice(0, 10)) {
-    const full = await call(`${base}/gmail/v1/users/me/messages/${encodeURIComponent(m.id)}?${new URLSearchParams([["format", "metadata"], ["metadataHeaders", "From"], ["metadataHeaders", "Subject"], ["metadataHeaders", "Date"]])}`);
+    const full = await call(`${base}/gmail/v1/users/me/messages/${encodeURIComponent(m.id)}?${new URLSearchParams([["format", "metadata"], ["metadataHeaders", "From"], ["metadataHeaders", "Subject"], ["metadataHeaders", "Date"]])}`, {}, accountId);
     out.push({ id: m.id, from: header(full.payload, "From"), subject: header(full.payload, "Subject"), date: header(full.payload, "Date"), snippet: String(full.snippet || "").slice(0, 200), link: `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(m.id)}` });
   }
   return out;
 }
-export async function gmailRead(id) {
-  need("gmail");
+export async function gmailRead(id, accountId) {
+  need("gmail", accountId);
   if (!/^[A-Za-z0-9_-]{4,64}$/.test(String(id || ""))) throw fail(400, "That is not a Gmail message id.");
-  const full = await call(`${gmailApi()}/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`);
+  const full = await call(`${gmailApi()}/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`, {}, accountId);
   return { id, from: header(full.payload, "From"), to: header(full.payload, "To"), subject: header(full.payload, "Subject"), date: header(full.payload, "Date"), text: bodyText(full.payload).slice(0, 8000), link: `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}` };
 }
 
@@ -197,30 +254,32 @@ export function checkMail({ to, subject, body } = {}) {
 }
 const encHeader = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 // Only ever called after the person said OK to exactly this email.
-export async function gmailSend(mail) {
-  need("send");
+export async function gmailSend(mail, accountId) {
+  need("send", accountId);
   const m = checkMail(mail);
   const mime = [`To: ${m.to.join(", ")}`, `Subject: ${encHeader(m.subject)}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", m.body].join("\r\n");
-  const r = await call(`${gmailApi()}/gmail/v1/users/me/messages/send`, { method: "POST", body: { raw: Buffer.from(mime, "utf8").toString("base64url") } });
+  const r = await call(`${gmailApi()}/gmail/v1/users/me/messages/send`, { method: "POST", body: { raw: Buffer.from(mime, "utf8").toString("base64url") } }, accountId);
   return { id: r.id || null, to: m.to, subject: m.subject };
 }
 
-export async function driveSearch(query, max = 8) {
-  need("drive");
+export async function driveSearch(query, max = 8, accountId) {
+  need("drive", accountId);
   const q = String(query || "").replace(/['\\]/g, " ").trim().slice(0, 200);
   const params = new URLSearchParams({ q: `(name contains '${q}' or fullText contains '${q}') and trashed = false`, pageSize: String(Math.min(10, Math.max(1, max))), fields: "files(id,name,mimeType,modifiedTime,webViewLink)" });
-  const r = await call(`${driveApi()}/drive/v3/files?${params}`);
+  const r = await call(`${driveApi()}/drive/v3/files?${params}`, {}, accountId);
   return (r.files || []).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modified: f.modifiedTime || null, link: f.webViewLink || null }));
 }
 const EXPORT = { "application/vnd.google-apps.document": "text/plain", "application/vnd.google-apps.spreadsheet": "text/csv", "application/vnd.google-apps.presentation": "text/plain" };
-export async function driveRead(id) {
-  need("drive");
+export async function driveRead(id, accountId) {
+  need("drive", accountId);
   if (!/^[A-Za-z0-9_-]{6,128}$/.test(String(id || ""))) throw fail(400, "That is not a Drive file id.");
   const base = `${driveApi()}/drive/v3/files/${encodeURIComponent(id)}`;
-  const meta = await call(`${base}?${new URLSearchParams({ fields: "id,name,mimeType,modifiedTime,webViewLink,size" })}`);
+  const meta = await call(`${base}?${new URLSearchParams({ fields: "id,name,mimeType,modifiedTime,webViewLink,size" })}`, {}, accountId);
   let text = "";
-  if (EXPORT[meta.mimeType]) text = await call(`${base}/export?${new URLSearchParams({ mimeType: EXPORT[meta.mimeType] })}`, { raw: true });
-  else if (/^text\/|json|csv|xml/.test(meta.mimeType || "") && Number(meta.size || 0) < 2_000_000) text = await call(`${base}?alt=media`, { raw: true });
+  if (EXPORT[meta.mimeType]) text = await call(`${base}/export?${new URLSearchParams({ mimeType: EXPORT[meta.mimeType] })}`, { raw: true }, accountId);
+  else if (/^text\/|json|csv|xml/.test(meta.mimeType || "") && Number(meta.size || 0) < 2_000_000) text = await call(`${base}?alt=media`, { raw: true }, accountId);
   else text = "(the helper can only read Google Docs, Sheets, Slides and text files; this one was not opened)";
   return { id, name: meta.name, mimeType: meta.mimeType, modified: meta.modifiedTime || null, link: meta.webViewLink || null, text: String(text).slice(0, 8000) };
 }
+
+onRemoveLegacy("google", () => disconnect());

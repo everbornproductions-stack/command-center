@@ -1308,3 +1308,16 @@ FEATURE start-a-project DONE (built by Cursor cloud agent)
 - Not verified: a packaged Electron build. Phase 14 stays BLOCKED (needs a Mac).
 
 LIVE OPS BUBBLE SIZE DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Multiple mail accounts (Cursor cloud agent)
+
+Gmail, the browser helper Google sign-in, and Outlook were each one account. This adds more than one, without moving the original token. Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The setup wizard UI was not built.
+
+- `server/mail-accounts.js` is the small API: `listAccounts`, `addAccount`, `removeAccount`, `setDefaultAccount`, `setAccountLabel`. HTTP lives at `/api/mail-accounts` (`server/plugins/mail-accounts.js`). `docs/mail-accounts.md` is the contract a later setup-wizard change can call. It should not add a second copy of these routes.
+- The original account keeps its vault id (`google-helper`, `mail-gmail`, `mail-outlook`). Each added account stores its token under `mail-acct-<id>`. Labels and which account is the default live in the `mail.accounts` doc. Tokens, refresh tokens, authorization codes, and client secrets are not written to that doc, to API replies, or to the log. Removing the original account keeps the OAuth client secret.
+- Settings shows Add another account, a label, and a default choice on the browser helper Google card and on the Gmail and Outlook subscription cards. A browser helper job and a receipt scan can name `accountId`. A council or mission omits it and uses the default. Seen keys for an added mailbox are `src:accountId:messageId`, so two mailboxes do not share a seen list. The original seen keys stay `src:messageId`.
+- Rebased onto origin/main at c391ac2 (Live Ops bubbles sized by the run, wider top menus). Tests: `test/mail-accounts.test.js` plus the existing browser and services suites. npm test 367 tests, 366 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. `data/` was not read or committed.
+- Checked in the browser on the local app against a local OAuth stand-in: empty Add another account asks for a label, a Google account labeled Work shows as default and not connected, Command has an Account picker, and the Outlook card shows Work mail with a default choice and a scan Account picker.
+- Not verified: a real Google or Microsoft sign-in, and a packaged Electron window.
+
+MULTI-ACCOUNT MAIL DONE (built by Cursor cloud agent)

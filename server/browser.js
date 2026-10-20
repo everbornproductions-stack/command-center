@@ -106,7 +106,7 @@ const live = new Map(); // jobId -> { c, stopped, ctl, decide: { id, resolve } |
 
 export function publicJob(j) {
   if (!j) return null;
-  return { id: j.id, agent: AGENT_ID, task: j.task, workspace: j.workspace, source: j.source, needs: j.needs || [], status: j.status, statusLabel: STATUS_LABEL[j.status], via: j.via, driver: j.via, createdAt: j.createdAt, sentAt: j.startedAt || null, startedAt: j.startedAt || null, updatedAt: j.updatedAt, text: j.text || "", artifacts: j.artifacts || [], error: j.error || null, by: j.by || null, history: j.history || [], log: (j.log || []).slice(-60), approval: j.approval || null, steps: j.steps || 0, cost: j.cost || 0, model: j.model || null, late: !!j.late };
+  return { id: j.id, agent: AGENT_ID, task: j.task, workspace: j.workspace, source: j.source, needs: j.needs || [], status: j.status, statusLabel: STATUS_LABEL[j.status], via: j.via, driver: j.via, createdAt: j.createdAt, sentAt: j.startedAt || null, startedAt: j.startedAt || null, updatedAt: j.updatedAt, text: j.text || "", artifacts: j.artifacts || [], error: j.error || null, by: j.by || null, history: j.history || [], log: (j.log || []).slice(-60), approval: j.approval || null, steps: j.steps || 0, cost: j.cost || 0, model: j.model || null, late: !!j.late, accountId: j.accountId || null, accountLabel: j.accountLabel || null };
 }
 export const listJobs = (n = 50) => jobs().slice(0, n).map(publicJob);
 export const runJobs = (runId) => jobs().filter((j) => j.source?.runId === runId).map(publicJob);
@@ -181,9 +181,10 @@ export const waitMs = (kind) => (kind === "council" ? settings().councilWaitSec 
 let chain = Promise.resolve();
 
 // Start a job. Only from a click, or a council / mission the person started.
-export async function dispatch({ task, context = "", source = {}, needs = [] } = {}) {
+export async function dispatch({ task, context = "", source = {}, needs = [], accountId } = {}) {
   const t = String(task || "").trim();
   if (!t) throw bad("The job needs a task.");
+  const acct = accountId ? G.useAccount(accountId) : null;
   const r = readiness();
   if (!r.ready) throw Object.assign(new Error(`The browser helper is ${r.detail}.`), { status: 409, code: "browser_not_ready" });
   const id = "bh-" + crypto.randomBytes(9).toString("base64url");
@@ -193,6 +194,7 @@ export async function dispatch({ task, context = "", source = {}, needs = [] } =
     source: { kind: ["council", "mission", "click"].includes(source.kind) ? source.kind : "click", runId: source.runId || null, taskId: source.taskId || null, projectId: source.projectId || null },
     needs: needs.filter((x) => TAGS.includes(x)), status: "queued", via: r.via, createdAt: now, updatedAt: now, startedAt: null,
     text: "", artifacts: [], error: null, by: null, history: [{ status: "queued", ts: now, note: "created" }], log: [], approval: null, steps: 0, cost: 0, model: null,
+    accountId: acct?.id || null, accountLabel: acct?.label || null,
   };
   const list = jobs(); list.unshift(j); saveJobs(list);
   if (j.source.runId) claimed.add(id);
@@ -254,7 +256,7 @@ function urlProblem(raw) {
 const isPayField = (el) => !!el?.payment;
 
 // Returns { refuse } or { ask: { kind, title, lines } } or {}.
-export function assess(a, snap) {
+export function assess(a, snap, accountId) {
   const els = snap?.elements || [];
   const el = a.ref ? els.find((e) => e.ref === a.ref) : null;
   const page = snap?.url || "";
@@ -301,7 +303,7 @@ export function assess(a, snap) {
       return submitAsk(f, null);
     }
     case "gmail_send": {
-      if (!G.canSend()) return { refuse: "sending email is not allowed: the Google sign-in is read-only (the person can allow sending in Settings)" };
+      if (!G.canSend(accountId)) return { refuse: "sending email is not allowed: the Google sign-in is read-only (the person can allow sending in Settings)" };
       let m; try { m = G.checkMail({ to: a.to, subject: a.subject, body: a.body }); } catch (e) { return { refuse: e.message }; }
       return { ask: { kind: "send", title: `Send an email from your Gmail to ${m.to.join(", ")}`, lines: [`To: ${m.to.join(", ")}`, `Subject: ${m.subject || "(no subject)"}`, "Body:", ...clip(m.body, 3000).split("\n").map((l) => `  ${l}`)] } };
     }
@@ -337,6 +339,8 @@ Rules:
 }
 
 function userPrompt(j, snap, hist, lastResult) {
+  const accountId = j.accountId || undefined;
+  const googleLine = G.connected(accountId) ? `connected (${G.granted(accountId).join(", ")})${j.accountLabel ? ` account "${j.accountLabel}"` : ""}` : "not connected";
   return `TASK: ${j.task}${j.context ? `\nCONTEXT:\n${clip(j.context, 4000)}` : ""}
 STEPS SO FAR:
 ${hist.length ? hist.slice(-12).join("\n") : "(none yet)"}
@@ -346,7 +350,7 @@ PAGE TEXT:
 ${clip(snap.text || "(empty page)", 6000)}
 ELEMENTS:
 ${describeEls(snap)}
-GOOGLE: ${G.connected() ? `connected (${G.granted().join(", ")})` : "not connected"}
+GOOGLE: ${googleLine}
 Your next action (JSON only):`;
 }
 
@@ -375,12 +379,12 @@ async function act(drv, a) {
     default: return "";
   }
 }
-async function googleAct(a) {
-  if (a.action === "gmail_search") { const list = await G.gmailSearch(a.query || a.text || ""); return { line: `Gmail search "${clip(a.query || a.text, 80)}": ${list.length} email${list.length === 1 ? "" : "s"}`, result: list.length ? list.map((m) => `id ${m.id} | ${m.date} | from ${m.from} | ${m.subject} | ${m.snippet}`).join("\n") : "(no emails found)", links: list.slice(0, 3).map((m) => ({ name: `Email: ${clip(m.subject || m.id, 80)}`, url: m.link })) }; }
-  if (a.action === "gmail_read") { const m = await G.gmailRead(a.id); return { line: `read the email "${clip(m.subject, 80)}"`, result: `From: ${m.from}\nTo: ${m.to}\nDate: ${m.date}\nSubject: ${m.subject}\n\n${m.text}`, links: [{ name: `Email: ${clip(m.subject || m.id, 80)}`, url: m.link }] }; }
-  if (a.action === "drive_search") { const list = await G.driveSearch(a.query || a.text || ""); return { line: `Drive search "${clip(a.query || a.text, 80)}": ${list.length} file${list.length === 1 ? "" : "s"}`, result: list.length ? list.map((f) => `id ${f.id} | ${f.name} | ${f.mimeType} | modified ${f.modified || "?"}`).join("\n") : "(no files found)", links: [] }; }
-  if (a.action === "drive_read") { const f = await G.driveRead(a.id); return { line: `read the Drive file "${clip(f.name, 80)}"`, result: `${f.name} (${f.mimeType})\n\n${f.text}`, links: f.link ? [{ name: `Drive: ${clip(f.name, 80)}`, url: f.link }] : [] }; }
-  if (a.action === "gmail_send") { const r = await G.gmailSend({ to: a.to, subject: a.subject, body: a.body }); return { line: `sent the email to ${r.to.join(", ")}`, result: `Sent (Gmail id ${r.id || "unknown"}).`, links: [] }; }
+async function googleAct(a, accountId) {
+  if (a.action === "gmail_search") { const list = await G.gmailSearch(a.query || a.text || "", 8, accountId); return { line: `Gmail search "${clip(a.query || a.text, 80)}": ${list.length} email${list.length === 1 ? "" : "s"}`, result: list.length ? list.map((m) => `id ${m.id} | ${m.date} | from ${m.from} | ${m.subject} | ${m.snippet}`).join("\n") : "(no emails found)", links: list.slice(0, 3).map((m) => ({ name: `Email: ${clip(m.subject || m.id, 80)}`, url: m.link })) }; }
+  if (a.action === "gmail_read") { const m = await G.gmailRead(a.id, accountId); return { line: `read the email "${clip(m.subject, 80)}"`, result: `From: ${m.from}\nTo: ${m.to}\nDate: ${m.date}\nSubject: ${m.subject}\n\n${m.text}`, links: [{ name: `Email: ${clip(m.subject || m.id, 80)}`, url: m.link }] }; }
+  if (a.action === "drive_search") { const list = await G.driveSearch(a.query || a.text || "", 8, accountId); return { line: `Drive search "${clip(a.query || a.text, 80)}": ${list.length} file${list.length === 1 ? "" : "s"}`, result: list.length ? list.map((f) => `id ${f.id} | ${f.name} | ${f.mimeType} | modified ${f.modified || "?"}`).join("\n") : "(no files found)", links: [] }; }
+  if (a.action === "drive_read") { const f = await G.driveRead(a.id, accountId); return { line: `read the Drive file "${clip(f.name, 80)}"`, result: `${f.name} (${f.mimeType})\n\n${f.text}`, links: f.link ? [{ name: `Drive: ${clip(f.name, 80)}`, url: f.link }] : [] }; }
+  if (a.action === "gmail_send") { const r = await G.gmailSend({ to: a.to, subject: a.subject, body: a.body }, accountId); return { line: `sent the email to ${r.to.join(", ")}`, result: `Sent (Gmail id ${r.id || "unknown"}).`, links: [] }; }
   return null;
 }
 const describeAction = (a, el) => {
@@ -428,7 +432,7 @@ async function run(id) {
       const t0 = Date.now();
       let r;
       try {
-        r = await completeFallback({ provider: choice.provider, model: choice.model, maxTokens: 700, signal: L.ctl.signal, system: systemPrompt(G.granted().map((k) => G.SCOPE_LABEL[k])), messages: [{ role: "user", content: userPrompt(j, snap, hist, lastResult) }] },
+        r = await completeFallback({ provider: choice.provider, model: choice.model, maxTokens: 700, signal: L.ctl.signal, system: systemPrompt(G.granted(j.accountId || undefined).map((k) => G.SCOPE_LABEL[k])), messages: [{ role: "user", content: userPrompt(j, snap, hist, lastResult) }] },
           { missionId: j.source?.runId || id, role: "browse", small: true, tools: false, cls: { capability: "analysis", difficulty: 1 }, mode: "economy" });
       } catch (e) {
         if (L.stopped) return;
@@ -457,7 +461,7 @@ async function run(id) {
       }
       if (a.action === "fail") return finish("failed", `could not do it: ${oneLine(a.answer || a.text || a.why, 160)}`, { error: clip(a.answer || a.text || a.why || "The helper could not do it.", 1000), artifacts: links.slice(0, 8) });
 
-      const risk = assess(a, snap);
+      const risk = assess(a, snap, j.accountId || undefined);
       if (risk.refuse) {
         logLine(id, "refused", `${what}: refused (${risk.refuse})`);
         hist.push(`${step}. ${what} -> REFUSED: ${risk.refuse}`);
@@ -487,7 +491,7 @@ async function run(id) {
       }
       // do it
       try {
-        const g = await googleAct(a);
+        const g = await googleAct(a, j.accountId || undefined);
         if (g) {
           logLine(id, "action", g.line);
           hist.push(`${step}. ${what} -> ${g.line}`);

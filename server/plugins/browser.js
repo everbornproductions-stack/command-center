@@ -22,7 +22,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "POST" && (p === "/jobs" || p === "/demo")) {
       const task = p === "/demo" ? DEMO_TASK() : String(body?.task || "").trim();
       if (!task) return h.json(res, 400, { error: "task required" });
-      const job = await dispatch({ task, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null } });
+      const job = await dispatch({ task, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), accountId: body?.accountId || null, source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null } });
       return h.json(res, 202, { job });
     }
     if (m === "POST" && seg[0] === "jobs" && seg[1] && seg[2] === "approve") return h.json(res, 200, { job: decide(seg[1], String(body?.approval || ""), true) });
@@ -36,7 +36,7 @@ export async function routes(req, res, url, body, h) {
       if (m === "POST" && seg[1] === "start") {
         const origin = String(body?.origin || "").replace(/\/$/, "");
         if (!/^https?:\/\/[^\s/]+$/.test(origin)) return h.json(res, 400, { error: "origin required" });
-        return h.json(res, 200, G.start({ want: { gmail: !!body?.gmail, drive: !!body?.drive, send: !!body?.send }, redirectUri: `${origin}/` }));
+        return h.json(res, 200, G.start({ want: { gmail: !!body?.gmail, drive: !!body?.drive, send: !!body?.send }, redirectUri: `${origin}/`, accountId: body?.accountId || null }));
       }
       if (m === "POST" && seg[1] === "finish") return h.json(res, 200, await G.finish({ code: body?.code, state: body?.state }));
       if (m === "DELETE" && !seg[1]) return h.json(res, 200, await G.disconnect());
