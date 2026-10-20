@@ -4,6 +4,7 @@
 import { CAPABILITIES } from "../registry.js";
 import { rank } from "../router.js";
 import { bestAtWhat, saveBrainSettings, resetBrain, exportBrain, sharePreview, cleanCap, cleanDiff } from "../brain.js";
+import { communitySummary, replaceCommunity } from "../community.js";
 export const id = "brain";
 const MODES = ["quality", "balanced", "economy"];
 
@@ -35,6 +36,13 @@ export async function routes(req, res, url, body, h) {
     return true;
   }
   if (req.method === "GET" && p === "/share-preview") return h.json(res, 200, sharePreview());
+  if (req.method === "GET" && p === "/community") return h.json(res, 200, { ...communitySummary(), sent: false });
+  if (req.method === "POST" && p === "/community") {
+    const rows = Array.isArray(body?.rows) ? body.rows : null;
+    if (!rows) return h.json(res, 400, { error: "Send rows: a list of anonymous totals.", sent: false });
+    try { return h.json(res, 200, { ...replaceCommunity(rows), sent: false }); }
+    catch (e) { return h.json(res, e.status || 400, { error: e.message, sent: false }); }
+  }
   if (req.method === "GET" && p === "/capabilities") return h.json(res, 200, CAPABILITIES);
   return false;
 }
