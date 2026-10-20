@@ -117,6 +117,7 @@ export const LABELS = {
   start: "Start a project",
 };
 
+const SETUP_AGAIN = { id: "connect-setup", label: "Run setup again", action: "connect-setup", home: false };
 const TOUR_ITEM = { id: "tour", label: "Take the tour again", action: "tour", home: false };
 const REPLAY_ITEM = { id: "replay-tour", label: "Replay the tour", action: "replay-tour", home: false };
 const EXAMPLES_ITEM = { id: "watch-examples", label: "Watch example projects", action: "examples", home: false };
@@ -178,13 +179,16 @@ export function menuModel(views, layout = "narrow") {
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
   if (split) {
     ensureStart(buckets.settings);
+    buckets.settings.push({ ...SETUP_AGAIN });
     buckets.settings.push({ ...TOUR_ITEM });
     buckets.settings.push({ ...UPDATES_ITEM });
     if (!buckets.guides.some((i) => i.view === "help")) buckets.guides.unshift({ view: "help", label: "Help", home: true });
+    buckets.guides.push({ ...SETUP_AGAIN });
     buckets.guides.push({ ...REPLAY_ITEM });
     buckets.guides.push({ ...EXAMPLES_ITEM });
   } else {
     ensureStart(buckets.help);
+    buckets.help.push({ ...SETUP_AGAIN });
     buckets.help.push({ ...TOUR_ITEM });
     buckets.help.push({ ...UPDATES_ITEM });
   }
@@ -297,6 +301,7 @@ function buttonFor(buttons, view, label) {
 function helpMenu(buttons) {
   const help = menuShell("guides", "Help");
   help.panel.appendChild(buttonFor(buttons, "help", "Help"));
+  help.panel.appendChild(itemButton(SETUP_AGAIN));
   help.panel.appendChild(itemButton(REPLAY_ITEM));
   help.panel.appendChild(itemButton(EXAMPLES_ITEM));
   return help.menu;
@@ -339,6 +344,7 @@ function mountSimple(root, views, buttons) {
   settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
   if (have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
   if (have.has("start")) settings.panel.appendChild(buttonFor(buttons, "start", "Start a project"));
+  settings.panel.appendChild(itemButton(SETUP_AGAIN));
   settings.panel.appendChild(itemButton(TOUR_ITEM));
   root.appendChild(settings.menu);
 }

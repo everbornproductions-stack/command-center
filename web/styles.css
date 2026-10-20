@@ -69,8 +69,8 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .help-item { display: grid; gap: 2px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .help-item:hover, .help-item:focus-visible { border-color: var(--line-2); }
 .help-page textarea, .help-page input[type="search"] { width: 100%; }
-.cmd.simple-chat { grid-template-columns: minmax(0, 720px); justify-content: center; }
-.cmd.simple-chat .orders { grid-row: auto; position: static; max-height: none; }
+.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: auto minmax(0, 1fr); justify-content: center; }
+.cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow-y: auto; max-height: 16rem; }
 #cc-mode-ask { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card { width: 460px; max-width: 100%; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-mode-ask h4 { margin: 0 0 8px; font-size: 18px; }
@@ -92,7 +92,7 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .view { grid-area: view; overflow: auto; padding: 18px; min-height: 0; }
 .feed { grid-area: feed; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: #0a0f18; }
 .feed-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-.feed-list { overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.feed-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
 .ev { display: grid; grid-template-columns: 8px 1fr; gap: 10px; padding: 7px 10px; border-radius: 10px; background: #0f1623; border: 1px solid #16202f; animation: fadein .25s ease; }
 .ev .bar { width: 3px; border-radius: 3px; background: var(--grey); margin-top: 2px; }
 .ev .who { font-weight: 600; font-size: 11px; letter-spacing: .04em; }
@@ -183,10 +183,14 @@ table.tbl tr:hover td { background: #0f172299; }
 }
 
 /* ---- command view ---- */
-.cmd { display: grid; grid-template-columns: 360px minmax(0, 1fr); grid-template-rows: auto auto; gap: 16px; min-height: 100%; align-content: start; }
-.cmd .orders { grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; align-self: start; max-height: calc(100vh - 56px - var(--strip-h) - 36px); }
-.cmd .ops { display: flex; flex-direction: column; }
-.cmd .output { min-height: 220px; }
+/* The view is the page scroller for every other tab. Command fills that pane so each
+   column scrolls on its own. A sticky orders panel with no overflow made the wheel
+   move Live Ops and left the orders form stuck. */
+.cmd { display: grid; grid-template-columns: 360px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; height: 100%; min-height: 0; max-height: 100%; align-content: stretch; }
+.cmd .orders { grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; align-self: stretch; }
+.cmd .ops { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.cmd .output { min-height: 0; overflow-y: auto; }
+@media (min-width: 1251px) { .view:has(> .cmd) { overflow: hidden; } }
 .graph-wrap { position: relative; flex: none; height: 340px; border-radius: 12px; background: radial-gradient(600px 300px at 50% 50%, #0f1a2b 0%, #0a0f18 70%); border: 1px solid var(--line); overflow: hidden; }
 .graph-wrap svg { width: 100%; height: 100%; display: block; }
 .node-label { font-family: var(--sans); font-size: 11px; font-weight: 600; fill: #cbd5e1; text-anchor: middle; pointer-events: none; }
@@ -258,7 +262,7 @@ table.tbl tr:hover td { background: #0f172299; }
 .sig.ok { background: #0f2f26; color: var(--green); }
 .sig.low, .sig.attention { background: #3a1a1a; color: var(--red); }
 .sig.renewing { background: #3b2d10; color: var(--amber); }
-@media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .cmd { grid-template-columns: 1fr; } .cmd .orders { grid-row: auto; } }
+@media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd .ops, .cmd .output, .cmd.simple-chat .orders { overflow: visible; max-height: none; } }
 
 /* ---- phone layout ---- */
 @media (max-width: 760px) {
@@ -283,7 +287,7 @@ table.tbl tr:hover td { background: #0f172299; }
   .tile { min-width: 112px; flex: 0 0 112px; padding: 7px 9px; }
   .tile .meter { margin-top: 4px; }
   .cmd { grid-template-columns: 1fr; grid-template-rows: auto; }
-  .cmd .orders { grid-row: auto; position: static; max-height: none; }
+  .cmd .orders { grid-row: auto; overflow: visible; max-height: none; }
   .cmd .ops, .cmd .output { min-height: 0; }
   .graph-wrap { height: 230px; }
   .panel { padding: 12px; border-radius: 12px; }

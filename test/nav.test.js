@@ -86,7 +86,7 @@ test("breakpoint: narrow stays at five menus, normal splits to eight, wide is in
   assert.equal(help.label, "Help");
   assert.deepEqual(
     help.items.map((i) => i.label),
-    ["Help", "Replay the tour", "Watch example projects"],
+    ["Help", "Run setup again", "Replay the tour", "Watch example projects"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
   assert.equal(groupIdFor("liveview", "wide"), "work");

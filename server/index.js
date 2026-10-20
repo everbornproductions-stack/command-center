@@ -55,6 +55,7 @@ import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedule
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
+import { connectSetupPublic } from "./connect-setup.js";
 let lastScan = null, lastKeys = null;
 
 // The daily check waits until plugins are loaded (custom providers exist) and the
@@ -311,7 +312,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(),
-    onboarding: onboardingState(), pairing: pairingView(),
+    onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
   };
 }
 

@@ -9,7 +9,7 @@ import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -266,7 +266,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null });
   S.plugins = st.plugins || [];
   syncUiMode();
   noteOnboarding(S.onboarding);
@@ -283,7 +283,8 @@ function handle(ev) {
       S.feed = (ev.state.recent || []).filter((e) => ["log", "agent.msg", "agent.error", "agent.start", "agent.done", "provider.status", "ledger.entry"].includes(e.type)).slice(-60);
       const run = ev.state.lastRun;
       if (run && !S.live.id) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
-      if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.view = "setup"; }
+      if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
+      else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
@@ -607,6 +608,7 @@ function render() {
   else if (S.view === "credits") renderCredits(v);
   else if (S.view === "subscriptions") renderSubscriptions(v);
   else if (S.view === "settings") renderSettings(v);
+  else if (S.view === "setup" && S.connectWizard && window.CC.connectSetup) window.CC.connectSetup.render(v);
   else if (S.view === "setup") renderSetup(v);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
@@ -1453,8 +1455,10 @@ $("#tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
   if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
-  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.view = "start"; render(); } return; }
+  if (b.dataset.action === "connect-setup") { closeNav(root); window.CC.connectSetup?.open?.(); return; }
+  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.connectWizard = false; S.view = "start"; render(); } return; }
   if (!b.dataset.view) return;
+  S.connectWizard = false;
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
@@ -1478,6 +1482,7 @@ $("#mobile-nav").addEventListener("click", (e) => {
   document.getElementById("simple-create")?.classList.remove("open");
   if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; }
   if (!b.dataset.view) return;
+  S.connectWizard = false;
   S.view = b.dataset.view; S.openProject = null; render();
 });
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
@@ -1595,7 +1600,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
     });
-    $("#su-skip").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; S.view = "settings"; render(); });
+    $("#su-skip").addEventListener("click", () => finishAiSetup("settings"));
     window.CC.mountPromptInterview?.($("#su-prompts"));
     return;
   }
@@ -1641,5 +1646,31 @@ function renderSetup(v) {
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
-  $("#su-done").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; toast("Setup complete"); S.view = "command"; render(); });
+  $("#su-done").addEventListener("click", () => finishAiSetup("command"));
+}
+// After the existing AI setup, a fresh install continues into Get everything connected.
+async function finishAiSetup(nextView) {
+  let offer = null;
+  try { offer = await api("/connectsetup"); } catch { offer = null; }
+  const showConnect = !!offer?.show;
+  if (showConnect) {
+    try { offer = await api("/connectsetup/begin", { method: "POST" }); } catch { /* the opened flag is enough to resume */ }
+  }
+  try {
+    const saved = await api("/setup/done", { method: "POST" });
+    S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (S.onboarding) S.onboarding.show = false;
+    S.visitedSetup = true;
+    if (showConnect) {
+      S.connectSetup = offer;
+      S.connectWizard = true;
+      S.visitedConnect = true;
+      S.view = "setup";
+    } else {
+      S.connectWizard = false;
+      S.view = nextView;
+      if (nextView === "command") toast("Setup complete");
+    }
+    render();
+  } catch (e) { toast(e.message, true); }
 }
