@@ -1513,14 +1513,37 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
 
+## 2026-10-20: Live Ops reply, Reply to all, and Grok Bot results
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.5 (this ships as v0.4.6). Phase 14 stays BLOCKED (needs a Mac). data/ was not read.
+
+- Live Ops had no way to answer an AI. A reply under each answer, and one for the whole job, stay on that same run.
+- The whole-job box is labeled Reply to all. It sends the message to every AI on that job. A council continues with each member and a new verdict. A mission continues with each specialist and the assembler, using the earlier task outputs and the deliverable.
+- A Grok Bot result already comes back on POST /api/grokbot/callback/<job_id> (or the built-in mock). applyStatus announces it, then settle wakes a waiting council or mission, or, if that run already moved on, the finish listener writes the text onto the council answer or the mission task and emits grokbot.late. Live Ops now shows "waiting on Grok Bot" in that answer row until the text arrives, then shows the result next to the other answers.
+- Reply to all includes Grok Bot only when that job already has a Grok Bot seat. It uses the same dispatch and callback. The row stays on "waiting on Grok Bot" until that handoff is stored on the same run.
+- Opening a finished mission threw `(run.tasks || []).filter is not a function` under the deliverable. Live Ops stores tasks as an id map, and the media section treated that map as a list. It now accepts either shape. The task rows and their reply boxes were already on the page.
+- Tests: npm test 407 tests, 406 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read.
+
+LIVE OPS REPLY DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Windows CI on the Live Ops reply branch
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothing was merged. data/ was not read.
+
+- Pull request check 39485495744 failed in Test. The demo chat "Write a two-line welcome." had already finished its model call. The wait still expired. It was looking for a single newer than the test's own clock, and a Windows runner can step that clock. The saved run then never counts as the one just started. A locked mission file can also vanish from the list for that poll.
+- A chat now returns its run id, and that demo wait follows the id. Saving and reading a mission retries a short Windows lock (EPERM, EBUSY). The demo server closes its socket when the reply is done.
+- Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+WINDOWS DEMO WAIT (built by Cursor cloud agent)
+
 ## 2026-10-20: Windows demo chat hang, and a test that can block the job
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
 
-- Pull request 49, Windows run 39485495744, failed `demo mode: the demo tools server...` after about 2 minutes. The wait was `demo single without tools`. The model calls that did run had already finished. Release run 39477941857 stayed in Test for about 25 minutes (brain `single with learning off` also expired) until the job was canceled.
-- A finished loopback reply no longer stays open for the next chat. The demo server and, in tests, the app server and every mock accept one request per socket and send Connection: close. The pretend answer is always ended; a finished request body is not treated as a dropped client. Saving a mission retries a Windows file lock instead of dropping the run. Tests skip the pretend word-by-word delay.
+- Pull request 49, Windows run 39485495744, failed `demo mode: the demo tools server...` after about 2 minutes. The wait was `demo single without tools`. The model calls that did run had already finished. Release run 39477941857 stayed in Test for about 25 minutes (brain `single with learning off` also expired) until the job was canceled. Main then saved the chat by its run id. A hang can still hold the job, because a test has no timeout of its own.
+- A finished loopback reply no longer stays open for the next chat. The demo server and, in tests, the app server and every mock accept one request per socket and send Connection: close. The pretend answer is always ended; a finished request body is not treated as a dropped client. If a Windows file lock outlasts the rename retries, the mission is written directly instead of being dropped. Tests skip the pretend word-by-word delay.
 - `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process runs one at a time. Each run has a per-test timeout of 8 minutes and force-exits, so a hang fails the test instead of holding the job. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). The release workflow still retries `npm test` once. The pull request check does not.
-- Version stays 0.4.5.
-- Tests here (Linux): npm test 405 tests, 404 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Version stays 0.4.5. Phase 14 stays in the locked run order (decision 14), ahead of phase 2. A step that needs a Mac is still `PHASE 14 BLOCKED`.
+- Tests here (Linux), after merging main: npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)

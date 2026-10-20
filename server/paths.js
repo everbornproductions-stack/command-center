@@ -22,45 +22,61 @@ if (process.env.CC_MODE !== "hosted") {
   fs.mkdirSync(path.join(DATA_DIR, "missions"), { recursive: true });
 }
 
+// Windows can lock a file it just created (scanner, indexer) and then refuse the
+// rename or the next read with EPERM / EBUSY. A short retry lets that lock go.
+const RETRYABLE = new Set(["EPERM", "EBUSY", "EACCES", "UNKNOWN", "EMFILE"]);
+function pause(ms) {
+  try {
+    const sab = new SharedArrayBuffer(4);
+    Atomics.wait(new Int32Array(sab), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* a lock that needs a real pause */ }
+  }
+}
+export function retrySync(fn) {
+  const waits = [0, 40, 80, 160, 320];
+  let last;
+  for (let i = 0; i < waits.length; i++) {
+    if (waits[i]) pause(waits[i]);
+    try { return fn(); }
+    catch (e) {
+      last = e;
+      if (!RETRYABLE.has(e?.code) || i === waits.length - 1) throw e;
+    }
+  }
+  throw last;
+}
+
 export function readJson(file, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return JSON.parse(retrySync(() => fs.readFileSync(file, "utf8")));
   } catch {
     return fallback;
   }
 }
-// A real pause. Windows can refuse a rename while another call still has the
-// destination open (a /state poll reading missions). A tight spin would burn
-// the core; this waits and then tries again.
-function pauseMs(ms) {
-  try {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-  } catch {
-    const until = Date.now() + ms;
-    while (Date.now() < until) {}
-  }
-}
 export function writeJson(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  // A pid in the temp name keeps two writers from sharing one .tmp file.
   const tmp = `${file}.${process.pid}.tmp`;
-  const body = JSON.stringify(obj, null, 2);
-  fs.writeFileSync(tmp, body);
-  let last;
-  for (let i = 0; i < 6; i++) {
-    try {
-      fs.renameSync(tmp, file);
-      return;
-    } catch (e) {
-      last = e;
-      if (!/EPERM|EBUSY|EACCES/i.test(e.code || "")) break;
-      pauseMs(20 * (i + 1));
-    }
-  }
+  const text = JSON.stringify(obj, null, 2);
   try {
-    fs.writeFileSync(file, body);
+    retrySync(() => {
+      fs.writeFileSync(tmp, text);
+      fs.renameSync(tmp, file);
+    });
   } catch (e) {
+    // The lock outlasted the retries. Write the destination directly so the
+    // mission is not dropped, then remove the temp file.
+    if (!RETRYABLE.has(e?.code)) {
+      try { fs.unlinkSync(tmp); } catch {}
+      throw e;
+    }
+    try { fs.writeFileSync(file, text); }
+    catch (e2) {
+      try { fs.unlinkSync(tmp); } catch {}
+      throw e2;
+    }
     try { fs.unlinkSync(tmp); } catch {}
-    throw last || e;
   }
-  try { fs.unlinkSync(tmp); } catch {}
 }

@@ -313,6 +313,9 @@ async function lateAnswer(job) {
     a.error = job.error || `${ANAME} sent no text`;
     observe({ provider: AID, model: AID, capability: c.classification?.capability, difficulty: c.classification?.difficulty, runId: c.id, ok: false });
   }
+  const prev = c.answers?.[AID];
+  if (prev?.thread?.length) a.thread = prev.thread;
+  if (prev?.followPending) a.followPending = true;
   c.answers = { ...(c.answers || {}), [AID]: a };
   save(c);
   emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: AID });

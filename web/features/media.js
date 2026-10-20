@@ -77,7 +77,10 @@ CC.register({
 async function renderDeliverable(el, run) {
     if (!run?.id) { el.innerHTML = ""; return; }
     const text = (run.deliverable || "").replace(/[#*>`]/g, "").trim().slice(0, 400);
-    const steps = (run.tasks || []).filter((t) => t.media);
+    // Live Ops keeps tasks as an id map. A saved mission keeps them as a list.
+    const rawTasks = run?.tasks;
+    const tasks = Array.isArray(rawTasks) ? rawTasks : (rawTasks && typeof rawTasks === "object" ? Object.values(rawTasks) : []);
+    const steps = tasks.filter((t) => t && t.media);
     let jobs = [];
     if (steps.length) { try { jobs = await api(`/media/jobs?missionId=${encodeURIComponent(run.id)}`); } catch {} }
     el.innerHTML = `${jobs.length ? `<div class="panel" style="margin-top:8px"><h3>Media from this mission <span class="right">estimate first · a paid file waits for your OK</span></h3>${jobs.map(jobRow).join("")}</div>` : ""}<div class="row small" style="margin-top:8px"><button class="btn sm" id="md-from">Make media from this</button><span class="dim">opens Media with the prompt pre-filled</span></div>`;

@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, then Do last: Windows code signing, App Store and Google Play listings, 52 (35 to 56 were added on 2026-10-20 and run after 31 to 34, with 35, yearly and lifetime founder billing, first, then 55, 53, 54 and 56; 35, 55, 53, 54 and 56 (including the What's new step and the idea box) are all in progress for version 0.4.6; Do last is the paid distribution work at the end and needs Chris's OK before paying; 12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -226,6 +226,79 @@ Customers never see Supabase or callback / webhook plumbing. Docs only until a l
 - Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
 - Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.
 
+### Phase 35: Billing, yearly and lifetime founder plans (effort: M) (in progress for 0.4.6, runs next)
+Chris, 2026-10-20: do this first. In progress for 0.4.6. The monthly Pro $15.99 Square checkout already exists; do not change it. This phase only adds two Square plans: Pro yearly at $159 a year, and a lifetime founder deal at $299 for the first 100 buyers, then $499, capped at 500 total. Update docs/billing.md to match.
+
+### Phase 55: Update prompts (effort: S) (in progress for 0.4.6, runs right after 35)
+Show an update pop-up at startup with "Update now", and check hourly while the app runs, offering "Restart and update" or "Later" (Later installs on quit). Already exists (checked 2026-10-20): `electron/main.cjs` and `electron/updater.cjs` show a launch prompt ("Install now" / "Later") and check every 30 minutes with a prompt; downloads and installs happen only on click (`autoInstallOnAppQuit` is false). Left to do: the hourly interval, the "Restart and update" / "Later" wording on the running prompt, and install on quit after Later.
+
+### Phase 53: Google Calendar connection (effort: M) (in progress for 0.4.6, runs after 55)
+OAuth connect to Google Calendar, create and update events, and show it in the setup checklist. Free and Pro limits follow the connected-service rules (Free 1 connected service, Pro all). Already exists (checked 2026-10-20): `server/connect-setup.js` lists Google Calendar in the checklist, but today Calendar work is handed to Grok Bot (`server/grokbot.js` calendar tag). There is no direct Calendar OAuth yet. Grok Bot's Calendar handoff stays as it is (decision 15).
+
+### Phase 54: Plain-request actions (effort: M) (in progress for 0.4.6, runs after 53)
+The person types a plain request, for example "email this client and put it on my calendar". The router uses a cheap fast AI to draft the email and the event details. Meldmind itself sends and schedules through the connected Gmail and Calendar, only after one approval click (integrations act only on click). No outside AI touches the accounts. The cost is shown (usually a fraction of a cent).
+
+### Phase 56: Everyday actions (effort: L) (in progress for 0.4.6, runs after 54)
+Plain-request everyday actions built on the Phase 53 and 54 connections. Full plan, evidence and catalog: [docs/plans/everyday-actions.md](plans/everyday-actions.md).
+- Top 10 first: (1) multi-account inbox summary and "reply in my tone" drafts; (2) calendar agenda brief and create or move events from plain text; (3) morning briefing routine (one free, more on Pro); (4) plain-text reminders and tasks; (5) email to task or calendar hold; (6) "What's new" prompt and "Suggest a connection or idea" box; (7) find a time and propose slots; (8) Docs, Drive and Notion find, summarize, save as doc; (9) meeting prep brief and transcript summary with action items; (10) small-business lead follow-up (HighLevel, email and SMS drafts, Pro).
+- Safety rules for every action: read and draft freely, but any send, post, buy, book, delete, pay, share or invite needs one approval click showing the exact content and recipient. No stored passwords (OAuth or the person's own keys in the vault). No money moved without confirming amount, payee and source; the AI never fills payment fields. Scheduled routines only read and prepare; outgoing actions wait in an Approval queue. Every action is logged in Live Ops with undo where the API allows. Bulk actions (more than 10 items) show a count and a sample first. Grok Bot handoffs and MCP tool calls follow the same rules.
+- Onboarding, tour, how-to and help: each new action gets a line in the welcome tour, a short how-to with an example plain request, and a help entry. (The plan file does not have its own section for this yet; add the detail when the phase starts.)
+- "What's new" prompt: on the first launch after an update that adds connections or actions, show a short card list with Connect or Try it, Skip, and Remind me later (snooze 3 days, then once at 7 days, then it moves to Settings, What's new). "Skip all" is offered. Nothing connects without a click, and skipped items never come back as prompts.
+- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline.
+
+### Phase 36: Free and Pro limits (effort: S) (planned, not built)
+Free gets 1 connected service, Pro gets all. Free gets 1 email account per provider, Pro up to 8. The learning router stays free; shared learning and the scores dashboard are Pro. Free gets 3 projects and 5 councils a month. Phone pairing and full history search are Pro. A 14-day Pro trial. docs/billing.md matches.
+- Already implemented (checked 2026-10-20), skip these: the tier table in `server/license.js` (`TIERS.free`: connectedServices 1, emailAccounts 1, projects 3, councilsPerMonth 5, phone, historySearch, sharedLearning and scores off); the guards in `server/service-limit.js`, `server/mail-accounts.js` (Pro cap 8), `server/index.js` (projects, council, historySearch, phone) and `server/plugins/brain.js` (scores, sharedLearning); the 14-day trial in `server/growth.js`; docs/billing.md already lists these limits.
+- Left to do: only gaps found while testing each limit end to end (upgrade prompts and copy). No billing or Square changes.
+
+### Phase 37: Custom backgrounds and themes (effort: M) (planned, not built)
+Built-in background images, solid colors, gradients, the person's own photo, and more color themes. Note: `web/features/themes.js` already has dark/light/system, an accent, gradients, built-in pictures and a local photo; this phase extends it with more themes and images.
+
+### Phase 38: Guided setup checklist (effort: M) (planned, not built)
+A checklist that walks through connecting every service (Gmail, Drive, HighLevel, CapCut and others). Every step is skippable, and anything skipped can be connected later from Settings. Note: `web/features/connect-setup.js` is a starting checklist; extend it, reusing the existing key, OAuth and MCP flows.
+
+### Phase 39: Guided "Start a project" tutorials (effort: L) (planned, not built)
+Walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, taking the person from idea to finished deliverable, shown step by step on the live map. Note: `server/walkthroughs.js` and `web/features/walkthrough.js` already have the wizard; this phase adds the tutorial layer and the live map tie-in.
+
+### Phase 40: Learning tunes routing settings (effort: M) (planned, not built)
+The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18).
+
+### Phase 41: Phone pairing fix (effort: S) (planned, not built)
+The installed app only accepts localhost, so phone pairing fails. Fix LAN and QR pairing so a phone on the same network can pair with the token, still only after pairing is turned on.
+
+### Phase 42: Newsfeed and alerts (effort: M) (planned, not built)
+One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
+
+### Phase 43: Chat rooms with live builds (effort: L) (planned, not built)
+Share a running mission into a room so others can watch it live, and let them copy it as a recipe. Sharing is opt-in per mission; no keys or secrets are shared.
+
+### Phase 44: AI group chat with personas (effort: M) (planned, not built)
+Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
+
+### Phases 45 to 51: No-API app control (planned, not built)
+From docs/plans/app-control.md (PR #47). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green.
+
+### Phase 45: App cards (effort: M) (planned, not built)
+A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
+
+### Phase 46: Score and missions (effort: M) (planned, not built)
+Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
+
+### Phase 47: MCP as an app (effort: M) (planned, not built)
+An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
+
+### Phase 48: Websites (effort: L) (planned, not built)
+Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
+
+### Phase 49: Signed-in profile (effort: M) (planned, not built)
+Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
+
+### Phase 50: Windows desktop (effort: L) (planned, not built)
+UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
+
+### Phase 51: Screenshot fallback (effort: L) (planned, not built)
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+
 ## Planned, not in the run order (Chris, 2026-10-19)
 
 These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start them until Chris adds them to the run order above. They are not phases, and the chain must not build them.
@@ -241,3 +314,19 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 - Bring-your-own project URL and publishable key. Off by default. Never part of normal onboarding.
 - Customers never need to create a Supabase account by default. The normal app uses Everborn's Supabase.
 - Separate from the licence server connection already in Settings. Do not change that connection, and do not touch Square or billing.
+
+## Do last (Chris, 2026-10-20)
+
+These items cost money to distribute the app everywhere. They run after every other phase. Nothing is bought, paid for, or put live without Chris's OK first.
+
+### Phase 14: Mac build
+As written in Phase 14 above. Needs an Apple Developer account ($99 a year) for signing and notarization.
+
+### Windows code-signing certificate (planned, not built)
+Buy a code-signing certificate and sign the Windows installer so SmartScreen stops warning on first run. Certificate secrets go in repo secrets only.
+
+### App Store and Google Play listings (planned, not built)
+Publish the phone app on the Apple App Store (uses the Apple Developer account) and Google Play (one-time developer fee). Store listings, screenshots, and privacy text.
+
+### Phase 52: Hosted online (web) version (effort: L) (planned, not built)
+A hosted web version of the app, so it can be used in a browser without installing. Needs paid hosting. Going live needs Chris's OK before paying for anything.

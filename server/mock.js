@@ -229,6 +229,9 @@ export async function startDemo() {
     // req "close" fires when the request body is finished, which is normal.
     // Stop only when the response socket itself is already gone.
     const canWrite = () => !res.writableEnded && !res.destroyed;
+    // The test process closes its own mock sockets. This server runs inside the app
+    // process, so it has to close its own or Windows reuses the socket and the next call waits.
+    res.setHeader("Connection", "close");
     if (req.method === "GET" && req.url.endsWith("/models")) return endJson(res, 200, { data: DEMO.flatMap((d) => d.models.map((m) => ({ id: m[0] }))) });
     let body = ""; for await (const c of req) body += c;
     let j; try { j = JSON.parse(body); } catch { res.writeHead(400, { connection: "close" }); return res.end(); }
