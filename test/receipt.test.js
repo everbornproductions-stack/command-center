@@ -98,6 +98,28 @@ test("receipt UI: PNG export, Credits tab panel, top bar, no em-dashes", () => {
   for (const f of ["server/plugins/receipt.js", "server/receipt-math.js", "web/features/receipt.js"]) assert.ok(!fs.readFileSync(path.join(ROOT, f), "utf8").includes("—"), `${f} has no em-dash`);
 });
 
+test("you saved counter: this month, all time, estimate label, and tooltip", () => {
+  const ui = fs.readFileSync(path.join(ROOT, "web/features/receipt.js"), "utf8");
+  assert.match(ui, /You saved/);
+  assert.match(ui, /this month/);
+  assert.match(ui, /All time/);
+  assert.match(ui, /Estimate/);
+  assert.match(ui, /data-cc-ms="month"/);
+  assert.match(ui, /data-cc-ms="all"/);
+  assert.match(ui, /t\.month\?\.saved/);
+  assert.match(ui, /t\.allTime\?\.saved/);
+  assert.match(ui, /most expensive flagship/);
+  assert.match(ui, /free or local/);
+  assert.match(ui, /prompt-cache/);
+  assert.match(ui, /cheaper seller/);
+  assert.match(ui, /billed as a batch/);
+  assert.match(ui, /pays the live price/);
+  assert.match(ui, /cc-ms-tip/);
+  assert.match(ui, /\.title = SAVED_TIP/);
+  assert.ok(!ui.includes("—"), "the counter copy has no em-dash");
+  assert.ok(!ui.includes("–"), "the counter copy has no en-dash");
+});
+
 test("money saved: fixed tokens, reference model, frozen prices, projects, manual and free", async () => {
   const DIR = tmpDir("cc-receipt-unit-");
   const savedEnv = {};
@@ -246,4 +268,68 @@ test("money saved: fixed tokens, reference model, frozen prices, projects, manua
       else process.env[k] = v;
     }
   }
+});
+
+test("you saved counter: month and all time follow free, local, cache, batch, and a cheaper seller", async () => {
+  const DIR = tmpDir("cc-saved-counter-");
+  process.env.CC_DATA_DIR = DIR;
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
+  const ledger = await import("../server/ledger.js");
+  const receipt = await import("../server/plugins/receipt.js");
+  const c = store.ctx();
+  c.vaultLoaded = true;
+  c.secrets = { openai: { key: "unit-test-not-a-real-key" } };
+  c.ledger.length = 0;
+  store.putDoc("pricing", {});
+  store.putDoc("receipt.settings", { model: "gpt-6-astra" });
+  store.putDoc("receipt.frozen", { lines: {} });
+  const call = (usage, missionId) => ledger.recordCall({
+    provider: usage.provider, model: usage.model, missionId, usage,
+  });
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+
+  const free = call({ provider: "google", model: "gemini-3.5-flash-lite", input: 1_000_000, output: 0, free: true }, "free-run");
+  assert.equal(free.savings.actual, 0);
+  assert.equal(free.savings.baseline, 10);
+  assert.equal(free.savings.saved, 10, "a free run saves the reference list price");
+
+  const local = call({ provider: "ollama", model: "llama-local", input: 1_000_000, output: 0, cost: 0 }, "local-run");
+  assert.equal(local.cost, 0);
+  assert.equal(local.savings.free, false);
+  assert.equal(local.savings.actual, 0);
+  assert.equal(local.savings.saved, 10, "a local $0 run saves the reference list price");
+
+  const cached = call({
+    provider: "anthropic", model: "claude-haiku-5-5", input: 1_000_000, output: 0,
+    cacheRead: 1_000_000, cacheRate: "anthropic",
+  }, "cache-run");
+  assert.ok(Math.abs(cached.cost - 0.01) < 1e-6, "a reported prompt-cache read is priced at the cache rate");
+  assert.equal(cached.savings.baseline, 10);
+  assert.ok(Math.abs(cached.savings.saved - 9.99) < 1e-6);
+
+  const live = call({ provider: "anthropic", model: "claude-haiku-5-5", input: 1_000_000, output: 0, cost: 0.1 }, "live-run");
+  const batch = call({ provider: "anthropic", model: "claude-haiku-5-5", input: 1_000_000, output: 0, cost: 0.05 }, "batch-run");
+  assert.ok(batch.savings.saved > live.savings.saved, "a batch bill lower than the live price saves more");
+  assert.equal(batch.savings.saved, 9.95);
+  assert.equal(live.savings.saved, 9.9);
+
+  const pricey = call({ provider: "anthropic", model: "claude-opus-5-5", input: 1_000_000, output: 0, cost: 4 }, "pricey-seller");
+  const cheap = call({ provider: "openrouter", model: "claude-haiku-5-5", input: 1_000_000, output: 0, cost: 0.1 }, "cheap-seller");
+  assert.ok(cheap.savings.saved > pricey.savings.saved, "a cheaper seller for the same tokens saves more against the reference model");
+  assert.equal(cheap.savings.saved, 9.9);
+  assert.equal(pricey.savings.saved, 6);
+
+  let t = await receipt.totals();
+  assert.equal(t.label, "Estimated, based on token counts and list prices.");
+  assert.equal(t.month.saved, t.allTime.saved);
+  // 10 free + 10 local + 9.99 cache + 9.9 live + 9.95 batch + 6 pricey seller + 9.9 cheap seller.
+  assert.equal(t.month.saved, 65.74, "this month adds free, local, cache, batch, live, and both sellers");
+
+  const old = c.ledger.find((e) => e.missionId === "live-run");
+  old.ts = monthStart - 40 * 86400000;
+  t = await receipt.totals();
+  assert.equal(t.month.saved, 55.84, "a run from last month is outside this month");
+  assert.equal(t.allTime.saved, 65.74, "all time still includes that run");
+  assert.ok(t.month.saved < t.allTime.saved);
 });

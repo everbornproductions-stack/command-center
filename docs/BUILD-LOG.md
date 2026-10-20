@@ -1437,3 +1437,14 @@ Not Phase 33. Phase 33 stays planned. No locked decision was changed. Phase 14 s
 - Tests: `test/added-caps.test.js`. npm test 400 tests, 399 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed. Phase 33 was not built. Merged with main after appearance pictures landed.
 
 USER-ADDED APPS AND AIS DONE (built by Cursor cloud agent)
+
+## 2026-10-20: You saved counter in the top bar (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Router savings already on main (local models first, cheapest seller, prompt-cache reads, batch as route advice only) were not rewritten.
+
+- The top bar, mounted from `web/features/receipt.js`, now reads You saved with this month and all time. The word Estimate is on the counter. The existing sentence "Estimated, based on token counts and list prices." stays. Hover or focus opens a tooltip: reference-model list price for the same tokens, minus actual cost. Free and local $0 runs, a reported prompt-cache read, a cheaper seller, and a batch price only when that call was billed as a batch all lower the actual cost. A run sent now pays the live price. Settings still says Money saved. This counter does not edit `web/app.js`, `web/index.html`, `web/nav.js`, or `web/styles.css`.
+- Tests: `test/receipt.test.js`. npm test 398 tests, 397 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked in the browser on the local app: the top bar showed You saved $0.0019 this month and All time $0.0039, with Estimate and the list-price sentence. Hover showed the tooltip (reference model, free or local, prompt-cache, cheaper seller, batch only when billed that way, live price for a run sent now). The counter stayed visible in Simple and Expert, and at about 700px wide. Settings still says Money saved.
+- Merged with main at cfd6205 (user-added AI routing). Both the routing and this counter stay.
+
+YOU SAVED COUNTER DONE (built by Cursor cloud agent)
