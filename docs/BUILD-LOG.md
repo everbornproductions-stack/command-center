@@ -1535,3 +1535,16 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 - Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
+
+## 2026-10-20: Phase 35 yearly and lifetime plans, Phase 55 update prompts
+
+No locked decision was changed. Version stays 0.4.5. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not called and nothing was charged.
+
+- Phase 35: Pro yearly is $159 a year, and the lifetime founder deal is $299 for the first 100, then $499, capped at 500. The monthly checkout stays the existing Square link https://square.link/u/dbU38mQC at $15.99 a month. Yearly and lifetime show in the Subscriptions lock and in Settings. Their Square links are not published, so those buttons do not open a checkout and do not charge. A seat count in this install's founder-seats.json picks $299 or $499. Tests use a mock checkout. docs/billing.md matches.
+- Phase 55: the startup prompt stays Install now / Later and still does not download until Install now. The background check is hourly. While the app is running the prompt says Restart and update / Later. Later on that prompt downloads after the click and installs when you quit. An unsigned Mac build still does not download on Later.
+- The plan's run-order tests now follow the order Chris merged on 2026-10-20. Decision 14's original order stays in docs/DECISIONS.md.
+- Tests here (Linux): npm test 414 tests, 413 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine: the Subscriptions lock shows Go Pro, $15.99/month on the existing link, Pro yearly, $159/year, and Lifetime founder. Clicking yearly and lifetime says nothing was charged. Settings shows the same choices.
+
+PHASE 35 DONE
+PHASE 55 DONE
