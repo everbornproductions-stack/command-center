@@ -33,9 +33,14 @@ export async function routes(req, res, url, body, h) {
     }
     if (p === "/mcp") {
       const pid = String(body.provider || "");
-      const r = await linkMcp(pid, body || {});
+      const origin = req.headers.origin || "http://127.0.0.1";
+      const r = await linkMcp(pid, { ...(body || {}), redirectUri: body?.redirectUri || `${String(origin).replace(/\/$/, "")}/` });
       if (r.ok) markLinked(h, pid);
-      h.emit("log", { text: r.ok ? `${h.PROVIDERS[pid]?.name || pid} MCP server connected (${r.tools.length} tool${r.tools.length === 1 ? "" : "s"}).` : `${h.PROVIDERS[pid]?.name || pid} MCP server saved, but it could not be reached: ${r.error}` });
+      const name = h.PROVIDERS[pid]?.name || pid;
+      const line = r.ok
+        ? (r.oauthUrl ? `${name} sign-in started.` : `${name} MCP server connected (${r.tools.length} tool${r.tools.length === 1 ? "" : "s"}).`)
+        : (r.quiet ? `${name}: ${r.error}` : `${name} MCP server saved, but it could not be reached.`);
+      h.emit("log", { text: line });
       return h.json(res, 200, { ...r, view: view() });
     }
   } catch (e) { return fail(res, h, e); }

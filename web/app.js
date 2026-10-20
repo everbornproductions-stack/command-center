@@ -2,6 +2,7 @@ import { AgentGraph } from "/graph.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { composerAis } from "./composer-ais.js";
+import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 
 // ---------------- state ----------------
 const S = {
@@ -284,10 +285,21 @@ function handle(ev) {
       renderAll(); return;
     }
     case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view) && !window.CC?.byKind?.("tab").some((f) => f.id === S.view)) render(); return;
-    case "provider.status": { const p = P(ev.provider); if (p) p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance }; renderStrip(); graph?.setStatus(ev.provider, ev.status); pushFeed(ev); return; }
-    case "agent.start": onAgentStart(ev); pushFeed(ev); return;
+    case "provider.status": {
+      const p = P(ev.provider);
+      if (p) {
+        p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance };
+        if (p.access && isPausedStatus(ev.status, ev.detail)) { p.access.paused = true; p.access.label = PAUSE_LABEL; }
+        else if (p.access?.label === PAUSE_LABEL) { p.access.paused = false; p.access.label = p.keyed ? null : p.access.label; }
+      }
+      renderStrip();
+      if (!quietProvider(p)) graph?.setStatus(ev.provider, ev.status);
+      if (!(p && isPausedStatus(ev.status, ev.detail))) pushFeed(ev);
+      return;
+    }
+    case "agent.start": if (quietProvider(P(ev.provider))) return; onAgentStart(ev); pushFeed(ev); return;
     case "agent.delta": onAgentDelta(ev); return;
-    case "agent.done": onAgentEnd(ev, false); pushFeed(ev); return;
+    case "agent.done": if (quietProvider(P(ev.provider))) return; onAgentEnd(ev, false); pushFeed(ev); return;
     case "agent.error": onAgentEnd(ev, true); pushFeed(ev); return;
     case "agent.msg": graph?.pulse(ev.from, ev.to, ev.text); pushFeed(ev); return;
     case "task.update": onTask(ev); return;
@@ -306,6 +318,7 @@ function ensureLive(id, kind) {
   if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
+  if (quietProvider(P(ev.provider))) return;
   ensureLive(ev.missionId);
   S.live.agents[ev.agent] = { ...ev, text: "", done: false };
   if (["chair", "assemble", "answer"].includes(ev.role) && (S.live.kind !== "council" || ev.role === "chair")) S.live.primary = ev.agent;
@@ -412,10 +425,12 @@ function renderStrip() {
       else if (sub.renews) line = `renews ${sub.renews.slice(5)}`;
       else line = p.status?.detail && p.status.detail !== "no key" ? p.status.detail : "tracked";
     }
-    const active = S.activeByProvider[p.id] > 0;
+    if (pausedNow(p)) line = PAUSE_LABEL;
+    else if (p.access?.label) line = p.access.label;
+    const active = S.activeByProvider[p.id] > 0 && !quietProvider(p);
     if (active) badge = `${S.activeByProvider[p.id]} working`;
-    const stLight = p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
-    const lightWord = { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight;
+    const stLight = pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
+    const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
     return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
@@ -729,7 +744,7 @@ function renderCommand(v) {
   const agents = S.providers.filter((p) => p.kind === "agent");
   graph.setProviders([...textKeyed, ...textGrey, ...agents, ...media]);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
-  for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0) graph.activate(pid, "working");
+  for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
@@ -1071,7 +1086,7 @@ function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
-      <span class="chip ${p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.status?.detail || "")}">${esc(p.status?.detail || "no key")}</span></div>
+      <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}</div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
     ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
     ${p.connect?.both ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
@@ -1090,14 +1105,17 @@ function renderSettings(v) {
       <input type="password" data-conn-headers="${p.id}" placeholder="Header (optional): Authorization: Bearer ..." style="width:100%;margin-top:6px" autocomplete="off">
       <div class="dim small" style="margin-top:4px">The header is sealed in the vault with your other MCP secrets. This is the same Tools connection, not a second one.</div>
     </div>` : ""}
-    ${p.links?.keys && !p.keyed && (p.hasApi || p.connect?.both) ? `<div class="row small" style="margin-top:8px"><a class="btn sm" href="${esc(p.links.keys)}" target="_blank" rel="noopener">Get a ${esc(p.name)} API key</a><span class="dim">then paste it below</span></div>` : ""}
-    ${!p.hasApi && !p.connect?.both ? `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>` : `<div class="row" style="margin-top:10px">
+    ${p.access?.note && ["mcp", "oauth", "handoff", "local"].includes(p.access.auth) ? `<div class="dim small" style="margin-top:8px">${esc(p.access.note)}</div>` : ""}
+    ${(p.access?.auth === "mcp" || p.access?.auth === "oauth") && p.access.connect ? `<div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-mcp-connect="${p.id}">Connect</button></div>` : ""}
+    ${p.links?.keys && !p.keyed && (p.hasApi || p.connect?.both || p.access?.auth === "key") ? `<div class="row small" style="margin-top:8px"><a class="btn sm" href="${esc(p.links.keys)}" target="_blank" rel="noopener">Get a ${esc(p.name)} API key</a><span class="dim">then paste it below</span></div>` : ""}
+    ${p.access?.auth === "key" || p.hasApi || p.connect?.both || p.noKey ? `<div class="row" style="margin-top:10px">
       ${p.noKey ? `<span class="small dim" style="flex:1">No key needed (runs on this PC)</span>` : `<input type="password" placeholder="${p.keyed ? `saved: ${p.masked}` : p.keyHint || "API key"}" data-key="${p.id}" style="flex:1" autocomplete="off">`}
       ${p.id === "kling" ? `<input type="password" placeholder="secret key" data-secret="${p.id}" style="flex:1" autocomplete="off">` : ""}
       ${p.id === "anthropic" ? `<input type="text" placeholder="workspace ID (optional)" value="${esc(p.workspaceId || "")}" data-ws="${p.id}" style="width:170px;font-family:var(--mono)" autocomplete="off" title="Only for keys that must name a workspace. Sent as anthropic-workspace-id on every Claude request.">` : ""}
       ${p.noKey ? "" : `<button class="btn sm" data-save-key="${p.id}">Save &amp; test</button>`}
       ${p.keyed && p.keyScope !== "managed" ? `<button class="btn sm" data-test="${p.id}">Test</button><button class="btn sm danger" data-rm-key="${p.id}">Remove</button>` : ""}
-    </div>`}
+    </div>` : (["handoff", "local", "mcp", "oauth"].includes(p.access?.auth) ? "" : `<div class="dim small" style="margin-top:8px">No public API: credits are tracked from what you log, and the links below open the real thing.</div>`)}
+    ${p.kind !== "agent" ? `<label class="row small" style="margin-top:8px;gap:8px">Plan <select data-plan="${p.id}" aria-label="Plan for ${esc(p.name)}">${[["unknown", "Unknown"], ["free", "Free"], ["paid", "Paid"]].map(([v, lab]) => `<option value="${v}" ${p.plan === v ? "selected" : ""}>${lab}</option>`).join("")}</select>${p.planSource === "guess" ? `<span class="dim">guessed</span>` : ""}</label>` : ""}
     <div class="row small" style="margin-top:8px;gap:12px">${Object.entries(p.links || {}).filter(([, u]) => u).map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${k}</a>`).join("")}</div>
     ${p.kind === "text" ? `<div class="models">${p.models.map((m) => `<div class="mrow" data-model="${esc(m.id)}"><span class="mono" title="${esc(m.id)}">${esc(m.name)} <span class="dim">· ${m.tier}</span></span><input type="number" step="0.01" value="${m.in}" data-in title="$ per 1M input tokens"><input type="number" step="0.01" value="${m.out}" data-out title="$ per 1M output tokens"><button class="ghost small" data-price>save $</button></div>`).join("")}
       ${p.liveModels?.length ? `<div class="dim small" style="margin-top:6px">Your account can also see: ${p.liveModels.slice(0, 14).map(esc).join(", ")}${p.liveModels.length > 14 ? "…" : ""}</div>` : ""}</div>` : ""}
@@ -1144,6 +1162,21 @@ function renderSettings(v) {
         <div class="grid" style="gap:10px">${mediaP.map(card).join("")}</div></div>
     </div>
   </div>`;
+  $$("[data-plan]", v).forEach((sel) => sel.addEventListener("change", async () => {
+    try { await api("/access/plan", { method: "POST", body: { provider: sel.dataset.plan, plan: sel.value } }); await refresh(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  $$("[data-mcp-connect]", v).forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.mcpConnect;
+    b.disabled = true;
+    try {
+      const r = await api("/connect/mcp", { method: "POST", body: { provider: id } });
+      if (r.oauthUrl) { localStorage.setItem("cc.mcp.oauth", r.serverId); window.open(r.oauthUrl, "_blank", "noopener"); toast("Sign in, then come back to this page."); }
+      else if (r.ok) toast("Connected");
+      else toast(r.error || r.detail || "Could not connect", !r.quiet);
+      await refresh();
+    } catch (e) { toast(e.quiet ? e.message : (P(id)?.access?.note || e.message), true); b.disabled = false; }
+  }));
   $$("[data-save-key]", v).forEach((b) => b.addEventListener("click", async () => {
     const id = b.dataset.saveKey; const key = $(`[data-key="${id}"]`, v).value.trim(); const secret = $(`[data-secret="${id}"]`, v)?.value.trim();
     const wsEl = $(`[data-ws="${id}"]`, v); const workspaceId = wsEl ? wsEl.value.trim() : undefined;

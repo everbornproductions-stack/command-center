@@ -9,6 +9,9 @@ import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
 import { troubled, freeNow, completeFallback } from "./fallback.js";
 import { adjust } from "./brain.js";
+import { describePause } from "./pause.js";
+import { unconnectedMcp } from "./provider-access.js";
+import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -89,6 +92,10 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // is skipped for new work while another is available; it comes back on the next good health check or call
   const skip = troubled();
   if (Object.keys(skip).length && list.some((m) => !skip[m.provider])) list = list.filter((m) => !skip[m.provider]);
+  // paused (no credits, spending limit, payment required, rate limited) and an MCP that is not signed in
+  // stay out of auto-picks while any other model can take the job
+  const blocked = (m) => !!describePause(m.provider) || unconnectedMcp(m.provider);
+  if (list.some((m) => !blocked(m))) list = list.filter((m) => !blocked(m));
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
@@ -111,11 +118,12 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const free = small && freeNow(m.provider, m.model);
     const bonus = free ? 40 : 0;
     const skipReason = skip[m.provider]?.reason || null;
+    const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus).toFixed(1) };
   });
-  return scored.sort((a, b) => b.score - a.score);
+  return applyPreferFree(scored.sort((a, b) => b.score - a.score), readPreferFree());
 }
 
 // Would waiting for a discount window save real money on this job? Looks 48 h ahead.

@@ -9,7 +9,7 @@ import { classify, recordOutcome, rank } from "./router.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
 import { observe } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
@@ -105,7 +105,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- Round 1: everyone answers, in parallel, streaming ----
   await Promise.all(members.map(async (m, i) => {
     let agent = `${id}:${m.provider}`;
-    emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
+    const sitting = trouble(m.provider);
+    if (!(sitting && (sitting.kind === "credits" || sitting.kind === "rate"))) emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
     const s = Date.now();
     let text = "", usage = null, citations = null;
     try {

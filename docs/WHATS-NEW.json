@@ -36,6 +36,11 @@
       "Pasting a key recognizes Gemini auth keys (AQ.) and older AIza keys, plus Claude, ChatGPT, Grok, OpenRouter, and Groq. Gemini is checked on Google's own models list.",
       "Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour again and Check for updates are both there.",
       "Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. The QR code and the link both include the pairing code. It stays off until you turn it on.",
+      "Out of credits, a spending limit, or a rate limit pauses that AI. The strip says Paused: no credits, with a billing link. Auto-picks skip it until a health check clears it or you save the key again.",
+      "CapCut connects with its MCP sign-in, not an API key. The strip says Not connected until you Connect, then Connected. If it cannot connect, the card says US access is coming soon.",
+      "Each provider shows how it connects: No key, Not connected, Handoff, or Local app.",
+      "Set a provider to Free, Paid, or Unknown. Simple mode can prefer free AIs when quality is similar.",
+      "After a run, one upgrade tip can name an AI that usually does that task better, with a link to add credits or a key. Tips stay off during a run.",
       "This note shows once after an update. Take the tour again any time from Settings."
     ]
   },

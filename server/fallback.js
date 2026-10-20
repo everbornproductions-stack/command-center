@@ -23,6 +23,7 @@ import { bus, emit } from "./events.js";
 import { chatWithTools } from "./mcp.js";
 import { rank, heuristicClassify } from "./router.js";
 import { allEntries } from "./ledger.js";
+import { describePause } from "./pause.js";
 
 export const KIND = "fallback.settings";
 export const STATE = "fallback.state";
@@ -254,6 +255,13 @@ export async function* fallbackChat(opts, run = {}) {
       tried.push({ provider, model });
       const next = nextChoice({ provider, model, tried, cls, mode, small, settings });
       if (next) yield switchTo(next, t.kind, `skipped, ${t.detail || "known problem"}`, false);
+      else if (t.kind === "credits" || t.kind === "rate") {
+        const info = describePause(provider);
+        const e = new Error(info?.message || `${nameOf(provider)} is paused: no credits. Add credits to use it.`);
+        e.code = "paused";
+        e.status = 402;
+        throw e;
+      }
     }
   }
 

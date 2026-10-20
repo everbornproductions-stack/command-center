@@ -6,7 +6,7 @@
 import { PROVIDERS } from "./registry.js";
 import { getSecret, hasSecret, maskedKey } from "./vault.js";
 import { checkProvider } from "./health.js";
-import { addServer, connectServer, executeTool, findServer, toolReadOnly } from "./mcp.js";
+import { addServer, connectServer, executeTool, findServer, toolReadOnly, serverView, oauthStart } from "./mcp.js";
 import { doc as readDoc, putDoc } from "./store.js";
 
 export const CHOICE_DOC = "connect.choice";
@@ -68,8 +68,10 @@ export function connectionOf(id) {
   const server = stored.serverId ? findServer(stored.serverId) : null;
   const mcpOn = !!server;
   const key = { configured: keyOn, masked: keyOn ? maskedKey(id, p.keyEnv) : null };
+  const signedIn = !!(server && serverView(server).oauth?.signedIn);
   const mcp = {
     configured: mcpOn,
+    signedIn,
     serverId: server?.id || null,
     name: server?.name || null,
     transport: server?.transport || null,
@@ -77,11 +79,15 @@ export function connectionOf(id) {
     tools: (server?.lastTools || []).map((t) => t.name).slice(0, 40),
   };
   if (isCouncil(id)) {
-    return { id, both: false, council: true, methods: ["key"], active: "key", note: COUNCIL_CARD, key, mcp: { configured: false, serverId: null, name: null, transport: null, url: null, tools: [] }, ready: keyOn, route: keyOn ? ["key"] : [] };
+    return { id, both: false, council: true, methods: ["key"], active: "key", note: COUNCIL_CARD, key, mcp: { configured: false, signedIn: false, serverId: null, name: null, transport: null, url: null, tools: [] }, ready: keyOn, route: keyOn ? ["key"] : [] };
+  }
+  if (p.auth === "mcp" || p.auth === "oauth") {
+    const linked = p.mcpOauth || p.auth === "oauth" ? signedIn : mcpOn;
+    return { id, both: false, council: false, methods: ["mcp"], active: "mcp", note: p.authNote || null, key, mcp, ready: linked, route: linked ? ["mcp"] : [] };
   }
   if (!isDual(id)) {
     const methods = p.api || p.keyEnv ? ["key"] : [];
-    return { id, both: false, council: false, methods, active: "key", note: null, key, mcp: { configured: false, serverId: null, name: null, transport: null, url: null, tools: [] }, ready: keyOn, route: keyOn ? ["key"] : [] };
+    return { id, both: false, council: false, methods, active: "key", note: null, key, mcp: { configured: false, signedIn: false, serverId: null, name: null, transport: null, url: null, tools: [] }, ready: keyOn, route: keyOn ? ["key"] : [] };
   }
   return {
     id, both: true, council: false, methods: ["key", "mcp"], active: stored.active, note: DUAL_NOTE,
@@ -107,13 +113,14 @@ export async function linkMcp(id, input = {}) {
   const p = PROVIDERS[id];
   if (!p) throw err(400, "unknown provider");
   if (isCouncil(id)) throw err(400, COUNCIL_NOTE, "council_key");
-  if (!isDual(id)) throw err(400, `${p.name} does not offer an MCP connection.`);
+  const mcpAuth = p.auth === "mcp" || p.auth === "oauth";
+  if (!isDual(id) && !mcpAuth) throw err(400, `${p.name} does not offer an MCP connection.`);
   const prev = choiceOf(id);
   const row = await addServer({
     id: prev.serverId || undefined,
     name: String(input.name || `${p.name} MCP`).slice(0, 60),
     transport: input.transport || "http",
-    url: input.url,
+    url: input.url || (p.mcpOauth ? p.mcpUrl : undefined),
     command: input.command,
     args: input.args,
     cwd: input.cwd,
@@ -123,20 +130,29 @@ export async function linkMcp(id, input = {}) {
   const d = readChoices();
   d.choices[id] = { active: "mcp", serverId: row.id };
   saveChoices(d);
+  if (p.mcpOauth || p.auth === "oauth") {
+    try {
+      const started = await oauthStart(row.id, { redirectUri: input.redirectUri || "http://127.0.0.1/" });
+      return { ok: true, error: null, quiet: false, tools: [], oauthUrl: started.url, serverId: row.id, connection: connectionOf(id) };
+    } catch (e) {
+      const detail = p.authFail || scrubMessage(id, e.message);
+      return { ok: false, error: detail, quiet: !!p.authFail, tools: [], serverId: row.id, connection: connectionOf(id) };
+    }
+  }
   let error = null;
   let tools = [];
   try {
     const sess = await connectServer(row.id, { refresh: true });
     tools = (sess.tools || []).map((t) => t.name);
-  } catch (e) { error = scrubMessage(id, e.message); }
-  return { ok: !error, error, tools, connection: connectionOf(id) };
+  } catch (e) { error = p.authFail || scrubMessage(id, e.message); }
+  return { ok: !error, error, quiet: !!p.authFail && !!error, tools, connection: connectionOf(id) };
 }
 
 export async function testConnection(id, mode) {
   const p = PROVIDERS[id];
   if (!p) throw err(400, "unknown provider");
   const conn = connectionOf(id);
-  if ((mode === "mcp") && (conn.council || !conn.both)) throw err(400, conn.council ? COUNCIL_NOTE : `${p.name} connects with an API key.`, conn.council ? "council_key" : "connect_invalid");
+  if (mode === "mcp" && !conn.methods.includes("mcp")) throw err(400, conn.council ? COUNCIL_NOTE : `${p.name} connects with an API key.`, conn.council ? "council_key" : "connect_invalid");
   const m = mode === "mcp" ? "mcp" : mode === "key" ? "key" : conn.active;
   if (m === "mcp") {
     if (!conn.mcp.configured) return { ok: false, mode: "mcp", detail: "No MCP server connected." };
@@ -144,7 +160,7 @@ export async function testConnection(id, mode) {
       const sess = await connectServer(conn.mcp.serverId, { refresh: true });
       const n = sess.tools?.length || 0;
       return { ok: true, mode: "mcp", detail: `Connected. ${n} tool${n === 1 ? "" : "s"}.`, tools: (sess.tools || []).map((t) => t.name).slice(0, 40) };
-    } catch (e) { return { ok: false, mode: "mcp", detail: `Could not reach the MCP server: ${scrubMessage(id, e.message)}` }; }
+    } catch (e) { return { ok: false, mode: "mcp", quiet: !!p.authFail, detail: p.authFail || `Could not reach the MCP server: ${scrubMessage(id, e.message)}` }; }
   }
   if (!conn.key.configured) return { ok: false, mode: "key", detail: "No API key saved." };
   const status = await checkProvider(id);
