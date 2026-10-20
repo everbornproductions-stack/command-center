@@ -1,4 +1,13 @@
 {
+  "0.4.6": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Pro yearly is $159 a year. Lifetime founder is $299 for the first 100, then $499, and it stops at 500. Those buttons do not charge.",
+      "While the app is open it checks again every hour. That prompt says Restart and update and Later. Later downloads the update and installs it when you quit.",
+      "A packaged install includes what the engine needs to start. If the app did not open, install this update.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
   "0.4.5": {
     "title": "What's new in Meldmind",
     "bullets": [

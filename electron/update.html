@@ -34,14 +34,19 @@
     const busy = s.phase === "downloading" || s.phase === "downloaded";
     $("bar").style.display = busy ? "block" : "none";
     $("fill").style.width = `${s.percent || 0}%`;
+    const running = s.offer === "running";
     $("install").disabled = busy; $("later").disabled = busy;
-    $("install").textContent = busy ? "Installing..." : "Install now";
+    $("install").textContent = busy ? "Installing..." : (running ? "Restart and update" : "Install now");
     $("msg").className = "msg" + (s.error ? " err" : "");
-    $("msg").textContent = s.error ? `Update failed: ${s.error}. Try again.` : s.phase === "downloading" ? `Downloading ${s.percent || 0}%` : s.phase === "downloaded" ? "Restarting into the new version..." : "";
+    const msg = s.error ? `Update failed: ${s.error}. Try again.`
+      : s.phase === "downloading" ? `Downloading ${s.percent || 0}%`
+      : s.phase === "downloaded" ? (s.installOnQuit ? "Downloaded. It will install when you quit." : "Restarting into the new version...")
+      : (running ? "Later downloads the update and installs it when you quit." : "");
+    $("msg").textContent = msg;
   }
   window.ccDesktop.onUpdate(show);
   window.ccDesktop.updateState().then(show);
   $("install").onclick = () => { $("install").disabled = true; window.ccDesktop.installUpdate().catch(() => {}); };
-  $("later").onclick = () => { window.ccDesktop.later().then(() => window.close()); };
+  $("later").onclick = () => { $("later").disabled = true; window.ccDesktop.later().catch(() => {}); };
 </script>
 </body></html>

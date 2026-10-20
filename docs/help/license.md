@@ -1,8 +1,8 @@
 ---
 id: license
 title: Licence redeem
-summary: Activate a licence key, see Free and Pro limits, or start a 14-day Pro trial. Nothing is charged from this screen.
-lastUpdatedVersion: 0.4.4
+summary: Activate a licence key, see Free and Pro prices, or start a 14-day Pro trial. Nothing is charged from this screen.
+lastUpdatedVersion: 0.4.6
 ---
 
 # Licence redeem
@@ -16,3 +16,5 @@ Free includes 3 projects and 5 councils a month, 1 connected service, and 1 emai
 Phone pairing and full history search are Pro. The router stays free. Shared learning and the scores dashboard are Pro.
 
 A 14-day Pro trial can be started in the app. The trial is not started for you, and nothing is charged.
+
+Pro is $15.99 a month on the existing Square checkout. Pro yearly is $159 a year. Lifetime founder is $299 for the first 100, then $499, and it stops at 500. The yearly and lifetime Square links are not published yet, so those buttons do not charge.

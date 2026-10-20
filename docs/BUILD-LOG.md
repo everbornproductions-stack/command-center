@@ -1536,15 +1536,29 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5. Nothi
 
 WINDOWS DEMO WAIT (built by Cursor cloud agent)
 
+## 2026-10-20: Phase 35 yearly and lifetime plans, Phase 55 update prompts
+
+No locked decision was changed. Version stays 0.4.5. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not called and nothing was charged.
+
+- Phase 35: Pro yearly is $159 a year, and the lifetime founder deal is $299 for the first 100, then $499, capped at 500. The monthly checkout stays the existing Square link https://square.link/u/dbU38mQC at $15.99 a month. Yearly and lifetime show in the Subscriptions lock and in Settings. Their Square links are not published, so those buttons do not open a checkout and do not charge. A seat count in this install's founder-seats.json picks $299 or $499. Tests use a mock checkout. docs/billing.md matches.
+- Phase 55: the startup prompt stays Install now / Later and still does not download until Install now. The background check is hourly. While the app is running the prompt says Restart and update / Later. Later on that prompt downloads after the click and installs when you quit. An unsigned Mac build still does not download on Later.
+- The plan's run-order tests now follow the order Chris merged on 2026-10-20. Decision 14's original order stays in docs/DECISIONS.md.
+- Commit e6cd060: Add yearly and lifetime Pro plans, and hourly update prompts.
+- Tests here (Linux): npm test 414 tests, 413 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine: the Subscriptions lock shows Go Pro, $15.99/month on the existing link, Pro yearly, $159/year, and Lifetime founder. Clicking yearly and lifetime says nothing was charged. Settings shows the same choices.
+
+PHASE 35 DONE
+PHASE 55 DONE
+
 ## 2026-10-20: a hung Windows test fails the job instead of holding it
 
-Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. This change does not set a version number. Main is already 0.4.6.
 
 - Pull request 49 (commit 8f871f9) already fixed the demo wait: the chat returns its run id, the wait follows that id, saving and reading a mission retries a Windows file lock, and the demo server closes its socket. This change does not do that again.
 - Release run 39477941857 stayed in Test for about 25 minutes and was canceled. A test still has no timeout of its own, so one hang holds the job.
 - `npm test` still runs the stdio and demo file alone first. On Windows every other file that starts a helper process then runs one at a time. Each run sets a per-test timeout of 8 minutes and force-exits, so a hang fails the test and an open socket cannot keep the process alive. That ceiling sits above the longest real wait in the suite (the demo mission budget, 6 minutes on Windows). When a test ends, the child server is killed as a tree, including on the way out of the process. The release workflow still retries `npm test` once. The pull request check does not.
-- Version stays 0.4.5. Phase 14 stays in the locked run order (decision 14), ahead of phase 2. A step that needs a Mac is still `PHASE 14 BLOCKED`.
-- Tests here (Linux): npm test 408 tests, 407 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 - Windows pull request check 39495943898 passed on windows-latest: Test, smoke, package, and the installer check. 14m14s. Head d6f9ac0.
+- The next check, 39498139773, failed in Test. Main had moved to 0.4.6, and the help catalog was still stamped 0.4.5, so the release gate failed. The catalog and the licence and updates articles are stamped 0.4.6, and What's new has bullets for that version. No new version number was chosen here.
+- Tests here (Linux), after merging main: npm test 414 tests, 413 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
