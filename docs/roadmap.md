@@ -31,3 +31,16 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## After app control (planned, not built)
+
+Chris, 2026-10-20. These six run after desktop and app control (build-plan phases 45 to 51). They are plan only. Do not build them yet. They are not part of the 0.4.8 release. The same safety rules apply: nothing posts, sends, buys, or spends without a click, and Square stays untouched.
+
+| # | Phase | Feature | Done looks like |
+|---|---|---|---|
+| 13 | 57 | Recipes | Record one desktop-control task and replay it on a schedule. Per-app Allow, a second click before send, buy, or delete, a banner with Stop, and no stored passwords. A replay that would send, buy, or delete waits. This does not replace pipelines or the existing schedules. |
+| 14 | 58 | Second-opinion mode | Two AIs cross-check an important answer and flag disagreements. The person still decides. Council stays as it is. |
+| 15 | 59 | Cost guard | A monthly budget cap, plus the live counter "you saved $X by smart routing". The existing You saved estimate and the per-AI spend caps stay. At 100% a new paid run waits. |
+| 16 | 60 | Phone approvals | A push to the paired phone approves a send or a buy. That tap is the second click. Declining sends nothing. Pairing stays off until it is turned on. |
+| 17 | 61 | Team spaces | Shared projects, keys, and recipes for a small business, as a paid tier above Pro. Phase 8 workspaces stay. Do not rebuild them. The price is a placeholder until Chris sets it. |
+| 18 | 62 | Industry starter packs | Real estate, insurance, credit repair, and other packs live in Prompts, grouped by industry. Picking one drops it into Marching orders, prefilled and editable. Nothing runs until it is sent. Outbound text stays a draft. |
