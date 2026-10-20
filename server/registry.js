@@ -10,7 +10,7 @@ const M = (id, name, tier, inp, out, caps, extra = {}) => ({ id, name, tier, in:
 
 export const PROVIDERS = {
   anthropic: {
-    id: "anthropic", name: "Claude", vendor: "Anthropic", color: "#D97757", kind: "text", api: "anthropic",
+    id: "anthropic", name: "Claude", vendor: "Anthropic", color: "#D97757", kind: "text", auth: "key", api: "anthropic",
     baseUrl: "https://api.anthropic.com", keyEnv: "ANTHROPIC_API_KEY", keyHint: "sk-ant-api03-…",
     links: { app: "https://claude.ai", console: "https://platform.claude.com", billing: "https://platform.claude.com/settings/billing", keys: "https://platform.claude.com/settings/keys", status: "https://status.claude.com" },
     statusApi: "https://status.claude.com/api/v2/status.json",
@@ -21,7 +21,7 @@ export const PROVIDERS = {
     ],
   },
   openai: {
-    id: "openai", name: "ChatGPT", vendor: "OpenAI", color: "#10A37F", kind: "text", api: "openai",
+    id: "openai", name: "ChatGPT", vendor: "OpenAI", color: "#10A37F", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.openai.com/v1", keyEnv: "OPENAI_API_KEY", keyHint: "sk-proj-…",
     links: { app: "https://chatgpt.com", console: "https://platform.openai.com", billing: "https://platform.openai.com/settings/organization/billing/overview", usage: "https://platform.openai.com/usage", keys: "https://platform.openai.com/api-keys", status: "https://status.openai.com" },
     statusApi: "https://status.openai.com/api/v2/status.json",
@@ -32,7 +32,7 @@ export const PROVIDERS = {
     ],
   },
   xai: {
-    id: "xai", name: "Grok", vendor: "xAI", color: "#E8E8E8", kind: "text", api: "openai",
+    id: "xai", name: "Grok", vendor: "xAI", color: "#E8E8E8", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.x.ai/v1", keyEnv: "XAI_API_KEY", keyHint: "xai-…",
     links: { app: "https://grok.com", console: "https://console.x.ai", billing: "https://console.x.ai", keys: "https://console.x.ai", status: "https://status.x.ai" },
     statusApi: null,
@@ -43,7 +43,7 @@ export const PROVIDERS = {
     ],
   },
   google: {
-    id: "google", name: "Google Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", api: "gemini",
+    id: "google", name: "Google Gemini", vendor: "Google", color: "#4E8CFF", kind: "text", auth: "key", api: "gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta", keyEnv: "GEMINI_API_KEY", keyHint: "AQ.… or AIza… (from aistudio.google.com/apikey)",
     links: { app: "https://gemini.google.com", console: "https://aistudio.google.com", billing: "https://aistudio.google.com/usage", keys: "https://aistudio.google.com/apikey", status: "https://status.cloud.google.com" },
     statusApi: "google-incidents",
@@ -54,7 +54,7 @@ export const PROVIDERS = {
     ],
   },
   perplexity: {
-    id: "perplexity", name: "Perplexity", vendor: "Perplexity", color: "#20B8CD", kind: "text", api: "openai",
+    id: "perplexity", name: "Perplexity", vendor: "Perplexity", color: "#20B8CD", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.perplexity.ai/router/v1", keyEnv: "PERPLEXITY_API_KEY", keyHint: "pplx-…",
     links: { app: "https://www.perplexity.ai", console: "https://www.perplexity.ai/settings/api", billing: "https://www.perplexity.ai/settings/api", keys: "https://www.perplexity.ai/settings/api", status: "https://status.perplexity.com" },
     statusApi: "https://status.perplexity.com/api/v2/status.json",
@@ -64,7 +64,7 @@ export const PROVIDERS = {
     ],
   },
   openrouter: {
-    id: "openrouter", name: "OpenRouter", vendor: "OpenRouter", color: "#8B5CF6", kind: "text", api: "openai",
+    id: "openrouter", name: "OpenRouter", vendor: "OpenRouter", color: "#8B5CF6", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://openrouter.ai/api/v1", keyEnv: "OPENROUTER_API_KEY", keyHint: "sk-or-v1-…", balanceApi: "openrouter-key",
     links: { app: "https://openrouter.ai/chat", console: "https://openrouter.ai", billing: "https://openrouter.ai/settings/credits", keys: "https://openrouter.ai/settings/keys", status: "https://status.openrouter.ai" },
     statusApi: null,
@@ -75,7 +75,7 @@ export const PROVIDERS = {
     ],
   },
   deepseek: {
-    id: "deepseek", name: "DeepSeek", vendor: "DeepSeek", color: "#4D6BFE", kind: "text", api: "openai",
+    id: "deepseek", name: "DeepSeek", vendor: "DeepSeek", color: "#4D6BFE", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.deepseek.com", keyEnv: "DEEPSEEK_API_KEY", keyHint: "sk-…",
     links: { app: "https://chat.deepseek.com", console: "https://platform.deepseek.com", billing: "https://platform.deepseek.com/usage", keys: "https://platform.deepseek.com/api_keys", status: "https://status.deepseek.com" },
     statusApi: "https://status.deepseek.com/api/v2/status.json", balanceApi: "deepseek-balance",
@@ -85,7 +85,7 @@ export const PROVIDERS = {
     ],
   },
   groq: {
-    id: "groq", name: "Groq", vendor: "Groq", color: "#F55036", kind: "text", api: "openai",
+    id: "groq", name: "Groq", vendor: "Groq", color: "#F55036", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.groq.com/openai/v1", keyEnv: "GROQ_API_KEY", keyHint: "gsk_…",
     links: { app: "https://groq.com", console: "https://console.groq.com", billing: "https://console.groq.com/settings/billing", keys: "https://console.groq.com/keys", status: "https://groqstatus.com" },
     statusApi: "https://groqstatus.com/api/v2/status.json",
@@ -95,7 +95,7 @@ export const PROVIDERS = {
     ],
   },
   mistral: {
-    id: "mistral", name: "Mistral", vendor: "Mistral AI", color: "#FF7000", kind: "text", api: "openai",
+    id: "mistral", name: "Mistral", vendor: "Mistral AI", color: "#FF7000", kind: "text", auth: "key", api: "openai",
     baseUrl: "https://api.mistral.ai/v1", keyEnv: "MISTRAL_API_KEY", keyHint: "…",
     links: { app: "https://chat.mistral.ai", console: "https://console.mistral.ai", billing: "https://console.mistral.ai/billing", keys: "https://console.mistral.ai/api-keys", status: "https://status.mistral.ai" },
     statusApi: "https://status.mistral.ai/api/v2/status.json",
@@ -107,46 +107,52 @@ export const PROVIDERS = {
 
   // ---- Media and creative tools: tracked for credits, status and links. ----
   kling: {
-    id: "kling", name: "Kling AI", vendor: "Kuaishou", color: "#7CF5A0", kind: "media", api: "kling",
+    id: "kling", name: "Kling AI", vendor: "Kuaishou", color: "#7CF5A0", kind: "media", auth: "key", api: "kling",
     keyEnv: "KLING_ACCESS_KEY", keyHint: "access key + secret key (API)", unit: "credits",
     links: { app: "https://app.klingai.com", console: "https://app.klingai.com/global/dev", billing: "https://app.klingai.com/global/membership", status: null },
   },
   suno: {
-    id: "suno", name: "Suno", vendor: "Suno", color: "#FF5A5F", kind: "media", api: null, unit: "credits",
+    id: "suno", name: "Suno", vendor: "Suno", color: "#FF5A5F", kind: "media", auth: "handoff", api: null, unit: "credits",
+    authNote: "Suno has no API in this app. Open suno.com to use it.",
     links: { app: "https://suno.com", console: "https://suno.com/create", billing: "https://suno.com/account", status: null },
   },
   flow: {
-    id: "flow", name: "Google Flow (Veo)", vendor: "Google Labs", color: "#A78BFA", kind: "media", api: null, unit: "AI credits",
+    id: "flow", name: "Google Flow (Veo)", vendor: "Google Labs", color: "#A78BFA", kind: "media", auth: "handoff", api: null, unit: "AI credits",
+    authNote: "Google Flow is a web app. This app does not take an API key for it.",
     links: { app: "https://flow.google.com", console: "https://labs.google", billing: "https://one.google.com/ai", status: null },
   },
   syncso: {
-    id: "syncso", name: "Sync.so", vendor: "sync. labs", color: "#F59E0B", kind: "media", api: "syncso", keyEnv: "SYNC_API_KEY", keyHint: "sk-…", unit: "credits",
+    id: "syncso", name: "Sync.so", vendor: "sync. labs", color: "#F59E0B", kind: "media", auth: "key", api: "syncso", keyEnv: "SYNC_API_KEY", keyHint: "sk-…", unit: "credits",
     links: { app: "https://sync.so", console: "https://sync.so", billing: "https://sync.so", status: null },
   },
   hedra: {
-    id: "hedra", name: "Hedra", vendor: "Hedra", color: "#38BDF8", kind: "media", api: null, unit: "credits",
-    links: { app: "https://www.hedra.com", console: "https://www.hedra.com/app", billing: "https://www.hedra.com/app", status: null },
+    id: "hedra", name: "Hedra", vendor: "Hedra", color: "#38BDF8", kind: "media", auth: "key", api: null, keyEnv: "HEDRA_API_KEY", keyHint: "API key", unit: "credits",
+    links: { app: "https://www.hedra.com", console: "https://www.hedra.com/app", billing: "https://www.hedra.com/app", keys: "https://www.hedra.com/app", status: null },
   },
   elevenlabs: {
-    id: "elevenlabs", name: "ElevenLabs", vendor: "ElevenLabs", color: "#FACC15", kind: "media", api: "elevenlabs", keyEnv: "ELEVENLABS_API_KEY", keyHint: "sk_…", unit: "characters",
+    id: "elevenlabs", name: "ElevenLabs", vendor: "ElevenLabs", color: "#FACC15", kind: "media", auth: "key", api: "elevenlabs", keyEnv: "ELEVENLABS_API_KEY", keyHint: "sk_…", unit: "characters",
     links: { app: "https://elevenlabs.io/app", console: "https://elevenlabs.io/app/settings/api-keys", billing: "https://elevenlabs.io/app/subscription", status: "https://status.elevenlabs.io" },
     statusApi: "https://status.elevenlabs.io/api/v2/status.json",
   },
   // image generation (Phase 21): Flux through Replicate or fal; keys in the vault, spend in the ledger and caps
   replicate: {
-    id: "replicate", name: "Replicate", vendor: "Replicate", color: "#EA580C", kind: "media", api: null, keyEnv: "REPLICATE_API_TOKEN", keyHint: "r8_…", unit: "images",
+    id: "replicate", name: "Replicate", vendor: "Replicate", color: "#EA580C", kind: "media", auth: "key", api: null, keyEnv: "REPLICATE_API_TOKEN", keyHint: "r8_…", unit: "images",
     links: { app: "https://replicate.com", console: "https://replicate.com/account/api-tokens", billing: "https://replicate.com/account/billing", keys: "https://replicate.com/account/api-tokens", status: null },
   },
   fal: {
-    id: "fal", name: "fal.ai", vendor: "fal", color: "#8B5CF6", kind: "media", api: null, keyEnv: "FAL_KEY", keyHint: "key id:secret", unit: "images",
+    id: "fal", name: "fal.ai", vendor: "fal", color: "#8B5CF6", kind: "media", auth: "key", api: null, keyEnv: "FAL_KEY", keyHint: "key id:secret", unit: "images",
     links: { app: "https://fal.ai", console: "https://fal.ai/dashboard/keys", billing: "https://fal.ai/dashboard/billing", keys: "https://fal.ai/dashboard/keys", status: null },
   },
   cursor: {
-    id: "cursor", name: "Cursor", vendor: "Anysphere", color: "#E5E7EB", kind: "tool", api: null, unit: "requests",
+    id: "cursor", name: "Cursor", vendor: "Anysphere", color: "#E5E7EB", kind: "tool", auth: "local", api: null, unit: "requests",
+    authNote: "Cursor is an app on this PC. It does not use an API key here.",
     links: { app: "https://cursor.com", console: "https://cursor.com/dashboard", billing: "https://cursor.com/settings", status: "https://status.cursor.com" },
   },
   capcut: {
-    id: "capcut", name: "CapCut", vendor: "ByteDance", color: "#F472B6", kind: "tool", api: null,
+    id: "capcut", name: "CapCut", vendor: "ByteDance", color: "#F472B6", kind: "tool", auth: "mcp", api: null,
+    mcpOauth: true, mcpUrl: "https://www.capcut.com/api/external_mcp",
+    authNote: "CapCut lists the MCP as available outside the US, with US access coming soon.",
+    authFail: "CapCut lists the MCP as available outside the US, with US access coming soon.",
     links: { app: "https://www.capcut.com", console: "https://www.capcut.com", billing: "https://www.capcut.com", status: null },
   },
 };

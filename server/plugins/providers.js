@@ -89,7 +89,7 @@ const cleanModels = (m) => [...new Set((Array.isArray(m) ? m : String(m || "").s
 // Turn a stored entry into a PROVIDERS record the rest of the app understands.
 function toProvider(e, i = 0) {
   return {
-    id: e.id, name: e.name, vendor: "Custom", color: e.color || COLORS[i % COLORS.length], kind: "text", api: e.api, custom: true, noKey: !!e.noKey,
+    id: e.id, name: e.name, vendor: "Custom", color: e.color || COLORS[i % COLORS.length], kind: "text", auth: e.noKey ? "local" : "key", api: e.api, custom: true, noKey: !!e.noKey,
     baseUrl: e.baseUrl, keyEnv: null, keyHint: e.noKey ? "no key needed" : "API key",
     links: { keys: e.keysUrl || null, console: e.baseUrl.replace(/\/v\d+.*$/, "") || null },
     statusApi: null,

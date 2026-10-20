@@ -16,3 +16,9 @@ If Meldmind cannot tell which provider a key is for, it says so and shows a prov
 A green light means the key was accepted. "Key rejected (401)" means the provider refused it. "Could not reach" means a network problem, not a bad key. A rejected key is not treated as connected.
 
 The chips under the chat box list only AIs you have connected. Demo stays there only until a real AI is connected.
+
+Each provider shows how it connects: No key, Not connected, Handoff, or Local app. No key is only for a real API key. Not connected, with a Connect button, is for sign-in or MCP. Handoff is for a site you open yourself. Local app is for an app on this PC, such as Cursor.
+
+CapCut connects with its MCP sign-in, not an API key. The strip says Not connected until you Connect, then Connected. CapCut lists that MCP as available outside the US, with US access coming soon. If it cannot connect, the card says that instead of an error.
+
+Set a provider to Free, Paid, or Unknown. Simple mode can prefer free AIs when quality is similar. You can turn that off under Free AIs and upgrade tips.

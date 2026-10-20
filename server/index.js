@@ -24,8 +24,12 @@ import {
   preferredLanIPv4, probePort, readInterfaces, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
-import { allStatus, checkAll, checkProvider, startHealthLoop, liveModels, noteCall, getStatus } from "./health.js";
+import { allStatus, checkAll, checkProvider, liveModels, noteCall, getStatus } from "./health.js";
 import { connectionOf } from "./connect.js";
+import { noteKeySaved, stampAfterCheck, startCreditHealthLoop, describePause, pauseNotice } from "./pause.js";
+import { accessFor } from "./provider-access.js";
+import { planInfo } from "./plans.js";
+import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
@@ -40,7 +44,7 @@ import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, 
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
@@ -151,13 +155,23 @@ function providerView() {
   const st = allStatus();
   return Object.values(PROVIDERS)
     .filter((p) => !p.demo || hasSecret(p.id)) // demo AIs only for the user who turned demo on
-    .map((p) => ({
+    .map((p) => {
+      const plan = planInfo(p.id);
+      return {
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined,
-      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" }, connect: connectionOf(p.id),
+      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" }, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, learned: learnedDeltas(m.id), default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
-    }))
+    }; })
     .concat(hubAgents()); // Grok Bot and the browser helper: their own hub cards (kind "agent", Phase 12)
+}
+
+function finishPausedChat({ id, prompt, projectId, customAgent, message, billing, provider }) {
+  const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "failed", startedAt: Date.now(), finishedAt: Date.now(), provider: provider || null, model: null, cost: 0, deliverable: message, error: message, sources: [], toolCalls: [], fallbacks: [], notice: { kind: "paused", provider: provider || null, billing: billing || null, text: message }, ...(customAgent ? { customAgent } : {}) };
+  ctx().store.saveMission(m, missionSummary({ ...m, title }));
+  emit("mission.update", { mission: { ...m, title, tasks: [] } });
+  return m;
 }
 
 function rulesView() {
@@ -333,7 +347,12 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   if (!provider || !model) {
     cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     const best = rank({ ...cls, mode: settings().defaultMode })[0];
-    if (!best) throw new Error("No AI available. Add a key in Settings.");
+    const pausedPick = best ? describePause(best.provider) : null;
+    if (!best || pausedPick) {
+      const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
+      if (named) return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider });
+      throw new Error("No AI available. Add a key in Settings.");
+    }
     provider = best.provider; model = best.model;
   }
   let agent = `${id}:${provider}`;
@@ -350,7 +369,9 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
   const ask = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
   m.memory = ask.includes(MEMORY_MARKER);
-  emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  const known = trouble(provider);
+  const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
+  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
@@ -380,12 +401,16 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     }
     m.status = "done";
   } catch (err) {
-    if (err.code !== "cap") noteCall(provider, false, Date.now() - s, err.status); // a spend-cap stop is not the provider's failure
-    emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
-    if (!troubleKind(err)) observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
+    if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err.status); // a spend-cap stop is not the provider's failure; a pause was already known
+    if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
+    if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     m.status = "failed"; m.error = err.message;
+    if (err.code === "paused") m.deliverable = err.message;
   }
-  m.deliverable = text; m.finishedAt = Date.now();
+  if (!m.deliverable) m.deliverable = text;
+  const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
+  if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
+  m.finishedAt = Date.now();
   ctx().store.saveMission(m, missionSummary({ ...m, title }));
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
@@ -431,14 +456,16 @@ async function api(req, res, url) {
     // Anthropic: optional workspace ID, sent as anthropic-workspace-id on every Anthropic request
     if (body.provider === "anthropic") { const ws = body.workspaceId !== undefined ? String(body.workspaceId || "").trim() : prev?.workspaceId || ""; if (ws && !/^[A-Za-z0-9_-]{4,100}$/.test(ws)) return json(res, 400, { error: "That does not look like a workspace ID (letters, digits, _ and - only)." }); if (ws) value.workspaceId = ws; }
     await setSecret(body.provider, value);
+    noteKeySaved(body.provider);
     const t0 = Date.now() - 1;
     const st = await checkProvider(body.provider);
+    stampAfterCheck(body.provider);
     const demoRetired = await retireDemoIfReal(t0);
     return json(res, 200, { ok: true, status: st, masked: maskedKey(body.provider), demoRetired });
   }
-  if (method === "DELETE" && seg[0] === "keys" && seg[1]) { await setSecret(seg[1], null); await checkProvider(seg[1]); return json(res, 200, { ok: true }); }
-  if (method === "POST" && p === "/check") { await checkAll(); return json(res, 200, allStatus()); }
-  if (method === "POST" && seg[0] === "check" && seg[1]) return json(res, 200, await checkProvider(seg[1]));
+  if (method === "DELETE" && seg[0] === "keys" && seg[1]) { noteKeySaved(seg[1]); await setSecret(seg[1], null); await checkProvider(seg[1]); stampAfterCheck(seg[1]); return json(res, 200, { ok: true }); }
+  if (method === "POST" && p === "/check") { await checkAll(); for (const id of Object.keys(PROVIDERS)) stampAfterCheck(id); return json(res, 200, allStatus()); }
+  if (method === "POST" && seg[0] === "check" && seg[1]) { const st = await checkProvider(seg[1]); stampAfterCheck(seg[1]); return json(res, 200, st); }
 
   if (method === "POST" && p === "/council") {
     let job = body;
@@ -894,7 +921,7 @@ async function initContext() {
         emit("log", { text: pairingError });
       }
     }
-    startHealthLoop();
+    startCreditHealthLoop();
     startUpdateLoop();
     startLicenseLoop();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
