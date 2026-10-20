@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "fictional": true,
+  "readonly": true,
+  "costsAreSample": true,
+  "label": "Example data",
+  "disclaimer": "Example data. This is a sample project with made-up details. Nothing was sent and no AI was called.",
+  "type": "social-reels",
+  "walkthroughType": "reels",
+  "name": "Social media reels",
+  "category": "Social Posts",
+  "business": "Milo's Guitar",
+  "idea": "Four short reels for Milo's Guitar, a neighborhood studio teaching first chords to adults. The viewer should book a trial lesson.",
+  "questions": [
+    {
+      "key": "brand",
+      "label": "Brand and topic",
+      "required": true,
+      "placeholder": "Milo's Guitar, first chords for adults",
+      "answer": "Milo's Guitar, first chords for adults."
+    },
+    {
+      "key": "count",
+      "label": "How many reels?",
+      "required": true,
+      "placeholder": "Four",
+      "answer": "Four reels."
+    },
+    {
+      "key": "platform",
+      "label": "Where will they run?",
+      "required": false,
+      "placeholder": "Instagram and TikTok",
+      "answer": "Instagram."
+    },
+    {
+      "key": "next",
+      "label": "What should the viewer do next?",
+      "required": false,
+      "placeholder": "Book a trial lesson",
+      "answer": "Book a trial lesson."
+    }
+  ],
+  "plan": {
+    "title": "Four reels for Milo's Guitar",
+    "source": "example",
+    "assembly": "One card per reel: hook, what to film, caption, and the next step.",
+    "steps": [
+      {
+        "id": "t1",
+        "title": "The four hooks",
+        "capability": "creative",
+        "difficulty": 2,
+        "deps": [],
+        "instructions": "Four hooks, no extra reels. Each hook is for an adult learning first chords. The next step is a trial lesson.",
+        "deliverable": "Hooks",
+        "status": "done",
+        "provider": "google",
+        "model": "example",
+        "agentName": "Gemini",
+        "why": "This sample routes the four hooks to Gemini. The step is short creative lines for adults learning chords, and the example treats that as Gemini's job. The model id stays example because no live model was called.",
+        "costUsd": 0.02,
+        "timeMinutes": 2,
+        "output": "1. Your first chord can be one finger.\n2. Bring the guitar you already own.\n3. Ten minutes, then you stop.\n4. Adults only. No recital in this room.\n\nFour reels, not five. Milo's Guitar is fictional. The viewer ask on every reel is: book a trial lesson."
+      },
+      {
+        "id": "t2",
+        "title": "What to film",
+        "capability": "creative",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "One shot idea for each hook. Calm and filmable in a small studio. No crowd, no paid actor.",
+        "deliverable": "Shots",
+        "status": "done",
+        "provider": "anthropic",
+        "model": "example",
+        "agentName": "Claude",
+        "why": "This sample routes the shot ideas to Claude. The step is one calm, filmable shot per hook, and the example treats that restraint as Claude's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "1. Close on one finger pressing one string. Hold, then a single strum.\n2. A guitar case opens on a chair. Hands lift the guitar. No face required.\n3. A phone timer at 10:00, then the same timer stopped. One chord in between.\n4. Empty chairs, two of them, and a quiet room. A hand waves once at the camera.\n\nFilm only what you are willing to post. No clip was made in this sample. A paid clip waits until you click Approve."
+      },
+      {
+        "id": "t3",
+        "title": "Captions",
+        "capability": "writing",
+        "difficulty": 2,
+        "deps": [
+          "t1"
+        ],
+        "instructions": "One caption each. The ask is a trial lesson, in the same words on every reel. Do not invent a price or a schedule.",
+        "deliverable": "Captions",
+        "status": "done",
+        "provider": "openai",
+        "model": "example",
+        "agentName": "GPT",
+        "why": "This sample routes the captions to GPT. The step is four short captions with one repeated ask, and the example treats that writing as GPT's job. The model id stays example because no live model was called.",
+        "costUsd": 0.03,
+        "timeMinutes": 3,
+        "output": "1. One finger is enough to start. Book a trial lesson.\n2. The guitar you have is the right one for the first night. Book a trial lesson.\n3. Ten minutes, then you are done for the day. Book a trial lesson.\n4. The room is for adults learning first chords. Book a trial lesson.\n\nPrice of the lesson is [ASK]. Days and times are [ASK]. The studio address is [ASK].\nThese captions were not posted."
+      },
+      {
+        "id": "t4",
+        "title": "Posting hold",
+        "capability": "analysis",
+        "difficulty": 1,
+        "deps": [
+          "t2",
+          "t3"
+        ],
+        "instructions": "State that nothing goes out from here. List what is still [ASK] before a real post.",
+        "deliverable": "Hold",
+        "status": "done",
+        "provider": "xai",
+        "model": "example",
+        "agentName": "Grok",
+        "why": "This sample routes the posting hold to Grok. The step is a stop so nothing is published from the draft, and the example treats that stop as Grok's job. The model id stays example because no live model was called.",
+        "costUsd": 0.01,
+        "timeMinutes": 1,
+        "output": "Nothing goes out from this sample.\n\nBefore you post any reel yourself:\n- Read each caption out loud.\n- Fill price [ASK], schedule [ASK], and address [ASK], or leave them out.\n- Post only the shots you are willing to show.\n- Instagram is the only platform in this sample. Other apps are [ASK].\n\nA paid clip waits until you click Approve in Media. No clip was generated here."
+      }
+    ]
+  },
+  "reviewNotes": [
+    {
+      "stepId": "t3",
+      "note": "Read the trial-lesson ask out loud. It should be the same words on every reel.",
+      "change": "Each caption ends with the same line: Book a trial lesson."
+    }
+  ],
+  "deliverableSummary": "Example data: four Instagram reel cards for fictional Milo's Guitar. Each one has a hook, a calm shot, and a caption that ends with \"Book a trial lesson.\" Price and schedule stay [ASK]. Nothing was posted.",
+  "deliverable": "Four reels for Milo's Guitar (Example data)\n\nMilo's Guitar is fictional. Four reels for adults learning first chords. The viewer ask is a trial lesson. Platform in this sample: Instagram.\n\n1. Hook: Your first chord can be one finger. Film one finger and one strum. Caption ends: Book a trial lesson.\n2. Hook: Bring the guitar you already own. Film the case opening. Caption ends: Book a trial lesson.\n3. Hook: Ten minutes, then you stop. Film a timer. Caption ends: Book a trial lesson.\n4. Hook: Adults only. No recital in this room. Film two empty chairs. Caption ends: Book a trial lesson.\n\nPrice, days, and the address are [ASK]. The sample review made the ask identical on every caption.\n\nNothing was posted. A paid clip waits until you click Approve. Film only what you are willing to post.",
+  "nextSteps": [
+    "Film only what you are willing to post. The drafts are not posted for you.",
+    "Read each caption out loud before you use it.",
+    "A paid clip waits until you click Approve in Media."
+  ],
+  "answers": {
+    "brand": "Milo's Guitar, first chords for adults.",
+    "count": "Four reels.",
+    "platform": "Instagram.",
+    "next": "Book a trial lesson."
+  },
+  "totals": {
+    "costUsd": 0.09,
+    "timeMinutes": 9
+  }
+}
