@@ -4,6 +4,14 @@ import { ctx } from "./store.js";
 import { estimateCostAt, PROVIDERS } from "./registry.js";
 import { emit } from "./events.js";
 import { isManaged } from "./vault.js";
+import { snapshotCall } from "./receipt-math.js";
+
+// Freeze the savings receipt on the call itself (actual, baseline, difference, price-table date)
+// before the line is written, so a later price change cannot rewrite it.
+function withSavings(entry) {
+  try { entry.savings = snapshotCall(entry); } catch { entry.savings = null; }
+  return entry;
+}
 
 // Local mode reads the file through the store at startup; this just returns the loaded entries.
 export function loadLedger() {
@@ -40,7 +48,7 @@ export function recordCall({ provider, model, usage, missionId, taskId, role, ms
     entry.handoff = String(usage.handoff || model || "").slice(0, 80);
     entry.cost = 0;
   }
-  return append(entry);
+  return append(withSavings(entry));
 }
 
 // Manual media credit spend (Kling, Suno, Flow...). units = credits, cost = optional USD.
@@ -57,7 +65,7 @@ export function recordSearch({ provider, engine, results, cost, missionId, taskI
 // One embedding call (Phase 18 knowledge libraries): tokens in, nothing out; cost = tokens x the library's
 // price per 1M tokens, kept to 9 decimals (a short question costs well under a millionth of a dollar). `estimated` when the provider did not report the token count. No text is stored.
 export function recordEmbedding({ provider, model, tokens, cost, estimated, missionId, role, ms, inputs }) {
-  return append({ ts: Date.now(), kind: "call", provider, model, actualModel: null, inTok: Number(tokens) || 0, outTok: 0, cost: +Number(cost || 0).toFixed(9), exact: false, estimated: !!estimated, missionId: missionId || null, taskId: null, role: role || "embed", ms: ms || null, free: false, fallback: null, inputs: Number(inputs) || 0 });
+  return append(withSavings({ ts: Date.now(), kind: "call", provider, model, actualModel: null, inTok: Number(tokens) || 0, outTok: 0, cost: +Number(cost || 0).toFixed(9), exact: false, estimated: !!estimated, missionId: missionId || null, taskId: null, role: role || "embed", ms: ms || null, free: false, manual: false, fallback: null, inputs: Number(inputs) || 0 }));
 }
 
 // One generated image (Phase 21): provider = the image provider's id, cost = the per-image price shown in
