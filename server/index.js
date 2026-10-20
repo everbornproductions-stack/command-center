@@ -34,6 +34,7 @@ import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learn
 import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
+import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { loadProjects, listProjects, saveProject, deleteProject, addLink, removeLink, hqSnapshot } from "./projects.js";
@@ -538,6 +539,10 @@ async function api(req, res, url) {
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     runChat(job).catch((e) => emit("log", { text: `Chat failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
+  }
+  if (method === "POST" && p === "/followup") {
+    try { return json(res, 202, await beginFollowup(body)); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
   }
 
   if (method === "POST" && p === "/projects") {

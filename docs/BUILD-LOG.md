@@ -1498,3 +1498,15 @@ WINDOWS CI THREE FAILURES (built by Cursor cloud agent)
 Tests 109 and 147 passed on run 39453428907. Test 207 still times out with no server log. CC_MCP_TRACE=1 now writes each JSON-RPC line, the demo server's stderr, and the spawn mode. The failing wait prints those lines. No locked decision changed. Tag v0.4.5 was not moved.
 
 On the next Windows run (39456271825) clock + note passed. Two other waits timed out instead: brain "single with learning off" and Grok Bot "late mission". Both are a model call that never returns. Windows reuses a keep-alive socket after a finished mock reply, and the next request sits with no headers. Loopback fetches now use a private agent that sends Connection: close and does not keep the socket. Mock replies close too, and a 1 ms server keep-alive timer (it was racing the client) is gone. CC_NET_TRACE=1 writes each loopback fetch to stderr so a later timeout shows the last start, headers, or body line. Tests here: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+## 2026-10-20: Live Ops reply, Reply to all, and Grok Bot results
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.5 (this ships as v0.4.6). Phase 14 stays BLOCKED (needs a Mac). data/ was not read.
+
+- Live Ops had no way to answer an AI. A reply under each answer, and one for the whole job, stay on that same run.
+- The whole-job box is labeled Reply to all. It sends the message to every AI on that job. A council continues with each member and a new verdict. A mission continues with each specialist and the assembler, using the earlier task outputs and the deliverable.
+- A Grok Bot result already comes back on POST /api/grokbot/callback/<job_id> (or the built-in mock). applyStatus announces it, then settle wakes a waiting council or mission, or, if that run already moved on, the finish listener writes the text onto the council answer or the mission task and emits grokbot.late. Live Ops now shows "waiting on Grok Bot" in that answer row until the text arrives, then shows the result next to the other answers.
+- Reply to all includes Grok Bot only when that job already has a Grok Bot seat. It uses the same dispatch and callback. The row stays on "waiting on Grok Bot" until that handoff is stored on the same run.
+- Tests: npm test 407 tests, 406 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read.
+
+LIVE OPS REPLY DONE (built by Cursor cloud agent)
