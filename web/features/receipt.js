@@ -1,18 +1,29 @@
-// Savings receipt under every finished run, a Money saved figure in the top bar, a breakdown on
-// the Credits tab, and a PNG of the summary. Styles are injected here; the shell files stay as they are.
+// Savings receipt under every finished run, a You saved figure in the top bar (this month and all
+// time), a breakdown on the Credits tab, and a PNG of the summary. Styles are injected here; the
+// shell files stay as they are.
 const { S, api, toast, esc, money, fmtN, pname, pcolor } = window.CC;
 const LABEL = "Estimated, based on token counts and list prices.";
+// Hover text for the header counter. Dollars are estimates unless a provider reported an exact bill.
+const SAVED_TIP = "Estimate. For each run, saved is what the same input and output tokens would have cost on the reference model, minus what the run actually cost. This month and all time add those differences. The reference model defaults to the most expensive flagship you have a key for. You can change it in Settings. New runs use the new reference. Older runs keep the baseline they stored. A free or local run costs $0, so the reference price counts as saved. A prompt-cache read is priced at the cache rate when the provider reports it, which lowers the actual cost. A cheaper seller for the same model lowers the actual cost. Batch half price counts only when that call was billed as a batch. A run you send now pays the live price. When the provider reports an exact bill, that bill is the actual cost. Otherwise the actual cost is estimated from token counts and list prices.";
 let creditsCache = null;
 let barAt = 0;
 
 const css = `
-.cc-money-saved { display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-right: 2px; padding: 3px 8px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0a0f18; line-height: 1.15; max-width: 280px; min-width: 0; }
-.cc-money-saved .cc-ms-top { display: flex; align-items: baseline; gap: 8px; }
+.cc-money-saved { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-right: 2px; padding: 3px 8px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0a0f18; line-height: 1.15; max-width: 420px; min-width: 0; cursor: help; }
+.cc-money-saved .cc-ms-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cc-money-saved .cc-ms-you { font-size: 12px; font-weight: 650; color: var(--text, #e5e7eb); }
+.cc-money-saved .cc-ms-when { font-size: 10px; color: var(--muted, #8b95a7); }
 .cc-money-saved .cc-ms-k { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim, #5b667a); }
 .cc-money-saved .cc-ms-v { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; font-weight: 700; color: var(--green, #34d399); }
+.cc-money-saved .cc-ms-sub { display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: var(--muted, #8b95a7); }
+.cc-money-saved .cc-ms-all { font-family: var(--mono, ui-monospace, monospace); font-size: 12px; font-weight: 700; color: var(--green, #34d399); }
+.cc-money-saved .cc-ms-est { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--amber, #fbbf24); }
 .cc-money-saved .cc-ms-note { font-size: 9px; color: var(--muted, #8b95a7); white-space: normal; }
+.cc-money-saved .cc-ms-tip { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0b111b; color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.cc-money-saved:hover .cc-ms-tip, .cc-money-saved:focus .cc-ms-tip, .cc-money-saved:focus-within .cc-ms-tip { display: block; }
 .cc-ms-label { color: var(--muted, #8b95a7); font-size: 12px; margin-top: 6px; }
 html[data-theme="light"] .cc-money-saved { background: #fff; }
+html[data-theme="light"] .cc-money-saved .cc-ms-tip { background: #fff; }
 .app { grid-template-rows: auto minmax(0, 1fr) var(--strip-h); }
 .topbar { height: auto; min-height: 56px; padding-top: 6px; padding-bottom: 6px; }
 @media (max-width: 760px) {
@@ -37,9 +48,12 @@ function mountBar() {
   el.id = "cc-money-saved";
   el.className = "cc-money-saved";
   el.setAttribute("role", "status");
-  el.innerHTML = `<span class="cc-ms-top"><span class="cc-ms-k">Money saved</span><span class="cc-ms-v">$0.00</span></span><span class="cc-ms-note"></span>`;
+  el.tabIndex = 0;
+  el.innerHTML = `<span class="cc-ms-top"><span class="cc-ms-you">You saved</span><span class="cc-ms-v" data-cc-ms="month">$0.00</span><span class="cc-ms-when">this month</span><span class="cc-ms-est">Estimate</span></span><span class="cc-ms-sub"><span class="cc-ms-k">All time</span><span class="cc-ms-all" data-cc-ms="all">$0.00</span></span><span class="cc-ms-note"></span><span class="cc-ms-tip"></span>`;
   el.querySelector(".cc-ms-note").textContent = LABEL;
-  el.setAttribute("aria-label", `Money saved $0.00. ${LABEL}`);
+  el.querySelector(".cc-ms-tip").textContent = SAVED_TIP;
+  el.title = SAVED_TIP;
+  el.setAttribute("aria-label", `You saved $0.00 this month. All time $0.00. Estimate. ${LABEL}`);
   host.prepend(el);
 }
 
@@ -47,13 +61,17 @@ function savedMoney(n) {
   const v = Number(n) || 0;
   return money(v, v !== 0 && Math.abs(v) < 0.01 ? 4 : 2);
 }
-function paintBar(saved) {
+function paintBar(monthSaved, allSaved) {
   const el = document.getElementById("cc-money-saved");
   if (!el) return;
-  const text = savedMoney(saved);
-  const v = el.querySelector(".cc-ms-v");
-  if (v) v.textContent = text;
-  el.setAttribute("aria-label", `Money saved ${text}. ${LABEL}`);
+  const month = savedMoney(monthSaved);
+  const all = savedMoney(allSaved);
+  const mv = el.querySelector("[data-cc-ms='month']");
+  const av = el.querySelector("[data-cc-ms='all']");
+  if (mv) mv.textContent = month;
+  if (av) av.textContent = all;
+  el.title = SAVED_TIP;
+  el.setAttribute("aria-label", `You saved ${month} this month. All time ${all}. Estimate. ${LABEL}`);
 }
 
 async function refreshBar() {
@@ -63,7 +81,7 @@ async function refreshBar() {
   barAt = now;
   try {
     const t = await api("/receipt/totals");
-    paintBar(t.allTime?.saved);
+    paintBar(t.month?.saved, t.allTime?.saved);
     const el = document.getElementById("cc-money-saved");
     if (el) el.dataset.ready = "1";
   } catch { /* the label stays up even before the engine answers */ }
@@ -243,7 +261,7 @@ CC.register({
   command: { order: 30, async render(el) {
     try {
       const t = await api("/receipt/totals");
-      el.innerHTML = `<div class="route" style="margin-top:8px"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="small">Saved this month vs ${esc(t.flagship || "flagship")}-only:</span><b style="color:var(--green)">${savedMoney(t.month.saved)}</b><span class="dim small">all time ${savedMoney(t.allTime.saved)} over ${t.runs} runs</span></div><div class="cc-ms-label">${esc(LABEL)}</div></div>`;
+      el.innerHTML = `<div class="route" style="margin-top:8px" title="${esc(SAVED_TIP)}"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="small">You saved</span><b style="color:var(--green)">${savedMoney(t.month.saved)}</b><span class="small">this month</span><span class="dim small">All time ${savedMoney(t.allTime.saved)} over ${t.runs} runs</span><span class="cc-ms-est">Estimate</span></div><div class="cc-ms-label">${esc(LABEL)}</div></div>`;
     } catch { el.innerHTML = ""; }
   } },
 });

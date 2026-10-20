@@ -1426,3 +1426,13 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Checked in the browser: paper set a light page with dark text, Aurora and Horizon painted behind the app, a local PNG became the photo, and Built-in cleared the picture. The Appearance panel has a file picker and no web-address field.
 
 APPEARANCE BACKGROUNDS DONE (built by Cursor cloud agent)
+
+## 2026-10-20: You saved counter in the top bar (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Router savings already on main (local models first, cheapest seller, prompt-cache reads, batch as route advice only) were not rewritten.
+
+- The top bar, mounted from `web/features/receipt.js`, now reads You saved with this month and all time. The word Estimate is on the counter. The existing sentence "Estimated, based on token counts and list prices." stays. Hover or focus opens a tooltip: reference-model list price for the same tokens, minus actual cost. Free and local $0 runs, a reported prompt-cache read, a cheaper seller, and a batch price only when that call was billed as a batch all lower the actual cost. A run sent now pays the live price. Settings still says Money saved. `web/app.js`, `web/index.html`, `web/nav.js`, and `web/styles.css` are unchanged.
+- Tests: `test/receipt.test.js`. npm test 398 tests, 397 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked with the local engine: a demo chat plus one older ledger line made this month $0.0019 and all time $0.0039 on `/api/receipt/totals`. The header hover was not clicked in a browser in this pass.
+
+YOU SAVED COUNTER DONE (built by Cursor cloud agent)
