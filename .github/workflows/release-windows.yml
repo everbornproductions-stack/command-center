@@ -67,6 +67,15 @@ jobs:
             echo "Publishable key source: SUPABASE_PUBLISHABLE_KEY"
           fi
 
+      - name: Packaged app smoke
+        shell: bash
+        env:
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run smoke:packaged
+
       - name: Build the Windows installer
         shell: bash
         env:

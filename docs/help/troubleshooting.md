@@ -2,7 +2,7 @@
 id: troubleshooting
 title: Antivirus and SmartScreen
 summary: Unsigned installer warning. SmartScreen: More info, then Run anyway.
-lastUpdatedVersion: 0.4.3
+lastUpdatedVersion: 0.4.6
 ---
 
 # Antivirus and SmartScreen
@@ -19,5 +19,6 @@ Other messages:
 - "Could not reach": a network problem. Check the connection, then try the same action again.
 - "This phone cannot reach the PC": use the same Wi-Fi, turn on phone pairing in Settings, under Phone and other devices, and allow Meldmind on private networks in Windows Firewall.
 - The engine panel after a long wait: Restart engine, Check for updates, or Keep waiting. Your keys and history stay on this computer.
+- Version 0.4.5 could open and then never listen, so the engine did not start. This update includes the missing piece and Meldmind starts again. Install the update, then open the app. Keys and history stay on this computer.
 - Out of credits, a spending limit, or a rate limit pauses that AI. The strip says Paused: no credits, with a billing link. Auto-picks skip it until a health check clears it or you save the key again. A pinned chat says the AI is paused and names the billing page.
 - After a run, one upgrade tip can name an AI that usually does that task better, with a link to add credits or a key. Tips stay off during a run. At most one tip per AI per task type each week. Nothing is sent.

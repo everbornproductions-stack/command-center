@@ -1549,3 +1549,17 @@ No locked decision was changed. Version stays 0.4.5. Phase 14 stays BLOCKED (nee
 
 PHASE 35 DONE
 PHASE 55 DONE
+
+## 2026-10-20: Packaged app smoke so a missing runtime dependency cannot ship
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.6. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read.
+
+- v0.4.5 imported undici from server/loopback-fetch.js without listing it in dependencies. Unit tests passed because node_modules had it transitively. The packaged engine crashed at startup with ERR_MODULE_NOT_FOUND, so nothing listened. 0.4.6 added undici to dependencies.
+- scripts/check-runtime-deps.mjs scans server/ and electron/ for bare imports. A package that is not in dependencies fails the check. Node built-ins and electron are allowed. devDependencies are not. npm test runs this, and the packaged smoke runs it before the build.
+- On pull requests and before the Windows release publishes, npm run smoke:packaged builds the unpacked app with electron-builder --win --x64 --dir --publish never, starts Meldmind.exe headless with a temp user-data directory, and polls /api/health for up to 60 seconds. "server failed" in the log fails the job. The process tree is killed and the temp directory is removed. The release job does this after the publishable-key check and before the installer is published. The pull request job sets CC_PACK_UNPUBLISHED so it does not need that key.
+- CC_USER_DATA, when set to an absolute path, is applied after setName and before the first getPath. A normal launch leaves it unset, so the data folder stays %APPDATA%\Everborn Command.
+- What's new for 0.4.6 and the troubleshooting guide now say the engine starts again. That was required for the version check. No billing copy was added.
+- The unpacked Windows app was not launched here (this machine is not Windows). The wait, the log check, the process-tree kill, and the temp-directory cleanup are covered by unit tests.
+- Tests here (Linux): npm test 417 tests, 416 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+PACKAGED APP SMOKE READY (built by Cursor cloud agent)

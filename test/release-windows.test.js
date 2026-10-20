@@ -21,6 +21,12 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(testStep, /shell: bash/);
   assert.doesNotMatch(testStep, /continue-on-error/);
   assert.match(wf, /run: npm run smoke/);
+  assert.match(wf, /npm run smoke:packaged/);
+  const keyAt = wf.indexOf("name: Require the publishable key");
+  const packAt = wf.indexOf("name: Packaged app smoke");
+  const distAt = wf.indexOf("name: Build the Windows installer");
+  const publishAt = wf.indexOf("name: Publish the normal release");
+  assert.ok(keyAt < packAt && packAt < distAt && distAt < publishAt, "the unpacked app must answer before the installer is published");
   assert.match(wf, /run: npm run dist/);
   assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \|\| vars\.CC_SUPABASE_ANON_KEY \}\}/);
   assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY \|\| vars\.SUPABASE_PUBLISHABLE_KEY \}\}/);
@@ -48,6 +54,8 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(releasing, /release-windows\.yml/);
   assert.match(releasing, /CC_SUPABASE_ANON_KEY/);
   assert.match(releasing, /windows-ci\.yml/);
+  assert.match(releasing, /smoke:packaged/);
+  assert.match(releasing, /server failed/);
   assert.doesNotMatch(releasing, /—/);
 });
 
@@ -59,6 +67,12 @@ test("Windows CI workflow: test and package on pull requests and main, never pub
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: npm run smoke/);
+  assert.match(wf, /npm run smoke:packaged/);
+  const demoAt = wf.indexOf("name: Smoke");
+  const packAt = wf.indexOf("name: Packaged app smoke");
+  const distAt = wf.indexOf("name: Package the Windows app");
+  assert.ok(demoAt < packAt && packAt < distAt, "pull requests launch the unpacked app before the installer is built");
+  assert.match(wf.slice(packAt, distAt), /CC_PACK_UNPUBLISHED: "1"/);
   assert.match(wf, /run: npm run dist/);
   assert.match(wf, /CC_PACK_UNPUBLISHED: "1"/);
   assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);
