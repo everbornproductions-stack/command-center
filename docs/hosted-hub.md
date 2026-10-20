@@ -53,12 +53,14 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_SUPABASE_ANON_KEY` | yes | the publishable key (`sb_publishable_…`), safe in the browser |
 | `CC_MASTER_KEY` | yes | base64 of 32 random bytes; **losing it loses every stored API key** (users re-paste them) |
 | `CC_OWNER_EMAILS` | no | comma-separated emails that get the owner tier without a licence |
-| `CC_HUB_URL` | no | public address of the hub, shown in the pairing QR |
+| `CC_HUB_URL` | no | public https address of the hub, shown in the pairing QR and used as the OAuth redirect on the hub |
 | `CC_IDLE_EVICT_MIN` | no | minutes a hosted user can sit idle before their in-memory context is dropped (default 30). Ignored in local mode |
 | `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token (keep it only on the hub) |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
 | `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |
+
+Publishing sign-in (Google Drive, Instagram via Meta, HighLevel and Slack) returns to `http://127.0.0.1:<port>/` on the desktop. On the hub the redirect is built from `CC_HUB_URL` and must be https (`https://hub.meldmind.ai/`). A non-https hub address is refused. Settings shows that exact redirect URL on each of the four connectors.
 
 ## Deploy runbook (Cloudflare Containers)
 

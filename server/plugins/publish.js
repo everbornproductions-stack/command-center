@@ -171,11 +171,7 @@ export async function routes(req, res, url, body, h) {
       const k = seg[1];
       if (!OA.CONNECTORS[k]) return h.json(res, 400, { error: "unknown connector" });
       if (req.method === "POST" && seg[2] === "client") return h.json(res, 200, await OA.setClient(k, { clientId: body?.clientId, clientSecret: body?.clientSecret }));
-      if (req.method === "POST" && seg[2] === "start") {
-        const origin = String(body?.origin || "").replace(/\/$/, "");
-        if (!/^https?:\/\/[^\s/]+$/.test(origin)) return h.json(res, 400, { error: "origin required" });
-        return h.json(res, 200, OA.start(k, { redirectUri: `${origin}/` }));
-      }
+      if (req.method === "POST" && seg[2] === "start") return h.json(res, 200, OA.start(k, { redirectUri: OA.publishRedirect() }));
       if (req.method === "POST" && seg[2] === "finish") return h.json(res, 200, await OA.finish({ code: body?.code, state: body?.state }));
       if (req.method === "DELETE" && !seg[2]) return h.json(res, 200, await OA.disconnect(k));
     } catch (e) { return h.json(res, e.status || 500, { error: e.message, code: e.code }); }
