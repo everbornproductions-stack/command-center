@@ -1285,3 +1285,14 @@ v0.4.3 hotfix, outside the phase chain. No locked decision was changed. Rebased 
 - Not verified: a packaged Electron window, a real microphone, and a live OpenAI, Groq, ElevenLabs, or Gemini transcription. The health light and the transcribe route were exercised against local stubs.
 
 HONEST KEY ERRORS AND DESKTOP TAP TO TALK DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Start a project walkthroughs (Cursor cloud agent)
+
+- Guided Start a project for six types: Website, Music video, Marketing campaign, App/software, Business plan, Social media reels. Stages: idea, clarifying questions, a council plan, steps routed with the existing router, review and revise, then export and next steps. Each click is explicit. Nothing is posted.
+- Watch an example plays the fictional samples in walkthroughs/examples/. They are labeled Example data, read-only, and they do not call an AI. Playback uses the same live-view events so the flow map moves. Those events are marked as an example, so Command does not toast them as a finished mission.
+- Simple and Expert follow the mode switch. Simple hides model picks. Expert shows the route and can edit the plan. This change does not add a second switch.
+- Entry points: a Start a project card on Command (Chat in Simple mode), a Start a project item in the Settings menu, and a Start a project button on the Help tab. Help article: docs/help/start-a-project.md, plus the per-type guides already in docs/help/.
+- Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac).
+- Tests after rebase onto origin/main (Simple/Expert, Help, example JSON, handoff, hub, phone pairing, licence key injection): npm test 335 tests, 333 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs only, no real key or URL. data/ was not touched.
+
+FEATURE start-a-project DONE (built by Cursor cloud agent)

@@ -37,6 +37,7 @@ const HOME = {
   settings: "help",
   setup: "help",
   help: "help",
+  start: "help",
 };
 
 export const LABELS = {
@@ -62,6 +63,7 @@ export const LABELS = {
   settings: "Settings",
   setup: "Setup",
   help: "Help",
+  start: "Start a project",
 };
 
 // Same Settings page, scrolled to the panel. Not a second copy of the app.
@@ -85,6 +87,7 @@ export function menuModel(views) {
     buckets[groupFor(view)].push({ view, label: LABELS[view] || view, home: true });
   }
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
+  if (!buckets.help.some((i) => i.view === "start")) buckets.help.push({ id: "start-project", label: "Start a project", view: "start", home: false });
   buckets.help.push({ id: "tour", label: "Take the tour again", action: "tour", home: false });
   buckets.help.push({ id: "updates", label: "Check for updates", action: "updates", home: false });
   return GROUP_ORDER.map((id) => ({ ...GROUPS[id], items: buckets[id] }));
@@ -222,6 +225,7 @@ function mountSimple(root, views, buttons) {
   const settings = menuShell("settings", "Settings");
   settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
   if (have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
+  if (have.has("start")) settings.panel.appendChild(buttonFor(buttons, "start", "Start a project"));
   settings.panel.appendChild(itemButton({ id: "tour", label: "Take the tour again", action: "tour" }));
   root.appendChild(settings.menu);
 }
@@ -298,6 +302,15 @@ function onNavKey(e) {
 export function placeNavItem(root, view, label) {
   if (!root) return;
   if (root.dataset.uiMode === "simple") {
+    if (view === "start") {
+      const panel = root.querySelector("#nav-panel-settings");
+      if (!panel || panel.querySelector('button[data-view="start"]')) return;
+      const btn = itemButton({ view, label: label || "Start a project" });
+      const tour = panel.querySelector("button[data-action='tour']");
+      if (tour) panel.insertBefore(btn, tour);
+      else panel.appendChild(btn);
+      return;
+    }
     if (view === "help") {
       if (root.querySelector(`button.nav-direct[data-view="${globalThis.CSS.escape(view)}"]`)) return;
       const btn = itemButton({ view, label: label || "Help" });

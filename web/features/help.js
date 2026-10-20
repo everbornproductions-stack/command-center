@@ -18,6 +18,7 @@ function renderTab(view) {
       <textarea id="help-q" rows="3" placeholder="Ask about keys, Simple mode, or approvals"></textarea>
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <button class="btn sm primary" type="button" id="help-ask">Ask Meldmind</button>
+        <button class="btn sm" type="button" id="help-start">Start a project</button>
         <button class="btn sm" type="button" id="help-tour">Take the tour again</button>
         <button class="btn sm" type="button" id="help-upd">Check for updates</button>
       </div>
@@ -64,6 +65,7 @@ function renderTab(view) {
       toast(e.message, true);
     }
   });
+  view.querySelector("#help-start").addEventListener("click", () => { (window.CC.startProject?.open || window.CC.go)?.("start"); });
   view.querySelector("#help-tour").addEventListener("click", () => { window.CC.tour?.start?.(); });
   view.querySelector("#help-upd").addEventListener("click", async () => {
     try {

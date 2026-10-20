@@ -273,6 +273,8 @@ function applyState(st) {
 }
 function handle(ev) {
   for (const f of window.CC?.features || []) { if (f.onEvent) { try { f.onEvent(ev); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
+  // Start a project examples and the walk overlay are for the live view. They are not missions.
+  if (ev?.example === true || ev?.overlay === true) return;
   switch (ev.type) {
     case "hello": {
       applyState(ev.state);
