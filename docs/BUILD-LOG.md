@@ -1507,6 +1507,7 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.5 (this 
 - The whole-job box is labeled Reply to all. It sends the message to every AI on that job. A council continues with each member and a new verdict. A mission continues with each specialist and the assembler, using the earlier task outputs and the deliverable.
 - A Grok Bot result already comes back on POST /api/grokbot/callback/<job_id> (or the built-in mock). applyStatus announces it, then settle wakes a waiting council or mission, or, if that run already moved on, the finish listener writes the text onto the council answer or the mission task and emits grokbot.late. Live Ops now shows "waiting on Grok Bot" in that answer row until the text arrives, then shows the result next to the other answers.
 - Reply to all includes Grok Bot only when that job already has a Grok Bot seat. It uses the same dispatch and callback. The row stays on "waiting on Grok Bot" until that handoff is stored on the same run.
+- Opening a finished mission threw `(run.tasks || []).filter is not a function` under the deliverable. Live Ops stores tasks as an id map, and the media section treated that map as a list. It now accepts either shape. The task rows and their reply boxes were already on the page.
 - Tests: npm test 407 tests, 406 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read.
 
 LIVE OPS REPLY DONE (built by Cursor cloud agent)
