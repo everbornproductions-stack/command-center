@@ -21,6 +21,35 @@ const BASE = { writing: 80, analysis: 80, fast: 70 };
 const fresh = () => { B.resetBrain(); B.saveBrainSettings({ on: true, shareOptIn: false }); };
 const q = (model, mode = "balanced", estCost = 0.01, diff = 2) => B.adjust({ model, baseCaps: BASE, capability: "writing", difficulty: diff, mode, estCost });
 
+test("first-run setup offers the existing share opt-in, off until chosen", () => {
+  const app = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "web", "app.js"), "utf8");
+  assert.match(app, /I am willing to share anonymous track records/);
+  assert.match(app, /Meldmind learns from every job you run/);
+  assert.match(app, /anonymous scores from each job \(task type, cost, speed\) also help it pick the best AI for everyone/);
+  assert.match(app, /anonymous scores, task types, cost, and speed/);
+  assert.match(app, /picking the best AI for savings and builds/);
+  assert.match(app, /never use your prompts, files, or keys/);
+  assert.match(app, /turn it off any time in Settings/);
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
+  const same = [
+    "web/features/brain.js",
+    "docs/legal/privacy.md",
+    "docs/legal/shared-learning.md",
+    "docs/help/getting-started.md",
+    "docs/USER-GUIDE.md",
+  ];
+  for (const rel of same) {
+    const text = fs.readFileSync(path.join(root, rel), "utf8");
+    assert.match(text, /Meldmind learns from every job you run/, rel);
+    assert.match(text, /pick the best AI for everyone/, rel);
+    assert.match(text, /any time in Settings/, rel);
+    assert.equal(text.includes("\u2014"), false, rel);
+  }
+  assert.match(app, /shareOptIn: on/);
+  assert.match(app, /shareOptIn: false/);
+  assert.doesNotMatch(app.slice(app.indexOf("su-share"), app.indexOf("su-share") + 400), /checked="checked"/);
+});
+
 test("no record means no change: the router starts from the registry exactly", () => {
   fresh();
   assert.equal(q("m-none"), null);

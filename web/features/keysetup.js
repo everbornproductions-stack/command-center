@@ -63,6 +63,22 @@ function applyStep(i) {
 function next() { applyStep(Math.min(idx + 1, data.providers.length)); }
 function back() { applyStep(Math.max(idx - 1, 0)); }
 
+function openRouterCard() {
+  const list = data?.providers || [];
+  const p = list.find((x) => x.id === "openrouter");
+  if (!p) return "";
+  const here = list[idx]?.id === "openrouter";
+  return `<div class="route" id="or-start" style="margin-bottom:14px">
+    <span class="chip green">Recommended</span>
+    <div style="margin-top:6px"><b>One key to start: OpenRouter</b></div>
+    <div class="dim small" style="margin-top:4px">One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available.</div>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+      <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get an OpenRouter key</a>
+      ${p.keyed ? `<span class="chip green">Connected</span>` : here ? "" : `<button type="button" class="btn sm primary" id="or-jump">Add OpenRouter key</button>`}
+    </div>
+  </div>`;
+}
+
 function render() {
   if (!el) return;
   const list = data.providers, p = list[idx];
@@ -72,7 +88,7 @@ function render() {
   let main;
   if (!p) {
     const linked = list.filter((x) => x.keyed || x.connection?.mcp?.configured);
-    main = `<div class="main"><h3>${linked.length ? `${linked.length} of ${list.length} AIs linked` : "No keys yet"}</h3>
+    main = `<div class="main">${openRouterCard()}<h3>${linked.length ? `${linked.length} of ${list.length} AIs linked` : "No keys yet"}</h3>
       <div class="muted" style="margin-top:8px">${linked.length ? `Linked: ${linked.map((x) => esc(x.name)).join(", ")}. The status strip shows a green light for each one, and the router can send work to them now.` : "You can come back any time: Settings, then Guided API-key setup. Demo mode keeps working without keys."}</div>
       ${S.vault?.file ? `<div class="dim small" style="margin-top:10px">Keys are sealed with ${esc(S.vault?.method || "the operating system")} in <span class="mono">${esc(S.vault.file)}</span> and never leave this machine except to the provider you gave them to.</div>` : `<div class="dim small" style="margin-top:10px">Keys are encrypted before they are stored and are only decrypted to call the provider you gave them to.</div>`}
       <div class="foot"><button class="btn sm" id="ks-back">Back</button><span style="flex:1"></span><button class="btn sm primary" id="ks-done">Done</button></div></div>`;
@@ -82,7 +98,7 @@ function render() {
     const both = !!conn?.both;
     const mcpOn = stepMode === "mcp" && both;
     const activeLabel = conn?.active === "mcp" ? "MCP" : "API key";
-    main = `<div class="main">
+    main = `<div class="main">${openRouterCard()}
       <div class="row" style="gap:8px"><h3><span class="dot ${sideOn(p) ? p.status.status || "green" : "grey"}"></span>${esc(p.name)} <span class="dim small" style="font-weight:400">${esc(p.vendor)}</span></h3><span class="dim small" style="margin-left:auto;font-family:var(--mono)">${n} / ${list.length}</span></div>
       <div class="muted" style="margin-top:6px">${esc(p.why)}${p.free ? ` <span class="chip green">free tier</span>` : ""}</div>
       ${conn?.council ? `<div class="dim small" style="margin-top:8px">${esc(conn.note)}</div>` : ""}
@@ -118,6 +134,10 @@ function render() {
     </div>`;
   }
   el.innerHTML = `<div class="box" role="dialog" aria-label="Guided API-key setup">${side}${main}</div>`;
+  el.querySelector("#or-jump")?.addEventListener("click", () => {
+    const at = data.providers.findIndex((x) => x.id === "openrouter");
+    if (at >= 0) applyStep(at);
+  });
   el.querySelectorAll(".side button").forEach((b) => b.addEventListener("click", () => applyStep(Number(b.dataset.i))));
   el.querySelector("#ks-back")?.addEventListener("click", back);
   el.querySelector("#ks-next")?.addEventListener("click", next);

@@ -238,6 +238,10 @@ test("server: registry CRUD, prompt, Grab reply ledger, no key, no secrets", { t
     const recent = (await s.api("/state")).json.recent;
     assert.ok(recent.some((e) => e.type === "log" && e.text === "Manual handoff saved (via ChatGPT web, manual)."));
     assert.equal(recent.some((e) => e.type === "log" && /opens at nine|HANDOFFSECRET/.test(e.text || "")), false);
+    const brain = JSON.parse(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8"));
+    assert.equal(brain.stats.ChatGPT.provider, "openai");
+    assert.ok(brain.stats.ChatGPT.t["writing:1"].jobs >= 1, "the welcome note is recorded as a writing job");
+    assert.doesNotMatch(JSON.stringify(brain), /opens at nine|HANDOFFSECRET/);
 
     const key = "sk-test-handoff-not-a-real-key";
     assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key } })).status, 200);

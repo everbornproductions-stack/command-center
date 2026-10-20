@@ -165,6 +165,9 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     assert.equal(r.status, 200);
     let jd = await job(j1.id);
     assert.equal(jd.status, "done"); assert.match(jd.text, /Invoice #42/); assert.equal(jd.by, "grokbot");
+    const clickBrain = JSON.parse(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8"));
+    assert.ok(clickBrain.stats.grokbot.t["reasoning:1"].jobs >= 1, "a finished click hand-off is in the track record");
+    assert.doesNotMatch(JSON.stringify(clickBrain), /Invoice #42/);
     assert.deepEqual(jd.artifacts, [{ name: "invoice.pdf", url: "https://drive.example.com/f/42", type: null }, { name: "bad", url: null, type: null }], "only http(s) links are kept");
     assert.deepEqual(jd.history.map((h) => h.status), ["queued", "working", "needs_approval", "done"]);
     assert.equal((await callback(cb1, { status: "done", text: "again" })).status, 401, "single use: done burns the token");

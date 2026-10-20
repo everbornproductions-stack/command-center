@@ -309,6 +309,9 @@ function macMenuTemplate() {
     { role: "editMenu" },
     { label: "View", submenu: [{ role: "togglefullscreen" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }] },
     { role: "windowMenu" },
+    { label: "Help", submenu: [
+      { label: "Run setup again", click: () => { focusWindow(); if (win && !win.isDestroyed()) win.webContents.executeJavaScript("window.CC&&window.CC.connectSetup&&window.CC.connectSetup.open()").catch(() => {}); } },
+    ] },
   ];
 }
 

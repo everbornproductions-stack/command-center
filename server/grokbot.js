@@ -15,6 +15,8 @@ import crypto from "node:crypto";
 import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx, runAs, currentUserId, getContext } from "./store.js";
 import { emit } from "./events.js";
+import { observe } from "./brain.js";
+import { heuristicClassify } from "./router.js";
 import { demoActive } from "./mock.js";
 import { CFG } from "./hosted.js";
 
@@ -137,6 +139,17 @@ const waiters = new Map(); // jobId -> Set<{ done(job), update(job) }>
 const claimed = new Set(); // jobs a running council or mission will still await (a fast result is not "late")
 const finishListeners = [];
 export const onJobFinished = (fn) => finishListeners.push(fn);
+const noted = new Set();
+// A click hand-off is its own job. A council or mission records the same job itself.
+function noteOutcome(j) {
+  if (!j || noted.has(j.id)) return;
+  const kind = j.source?.kind;
+  if (kind === "council" || kind === "mission") return;
+  noted.add(j.id);
+  const cls = heuristicClassify(String(j.task || "").slice(0, 4000));
+  const ms = j.updatedAt && j.createdAt ? j.updatedAt - j.createdAt : null;
+  observe({ provider: AGENT_ID, model: AGENT_ID, capability: cls.capability, difficulty: cls.difficulty, runId: j.id, ok: j.status === "done", cost: 0, ms });
+}
 
 export function publicJob(j) {
   if (!j) return null;
@@ -222,6 +235,7 @@ function fail(j, why) {
   saveJobs(jobs());
   claimed.delete(j.id);
   announce(j, why);
+  noteOutcome(j);
   return publicJob(j);
 }
 
@@ -266,6 +280,7 @@ function cleanArtifacts(list) {
 // Wake whoever waits for this job; if nobody does (the council or mission moved on, or the app
 // restarted), the run that asked for it gets the late result through the finish listeners.
 function settle(j) {
+  noteOutcome(j);
   const ws = waiters.get(j.id);
   if (ws?.size) { waiters.delete(j.id); claimed.delete(j.id); for (const w of ws) w.done(publicJob(j)); return; }
   if (claimed.has(j.id)) return; // the run that asked has not started waiting yet; awaitJob() sees it finished

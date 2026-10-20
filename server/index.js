@@ -55,6 +55,7 @@ import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedule
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
+import { connectSetupPublic } from "./connect-setup.js";
 let lastScan = null, lastKeys = null;
 
 // The daily check waits until plugins are loaded (custom providers exist) and the
@@ -311,7 +312,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(),
-    onboarding: onboardingState(), pairing: pairingView(),
+    onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
   };
 }
 
@@ -336,17 +337,20 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }) {
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }) {
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty }) {
   const id = runId || "s-" + Date.now().toString(36);
   let cls = null;
+  // A caller that already asked the router (a walkthrough step) passes that task type.
+  // The record then uses it, instead of guessing again from the long prompt.
+  const given = capability ? { capability, difficulty: difficulty ?? 2 } : null;
   if (!provider || !model) {
-    cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
+    cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     const best = rank({ ...cls, mode: settings().defaultMode })[0];
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
@@ -357,7 +361,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     provider = best.provider; model = best.model;
   }
   let agent = `${id}:${provider}`;
-  const taskType = () => (cls ||= heuristicClassify(prompt));
+  const taskType = () => (cls ||= given || heuristicClassify(prompt));
   const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
@@ -394,7 +398,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
         m.cost = +(m.cost + e.cost).toFixed(6);
-        // learning router (Phase 28): the job, its cost and speed; a pinned chat's task type comes from the keyword classifier
+        // learning router (Phase 28): the job, its cost and speed, and the task type the router used
         observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: true, cost: e.cost, ms, free: e.free });
         if (web?.native && ev.citations?.length) { m.sources = sourcesFromCitations(ev.citations); m.searchEngine = web.name; m.cost = +(m.cost + recordNative(provider, ev.citations, { missionId: id })).toFixed(6); }
         emit("agent.done", { agent, provider, model, missionId: id, ms, cost: e.cost });

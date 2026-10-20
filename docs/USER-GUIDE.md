@@ -10,11 +10,12 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
 
 1. Run **Command-AI-Setup-<version>.exe**. Windows SmartScreen may warn once because the build is not code-signed yet: choose "More info", then "Run anyway".
 2. The app opens in its own window and keeps running in the tray when you close the window. Quit from the tray icon.
-3. On the very first start the app shows **Setup**. Every step is optional and runs on your computer only:
+3. On the very first start the app shows **Setup**. The first choice is **I am willing to share anonymous track records**. It is off until you turn it on. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. If you turn it on, only anonymous scores, task types, cost, and speed are used, to get faster and better at picking the best AI for savings and builds. Prompts, files, and keys are never used. You can turn it off any time in Settings. Then every other step is optional and runs on your computer only:
    - look through your browser history for the AI tools you already use,
-   - check for API keys already on this PC,
+   - check for API keys already on this PC (OpenRouter is the recommended first key: one key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, and free models are available),
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
+   After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
 
 Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and survive updates and reinstalls.
 
@@ -126,4 +127,4 @@ When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Ins
 
 ## 12. Privacy in one paragraph
 
-Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. Nothing is shared with Everborn unless you turn on a feature that says so.
+Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.

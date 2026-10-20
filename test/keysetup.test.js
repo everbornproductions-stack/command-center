@@ -24,6 +24,18 @@ test("guides: every built-in provider with an API has steps, a key shape and htt
     for (const s of [g.why, g.looks, ...g.steps]) assert.doesNotMatch(s, /—/, "no em-dashes");
   }
   assert.equal(DEFAULTS.completedAt, null);
+  const ui = fs.readFileSync(new URL("../web/features/keysetup.js", import.meta.url), "utf8");
+  const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
+  for (const src of [ui, app]) {
+    assert.match(src, /One key to start: OpenRouter/);
+    assert.match(src, /https:\/\/openrouter\.ai\/keys/);
+    assert.match(src, /Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available/);
+    const card = src.slice(src.indexOf("One key to start: OpenRouter"), src.indexOf("One key to start: OpenRouter") + 280);
+    assert.doesNotMatch(card, /—/);
+  }
+  assert.match(ui, /id="or-jump"/);
+  assert.match(app, /keysetup\?\.open\?\.\("openrouter"\)/);
+  assert.match(app, /Other keys are optional/);
 });
 
 test("setupOrder: text providers first, free tiers before paid, media last, demo and no-key skipped", () => {

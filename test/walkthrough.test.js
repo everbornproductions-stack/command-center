@@ -213,6 +213,14 @@ test("a walk goes from idea to export on the demo AIs, in Simple and Expert view
     const built = await waitWalk(s, id, (w) => w.stage === "review" && w.deliverable, "build");
     assert.ok(built.deliverable.length > 40);
     assert.ok(built.plan.steps.some((s) => s.status === "done" && s.output));
+    const brain = JSON.parse(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8"));
+    const doneSteps = built.plan.steps.filter((st) => st.status === "done" && st.model && st.capability);
+    assert.ok(doneSteps.length >= 1, "a built step names the routed model and task type");
+    for (const step of doneSteps) {
+      const key = `${step.capability}:${step.difficulty || 2}`;
+      assert.ok(brain.stats[step.model]?.t?.[key]?.jobs > 0, `${step.model} recorded on ${key}`);
+    }
+    assert.doesNotMatch(JSON.stringify(brain), /Harbor and Rye/);
     const rev = await s.api(`/walkthrough/${id}/revise`, { method: "POST", body: { note: "Add a line that prices stay marked until the owner writes them." } });
     assert.equal(rev.status, 202, rev.text);
     const revised = await waitWalk(s, id, (w) => (w.revisions || []).length === 1 && w.status === "ready", "revise");

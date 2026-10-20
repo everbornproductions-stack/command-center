@@ -191,6 +191,7 @@ async function runBuild(h, w, exp, body) {
       const run = await h.runChat({
         prompt, provider: step.provider, model: step.model, projectId: w.projectId || null,
         search: false, tools: false, runId: `${overlay}-${step.id}`,
+        capability: step.capability || "writing", difficulty: step.difficulty || 2,
         system: "You are one specialist on a small team. Be concrete. Do not invent numbers, dates, or personal data. Mark gaps as [ASK]. Do not send, post, or buy anything. Markdown is fine.",
       });
       step.output = run?.deliverable || "";
@@ -209,6 +210,7 @@ async function runBuild(h, w, exp, body) {
       prompt: `Assemble one deliverable: ${w.plan.title}\n\nHow to assemble: ${w.plan.assembly}\n\nPIECES:\n${pack}`,
       provider: host.provider, model: host.model, projectId: w.projectId || null,
       search: false, tools: false, runId: `${overlay}-final`,
+      capability: "writing", difficulty: 3,
       system: "Assemble the pieces into one clean document. Keep [ASK] markers. Do not add facts that are not in the pieces. Do not send it anywhere.",
     });
     w.deliverable = final?.deliverable || pack;
@@ -236,6 +238,7 @@ async function runRevise(h, w, note) {
       prompt: `Revise the deliverable.\n\nChange request:\n${note}\n\nCURRENT DELIVERABLE:\n${w.deliverable}`,
       provider: host.provider, model: host.model, projectId: w.projectId || null,
       search: false, tools: false, runId: `sp-${w.id}-rev-${(w.revisions || []).length + 1}`,
+      capability: host.capability || "writing", difficulty: host.difficulty || 2,
       system: "Revise the deliverable as asked. Keep [ASK] markers. Do not invent facts. Do not send it anywhere.",
     });
     if (run?.deliverable) w.deliverable = run.deliverable;

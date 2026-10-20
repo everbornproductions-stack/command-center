@@ -248,6 +248,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         }
       } catch (err) {
         t.status = "failed"; t.error = err.message;
+        if (!ctl.signal.aborted) observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: false });
         emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: err.message });
       }
       if (t.status !== "failed") done.add(t.id);
@@ -504,7 +505,10 @@ async function lateResult(job) {
     const by = job.by === "you" ? "pasted in by you" : `from ${ANAME}, after the rest of the mission`;
     m.deliverable = `${m.deliverable || ""}\n\n## ${t.title} (${by})\n\n${t.output}`.trim();
     observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: m.id, ok: true, cost: 0 });
-  } else { t.status = "failed"; t.error = job.error || `${ANAME} reported a failure`; }
+  } else {
+    t.status = "failed"; t.error = job.error || `${ANAME} reported a failure`;
+    observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: m.id, ok: false });
+  }
   if (m.status === "done" && t.status === "failed") m.status = "done-with-errors";
   save(m);
   emit("grokbot.late", { runId: m.id, kind: "mission", mission: publicMission(m), agent: AID });

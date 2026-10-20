@@ -9,7 +9,7 @@ import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -266,7 +266,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null });
   S.plugins = st.plugins || [];
   syncUiMode();
   noteOnboarding(S.onboarding);
@@ -283,7 +283,8 @@ function handle(ev) {
       S.feed = (ev.state.recent || []).filter((e) => ["log", "agent.msg", "agent.error", "agent.start", "agent.done", "provider.status", "ledger.entry"].includes(e.type)).slice(-60);
       const run = ev.state.lastRun;
       if (run && !S.live.id) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
-      if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.view = "setup"; }
+      if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
+      else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
@@ -607,6 +608,7 @@ function render() {
   else if (S.view === "credits") renderCredits(v);
   else if (S.view === "subscriptions") renderSubscriptions(v);
   else if (S.view === "settings") renderSettings(v);
+  else if (S.view === "setup" && S.connectWizard && window.CC.connectSetup) window.CC.connectSetup.render(v);
   else if (S.view === "setup") renderSetup(v);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
@@ -1222,6 +1224,7 @@ function renderSettings(v) {
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>
+        ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
         ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
@@ -1356,6 +1359,7 @@ function renderSettings(v) {
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
+  wireOpenRouterStart(v);
   wireAnyKey(v);
   $("#cp-add")?.addEventListener("click", () => openCustomForm());
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
@@ -1378,6 +1382,21 @@ async function saveKeyAs(sug, key) {
   if (sug.builtin && P(sug.provider)) { try { const r = await api("/keys", { method: "POST", body: { provider: sug.provider, key } }); keyToast(sug.provider, r); S.focusProvider = sug.provider; await refresh(); } catch (e) { toast(e.message, true); } return; }
   // a provider we only know as a preset (Together, Fireworks): open the custom form filled in
   S.view = "settings"; render(); openCustomForm(null, { preset: sug.provider, key });
+}
+function openRouterStartCard() {
+  const on = !!P("openrouter")?.keyed;
+  return `<div class="route" id="or-start">
+    <span class="chip green">Recommended</span>
+    <div style="margin-top:6px"><b>One key to start: OpenRouter</b></div>
+    <div class="dim small" style="margin-top:4px">One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available.</div>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+      <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get an OpenRouter key</a>
+      ${on ? `<span class="chip green">Connected</span>` : `<button type="button" class="btn sm primary" id="or-start-go">Add OpenRouter key</button>`}
+    </div>
+  </div>`;
+}
+function wireOpenRouterStart(root) {
+  $("#or-start-go", root)?.addEventListener("click", () => window.CC.keysetup?.open?.("openrouter"));
 }
 function anyKeyHtml() {
   return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AQ. and AIza are Google Gemini, sk-ant- is Claude, sk- and sk-proj- are ChatGPT, xai- is Grok, sk-or- is OpenRouter, gsk_ is Groq).</div>
@@ -1453,8 +1472,10 @@ $("#tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
   if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
-  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.view = "start"; render(); } return; }
+  if (b.dataset.action === "connect-setup") { closeNav(root); window.CC.connectSetup?.open?.(); return; }
+  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.connectWizard = false; S.view = "start"; render(); } return; }
   if (!b.dataset.view) return;
+  S.connectWizard = false;
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
@@ -1478,6 +1499,7 @@ $("#mobile-nav").addEventListener("click", (e) => {
   document.getElementById("simple-create")?.classList.remove("open");
   if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; }
   if (!b.dataset.view) return;
+  S.connectWizard = false;
   S.view = b.dataset.view; S.openProject = null; render();
 });
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
@@ -1571,15 +1593,34 @@ import("/features/index.js").then(() => { if (S.providers.length) render(); }).c
 boot();
 
 // ----- Setup (first run) -----
+async function saveShareChoice() {
+  const st = S.setup;
+  const on = !!$("#su-share")?.checked;
+  if (st) st.shareOptIn = on;
+  if (!st || on === !!st.shareSaved) return;
+  await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
+  st.shareSaved = on;
+}
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false });
+  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: false });
+  if (!st.shareKnown && !st.shareLoading) {
+    st.shareLoading = true;
+    api("/brain").then((d) => {
+      if (st.shareTouched) return;
+      st.shareOptIn = !!d?.settings?.shareOptIn;
+      st.shareSaved = st.shareOptIn;
+      st.shareKnown = true;
+      if (S.view === "setup" && !S.connectWizard && !st.result) render();
+    }).catch(() => { st.shareKnown = true; }).finally(() => { st.shareLoading = false; });
+  }
   if (st.step === 1 || !st.result) {
     v.innerHTML = `<div style="max-width:860px;margin:0 auto">
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. Everything below runs on this PC only; nothing is uploaded anywhere.</div>
+          <div class="muted">Three optional steps. The scans below run on this PC only; nothing from them is uploaded.</div>
           <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
+        <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start;margin-top:18px"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. If you turn it on, we only use anonymous scores, task types, cost, and speed. We use those to get faster and better at picking the best AI for savings and builds. We never use your prompts, files, or keys. You can turn it off any time in Settings. On Who's best, clear I am willing to share anonymous track records. This switch is off until you choose it.</div></div></label>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
@@ -1588,14 +1629,23 @@ function renderSetup(v) {
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
       </div></div>`;
+    $("#su-share")?.addEventListener("change", () => { st.shareTouched = true; st.shareOptIn = !!$("#su-share").checked; });
     $("#su-go").addEventListener("click", async () => {
       st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
       st.busy = true; render();
-      try { st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } }); st.step = 2; }
+      try {
+        await saveShareChoice();
+        st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
+        st.step = 2;
+      }
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
     });
-    $("#su-skip").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; S.view = "settings"; render(); });
+    $("#su-skip").addEventListener("click", async () => {
+      try { await saveShareChoice(); }
+      catch (e) { toast(e.message, true); return; }
+      finishAiSetup("settings");
+    });
     window.CC.mountPromptInterview?.($("#su-prompts"));
     return;
   }
@@ -1617,7 +1667,9 @@ function renderSetup(v) {
   const profiles = r.profiles || [];
   v.innerHTML = `<div style="max-width:980px;margin:0 auto" class="grid">
     <div class="panel"><h3>AIs you use <span class="right">${scan ? `${scan.days} days · ${scan.scanned.length} browser profile${scan.scanned.length === 1 ? "" : "s"} scanned` : "history scan skipped"}</span></h3>
-      <div class="grid" style="gap:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
+      ${openRouterStartCard()}
+      <div class="dim small" style="margin-top:10px">Other keys are optional.</div>
+      <div class="grid" style="gap:8px;margin-top:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
       ${anyKeyHtml()}
       <div class="dim small" style="margin-top:8px">Not listed? Paste the key above, or add any provider (Google Gemini, OpenRouter, Groq, Ollama...) in <a href="#" id="setup-settings">Settings</a>. "Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
     ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
@@ -1632,6 +1684,7 @@ function renderSetup(v) {
   $$("[data-setup-mcp]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupMcp, { mode: "mcp" })));
   $$("[data-setup-key]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupKey, { mode: "key" })));
   $$("[data-open]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/open", { method: "POST", body: { provider: b.dataset.open } }); toast(`Opened ${r2.url}`); }));
+  wireOpenRouterStart(v);
   wireAnyKey(v);
   renderExtras("setup", "#su-extras");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
@@ -1641,5 +1694,31 @@ function renderSetup(v) {
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
-  $("#su-done").addEventListener("click", async () => { await api("/setup/done", { method: "POST" }); S.settings.onboarded = true; if (S.onboarding) S.onboarding.show = false; S.visitedSetup = true; toast("Setup complete"); S.view = "command"; render(); });
+  $("#su-done").addEventListener("click", () => finishAiSetup("command"));
+}
+// After the existing AI setup, a fresh install continues into Get everything connected.
+async function finishAiSetup(nextView) {
+  let offer = null;
+  try { offer = await api("/connectsetup"); } catch { offer = null; }
+  const showConnect = !!offer?.show;
+  if (showConnect) {
+    try { offer = await api("/connectsetup/begin", { method: "POST" }); } catch { /* the opened flag is enough to resume */ }
+  }
+  try {
+    const saved = await api("/setup/done", { method: "POST" });
+    S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (S.onboarding) S.onboarding.show = false;
+    S.visitedSetup = true;
+    if (showConnect) {
+      S.connectSetup = offer;
+      S.connectWizard = true;
+      S.visitedConnect = true;
+      S.view = "setup";
+    } else {
+      S.connectWizard = false;
+      S.view = nextView;
+      if (nextView === "command") toast("Setup complete");
+    }
+    render();
+  } catch (e) { toast(e.message, true); }
 }
