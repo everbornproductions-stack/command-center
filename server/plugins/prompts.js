@@ -1,6 +1,7 @@
 // Pro prompts: the pack, the profile, intent match, and the buttons that create
 // a saved prompt, a paused schedule, or a pipeline. Nothing is sent from here.
 import { CATEGORIES, NOTE, TEMPLATES, getTemplate, listTemplates } from "../prompts/catalog.js";
+import { SHELVES, assignCustom, shelfFor } from "../../web/features/prompt-board.js";
 import { FIELDS, INTERVIEW, emptyProfile, normalizeProfile, globalBlock } from "../prompts/profile.js";
 import { detectIntent } from "../prompts/intent.js";
 import { renderTemplate } from "../prompts/render.js";
@@ -14,6 +15,25 @@ import { completeFallback } from "../fallback.js";
 import { subscriptionView } from "../subscriptions.js";
 
 export const id = "prompts";
+const SHELF_KIND = "prompts.customShelves";
+
+function customShelfDoc(h) {
+  const d = h.doc(SHELF_KIND, () => ({ custom: {} }));
+  if (!d.custom || typeof d.custom !== "object") d.custom = {};
+  return d;
+}
+
+function customRows(h) {
+  const map = customShelfDoc(h).custom;
+  const movable = new Set(SHELVES.map((s) => s.id).filter((id) => id !== "marketplace"));
+  return listPrompts().map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description || "",
+    text: p.text || "",
+    shelf: movable.has(map[p.id]) ? map[p.id] : "custom",
+  }));
+}
 
 function profileDoc(h) {
   return normalizeProfile(h.doc(PROFILE_KIND, () => emptyProfile()));
@@ -51,7 +71,9 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, {
       note: NOTE,
       categories: CATEGORIES,
-      templates: listTemplates(),
+      templates: listTemplates().map((t) => ({ ...t, shelf: shelfFor(t) })),
+      shelves: SHELVES,
+      custom: customRows(h),
       interview: INTERVIEW,
       fields: FIELDS,
       integrations: { kling: KLING_PRESENT, voice: VOICE_PRESENT, schedules: SCHEDULES_PRESENT, pipelines: true, agents: true },
@@ -93,6 +115,17 @@ export async function routes(req, res, url, body, h) {
   }
   if (method === "POST" && p === "/annotate") {
     return h.json(res, 200, { text: annotateOutput(body?.text || "", body?.source || "", { scf: !!body?.scf }) });
+  }
+  if (method === "POST" && p === "/shelf") {
+    const id = String(body?.id || "");
+    const shelf = String(body?.shelf || "");
+    try {
+      const next = assignCustom({ id, shelf, ownIds: listPrompts().map((p) => p.id), current: customShelfDoc(h).custom });
+      h.putDoc(SHELF_KIND, { custom: next });
+      return h.json(res, 200, { id, shelf: next[id] });
+    } catch (e) {
+      return h.json(res, e.status || 400, { error: e.message });
+    }
   }
   if (method === "POST" && p === "/save") {
     const name = String(body?.name || "Saved prompt").slice(0, 60);

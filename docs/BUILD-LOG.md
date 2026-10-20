@@ -1246,3 +1246,11 @@ MONEY SAVED TRACKER DONE (built by Cursor cloud agent)
 - Test: `test/prompts-pack-more.test.js`.
 
 PROMPTS PACK ADDITIONS DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Pro prompts categories (Cursor cloud agent)
+
+- The Prompts tab groups every template into one shelf: Sales and Follow-up, Marketing and Content, Leadership and Team, Productivity and Delegation, Planning and Operations, Build and Spec, Creative, Custom/My prompts, and Marketplace. Spec it out, Build it right, and the agent team builder are under Build and Spec. Reel scripts are under Creative. Marketplace listings whose kind is prompt show under Marketplace, not mixed into the pack.
+- Categories collapse. Open or closed is remembered in the browser. Search covers every category. Your own prompts can move between categories. Built-in templates stay put. Simple mode is the categories plus search. Expert mode adds sort and filter. The board lives in `web/features/prompt-board.js` and mounts from the Prompts tab.
+- Test: `test/prompt-shelves.test.js`.
+
+PROMPTS CATEGORIES DONE (built by Cursor cloud agent)
