@@ -71,7 +71,11 @@ not in the install folder, so updating or reinstalling keeps it.
 
 `.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.5` when the version is `0.4.5`).
 
-It runs `npm ci`, then `npm test`. If that test run fails, the job runs `npm test` once more before it stops. It then runs `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
+It runs `npm ci`, then `npm test`. If that test run fails, the job runs `npm test` once more before it stops. It then runs `npm run smoke`. It then runs the same publishable-key check as `npm run dist`. The key is `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` (the build reads `CC_SUPABASE_ANON_KEY` first). Each name may be a repo secret or, when that secret is empty, a repository variable of the same name. The job stops when neither is set.
+
+Before the installer is built or published, `npm run smoke:packaged` builds the unpacked app (`electron-builder --win --x64 --dir --publish never`) and starts that `Meldmind.exe` headless, with a temporary user-data directory (not the repo `data\` folder and not the installed app folder). It waits up to 60 seconds for `http://127.0.0.1:<port>/api/health`. The wait keeps polling until the engine answers or the 60 seconds are up. If the log contains `server failed`, or the engine never answers, the job stops and nothing is published. The process tree is then killed and the temporary directory is removed. The same script also refuses a bare import in `server/` or the Electron main process that is not listed in `package.json` `dependencies` (node built-ins and `electron` are allowed). That is the check that would have caught v0.4.5, which imported `undici` without shipping it, so the packaged engine crashed at startup with `ERR_MODULE_NOT_FOUND` while the unit tests still passed.
+
+`npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
 
 - `Meldmind-Setup-X.Y.Z.exe`
 - `Meldmind-Setup-X.Y.Z.exe.blockmap`
@@ -82,7 +86,7 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 - `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Set either name as a secret or as a repository variable. Without one of them the workflow stops, because an empty key would leave every installed copy on the Free tier.
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
 
-`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, `npm run smoke:packaged`, and `npm run dist` on a Windows runner. The packaged smoke uses `CC_PACK_UNPUBLISHED=1`, so it does not need the publishable key. It does not publish, and it does not read signing secrets or the releases token. That package is not a release installer.
 
 ## Mac (unsigned for now)
 

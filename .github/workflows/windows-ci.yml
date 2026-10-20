@@ -2,6 +2,8 @@
 # This does not publish, and it does not read a signing certificate or the releases token.
 # CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
 # The installer from this job is not a release. Do not upload it.
+# The packaged smoke builds the unpacked app and waits for the engine health
+# endpoint, so a missing runtime dependency cannot pass this job.
 name: Windows CI
 
 on:
@@ -35,6 +37,14 @@ jobs:
 
       - name: Smoke
         run: npm run smoke
+
+      - name: Packaged app smoke
+        shell: bash
+        env:
+          CC_PACK_UNPUBLISHED: "1"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run smoke:packaged
 
       - name: Package the Windows app
         shell: bash

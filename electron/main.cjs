@@ -6,6 +6,14 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
+// Packaged smoke sets CC_USER_DATA to an absolute temp directory. Apply it after
+// setName and before the first getPath, so the log and engine data stay there.
+// A normal launch leaves it unset and keeps %APPDATA%\Everborn Command.
+if (process.env.CC_USER_DATA && path.isAbsolute(process.env.CC_USER_DATA)) {
+  fs.mkdirSync(process.env.CC_USER_DATA, { recursive: true });
+  app.setPath("userData", process.env.CC_USER_DATA);
+  try { app.setPath("sessionData", process.env.CC_USER_DATA); } catch {}
+}
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");

@@ -1,4 +1,10 @@
 {
+  "0.4.6": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Version 0.4.5 could open and then never listen, so the engine did not start. This update includes the missing piece and Meldmind starts again. Your keys and history stay on this computer."
+    ]
+  },
   "0.4.5": {
     "title": "What's new in Meldmind",
     "bullets": [
