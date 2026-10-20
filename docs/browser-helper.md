@@ -12,6 +12,7 @@ For people who do not have Grok Bot. An AI drives a browser one step at a time t
   - Scopes are `gmail.readonly` and `drive.readonly` by default. `gmail.send` is added only when the person ticks it.
   - A grant wider than what was asked for is refused, and nothing is kept.
   - The client secret and the tokens live in the vault (`google-helper`) and are never logged, written to a data file or sent to the browser.
+  - More than one Google account: Settings has **Add another account**, a label on each account, and a default. Send to Browser helper has an account picker. Councils and missions use the default. The first account keeps `google-helper`. Each added account uses `mail-acct-<id>` in the same vault. The setup wizard calls `listAccounts`, `addAccount` and `removeAccount` (docs/mail-accounts.md). This change does not build that wizard.
   - Read calls use GET only. "Sign in again" answers 409, not 401.
 
 ## What needs an OK, and what is refused

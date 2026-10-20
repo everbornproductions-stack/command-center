@@ -121,7 +121,7 @@ function candidateHtml(c, subs) {
   const ftag = (k) => (c[k === "service" ? "service" : k] == null ? tag("none") : tag("email", conf(k), c.fields?.[k]?.estimated ? "estimated from the receipt date and cycle" : ""));
   return `<div class="sv-cand ${c.low ? "low" : ""}" data-cand="${esc(c.id)}">
     <div class="row small" style="gap:8px;align-items:center"><b>${esc(c.service)}</b> <span class="chip ${c.low ? "amber" : "green"}">${pct(c.confidence)} sure${c.low ? ", check this one" : ""}</span>
-      <span class="dim">${c.source === "demo" ? "sample email" : c.source === "gmail" ? "Gmail" : "Outlook"}${c.receivedAt ? ` · ${esc(c.receivedAt)}` : ""}</span>
+      <span class="dim">${c.source === "demo" ? "sample email" : c.source === "gmail" ? "Gmail" : "Outlook"}${c.accountLabel ? ` · ${esc(c.accountLabel)}` : ""}${c.receivedAt ? ` · ${esc(c.receivedAt)}` : ""}</span>
       ${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">open the email</a>` : ""}
     </div>
     <div class="row" style="margin-top:6px">
@@ -147,6 +147,15 @@ function mailPanel(v) {
           <div class="row" style="gap:8px;margin-top:6px"><button class="btn sm primary" data-connect="${src}">Connect ${esc(x.name)}</button>${x.connected ? `<button class="ghost small" data-disconnect="${src}">disconnect</button>` : ""}</div>
           <div class="dim small" style="margin-top:4px">${esc(x.setup)} <a href="${esc(x.consoleUrl)}" target="_blank" rel="noopener">open</a></div></div>`}
       ${x.lastScan?.failed?.length ? `<details class="small" style="margin-top:6px"><summary class="dim">${x.lastScan.failed.length} email${x.lastScan.failed.length === 1 ? "" : "s"} not understood</summary>${x.lastScan.failed.map((f) => `<div>${f.link ? `<a href="${esc(f.link)}" target="_blank" rel="noopener">open</a>` : ""} <span class="dim">${esc(f.reason)}</span></div>`).join("")}</details>` : ""}
+      ${(x.accounts || []).map((a) => `<div class="row small" data-mail-acct="${esc(a.id)}" data-mail-src="${src}" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+        <input type="text" data-acct-label value="${esc(a.label)}" aria-label="Account label" style="width:140px;padding:4px 6px">
+        <label class="row" style="gap:4px"><input type="radio" name="mail-default-${src}" data-acct-default ${a.isDefault ? "checked" : ""}> Default</label>
+        <span class="chip ${a.connected ? (a.needsSignIn ? "amber" : "green") : ""}">${a.connected ? (a.needsSignIn ? "sign in again" : "connected") : "not connected"}</span>
+        <button class="ghost small" data-acct-remove>Remove</button>
+      </div>`).join("")}
+      ${(x.accounts || []).length ? `<label class="row small" style="gap:6px;margin-top:6px">Account <select data-scan-account="${src}" title="Which mailbox this scan uses">${(x.accounts || []).map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? "selected" : ""}>${esc(a.label)}${a.isDefault ? " (default)" : ""}</option>`).join("")}</select></label>` : ""}
+      ${(x.accounts || []).some((a) => a.connected && !a.needsSignIn) && !(x.connected && !x.needsSignIn) ? `<div class="row small" style="gap:8px;margin-top:8px"><button class="btn sm primary" data-scan="${src}" ${busy ? "disabled" : ""}>Scan for receipts</button></div>` : ""}
+      <div class="row small" style="gap:6px;margin-top:8px"><input type="text" data-new-label="${src}" placeholder="Label, e.g. Work" aria-label="Label for another ${esc(x.name)} account" style="width:140px;padding:4px 6px"><button class="btn sm" data-add-account="${src}">Add another account</button></div>
     </div>`;
   };
   return `<div class="panel" id="sv-mail-panel"><h3>Find subscriptions in your email <span class="right small"><button class="btn sm" data-scan="demo" ${busy ? "disabled" : ""}>Try with sample emails</button></span></h3>
@@ -224,12 +233,44 @@ function draw(el) {
     } catch (e) { toast(e.message, true); }
   }));
   $$("[data-scan]").forEach((b) => b.addEventListener("click", async () => {
+    const src = b.dataset.scan;
+    const body = { source: src };
+    const sel = src === "demo" ? null : el.querySelector(`[data-scan-account="${src}"]`);
+    if (sel?.value) body.accountId = sel.value;
     busy = true; draw(el);
-    try { const r = await api("/services/mail/scan", { method: "POST", body: { source: b.dataset.scan } }); V = r.view; toast(`${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm${r.failed.length ? `, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood` : ""}`); }
+    try {
+      const r = await api("/services/mail/scan", { method: "POST", body });
+      V = r.view; toast(`${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm${r.failed.length ? `, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood` : ""}`);
+    }
     catch (e) { toast(e.message, true); try { await load(); } catch {} }
     busy = false; draw(el);
   }));
   $$("[data-disconnect]").forEach((b) => b.addEventListener("click", () => { if (!confirm("Disconnect this mailbox? Its sign-in token is removed from the vault.")) return; run(async () => { await api(`/services/mail/${b.dataset.disconnect}`, { method: "DELETE" }); return api("/services"); }, "Disconnected"); }));
+  $$("[data-add-account]").forEach((b) => b.addEventListener("click", async () => {
+    const src = b.dataset.addAccount;
+    const label = ($(`[data-new-label="${src}"]`)?.value || "").trim();
+    if (!label) return toast("Give this account a label.", true);
+    let created = null;
+    try {
+      const idIn = $(`[data-client="${src}"]`), secIn = $(`[data-client-secret="${src}"]`);
+      const client = { source: src };
+      if (idIn) client.clientId = idIn.value.trim();
+      if (secIn && secIn.value.trim()) client.clientSecret = secIn.value.trim();
+      if (idIn || client.clientSecret) await api("/services/mail/client", { method: "POST", body: client });
+      created = await api("/mail-accounts", { method: "POST", body: { provider: src, label } });
+      const r = await api("/services/mail/start", { method: "POST", body: { source: src, origin: location.origin, accountId: created.account.id } });
+      localStorage.setItem("cc.mail.oauth", src);
+      window.open(r.url, "_blank", "noopener");
+      toast(`Sign in to ${src === "gmail" ? "Google" : "Microsoft"} for this account. This page finishes the link when you come back.`);
+    } catch (e) { toast(e.message, true); }
+    if (created) { try { await load(); } catch {} if (window.CC.S.view === "subscriptions" && document.body.contains(el)) draw(el); }
+  }));
+  $$("[data-mail-acct]").forEach((row) => {
+    const id = row.dataset.mailAcct;
+    row.querySelector("[data-acct-label]").addEventListener("change", () => run(() => api(`/mail-accounts/${encodeURIComponent(id)}/label`, { method: "POST", body: { label: row.querySelector("[data-acct-label]").value } }).then(() => api("/services")), "Account label saved"));
+    row.querySelector("[data-acct-default]").addEventListener("change", () => run(() => api(`/mail-accounts/${encodeURIComponent(id)}/default`, { method: "POST", body: {} }).then(() => api("/services")), "Default account updated"));
+    row.querySelector("[data-acct-remove]").addEventListener("click", () => { if (!confirm("Remove this account? Its token is removed from the vault.")) return; run(() => api(`/mail-accounts/${encodeURIComponent(id)}`, { method: "DELETE" }).then(() => api("/services")), "Account removed"); });
+  });
 
   // suggestions: confirm (with edits) or dismiss
   $$("[data-cand]").forEach((box) => {

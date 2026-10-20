@@ -16,6 +16,7 @@ import { allStatus, networkCause, providerMessage } from "./health.js";
 import { emit } from "./events.js";
 import { subscriptionView, totals as subTotals, saveSubscription } from "./subscriptions.js";
 import { parseReceipt, htmlToText, LOW_CONFIDENCE } from "./receipts.js";
+import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 
 // Test and development hook (like CC_BASE_URL_<ID>): local mocks for the mail and sign-in endpoints. Installed builds ignore it.
 const DEV = process.env.CC_PACKAGED !== "1";
@@ -279,20 +280,26 @@ export async function setMailClient(src, { clientId, clientSecret } = {}) {
   return mailView();
 }
 
-const oauthPending = new Map(); // state -> { src, verifier, redirectUri, user, at }
+const oauthPending = new Map(); // state -> { src, verifier, redirectUri, user, at, accountId }
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 
-export function mailStart(src, { redirectUri }) {
+export function mailStart(src, { redirectUri, accountId } = {}) {
   const M = srcOk(src);
   const clientId = clientIdOf(src);
   if (!clientId) throw fail(400, `Add your ${M.name} OAuth client ID first. ${M.setup}`, { code: "client_id" });
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
+  let extraId = null;
+  if (accountId && accountId !== src) {
+    const a = activeExtra(src, accountId);
+    if (!a) throw fail(404, "That mail account is not in the list.");
+    extraId = a.id;
+  }
   for (const [k, p] of oauthPending) if (Date.now() - p.at > 10 * 60 * 1000 || (p.src === src && p.user === userId())) oauthPending.delete(k);
   const verifier = b64url(crypto.randomBytes(48));
   const challenge = b64url(crypto.createHash("sha256").update(verifier).digest());
   const state = "mail-" + b64url(crypto.randomBytes(24));
-  oauthPending.set(state, { src, verifier, redirectUri, user: userId(), at: Date.now() });
+  oauthPending.set(state, { src, verifier, redirectUri, user: userId(), at: Date.now(), accountId: extraId });
   const u = new URL(M.authUrl());
   u.searchParams.set("response_type", "code"); u.searchParams.set("client_id", clientId); u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("scope", M.scopes.join(" ")); u.searchParams.set("code_challenge", challenge); u.searchParams.set("code_challenge_method", "S256"); u.searchParams.set("state", state);
@@ -326,6 +333,14 @@ export async function mailFinish({ code, state }) {
   if (tok.scope && /mail\.(readwrite|send)|gmail\.(modify|send|compose|insert)|https:\/\/mail\.google\.com\/(\s|$)/i.test(tok.scope)) {
     throw fail(400, "The sign-in granted more than read-only mail access. Nothing was saved; check the OAuth client's scopes.");
   }
+  if (p.accountId) {
+    const a = activeExtra(p.src, p.accountId);
+    if (!a) throw fail(404, "That mail account is not in the list. Nothing was saved.");
+    await setSecret(a.vaultId, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || null, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
+    markAccount(a.id, { scopes: [...MAIL[p.src].scopes], connectedAt: Date.now(), needsSignIn: false });
+    emit("log", { text: `${MAIL[p.src].name} account "${a.label}" connected read-only for receipt scanning. Its token is in the vault.` });
+    return { ok: true, source: p.src, accountId: a.id };
+  }
   await storeTokens(p.src, tok);
   const d = mailDoc(); d[p.src] = { ...d[p.src], connectedAt: Date.now(), needsSignIn: false }; saveMail(d);
   emit("log", { text: `${MAIL[p.src].name} connected read-only for receipt scanning; its token is in the vault.` });
@@ -340,7 +355,22 @@ export async function mailDisconnect(src) {
   return mailView();
 }
 
-async function accessToken(src) {
+async function extraAccess(src, extra) {
+  const s = getSecret(extra.vaultId) || null;
+  if (!s?.access) throw fail(400, `${MAIL[src].name} account "${extra.label}" is not connected. Connect it first.`, { code: "not_connected" });
+  if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
+    if (!s.refresh) { markAccount(extra.id, { needsSignIn: true }); throw fail(409, `${MAIL[src].name} sign-in for "${extra.label}" expired. Connect it again.`, { code: "sign_in" }); }
+    try {
+      const tok = await tokenRequest(src, { grant_type: "refresh_token", refresh_token: s.refresh });
+      await setSecret(extra.vaultId, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || s.refresh, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
+      return tok.access_token;
+    } catch (e) { if (e.network) throw e; markAccount(extra.id, { needsSignIn: true }); throw fail(409, `${MAIL[src].name} sign-in for "${extra.label}" expired (${e.message}). Connect it again.`, { code: "sign_in" }); }
+  }
+  return s.access;
+}
+async function accessToken(src, accountId) {
+  const extra = activeExtra(src, accountId);
+  if (extra) return extraAccess(src, extra);
   const s = mailSecret(src);
   if (!s?.access) throw fail(400, `${MAIL[src].name} is not connected. Connect it first.`, { code: "not_connected" });
   if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
@@ -353,10 +383,17 @@ async function accessToken(src) {
 function markSignIn(src) { const d = mailDoc(); d[src].needsSignIn = true; saveMail(d); }
 
 // Mail APIs are only ever read with GET. "Sign in again" is a 409, never a 401: a 401 would sign the person out of a hosted hub.
-async function mailGet(src, url, extra = {}) {
-  const token = await accessToken(src);
+async function mailGet(src, url, extra = {}, accountId) {
+  const token = await accessToken(src, accountId);
   try { return await getJson(url, { authorization: `Bearer ${token}`, accept: "application/json", ...extra }); }
-  catch (e) { if (e.status === 401) { markSignIn(src); throw fail(409, `${MAIL[src].name} refused the sign-in (401). Connect it again.`, { code: "sign_in" }); } throw e; }
+  catch (e) {
+    if (e.status === 401) {
+      const acct = activeExtra(src, accountId);
+      if (acct) markAccount(acct.id, { needsSignIn: true }); else markSignIn(src);
+      throw fail(409, `${MAIL[src].name} refused the sign-in (401). Connect it again.`, { code: "sign_in" });
+    }
+    throw e;
+  }
 }
 
 const SUBJECT_TERMS = ["receipt", "invoice", "renewal", "renew", "subscription", "payment", "plan", "membership", "billing"];
@@ -376,19 +413,19 @@ const header = (payload, name) => (payload?.headers || []).find((h) => h.name?.t
 const gmailLink = (id) => `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
 const outlookLink = (webLink) => (/^https:\/\/([a-z0-9-]+\.)*(outlook\.office\.com|outlook\.office365\.com|outlook\.live\.com)\//i.test(String(webLink || "")) ? String(webLink) : "https://outlook.office.com/mail/");
 
-async function* gmailMessages({ days, max }) {
+async function* gmailMessages({ days, max, accountId }) {
   const base = MAIL.gmail.api();
   const q = `newer_than:${days}d {${SUBJECT_TERMS.map((t) => `subject:${t}`).join(" ")}}`;
-  const list = await mailGet("gmail", `${base}/gmail/v1/users/me/messages?${new URLSearchParams({ q, maxResults: String(max) })}`);
+  const list = await mailGet("gmail", `${base}/gmail/v1/users/me/messages?${new URLSearchParams({ q, maxResults: String(max) })}`, {}, accountId);
   for (const m of list.messages || []) {
-    yield { id: m.id, load: async () => { const full = await mailGet("gmail", `${base}/gmail/v1/users/me/messages/${encodeURIComponent(m.id)}?format=full`); return { from: header(full.payload, "From"), subject: header(full.payload, "Subject"), date: header(full.payload, "Date") || (full.internalDate ? new Date(Number(full.internalDate)).toISOString() : ""), text: gmailBody(full.payload) }; }, link: gmailLink(m.id) };
+    yield { id: m.id, load: async () => { const full = await mailGet("gmail", `${base}/gmail/v1/users/me/messages/${encodeURIComponent(m.id)}?format=full`, {}, accountId); return { from: header(full.payload, "From"), subject: header(full.payload, "Subject"), date: header(full.payload, "Date") || (full.internalDate ? new Date(Number(full.internalDate)).toISOString() : ""), text: gmailBody(full.payload) }; }, link: gmailLink(m.id) };
   }
 }
-async function* outlookMessages({ max }) {
+async function* outlookMessages({ max, accountId }) {
   const base = MAIL.outlook.api();
   const search = `"${SUBJECT_TERMS.slice(0, 6).join(" OR ")}"`;
   const qs = `$search=${encodeURIComponent(search)}&$top=${max}&$select=id,subject,from,receivedDateTime,body,webLink`;
-  const list = await mailGet("outlook", `${base}/v1.0/me/messages?${qs}`, { prefer: 'outlook.body-content-type="text"' });
+  const list = await mailGet("outlook", `${base}/v1.0/me/messages?${qs}`, { prefer: 'outlook.body-content-type="text"' }, accountId);
   for (const m of list.value || []) {
     const from = m.from?.emailAddress ? `${m.from.emailAddress.name || ""} <${m.from.emailAddress.address || ""}>` : "";
     yield { id: m.id, load: async () => ({ from, subject: m.subject || "", date: m.receivedDateTime || "", text: m.body?.contentType === "html" ? htmlToText(m.body.content) : String(m.body?.content || "") }), link: outlookLink(m.webLink) };
@@ -399,17 +436,18 @@ async function* demoMessages() { for (const m of DEMO_RECEIPTS) yield { id: m.id
 const candidateId = (src, mid) => "c-" + crypto.createHash("sha256").update(`${src}:${mid}`).digest("hex").slice(0, 12);
 
 // Scan one mailbox (or the built-in samples: src "demo"). New candidates wait in `pending` for a confirm or edit.
-export async function scanMail(src, { days = 400, max = 50, subs = [] } = {}) {
+export async function scanMail(src, { days = 400, max = 50, subs = [], accountId } = {}) {
   if (src !== "demo") srcOk(src);
   days = Math.max(7, Math.min(800, Math.round(Number(days) || 400)));
   max = Math.max(1, Math.min(100, Math.round(Number(max) || 50)));
+  const acct = src === "demo" ? null : activeExtra(src, accountId);
   const d = mailDoc();
-  const it = src === "gmail" ? gmailMessages({ days, max }) : src === "outlook" ? outlookMessages({ max }) : demoMessages();
+  const it = src === "gmail" ? gmailMessages({ days, max, accountId }) : src === "outlook" ? outlookMessages({ max, accountId }) : demoMessages();
   let scanned = 0, skipped = 0;
   const found = [], failed = [];
   for await (const m of it) {
-    const key = `${src}:${m.id}`;
-    const cid = candidateId(src, m.id);
+    const key = acct ? `${src}:${acct.id}:${m.id}` : `${src}:${m.id}`;
+    const cid = candidateId(src, acct ? `${acct.id}:${m.id}` : m.id);
     if (d.seen[key] || d.pending.some((c) => c.id === cid)) { skipped++; continue; }
     scanned++;
     let email;
@@ -424,12 +462,14 @@ export async function scanMail(src, { days = 400, max = 50, subs = [] } = {}) {
       plan: r.plan, price: r.price, currency: r.currency, cycle: r.cycle, monthly: r.monthly, renews: r.renews, renewsEstimated: r.renewsEstimated,
       confidence: r.confidence, low: r.low, fields: Object.fromEntries(Object.entries(r.fields).filter(([, v]) => v).map(([k, v]) => [k, { conf: v.conf, ...(v.estimated ? { estimated: true } : {}) }])),
       matches: match ? { id: match.id, name: match.name } : null, foundAt: Date.now(),
+      ...(acct ? { accountId: acct.id, accountLabel: acct.label } : {}),
     });
   }
   d.pending.push(...found);
   if (d.pending.length > 200) d.pending.splice(0, d.pending.length - 200);
   const summary = { at: Date.now(), scanned, skipped, found: found.length, low: found.filter((c) => c.low).length, failed: failed.slice(0, 20) };
-  if (src !== "demo") d[src] = { ...d[src], lastScanAt: summary.at, lastScan: summary, needsSignIn: false };
+  if (src !== "demo" && acct) markAccount(acct.id, { lastScanAt: summary.at, lastScan: summary, needsSignIn: false });
+  else if (src !== "demo") d[src] = { ...d[src], lastScanAt: summary.at, lastScan: summary, needsSignIn: false };
   else d.demoScan = summary;
   saveMail(d);
   return { ...summary, candidates: found };
@@ -477,7 +517,7 @@ export function mailView() {
   const out = { pending: d.pending, demoScan: d.demoScan || null, lowConfidence: LOW_CONFIDENCE };
   for (const src of MAIL_SOURCES) {
     const M = MAIL[src], s = mailSecret(src), row = d[src];
-    out[src] = { name: M.name, scopes: [...M.scopes], readOnly: true, clientId: clientIdOf(src), clientIdFromEnv: !row.clientId && !!clientIdOf(src), hasClientSecret: !!s?.clientSecret, connected: !!s?.access, needsSignIn: !!row.needsSignIn, connectedAt: row.connectedAt || null, lastScanAt: row.lastScanAt || null, lastScan: row.lastScan || null, setup: M.setup, consoleUrl: M.consoleUrl };
+    out[src] = { name: M.name, scopes: [...M.scopes], readOnly: true, clientId: clientIdOf(src), clientIdFromEnv: !row.clientId && !!clientIdOf(src), hasClientSecret: !!s?.clientSecret, connected: !!s?.access, needsSignIn: !!row.needsSignIn, connectedAt: row.connectedAt || null, lastScanAt: row.lastScanAt || null, lastScan: row.lastScan || null, accounts: listAccounts(src), setup: M.setup, consoleUrl: M.consoleUrl };
   }
   return out;
 }
@@ -497,6 +537,9 @@ export function servicesView() {
 }
 
 // Built-in sample emails for demo mode (fake data only): one confident, one partial, one unknown sender.
+onRemoveLegacy("gmail", () => mailDisconnect("gmail"));
+onRemoveLegacy("outlook", () => mailDisconnect("outlook"));
+
 export const DEMO_RECEIPTS = [
   { id: "demo-suno", from: "Suno <billing@suno.com>", subject: "Your Suno receipt", date: new Date(Date.now() - 10 * DAY).toUTCString(), text: "Thanks for subscribing to Suno.\nPro Plan (monthly)\nTotal charged: $10.00\nYour plan renews on " + new Date(Date.now() + 20 * DAY).toISOString().slice(0, 10) + "." },
   { id: "demo-midjourney", from: "Midjourney <noreply@midjourney.com>", subject: "Midjourney invoice", date: new Date(Date.now() - 3 * DAY).toUTCString(), text: "Standard Plan\nAmount paid $30.00\nBilled monthly." },

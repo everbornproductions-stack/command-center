@@ -42,7 +42,7 @@ function jobHtml(j, { full = false } = {}) {
   const log = (j.log || []).slice(full ? -60 : -8).reverse().map((l) => `<div class="${esc(l.kind)}" title="${esc(l.text)}">${time(l.ts)}  ${esc(l.text)}</div>`).join("");
   const arts = (j.artifacts || []).map((a) => a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>` : esc(a.name)).join(" · ");
   return `<div class="cc-bh-job" data-bh-job="${esc(j.id)}">
-    <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
+    <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
       <span class="dim" style="margin-left:auto">${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}${j.model ? ` · ${esc(j.model.name || j.model.model)}` : ""}</span>${OPEN(j) ? `<button class="ghost small" data-stop>Stop</button>` : ""}</div>
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 240))}</div>
     ${askHtml(j)}
@@ -86,9 +86,12 @@ function renderCommand(el) {
   const ready = !!card.agent?.ready;
   const ch = S.browserChoice === true ? "always" : S.browserChoice === false ? "never" : "auto";
   const open = (data?.jobs || []).filter(OPEN);
+  const accounts = data?.config?.google?.accounts || [];
+  const picker = accounts.length ? `<label class="row small" style="gap:6px">Account <select id="bh-account" title="Which Google account this task uses">${accounts.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? "selected" : ""}>${esc(a.label)}${a.isDefault ? " (default)" : ""}${a.connected ? "" : " (not connected)"}</option>`).join("")}</select></label>` : "";
   el.innerHTML = `<div style="margin-top:8px">
     <div class="row small" style="gap:8px;flex-wrap:wrap"><span class="muted">Browser helper</span>
       <span class="seg" id="bh-choice" title="Councils and missions: hand the browser helper the parts that need a website, Gmail or Drive (when Grok Bot is not set up)">${["auto", "always", "never"].map((c) => `<button data-c="${c}" class="${ch === c ? "on" : ""}">${c === "auto" ? "when needed" : c === "always" ? "Always" : "Never"}</button>`).join("")}</span>
+      ${picker}
       <button class="ghost small" id="bh-settings">settings</button>
       <button class="btn sm" id="bh-send" ${ready ? "" : "disabled"} title="${ready ? "The helper browses for the orders above in its own window; it asks before sending, posting, deleting, buying or submitting a form" : esc(card.status?.detail || "")}" style="margin-left:auto">Send to Browser helper</button></div>
     ${open.map((j) => jobHtml(j)).join("")}</div>`;
@@ -102,7 +105,8 @@ function renderCommand(el) {
       let context = "";
       const projectId = document.querySelector("#proj")?.value || null;
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
-      await api("/browser/jobs", { method: "POST", body: { task, context, projectId } });
+      const accountId = el.querySelector("#bh-account")?.value || "";
+      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}) } });
       toast("The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
       await refresh();
     } catch (err) { toast(err.message, true); }
@@ -161,6 +165,15 @@ async function renderSettings(el) {
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-send"> Send email (asks you every time)</label>
     </div>
     <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
+    <div id="bh-accounts" style="margin-top:10px">
+      ${(g.accounts || []).map((a) => `<div class="row small" data-bh-acct="${esc(a.id)}" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+        <input type="text" data-bh-label value="${esc(a.label)}" aria-label="Account label" style="width:160px;padding:4px 6px">
+        <label class="row" style="gap:4px"><input type="radio" name="bh-acct-default" data-bh-default ${a.isDefault ? "checked" : ""}> Default</label>
+        <span class="chip ${a.connected ? (a.needsSignIn ? "amber" : "green") : ""}">${a.connected ? (a.needsSignIn ? "sign in again" : "connected") : "not connected"}</span>
+        <button class="ghost small" data-bh-remove>Remove</button>
+      </div>`).join("")}
+      <div class="row small" style="gap:8px;margin-top:8px"><input type="text" id="bh-new-label" placeholder="Label, e.g. Work" aria-label="Label for another Google account" style="width:160px;padding:4px 6px"><button class="btn sm" id="bh-add-account">Add another account</button></div>
+    </div>
     ${data.jobs.length ? `<div class="cat-h" style="margin-top:14px">Recent jobs</div><div id="bh-jobs">${data.jobs.slice(0, 5).map((j) => jobHtml(j)).join("")}</div>` : ""}
   </div>`;
   const v = (sel) => el.querySelector(sel)?.value;
@@ -182,6 +195,35 @@ async function renderSettings(el) {
     } catch (e) { toast(e.message, true); }
   });
   el.querySelector("#bh-g-off")?.addEventListener("click", async () => { if (!confirm("Disconnect Google from the browser helper? Its tokens are removed from the vault. To remove the access on Google's side too, use myaccount.google.com/permissions.")) return; try { await api("/browser/google", { method: "DELETE" }); toast("Google disconnected"); renderSettings(el); } catch (e) { toast(e.message, true); } });
+  el.querySelector("#bh-add-account")?.addEventListener("click", async () => {
+    const label = v("#bh-new-label").trim();
+    if (!label) return toast("Give this account a label.", true);
+    let created = null;
+    try {
+      await saveClient();
+      created = await api("/mail-accounts", { method: "POST", body: { provider: "google", label } });
+      const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: on("#bh-g-gmail"), drive: on("#bh-g-drive"), send: on("#bh-g-send"), accountId: created.account.id } });
+      window.open(r.url, "_blank", "noopener");
+      toast("Sign in to Google for this account. This page finishes the link when you come back.");
+    } catch (e) { toast(e.message, true); }
+    if (created) renderSettings(el);
+  });
+  el.querySelectorAll("[data-bh-acct]").forEach((row) => {
+    const id = row.dataset.bhAcct;
+    row.querySelector("[data-bh-label]").addEventListener("change", async () => {
+      try { await api(`/mail-accounts/${encodeURIComponent(id)}/label`, { method: "POST", body: { label: row.querySelector("[data-bh-label]").value } }); toast("Account label saved"); renderSettings(el); }
+      catch (e) { toast(e.message, true); }
+    });
+    row.querySelector("[data-bh-default]").addEventListener("change", async () => {
+      try { await api(`/mail-accounts/${encodeURIComponent(id)}/default`, { method: "POST", body: {} }); toast("Default Google account updated"); renderSettings(el); }
+      catch (e) { toast(e.message, true); }
+    });
+    row.querySelector("[data-bh-remove]").addEventListener("click", async () => {
+      if (!confirm("Remove this Google account? Its token is removed from the vault.")) return;
+      try { await api(`/mail-accounts/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("Account removed"); renderSettings(el); }
+      catch (e) { toast(e.message, true); }
+    });
+  });
   const jb = el.querySelector("#bh-jobs"); if (jb) wire(jb, () => renderSettings(el));
 }
 
