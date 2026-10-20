@@ -25,11 +25,14 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/, "unsigned until the Apple account exists");
   assert.match(wf, /run: npm test/); assert.match(wf, /run: npm run smoke/);
   assert.match(wf, /run: npm run dist:mac/);
+  assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \}\}/);
+  assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY \}\}/);
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.scripts["dist:mac"], "electron-builder --mac dmg zip --x64 --arm64 --publish never");
-  assert.equal(pkg.scripts.dist, "electron-builder --win --publish never", "the Windows build is unchanged");
+  assert.equal(pkg.scripts["dist:mac"], "node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never");
+  assert.equal(pkg.scripts.dist, "node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never");
   const secrets = [...wf.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(secrets)], ["RELEASES_TOKEN"], "only the releases token");
+  assert.deepEqual([...new Set(secrets)].sort(), ["CC_SUPABASE_ANON_KEY", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);
+  assert.equal(secrets.some((s) => /SERVICE|SECRET_KEY|SB_SECRET/.test(s)), false);
   assert.match(wf, /gh release create "v\$V" --repo "\$R" --draft /, "a missing release is created as a draft");
   assert.doesNotMatch(wf, /--draft=false|--latest|gh release edit/, "never publishes");
   assert.match(wf, /dist\/latest-mac\.yml/, "uploads the Mac update feed");

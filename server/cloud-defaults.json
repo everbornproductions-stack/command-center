@@ -1,5 +1,5 @@
 {
-    "_comment":  "Licence server shipped with the app. url is the Supabase project; anonKey is the PUBLISHABLE key (sb_publishable_...), which Supabase designs to be public and is safe to commit. It is NOT the service key. Leave anonKey empty and every copy runs on the Free tier until a licence can be checked.",
-    "url":  "https://ezbpstloczzdlcxwliwu.supabase.co",
-    "anonKey":  "sb_publishable_-vQhqr9u5dSSLCkrnkNT5g_JmReU16a"
+  "_comment": "Licence server shipped with the app. url is the Supabase project. anonKey stays empty in git. npm run dist and npm run dist:mac write the publishable key from CC_SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY, then clear it again. It is not the service key. An empty anonKey means every installed copy stays on the Free tier and EVERBORN-OWNER cannot redeem.",
+  "url": "https://ezbpstloczzdlcxwliwu.supabase.co",
+  "anonKey": ""
 }

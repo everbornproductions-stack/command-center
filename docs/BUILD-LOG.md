@@ -1216,3 +1216,9 @@ Code and config only. Nothing was deployed, bought, or signed up for. appId `com
 - Help article docs/help/phone.md, a What's new bullet, a tour step, and a short note in the user guide.
 - Tests after rebase onto origin/main (through the manual handoff): npm test 308 tests, 307 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dir, no real key.
 - Browser: with pairing off there is no localhost QR. Turning it on shows the QR, the Wi-Fi address under it, and Copy (toast: Link copied). That address opens the app. An incognito window without the code sees the invalid-link sentence. Turning pairing off hides the address, the open phone tab says the phone cannot reach the PC, and a reload is connection refused. The panel stays readable at 390px. Not verified: a packaged Windows installer actually adding the firewall rule, or a physical phone (this machine is not Windows).
+
+## 2026-10-20: Publishable licence key injected at release build (Cursor cloud agent)
+
+- `server/cloud-defaults.json` keeps the Supabase project URL and an empty `anonKey` in git. `npm run dist` and `npm run dist:mac` read `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`, write that publishable key into the file for the installer, then clear it. A service key is refused. If neither variable is set, the release build stops and names both variables, because an empty key leaves every copy on the Free tier and EVERBORN-OWNER cannot redeem. Dev runs and `npm test` do not require it.
+- The value was not available in this environment, so it is not filled in. Add one of those names as a repo secret, or set it in the shell, before the next release build.
+- Tests: npm test 315 tests, 314 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. The missing-key check prints no key value.
