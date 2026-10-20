@@ -67,6 +67,21 @@ not in the install folder, so updating or reinstalling keeps it.
 - Never put a token, service key, or password into `electron-builder.yml` or the app. The publishable key is injected from `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` at build time and is not committed.
 - The phone / web app updates itself when the hub is updated; it shows "New version available, Refresh".
 
+## Windows on GitHub Actions
+
+`.github/workflows/release-windows.yml` runs on a Windows runner when you push a tag `vX.Y.Z` or start it by hand (Actions, Windows release, Run workflow). The tag must match `package.json` (`v0.4.3` when the version is `0.4.3`).
+
+It runs `npm ci`, `npm test`, and `npm run smoke`. It then stops with a clear message if the repo secret `SUPABASE_PUBLISHABLE_KEY` is missing. `npm run dist` writes that publishable key into the installer and clears it again. The job checks that `Meldmind-Setup-X.Y.Z.exe` is a real installer and that `latest.yml` names it, then publishes a normal release (not a draft, not a pre-release) on `everbornproductions-stack/command-center-releases` with these three files:
+
+- `Meldmind-Setup-X.Y.Z.exe`
+- `Meldmind-Setup-X.Y.Z.exe.blockmap`
+- `latest.yml`
+
+Add both secrets at https://github.com/everbornproductions-stack/command-center/settings/secrets/actions
+
+- `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Without it the workflow stops, because an empty key would leave every installed copy on the Free tier.
+- `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
+
 ## Mac (unsigned for now)
 
 - GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Meldmind-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
