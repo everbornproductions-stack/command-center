@@ -2,7 +2,7 @@
 // Requires the Workers Paid plan ($5/month). Deploy with: npx wrangler deploy
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "everborn-command",
+  "name": "meldmind-hub",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
@@ -14,13 +14,17 @@
   "durable_objects": { "bindings": [{ "class_name": "Hub", "name": "HUB" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
 
-  // the hub's address; Cloudflare creates the DNS record in the everbornproductions.com zone on deploy
-  "routes": [{ "pattern": "command.everbornproductions.com", "custom_domain": true }],
+  // Wake the hub every 5 minutes so a due schedule still falls inside the 5-minute lookback.
+  // CC_TICK_SECRET is set with `npx wrangler secret put CC_TICK_SECRET` and is not stored here.
+  "triggers": { "crons": ["*/5 * * * *"] },
 
-  // non-secret settings (secrets go in with `wrangler secret put NAME`)
+  // the hub's address; Cloudflare creates the DNS record for hub.meldmind.ai on deploy
+  "routes": [{ "pattern": "hub.meldmind.ai", "custom_domain": true }],
+
+  // non-secret settings (secrets go in with `wrangler secret put NAME`, never in this file)
   "vars": {
     "CC_SUPABASE_URL": "https://ezbpstloczzdlcxwliwu.supabase.co",
-    "CC_HUB_URL": "https://command.everbornproductions.com",
+    "CC_HUB_URL": "https://hub.meldmind.ai",
     "CC_OWNER_EMAILS": "everbornproductions@gmail.com"
   }
 }

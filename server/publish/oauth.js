@@ -10,6 +10,7 @@
 import crypto from "node:crypto";
 import { getSecret, setSecret } from "../vault.js";
 import { HOSTED, doc, putDoc, ctx } from "../store.js";
+import { CFG } from "../hosted.js";
 import { emit } from "../events.js";
 
 const env = (k, d) => (process.env[k] || d).replace(/\/$/, "");
@@ -69,6 +70,28 @@ const DOC = "publish.connect";
 const cdoc = () => doc(DOC, () => ({}));
 const entry = (k) => cdoc()[k] || { clientId: null, connectedAt: null, account: null, scopes: [], needsSignIn: false };
 function saveEntry(k, e) { const d = { ...cdoc() }; d[k] = e; putDoc(DOC, d); }
+// Desktop sign-in returns to this PC. The hub builds an https redirect from CC_HUB_URL and refuses anything else.
+export function publishRedirect({ hosted = HOSTED, hubUrl, port } = {}) {
+  if (!hosted) {
+    const p = Number(port ?? process.env.PORT ?? process.env.CC_PORT ?? 4747);
+    if (!Number.isInteger(p) || p < 1 || p > 65535) throw fail(500, "The desktop redirect port is not valid.");
+    return `http://127.0.0.1:${p}/`;
+  }
+  const raw = String(hubUrl ?? CFG.hubUrl ?? "").trim();
+  if (!raw) throw fail(500, "CC_HUB_URL is not set, so the hub cannot build the sign-in redirect.");
+  let u;
+  try { u = new URL(raw); } catch { throw fail(400, "CC_HUB_URL is not a valid address."); }
+  if (u.protocol !== "https:") throw fail(400, "Hosted sign-in redirects must be https.");
+  if (!u.host || u.username || u.password) throw fail(400, "CC_HUB_URL is not a valid https address.");
+  return `https://${u.host}/`;
+}
+export function setupText(id, redirect) {
+  const c = known(id);
+  let url = redirect;
+  if (!url) { try { url = publishRedirect(); } catch { url = ""; } }
+  return `${c.setup}${url ? ` Add this exact redirect URL: ${url}` : ""}`;
+}
+
 const secret = (k) => getSecret(CONNECTORS[k].vault) || null;
 // the client secret has its own vault entry, so a channel never mistakes it for a token
 const clientVault = (k) => `${CONNECTORS[k].vault}-client`;
@@ -88,10 +111,12 @@ function client(k) {
 export const connected = (k) => !!secret(k)?.oauth && !!secret(k)?.key && !entry(k).needsSignIn;
 
 export function view() {
+  let redirect = "";
+  try { redirect = publishRedirect(); } catch { redirect = ""; }
   return Object.entries(CONNECTORS).map(([id, c]) => {
     const e = entry(id), cl = client(id), s = secret(id);
     return {
-      id, name: c.name, scopeLabel: c.scopeLabel, setup: c.setup, consoleUrl: c.consoleUrl,
+      id, name: c.name, scopeLabel: c.scopeLabel, setup: setupText(id, redirect), redirectUri: redirect || null, consoleUrl: c.consoleUrl,
       clientId: e.clientId || null, sharedClient: cl.shared, clientSecretSaved: !!cl.clientSecret,
       connected: connected(id), viaPaste: !!s?.key && !s?.oauth, account: e.account || null,
       connectedAt: e.connectedAt || null, needsSignIn: !!e.needsSignIn,
@@ -118,10 +143,12 @@ const pending = new Map(); // state -> { k, verifier, redirectUri, user, at }
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 const b64url = (b) => Buffer.from(b).toString("base64url");
 
-export function start(k, { redirectUri } = {}) {
-  const c = known(k), cl = client(k);
-  if (!cl.clientId) throw fail(400, `Add the client ID first. ${c.setup}`, { code: "client_id" });
+export function start(k, { redirectUri, hosted = HOSTED } = {}) {
+  const c = known(k);
+  if (hosted && !/^https:\/\//i.test(String(redirectUri || ""))) throw fail(400, "Hosted sign-in redirects must be https.");
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
+  const cl = client(k);
+  if (!cl.clientId) throw fail(400, `Add the client ID first. ${setupText(k, redirectUri)}`, { code: "client_id" });
   for (const [s, p] of pending) if (Date.now() - p.at > 10 * 60 * 1000 || (p.user === userId() && p.k === k)) pending.delete(s);
   const state = `pub-${k}-` + b64url(crypto.randomBytes(24));
   const verifier = c.pkce ? b64url(crypto.randomBytes(48)) : null;

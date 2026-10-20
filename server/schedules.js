@@ -8,7 +8,8 @@
 // stopped, the schedule pauses and an alert goes out (alerts plugin). A schedule whose result is sent
 // somewhere ("after the run": POST to a web address) holds the result in "needs approval" until the person
 // clicks Approve; nothing is sent before that click.
-// Desktop schedules only run while the app is running (the tray counts). Always-on schedules need the hosted hub later.
+// Desktop schedules only run while the app is running (the tray counts). On the hub, a Cloudflare cron
+// wakes the container and POST /api/internal/schedules/tick runs due slots (see server/schedule-tick.js).
 //
 // The runner, the alert and the sender are plugged in by server/plugins/schedules.js (configure), so this
 // module can be driven by a fake clock in tests: tick(now) does the cron and folder work for that moment.
@@ -164,7 +165,10 @@ function clean(input = {}, prev = null, opts = {}) {
   if (!TRIGGERS.includes(tr.type)) throw err(400, "Pick a trigger: a schedule, a webhook or a watched folder.");
   const trigger = { type: tr.type };
   if (tr.type === "cron") { trigger.cron = parseCron(tr.cron).expr; }
-  if (tr.type === "folder") { trigger.folder = checkFolder(tr.folder); trigger.pattern = str(tr.pattern, 200); patternRe(trigger.pattern); }
+  if (tr.type === "folder") {
+    if (HOSTED) throw err(400, "A watched folder runs on the desktop app. The hub runs a schedule or a webhook.");
+    trigger.folder = checkFolder(tr.folder); trigger.pattern = str(tr.pattern, 200); patternRe(trigger.pattern);
+  }
   const capIn = input.capUsd ?? prev?.capUsd ?? DEFAULT_CAP;
   const capUsd = +Number(capIn).toFixed(6);
   if (!Number.isFinite(capUsd) || capUsd <= 0 || capUsd > 10000) throw err(400, "Set a monthly spend cap for this schedule (more than $0, up to $10000).");
@@ -376,7 +380,6 @@ function readLimited(req, max) {
 }
 // send(res, status, body) is index.js's json(). Unknown trigger and wrong token get the same 401.
 export async function handleHook(req, res, url, send) {
-  if (HOSTED) return send(res, 404, { error: "Schedules run on the desktop app for now. Always-on schedules need the hosted hub later." });
   if (req.method !== "POST") { res.setHeader("allow", "POST"); return send(res, 405, { error: "POST only" }); }
   const m = url.pathname.slice(HOOK_PREFIX.length).match(/^(sch-[a-z0-9]{6,40})$/);
   if (!m) return send(res, 404, { error: "not found" });
@@ -384,7 +387,11 @@ export async function handleHook(req, res, url, send) {
   if ((len > 0 || req.headers["transfer-encoding"]) && !/^application\/json\b/i.test(String(req.headers["content-type"] || ""))) return send(res, 415, { error: "content-type must be application/json" });
   let raw;
   try { raw = await readLimited(req, LIMITS.hookBody); } catch (e) { return send(res, e.status || 400, { error: e.status === 413 ? "payload too large" : "bad request" }); }
-  const c = getContext(null);
+  let c = null;
+  if (HOSTED) {
+    try { c = await (await import("./schedule-tick.js")).ownerForSchedule(m[1]); } catch { c = null; }
+    if (c) c.lastSeen = Date.now();
+  } else c = getContext(null);
   if (!c) return send(res, 401, { error: "trigger or token not recognised" });
   return runAs(c, () => {
     const s = getSchedule(m[1]);

@@ -2,7 +2,9 @@
 
 The Schedules tab runs a custom agent, a plain chat or a mission without you typing it each time.
 
-**Desktop schedules only run while the app is running (the tray counts). Always-on schedules need the hosted hub later.** Slots missed while the app was closed are not replayed; the next slot runs as normal. A hosted hub refuses schedules with a clear message for now.
+**Desktop schedules only run while the app is running (the tray counts).** Slots missed while the app was closed are not replayed; the next slot runs as normal.
+
+On the hosted hub, cron schedules and webhooks run while the browser is closed. A Cloudflare cron wakes the hub every 5 minutes and runs each due slot once (see docs/hosted-hub.md). A slot outside the 5-minute lookback is not replayed. Spend caps still apply, and a result that is sent out still waits until you click Approve. A watched folder stays on the desktop app.
 
 ## Triggers
 
@@ -12,7 +14,7 @@ The Schedules tab runs a custom agent, a plain chat or a mission without you typ
   - A wrong or missing token gets 401, and so does an unknown schedule. The app's own session token does not open it.
   - The body is optional. If present it must be a JSON object (`content-type: application/json`, up to 64 KB). It is handed to the run as data, never as instructions.
   - At most 30 calls a minute per trigger (429 after that), and at most five runs waiting per schedule.
-  - The address only works for callers that can reach this PC. Until the hosted hub exists, that means programs on this PC, or a tunnel you set up yourself. The app does not set up a tunnel.
+  - On the desktop the address only works for callers that can reach this PC (programs on this PC, or a tunnel you set up yourself). The app does not set up a tunnel. On the hub the same path works while the browser is closed.
 - **Watched folder.** A folder on this PC, with an optional file pattern (`*.txt, *.csv`).
   - Files already in the folder when watching starts do not run.
   - A new file runs once, after its size has held still for one scan. Temporary download files (`.part`, `.crdownload`, `.tmp`, `~$...`) are ignored.
@@ -41,6 +43,9 @@ POST   /api/schedules/<id>/token           new webhook token
 GET    /api/schedules/runs?schedule=<id>
 POST   /api/schedules/runs/<run id>/approve|reject
 POST   /api/schedules/hook/<id>            the webhook (its own token)
+POST   /api/internal/schedules/tick        hub only, Cloudflare cron, header x-cc-tick-secret
 ```
 
-Code: `server/schedules.js` (clock, triggers, caps, approval), `server/plugins/schedules.js` (routes and the runner), `web/features/schedules.js` (the tab). Tests: `test/schedules.test.js`.
+The tick route is not a user route. Local mode answers 404. The hub answers 401 unless the header matches `CC_TICK_SECRET`.
+
+Code: `server/schedules.js` (clock, triggers, caps, approval), `server/plugins/schedules.js` (routes and the runner), `server/schedule-tick.js` (the hub tick), `web/features/schedules.js` (the tab). Tests: `test/schedules.test.js`, `test/schedule-tick.test.js`.

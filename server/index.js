@@ -9,6 +9,7 @@ import { WebSocketServer } from "ws";
 import qrcode from "qrcode-generator";
 import { DATA_DIR, WEB_DIR, HQ_DIR } from "./paths.js";
 import { HOSTED, als, ctx, doc, putDoc, newContext, FileStore, setDefaultContext, getContext, runAs } from "./store.js";
+import { evictIdle } from "./idle.js";
 import { CFG, assertHostedConfig } from "./hosted.js";
 import { bearer, contextForToken, setContextInitializer } from "./auth.js";
 import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, priceSource, pricingRules, saveRules, activeDiscount, nextDiscountStart } from "./registry.js";
@@ -40,6 +41,7 @@ import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, rou
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
+import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 let lastScan = null, lastKeys = null;
@@ -279,6 +281,12 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
 async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }) {
+  const user = ctx();
+  user.chatsInFlight = (user.chatsInFlight || 0) + 1;
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }); }
+  finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
+}
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId }) {
   const id = runId || "s-" + Date.now().toString(36);
   let cls = null;
   if (!provider || !model) {
@@ -578,6 +586,8 @@ const server = http.createServer(async (req, res) => {
     const gate = localGate(req, url);
     if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
+    // Hosted cron tick. The shared secret is the only check. Local mode answers 404 and keeps its own timer.
+    if (url.pathname === TICK_PATH) return handleScheduleTick(req, res, json);
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());
@@ -620,6 +630,14 @@ const server = http.createServer(async (req, res) => {
 // ---------- WebSocket: one hello per client, events fanned out per user ----------
 const wss = new WebSocketServer({ server, path: "/ws" });
 const send = (ws, obj) => { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); };
+function trackSocket(ws, c) {
+  if (!c) return;
+  c.openSockets = (c.openSockets || 0) + 1;
+  ws.on("close", () => {
+    c.openSockets = Math.max(0, (c.openSockets || 1) - 1);
+    c.lastSeen = Date.now();
+  });
+}
 wss.on("connection", (ws, req) => {
   if (!HOSTED) {
     // local: same Host/Origin pinning as HTTP, then the per-launch token as the first message
@@ -629,7 +647,7 @@ wss.on("connection", (ws, req) => {
       clearTimeout(timer);
       let m = null; try { m = JSON.parse(String(raw)); } catch {}
       if (m?.type !== "auth" || !tokenOk(m?.token)) { send(ws, { type: "auth.error", error: "session token missing or wrong: reload the page" }); ws.close(4401, "unauthorized"); return; }
-      ws.ctx = ctx(); send(ws, { type: "hello", state: fullState() });
+      ws.ctx = ctx(); trackSocket(ws, ws.ctx); send(ws, { type: "hello", state: fullState() });
     });
     return;
   }
@@ -641,6 +659,7 @@ wss.on("connection", (ws, req) => {
       const m = JSON.parse(String(raw));
       const c = await contextForToken(m?.token);
       ws.ctx = c;
+      trackSocket(ws, c);
       send(ws, { type: "hello", state: runAs(c, fullState) });
     } catch (e) { send(ws, { type: "auth.error", error: e.message }); ws.close(4401, "unauthorized"); }
   });
@@ -705,5 +724,7 @@ async function initContext() {
     startHealthLoop();
     startUpdateLoop();
     startLicenseLoop();
+    // Hosted only: drop idle users from memory. Local mode keeps its one context.
+    if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => [...wss.clients].filter((ws) => ws.readyState === 1 && ws.ctx === c).length }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
   });
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -93,13 +93,45 @@ export async function verifyToken(token) {
 // ---------- the per-user store ----------
 const LEDGER_WINDOW_DAYS = 35;
 export class SupabaseStore {
-  constructor(c) { this.c = c; this.pending = new Map(); }
+  constructor(c) { this.c = c; this.pending = new Map(); this.writes = 0; }
   get uid() { return this.c.userId; }
   q(pathq, opts) { return rest(pathq, { ...opts, token: this.c.token }); }
   ok(what) { console.log(`[store] ${this.c.email || this.uid}: ${what} saved`); }
   fail(what, e) {
     console.error(`[store] ${what} failed for ${this.c.email || this.uid}: ${e.message}`);
     try { emit("log", { text: `Cloud save failed (${what}): ${e.message}`, level: "error" }); } catch {}
+  }
+  // A write that has been handed to the network, or is still waiting out the coalesce timer.
+  hasPending() { return this.pending.size > 0 || this.writes > 0; }
+  track(p) {
+    this.writes++;
+    const done = () => { this.writes = Math.max(0, this.writes - 1); };
+    return Promise.resolve(p).then((v) => { done(); return v; }, (e) => { done(); throw e; });
+  }
+  // Coalesce by key. `run` is called once, with the latest value, when the timer fires or flush() runs.
+  queue(key, run, delay = 250) {
+    const prev = this.pending.get(key);
+    if (prev) clearTimeout(prev.timer);
+    const timer = setTimeout(() => {
+      if (this.pending.get(key)?.timer !== timer) return;
+      this.pending.delete(key);
+      this.track(run()).catch(() => {});
+    }, delay);
+    timer.unref?.();
+    this.pending.set(key, { timer, run });
+  }
+  // Send every coalesced write now and wait until those requests, and any already in flight, finish.
+  async flush() {
+    const jobs = [];
+    for (const [key, job] of this.pending) {
+      clearTimeout(job.timer);
+      this.pending.delete(key);
+      jobs.push(this.track(job.run()).catch(() => {}));
+    }
+    await Promise.all(jobs);
+    const start = Date.now();
+    while (this.writes > 0 && Date.now() - start < 20000) await new Promise((r) => setTimeout(r, 15));
+    if (this.writes > 0) throw new Error("timed out waiting for cloud writes");
   }
 
   async loadAll(c) {
@@ -122,27 +154,15 @@ export class SupabaseStore {
 
   // write-behind, coalesced per document kind
   putDoc(kind, value) {
-    clearTimeout(this.pending.get(kind));
-    const t = setTimeout(() => {
-      this.pending.delete(kind);
-      this.q("user_docs", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: { user_id: this.uid, kind, data: value, updated_at: new Date().toISOString() } }).then(() => this.ok(kind)).catch((e) => this.fail(kind, e));
-    }, 250);
-    t.unref?.();
-    this.pending.set(kind, t);
+    this.queue(kind, () => this.q("user_docs", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: { user_id: this.uid, kind, data: value, updated_at: new Date().toISOString() } }).then(() => this.ok(kind)).catch((e) => this.fail(kind, e)));
   }
   appendLedger(e) {
-    this.q("user_ledger", { method: "POST", prefer: "return=minimal", body: { user_id: this.uid, ts: new Date(e.ts || Date.now()).toISOString(), entry: e } }).then(() => this.ok("ledger entry")).catch((err) => this.fail("ledger", err));
+    this.track(this.q("user_ledger", { method: "POST", prefer: "return=minimal", body: { user_id: this.uid, ts: new Date(e.ts || Date.now()).toISOString(), entry: e } }).then(() => this.ok("ledger entry")).catch((err) => this.fail("ledger", err))).catch(() => {});
   }
   saveMission(m, summary) {
     if (summary) this.c.missions?.set(m.id, summary);
     const key = "mission:" + m.id;
-    clearTimeout(this.pending.get(key));
-    const t = setTimeout(() => {
-      this.pending.delete(key);
-      this.q("user_missions", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: { user_id: this.uid, id: m.id, kind: m.kind, status: m.status, started_at: new Date(m.startedAt || Date.now()).toISOString(), summary: summary || this.c.missions?.get(m.id) || null, data: m, updated_at: new Date().toISOString() } }).then(() => this.ok(`mission ${m.id} (${m.status})`)).catch((e) => this.fail("mission", e));
-    }, 400);
-    t.unref?.();
-    this.pending.set(key, t);
+    this.queue(key, () => this.q("user_missions", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: { user_id: this.uid, id: m.id, kind: m.kind, status: m.status, started_at: new Date(m.startedAt || Date.now()).toISOString(), summary: summary || this.c.missions?.get(m.id) || null, data: m, updated_at: new Date().toISOString() } }).then(() => this.ok(`mission ${m.id} (${m.status})`)).catch((e) => this.fail("mission", e)), 400);
   }
   listMissions() { return [...(this.c.missions?.values() || [])].filter(Boolean); }
   async getMission(id) {
@@ -154,6 +174,6 @@ export class SupabaseStore {
     const op = value
       ? this.q("user_secrets", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: { user_id: this.uid, provider, ciphertext: encrypt(JSON.stringify(value), `${this.uid}:${provider}`), key_version: 1, updated_at: new Date().toISOString() } })
       : this.q(`user_secrets?user_id=eq.${this.uid}&provider=eq.${p}`, { method: "DELETE", prefer: "return=minimal" });
-    return op.then(() => this.ok(`secret ${provider} ${value ? "stored (encrypted)" : "removed"}`)).catch((e) => this.fail("vault", e));
+    return this.track(op.then(() => this.ok(`secret ${provider} ${value ? "stored (encrypted)" : "removed"}`)).catch((e) => this.fail("vault", e)));
   }
 }

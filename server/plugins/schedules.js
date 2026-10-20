@@ -10,14 +10,15 @@
 //   GET  /api/schedules/runs?schedule=<id>
 //   POST /api/schedules/runs/<runId>/approve | /reject       send the held result, or drop it
 //   POST /api/schedules/hook/<id>               the webhook itself (no session token; see server/schedules.js)
-// Desktop only for now: a hosted hub refuses with a clear message.
+// Desktop: a timer in this process ticks the one local user while the app is open.
+// Hosted: the Cloudflare cron calls POST /api/internal/schedules/tick (server/schedule-tick.js).
 import * as S from "../schedules.js";
 import * as A from "../custom-agents.js";
 import { raise } from "./alerts.js";
 
 export const id = "schedules";
 const TICK_MS = Math.max(100, Number(process.env.CC_SCHEDULE_TICK_MS) || 15000);
-const HOSTED_MSG = "Schedules run on the desktop app for now. Always-on schedules need the hosted hub later.";
+export const HOSTED_NOTE = "Schedules on the hub run while this browser is closed. Each slot runs once. A result that is sent out still waits until you click Approve.";
 
 function agentOf(id) {
   const a = A.getAgent(id);
@@ -48,8 +49,8 @@ async function send(url, payload) {
 }
 
 export function init(h) {
-  if (h.HOSTED) return;
   S.configure({ run: (s, o) => runOne(h, s, o), alert: (key, title, body, level) => raise(h, key, title, body, level), send });
+  if (h.HOSTED) return; // the hub has no user at boot; the cron tick loads each due user
   const c = h.ctx();
   setInterval(() => h.runAs(c, () => { try { S.tick(); } catch (e) { console.error("[schedules]", e.message); } }), TICK_MS).unref();
 }
@@ -60,13 +61,12 @@ const createOpts = (h, body) => {
 };
 
 export async function routes(req, res, url, body, h) {
-  if (h.HOSTED) return h.json(res, 400, { error: HOSTED_MSG });
   const p = url.pathname.replace(/^\/api\/schedules/, "").replace(/\/$/, "") || "/";
   const seg = p.split("/").filter(Boolean).map(decodeURIComponent);
   const m = req.method;
   try {
     if (m === "GET" && p === "/") {
-      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name })), note: S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
+      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name })), note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
     }
     if (m === "POST" && p === "/") return h.json(res, 200, S.createSchedule(body || {}, createOpts(h, body)));
     if (seg[0] === "runs") {

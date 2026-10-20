@@ -92,6 +92,8 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const memNote = memBlock ? `\n\n${memBlock}` : "";
   const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER) };
   live.set(id, mission);
+  const user = ctx();
+  user.missionsInFlight = (user.missionsInFlight || 0) + 1;
   let lib = null; // knowledge-library excerpts for this mission (Phase 18)
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
@@ -428,6 +430,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.error = err.message;
     log(`Mission ${mission.status}: ${err.message}`);
   } finally {
+    user.missionsInFlight = Math.max(0, (user.missionsInFlight || 1) - 1);
     running.delete(id);
     live.delete(id);
     mission.finishedAt = Date.now();
