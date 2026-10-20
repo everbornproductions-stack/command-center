@@ -49,8 +49,8 @@ async function chat(s, prompt) {
 const openai = async (s) => (await s.api("/state")).json.providers.find((p) => p.id === "openai");
 const grow = async (s) => (await s.api("/growth")).json;
 
-test("growth flags off (default): nothing changes, routes refuse, a configured pool is not used", async () => {
-  const s = await startServer({ env: { ...NO_KEYS, CC_MANAGED_POOL: JSON.stringify([{ provider: "openai", keyEnv: "CC_POOL_OPENAI" }]), CC_POOL_OPENAI: POOL_KEY } });
+test("growth: trial is offered unless CC_TRIAL=0; managed and referrals stay off", async () => {
+  const s = await startServer({ env: { ...NO_KEYS, CC_TRIAL: "0", CC_MANAGED_POOL: JSON.stringify([{ provider: "openai", keyEnv: "CC_POOL_OPENAI" }]), CC_POOL_OPENAI: POOL_KEY } });
   try {
     assert.equal((await s.api("/growth", { noToken: true })).status, 401, "session token required");
     const g = await grow(s);
@@ -68,6 +68,24 @@ test("growth flags off (default): nothing changes, routes refuse, a configured p
     assert.ok(st.plugins.includes("growth"));
     assert.ok(!JSON.stringify(st).includes(POOL_KEY));
   } finally { await s.stop(); }
+
+  const offered = await startServer({ env: { ...NO_KEYS } });
+  try {
+    const g = await grow(offered);
+    assert.equal(g.flags.trial, true);
+    assert.equal(g.flags.managed, false);
+    assert.equal(g.flags.referrals, false);
+    assert.equal(g.trial.canStart, true);
+    assert.equal(g.trial.days, 14);
+    const started = await offered.api("/growth/trial/start", { method: "POST" });
+    assert.equal(started.status, 200, started.text);
+    assert.equal(started.json.tier, "pro");
+    assert.equal(started.json.trial.active, true);
+    assert.equal(started.json.trial.daysLeft, 14);
+    assert.equal((await offered.api("/state")).json.license.reason, "trial");
+    assert.equal((await offered.api("/mission", { method: "POST", body: { goal: "plan a launch" } })).status, 202);
+    assert.equal((await offered.api("/growth/trial/start", { method: "POST" })).status, 409);
+  } finally { await offered.stop(); }
 });
 
 test("free trial: start once, Pro limits with a counter, ends back on Free with the upgrade prompt", async () => {

@@ -1356,3 +1356,61 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: `test/chat-priority.test.js`. npm test 379 tests, 378 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local OpenAI mock only. No real key. data/ was not read or committed.
 
 SINGLE RUN PRIORITY DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Four run priorities (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The registry still uses "economy" as a cheap model tier. That word is not a priority.
+
+- Command, Settings, schedules, pipelines, and the scores view offer Quality, Balanced, Max savings, and Speed. Max savings is the old Economy choice. A saved default of economy still means Max savings.
+- The same choice is sent with Single, Council, and Mission. Council uses three members for Max savings (and for the old lite flag when no priority is sent) and four for the others. An explicit priority wins over lite.
+- Speed changes the ranking: with no track record it adds a bonus from the model's registry speed. Quality, Balanced, and Max savings keep their previous cost weights, so a Quality Single run still prefers GPT-6.1 Sol over GPT-6 Luna when only ChatGPT is keyed.
+- Tests: `test/modes.test.js`. npm test 383 tests, 382 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. data/ was not read or committed.
+
+FOUR RUN PRIORITIES DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Custom background colour (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Accent colours were already there. This adds the page background.
+
+- Settings, Appearance, has a background colour next to the accent colour: ink, midnight, slate, pine, paper, sand, or any colour from the picker. Built-in restores the original background. Reset clears both.
+- A light background uses dark text. A dark background uses light text. A web address is refused, so a background cannot be a remote image.
+- The choice is saved with the other theme settings on this PC.
+- Tests: `test/themes.test.js`. npm test 381 tests, 380 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+- Checked in the browser on the local app, Expert: choosing paper turned the page background paper and kept the text readable, and Built-in cleared it.
+
+CUSTOM BACKGROUND DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Free local models first, and legitimate savings (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The presets from decision 9 stay. Aider and OpenCode were added as local OpenAI-compatible presets. Freebuff is not a provider.
+
+- A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or a custom OpenAI-compatible endpoint on localhost or with no key) is tried first on Max savings. Balanced still prefers it when the quality gap is within 15 points. Quality keeps the stronger paid model when the gap is more than 6. Speed tries it when the gap is within 12. A remote custom provider with a key is not treated as local just because its listed price is zero.
+- The same model from two sellers keeps the cheaper one. On a tie, a direct provider beats OpenRouter.
+- DeepSeek off-peak stays in the existing estimate. It is not applied a second time.
+- When a provider reports prompt-cache reads, the ledger prices those tokens at the cache rate (Anthropic one tenth, OpenAI half). Anthropic system text of 4000 characters or more is sent with a cache breakpoint. A live run is not discounted for a cache the provider did not report.
+- Batch is advice on the route preview only: about half the live price when the work can wait. A run sent now pays the live price.
+- Freebuff is refused by name or address and left out of ranking. Nothing is shelled out to Aider or OpenCode. OpenCode's preset is only for an OpenAI-compatible /v1. The default port is 4096, and the address can be changed.
+- Tests: `test/savings.test.js`. npm test 386 tests, 385 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+FREE LOCAL MODELS FIRST DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Community track records teach every priority (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Decision 18 still holds: nothing in this build is sent. The share preview stays `sent: false`.
+
+- Who's best can take a file of anonymous totals from people who opted in (task type, which model, score, and the other counts already in the share preview). Quality, Balanced, Max savings, and Speed all use those totals when learning is on. Turning the share box off does not hide totals already on this computer. Learning off ignores them, the same as a personal record.
+- A row with any other field, including a prompt or a key, is refused. The file stays on this computer. Nothing is uploaded.
+- Reset what the router learned also clears those community totals, so picks start again from the built-in scores.
+- Tests: `test/community.test.js`. npm test 383 tests, 382 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+COMMUNITY LEARNING DONE (built by Cursor cloud agent)
+
+## 2026-10-20: v0.4.4 release tree (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Square and billing code were not touched. Nothing is uploaded. The share preview stays sent false.
+
+- This tree keeps the Windows fallback hang fix, Free and Pro limits, Quality / Balanced / Max savings / Speed, free local models first, community track records for every priority, and the custom background colour.
+- Version is 0.4.4. What's new and Help (getting started, licence, phone) say the same things.
+- Tests: npm test 396 tests, 395 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+V0.4.4 RELEASE TREE READY (built by Cursor cloud agent)

@@ -115,6 +115,8 @@ export async function linkMcp(id, input = {}) {
   if (isCouncil(id)) throw err(400, COUNCIL_NOTE, "council_key");
   const mcpAuth = p.auth === "mcp" || p.auth === "oauth";
   if (!isDual(id) && !mcpAuth) throw err(400, `${p.name} does not offer an MCP connection.`);
+  const { assertServiceSlots } = await import("./service-limit.js");
+  await assertServiceSlots([id]);
   const prev = choiceOf(id);
   const row = await addServer({
     id: prev.serverId || undefined,

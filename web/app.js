@@ -13,6 +13,11 @@ const S = {
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
+const PRIORITY = [["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
+function priorityNow() {
+  const raw = S.costMode || S.settings?.defaultMode || "balanced";
+  return raw === "economy" ? "savings" : raw;
+}
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -801,7 +806,7 @@ function renderCommand(v) {
         </div>
         <label class="lbl">Priority</label>
         <div class="seg" id="cost-mode" role="group" aria-label="Priority">
-          ${["quality", "balanced", "economy"].map((m) => `<button data-m="${m}" class="${(S.costMode || S.settings.defaultMode) === m ? "on" : ""}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}
+          ${PRIORITY.map(([m, label]) => `<button data-m="${m}" class="${priorityNow() === m ? "on" : ""}">${label}</button>`).join("")}
         </div>
         <label class="lbl">When</label>
         <div class="seg" id="when-mode" role="group" aria-label="When">
@@ -944,6 +949,7 @@ async function previewRoute() {
     box.innerHTML = `<div><b>${esc(c.summary || c.capability)}</b> <span class="chip">${c.capability}</span> <span class="chip">difficulty ${c.difficulty}</span> ${c.needWeb ? '<span class="chip violet">needs web</span>' : ""}</div>
       <div class="small" style="margin-top:6px">Best fit: <b style="color:${pcolor(best?.provider)}">${esc(best?.name || "none available")}</b> ≈ ${money(best?.estCost || 0, 4)} per call${best?.discount ? ` <span class="chip green">${best.discount.pct}% off now</span>` : ""}${best?.warnings?.length ? ` <span class="chip amber" title="${esc(best.warnings.join("; "))}">health −${best.healthPenalty}</span>` : ""} · council of 4 ≈ ${money(r.councilEstimate, 3)}</div>
       ${r.cheaper?.advice ? `<div class="adv">${esc(r.cheaper.advice)}</div>` : ""}
+      ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
       ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
       <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>`;
@@ -971,7 +977,7 @@ async function sendOrders() {
       await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, lite: costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
     else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) {
@@ -982,6 +988,12 @@ async function sendOrders() {
 }
 
 // ----- Projects -----
+function recentRunRows(rows) {
+  return (rows || []).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
+}
+function wireRunRows(v) {
+  $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+}
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
@@ -1002,11 +1014,34 @@ function renderProjects(v) {
         ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       <div class="panel"><h3>Recent runs</h3>
-        ${S.missions.slice(0, 12).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        <input id="run-search" placeholder="Search all history" value="${esc(S.runQuery || "")}" style="width:100%;margin-bottom:8px" aria-label="Search all history">
+        <div id="run-search-note" class="dim small"></div>
+        <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
-  $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  wireRunRows(v);
+  $("#run-search")?.addEventListener("input", async (e) => {
+    const q = e.target.value;
+    S.runQuery = q;
+    const note = $("#run-search-note");
+    const list = $("#run-list");
+    if (!q.trim()) {
+      if (note) note.textContent = "";
+      if (list) list.innerHTML = recentRunRows(S.missions.slice(0, 12));
+      wireRunRows(v);
+      return;
+    }
+    try {
+      const rows = await api("/missions?q=" + encodeURIComponent(q.trim()));
+      if (note) note.textContent = "";
+      if (list) list.innerHTML = recentRunRows(rows);
+      wireRunRows(v);
+    } catch (err) {
+      if (note) note.textContent = err.message;
+      if (list) list.innerHTML = "";
+    }
+  });
   $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
@@ -1231,13 +1266,13 @@ function renderSettings(v) {
         ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
-        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, a company gateway.</span></div><div id="cp-form"></div>`}</div>
+        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff is not used.</span></div><div id="cp-form"></div>`}</div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
         ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
           <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
-          <div><label class="lbl">Default priority</label><select id="s-mode">${["quality", "balanced", "economy"].map((m) => `<option ${S.settings.defaultMode === m ? "selected" : ""}>${m}</option>`).join("")}</select></div>
+          <div><label class="lbl">Default priority</label><select id="s-mode">${PRIORITY.map(([m, label]) => `<option value="${m}" ${(S.settings.defaultMode === m || (m === "savings" && S.settings.defaultMode === "economy")) ? "selected" : ""}>${label}</option>`).join("")}</select></div>
           <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
@@ -1254,7 +1289,7 @@ function renderSettings(v) {
       ${phonePanel()}
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
-        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 3} councils/month, 1 project. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
+        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
         ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
         ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
@@ -1438,15 +1473,16 @@ async function openCustomForm(editId, pre = {}) {
   let presets = [], existing = null;
   try { presets = (await api("/providers/presets")).presets; if (editId) existing = (await api("/providers/custom")).custom.find((c) => c.id === editId); } catch (e) { return toast(e.message, true); }
   const pr = presets.find((x) => x.id === pre.preset);
-  const f = existing || (pr ? { name: pr.name, baseUrl: pr.baseUrl, api: pr.api, noKey: pr.noKey, keysUrl: pr.keys } : { api: "openai" });
+  const f = existing || (pr ? { name: pr.name, baseUrl: pr.baseUrl, api: pr.api, noKey: pr.noKey, keysUrl: pr.keys, note: pr.note } : { api: "openai" });
   box.innerHTML = `<div class="route" style="margin-top:10px"><div class="cat-h">${existing ? `Edit ${esc(existing.name)}` : "Add custom provider"}</div>
     ${existing ? "" : `<div class="row small" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"><span class="dim">Presets:</span>${presets.map((x) => `<button class="ghost small" data-preset="${x.id}" title="${esc(x.baseUrl)}">${esc(x.name)}${x.builtin ? " (built in)" : ""}</button>`).join("")}</div>`}
+    ${f.note ? `<p class="small dim" style="margin:0 0 8px">${esc(f.note)}</p>` : ""}
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
       <label class="small">Name<input type="text" id="cp-name" value="${esc(f.name || "")}" placeholder="My gateway" style="width:100%"></label>
       <label class="small">API style<select id="cp-api" style="width:100%"><option value="openai" ${f.api !== "anthropic" ? "selected" : ""}>OpenAI-compatible (most providers)</option><option value="anthropic" ${f.api === "anthropic" ? "selected" : ""}>Anthropic-compatible</option></select></label>
       <label class="small" style="grid-column:1/3">Base URL<input type="text" id="cp-url" value="${esc(f.baseUrl || "")}" placeholder="https://api.example.com/v1" style="width:100%;font-family:var(--mono)"></label>
       <label class="small">API key<input type="password" id="cp-key" value="${esc(pre.key || "")}" placeholder="${existing?.keyed ? "saved (leave empty to keep)" : "API key"}" style="width:100%" autocomplete="off" ${f.noKey ? "disabled" : ""}></label>
-      <label class="row small" style="gap:6px;align-self:end"><input type="checkbox" id="cp-nokey" ${f.noKey ? "checked" : ""}> No key needed (Ollama, LM Studio)</label>
+      <label class="row small" style="gap:6px;align-self:end"><input type="checkbox" id="cp-nokey" ${f.noKey ? "checked" : ""}> No key needed (Ollama, LM Studio, Aider, OpenCode)</label>
       <label class="small" style="grid-column:1/3">Models (comma separated; leave empty to discover from /models)<div class="row"><input type="text" id="cp-models" value="${esc((f.models || []).join(", "))}" placeholder="e.g. llama-3.3-70b, qwen3-32b" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="cp-discover">Discover models</button></div></label>
       <label class="small" style="grid-column:1/3">Extra headers (optional, one per line as Name: value; stored encrypted)<textarea id="cp-headers" rows="2" style="width:100%;font-family:var(--mono)" placeholder="${existing?.headerNames?.length ? `saved: ${esc(existing.headerNames.join(", "))} (leave empty to keep)` : "X-Org-Id: 1234"}"></textarea></label>
     </div>
@@ -1606,10 +1642,10 @@ async function saveShareChoice() {
   st.shareSaved = on;
 }
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true });
+  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
-    api("/brain").then((d) => {
+    api("/brain/settings").then((d) => {
       if (st.shareTouched) return;
       st.shareOptIn = !!d?.settings?.shareOptIn;
       st.shareSaved = st.shareOptIn;

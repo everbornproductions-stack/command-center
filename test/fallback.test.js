@@ -10,6 +10,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { startServer, tmpDir } from "./helpers.js";
 
+// Windows CI reuses a keep-alive socket after the "drop" case cuts it, and the next
+// provider call then waits until the test gives up. Every mock reply closes the socket.
+
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-fallback-");
 const FB = await import("../server/fallback.js");
 
@@ -62,7 +65,7 @@ test("defaults, cooldowns, reasons, health mapping; no em-dashes in user-facing 
 
 // ---------- the running server against mock providers ----------
 const KEYS = { xai: "xai-fakefakefakefakefake", groq: "gsk_fakefakefakefakefake", google: "AIzaFAKEfakeFAKEfakeFAKEfake0123456789", openrouter: "sk-or-v1-fakefakefakefakefake", deepseek: "sk-0123456789abcdef0123456789abcdef", mistral: "fakemistralkeyfakemistralkey0000" };
-function sse(res, chunks) { res.writeHead(200, { "content-type": "text/event-stream" }); for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+function sse(res, chunks) { res.writeHead(200, { "content-type": "text/event-stream", connection: "close" }); for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
 function answerFor(j) {
   const sys = j.messages.find((m) => m.role === "system")?.content || "";
   const user = j.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
@@ -80,7 +83,7 @@ async function mocks() {
   const seen = []; // { prefix, model, auth }
   const srv = http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
-    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
+    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json", connection: "close" }); res.end(JSON.stringify(j)); };
     const url = new URL(req.url, "http://127.0.0.1");
     const prefix = url.pathname.split("/")[1];
     if (/\/models$/.test(url.pathname)) return send(200, prefix === "google" ? { models: [{ name: "models/gemini-3.8-flash" }, { name: "models/gemini-3.5-flash-lite" }] } : { data: [{ id: "mock" }] });
@@ -96,14 +99,14 @@ async function mocks() {
       const j = { model, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
       seen.push({ prefix, model, auth: req.headers.authorization || null, system });
       const b = behave[prefix];
-      if (b === "drop") return req.socket.destroy();
+      if (b === "drop") { req.socket.destroy(); return; }
       if (b === 402) return send(402, { error: { message: "Payment required: your prepaid balance is empty." } });
       if (b === "403credits") return send(403, { code: "forbidden", error: "Your team has either used all available credits or reached its monthly spending limit." });
       if (b === 429) return send(429, { error: { message: "Rate limit reached for this model. Try again in 20s." } });
       if (b === 401) return send(401, { error: { message: "Incorrect API key provided: sk-xxxx." } });
       if (b === 500) return send(500, { error: { message: "internal error" } });
       const text = answerFor(j);
-      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.writeHead(200, { "content-type": "text/event-stream", connection: "close" });
       res.end(`data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 10 } })}\n\n`);
       return;
     }
@@ -111,7 +114,7 @@ async function mocks() {
     const j = JSON.parse(body);
     seen.push({ prefix, model: j.model, auth: req.headers.authorization || null, system: j.messages.find((m) => m.role === "system")?.content || "" });
     const b = behave[prefix];
-    if (b === "drop") return req.socket.destroy();
+    if (b === "drop") { req.socket.destroy(); return; }
     if (b === 402) return send(402, { error: { message: "Payment required: your prepaid balance is empty." } });
     if (b === "403credits") return send(403, { code: "forbidden", error: "Your team has either used all available credits or reached its monthly spending limit." });
     if (b === 429) return send(429, { error: { message: "Rate limit reached for this model. Try again in 20s." } });
@@ -121,6 +124,7 @@ async function mocks() {
     const extra = prefix === "or" ? { cost: 0.0012 } : {};
     return sse(res, [{ model: j.model, choices: [{ delta: { content: text } }] }, { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 30, completion_tokens: 10, ...extra } }]);
   });
+  srv.keepAliveTimeout = 1;
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   return { base, behave, seen, since: () => seen.length, calls: (prefix, from = 0) => seen.slice(from).filter((x) => x.prefix === prefix), close: () => new Promise((r) => srv.close(r)) };

@@ -15,13 +15,16 @@ import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { councilPlan, reviewMode } from "./modes.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, search, tools, grokbot, browser, libraries }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
+  const plan = councilPlan(asked, lite);
+  const mode = plan.priority;
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
   // Grok Bot (Phase 12) and the browser helper (Phase 27) are agents, not text models: one of them is picked
   // by what the job needs (signed-in browsing, Gmail, Drive, Calendar, teammate bots), never for plain text
@@ -31,25 +34,24 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const agentPick = pickAgent({ prompt, grokbot, browser });
   const A = agentPick.agent;
   if (!members?.length) {
-    const ranked = rank({ ...cls, mode: lite ? "economy" : "balanced" });
+    const ranked = rank({ ...cls, mode });
     const seen = new Set();
     members = [];
     for (const m of ranked) {
       if (seen.has(m.provider)) continue;
       seen.add(m.provider);
       members.push({ provider: m.provider, model: m.model });
-      if (members.length >= (lite ? 3 : 4)) break;
+      if (members.length >= plan.members) break;
     }
   }
   if (!members.length) throw new Error("No AI is available. Add at least one API key in Settings.");
-  chair ||= rank({ ...cls, mode: "quality" }).find((m) => members.some((x) => x.model === m.model)) || members[0];
+  chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
   const memBlock = contextFor(projectId);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
-  const council = { id, kind: "council", prompt, projectId: projectId || null, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
-  const mode = lite ? "economy" : "balanced";
+  const council = { id, kind: "council", prompt, projectId: projectId || null, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -163,7 +165,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
           provider: reviewer.provider, model: reviewer.model, maxTokens: 700,
           system: `You are a strict judge. Several anonymous answers to the same question follow. Score each 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"scores": {"A": n, ...}, "best": "A", "notes": {"A": "<=20 words", ...}, "disagreement": "<=30 words on where the answers conflict, or 'none'"}`,
           messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}` }],
-        }, { missionId: id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy" }, { onFallback: (ev) => { council.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: agent, role: "review" }); } });
+        }, { missionId: id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: reviewMode(mode) }, { onFallback: (ev) => { council.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: agent, role: "review" }); } });
         const ms = Date.now() - s;
         noteCall(r.provider, true, ms);
         const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "review", ms });
@@ -222,7 +224,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
-      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode: "quality" })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -296,7 +298,7 @@ async function lateAnswer(job) {
         provider: c.chair?.provider, model: c.chair?.model, maxTokens: 300,
         system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
         messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${job.text.slice(0, 12000)}` }],
-      }, { missionId: c.id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: "economy" });
+      }, { missionId: c.id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: reviewMode(c.mode) });
       const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: c.id, role: "review" });
       c.cost = +((c.cost || 0) + e.cost).toFixed(5);
       const score = Number(extractJson(r.text)?.score);

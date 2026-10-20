@@ -118,7 +118,9 @@ try {
   check(st.json.license.tier === "free" && st.json.license.configured === false, "no cloud → free");
   check((await free.api("/mission", { method: "POST", body: { goal: "x" } })).status === 402, "mission gated");
   check((await free.api("/schedules", { method: "POST", body: { name: "x", target: { kind: "mission", text: "x" }, trigger: { type: "cron", cron: "@daily" } } })).status === 402, "mission schedule gated");
-  check((await free.api("/projects", { method: "POST", body: { name: "Second", categories: [] } })).status === 402, "2nd project gated");
+  check((await free.api("/projects", { method: "POST", body: { name: "Second", categories: [] } })).status === 200, "2nd project allowed");
+  check((await free.api("/projects", { method: "POST", body: { name: "Third", categories: [] } })).status === 200, "3rd project allowed");
+  check((await free.api("/projects", { method: "POST", body: { name: "Fourth", categories: [] } })).status === 402, "4th project gated");
   check((await free.api("/subscriptions", { method: "POST", body: { name: "x" } })).status === 402, "subscriptions gated");
   check(st.json.subscriptionsLocked === true && st.json.subscriptions.length === 0, "subscriptions locked in state");
   check((await free.api("/cloud", { method: "POST", body: { url: "", anonKey: "" } })).status === 400, "empty cloud refused");

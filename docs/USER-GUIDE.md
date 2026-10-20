@@ -23,6 +23,8 @@ Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and su
 
 **Settings > Demo mode** brings three pretend AIs online (Nova, Atlas and Sage). Everything works with them and nothing is spent. When you save your first real key, the demo AIs leave on their own and a message tells you so. Past demo runs stay in your history, marked "demo". You can turn demo mode back on in Settings at any time.
 
+**Settings > Appearance** sets dark, light, or match the system, an accent colour, and a background colour. Built-in puts the original background back. Text switches so it stays readable. The choice is saved on this PC.
+
 ## 3. Add your API keys
 
 **Settings > Guided API-key setup** walks you through one provider at a time: where to get the key, paste it, a test call, then it is locked in the vault. A key that the provider refuses is never kept.
@@ -32,7 +34,7 @@ You can also paste a key into the box at the top of Settings. The app recognizes
 - Paste a key anywhere and the app suggests which provider it belongs to.
 - The light on the provider's tile turns green when the key works.
 - "Key rejected (401)" means the provider refused the key. "Could not reach <provider>" means a network problem, not a bad key.
-- **Add custom provider** connects any OpenAI-compatible or Anthropic-compatible service (OpenRouter, Groq, DeepSeek, Mistral, a local Ollama or LM Studio, and more).
+- **Add custom provider** connects any OpenAI-compatible or Anthropic-compatible service (OpenRouter, Groq, DeepSeek, Mistral, a local Ollama, LM Studio, Aider, OpenCode, or another OpenAI-compatible endpoint on this PC). Freebuff is not used. Aider starts at Ollama's address. Change it if Aider uses another server. OpenCode is only for when it serves an OpenAI-compatible /v1. The default port is 4096. Change the address if yours is different.
 
 Keys are never shown again after saving and never written to a log.
 
@@ -57,7 +59,7 @@ The Simple / Expert switch is in the top bar on every screen. One click changes 
    - **Single**: the best AI for the job answers.
    - **Council**: several AIs answer, review each other without knowing who wrote what, and a chair writes the verdict.
    - **Mission**: the job is split into tasks, each goes to the best-fit AI, a different AI checks every result, and the parts are put together at the end.
-3. **Priority** (Quality, Balanced, Economy) decides how much cost matters. **When > Off-peak** waits for a discount window.
+3. **Priority** (Quality, Balanced, Max savings, Speed) applies to Single, Council and Mission. Quality favours the stronger model, Balanced splits the difference, Max savings picks the cheaper model, and Speed picks the faster one. A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or another local OpenAI-compatible endpoint) is tried first on Max savings, and on Balanced when it is close in quality. Quality still keeps the stronger paid model when the gap is large. Speed tries a local model when it is close. **When > Off-peak** waits for a discount window. The route preview can mention a batch price (about half) for work that can wait. A run you send now pays the live price. An off-peak discount is already in the estimate when one is open.
 4. **Preview route** shows, before anything is spent, who would get the job and roughly what it costs.
 5. The cap (Cap $) stops a mission from spending more than you allow.
 
@@ -88,7 +90,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Media | Video, image and voice through Kling, ElevenLabs, Runway and fal.ai, estimate first |
 | Pipelines | Saved missions with the steps already decided (Instagram week, music video, site launch) |
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
-| Who's best | What the router has learned about which model is best at what, for your work |
+| Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
 
 ## 8. Sending things out: always your click

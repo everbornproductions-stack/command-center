@@ -1,8 +1,8 @@
 ---
 id: getting-started
 title: Getting started
-summary: First open, the mode question, and where Help, the tour, and Settings live.
-lastUpdatedVersion: 0.4.3
+summary: First open, priorities, free local models, community track records, and the background colour.
+lastUpdatedVersion: 0.4.4
 ---
 
 # Getting started
@@ -26,3 +26,19 @@ A new setup checks I am willing to share anonymous track records. You can change
 We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys.
 
 If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
+
+## Priority
+
+Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.
+
+## Free models on this PC
+
+A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or another local OpenAI-compatible endpoint) is tried first on Max savings. Freebuff is not used. The route preview can mention a batch price. A run you send now pays the live price.
+
+## Community track records
+
+Add community track records from people who opted in. Quality, Balanced, Max savings, and Speed all learn from them. Nothing is uploaded. This stays on this computer.
+
+## Appearance
+
+Settings, Appearance, sets a background colour next to the accent. Built-in restores the original background. Text stays readable.

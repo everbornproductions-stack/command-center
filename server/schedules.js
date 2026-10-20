@@ -17,6 +17,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { HOSTED, doc, putDoc, getContext, runAs } from "./store.js";
+import { normalizeMode } from "./modes.js";
 import { emit } from "./events.js";
 import { DATA_DIR } from "./paths.js";
 
@@ -160,7 +161,7 @@ function clean(input = {}, prev = null, opts = {}) {
     if (!target.agentId) throw err(400, "Pick the agent to run.");
     if (opts.agentExists && !opts.agentExists(target.agentId)) throw err(404, "That agent does not exist any more.");
   } else if (!target.text) throw err(400, kind === "mission" ? "Type the mission goal." : "Type what the chat should do.");
-  if (kind === "mission") target.mode = ["quality", "balanced", "economy"].includes(t.mode) ? t.mode : "balanced";
+  if (kind === "mission") target.mode = normalizeMode(t.mode) || "balanced";
   const tr = input.trigger || prev?.trigger || {};
   if (!TRIGGERS.includes(tr.type)) throw err(400, "Pick a trigger: a schedule, a webhook or a watched folder.");
   const trigger = { type: tr.type };

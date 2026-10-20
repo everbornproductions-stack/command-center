@@ -11,6 +11,7 @@ import { HOSTED, doc, putDoc } from "../store.js";
 import { PROVIDERS, TEXT_PROVIDERS } from "../registry.js";
 import { setSecret, getSecret } from "../vault.js";
 import { checkProvider } from "../health.js";
+import { isBlockedFree } from "../savings.js";
 
 export const id = "providers";
 const DOC = "providers.custom";
@@ -29,6 +30,8 @@ export const PRESETS = [
   { id: "perplexity", name: "Perplexity", baseUrl: "https://api.perplexity.ai", api: "openai", builtin: "perplexity", keys: "https://www.perplexity.ai/settings/api" },
   { id: "ollama", name: "Ollama (this PC)", baseUrl: "http://localhost:11434/v1", api: "openai", noKey: true, keys: "https://ollama.com/download" },
   { id: "lmstudio", name: "LM Studio (this PC)", baseUrl: "http://localhost:1234/v1", api: "openai", noKey: true, keys: "https://lmstudio.ai" },
+  { id: "aider", name: "Aider", baseUrl: "http://127.0.0.1:11434/v1", api: "openai", noKey: true, keys: "https://aider.chat/docs/llms/openai-compat.html", note: "Aider talks to an OpenAI-compatible server on this PC. This starts at Ollama's address. Change it if Aider uses another one." },
+  { id: "opencode", name: "OpenCode", baseUrl: "http://127.0.0.1:4096/v1", api: "openai", noKey: true, keys: "https://opencode.ai/docs/server/", note: "Use this when OpenCode is serving an OpenAI-compatible /v1 on this PC. The default port is 4096. Change the address if yours is different." },
 ];
 
 // Which provider does a pasted key belong to? Order matters: specific prefixes first.
@@ -97,6 +100,7 @@ function toProvider(e, i = 0) {
   };
 }
 function register(e, i) {
+  if (isBlockedFree(e)) return;
   const p = toProvider(e, i);
   if (PROVIDERS[e.id] && !PROVIDERS[e.id].custom) return; // never shadow a built-in
   PROVIDERS[e.id] = p;
@@ -143,8 +147,10 @@ export async function routes(req, res, url, body, h) {
 
   if (method === "POST" && seg[0] === "discover") {
     const existing = body.id ? list().find((x) => x.id === body.id) : null;
+    const discoverUrl = cleanUrl(body.baseUrl || existing?.baseUrl);
+    if (isBlockedFree({ name: body.name || existing?.name, baseUrl: discoverUrl, id: body.id })) throw err(400, "Freebuff is not available in Meldmind.");
     const sec = existing ? getSecret(existing.id) : null;
-    const models = await discoverModels({ baseUrl: cleanUrl(body.baseUrl || existing?.baseUrl), api: STYLES.includes(body.api) ? body.api : existing?.api || "openai", key: String(body.key || "").trim() || sec?.key, headers: { ...(sec?.headers || {}), ...cleanHeaders(body.headers) } });
+    const models = await discoverModels({ baseUrl: discoverUrl, api: STYLES.includes(body.api) ? body.api : existing?.api || "openai", key: String(body.key || "").trim() || sec?.key, headers: { ...(sec?.headers || {}), ...cleanHeaders(body.headers) } });
     return h.json(res, 200, { models });
   }
 
@@ -154,6 +160,7 @@ export async function routes(req, res, url, body, h) {
     const name = String(body.name || "").trim().slice(0, 60);
     if (!name) throw err(400, "Give the provider a name.");
     const baseUrl = cleanUrl(body.baseUrl);
+    if (isBlockedFree({ name, baseUrl, id: body.id })) throw err(400, "Freebuff is not available in Meldmind.");
     const api = STYLES.includes(body.api) ? body.api : "openai";
     const noKey = !!body.noKey;
     const editing = body.id ? items.find((x) => x.id === body.id) : null;
@@ -162,7 +169,7 @@ export async function routes(req, res, url, body, h) {
     if (!editing && PROVIDERS[pid]) throw err(409, "That id is taken; try another name.");
     const prev = editing ? getSecret(pid) : null;
     const key = noKey ? NO_KEY : String(body.key || "").trim() || prev?.key || "";
-    if (!key) throw err(400, "Paste the API key (or tick 'no key needed' for Ollama / LM Studio).");
+    if (!key) throw err(400, "Paste the API key (or tick 'no key needed' for Ollama, LM Studio, Aider, or OpenCode).");
     const headers = body.headers === undefined ? prev?.headers || {} : cleanHeaders(body.headers);
     let models = cleanModels(body.models);
     if (!models.length) {

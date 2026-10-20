@@ -230,6 +230,9 @@ export async function finish({ code, state } = {}) {
   const extra = got.filter((x) => !c.scopes.includes(x) && !HARMLESS.has(x));
   if (extra.length) throw fail(400, `The sign-in granted more than this app asked for (${extra.slice(0, 3).join(", ")}). Nothing was saved; check the app's scopes at ${c.name}.`, { code: "scope" });
   const out = await settle(k, tok, p);
+  const { assertServiceSlots } = await import("../service-limit.js");
+  const catalog = { ghl: "ghl", meta: "instagram", slack: "slack", google: "publish-google" };
+  await assertServiceSlots([catalog[k] || k]);
   await setSecret(c.vault, { ...out.secret, oauth: true });
   saveEntry(k, { ...entry(k), connectedAt: Date.now(), account: out.account, scopes: got.length ? got : c.scopes, needsSignIn: false });
   emit("log", { text: `${c.name} connected for publishing (${out.account}). The token is in the vault; nothing posts without your click.` });

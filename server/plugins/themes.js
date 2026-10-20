@@ -8,7 +8,8 @@ const KIND = "themes.prefs";
 export const MODES = ["dark", "light", "system"];
 // Named presets the picker shows; any other #rrggbb value is accepted as a custom accent.
 export const ACCENTS = { cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635" };
-export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan };
+export const BACKGROUNDS = { ink: "#090d14", midnight: "#0b1020", slate: "#1e293b", pine: "#10241c", paper: "#f4f1ea", sand: "#f6f1e7" };
+export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null };
 const HEX = /^#[0-9a-f]{6}$/;
 
 const bad = (msg) => Object.assign(new Error(msg), { status: 400, code: "theme_invalid" });
@@ -16,7 +17,7 @@ const bad = (msg) => Object.assign(new Error(msg), { status: 400, code: "theme_i
 // Pure: merge a partial update into the previous prefs, rejecting anything that is not a theme.
 export function normalize(input = {}, prev = DEFAULTS) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw bad("body must be an object");
-  const out = { mode: prev.mode || DEFAULTS.mode, accent: prev.accent || DEFAULTS.accent };
+  const out = { mode: prev.mode || DEFAULTS.mode, accent: prev.accent || DEFAULTS.accent, background: prev.background ?? null };
   if (input.mode !== undefined) {
     if (!MODES.includes(input.mode)) throw bad(`mode must be one of ${MODES.join(", ")}`);
     out.mode = input.mode;
@@ -28,12 +29,22 @@ export function normalize(input = {}, prev = DEFAULTS) {
     if (!HEX.test(hex)) throw bad("accent must be a #rrggbb colour or a preset name");
     out.accent = hex;
   }
+  if (input.background !== undefined) {
+    if (input.background === null || input.background === "") out.background = null;
+    else {
+      const a = String(input.background).trim().toLowerCase();
+      const named = BACKGROUNDS[a];
+      const hex = named || (a.length === 4 && a[0] === "#" ? `#${a[1]}${a[1]}${a[2]}${a[2]}${a[3]}${a[3]}` : a);
+      if (!HEX.test(hex)) throw bad("background must be a #rrggbb colour, a preset name, or empty");
+      out.background = hex;
+    }
+  }
   out.updatedAt = Date.now();
   return out;
 }
 
 const current = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
-const view = (h) => ({ ...current(h), presets: ACCENTS, modes: MODES });
+const view = (h) => ({ ...current(h), presets: ACCENTS, backgrounds: BACKGROUNDS, modes: MODES });
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/themes/, "");

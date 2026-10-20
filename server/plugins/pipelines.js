@@ -2,6 +2,7 @@
 // Starter templates ship for common creative and client work; users can save their own from any mission.
 import { nextDiscountWindow } from "../router.js";
 import { scheduleMission } from "../mission.js";
+import { normalizeMode } from "../modes.js";
 export const id = "pipelines";
 
 const TEMPLATES = [
@@ -82,7 +83,7 @@ function toMission(p, values, projectId) {
   const steps = p.steps.map((s, i) => `${i + 1}. ${s.title} [${s.capability}]${s.deps?.length ? ` (after ${s.deps.join(", ")})` : ""}: ${fillInputs(s.instructions, values)} Deliverable: ${fillInputs(s.deliverable, values)}`).join("\n");
   const goal = `${p.name}${values.brand || values.song || values.client ? ` for ${values.brand || values.song || values.client}` : ""}`;
   const context = `INPUTS\n${inputs}\n\nPIPELINE (use exactly these tasks, in this order, with these dependencies; do not add or merge tasks):\n${steps}\n\nASSEMBLY: ${p.assembly || "Combine into one clean document."}`;
-  return { goal, context, projectId, mode: p.mode || "balanced", qa: p.qa !== false, budgetUsd: p.budgetUsd || 3 };
+  return { goal, context, projectId, mode: normalizeMode(p.mode) || "balanced", qa: p.qa !== false, budgetUsd: p.budgetUsd || 3 };
 }
 
 export async function routes(req, res, url, body, h) {
@@ -111,7 +112,7 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "POST" && p === "/save") {
     // save a custom pipeline (from a finished mission's plan, or hand-written)
     const d = h.doc(KIND, () => ({ items: [] }));
-    const item = { id: body.id || "p-" + Date.now().toString(36), name: String(body.name || "Untitled pipeline").slice(0, 80), icon: body.icon || "✦", category: body.category || "Custom", description: String(body.description || "").slice(0, 300), inputs: Array.isArray(body.inputs) ? body.inputs.slice(0, 8) : [], steps: (Array.isArray(body.steps) ? body.steps : []).slice(0, 10).map((s, i) => ({ title: String(s.title || `Step ${i + 1}`).slice(0, 80), capability: s.capability || "writing", deps: (s.deps || []).map(Number).filter(Boolean), instructions: String(s.instructions || "").slice(0, 1000), deliverable: String(s.deliverable || "").slice(0, 300) })), assembly: String(body.assembly || "").slice(0, 400), mode: body.mode || "balanced", qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || 3, createdAt: Date.now() };
+    const item = { id: body.id || "p-" + Date.now().toString(36), name: String(body.name || "Untitled pipeline").slice(0, 80), icon: body.icon || "✦", category: body.category || "Custom", description: String(body.description || "").slice(0, 300), inputs: Array.isArray(body.inputs) ? body.inputs.slice(0, 8) : [], steps: (Array.isArray(body.steps) ? body.steps : []).slice(0, 10).map((s, i) => ({ title: String(s.title || `Step ${i + 1}`).slice(0, 80), capability: s.capability || "writing", deps: (s.deps || []).map(Number).filter(Boolean), instructions: String(s.instructions || "").slice(0, 1000), deliverable: String(s.deliverable || "").slice(0, 300) })), assembly: String(body.assembly || "").slice(0, 400), mode: normalizeMode(body.mode) || "balanced", qa: body.qa !== false, budgetUsd: Number(body.budgetUsd) || 3, createdAt: Date.now() };
     if (!item.steps.length) return h.json(res, 400, { error: "a pipeline needs at least one step" });
     const i = d.items.findIndex((x) => x.id === item.id);
     if (i >= 0) d.items[i] = item; else d.items.push(item);

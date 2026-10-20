@@ -2,6 +2,20 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.4 (2026-10-20)
+
+**New**
+- Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Max savings is the old Economy choice.
+- A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode) is tried first on Max savings. Freebuff is not used.
+- The route preview can mention a batch price. A run you send now pays the live price.
+- Add community track records from people who opted in. Quality, Balanced, Max savings, and Speed all learn from them. Nothing is uploaded.
+- Settings, Appearance, sets a background colour next to the accent. Built-in restores the original background. Text stays readable.
+
+**Better**
+- Free includes 3 projects and 5 councils a month, 1 connected service, and 1 email account per provider. Pro includes every connected service and up to 8 email accounts.
+- Phone pairing and full history search are Pro. The router stays free. Shared learning and the scores dashboard are Pro.
+- A 14-day Pro trial can be started in the app. The trial is not started for you, and nothing is charged.
+
 ## v0.4.3 (2026-10-20)
 
 **New**

@@ -156,6 +156,10 @@ export async function routes(req, res, url, body, h) {
       const name = clip(body.name, 60) || "Browser";
       const ps = pairings();
       if (ps.list.length >= 10) return h.json(res, 400, { error: "Ten browsers are paired already: unpair one first." });
+      if (ps.list.length === 0) {
+        const { assertServiceSlots } = await import("../service-limit.js");
+        await assertServiceSlots(["extension"]);
+      }
       const secret = crypto.randomBytes(32).toString("base64url");
       const rec = { id: "pair-" + crypto.randomBytes(5).toString("hex"), name, hash: sha(secret), createdAt: Date.now() };
       ps.list.push(rec); putDoc(DOC, ps);

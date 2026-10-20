@@ -120,6 +120,8 @@ export async function finish({ code, state } = {}) {
   pending.delete(state);
   if (!code) throw fail(400, "No code came back from the sign-in.");
   const k = p.k, cur = secret(k) || {};
+  const { assertServiceSlots } = await import("./service-limit.js");
+  await assertServiceSlots([k === "google" ? "library-google" : "notion"]);
   if (k === "google") {
     const tok = await googleToken({ grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, code_verifier: p.verifier });
     const got = String(tok.scope || DRIVE_SCOPE).split(/\s+/).filter(Boolean);

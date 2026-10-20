@@ -55,8 +55,17 @@ test("devOwnerAllowed: needs CC_DEV_OWNER=1 and is ignored when packaged", () =>
 
 test("TIERS: free is the limited tier", () => {
   assert.equal(TIERS.free.missions, false);
-  assert.equal(TIERS.free.councilsPerMonth, 3);
-  assert.equal(TIERS.free.projects, 1);
+  assert.equal(TIERS.free.councilsPerMonth, 5);
+  assert.equal(TIERS.free.projects, 3);
+  assert.equal(TIERS.free.connectedServices, 1);
+  assert.equal(TIERS.free.emailAccounts, 1);
+  assert.equal(TIERS.free.phone, false);
+  assert.equal(TIERS.free.historySearch, false);
+  assert.equal(TIERS.free.sharedLearning, false);
+  assert.equal(TIERS.free.scores, false);
+  assert.equal(TIERS.pro.connectedServices, Infinity);
+  assert.equal(TIERS.pro.emailAccounts, 8);
+  assert.equal(TIERS.pro.phone, true);
   assert.equal(TIERS.free.subscriptionsTab, false);
 });
 
