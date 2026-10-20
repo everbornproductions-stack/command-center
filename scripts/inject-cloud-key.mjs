@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { minifyWeb } from "./minify-renderer.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DEFAULTS_FILE = path.join(ROOT, "server", "cloud-defaults.json");
@@ -90,13 +91,25 @@ function runBuild(builderArgs) {
   } else if (unpublishedPack()) {
     console.log("Unpublished package: no publishable key was written. Do not publish this installer.");
   }
+  let restoreMin = () => {};
   let status = 1;
   try {
+    restoreMin = minifyWeb(path.join(ROOT, "web"));
+    console.log(`Renderer minified for this package (${restoreMin.count} files). Source is restored when the build finishes.`);
     const require = createRequire(import.meta.url);
     const bin = require.resolve("electron-builder/cli.js");
     const child = spawnSync(process.execPath, [bin, ...builderArgs], { stdio: "inherit", env: process.env });
     status = child.status ?? 1;
+  } catch (e) {
+    console.error(e.message || e);
+    status = 1;
   } finally {
+    try { restoreMin(); }
+    catch (e) {
+      console.error("The renderer source could not be restored after packaging. Do not commit web/ in a minified state.");
+      console.error(e.message || e);
+      status = 1;
+    }
     try { prepared.restore(); }
     catch (e) {
       console.error("The publishable key could not be cleared from server/cloud-defaults.json. Do not commit that file.");

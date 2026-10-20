@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Everborn Productions. All rights reserved.
 // Everborn Command Center server: static UI + JSON API + WebSocket event stream.
 // Local mode (default): one user, data/ folder, binds 127.0.0.1 until phone pairing is turned on. `node server/index.js` and done.
 // Hosted mode (CC_MODE=hosted): Supabase sign-in, one context per user, binds 0.0.0.0. See docs/hosted-hub.md.

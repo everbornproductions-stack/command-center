@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Everborn Productions. All rights reserved.
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
@@ -549,7 +550,8 @@ function updateBoxHtml() {
   return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
     + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
-    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
+    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "")
+    + `<span class="dim small" id="about-line" style="display:block;margin-top:4px">Copyright (c) 2026 Everborn Productions. All rights reserved.</span>`;
 }
 function renderUpdateBox() {
   const box = $("#s-upd-box"); if (!box) return;

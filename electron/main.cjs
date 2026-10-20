@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Everborn Productions. All rights reserved.
 // Meldmind desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
@@ -16,6 +17,21 @@ let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free
 const INSTANCE = crypto.randomBytes(12).toString("hex");
 process.env.CC_INSTANCE = INSTANCE;
 const isPackaged = app.isPackaged;
+// Packaged builds cannot open DevTools. Unpackaged `electron .` still can.
+function windowPrefs(extra = {}) {
+  return { contextIsolation: true, nodeIntegration: false, sandbox: true, devTools: !isPackaged, ...extra };
+}
+if (isPackaged) {
+  app.on("web-contents-created", (_event, contents) => {
+    contents.on("devtools-opened", () => { try { contents.closeDevTools(); } catch {} });
+    contents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown") return;
+      const key = String(input.key || "").toLowerCase();
+      const chord = input.control || input.meta;
+      if (key === "f12" || (chord && input.shift && (key === "i" || key === "j" || key === "c"))) event.preventDefault();
+    });
+  });
+}
 const IS_MAC = process.platform === "darwin";
 // Mac builds are unsigned until there is an Apple Developer account (docs/RELEASING.md). Apple only lets
 // signed apps replace themselves, so until then "Install now" on a Mac opens the release page for the
@@ -107,7 +123,7 @@ function showUpdateWindow() {
     width: 480, height: 300, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     parent: win && !win.isDestroyed() ? win : undefined, modal: false, show: false, autoHideMenuBar: true,
     title: "Meldmind update", backgroundColor: "#090d14", icon: path.join(ROOT, "web", "icons", "icon-512.png"),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
+    webPreferences: windowPrefs({ preload: path.join(__dirname, "desk-preload.cjs") }),
   });
   updateWin.setMenu(null);
   updateWin.loadFile(path.join(__dirname, "update.html"));
@@ -155,7 +171,7 @@ function toggleQuick() {
     quickWin = new BrowserWindow({
       width: w, height: hgt, frame: false, resizable: false, movable: true, minimizable: false, maximizable: false, fullscreenable: false,
       alwaysOnTop: true, skipTaskbar: true, show: false, transparent: true, title: "Meldmind quick launcher",
-      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
+      webPreferences: windowPrefs({ preload: path.join(__dirname, "desk-preload.cjs") }),
     });
     quickWin.loadURL(`http://127.0.0.1:${PORT}/quick.html`);
     quickWin.on("blur", hideQuick);
@@ -229,7 +245,7 @@ function createWindow() {
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
     backgroundColor: "#090d14", title: "Meldmind", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
+    webPreferences: windowPrefs({ preload: path.join(__dirname, "desk-preload.cjs") }),
   });
   watchReloads(win); // attach before the first load so it is counted
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
@@ -301,7 +317,7 @@ function trayTemplate() {
 function macMenuTemplate() {
   return [
     { label: "Meldmind", submenu: [
-      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs." }) },
+      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs.\nCopyright (c) 2026 Everborn Productions. All rights reserved." }) },
       { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Meldmind", message: "Updates work in the installed app." }) },
       { type: "separator" }, { role: "hide", label: "Hide Meldmind" }, { role: "hideOthers" }, { role: "unhide" },
       { type: "separator" }, { label: "Quit Meldmind", accelerator: "Command+Q", click: () => app.quit() },

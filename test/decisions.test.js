@@ -38,7 +38,8 @@ test("locked: own server with launch-ID handshake, single instance, main-process
 
 test("locked: run order is the same in DECISIONS.md and BUILD-PLAN.md; Phase 8 is DONE", () => {
   const plan = read("docs", "BUILD-PLAN.md");
-  assert.match(plan, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 14, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11\b/);
+  assert.match(read("docs", "DECISIONS.md"), /1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17 to 24, 14, then 2 to 11/);
+  assert.match(plan, /Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, then Do last: 14\b/);
   assert.match(read("docs", "BUILD-LOG.md"), /^\s*PHASE 8 DONE/m);
 });
 
