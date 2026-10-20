@@ -1,6 +1,6 @@
 # Command Center build plan (Chris, 2026-10-18: "a full working product that nobody else has")
 
-Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, then Do last: 14, Windows code signing, App Store and Google Play listings, 52 (35 to 56 were added on 2026-10-20 and run after 31 to 34, with 35, yearly and lifetime founder billing, first, then 55, 53, 54 and 56; 35 and 55 are done (version stays 0.4.5); 53, 54 and 56 (including the What's new step and the idea box) are in progress for version 0.4.6; Do last is the paid distribution work at the end and needs Chris's OK before paying; 12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
+Each phase is sized for one Claude Code session (about 1–2 hours). Run order: 1, 15, 16, 26, 28, 29, 25, 12, 27, 13, 17, 18, 19, 20, 21, 22, 23, 24, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 30, 31, 32, 33, 34, 35, 55, 53, 54, 56, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 57, 58, 59, 60, 61, 62, then Do last: 14, Windows code signing, App Store and Google Play listings, 52 (35 to 56 were added on 2026-10-20 and run after 31 to 34, with 35, yearly and lifetime founder billing, first, then 55, 53, 54 and 56; 35 and 55 are done (version stays 0.4.5); 53, 54 and 56 (including the What's new step and the idea box) are in progress for version 0.4.6; Do last is the paid distribution work at the end and needs Chris's OK before paying; 12, 13, 15, 16, 25, 26, 28 and 29 were added on 2026-10-18 as high priority, 28 right after 26, 29 right after 28, 27 after 12; 17 to 24 are the competitor-review backlog; 14 is the Mac build: write PHASE 14 BLOCKED for any step that needs a real Mac; 57 to 62 were added on 2026-10-20 and run after 51: recipes, second opinion, cost guard, phone approvals, team spaces, and industry starter packs; they are planned only and must not be built until app control is done). Read docs/DECISIONS.md first: locked decisions are never reverted or reworked. A phase starts only after the phase before it in that order shows PHASE N DONE in BUILD-LOG.md; phases already marked DONE (e.g. Phase 8, built early by Grok Bot) are skipped.
 This plan includes the twelve items in `docs/roadmap.md` (marked R1–R12) and follows its plugin rules (`web/features/*`, `server/plugins/*`, data through `ctx()` from `server/store.js`).
 
 ## Rules for every phase (non-negotiable)
@@ -298,6 +298,27 @@ UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focu
 
 ### Phase 51: Screenshot fallback (effort: L) (planned, not built)
 Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+
+### Phases 57 to 62: After app control (planned, not built)
+Chris, 2026-10-20. These six run after phases 45 to 51. Plan only. Do not build them in the app-control sessions. They are not part of the 0.4.8 desktop release. Nothing here posts, sends, buys, or spends without a click. Do not touch Square or billing. Prices stay placeholders until Chris sets them.
+
+### Phase 57: Recipes (effort: L) (planned, not built)
+Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that actually ran. Replay uses the same rules as phases 45 to 51: per-app Allow, a second click before send, buy, or delete, a banner that says Meldmind is using that app, Stop, and no stored passwords. A scheduled replay that would send, buy, or delete waits for that second click. If the app's layout changed, use the app-control fallback (other selectors, then the manual handoff) and say so in plain words. This does not replace saved pipelines or the existing schedules. It starts only after phase 51 is done.
+
+### Phase 58: Second-opinion mode (effort: M) (planned, not built)
+Two AIs cross-check an important answer and flag disagreements. The person still decides. This sits beside Single, Council, and Mission. It does not replace Council. Show where the two answers differ, in plain words, and keep both answers. Demo mode uses the pretend AIs and spends nothing. No prompts or secrets are stored beyond the task type the learning router already keeps (decision 18).
+
+### Phase 59: Cost guard (effort: M) (planned, not built)
+A monthly budget cap for the whole account, plus the live counter "you saved $X by smart routing". The top bar already shows You saved this month and all time, labeled as an estimate from token counts and list prices. Keep that counter and that estimate label. The existing per-AI spend caps and the ledger stay (decision 16). At 80% of the monthly budget the strip goes amber. At 100% a new paid run waits until the person raises the cap or the month turns. Free and local runs still count as $0. Do not change Square.
+
+### Phase 60: Phone approvals (effort: M) (planned, not built)
+Push to the paired phone to approve a send or a buy. Approving on the phone is the second click. Declining sends nothing. Phone pairing stays off until the person turns it on, and this phase does not change that. If no phone is paired, the approval stays on the PC. No passwords are stored. The push carries the action and the amount, not a key and not the full prompt.
+
+### Phase 61: Team spaces (effort: L) (planned, not built)
+Shared projects, keys, and recipes for a small business, as a paid tier above Pro. Phase 8 workspaces are already done (decision 13). Do not rebuild them. This phase adds shared recipes to what a workspace can hold, and the tier gate above Pro. Invite links stay as they are today (shown once, not emailed). A member sees only what was shared. Keys stay in the vault. The price is a placeholder until Chris sets it. Do not touch Square.
+
+### Phase 62: Industry starter packs (effort: M) (planned, not built)
+Starter packs for industries such as real estate, insurance, and credit repair, organized in the Prompts area by industry. Picking a prompt there drops it into Marching orders, prefilled and editable, ready to run. Nothing runs until the person sends it. Outbound text stays a draft. Unverified numbers stay marked. SSNs, dates of birth, and account numbers are stripped, the same as the Pro prompts pack (decision 24). Credit repair and insurance packs keep the existing SCF, CROA, and RESPA marks. No income or results claims.
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 

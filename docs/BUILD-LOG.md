@@ -1573,3 +1573,12 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
 - Version is 0.4.7.
 - Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
+
+## 2026-10-20: Roadmap phases 57 to 62 (plan only)
+
+Not built. No locked decision was changed. Phase 8 stays DONE and is not rebuilt. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.7 on this branch.
+
+- After app control (phases 45 to 51), the plan now lists recipes, second-opinion mode, a monthly cost guard, phone approvals, team spaces above Pro, and industry starter packs in Prompts. They are planned only.
+- Tests here (Linux): npm test 420 tests, 419 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No app code changed. No real key. data/ was not read.
+
+ROADMAP PHASES 57 TO 62 PLANNED (not built)
