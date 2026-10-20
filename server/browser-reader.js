@@ -3,6 +3,8 @@
 // with this small fetch-based reader instead: no JavaScript, no window, a cookie jar per job only. It
 // offers the same driver calls as the window: open, snapshot, click, type, submit, back, scroll, close.
 // Every page it reads is data, never instructions; the helper's core decides what may be done.
+import { localFetch } from "./loopback-fetch.js";
+
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_ELEMENTS = 150;
 const MAX_TEXT = 12000;
@@ -175,7 +177,7 @@ export function createReader({ userAgent = "CommandAI-BrowserHelper/1.0 (text re
       const headers = { "user-agent": userAgent, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" };
       const ck = cookieHeader(u); if (ck) headers.cookie = ck;
       if (body) headers["content-type"] = "application/x-www-form-urlencoded";
-      res = await fetch(u, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
+      res = await localFetch(u, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
       keepCookies(u, res);
       if (res.status >= 300 && res.status < 400 && res.headers.get("location") && hops++ < 6) {
         u = new URL(res.headers.get("location"), u);

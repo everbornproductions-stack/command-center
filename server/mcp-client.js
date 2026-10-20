@@ -8,8 +8,16 @@
 // The interface is the one the official @modelcontextprotocol/sdk exposes for a client (connect, listTools,
 // callTool, close), so the transport layer can be swapped for the SDK without touching server/mcp.js.
 // Nothing here logs a header, token or environment value.
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { networkCause } from "./health.js";
+
+// Test-only. CC_MCP_TRACE=1 writes one line per JSON-RPC frame to stderr with writeSync,
+// so a Windows CI log shows the last frame before a hang. Off unless that variable is set.
+export function mcpTrace(s) {
+  if (process.env.CC_MCP_TRACE !== "1") return;
+  try { fs.writeSync(2, `MCPTRACE ${s}\n`); } catch {}
+}
 
 export const PROTOCOL_VERSION = "2025-06-18";
 const OLDER_VERSIONS = ["2025-03-26", "2024-11-05"];
@@ -88,6 +96,23 @@ export function spawnSpec(command, args = []) {
   return { file: process.env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", `"${[cmd, ...args].map(q).join(" ")}"`], shell: false, windowsVerbatimArguments: true };
 }
 
+// One JSON line to a child's stdin. writeSync delivers it on a real fd (a Windows
+// pipe otherwise holds the line). Overlapped stdin has no usable fd, so the stream
+// write is the path that actually reaches the child there.
+function writeStdin(child, command, line) {
+  const fd = child.stdin.fd;
+  const cr = line.includes("\r");
+  const preview = line.trim().slice(0, 220);
+  if (typeof fd === "number" && fd >= 0) {
+    mcpTrace(`send writeSync fd=${fd} cr=${cr} bytes=${Buffer.byteLength(line)} ${preview}`);
+    try { fs.writeSync(fd, line); mcpTrace(`send writeSync done fd=${fd}`); return Promise.resolve(); } catch (e) { mcpTrace(`send writeSync failed fd=${fd} ${e.message}`); }
+  }
+  mcpTrace(`send stream.write fd=${String(fd)} cr=${cr} bytes=${Buffer.byteLength(line)} ${preview}`);
+  return new Promise((resolve, reject) => {
+    child.stdin.write(line, (err) => { mcpTrace(`send stream.write ${err ? "err " + err.message : "done"}`); err ? reject(new McpError(`Could not write to "${command}": ${err.message}`, { network: true })) : resolve(); });
+  });
+}
+
 // ---------- stdio ----------
 class StdioTransport {
   constructor({ command, args = [], cwd, env = {} }) { this.command = command; this.args = args; this.cwd = cwd || undefined; this.env = env; this.rpc = new Rpc(); this.child = null; this.stderr = ""; this.closed = false; }
@@ -95,7 +120,11 @@ class StdioTransport {
     const spec = spawnSpec(this.command, this.args);
     await new Promise((resolve, reject) => {
       let child;
-      try { child = spawn(spec.file, spec.args, { cwd: this.cwd, env: { ...process.env, ...this.env }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false, windowsVerbatimArguments: spec.windowsVerbatimArguments }); }
+      // Overlapped pipes on Windows. The default pipe is synchronous: a writeSync on
+      // one side blocks the other, and the second tool call in a turn never arrives.
+      const stdio = process.platform === "win32" ? ["overlapped", "overlapped", "pipe"] : ["pipe", "pipe", "pipe"];
+      mcpTrace(`spawn file=${spec.file} shell=false windowsHide=true stdio=${stdio.join(",")} platform=${process.platform}`);
+      try { child = spawn(spec.file, spec.args, { cwd: this.cwd, env: { ...process.env, ...this.env }, stdio, windowsHide: true, shell: false, windowsVerbatimArguments: spec.windowsVerbatimArguments }); }
       catch (e) { return reject(new McpError(`Could not start "${this.command}": ${e.message}`, { network: true })); }
       this.child = child;
       let buf = "";
@@ -104,14 +133,19 @@ class StdioTransport {
         buf += chunk;
         let idx;
         while ((idx = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          const raw = buf.slice(0, idx); buf = buf.slice(idx + 1);
+          const line = raw.trim();
           if (!line) continue;
-          let msg; try { msg = JSON.parse(line); } catch { continue; } // servers sometimes print banners on stdout; ignore non-JSON lines
+          mcpTrace(`recv cr=${raw.includes("\r")} bytes=${Buffer.byteLength(raw)} ${line.slice(0, 220)}`);
+          let msg; try { msg = JSON.parse(line); } catch { mcpTrace(`recv not json`); continue; } // servers sometimes print banners on stdout; ignore non-JSON lines
           if (Array.isArray(msg)) msg.forEach((m) => this.rpc.accept(m)); else this.rpc.accept(msg);
         }
       });
       child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (c) => { this.stderr = (this.stderr + c).slice(-4000); });
+      child.stderr.on("data", (c) => {
+        this.stderr = (this.stderr + c).slice(-4000);
+        if (process.env.CC_MCP_TRACE === "1") { try { fs.writeSync(2, c); } catch {} }
+      });
       child.once("error", (e) => { const err = new McpError(`Could not start "${this.command}": ${e.code === "ENOENT" ? "command not found" : e.message}`, { network: true }); this.closed = true; this.rpc.failAll(err); reject(err); });
       child.once("spawn", () => resolve());
       child.once("exit", (code, sig) => { this.closed = true; this.rpc.failAll(new McpError(`"${this.command}" exited (${sig || code})${this.stderr.trim() ? `: ${this.stderr.trim().split("\n").at(-1).slice(0, 200)}` : ""}`, { network: true })); });
@@ -121,7 +155,8 @@ class StdioTransport {
     if (this.closed || !this.child?.stdin.writable) throw new McpError(`"${this.command}" is not running`, { network: true });
     const isReq = msg.id !== undefined;
     const p = isReq ? this.rpc.wait(msg.id, timeoutMs, what) : Promise.resolve(null);
-    this.child.stdin.write(JSON.stringify(msg) + "\n");
+    const line = JSON.stringify(msg) + "\n";
+    await writeStdin(this.child, this.command, line);
     return p;
   }
   async close() {

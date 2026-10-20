@@ -202,7 +202,13 @@ test("only the task type and numbers are stored: extra fields, prompt text and o
 
 // ---------- the running server against mock providers ----------
 const KEYS = { xai: "xai-fakefakefakefakefake", groq: "gsk_fakefakefakefakefake", mistral: "fakemistralkeyfakemistralkey0000" };
-function sse(res, chunks) { res.writeHead(200, { "content-type": "text/event-stream" }); for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+function sse(res, chunks) {
+  // One body with a length, then close the socket. Windows CI reuses a keep-alive
+  // socket after a chunked stream and the next model call waits until this test gives up.
+  const body = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n";
+  res.writeHead(200, { "content-type": "text/event-stream", "content-length": Buffer.byteLength(body), connection: "close" });
+  res.end(body);
+}
 function answerFor(j) {
   const sys = j.messages.find((m) => m.role === "system")?.content || "";
   const user = j.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
@@ -216,7 +222,7 @@ async function mocks() {
   const behave = { xai: "ok", groq: "ok", mistral: "ok" };
   const srv = http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
-    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
+    const send = (code, j) => { const body = JSON.stringify(j); res.writeHead(code, { "content-type": "application/json", "content-length": Buffer.byteLength(body), connection: "close" }); res.end(body); };
     const url = new URL(req.url, "http://127.0.0.1");
     const prefix = url.pathname.split("/")[1];
     if (/\/models$/.test(url.pathname)) return send(200, { data: [{ id: "mock" }] });
@@ -239,7 +245,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitRun(s, pred, label, ms = 60000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const hit = pred(st); if (hit) return hit; await sleep(250); }
-  throw new Error(`timed out waiting for ${label}\n--- server log tail ---\n${s.log.slice(-1500)}`);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
+  throw new Error(`timed out waiting for ${label}${trace ? `\n${trace}` : ""}\n--- server log tail ---\n${s.log.slice(-800)}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const readBrain = (s) => JSON.parse(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8"));

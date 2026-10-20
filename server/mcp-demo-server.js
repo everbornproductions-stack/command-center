@@ -3,7 +3,7 @@
 // Tools: clock (read-only), word_count (read-only), save_note (writes to a notes list kept in memory
 // for the life of the process; marked destructive: false but it is still a write and needs approval).
 // Run: node server/mcp-demo-server.js   (talks newline-delimited JSON-RPC on stdin / stdout)
-import readline from "node:readline";
+import fs from "node:fs";
 
 const notes = [];
 const TOOLS = [
@@ -13,7 +13,14 @@ const TOOLS = [
   { name: "list_notes", description: "Lists the notes saved so far (title and first line).", inputSchema: { type: "object", properties: {} } }, // no annotations on purpose: the app must treat it as a write until the person marks it read-only
 ];
 
-const write = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
+// writeSync so a Windows pipe does not hold the JSON line in a block buffer.
+// A buffered reply leaves the client waiting, and the chat never finishes.
+const trace = (s) => { if (process.env.CC_MCP_TRACE === "1") { try { fs.writeSync(2, `MCPTRACE demo ${s}\n`); } catch {} } };
+const write = (msg) => {
+  const line = JSON.stringify(msg) + "\n";
+  trace(`stdout id=${msg.id} bytes=${Buffer.byteLength(line)} cr=${line.includes("\r")} ${line.trim().slice(0, 180)}`);
+  fs.writeSync(1, line);
+};
 const text = (t, extra = {}) => ({ content: [{ type: "text", text: t }], ...extra });
 
 function call(name, args = {}) {
@@ -33,8 +40,13 @@ function call(name, args = {}) {
   return null;
 }
 
-const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-rl.on("line", (line) => {
+// Own the bytes. readline on a Windows pipe can drop the line that arrives while
+// writeSync is still flushing the previous reply, so the second tool call in a
+// turn (save_note, after clock) never runs and the chat waits until it times out.
+let buf = "";
+const queue = [];
+let busy = false;
+function handle(line) {
   line = line.trim(); if (!line) return;
   let msg; try { msg = JSON.parse(line); } catch { return write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
   const { id, method, params } = msg;
@@ -48,6 +60,22 @@ rl.on("line", (line) => {
     return write({ jsonrpc: "2.0", id, result: r });
   }
   write({ jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } });
+}
+function pump() {
+  if (busy) return;
+  const line = queue.shift();
+  if (line === undefined) return;
+  busy = true;
+  try { handle(line); } finally { busy = false; }
+  if (queue.length) pump();
+}
+process.stdin.setEncoding("utf8");
+trace(`stdin encoding=utf8 platform=${process.platform}`);
+process.stdin.on("data", (chunk) => {
+  trace(`stdin chunk bytes=${Buffer.byteLength(chunk)} cr=${String(chunk).includes("\r")}`);
+  buf += chunk;
+  let idx;
+  while ((idx = buf.indexOf("\n")) >= 0) { queue.push(buf.slice(0, idx)); buf = buf.slice(idx + 1); }
+  pump();
 });
-rl.on("close", () => process.exit(0));
 process.stdin.on("end", () => process.exit(0));

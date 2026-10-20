@@ -1470,3 +1470,31 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
 V0.4.5 VERSION BUMP READY (built by Cursor cloud agent)
+
+## 2026-10-20: Windows release test hang on clock and save_note (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The v0.4.5 tag was not moved. Nothing was published. data/ was not read.
+
+- Windows release run 39445588419 failed in Test, not on the publishable key. `test/mcp.test.js` timed out waiting for "clock + note" (the single that calls clock and save_note).
+- The demo tool server now writes each JSON line with writeSync, so a Windows pipe cannot hold the reply. The stdio client writes the request the same way when the pipe has a file descriptor. The test's mock model closes the socket after each reply.
+- The tag v0.4.5 still points at 30ce770. This fix is a pull request. The release was not retried.
+- Tests: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+WINDOWS MCP STDIO HANG FIX (built by Cursor cloud agent)
+
+## 2026-10-20: Windows CI on PR 45, three test failures
+
+Not a numbered phase. No locked decision was changed. The v0.4.5 tag was not moved. Nothing was published. data/ was not read.
+
+- Grok Bot's late mission: a wait of 0 minutes was a 1 ms timer, which Windows can swallow, so the mission never moved on. A 0 minute wait now returns immediately. The test mock also closes each socket, because Windows was reusing a keep-alive connection and the next model call never started.
+- Image gallery: the "no provider call before the price" check counted background /models health checks. On Windows two of those land after the baseline (6 instead of 4). Health checks are not image calls, so they are no longer counted.
+- clock + note: the model stream now stops at [DONE] and loopback calls ask the socket to close, so a quiet Windows pipe cannot hold the next round. The demo tool server queues stdin lines instead of readline, and Windows spawns that process with overlapped pipes, so the second tool call is not dropped while the first reply is flushing.
+- Tests here (Linux): npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the PR check.
+
+WINDOWS CI THREE FAILURES (built by Cursor cloud agent)
+
+## 2026-10-20: clock + note still times out on Windows
+
+Tests 109 and 147 passed on run 39453428907. Test 207 still times out with no server log. CC_MCP_TRACE=1 now writes each JSON-RPC line, the demo server's stderr, and the spawn mode. The failing wait prints those lines. No locked decision changed. Tag v0.4.5 was not moved.
+
+On the next Windows run (39456271825) clock + note passed. Two other waits timed out instead: brain "single with learning off" and Grok Bot "late mission". Both are a model call that never returns. Windows reuses a keep-alive socket after a finished mock reply, and the next request sits with no headers. Loopback fetches now use a private agent that sends Connection: close and does not keep the socket. Mock replies close too, and a 1 ms server keep-alive timer (it was racing the client) is gone. CC_NET_TRACE=1 writes each loopback fetch to stderr so a later timeout shows the last start, headers, or body line. Tests here: npm test 404 tests, 403 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.

@@ -65,6 +65,9 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
   assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
   const wc = await c.callTool("word_count", { text: "one two three. four!" });
   assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
+  assert.match((await c.callTool("clock", {})).text, /^20\d\d-/);
+  assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
+  assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
   assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
   await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
   assert.equal(c.alive, true);
@@ -192,13 +195,19 @@ test("http client: session id and protocol version headers, JSON and SSE answers
 
 // ---------- the running server with a mock tool-calling model ----------
 const KEYS = { groq: "gsk_fakefakefakefakefake" };
-function sse(res, chunks) { res.writeHead(200, { "content-type": "text/event-stream" }); for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+function sse(res, chunks) {
+  // Close the socket. Windows CI reuses a keep-alive connection and the next model round can wait forever.
+  res.writeHead(200, { "content-type": "text/event-stream", connection: "close" });
+  for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`);
+  res.write("data: [DONE]\n\n");
+  res.end();
+}
 // An OpenAI-compatible model that calls the first tool whose name matches a word in the orders, then answers with the result.
 async function mockModel() {
   const seen = [];
   const srv = http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
-    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
+    const send = (code, j) => { res.writeHead(code, { "content-type": "application/json", connection: "close" }); res.end(JSON.stringify(j)); };
     if (req.url.endsWith("/v1/models")) return send(200, { data: [{ id: "openai/gpt-oss-120b" }] });
     if (!req.url.endsWith("/chat/completions")) return send(404, {});
     const j = JSON.parse(body); seen.push(j);
@@ -223,8 +232,11 @@ async function mockModel() {
 }
 async function waitRun(s, pred, label, ms = 60000) {
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const hit = pred(st); if (hit) return hit; await sleep(300); }
-  throw new Error(`timed out waiting for ${label}`);
+  let last = null;
+  while (Date.now() - t0 < ms) { last = (await s.api("/state")).json; const hit = pred(last); if (hit) return hit; await sleep(300); }
+  const open = (last?.missions || []).filter((m) => !["done", "done-with-errors", "failed", "aborted"].includes(m.status)).slice(0, 2);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
+  throw new Error(`timed out waiting for ${label}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${trace ? `\n${trace}` : ""}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 async function waitPending(s, ms = 20000) {
@@ -235,7 +247,7 @@ async function waitPending(s, ms = 20000) {
 
 test("server: add stdio server (env in the vault), per-workspace enablement, approvals (allow, deny, read-only policy, overrides), runs record tool calls, manual call, settings off, remove", async () => {
   const model = await mockModel();
-  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_BASE_URL_GROQ: `${model.base}/v1`, GROQ_API_KEY: "" } });
+  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_MCP_TRACE: "1", CC_BASE_URL_GROQ: `${model.base}/v1`, GROQ_API_KEY: "" } });
   const SECRET = "sekrit-env-value-9f8e7d";
   try {
     assert.equal((await s.api("/tools", { noToken: true })).status, 401, "session token required");

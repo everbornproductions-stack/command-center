@@ -124,7 +124,6 @@ async function mocks() {
     const extra = prefix === "or" ? { cost: 0.0012 } : {};
     return sse(res, [{ model: j.model, choices: [{ delta: { content: text } }] }, { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 30, completion_tokens: 10, ...extra } }]);
   });
-  srv.keepAliveTimeout = 1;
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   return { base, behave, seen, since: () => seen.length, calls: (prefix, from = 0) => seen.slice(from).filter((x) => x.prefix === prefix), close: () => new Promise((r) => srv.close(r)) };
@@ -133,7 +132,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitRun(s, pred, label, ms = 60000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const hit = pred(st); if (hit) return hit; await sleep(250); }
-  throw new Error(`timed out waiting for ${label}\n--- server log tail ---\n${s.log.slice(-1500)}`);
+  const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
+  throw new Error(`timed out waiting for ${label}${trace ? `\n${trace}` : ""}\n--- server log tail ---\n${s.log.slice(-800)}`);
 }
 const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const GROQ = "openai/gpt-oss-120b", FLASH = "gemini-3.8-flash";

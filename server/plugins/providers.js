@@ -13,6 +13,7 @@ import { setSecret, getSecret } from "../vault.js";
 import { checkProvider } from "../health.js";
 import { isBlockedFree } from "../savings.js";
 import { capsFor, learnedStrengths, profileFor } from "../added-caps.js";
+import { localFetch } from "../loopback-fetch.js";
 
 export const id = "providers";
 const DOC = "providers.custom";
@@ -125,7 +126,7 @@ export async function discoverModels({ baseUrl, api = "openai", key, headers = {
   const url = api === "anthropic" ? `${baseUrl}/v1/models?limit=100` : `${baseUrl}/models`;
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
   let r;
-  try { r = await fetch(url, { headers: h, signal: ctl.signal }); }
+  try { r = await localFetch(url, { headers: h, signal: ctl.signal }); }
   catch (e) { throw err(502, `Could not reach ${baseUrl} (${e.name === "AbortError" ? "timed out" : e.message}).`); }
   finally { clearTimeout(t); }
   if (!r.ok) throw err(r.status === 401 || r.status === 403 ? 400 : 502, r.status === 401 || r.status === 403 ? "The provider refused the key (HTTP " + r.status + ")." : `The provider answered HTTP ${r.status} for /models.`);

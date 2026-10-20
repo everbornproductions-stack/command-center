@@ -49,7 +49,10 @@ async function mocks() {
     send(404, { error: "mock: no route" });
   });
   await new Promise((r) => server.listen(port, "127.0.0.1", r));
-  return { base, hits, behave, since: () => hits.length, close: () => new Promise((r) => server.close(r)) };
+  // Background health checks GET /models. On Windows those land after the test's baseline.
+  // They are not image calls. since() is still the raw hit count (used as a slice index below).
+  const imageCalls = () => hits.filter((h) => !h.path.endsWith("/models")).length;
+  return { base, hits, behave, since: () => hits.length, imageCalls, close: () => new Promise((r) => server.close(r)) };
 }
 
 const env = (m, keys = true) => ({
@@ -96,12 +99,12 @@ test("server: each provider makes images into the gallery with the prompt; edits
     assert.ok(pv.every((p) => p.keyed), "all keyed from the test environment");
 
     // the estimate comes first: none, or a lower one, is refused with the current figure and nothing is called
-    let from = m.since();
+    let from = m.imageCalls();
     let r = await s.api("/images", { method: "POST", body: { provider: "openai", prompt: "A red bicycle", n: 2 } });
     assert.equal(r.status, 409); assert.equal(r.json.code, "estimate_first"); assert.equal(r.json.estimate.usd, 0.084);
     r = await s.api("/images", { method: "POST", body: { provider: "openai", prompt: "A red bicycle", n: 2, estimate: 0.01 } });
     assert.equal(r.status, 409);
-    assert.equal(m.since(), from, "no provider call before the price is seen");
+    assert.equal(m.imageCalls(), from, "no provider call before the price is seen");
     assert.equal((await s.api("/images", { method: "POST", body: { provider: "openai", prompt: "  ", estimate: 1 } })).status, 400, "a prompt is needed");
 
     // 1. OpenAI: two images, both in the gallery, one ledger line each
@@ -177,7 +180,7 @@ test("server: each provider makes images into the gallery with the prompt; edits
 
     // 7. spend caps: a provider at its cap is refused before any call; so is a batch that would cross it
     await s.api("/alerts/caps", { method: "POST", body: { caps: { openai: 0.05, xai: 0.1 } } });
-    from = m.since();
+    from = m.imageCalls();
     r = await s.api("/images", { method: "POST", body: { provider: "openai", prompt: "One more", estimate: 1 } });
     assert.equal(r.status, 402); assert.equal(r.json.code, "capped"); assert.match(r.json.error, /monthly spend cap/);
     assert.equal((await s.api("/images/estimate", { method: "POST", body: { provider: "openai" } })).json.capped, true);
@@ -185,7 +188,7 @@ test("server: each provider makes images into the gallery with the prompt; edits
     assert.equal(xe.wouldExceed, true, "0.07 spent + 0.07 more is over a 0.10 cap"); assert.equal(xe.capLeft, 0.03);
     r = await s.api("/images", { method: "POST", body: { provider: "xai", prompt: "Another lighthouse", estimate: 1 } });
     assert.equal(r.status, 402); assert.match(r.json.error, /would take xAI Grok over its monthly spend cap/);
-    assert.equal(m.since(), from, "no provider call when capped");
+    assert.equal(m.imageCalls(), from, "no provider call when capped");
     assert.equal((await s.api("/alerts/state")).json.stop.includes("openai"), true, "the alerts plugin sees image spend");
     await s.api("/alerts/caps", { method: "POST", body: { caps: {} } });
 

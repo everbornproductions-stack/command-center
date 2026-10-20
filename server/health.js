@@ -4,6 +4,7 @@ import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret } from "./vault.js";
 import { emit } from "./events.js";
 import { ctx, allContexts, runAs } from "./store.js";
+import { localFetch } from "./loopback-fetch.js";
 
 // Lights and live model lists are per user: a key is one user's key, so its health is too.
 const GREY = () => ({ status: "grey", detail: "no key", latencyMs: null, checkedAt: 0, incident: null, balance: null });
@@ -105,7 +106,7 @@ async function fetchJson(url, headers = {}, timeout = 12000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
-    const r = await fetch(url, { headers, signal: ctl.signal });
+    const r = await localFetch(url, { headers, signal: ctl.signal });
     const txt = await r.text();
     let j = null;
     try { j = JSON.parse(txt); } catch {}
