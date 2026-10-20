@@ -2,7 +2,7 @@
 // Score = learned capability (baseline + what the council taught us) minus a cost penalty
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
 // With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
-import { CAPABILITIES, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
+import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc } from "./store.js";
 import { extractJson } from "./providers.js";
@@ -13,6 +13,7 @@ import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
 import { costWeight, normalizeMode, speedBoost } from "./modes.js";
+import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -86,7 +87,7 @@ export function availableModels() {
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
-  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web));
+  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
   const capped = doc("alerts.state", () => null)?.stop || [];
   if (capped.length && list.some((m) => !capped.includes(m.provider))) list = list.filter((m) => !capped.includes(m.provider));
@@ -123,10 +124,13 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
     const fast = speedBoost(mode, m.baseCaps?.fast ?? m.caps?.fast);
+    const meta = PROVIDERS[m.provider];
+    const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   });
-  return applyPreferFree(scored.sort((a, b) => b.score - a.score), readPreferFree());
+  const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), readPreferFree()), mode);
+  return ordered;
 }
 
 // Would waiting for a discount window save real money on this job? Looks 48 h ahead.
@@ -208,11 +212,15 @@ export async function classify(prompt, { onCall } = {}) {
 export function cheaperRoute(cls) {
   const best = pick({ ...cls, mode: "quality" });
   const econ = pick({ ...cls, mode: "economy" });
-  if (!best || !econ || best.model === econ.model) return { best, econ, advice: null, savingsPct: 0 };
+  if (!best || !econ || best.model === econ.model) {
+    const same = best?.estCost > 0 ? best : econ;
+    return { best, econ, advice: null, savingsPct: 0, batchNote: batchNote(same?.provider, same?.estCost) };
+  }
   const savings = best.estCost > 0 ? Math.round((1 - econ.estCost / best.estCost) * 100) : 0;
   const qualityDrop = Math.max(0, (best.caps[cls.capability] || 0) - (econ.caps[cls.capability] || 0));
   const advice = qualityDrop <= 12
     ? `${econ.name} can do this for about ${savings}% less than ${best.name} with little quality loss.`
     : `${econ.name} would be about ${savings}% cheaper, but it is noticeably weaker at ${cls.capability}. Keep ${best.name} for this one.`;
-  return { best, econ, advice, savingsPct: savings, qualityDrop };
+  const priced = best?.estCost > 0 ? best : econ;
+  return { best, econ, advice, savingsPct: savings, qualityDrop, batchNote: batchNote(priced?.provider, priced?.estCost) };
 }

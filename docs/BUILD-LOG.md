@@ -1379,3 +1379,17 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Checked in the browser on the local app, Expert: choosing paper turned the page background paper and kept the text readable, and Built-in cleared it.
 
 CUSTOM BACKGROUND DONE (built by Cursor cloud agent)
+
+## 2026-10-20: Free local models first, and legitimate savings (Cursor cloud agent)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). The presets from decision 9 stay. Aider and OpenCode were added as local OpenAI-compatible presets. Freebuff is not a provider.
+
+- A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or a custom OpenAI-compatible endpoint on localhost or with no key) is tried first on Max savings. Balanced still prefers it when the quality gap is within 15 points. Quality keeps the stronger paid model when the gap is more than 6. Speed tries it when the gap is within 12. A remote custom provider with a key is not treated as local just because its listed price is zero.
+- The same model from two sellers keeps the cheaper one. On a tie, a direct provider beats OpenRouter.
+- DeepSeek off-peak stays in the existing estimate. It is not applied a second time.
+- When a provider reports prompt-cache reads, the ledger prices those tokens at the cache rate (Anthropic one tenth, OpenAI half). Anthropic system text of 4000 characters or more is sent with a cache breakpoint. A live run is not discounted for a cache the provider did not report.
+- Batch is advice on the route preview only: about half the live price when the work can wait. A run sent now pays the live price.
+- Freebuff is refused by name or address and left out of ranking. Nothing is shelled out to Aider or OpenCode. OpenCode's preset is only for an OpenAI-compatible /v1. The default port is 4096, and the address can be changed.
+- Tests: `test/savings.test.js`. npm test 386 tests, 385 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read or committed.
+
+FREE LOCAL MODELS FIRST DONE (built by Cursor cloud agent)

@@ -2,6 +2,7 @@
 // (local: data/ledger.jsonl; hosted: user_ledger rows). Entries live in the user's context.
 import { ctx } from "./store.js";
 import { estimateCostAt, PROVIDERS } from "./registry.js";
+import { cachedCallCost } from "./savings.js";
 import { emit } from "./events.js";
 import { isManaged } from "./vault.js";
 import { snapshotCall } from "./receipt-math.js";
@@ -36,13 +37,15 @@ export function recordCall({ provider, model, usage, missionId, taskId, role, ms
   // Phase 26: a call within a free-tier allowance costs nothing; a model reached through OpenRouter
   // without an exact bill is priced as the model it stands in for (usage.priceModel)
   const free = !manual && !!usage.free;
-  const cost = manual || free ? 0 : exact ? usage.cost : estimateCostAt(usage.priceModel || model, usage.input, usage.output);
+  const cacheRead = !manual && !free && !exact ? Math.max(0, Number(usage.cacheRead) || 0) : 0;
+  const cost = manual || free ? 0 : exact ? usage.cost : cacheRead > 0 ? cachedCallCost(usage.priceModel || model, usage) : estimateCostAt(usage.priceModel || model, usage.input, usage.output);
   const entry = {
     ts: Date.now(), kind: "call", provider, model, actualModel: usage.actualModel || null,
     inTok: usage.input, outTok: usage.output, cost: +cost.toFixed(6), exact: exact && !free,
     estimated: !manual && !exact && !free && (!!estimated || !!usage.estimated), missionId: missionId || null, taskId: taskId || null, role: role || null, ms: ms || null,
     free, fallback: usage.fallback || null,
   };
+  if (cacheRead > 0) entry.cacheRead = cacheRead;
   if (manual) {
     entry.manual = true;
     entry.usage = { manual: true };
