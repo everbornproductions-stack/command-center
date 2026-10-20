@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import http from "node:http";
-import { startServer, ROOT, tmpDir, freePort } from "./helpers.js";
+import { startServer, ROOT, tmpDir, freePort, waitBudget } from "./helpers.js";
 
 // the server modules are imported with a throwaway data folder (they create it on import), never data/
 process.env.CC_DATA_DIR = tmpDir("cc-lib-unit-");
@@ -80,18 +80,36 @@ test("libraries: Notion adapter allows read endpoints only; Drive scope is read-
 });
 
 async function waitJob(s, id, ms = 60000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const r = (await s.api(`/libraries/${id}`)).json; if (r.job && r.job.status !== "indexing") return r; if (!r.job && r.chunks) return r; await sleep(200); }
-  throw new Error("indexing did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const r = (await s.api(`/libraries/${id}`)).json;
+      if (r.job && r.job.status !== "indexing") return r;
+      if (!r.job && r.chunks) return r;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`indexing did not finish${last ? `\n${last}` : ""}`);
 }
 async function waitRun(s, kind, ms = 120000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const m = st.missions.find((x) => x.kind === kind && (x.status === "done" || x.status === "failed")); if (m) return (await s.api(`/missions/${m.id}`)).json; await sleep(400); }
-  throw new Error(`${kind} did not finish`);
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const st = (await s.api("/state")).json;
+      const m = st.missions.find((x) => x.kind === kind && (x.status === "done" || x.status === "failed"));
+      if (m) return (await s.api(`/missions/${m.id}`)).json;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(400);
+  }
+  throw new Error(`${kind} did not finish${last ? `\n${last}` : ""}`);
 }
 const ledger = async (s) => (await s.api("/state")).json.ledger.recent;
 
-test("libraries: index a fixture folder, cited answers, keyword and vector search, caps, delete", { timeout: 240000 }, async () => {
+test("libraries: index a fixture folder, cited answers, keyword and vector search, caps, delete", { timeout: 600000 }, async () => {
   const s = await startServer();
   const folder = fixtureCopy();
   try {

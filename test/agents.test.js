@@ -9,16 +9,24 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import crypto from "node:crypto";
-import { startServer, freePort, ROOT } from "./helpers.js";
+import { startServer, freePort, ROOT, waitBudget } from "./helpers.js";
 import { variablesOf, fillPrompt, canShare, SHARE_PERMISSIONS, scanForListing } from "../server/custom-agents.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DEMO_TOOLS = path.join(ROOT, "server", "mcp-demo-server.js");
 
 async function waitRun(s, id, ms = 60000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const r = await s.api(`/missions/${id}`); if (r.status === 200 && r.json.status !== "running") return r.json; await sleep(200); }
-  throw new Error(`run ${id} did not finish`);
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const r = await s.api(`/missions/${id}`);
+      if (r.status === 200 && r.json.status !== "running") return r.json;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`run ${id} did not finish${last ? `\n${last}` : ""}`);
 }
 
 test("{{variables}}: listed once in order, every one required, substituted in one pass", () => {

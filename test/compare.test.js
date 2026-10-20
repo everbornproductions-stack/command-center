@@ -6,21 +6,29 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, ROOT } from "./helpers.js";
+import { startServer, ROOT, waitBudget } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const COLS = [{ provider: "demo-nova", model: "nova-lite" }, { provider: "demo-atlas", model: "atlas-pro" }, { provider: "demo-sage", model: "sage-mini" }];
 const PROMPT = "Write a two-line tagline for a neighbourhood bakery.";
 
 async function waitRun(s, id, ms = 60000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const r = await s.api(`/compare/${id}`); if (r.json?.status && r.json.status !== "running") return r.json; await sleep(250); }
-  throw new Error("comparison did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const r = await s.api(`/compare/${id}`);
+      if (r.json?.status && r.json.status !== "running") return r.json;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(250);
+  }
+  throw new Error(`comparison did not finish${last ? `\n${last}` : ""}`);
 }
 const ledgerFor = async (s, id) => (await s.api("/state")).json.ledger.recent.filter((e) => e.missionId === id);
 
 let savedPresets = null;
-test("side-by-side comparison: parallel columns, ledger, winner rating, presets, spend cap skip", { timeout: 180000 }, async () => {
+test("side-by-side comparison: parallel columns, ledger, winner rating, presets, spend cap skip", { timeout: 600000 }, async () => {
   const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);

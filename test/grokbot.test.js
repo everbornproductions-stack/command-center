@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, waitBudget, missionIds, runSettled } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-grokbot-");
 const GB = await import("../server/grokbot.js");
@@ -97,11 +97,11 @@ async function waitFor(fn, label, ms = 30000, s) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${trace ? `\n${trace}` : ""}${s ? `\n--- server log tail ---\n${s.log.slice(-800)}` : ""}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
+const finished = runSettled;
 const tokenOf = (cb) => new URL(cb).searchParams.get("t");
 const pathOf = (cb) => { const u = new URL(cb); return u.pathname + u.search; };
 
-test("server: settings in the vault, hand-off, callback rules, council, mission, paste, cancel, refusals, demo and the mock, hub cards, no secrets leaked", async () => {
+test("server: settings in the vault, hand-off, callback rules, council, mission, paste, cancel, refusals, demo and the mock, hub cards, no secrets leaked", { timeout: 600000 }, async () => {
   const m = await mocks();
   const s = await startServer({ env: {
     CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_GROKBOT_MOCK_MS: "150",
@@ -201,13 +201,13 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     assert.ok(!route.ranked.some((x) => x.provider === "grokbot"), "never in the text ranking");
 
     // ---- council, in time: its answer is reviewed and scored like the others ----
-    let hits0 = m.hook.hits.length, t0 = Date.now();
+    let hits0 = m.hook.hits.length, t0 = await missionIds(s);
     assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Look in my Gmail inbox for the Acme invoice and tell me the amount" } })).status, 202);
     hit = await waitFor(() => m.hook.hits.length > hits0 && m.hook.hits.at(-1), "council hand-off", 30000, s);
     assert.equal(hit.body.task, "Look in my Gmail inbox for the Acme invoice and tell me the amount");
     assert.equal((await callback(hit.body.callback_url, { status: "working" })).status, 200);
     assert.equal((await callback(hit.body.callback_url, { status: "done", text: "The Acme invoice is $1,200." })).status, 200);
-    let run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council in time", 60000, s);
+    let run = await waitFor(async () => finished("council", t0)((await s.api("/state")).json), "council in time", 60000, s);
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.agents.length, 1); assert.equal(full.agents[0].id, "grokbot"); assert.equal(full.agents[0].status, "done"); assert.deepEqual(full.agents[0].needs, ["gmail"]);
     assert.equal(full.answers.grokbot.text, "The Acme invoice is $1,200."); assert.equal(full.answers.grokbot.letter, "B");
@@ -220,21 +220,21 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     assert.ok(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8").includes("grokbot"), "credited in the track record");
 
     // ---- council, plain text: never handed over; and left out by the person ----
-    hits0 = m.hook.hits.length; t0 = Date.now();
+    hits0 = m.hook.hits.length; t0 = await missionIds(s);
     await s.api("/council", { method: "POST", body: { prompt: "Write a tagline for a bakery." } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "plain council", 60000, s);
+    run = await waitFor(async () => finished("council", t0)((await s.api("/state")).json), "plain council", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.deepEqual(full.agents, []); assert.equal(m.hook.hits.length, hits0, "no hand-off for plain text work");
-    t0 = Date.now();
+    t0 = await missionIds(s);
     await s.api("/council", { method: "POST", body: { prompt: "Check my Gmail inbox for the Acme invoice", grokbot: false } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council without", 60000, s);
+    run = await waitFor(async () => finished("council", t0)((await s.api("/state")).json), "council without", 60000, s);
     assert.deepEqual((await s.api(`/missions/${run.id}`)).json.agents, []); assert.equal(m.hook.hits.length, hits0, "left out by the person");
 
     // ---- council, late: the council goes on; the answer joins it afterwards with a judge score ----
     await s.api("/grokbot/config", { method: "POST", body: { councilWaitSec: 1 } });
-    hits0 = m.hook.hits.length; t0 = Date.now();
+    hits0 = m.hook.hits.length; t0 = await missionIds(s);
     await s.api("/council", { method: "POST", body: { prompt: "Check my Gmail inbox for the Zeta invoice" } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "late council", 60000, s);
+    run = await waitFor(async () => finished("council", t0)((await s.api("/state")).json), "late council", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.answers.grokbot.pending, true); assert.ok(!full.scoreboard?.grokbot);
     hit = m.hook.hits[hits0];
@@ -247,12 +247,12 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     await s.api("/grokbot/config", { method: "POST", body: { councilWaitSec: 90 } });
 
     // ---- mission, in time: the planner hands the Gmail step to Grok Bot; the next step uses its result ----
-    hits0 = m.hook.hits.length; t0 = Date.now();
+    hits0 = m.hook.hits.length; t0 = await missionIds(s);
     assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Find the Acme invoice and write me a summary", qa: false } })).status, 202);
     hit = await waitFor(() => m.hook.hits.length > hits0 && m.hook.hits.at(-1), "mission hand-off", 30000, s);
     assert.match(hit.body.task, /^Pull the Acme invoice\nFind the Acme invoice in the inbox\./); assert.match(hit.body.context, /Mission goal: Find the Acme invoice/);
     assert.equal((await callback(hit.body.callback_url, { status: "done", text: "Acme invoice #42, $1,200." })).status, 200);
-    run = await waitFor(async () => finished("mission", t0 - 1)((await s.api("/state")).json), "mission", 60000, s);
+    run = await waitFor(async () => finished("mission", t0)((await s.api("/state")).json), "mission", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error);
     const t1 = full.tasks.find((t) => t.id === "t1");
@@ -263,9 +263,9 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
 
     // ---- mission, late: the mission finishes without it; the result is added when it comes back ----
     await s.api("/grokbot/config", { method: "POST", body: { missionWaitMin: 0 } });
-    hits0 = m.hook.hits.length; t0 = Date.now();
+    hits0 = m.hook.hits.length; t0 = await missionIds(s);
     await s.api("/mission", { method: "POST", body: { goal: "Find the Zeta invoice and write me a summary", qa: false } });
-    run = await waitFor(async () => finished("mission", t0 - 1)((await s.api("/state")).json), "late mission", 60000, s);
+    run = await waitFor(async () => finished("mission", t0)((await s.api("/state")).json), "late mission", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.tasks.find((t) => t.id === "t1").status, "waiting"); assert.match(full.deliverable, /Still waiting on Grok Bot:\*\* "Pull the Acme invoice"/);
     hit = m.hook.hits[hits0];
@@ -312,9 +312,9 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     assert.equal(jm.via, "mock");
     const jmd = await waitFor(async () => { const x = await job(jm.id); return x.status === "done" ? x : null; }, "mock job", 10000, s);
     assert.equal(jmd.by, "mock"); assert.match(jmd.text, /pretend result from the built-in mock/); assert.deepEqual(jmd.history.map((h) => h.status), ["queued", "working", "done"]);
-    t0 = Date.now();
+    t0 = await missionIds(s);
     await s.api("/council", { method: "POST", body: { prompt: "Check my Gmail inbox for the Acme invoice" } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "demo council", 60000, s);
+    run = await waitFor(async () => finished("council", t0)((await s.api("/state")).json), "demo council", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.answers.grokbot.by, "mock"); assert.equal(m.hook.hits.length, hits0, "the mock never leaves the process");
     await s.api("/grokbot/config", { method: "POST", body: { mock: false } });

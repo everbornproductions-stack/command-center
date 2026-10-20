@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, waitBudget } from "./helpers.js";
 
 process.env.CC_DATA_DIR = tmpDir("cc-pf-unit-"); // the server modules are imported with a throwaway data folder
 const { messageShapes } = await import("../server/providers.js");
@@ -31,18 +31,34 @@ const PDF = () => {
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 async function waitRun(s, pred, ms = 90000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const m = (await s.api("/missions")).json.find(pred); if (m && ["done", "done-with-errors", "failed"].includes(m.status)) return (await s.api(`/missions/${m.id}`)).json; await sleep(250); }
-  throw new Error("run did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const m = (await s.api("/missions")).json.find(pred);
+      if (m && ["done", "done-with-errors", "failed"].includes(m.status)) return (await s.api(`/missions/${m.id}`)).json;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(250);
+  }
+  throw new Error(`run did not finish${last ? `\n${last}` : ""}`);
 }
 async function waitIndexed(s, pid, ms = 60000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const o = (await s.api(`/projectfiles/${pid}`)).json; if (o.library && o.library.job?.status !== "indexing" && o.files.length) return o; await sleep(200); }
-  throw new Error("indexing did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const o = (await s.api(`/projectfiles/${pid}`)).json;
+      if (o.library && o.library.job?.status !== "indexing" && o.files.length) return o;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`indexing did not finish${last ? `\n${last}` : ""}`);
 }
 const ledger = async (s) => (await s.api("/state")).json.ledger.recent;
 
-test("project files: drop documents and an image into a project, ask about them, cited; remove", { timeout: 240000 }, async () => {
+test("project files: drop documents and an image into a project, ask about them, cited; remove", { timeout: 600000 }, async () => {
   const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     assert.equal((await s.api("/projectfiles/x", { noToken: true })).status, 401, "session token required");

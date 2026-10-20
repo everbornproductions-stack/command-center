@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, waitBudget } from "./helpers.js";
 
 const DIR = tmpDir("cc-sched-");
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || DIR;
@@ -141,9 +141,17 @@ async function receiver() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function runSettled(s, id, ms = 30000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const r = (await s.api(`/schedules/runs/${id}`)).json; if (r && !["queued", "running"].includes(r.status)) return r; await sleep(150); }
-  throw new Error("run did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const r = (await s.api(`/schedules/runs/${id}`)).json;
+      if (r && !["queued", "running"].includes(r.status)) return r;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`run did not finish${last ? `\n${last}` : ""}`);
 }
 
 test("server: webhook token, approval before sending, watched folder, cap stop and alert", async () => {

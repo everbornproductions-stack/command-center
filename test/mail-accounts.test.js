@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer } from "./helpers.js";
+import { startServer, waitBudget } from "./helpers.js";
 import { SCOPES } from "../server/google.js";
 
 const CLIENT_SECRET = "GOCSPX-mailacct-secret-0123456789";
@@ -85,13 +85,17 @@ async function mock() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(s, id, st) {
+  const budget = waitBudget(30000);
   const t0 = Date.now();
-  while (Date.now() - t0 < 30000) {
-    const j = (await s.api("/browser/jobs")).json.find((x) => x.id === id);
-    if (j && (Array.isArray(st) ? st : [st]).includes(j.status)) return j;
-    await sleep(80);
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const j = (await s.api("/browser/jobs")).json.find((x) => x.id === id);
+      if (j && (Array.isArray(st) ? st : [st]).includes(j.status)) return j;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
   }
-  throw new Error(`timed out on ${id}\n${s.log.slice(-1500)}`);
+  throw new Error(`timed out on ${id}${last ? `\n${last}` : ""}\n${s.log.slice(-1500)}`);
 }
 
 test("mail accounts: labels, default, add and remove, and each task uses the account it picked", async () => {

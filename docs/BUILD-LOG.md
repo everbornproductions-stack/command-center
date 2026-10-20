@@ -1512,3 +1512,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - First Windows pull request check on this branch passed: run 39472467688, test-and-package, 13m47s. Test, smoke, package, and the installer check all succeeded.
 
 WINDOWS FLAKE AND RELEASE RETRY (built by Cursor cloud agent)
+
+## 2026-10-20: Windows test suite, one helper file at a time
+
+Not a numbered phase. No locked decision was changed. The version stays 0.4.5. Tag v0.4.5 was not moved. Nothing was published. data/ was not read.
+
+- Waits that were matching a run by `startedAt` against the test clock now take the mission ids first and wait for a new id. A Windows runner can step that clock, so a finished chat never counted. The demo-mode test in test/mcp.test.js is left on the clock check. That one is fixed in PR 49.
+- Tight polls (30 seconds and under, and the 60 second job waits) use the Windows budget, which is twice the Linux one, and a poll that throws is retried until the budget ends.
+- `npm test` still runs test/mcp.test.js alone first. On Windows every other file that starts a helper process then runs one at a time. Source-only files still run two at a time. Each test times out after 3 minutes unless the test sets its own longer limit, so a hang fails instead of holding the job.
+- The Test step in windows-ci.yml and release-windows.yml has timeout-minutes: 40. A temporary workflow, windows-test-repeat.yml, runs `npm test` on windows-latest three times at once.
+- Tests here (Linux): npm test 405 tests, 404 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key.
+
+WINDOWS TEST RELIABILITY (built by Cursor cloud agent)

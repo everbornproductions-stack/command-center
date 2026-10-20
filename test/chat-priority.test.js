@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, ROOT } from "./helpers.js";
+import { startServer, ROOT, waitBudget, missionIds } from "./helpers.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 
@@ -52,17 +52,21 @@ async function mockOpenAI() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function waitRun(s, after) {
+async function waitRun(s, before) {
+  const budget = waitBudget(60000);
   const t0 = Date.now();
-  while (Date.now() - t0 < 30000) {
-    const hit = (await s.api("/state")).json.missions.find((m) => m.kind === "single" && m.startedAt > after && ["done", "failed"].includes(m.status));
-    if (hit) return hit;
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const hit = (await s.api("/state")).json.missions.find((m) => m.kind === "single" && !before.has(m.id) && ["done", "failed"].includes(m.status));
+      if (hit) return hit;
+    } catch (e) { last = e?.message || String(e); }
     await sleep(200);
   }
-  throw new Error("timed out waiting for the single run\n" + s.log.slice(-800));
+  throw new Error(`timed out waiting for the single run${last ? `\n${last}` : ""}\n` + s.log.slice(-800));
 }
 
-test("a Single run follows the picked priority and falls back to Default", async () => {
+test("a Single run follows the picked priority and falls back to Default", { timeout: 600000 }, async () => {
   const mock = await mockOpenAI();
   const s = await startServer({
     env: {
@@ -83,22 +87,22 @@ test("a Single run follows the picked priority and falls back to Default", async
     assert.equal(saved.json.status.status, "green");
     assert.equal((await s.api("/settings", { method: "POST", body: { defaultMode: "economy", preferFree: false, uiMode: "expert" } })).status, 200);
 
-    let t0 = Date.now();
+    let seen = await missionIds(s);
     assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome note." } })).status, 202);
-    let run = await waitRun(s, t0);
+    let run = await waitRun(s, seen);
     const fallback = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(fallback.model, "gpt-6-luna", "no Command bar choice uses the saved Default (economy)");
 
-    t0 = Date.now();
+    seen = await missionIds(s);
     assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome note.", mode: "quality" } })).status, 202);
-    run = await waitRun(s, t0);
+    run = await waitRun(s, seen);
     const picked = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(picked.model, "gpt-6.1-sol", "Quality on the Command bar changes the Single pick");
     assert.notEqual(picked.model, fallback.model);
 
-    t0 = Date.now();
+    seen = await missionIds(s);
     assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line welcome note.", mode: "nope" } })).status, 202);
-    run = await waitRun(s, t0);
+    run = await waitRun(s, seen);
     const ignored = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(ignored.model, "gpt-6-luna", "an unknown priority falls back to Default");
 

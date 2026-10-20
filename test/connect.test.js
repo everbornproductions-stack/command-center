@@ -9,7 +9,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import crypto from "node:crypto";
-import { startServer, tmpDir, ROOT } from "./helpers.js";
+import { startServer, tmpDir, ROOT, waitBudget } from "./helpers.js";
 
 process.env.CC_DATA_DIR = tmpDir("cc-connect-unit-");
 const { COUNCIL_IDS, COUNCIL_NOTE, DUAL, isDual, isCouncil, routeOrder, pickTool, filesFromTool, sanitizeArgs } = await import("../server/connect.js");
@@ -119,14 +119,18 @@ async function mockBoth() {
 }
 
 async function waitJob(s, id, ms = 25000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) {
-    const jobs = (await s.api("/media/jobs")).json;
-    const j = jobs.find((x) => x.id === id);
-    if (j && j.status !== "queued" && j.status !== "processing") return j;
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const jobs = (await s.api("/media/jobs")).json;
+      const j = jobs.find((x) => x.id === id);
+      if (j && j.status !== "queued" && j.status !== "processing") return j;
+    } catch (e) { last = e?.message || String(e); }
     await sleep(200);
   }
-  throw new Error("media job did not finish");
+  throw new Error(`media job did not finish${last ? `\n${last}` : ""}`);
 }
 
 test("server: active connection, fallback, council stays on a key, onboarding stays closed, secrets stay in the vault", async () => {

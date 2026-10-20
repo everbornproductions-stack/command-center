@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, waitBudget, missionIds, runSettled } from "./helpers.js";
 
 // Windows CI reuses a keep-alive socket after the "drop" case cuts it, and the next
 // provider call then waits until the test gives up. Every mock reply closes the socket.
@@ -144,10 +144,10 @@ async function waitRun(s, pred, label, ms = 60000) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${trace ? `\n${trace}` : ""}\n--- server log tail ---\n${s.log.slice(-800)}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
+const finished = runSettled;
 const GROQ = "openai/gpt-oss-120b", FLASH = "gemini-3.8-flash";
 
-test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut connection; OpenRouter retry with exact cost; next model when OpenRouter fails; pre-emptive skip; recovery; free tiers; caps; switch off; council; mission", async () => {
+test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut connection; OpenRouter retry with exact cost; next model when OpenRouter fails; pre-emptive skip; recovery; free tiers; caps; switch off; council; mission", { timeout: 600000 }, async () => {
   const m = await mocks();
   const s = await startServer({ env: {
     CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off",
@@ -169,9 +169,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
 
     // 1. a pinned chat to xAI, which answers 402: the job goes on with another model, and says so
     m.behave.xai = 402;
-    let t0 = Date.now(), from = m.since();
+    let t0 = await missionIds(s), from = m.since();
     assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a tagline for a bakery.", provider: "xai", model: "grok-4.3" } })).status, 202);
-    let run = await waitRun(s, finished("single", t0 - 1), "single after 402");
+    let run = await waitRun(s, finished("single", t0), "single after 402");
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error); assert.match(full.deliverable, /^Answer from /);
     assert.equal(full.fallbacks.length, 1); assert.equal(full.fallbacks[0].from.provider, "xai"); assert.equal(full.fallbacks[0].kind, "credits"); assert.notEqual(full.fallbacks[0].to.provider, "xai"); assert.equal(full.fallbacks[0].via, null);
@@ -192,9 +192,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     assert.match(xaiLight.detail, /prepaid balance is empty/);
 
     // 2. pre-emptive: xAI is known to be out of credits, so the next pinned chat never even calls it
-    m.behave.xai = "ok"; from = m.since(); t0 = Date.now();
+    m.behave.xai = "ok"; from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Another tagline.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "pre-empted single");
+    run = await waitRun(s, finished("single", t0), "pre-empted single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", `${full.error || ""} ${JSON.stringify(full.fallbacks || [])}\n--- server log tail ---\n${s.log.slice(-1500)}`); assert.equal(m.calls("xai", from).length, 0, "no call to a provider known to be out of credits");
     assert.equal(full.fallbacks[0].kind, "credits"); assert.match(full.fallbacks[0].reason, /skipped/);
@@ -207,9 +207,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     assert.equal(chk.status, "green");
     v = (await s.api("/fallback")).json; assert.deepEqual(v.skipped, [], "back in the rotation after a green check");
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "log" && /Grok is back in the rotation/.test(e.text)));
-    from = m.since(); t0 = Date.now();
+    from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Third tagline.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "recovered single");
+    run = await waitRun(s, finished("single", t0), "recovered single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.fallbacks.length, 0); assert.equal(full.provider, "xai"); assert.equal(m.calls("xai", from).length, 1);
 
@@ -217,9 +217,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     const cases = [["403credits", "credits"], [429, "rate"], [401, "key"], [500, "server"], ["drop", "unreachable"]];
     for (const [b, kind] of cases) {
       await s.api("/fallback/clear", { method: "POST", body: {} });
-      m.behave.xai = b; t0 = Date.now();
+      m.behave.xai = b; t0 = await missionIds(s);
       await s.api("/chat", { method: "POST", body: { prompt: `Tagline under ${b}.`, provider: "xai", model: "grok-4.3" } });
-      run = await waitRun(s, finished("single", t0 - 1), `single under ${b}`);
+      run = await waitRun(s, finished("single", t0), `single under ${b}`);
       full = (await s.api(`/missions/${run.id}`)).json;
       assert.equal(full.status, "done", `${b}: ${full.error}`); assert.equal(full.fallbacks[0]?.kind, kind, `${b} is ${kind}`); assert.equal(full.fallbacks[0].from.provider, "xai");
       assert.equal((await s.api("/fallback")).json.skipped.find((x) => x.provider === "xai")?.kind, kind);
@@ -232,9 +232,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     // 5. OpenRouter first: the same model through OpenRouter, with its exact billed cost in the ledger
     assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openrouter", key: KEYS.openrouter } })).json.status.status, "green");
     assert.equal((await s.api("/fallback")).json.openrouter.ready, true);
-    m.behave.xai = 402; from = m.since(); t0 = Date.now();
+    m.behave.xai = 402; from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Tagline via OpenRouter.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "openrouter retry");
+    run = await waitRun(s, finished("single", t0), "openrouter retry");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.fallbacks.length, 1); assert.equal(full.fallbacks[0].via, "openrouter"); assert.equal(full.fallbacks[0].to.provider, "openrouter"); assert.equal(full.fallbacks[0].to.model, "x-ai/grok-4.3");
     const orCall = m.calls("or", from); assert.equal(orCall.length, 1); assert.equal(orCall[0].model, "x-ai/grok-4.3"); assert.equal(orCall[0].auth, `Bearer ${KEYS.openrouter}`);
@@ -243,9 +243,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
 
     // 6. OpenRouter is out of credits too: then the next-best model from another provider
     await s.api("/fallback/clear", { method: "POST", body: {} });
-    m.behave.or = 402; from = m.since(); t0 = Date.now();
+    m.behave.or = 402; from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Tagline when both fail.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "two hops");
+    run = await waitRun(s, finished("single", t0), "two hops");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error); assert.equal(full.fallbacks.length, 2);
     assert.equal(full.fallbacks[0].to.provider, "openrouter"); assert.ok(!["xai", "openrouter"].includes(full.fallbacks[1].to.provider), "third choice is a different provider");
@@ -255,18 +255,18 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     v = (await s.api("/fallback")).json; assert.deepEqual(v.skipped.map((x) => x.provider).sort(), ["openrouter", "xai"]);
     assert.equal(v.openrouter.ready, false, "a skipped OpenRouter is not used for the retry");
     // the OpenRouter retry is not tried while it is skipped
-    from = m.since(); t0 = Date.now();
+    from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Tagline, OpenRouter skipped.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "or skipped");
+    run = await waitRun(s, finished("single", t0), "or skipped");
     assert.equal(m.calls("or", from).length, 0);
     m.behave.or = "ok"; m.behave.xai = "ok";
     await s.api("/fallback/clear", { method: "POST", body: {} });
 
     // 7. no stand-in when smart fallback is off: the run fails and says why
     await s.api("/fallback/settings", { method: "POST", body: { on: false } });
-    m.behave.xai = 402; from = m.since(); t0 = Date.now();
+    m.behave.xai = 402; from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Tagline with fallback off.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "fallback off");
+    run = await waitRun(s, finished("single", t0), "fallback off");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "failed"); assert.match(full.error, /402/); assert.equal(full.fallbacks.length, 0);
     assert.equal(m.calls("xai", from).length, 1);
@@ -302,9 +302,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     const capped = v.skipped.find((x) => x.provider === "groq");
     assert.ok(capped && capped.kind === "cap", JSON.stringify(v.skipped));
     assert.deepEqual((await s.api("/fallback/clear", { method: "POST", body: { provider: "groq" } })).json.cleared, [], "a cap cannot be cleared here");
-    m.behave.xai = 402; m.behave.or = 402; from = m.since(); t0 = Date.now();
+    m.behave.xai = 402; m.behave.or = 402; from = m.since(); t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Tagline with Groq capped.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "capped stand-in");
+    run = await waitRun(s, finished("single", t0), "capped stand-in");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error); assert.ok(full.fallbacks.every((f) => f.to.provider !== "groq"), "a capped provider never stands in");
     assert.equal(m.calls("groq", from).length, 0);
@@ -313,9 +313,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     await s.api("/fallback/clear", { method: "POST", body: {} });
 
     // 10. council: a member whose provider is out of credits is replaced; the stand-in is on the council record
-    m.behave.mistral = 402; t0 = Date.now();
+    m.behave.mistral = 402; t0 = await missionIds(s);
     assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Council: best bakery tagline?", members: [{ provider: "mistral", model: "mistral-small-latest" }, { provider: "groq", model: GROQ }], qa: true } })).status, 202);
-    run = await waitRun(s, finished("council", t0 - 1), "council", 90000);
+    run = await waitRun(s, finished("council", t0), "council", 90000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done");
     assert.ok(full.fallbacks.length >= 1, "a member stood in"); assert.equal(full.fallbacks[0].from.provider, "mistral");
@@ -327,9 +327,9 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     await s.api("/fallback/clear", { method: "POST", body: {} });
 
     // 11. mission: a specialist's provider fails mid-mission; the task is handed to a stand-in and the mission finishes
-    m.behave.groq = 429; t0 = Date.now();
+    m.behave.groq = 429; t0 = await missionIds(s);
     assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Write a one-line bakery tagline and check it.", mode: "economy", qa: false, budgetUsd: 1 } })).status, 202);
-    run = await waitRun(s, finished("mission", t0 - 1), "mission", 120000);
+    run = await waitRun(s, finished("mission", t0), "mission", 120000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(["done", "done-with-errors"].includes(full.status), `mission ${full.status}: ${full.error || ""}`);
     assert.ok(full.deliverable, "a deliverable came out");

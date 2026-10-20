@@ -12,20 +12,36 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import crypto from "node:crypto";
-import { startServer, freePort } from "./helpers.js";
+import { startServer, freePort, waitBudget } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FINAL = ["done", "done-with-errors", "failed", "aborted"];
 
 async function waitMission(s, pred, ms = 120000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const m = (await s.api("/missions")).json.find(pred); if (m && FINAL.includes(m.status)) return (await s.api(`/missions/${m.id}`)).json; await sleep(250); }
-  throw new Error("mission did not finish");
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const m = (await s.api("/missions")).json.find(pred);
+      if (m && FINAL.includes(m.status)) return (await s.api(`/missions/${m.id}`)).json;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(250);
+  }
+  throw new Error(`mission did not finish${last ? `\n${last}` : ""}`);
 }
 async function waitJob(s, id, statuses, ms = 30000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const j = (await s.api("/media/jobs")).json.find((x) => x.id === id); if (j && statuses.includes(j.status)) return j; await sleep(150); }
-  throw new Error(`media job ${id} did not reach ${statuses}`);
+  let last = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const j = (await s.api("/media/jobs")).json.find((x) => x.id === id);
+      if (j && statuses.includes(j.status)) return j;
+    } catch (e) { last = e?.message || String(e); }
+    await sleep(200);
+  }
+  throw new Error(`media job ${id} did not reach ${statuses}${last ? `\n${last}` : ""}`);
 }
 const ledger = async (s) => (await s.api("/state")).json.ledger.recent;
 
@@ -58,7 +74,7 @@ function jwtOk(auth, ak, sk) {
   return sig === want && JSON.parse(Buffer.from(p, "base64url").toString()).iss === ak;
 }
 
-test("media: a demo mission's media step is a dry run with a placeholder saved to the project", { timeout: 180000 }, async () => {
+test("media: a demo mission's media step is a dry run with a placeholder saved to the project", { timeout: 600000 }, async () => {
   const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
@@ -103,7 +119,7 @@ test("media: a demo mission's media step is a dry run with a placeholder saved t
   } finally { await s.stop(); }
 });
 
-test("media: estimate first, spend caps, Kling job saved to the project and in the ledger, a mission step waits for your OK", { timeout: 240000 }, async () => {
+test("media: estimate first, spend caps, Kling job saved to the project and in the ledger, a mission step waits for your OK", { timeout: 600000 }, async () => {
   const k = await mockKling();
   const s = await startServer({ env: { CC_DEV_OWNER: "1", KLING_API_BASE: k.url, CC_MEDIA_POLL_MS: "150" } });
   try {

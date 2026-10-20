@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, waitBudget, missionIds, runSettled } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-search-");
 const { ENGINES, NATIVE, DEFAULTS, parseResults, sourcesBlock, numbered, queryFor, sourcesFromCitations } = await import("../server/search.js");
@@ -99,13 +99,22 @@ async function mocks() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitRun(s, pred, label, ms = 120000) {
+  const budget = waitBudget(ms);
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const st = (await s.api("/state")).json; const hit = pred(st); if (hit) return hit; await sleep(400); }
-  throw new Error(`timed out waiting for ${label}`);
+  let lastError = "";
+  while (Date.now() - t0 < budget) {
+    try {
+      const st = (await s.api("/state")).json;
+      const hit = pred(st);
+      if (hit) return hit;
+    } catch (e) { lastError = e?.message || String(e); }
+    await sleep(400);
+  }
+  throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
+const finished = runSettled;
 
-test("server: engines, keys (refused never kept), toggles, injected prompt with [n] sources, ledger lines, caps, built-in search, council, mission, demo engine", async () => {
+test("server: engines, keys (refused never kept), toggles, injected prompt with [n] sources, ledger lines, caps, built-in search, council, mission, demo engine", { timeout: 600000 }, async () => {
   const m = await mocks();
   const s = await startServer({ env: {
     CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off",
@@ -155,9 +164,9 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     r = await s.api("/search/toggle", { method: "POST", body: { mode: "single", on: true } });
     assert.deepEqual(r.json.on, { single: true, council: false, mission: false });
     assert.equal((await s.api("/search/toggle", { method: "POST", body: { mode: "weird", on: true } })).status, 400);
-    let t0 = Date.now(); const llmBefore = m.seen.llm.length;
+    let t0 = await missionIds(s); const llmBefore = m.seen.llm.length;
     assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "What is new in solar?", provider: "groq", model: "openai/gpt-oss-120b" } })).status, 202);
-    let run = await waitRun(s, finished("single", t0 - 1), "single");
+    let run = await waitRun(s, finished("single", t0), "single");
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.sources.length, 5); assert.equal(full.searchEngine, "Tavily");
     assert.deepEqual(full.sources.map((x) => x.n), [1, 2, 3, 4, 5]); assert.equal(full.sources[2].url, "https://tavily.example/p3");
@@ -176,9 +185,9 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     assert.equal(run.cost, full.cost); assert.ok(full.cost >= ENGINES.tavily.perSearch, "the search is part of the run's cost");
 
     // off by request, even with the toggle on; and the toggle off
-    t0 = Date.now();
+    t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "No web please", provider: "groq", model: "openai/gpt-oss-120b", search: false } });
-    run = await waitRun(s, finished("single", t0 - 1), "single without search");
+    run = await waitRun(s, finished("single", t0), "single without search");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.sources.length, 0); assert.ok(!m.seen.llm.some((j) => /No web please\n\nWEB SEARCH/.test(j.messages.at(-1).content)));
     await s.api("/search/toggle", { method: "POST", body: { mode: "single", on: false } });
@@ -201,9 +210,9 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     // the model's own search (xAI): search_parameters sent, its citations become the sources, cost per source in the ledger
     await s.api("/search/settings", { method: "POST", body: { engine: "model" } });
     v = (await s.api("/search")).json; assert.equal(v.active.engine, null, "no provider picked yet means no single engine");
-    t0 = Date.now(); const tavBefore = m.seen.tavily.length;
+    t0 = await missionIds(s); const tavBefore = m.seen.tavily.length;
     await s.api("/chat", { method: "POST", body: { prompt: "Grok, what changed?", provider: "xai", model: "grok-4.3", search: true } });
-    run = await waitRun(s, finished("single", t0 - 1), "xai single");
+    run = await waitRun(s, finished("single", t0), "xai single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.deepEqual(m.seen.xai.at(-1).search_parameters, { mode: "on", return_citations: true, max_search_results: 5 });
     assert.equal(m.seen.xai.at(-1).messages.at(-1).content, "Grok, what changed?", "nothing injected when the model searches itself");
@@ -213,16 +222,16 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     const nat = led.recent.find((e) => e.kind === "search" && e.missionId === run.id);
     assert.equal(nat.provider, "xai"); assert.equal(nat.native, true); assert.equal(nat.results, 2); assert.equal(nat.cost, +(2 * NATIVE.xai.perSearch).toFixed(6));
     // a model without its own search gets no block and the run still completes
-    t0 = Date.now();
+    t0 = await missionIds(s);
     await s.api("/chat", { method: "POST", body: { prompt: "Groq cannot search", provider: "groq", model: "openai/gpt-oss-120b", search: true } });
-    run = await waitRun(s, finished("single", t0 - 1), "groq single under model engine");
+    run = await waitRun(s, finished("single", t0), "groq single under model engine");
     assert.equal((await s.api(`/missions/${run.id}`)).json.sources.length, 0);
     await s.api("/search/settings", { method: "POST", body: { engine: "tavily" } });
 
     // council: one search shared by every member and the chair
-    t0 = Date.now(); const llm2 = m.seen.llm.length;
+    t0 = await missionIds(s); const llm2 = m.seen.llm.length;
     assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Council: solar outlook?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false, search: true } })).status, 202);
-    run = await waitRun(s, finished("council", t0 - 1), "council");
+    run = await waitRun(s, finished("council", t0), "council");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.sources.length, 5); assert.equal(full.searchEngine, "Tavily");
     const councilAsks = m.seen.llm.slice(llm2).filter((j) => /WEB SEARCH RESULTS/.test(j.messages.at(-1).content));
@@ -231,9 +240,9 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     assert.equal((await s.api("/state")).json.ledger.recent.filter((e) => e.kind === "search" && e.missionId === run.id).length, 1, "one search for the whole council");
 
     // mission: the goal is searched once and the sources ride along as context; tasks that need the web search again
-    t0 = Date.now();
+    t0 = await missionIds(s);
     assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Brief me on the latest solar news this week.", mode: "economy", qa: false, budgetUsd: 1, search: true } })).status, 202);
-    run = await waitRun(s, finished("mission", t0 - 1), "mission", 180000);
+    run = await waitRun(s, finished("mission", t0), "mission", 180000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(["done", "done-with-errors"].includes(full.status), `mission ${full.status}: ${full.error || ""}`);
     assert.ok(full.sources.length >= 5, `mission sources (${full.sources.length})`);
@@ -250,9 +259,9 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     assert.equal((await s.api("/search")).json.engines[0].capStopped, true);
     r = await s.api("/search/test", { method: "POST", body: { q: "over the cap" } });
     assert.equal(r.status, 402); assert.match(r.json.error, /monthly cap/);
-    t0 = Date.now(); const tav2 = m.seen.tavily.length;
+    t0 = await missionIds(s); const tav2 = m.seen.tavily.length;
     await s.api("/chat", { method: "POST", body: { prompt: "Capped chat", provider: "groq", model: "openai/gpt-oss-120b", search: true } });
-    run = await waitRun(s, finished("single", t0 - 1), "capped single");
+    run = await waitRun(s, finished("single", t0), "capped single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.sources.length, 0); assert.equal(m.seen.tavily.length, tav2, "no engine call past the cap");
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "log" && /Web search skipped: Tavily hit its monthly cap/.test(e.text)));

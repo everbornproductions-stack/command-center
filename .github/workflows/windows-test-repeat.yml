@@ -1,0 +1,32 @@
+# Temporary. Runs npm test three times at once on windows-latest.
+# Delete this file after the v0.4.5 Windows tests are green.
+# It does not package, publish, or read a key.
+name: Windows test repeat
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        timeout-minutes: 40
+        run: npm test

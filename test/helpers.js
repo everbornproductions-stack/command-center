@@ -35,6 +35,24 @@ export function waitBudget(ms) {
   return ms * 2;
 }
 
+const DONE_RUN = new Set(["done", "done-with-errors", "failed"]);
+
+// Ids already on the server, taken before a chat, council, or mission is posted.
+// The next wait matches the new id. A Windows runner can step its clock, so a
+// "started after Date.now()" check misses a run that has already been saved.
+export async function missionIds(s) {
+  const body = await s.api("/state");
+  return new Set((body.json?.missions || []).map((m) => m.id));
+}
+
+export function runSettled(kind, mark) {
+  return (st) => (st.missions || []).find((m) => {
+    if (m.kind !== kind || !DONE_RUN.has(m.status)) return false;
+    if (mark instanceof Set) return !mark.has(m.id);
+    return m.startedAt > mark;
+  });
+}
+
 export function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -178,7 +196,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.
-  const child = spawn(process.execPath, ["--import", pathToFileURL(path.join(ROOT, "test", "vault-preload.mjs")).href, path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["--import", pathToFileURL(path.join(ROOT, "test", "vault-preload.mjs")).href, path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   let log = "";
   child.stdout.on("data", (c) => (log += c));
   child.stderr.on("data", (c) => (log += c));

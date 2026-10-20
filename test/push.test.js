@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { ROOT, startServer } from "./helpers.js";
+import { ROOT, startServer, waitBudget } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -66,16 +66,22 @@ async function mockPushService() {
 }
 
 async function waitFor(fn, what, ms = 30000) {
-  for (let t = 0; t < ms; t += 100) { const v = fn(); if (v) return v; await sleep(100); }
+  const budget = waitBudget(ms);
+  const t0 = Date.now();
+  while (Date.now() - t0 < budget) { const v = fn(); if (v) return v; await sleep(200); }
   throw new Error(`timed out waiting for ${what}`);
 }
 
 async function chat(s, prompt) {
   const before = new Set((await s.api("/missions")).json.map((m) => m.id));
   assert.equal((await s.api("/chat", { method: "POST", body: { prompt, provider: "demo-nova", model: "nova-lite" } })).status, 202);
-  for (let i = 0; i < 240; i++) {
-    const m = (await s.api("/missions")).json.find((x) => !before.has(x.id) && x.kind === "single" && ["done", "failed"].includes(x.status));
-    if (m) return m;
+  const budget = waitBudget(60000);
+  const t0 = Date.now();
+  while (Date.now() - t0 < budget) {
+    try {
+      const m = (await s.api("/missions")).json.find((x) => !before.has(x.id) && x.kind === "single" && ["done", "failed"].includes(x.status));
+      if (m) return m;
+    } catch {}
     await sleep(250);
   }
   throw new Error("chat did not finish");
