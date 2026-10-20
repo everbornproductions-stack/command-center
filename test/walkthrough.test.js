@@ -9,7 +9,7 @@ import { menuModel, groupFor } from "../web/nav.js";
 import {
   TYPES, resolveExperience, parsePlan, scaffoldPlan, assignRoute, present, exampleEvents, exportMarkdown, missingAnswers,
 } from "../server/walkthroughs.js";
-import { EXAMPLES, exampleByType, EXAMPLE_NOTE } from "../server/walkthrough-examples.js";
+import { EXAMPLES, exampleByType, EXAMPLE_NOTE, loadExamples } from "../server/walkthrough-examples.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -18,7 +18,6 @@ const FILES = [
   "server/walkthrough-examples.js",
   "server/plugins/walkthrough.js",
   "web/features/walkthrough.js",
-  "docs/help/start-a-project.md",
 ];
 
 test("six project types, simple by default, expert when asked", () => {
@@ -101,7 +100,29 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
   assert.match(read("web/features/help.js"), /Replay the tour/);
   assert.match(read("web/features/help.js"), /Watch example projects/);
   assert.match(read("web/app.js"), /ev\?\.example === true \|\| ev\?\.overlay === true/, "example playback does not become a mission toast");
+  assert.match(ui, /Nothing runs until you click Build it/);
+  assert.match(ui, /Watch an example uses labeled example data/);
   for (const f of FILES) assert.ok(!read(f).includes("\u2014") && !read(f).includes("\u2013"), `dash in ${f}`);
+});
+
+test("a missing examples folder still shows a labeled placeholder", () => {
+  const missing = loadExamples(path.join(ROOT, "walkthroughs", "examples-not-here"));
+  assert.equal(missing.length, 6);
+  assert.deepEqual(missing.map((e) => e.type), TYPES.map((t) => t.id));
+  for (const ex of missing) {
+    assert.equal(ex.placeholder, true);
+    assert.match(ex.idea, /Example data/);
+    assert.match(ex.deliverable, /Example data/);
+    assert.equal(ex.plan.source, "placeholder");
+    assert.ok(ex.plan.steps[0].provider);
+    assert.ok(ex.nextSteps.length >= 2);
+    const events = exampleEvents(ex);
+    assert.ok(events.some((e) => e.type === "agent.start" && e.provider));
+    assert.equal(events.some((e) => e.type === "ledger.entry"), false);
+  }
+  assert.notEqual(exampleByType("website").plan.source, "placeholder");
+  const bad = loadExamples(path.join(ROOT, "walkthroughs"));
+  assert.ok(bad.every((e) => e.placeholder === true));
 });
 
 async function waitWalk(s, id, pred, label) {
@@ -125,11 +146,13 @@ test("examples and help are read-only and do not call an AI", async () => {
     assert.equal(list.json.types.length, 6);
     const help = await s.api("/walkthrough/help");
     const slugs = help.json.docs.map((d) => d.slug);
-    assert.ok(slugs.includes("start-a-project") && slugs.includes("watch-example-projects"));
-    const page = await s.api("/walkthrough/help/start-a-project");
-    assert.equal(page.status, 200);
-    assert.match(page.json.markdown, /Simple mode is the default/);
     assert.equal((await s.api("/walkthrough/help/../secrets")).status, 404);
+    assert.equal((await s.api("/walkthrough/help/not-a-guide")).status, 404);
+    if (slugs.includes("watch-example-projects")) {
+      const page = await s.api("/walkthrough/help/watch-example-projects");
+      assert.equal(page.status, 200);
+      assert.match(page.json.markdown, /Example data/);
+    }
     const before = (await s.api("/missions")).json.length;
     const play = await s.api("/walkthrough/example/website/play?immediate=1", { method: "POST", body: { immediate: true } });
     assert.equal(play.status, 200, play.text);

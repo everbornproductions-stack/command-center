@@ -184,10 +184,19 @@ async function toggleHelp() {
   if (box.dataset.open === "1") { box.innerHTML = ""; box.dataset.open = ""; return; }
   box.dataset.open = "1";
   box.innerHTML = `<div class="empty">Loading help…</div>`;
+  const fallback = "Describe the idea, answer the questions, then ask the council for a plan. Nothing runs until you click Build it. Watch an example uses labeled example data and does not call an AI.";
+  const showFallback = () => {
+    box.innerHTML = `<div class="panel"><h3>How this works</h3><p>${esc(fallback)}</p></div>`;
+  };
   try {
-    const doc = await api("/walkthrough/help/start-a-project");
-    box.innerHTML = `<div class="panel"><h3>${esc(doc.title)}</h3><div class="md">${md(doc.markdown || "")}</div></div>`;
-  } catch (e) { box.innerHTML = `<div class="empty" role="alert">${esc(e.message)}</div>`; }
+    const pack = await api("/help");
+    const articles = pack.articles || [];
+    const doc = articles.find((a) => a.id === "start-a-project")
+      || articles.find((a) => String(a.id || "").startsWith("start-"))
+      || null;
+    if (!doc) { showFallback(); return; }
+    box.innerHTML = `<div class="panel"><h3>${esc(doc.title)}</h3><div class="md">${md(doc.body || doc.markdown || "")}</div></div>`;
+  } catch { showFallback(); }
 }
 
 async function begin(type) {
