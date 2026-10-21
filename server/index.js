@@ -55,6 +55,8 @@ import { augment as libraryAugment, publicSources as publicLibrarySources } from
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
+import { annotateOutput } from "./prompts/safety.js";
+import { withImported } from "./history-refs.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
@@ -397,13 +399,13 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, promptPackApplied }) {
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, promptPackApplied }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, promptPackApplied }) {
   const id = runId || "s-" + Date.now().toString(36);
   const priority = chatPriority(mode);
   let cls = null;
@@ -435,8 +437,11 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
-  const ask = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const imported = withImported(prompt, remembered);
+  const ask = imported.ask;
   m.memory = ask.includes(MEMORY_MARKER);
+  if (imported.used.length) m.importedRefs = imported.used;
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
   if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
@@ -477,6 +482,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     if (err.code === "paused") m.deliverable = err.message;
   }
   if (!m.deliverable) m.deliverable = text;
+  if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
   m.finishedAt = Date.now();

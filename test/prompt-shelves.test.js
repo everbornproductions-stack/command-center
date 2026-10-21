@@ -36,6 +36,14 @@ const EXPECT = {
   "fix-sop": "planning",
   "chief-of-staff": "planning",
   "business-profile": "planning",
+  "re-listing-brief": "industry",
+  "re-buyer-followup": "industry",
+  "mtg-process-explainer": "industry",
+  "mtg-rate-talk": "industry",
+  "cr-dispute-draft": "industry",
+  "cr-status-update": "industry",
+  "cr8-sponsor-script": "industry",
+  "cr8-caption-pack": "industry",
 };
 
 test("every template has one shelf and the named ones land where they belong", () => {
@@ -47,6 +55,7 @@ test("every template has one shelf and the named ones land where they belong", (
     "Planning and Operations",
     "Build and Spec",
     "Creative",
+    "Industry packs",
     "Custom/My prompts",
     "Marketplace",
   ]);

@@ -189,5 +189,8 @@ function render(view) {
 window.CC.register({
   id: "history",
   tab: { label: "History", short: "History", icon: "⇩", order: 17, async render(view) { render(view); await load(); render(view); } },
+  command: { order: 42, render(el) {
+    el.innerHTML = `<div class="dim small" id="hi-name">Name an imported ChatGPT or Claude conversation in quotes and this chat uses it. For example: use "Tagline ideas for a bakery".</div>`;
+  } },
   onEvent(ev) { if (ev.type === "history.synced" && S().view === "history") window.CC.refresh?.(); },
 });

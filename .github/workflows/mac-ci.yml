@@ -1,0 +1,36 @@
+# Mac test on every pull request and every push to main.
+# This runs the same suite as Windows CI. It does not sign, notarize, or publish.
+# A signed Mac installer still needs an Apple Developer account (Phase 14).
+name: Mac CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke

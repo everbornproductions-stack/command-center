@@ -16,6 +16,7 @@ import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { withImported } from "./history-refs.js";
 import { councilPlan, reviewMode } from "./modes.js";
 
 const LETTERS = "ABCDEFGHIJ";
@@ -105,7 +106,10 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
-  const askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const importedRefs = withImported(prompt, askPrompt);
+  askPrompt = importedRefs.ask;
+  if (importedRefs.used.length) council.importedRefs = importedRefs.used;
   const nativeFor = (m) => !!web?.native && nativeSupported(m.provider, m.model);
 
   // ---- Round 1: everyone answers, in parallel, streaming ----

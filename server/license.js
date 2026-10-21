@@ -18,9 +18,10 @@ const PRO = {
   missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
   connectedServices: Infinity, emailAccounts: 8,
   phone: true, historySearch: true, sharedLearning: true, scores: true,
+  publicShare: true, documentExport: true, industryPacks: true,
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, publicShare: false, documentExport: false, industryPacks: false, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },

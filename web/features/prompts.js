@@ -231,6 +231,7 @@ async function openTemplate(data, id) {
   try { profile = (await api("/prompts/profile")).profile || {}; } catch { /* form still works */ }
   const valueFor = (f) => (f.profile && profile[f.profile]) || "";
   box.innerHTML = `<div class="panel"><h3>${esc(t.name)}</h3><div class="small dim">${esc(t.description)}</div>
+    ${t.locked ? `<div class="small">Industry packs are part of Pro ($15.99/month). Add a licence key in Settings. Credit repair does not promise a score change. Outbound text stays a draft.</div>` : ""}
     ${t.inputs.map((f) => fieldHtml(f, valueFor(f))).join("")}
     <div id="pp-halt" class="small" style="margin-top:8px"></div>
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">

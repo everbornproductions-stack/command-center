@@ -10,6 +10,7 @@ export const SHELVES = [
   { id: "planning", label: "Planning and Operations", blurb: "Plans, SOPs, and the weekly view." },
   { id: "build", label: "Build and Spec", blurb: "Spec it out and the multi-agent builder." },
   { id: "creative", label: "Creative", blurb: "Music video and reels." },
+  { id: "industry", label: "Industry packs", blurb: "Real estate, mortgage, credit repair, and creators. Pro. No promised results." },
   { id: "custom", label: "Custom/My prompts", blurb: "Prompts you wrote or saved." },
   { id: "marketplace", label: "Marketplace", blurb: "Prompt packs from the Marketplace." },
 ];
@@ -35,6 +36,14 @@ const OVERRIDE = {
   "talk-to-me": "planning",
   "business-profile": "planning",
   "master-voice": "planning",
+  "re-listing-brief": "industry",
+  "re-buyer-followup": "industry",
+  "mtg-process-explainer": "industry",
+  "mtg-rate-talk": "industry",
+  "cr-dispute-draft": "industry",
+  "cr-status-update": "industry",
+  "cr8-sponsor-script": "industry",
+  "cr8-caption-pack": "industry",
 };
 
 const BY_CATEGORY = {

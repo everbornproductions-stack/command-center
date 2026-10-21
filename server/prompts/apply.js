@@ -3,6 +3,8 @@
 
 import { doc } from "../store.js";
 import { noteTemplate } from "../brain.js";
+import { requirePro } from "../feature-gate.js";
+import { getTemplate } from "./catalog.js";
 import { normalizeProfile } from "./profile.js";
 import { renderTemplate } from "./render.js";
 
@@ -15,6 +17,8 @@ export function loadProfile() {
 export function expandJob(body, field) {
   const pack = body?.promptPack;
   if (!pack || pack.removed || !pack.templateId) return body;
+  const chosen = getTemplate(pack.templateId);
+  if (chosen?.industry) requirePro("industryPacks");
   const profile = loadProfile();
   const result = renderTemplate(pack.templateId, pack.inputs || {}, profile, { extras: pack.extras || null });
   if (result.halted) {
@@ -36,6 +40,6 @@ export function expandJob(body, field) {
   const next = { ...body, [field]: parts.filter(Boolean).join("\n\n") };
   if (field === "prompt" && !next.system) next.system = result.system;
   if (field === "goal") next.context = [result.system, body.context || ""].filter(Boolean).join("\n\n");
-  next.promptPackApplied = { id: result.id, name: result.name };
+  next.promptPackApplied = { id: result.id, name: result.name, industry: result.industry || null, scf: !!result.scf };
   return next;
 }
