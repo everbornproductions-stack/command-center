@@ -22,7 +22,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "POST" && (p === "/jobs" || p === "/demo")) {
       const task = p === "/demo" ? DEMO_TASK() : String(body?.task || "").trim();
       if (!task) return h.json(res, 400, { error: "task required" });
-      const job = await dispatch({ task, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), accountId: body?.accountId || null, source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null } });
+      const job = await dispatch({ task, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), accountId: body?.accountId || null, source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null, getItDone: p === "/demo" ? false : body?.getItDone === true, sendMessages: p === "/demo" ? false : body?.sendMessages === true } });
       return h.json(res, 202, { job });
     }
     if (m === "POST" && seg[0] === "jobs" && seg[1] && seg[2] === "approve") return h.json(res, 200, { job: decide(seg[1], String(body?.approval || ""), true) });

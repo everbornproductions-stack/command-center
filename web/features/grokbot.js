@@ -4,6 +4,7 @@
 // Deliverable: the Grok Bot jobs of this run, their results and links, paste a result in by hand, cancel.
 // Settings > Integrations > Grok Bot: webhook URL and sender key (vault; never shown again), header name,
 //   where results come back, the built-in mock, wait times, and a test job.
+import { looksLikeLogin } from "/sign-in-tip.js";
 const { S, api, toast, esc, md, ago } = window.CC;
 
 const css = `
@@ -58,7 +59,8 @@ function renderCommand(el) {
       let context = "";
       const projectId = document.querySelector("#proj")?.value || null;
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
-      const r = await api("/grokbot/jobs", { method: "POST", body: { task, context, projectId } });
+      const gd = window.CC?.getDoneChoice;
+      const r = await api("/grokbot/jobs", { method: "POST", body: { task, context, projectId, getItDone: !!gd?.on, sendMessages: !!gd?.send } });
       toast(`Sent to Grok Bot. ${ASYNC}`);
       S.grokbotLastClick = r.job.id;
     } catch (err) { toast(err.message, true); }
@@ -73,11 +75,12 @@ function jobHtml(j) {
   return `<div class="cc-gb-job" data-job="${esc(j.id)}">
     <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Grok Bot</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.by === "you" ? `<span class="chip">pasted by you</span>` : j.via === "mock" ? `<span class="chip">mock</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}<span class="dim" style="margin-left:auto">${j.sentAt ? `sent ${ago(j.sentAt)} ago` : ""}</span></div>
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 200))}</div>
+    ${j.status === "needs_approval" && looksLikeLogin([j.task, j.text, j.error].filter(Boolean).join(" ")) ? (window.CC.passwordTipHtml?.() || "") : ""}
     ${j.text ? `<div class="md small" style="margin-top:6px">${md(j.text)}</div>` : ""}
     ${arts ? `<div class="small" style="margin-top:4px">${arts}</div>` : ""}
     ${j.error && j.status === "failed" ? `<div class="small" style="color:var(--red);margin-top:4px">${esc(j.error)}</div>` : ""}
-    ${open ? `<div class="dim small" style="margin-top:4px">${ASYNC} If Grok Bot cannot reach this app yet, paste its result here.</div>
-      <details style="margin-top:4px"><summary class="small muted" style="cursor:pointer">Paste the result in by hand</summary><textarea data-paste placeholder="Grok Bot's result"></textarea>
+    ${open ? `<div class="dim small" style="margin-top:4px">${ASYNC} When Grok Bot finishes, the summary shows here. If it cannot call back, use Paste result.</div>
+      <details style="margin-top:4px"><summary class="small muted" style="cursor:pointer">Paste result</summary><textarea data-paste placeholder="DONE: the summary"></textarea>
       <div class="row" style="margin-top:4px;gap:6px"><button class="btn sm" data-save-paste>Save result</button>${["done", "failed"].includes(j.status) ? "" : `<button class="ghost small" data-cancel style="margin-left:auto">cancel job</button>`}</div></details>` : ""}
   </div>`;
 }
@@ -121,7 +124,7 @@ async function renderSettings(el) {
       <div><label class="lbl">Where results come back (optional)</label><input type="text" id="gb-public" value="${esc(c.publicUrl)}" placeholder="https://your-hub or tunnel address" style="font-family:var(--mono)"></div>
     </div>
     <div class="dim small" style="margin-top:6px">The URL and key are kept in the vault, never logged and never shown again after saving. Each job carries its own one-time callback address: <span class="mono">${esc(c.callbackExample)}</span>.
-      ${c.reachable ? "" : `<span style="color:var(--amber)">That address is on this computer, so Grok Bot can only reach it once the hosted hub exists or a tunnel is set up. Until then jobs stay queued or working, and you can paste each result in by hand.</span>`}</div>
+      ${c.reachable ? "A finished job can also report back through the hosted hub. The summary shows in the job." : `<span style="color:var(--amber)">That address is on this computer, so Grok Bot can only reach it once the hosted hub exists or a tunnel is set up. Until then jobs stay queued or working, and you can use Paste result.</span>`}</div>
     <div class="row small" style="gap:14px;flex-wrap:wrap;margin-top:10px">
       <label class="row" style="gap:6px"><input type="checkbox" id="gb-auto" ${c.auto ? "checked" : ""}> Hand jobs that need it to Grok Bot on its own</label>
       <label class="row" style="gap:6px"><input type="checkbox" id="gb-mock" ${c.mock ? "checked" : ""}> Use the built-in mock (pretend Grok Bot, nothing leaves this computer)</label>

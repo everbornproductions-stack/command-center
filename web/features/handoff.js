@@ -43,21 +43,22 @@ function flowHtml() {
   if (!flow) return "";
   const gemini = flow.gemini ? `<div class="small" style="margin-top:6px">${esc(flow.geminiNotice || GEMINI_DATA_NOTICE)}${flow.geminiTerms ? ` <a href="${esc(flow.geminiTerms)}" target="_blank" rel="noopener noreferrer">Google's terms</a>` : ""}</div>` : "";
   const preview = flow.phase === "preview" ? `<label class="small" for="ho-preview">Preview the reply, then save it. It is tagged manual.</label><textarea id="ho-preview">${esc(flow.preview || "")}</textarea><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn sm primary" id="ho-confirm">Save to this thread</button><button type="button" class="btn sm" id="ho-cancel">Cancel</button></div>` : `<div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn sm primary" data-grab="${esc(flow.targetId)}">Grab reply</button></div>`;
-  return `<div class="cc-ho-box"><div class="small"><b>Manual handoff</b> to ${esc(flow.name)}. ${esc(flow.instructions || "")}</div>${meter(flow.chars, flow.maxChars)}${gemini}${flow.copied ? "" : `<div class="small dim" style="margin-top:6px">Could not copy automatically. Select the prompt below and copy it.</div><textarea readonly>${esc(flow.prompt || "")}</textarea>`}${preview}</div>`;
+  const paste = flow.pasteOpen ? `<label class="small" for="ho-paste">Paste what the other AI wrote. A line that starts with DONE: is enough.</label><textarea id="ho-paste" placeholder="DONE: the summary"></textarea><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn sm primary" id="ho-paste-save">Save</button></div>` : "";
+  return `<div class="cc-ho-box"><div class="small"><b>Manual handoff</b> to ${esc(flow.name)}. ${esc(flow.instructions || "")}</div>${meter(flow.chars, flow.maxChars)}${gemini}${flow.copied ? "" : `<div class="small dim" style="margin-top:6px">Could not copy automatically. Select the prompt below and copy it.</div><textarea readonly>${esc(flow.prompt || "")}</textarea>`}<div class="small" style="margin-top:6px">When the other AI finishes, the summary shows in this job. If it cannot call back, paste the result here.</div><div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" id="ho-paste-open">Paste result</button></div>${paste}${preview}</div>`;
 }
 
 function buttons(targets) {
-  return (targets || []).map((t) => `<button type="button" class="btn sm" data-continue="${esc(t.id)}">Continue in ${esc(t.name)}</button>`).join("");
+  return (targets || []).map((t) => `<button type="button" class="btn sm" data-continue="${esc(t.id)}" data-pw-login="1">Continue in ${esc(t.name)}</button>`).join("");
 }
 
 async function onContinue(id) {
-  const built = await api("/handoff/prompt", { method: "POST", body: { targetId: id, threadId: threadId(), draft: draftText() } });
+  const built = await api("/handoff/prompt", { method: "POST", body: { targetId: id, threadId: threadId(), draft: draftText(), getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
   let copied = false;
   try { await copyPrompt(built.prompt); copied = true; toast("Prompt copied"); }
   catch { toast("Could not copy. Select the prompt and copy it.", true); }
   try { await openTarget(built.url); }
   catch (e) { toast(e.message || "Could not open the page", true); }
-  flow = { targetId: built.targetId, name: built.name, prompt: built.prompt, chars: built.chars, maxChars: built.maxChars, instructions: built.instructions, gemini: built.gemini, geminiNotice: built.geminiNotice, geminiTerms: built.geminiTerms, copied, phase: "copied", preview: "" };
+  flow = { targetId: built.targetId, name: built.name, jobId: built.jobId || "", prompt: built.prompt, chars: built.chars, maxChars: built.maxChars, instructions: built.instructions, gemini: built.gemini, geminiNotice: built.geminiNotice, geminiTerms: built.geminiTerms, copied, phase: "copied", preview: "", pasteOpen: false };
 }
 
 async function onGrab() {
@@ -78,6 +79,16 @@ function bind(el, rerender) {
     catch (e) { toast(e.message, true); }
   });
   el.querySelector("#ho-cancel")?.addEventListener("click", () => { flow = flow ? { ...flow, phase: "copied", preview: "" } : null; rerender(); });
+  el.querySelector("#ho-paste-open")?.addEventListener("click", () => { flow = { ...(flow || {}), pasteOpen: true }; rerender(); });
+  el.querySelector("#ho-paste-save")?.addEventListener("click", async () => {
+    const text = el.querySelector("#ho-paste")?.value || "";
+    try {
+      const saved = await api("/handoff/paste", { method: "POST", body: { text, threadId: threadId(), jobId: flow?.jobId || "", confirm: true } });
+      flow = null;
+      toast("Pasted result saved");
+      rerender();
+    } catch (e) { toast(e.message, true); }
+  });
   el.querySelector("#ho-confirm")?.addEventListener("click", async () => {
     const text = el.querySelector("#ho-preview")?.value || "";
     try {
@@ -113,11 +124,11 @@ async function renderSettings(el) {
       <input type="text" data-note="${esc(t.id)}" value="${esc(t.note || "")}" placeholder="Note (optional)" aria-label="Note" style="width:180px">
       <button type="button" class="btn sm" data-save="${esc(t.id)}">Save</button>
       <button type="button" class="ghost small" data-del="${esc(t.id)}">Remove</button>
-      <button type="button" class="btn sm" data-continue="${esc(t.id)}">Continue in ${esc(t.name)}</button>
+      <button type="button" class="btn sm" data-continue="${esc(t.id)}" data-pw-login="1">Continue in ${esc(t.name)}</button>
       ${t.suggest ? `<span class="chip">${esc(t.reason || "manual handoff")}</span>` : ""}
     </div>`).join("");
   el.innerHTML = `<div class="panel" id="cc-ho-settings"><h3>Manual handoff</h3>
-    <div class="small muted">Each target is a name, the provider's own page, and an optional note. Continue in copies a short prompt and opens that page in your browser. Grab reply reads the clipboard only when you click it, shows a preview, and saves the reply when you confirm. The reply is tagged manual (for example "via ChatGPT web, manual") and the ledger line is $0. This is a manual handoff. Meldmind does not sign in, type, or read the page.</div>
+    <div class="small muted">Each target is a name, the provider's own page, and an optional note. Continue in copies a short prompt and opens that page in your browser. Grab reply reads the clipboard only when you click it, shows a preview, and saves the reply when you confirm. The reply is tagged manual (for example "via ChatGPT web, manual") and the ledger line is $0. This is a manual handoff. Meldmind does not sign in, type, or read the page. When the other AI finishes, the summary shows in the job. If it cannot call back, use Paste result.</div>
     <div class="small" style="margin-top:8px">${esc(data.geminiNotice || GEMINI_DATA_NOTICE)} <a href="${esc(data.geminiTerms || "https://ai.google.dev/gemini-api/terms")}" target="_blank" rel="noopener noreferrer">Google's terms</a></div>
     <div class="cat-h" style="margin-top:12px">Targets</div>
     ${rows || `<div class="dim small">No targets yet.</div>`}
@@ -159,5 +170,15 @@ CC.register({
   settings: { order: 11, render: renderSettings },
   onEvent(ev) {
     if (ev.type === "fallback.skip" || ev.type === "fallback.clear" || ev.type === "provider.status") data = null;
+    if (ev.type === "reportback.result") {
+      const bit = String(ev.summary || "").replace(/\s+/g, " ").trim().slice(0, 140);
+      const msg = ev.status === "failed" ? "The other AI could not finish that job." : ev.status === "needs_input" ? "The other AI needs more from you." : "The other AI finished.";
+      const body = bit ? `${msg} ${bit}` : msg;
+      toast(body);
+      try {
+        if (window.ccDesktop?.notify) window.ccDesktop.notify("Meldmind", body);
+        else if (typeof Notification === "function" && Notification.permission === "granted") new Notification("Meldmind", { body });
+      } catch {}
+    }
   },
 });

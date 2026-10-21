@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("ccDesktop", {
   openLog: () => ipcRenderer.invoke("app:open-log"),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", String(url || "")),
   logReload: (reason) => ipcRenderer.invoke("app:log-reload", String(reason || "").slice(0, 200)),
+  notify: (title, body) => ipcRenderer.invoke("app:notify", String(title || "").slice(0, 80), String(body || "").slice(0, 180)),
   onUpdate: (f) => { ipcRenderer.on("upd:state", (_e, s) => f(s)); },
   onEngine: (f) => { ipcRenderer.on("engine:status", (_e, s) => f(s)); },
   // Window size and the current display. The page remeasures the top bar from this.

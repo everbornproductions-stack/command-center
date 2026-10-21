@@ -1,7 +1,7 @@
 // Meldmind desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session, Notification } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -133,6 +133,15 @@ function setupIpc() {
     return shell.openExternal(u.toString());
   });
   handle("app:log-reload", (reason) => { log("renderer:", reason); return true; });
+  // A short notice when another AI reports back. The body is the person's own summary, shown on this PC only.
+  handle("app:notify", (title, body) => {
+    const t = String(title || "Meldmind").replace(/\s+/g, " ").trim().slice(0, 80) || "Meldmind";
+    const b = String(body || "").replace(/\s+/g, " ").trim().slice(0, 180);
+    if (!b || typeof Notification === "undefined" || !Notification.isSupported()) return false;
+    const n = new Notification({ title: t, body: b });
+    n.show();
+    return true;
+  });
   handle("upd:state", () => (updater ? updater.state : { phase: "unavailable", current: app.getVersion(), error: isPackaged ? "updates are not available in this build" : "updates work in the installed app" }));
   handle("upd:check", async () => (updater ? updater.check({ manual: true }) : null));
   handle("upd:install", async () => { if (!updater) throw new Error("updates work in the installed app"); showUpdateWindow(); return updater.install(); });
