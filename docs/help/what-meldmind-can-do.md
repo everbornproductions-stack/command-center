@@ -2,7 +2,7 @@
 id: what-meldmind-can-do
 title: What can Meldmind do
 summary: One place for the AIs you already use. Hand a job to another AI and see when it is finished.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # What can Meldmind do

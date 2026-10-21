@@ -2,7 +2,7 @@
 id: remix
 title: Remix
 summary: Make something of your own from a screenshot, a recording, a design file, a game type, or a description.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # Remix

@@ -2399,3 +2399,15 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.10. No r
 - My day in Simple opens Inbox and tasks, Day plan, and People. Icon buttons say Remove, Delete, Close, Good, or Not good. A practice answer says it is from a pretend AI. Help dropped the stale Mac and abort lines. The data folder name stays Everborn Command (decision 2).
 
 EASE OF USE (panel items, not a new version)
+
+## 2026-10-21: Integration 0.4.13
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published, tagged, or released. Square and billing were not touched. data/ was not read. No Supabase migration was run.
+
+- Merged, in order: pull requests 94, 100, 101, 102, 103, 104, 105, 106, 108, 112, and 113. Pull request 99 was skipped because 104 replaces it.
+- Feature gates from 94, 102, and 104 now live in server/feature-gate.js beside the Free, Pro, and Extreme table. Studio is Pro. Shared team recipes (94) are Extreme and moved to /api/teamrecipes beside the team spaces that already shipped.
+- Builders B (102) keeps /api/builders. Builders A (104) moved to server/builders/web and /api/webbuilders, on a Web and marketing page under Create, so the two registries do not collide.
+- The tour is the short guide tour (101). Simple starts with the five-step tour (113). See what else it can do opens the full tour. A few stops from later work (Try saying..., Programs on this PC, Computers on this key, Builders, Community, report back, Get it done) stay after the guide steps.
+- What's new keeps the first-install skip and lists every version since the last one seen (94).
+- Text size also scales answer text, headings, dialog titles, and the tour card. The usage ping and its migration accept the Extreme tier.
+- Version 0.4.13. What's new, the release notes, the help catalog, and the guide PDF say 0.4.13.

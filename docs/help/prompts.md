@@ -2,7 +2,7 @@
 id: prompts
 title: Prompts, votes, and weekly packs
 summary: Thumbs up or down, a simple score, weekly packs, and the Builders category.
-lastUpdatedVersion: 0.4.9
+lastUpdatedVersion: 0.4.13
 ---
 
 # Prompts, votes, and weekly packs

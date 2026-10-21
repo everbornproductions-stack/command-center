@@ -2,7 +2,7 @@
 id: community
 title: Community and AI News
 summary: Community chat channels, the weekly AI News feed, reactions, sharing into chat, and the optional email copy.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # Community and AI News

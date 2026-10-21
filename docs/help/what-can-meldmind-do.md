@@ -2,7 +2,7 @@
 id: what-can-meldmind-do
 title: What can Meldmind do?
 summary: A searchable list on Help. Each row is Free, Pro, or Extreme, and it links to a page that is actually in the app.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # What can Meldmind do?

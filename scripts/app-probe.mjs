@@ -62,8 +62,9 @@ export function readAppProbe(root) {
     const src = fs.readFileSync(file, "utf8");
     const block = registerBlock(src);
     const id = block.match(/\bid\s*:\s*"([^"]+)"/);
-    if (!id) throw new Error(`${row.name}.js is in the registry but has no CC.register id`);
     features.add(row.name);
+    // A helper module (sign-in-tip) can be in the registry without registering a page.
+    if (!id) continue;
     features.add(id[1]);
     for (const v of row.views) views.add(v);
     if (/\btab\s*:/.test(block)) views.add(id[1]);

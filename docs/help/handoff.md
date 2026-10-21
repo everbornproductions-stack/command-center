@@ -2,7 +2,7 @@
 id: handoff
 title: Two-click handoff
 summary: Prepare, then approve. When another AI finishes, the summary shows in the job. Paste result if it cannot call back.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # Two-click handoff

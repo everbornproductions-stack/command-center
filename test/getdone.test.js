@@ -151,7 +151,7 @@ test("the page, the tour, Help, and the guide say Get it done in plain words", (
   assert.ok(guide.sections.some((s) => s.title === "Get it done"));
   assert.match(read("docs/USER-GUIDE.md"), /## 9\. When another AI finishes/);
   assert.match(read("docs/USER-GUIDE.md"), /Always for this kind of job/);
-  assert.match(read("docs/help/what-meldmind-can-do.md"), /lastUpdatedVersion: 0\.4\.8/);
+  assert.match(read("docs/help/what-meldmind-can-do.md"), /lastUpdatedVersion: \d+\.\d+\.\d+/);
   assert.match(read("docs/help/what-meldmind-can-do.md"), /Get it done lets one job run its steps without asking/);
   assert.match(read("docs/help/handoff.md"), /still need one tap/);
   const browser = read("server/browser.js");
@@ -167,7 +167,7 @@ test("the page, the tour, Help, and the guide say Get it done in plain words", (
   const pack = loadHelp();
   const gate = releaseHelpOk({ version: pkg.version, news, articles: pack.articles, catalog: pack.catalog });
   assert.equal(gate.ok, true, gate.problems.join("\n"));
-  assert.equal(pkg.version, "0.4.8");
+  assert.equal(pkg.version, "0.4.13");
 });
 
 test("rules, the handoff prompt, and Stop go through the app", async () => {

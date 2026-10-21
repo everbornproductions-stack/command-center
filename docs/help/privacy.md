@@ -2,7 +2,7 @@
 id: privacy
 title: Privacy
 summary: What stays on this computer, shared learning, and anonymous usage counts.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # Privacy

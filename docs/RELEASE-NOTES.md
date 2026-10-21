@@ -2,6 +2,30 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.13 (2026-10-21)
+
+**New**
+- Second opinion: two AIs answer the same question, and Meldmind shows where they differ. Both answers stay.
+- Industry packs for real estate, insurance, and credit repair (Pro). Picking one fills the chat box. Nothing runs until you send it.
+- HighLevel contacts, invoices, and workflows from a chat. A send, a charge, or a change waits for your click.
+- Use your own Supabase: an optional advanced setting, off by default.
+- Remix is one simple path: what to make, a starting point, preview, Build, Test, Publish. Extra choices are under More options.
+- Builders for HighLevel, receipts, invoices, booking, meeting notes, contracts, and review replies. Web and marketing builders for websites, posts, reels, and ads. Nothing is sent until you click Publish.
+- Thumbs up or thumbs down on prompts, weekly prompt packs, and popular prompts under the chat box.
+- A handed-off AI can report back when it is finished. If it cannot, use Paste result.
+- Get it done lets one job run its ordinary steps without asking. Spending money and a permanent delete still ask. Sending a message stays off unless you turn it on.
+- A sign-in tip suggests a password manager. Meldmind never stores your passwords.
+- Share anonymous usage counts (on unless you turn it off in Settings). No prompts, chats, emails, or files are sent.
+- Community chat and a weekly AI News feed, with one public username per account.
+- Easier to use: Help search answers plain questions, bigger text grows buttons and headings too, Simple Settings starts with five cards, and the Simple tour is five short steps.
+- Reply, forward, share, and similar actions wait for a second click.
+- Download the guide (PDF) from Help. It lists only what is in this app.
+
+**Still here**
+- Home, Private mode, and Backup and restore stay in this build.
+- Background runs, Together, People, Remix, Zapier and Make, and hosted runs are in this build. A send still waits for a click.
+- The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
 ## v0.4.12 (2026-10-21)
 
 **New**

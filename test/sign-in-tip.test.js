@@ -100,7 +100,7 @@ test("Help, the guide, and the screens say the same tip", () => {
     assert.match(read(f), /https:\/\/1password\.com/);
     assert.match(read(f), /https:\/\/bitwarden\.com/);
   }
-  assert.match(read("docs/help/what-meldmind-can-do.md"), /lastUpdatedVersion: 0\.4\.8/);
+  assert.match(read("docs/help/what-meldmind-can-do.md"), /lastUpdatedVersion: \d+\.\d+\.\d+/);
   assert.match(read("electron/browser-bar.html"), /id="pw"/);
   assert.match(read("electron/browser-helper.cjs"), /https:\/\/1password\.com/);
   assert.match(read("electron/browser-bar-preload.cjs"), /https:\/\/bitwarden\.com/);

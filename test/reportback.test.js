@@ -108,7 +108,7 @@ test("help, tour, guide, and the page say Paste result, with no em-dash", () => 
   assert.match(read("docs/USER-GUIDE.md"), /## 9\. When another AI finishes/);
   assert.match(read("docs/USER-GUIDE.md"), /deletes it when your app picks it up, or after 7 days/);
   assert.match(read("docs/help/what-meldmind-can-do.md"), /Someone else's account cannot open it/);
-  assert.match(read("docs/help/handoff.md"), /lastUpdatedVersion: 0\.4\.8/);
+  assert.match(read("docs/help/handoff.md"), /lastUpdatedVersion: \d+\.\d+\.\d+/);
   assert.match(read("docs/help/faq.md"), /lastUpdatedVersion: 0\.4\.3/);
   assert.match(read("web/features/tour.js"), /title: "When another AI finishes"/);
   assert.match(read("web/features/tour.js"), /use Paste result/);

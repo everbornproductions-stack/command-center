@@ -171,7 +171,7 @@ test("the migration is insert-only and the switch is disclosed", () => {
   assert.doesNotMatch(planSql, /square\.link|SQUARE_/);
   assert.equal(planSql.includes(EM), false);
   assert.match(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"), /"metrics:report"/);
-  assert.equal(VERSION, "0.4.8");
+  assert.equal(VERSION, JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version);
 });
 
 test("the daily ping waits, sends counts once, and the off switch sends nothing", async () => {

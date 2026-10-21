@@ -1,4 +1,28 @@
 {
+  "0.4.13": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Second opinion asks two AIs the same question and shows where they differ, in plain words. Both answers stay.",
+      "Industry packs for real estate, insurance, and credit repair sit on the Pro prompts page. Picking one fills the chat box. Nothing runs until you send it.",
+      "HighLevel contacts, invoices, and workflows can be used from a chat. A send, a charge, or a change waits for your click.",
+      "Use your own Supabase is an optional advanced setting. It is off by default.",
+      "Remix is one simple path: say what to make, pick a starting point, preview, then Build, Test, and Publish. Extra choices sit under More options.",
+      "Builders walk you through HighLevel, receipts, invoices, a booking page, meeting notes, a contract, or a review reply. Web and marketing builds a website, posts, reels, and ads. Nothing is sent until you click Publish.",
+      "Thumbs up or thumbs down on any prompt. Weekly prompt packs include a Builders category. Popular prompts are suggested under the chat box.",
+      "When you hand a job to another AI, that AI can tell Meldmind it is finished. You get a notice, and the summary shows in the job. If it cannot call back, use Paste result.",
+      "Get it done lets one job run its steps without asking. It ends when the job ends. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on.",
+      "When a job asks you to sign in, a tip suggests a password manager such as 1Password or Bitwarden. Meldmind never stores your passwords.",
+      "Settings includes Share anonymous usage counts to help improve Meldmind. The switch is on unless you turn it off. It never sends prompts, chats, emails, or files.",
+      "Community chat has General, Prompts, Builders, Help, and Show and tell. AI News updates weekly. Your account has one public username. Nothing posts until you click Send.",
+      "Help search answers a plain question. Start here stays pinned. Back to all help returns to the list. Download the guide (PDF) is on Help.",
+      "Large and Extra large text grow buttons, labels, headings, chips, and answers.",
+      "Simple Settings starts with five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens every other panel.",
+      "Reply, forward, share, and similar actions wait for a second click before they run.",
+      "The Simple tour has five short steps. See what else it can do opens the full tour, where each step has a Try it button.",
+      "On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
+  },
   "0.4.12": {
     "title": "What's new in Meldmind",
     "bullets": [

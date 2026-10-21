@@ -2,7 +2,7 @@
 id: replay-the-tour
 title: Replay the tour
 summary: The short tour has one idea per step and a Try it button. Skip it any time, and replay it from Help.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.13
 ---
 
 # Replay the tour

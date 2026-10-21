@@ -2,7 +2,7 @@
 id: start-here
 title: Start here: ask your first question
 summary: Type a question in Chat, tap Send, and read the answer. Practice answers are pretend until you add an AI key.
-lastUpdatedVersion: 0.4.10
+lastUpdatedVersion: 0.4.13
 ---
 
 # Start here: ask your first question
