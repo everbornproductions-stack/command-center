@@ -32,9 +32,10 @@ const PRO = {
   phone: true, historySearch: true, sharedLearning: true, scores: true,
   ...PRO_EXTRA,
   desktop: true, appScan: true, programScan: true,
+  publicShare: true, documentExport: true,
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, desktop: false, appScan: false, programScan: false, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, desktop: false, appScan: false, programScan: false, publicShare: false, documentExport: false, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },

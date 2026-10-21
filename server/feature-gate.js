@@ -1,3 +1,5 @@
+import { licenseState, TIERS } from "./license.js";
+
 // One map for Free, Pro, Extreme, and Owner.
 // Pro is $18.99/month. A Studio licence is treated as Pro. Extreme is $29.99/month.
 // Owner is issued by hand. Caps that already exist stay on TIERS in server/license.js.
@@ -99,9 +101,9 @@ add({ id: "scheduler", tier: "pro", label: "Schedules", cap: "scheduler" });
 add({ id: "repeats", tier: "pro", label: "Do this again" });
 add({ id: "desktop", tier: "pro", label: "Desktop control" });
 add({ id: "programScan", tier: "pro", label: "Program scan" });
-add({ id: "industryPacks", tier: "pro", label: "Industry packs", landed: false });
+add({ id: "industryPacks", tier: "pro", label: "Industry packs" });
 add({ id: "shareLinks", tier: "pro", label: "Public share links" });
-add({ id: "exportDocs", tier: "pro", label: "PDF and Word export", landed: false });
+add({ id: "exportDocs", tier: "pro", label: "PDF and Word export" });
 add({ id: "backgroundRuns", tier: "pro", label: "Background runs", landed: false });
 add({ id: "pauseMissions", tier: "pro", label: "Pause missions", landed: false });
 add({ id: "sharedLearning", tier: "pro", label: "Shared learning", cap: "sharedLearning" });
@@ -109,3 +111,36 @@ add({ id: "scores", tier: "pro", label: "Scores dashboard", cap: "scores" });
 add({ id: "phone", tier: "pro", label: "Phone pairing", cap: "phone" });
 add({ id: "historySearch", tier: "pro", label: "Full history search", cap: "historySearch" });
 add({ id: "subscriptions", tier: "pro", label: "Subscriptions tracker", cap: "subscriptionsTab" });
+
+// Names used by the public-share, export, and industry-pack routes.
+export const FEATURES = {
+  publicShare: "Public share links",
+  documentExport: "PDF and Word export",
+  industryPacks: "Industry packs",
+};
+
+const FEATURE_FLAG = {
+  publicShare: "publicShare",
+  documentExport: "documentExport",
+  industryPacks: "industryPacks",
+};
+
+export function featureOpen(id) {
+  const label = FEATURES[id] || featureById(id)?.label || "This feature";
+  const s = licenseState();
+  const T = TIERS[s.tier] || TIERS.free;
+  const flag = FEATURE_FLAG[id];
+  const ok = flag ? !!T[flag] : (featureById(id)?.tier !== "pro" && featureById(id)?.tier !== "extreme") || tierPaid(s.tier);
+  return { ok: !!ok, tier: s.tier, feature: id, label, code: ok ? "open" : "pro_required" };
+}
+
+export function requirePro(id) {
+  const r = featureOpen(id);
+  if (r.ok) return r;
+  const price = id === "publicShare" || id === "documentExport" || id === "industryPacks" ? "$18.99/month" : "$18.99/month";
+  const err = new Error(`${r.label} is part of Pro (${price}). Add a licence key in Settings.`);
+  err.status = 402;
+  err.code = "pro_required";
+  err.feature = id;
+  throw err;
+}

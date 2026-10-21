@@ -35,10 +35,12 @@ test("the feature map matches the Free vs Pro table", () => {
 test("free tier is refused on share links and schedules; owner is not", async () => {
   const free = await startServer();
   try {
-    const share = await free.api("/share/create", { method: "POST", body: { missionId: "m-free" } });
+    const share = await free.api("/share/public", { method: "POST", body: { missionId: "m-free" } });
     assert.equal(share.status, 402);
     assert.equal(share.json.code, "pro_required");
     assert.match(share.json.error, /Public share links is part of Pro/);
+    const local = await free.api("/share/create", { method: "POST", body: { missionId: "m-free" } });
+    assert.equal(local.status, 200);
     const sched = await free.api("/schedules", { method: "POST", body: { name: "Nope", target: { kind: "chat", text: "hi" }, trigger: { type: "webhook" } } });
     assert.equal(sched.status, 402);
     assert.match(sched.json.error, /Schedules is part of Pro/);

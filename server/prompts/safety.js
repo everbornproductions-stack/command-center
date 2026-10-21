@@ -72,7 +72,7 @@ function sourceHas(source, raw) {
 }
 
 // Mark claims in a model answer that were not in the user's inputs.
-function markSentence(sentence, source, scf) {
+function markSentence(sentence, source, scf, industry) {
   const lead = sentence.match(/^\s*/)?.[0] || "";
   let s = sentence.trim();
   if (!s) return sentence;
@@ -92,16 +92,28 @@ function markSentence(sentence, source, scf) {
   if (scf && /\b(?:referral fee|referral reward|referral bonus|kickback|pay(?:ing)? (?:you )?for (?:the )?referral)\b/i.test(s) && !s.includes(RESPA)) {
     s = `${RESPA} ${s}`;
   }
+  if (industry === "real-estate" && /\b(?:guaranteed to sell|will sell for|certain to close|closes in \d+)\b/i.test(s) && !s.includes("[NO PROMISE]")) {
+    s = `[NO PROMISE] ${s}`;
+  }
+  if (industry === "mortgage" && /\b(?:guaranteed approval|you are approved|rate is locked in|payment will be)\b/i.test(s) && !s.includes("[NO PROMISE]")) {
+    s = `[NO PROMISE] ${s}`;
+  }
+  if ((industry === "credit-repair") && /\b(?:will be deleted|deletion is guaranteed|your score will)\b/i.test(s) && !s.includes(CROA)) {
+    s = `${CROA} ${s}`;
+  }
+  if (industry === "creator" && /\b(?:guaranteed views|you will go viral|guaranteed income|will make you rich)\b/i.test(s) && !s.includes("[NO PROMISE]")) {
+    s = `[NO PROMISE] ${s}`;
+  }
   return lead + s;
 }
 
 // Mark claims in a model answer that were not in the user's inputs.
-export function annotateOutput(text, source = "", { scf = false } = {}) {
+export function annotateOutput(text, source = "", { scf = false, industry = null } = {}) {
   const src = String(source || "");
   let out = String(text || "");
   out = out.split(/(\n+)/).map((part) => {
     if (/^\n+$/.test(part)) return part;
-    return part.split(/(?<=[.?!])\s+/).map((sentence) => markSentence(sentence, src, scf)).join(" ");
+    return part.split(/(?<=[.?!])\s+/).map((sentence) => markSentence(sentence, src, scf, industry)).join(" ");
   }).join("");
   if (/\b(subject:|dear |hi [A-Z]|email draft|text them|sms)\b/i.test(out) && !/DRAFT ONLY/i.test(out)) {
     out = `DRAFT ONLY. Nothing is sent until you send it yourself.\n\n${out}`;

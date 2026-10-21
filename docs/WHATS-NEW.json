@@ -42,7 +42,12 @@
     "bullets": [
       "The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.",
       "Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.",
-      "This note shows once after an update. Take the tour again any time from Settings."
+      "This note shows once after an update. Take the tour again any time from Settings.",
+      "A public share link is a Pro page anyone with the link can open. Costs and keys stay off unless you tick show costs. Nothing is posted until you copy the link.",
+      "Export a finished answer as a PDF or a Word document. Headings, bold text, and lists stay in the file. Export is part of Pro.",
+      "Industry packs cover real estate, mortgage, credit repair, and creators. Credit repair follows CROA and does not promise a score change. Outbound text stays a draft.",
+      "Settings, Reading, adds a text size and a high-contrast mode. Read aloud is on an answer and speaks only when you click it.",
+      "Name an imported ChatGPT or Claude conversation in the chat and Meldmind uses that conversation as context."
     ]
   },
   "0.4.7": {

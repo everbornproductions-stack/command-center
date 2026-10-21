@@ -57,6 +57,7 @@ export function renderTemplate(id, inputs = {}, profile = emptyProfile(), { extr
     `FORMAT: ${applyTokens(template.format, values)}`,
     `OUTPUT: ${template.output}`,
     SAFETY_TEXT,
+    template.compliance ? `COMPLIANCE:\n${template.compliance}` : "",
     "If a required fact above says (not given) or is listed under MISSING, stop and ask for it. Do not invent it.",
   ];
   if (missing.length) blocks.push(`MISSING (ask, do not invent):\n${missing.map((m) => `- ${m.question}`).join("\n")}`);
@@ -76,6 +77,7 @@ export function renderTemplate(id, inputs = {}, profile = emptyProfile(), { extr
     missing,
     redacted,
     scf,
+    industry: template.industry || null,
     output: template.output,
   };
 }

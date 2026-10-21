@@ -1899,3 +1899,19 @@ PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, D
 - CI fix: Mac refused `Ctrl+Alt+Delete` only on Windows and Linux, so the hotkey route test now uses `Command+Space` on macOS. Windows test requests use the doubled wait, because a stdio tool server can take longer than 20s to finish initialize.
 
 WORKSTREAM C LEFTOVERS (readers, receipt file, next-answer tone, remaining balance)
+## 2026-10-21: workstream D, public share, export, industry packs, reading
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Phase 14 stays BLOCKED: a signed Mac build still needs a Mac and an Apple Developer account. Mac CI on this pull request runs tests and smoke only. It does not sign, notarize, or publish. Nothing was deployed. Square and billing were not touched. data/ was not read. Nothing is posted or sent without a click.
+
+- Public share links are Pro. The free live share link is unchanged. The person saves an https address, then Public link (Pro) copies a page. The snapshot is frozen, so the link still opens after the run file is gone. Keys and costs stay hidden unless show costs is ticked. Nothing is posted.
+- PDF and Word export are Pro. Headings, bold, italic, lists, and code stay in the file. The download is base64 JSON. Keys are left out. Nothing is sent.
+- Industry packs are Pro: real estate, mortgage, credit repair, and creators. Credit repair is CROA-safe and does not promise a score change or a deletion. Real estate, mortgage, and creator answers that promise a result are marked. Outbound text stays a draft. They sit on the Industry packs shelf. Free does not auto-apply them.
+- Settings, Reading, has text size (small, default, large, extra large) and high contrast. Read aloud is on an answer and uses the window speech API only after a click.
+- A chat or council that names an imported ChatGPT or Claude conversation, in quotes or by a title of 12 characters or more, gets that transcript only. Other imports stay out. Keys in the excerpt are hidden.
+- What's new bullets for these five items were added to the existing 0.4.8 note. People who already dismissed 0.4.8 will not see the note again. Help article docs/help/share-export.md is stamped 0.4.8.
+- Commit edd8f8f.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). That is mcp.test.js 8 pass, then the other files 425 tests, 424 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs, and local mocks only. No real key. data/ was not read. Windows CI and Mac CI are the pull request checks.
+- Checked in the browser on this machine, owner copy, demo AIs: Extra large and High contrast apply (data-text xlarge, data-contrast high). Saving https://share.example.test and clicking Public link (Pro) shows that address and says nothing was posted. Download PDF toasts PDF downloaded. Read aloud switches to Stop reading. Industry packs shows Credit dispute draft with the CROA line and no lock. The chat box says to name an imported ChatGPT or Claude conversation in quotes.
+
+PHASE 14 BLOCKED: a signed Mac build needs a Mac and an Apple Developer account. Mac CI runs tests and smoke only.
+WORKSTREAM D DONE

@@ -1,6 +1,7 @@
 // Pro prompts pack. Each template is a ROLE / CONTEXT / COMMAND / FORMAT brief.
 // The owner's own structures. Nothing here is copied from a named coach.
 import { MORE_TEMPLATES } from "./pack-more.js";
+import { INDUSTRY_TEMPLATES } from "./industry.js";
 
 const C = {
   ops: "Strategy/ops",
@@ -631,6 +632,7 @@ export const TEMPLATES = [
 ];
 
 for (const row of MORE_TEMPLATES) TEMPLATES.push(t(row));
+for (const row of INDUSTRY_TEMPLATES) TEMPLATES.push(t(row));
 
 const byId = new Map(TEMPLATES.map((row) => [row.id, row]));
 
@@ -647,6 +649,7 @@ export function listTemplates() {
     inputs: row.inputs,
     output: row.output,
     scf: !!row.scf,
+    industry: row.industry || null,
     schedule: row.schedule || null,
     kling: !!row.kling,
     usesSubscriptions: !!row.usesSubscriptions,
