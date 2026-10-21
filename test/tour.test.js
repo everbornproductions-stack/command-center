@@ -88,9 +88,19 @@ test("package.json version has a What's new entry, and a version with no bullets
   assert.throws(() => readChangelog("[]"), /keyed by version/);
 });
 
-test("what's new is returned once per version and a tour reset does not show it again", async () => {
+test("what's new is skipped on first install, shown after an upgrade, and a tour reset does not show it again", async () => {
   const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  const s = await startServer();
+  const fresh = await startServer();
+  try {
+    const g = await fresh.api("/tour");
+    assert.equal(g.json.whatsNew, null);
+    const file = path.join(fresh.dir, "whatsnew.state.json");
+    const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(doc.firstInstall, true);
+    assert.equal(doc.installed, pkg.version);
+  } finally { await fresh.stop(); }
+
+  const s = await startServer({ seed: (dir) => fs.writeFileSync(path.join(dir, "whatsnew.state.json"), JSON.stringify({ seen: null, installed: "0.0.0", firstInstall: false })) });
   try {
     const g = await s.api("/tour");
     assert.equal(g.json.whatsNew.version, pkg.version);

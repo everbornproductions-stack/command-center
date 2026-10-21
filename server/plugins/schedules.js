@@ -68,7 +68,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "GET" && p === "/") {
       return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name })), note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
     }
-    if (m === "POST" && p === "/") return h.json(res, 200, S.createSchedule(body || {}, createOpts(h, body)));
+    if (m === "POST" && p === "/") { h.guard("scheduler"); return h.json(res, 200, S.createSchedule(body || {}, createOpts(h, body))); }
     if (seg[0] === "runs") {
       if (m === "GET" && seg.length === 1) return h.json(res, 200, { items: S.listRuns({ scheduleId: url.searchParams.get("schedule") || undefined, limit: Number(url.searchParams.get("limit")) || 100 }).map(S.publicRun) });
       if (m === "GET" && seg.length === 2) { const r = S.getRun(seg[1]); return r ? h.json(res, 200, S.publicRun(r)) : h.json(res, 404, { error: "No such run." }); }
@@ -79,11 +79,11 @@ export async function routes(req, res, url, body, h) {
     const s = seg[0] && S.getSchedule(seg[0]);
     if (!s) return h.json(res, 404, { error: "No such schedule." });
     if (m === "GET" && seg.length === 1) return h.json(res, 200, { schedule: S.view(s), runs: S.listRuns({ scheduleId: s.id }).map(S.publicRun) });
-    if (m === "POST" && seg.length === 1) return h.json(res, 200, S.updateSchedule(s.id, body || {}, createOpts(h, body)));
+    if (m === "POST" && seg.length === 1) { h.guard("scheduler"); return h.json(res, 200, S.updateSchedule(s.id, body || {}, createOpts(h, body))); }
     if (m === "DELETE" && seg.length === 1) return h.json(res, 200, S.deleteSchedule(s.id));
-    if (m === "POST" && seg[1] === "run") { if (s.target.kind === "mission") h.guard("missions"); return h.json(res, 202, S.trigger(s.id, { source: "manual" })); }
+    if (m === "POST" && seg[1] === "run") { h.guard("scheduler"); if (s.target.kind === "mission") h.guard("missions"); return h.json(res, 202, S.trigger(s.id, { source: "manual" })); }
     if (m === "POST" && seg[1] === "pause") return h.json(res, 200, S.setEnabled(s.id, false));
-    if (m === "POST" && seg[1] === "resume") return h.json(res, 200, S.setEnabled(s.id, true));
+    if (m === "POST" && seg[1] === "resume") { h.guard("scheduler"); return h.json(res, 200, S.setEnabled(s.id, true)); }
     if (m === "POST" && seg[1] === "token") return h.json(res, 200, S.rotateToken(s.id));
   } catch (e) {
     return h.json(res, e.status || 500, { error: e.message, code: e.code });

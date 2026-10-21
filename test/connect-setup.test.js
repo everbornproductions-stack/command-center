@@ -75,7 +75,7 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(statusOf({}), "Not connected");
   assert.equal(offerShow(blankRecord(), { firstRun: true }), true);
   assert.equal(offerShow({ ...blankRecord(), legacy: true }, { firstRun: false }), false);
-  assert.equal(offerShow({ ...blankRecord(), opened: true }, { firstRun: false }), true);
+  assert.equal(offerShow({ ...blankRecord(), opened: true }, { firstRun: false }), false);
   assert.equal(offerShow({ ...blankRecord(), dismissedAt: 5, opened: true }, { firstRun: true }), false);
   assert.equal(isFirstRun(null, {}), true);
   assert.equal(isFirstRun({ completed: true }, {}), false);
@@ -154,7 +154,8 @@ test("a fresh install offers the checklist, a finished install does not, and a k
     assert.equal(again.json.show, true);
     assert.equal(again.json.items.find((it) => it.id === "kling").skipped, false);
     assert.equal((await fresh.api("/state")).json.plugins.includes("connectsetup"), true);
-    assert.equal((await fresh.api("/state")).json.connectSetup.show, true);
+    assert.equal((await fresh.api("/connectsetup")).json.show, false, "opened once, so the next launch does not auto-open");
+    assert.equal((await fresh.api("/state")).json.connectSetup.show, false);
   } finally { await fresh.stop(); }
 
   const done = await startServer({ seed: (dir) => fs.writeFileSync(path.join(dir, "onboarding.json"), JSON.stringify({

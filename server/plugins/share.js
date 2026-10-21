@@ -60,6 +60,8 @@ function lookup(token, h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/share/, "");
   if (req.method === "POST" && p === "/create") {
+    try { h.guard("shareLinks"); }
+    catch (e) { return h.json(res, e.status || 402, { error: e.message, code: e.code }); }
     const missionId = String(body.missionId || ""); if (!missionId) return h.json(res, 400, { error: "missionId required" });
     const token = crypto.randomBytes(18).toString("base64url");
     const ttl = Math.min(7 * 24 * 60, Math.max(5, Number(body.ttlMinutes) || 24 * 60));

@@ -13,14 +13,27 @@ import { HOSTED, ctx, doc, putDoc, allContexts, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
+import { compareRows, featureById } from "./feature-gate.js";
 
+// Flags that are true on Pro and false on Free. Caps stay numeric.
+const PRO_EXTRA = {
+  shareLinks: true, desktop: true, programScan: true, repeats: true, industryPacks: true,
+  exportDocs: true, backgroundRuns: true, pauseMissions: true,
+  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true, learningRouter: true,
+};
+const FREE_EXTRA = {
+  shareLinks: false, desktop: false, programScan: false, repeats: false, industryPacks: false,
+  exportDocs: false, backgroundRuns: false, pauseMissions: false,
+  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true, learningRouter: true,
+};
 const PRO = {
   missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
   connectedServices: Infinity, emailAccounts: 8,
   phone: true, historySearch: true, sharedLearning: true, scores: true,
+  ...PRO_EXTRA,
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },
@@ -114,6 +127,7 @@ export function licenseState() {
     key: l.key ? l.key.replace(/^(.{3}).*(.{4})$/, "$1-••••-••••-$2") : null,
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
     message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
+    compare: compareRows(),
   };
 }
 
@@ -231,7 +245,7 @@ export function guard(feature, info = {}) {
   const T = TIERS[s.tier];
   switch (feature) {
     case "missions": if (!T.missions) throw pro("Mission mode"); return s;
-    case "scheduler": if (!T.scheduler) throw pro("The off-peak scheduler"); return s;
+    case "scheduler": if (!T.scheduler) throw pro("Schedules"); return s;
     case "subscriptions": case "subscriptionsTab": if (!T.subscriptionsTab) throw pro("The Subscriptions tracker"); return s;
     case "council": {
       const used = councilsThisMonth();
@@ -257,7 +271,12 @@ export function guard(feature, info = {}) {
     case "historySearch": if (!T.historySearch) throw pro("Full history search"); return s;
     case "sharedLearning": if (!T.sharedLearning) throw pro("Shared learning"); return s;
     case "scores": if (!T.scores) throw pro("The scores dashboard"); return s;
-    default: if (!T[feature]) throw pro("This feature"); return s;
+    default: {
+      const spec = featureById(feature);
+      if (spec?.tier === "free" || T[feature] === true) return s;
+      if (T[feature] === false || spec?.tier === "pro") throw pro(spec?.label || "This feature");
+      throw pro("This feature");
+    }
   }
 }
 // Older name, kept for plugins.

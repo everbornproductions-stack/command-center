@@ -59,7 +59,7 @@ async function mountInterview(el) {
   } catch (e) { el.innerHTML = `<div class="dim small">${esc(e.message)}</div>`; return; }
   const byKey = Object.fromEntries(fields.map((f) => [f.key, f]));
   el.innerHTML = `<div class="panel"><h3>Business Profile</h3>
-    <div class="small dim">A short interview. Later prompts reuse it. You can speak an answer when the mic is available.</div>
+    <div class="small dim">A short interview. Later prompts reuse it. Every field is optional. You can speak an answer when the mic is available.</div>
     ${steps.map((step) => `<div style="margin-top:12px"><b>${esc(step.title)}</b>${step.voice && !voiceReady() ? `<div class="dim small">Type this one. Speech recognition is not available in this window.</div>` : ""}${step.fields.map((key) => fieldHtml(byKey[key] || { key, label: key }, profile[key])).join("")}</div>`).join("")}
     <div class="row" style="margin-top:12px"><button class="btn sm primary" type="button" id="pp-save-profile">Save profile</button></div>
   </div>`;

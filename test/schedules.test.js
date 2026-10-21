@@ -147,7 +147,7 @@ async function runSettled(s, id, ms = 30000) {
 }
 
 test("server: webhook token, approval before sending, watched folder, cap stop and alert", async () => {
-  const s = await startServer({ env: { CC_SCHEDULE_TICK_MS: "150" } });
+  const s = await startServer({ env: { CC_SCHEDULE_TICK_MS: "150", CC_DEV_OWNER: "1" } });
   const rx = await receiver();
   const drop = tmpDir("cc-drop-srv-");
   try {
@@ -215,8 +215,8 @@ test("server: webhook token, approval before sending, watched folder, cap stop a
     const led = (await s.api("/state")).json.ledger.recent;
     assert.ok(led.some((e) => e.missionId === r.missionId), "the agent run's call is in the ledger");
 
-    // Free tier: a mission schedule is refused up front (missions are Pro)
-    assert.equal((await s.api("/schedules", { method: "POST", body: { name: "Weekly plan", target: { kind: "mission", text: "Plan the week." }, trigger: { type: "cron", cron: "0 8 * * 1" } } })).status, 402);
+    // Owner can store a mission schedule. A free install is refused in the test below.
+    assert.equal((await s.api("/schedules", { method: "POST", body: { name: "Weekly plan", target: { kind: "mission", text: "Plan the week." }, trigger: { type: "cron", cron: "0 8 * * 1" } } })).status, 200);
     // bad input
     assert.equal((await s.api("/schedules", { method: "POST", body: { name: "x", target: { kind: "chat", text: "y" }, trigger: { type: "cron", cron: "every day" } } })).status, 400);
     assert.equal((await s.api("/schedules", { method: "POST", body: { name: "x", target: { kind: "agent", agentId: "ag-missing" }, trigger: { type: "webhook" } } })).status, 404);

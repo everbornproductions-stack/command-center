@@ -19,6 +19,7 @@ import { ctx, doc, putDoc, HOSTED } from "./store.js";
 import { PROVIDERS } from "./registry.js";
 import { setManagedResolver, getOwnSecret } from "./vault.js";
 import { licenseState, setTrialResolver, cloudConfigured, licenceRpc } from "./license.js";
+import { compareRows } from "./feature-gate.js";
 import { emit } from "./events.js";
 
 // ---------- placeholders (Chris decides real numbers) ----------
@@ -281,5 +282,6 @@ export function overview() {
     } : null,
     referrals: f.referrals ? { code: ref.code, link: referralLink(ref.code), redeemed: ref.redeemed, stats: ref.stats, statsAt: ref.statsAt || null, statsError: ref.statsError || null, server: cloudConfigured() } : null,
     upgrade: upgrade(f, trial, block),
+    compare: compareRows(),
   };
 }

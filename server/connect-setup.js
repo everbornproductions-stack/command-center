@@ -54,13 +54,14 @@ export function isFirstRun(onboarding, settings) {
   return !(onboarding && onboarding.completed === true) && settings?.onboarded !== true;
 }
 
-// Auto-open only on a fresh install, or when this checklist was opened and not finished.
+// Auto-open only on a fresh install that has not opened the checklist yet.
+// Once it has been opened, or Finish later was used, it stays in Settings.
 // An install that already finished AI setup before this checklist existed stays quiet (legacy).
 export function offerShow(record, { firstRun = false } = {}) {
   const rec = normalizeRecord(record);
   if (rec.completedAt || rec.dismissedAt) return false;
-  if (rec.legacy && !rec.opened) return false;
-  if (rec.opened) return true;
+  if (rec.opened) return false;
+  if (rec.legacy) return false;
   return !!firstRun;
 }
 
@@ -351,7 +352,9 @@ export function completeSetup() {
 export function resetSetup() {
   const { firstRun } = ensureRecord();
   const next = save({ ...blankRecord(), opened: true, legacy: false });
-  return viewFrom(next, firstRun);
+  const view = viewFrom(next, firstRun);
+  // The click that asked to run setup again opens it now. The next launch does not.
+  return { ...view, show: true, manual: true };
 }
 
 export function skipSetup(id) {

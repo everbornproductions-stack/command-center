@@ -50,7 +50,7 @@ function paint() {
     const on = session.recording;
     btn.classList.toggle("primary", on);
     btn.classList.toggle("vo-live", on);
-    btn.textContent = buttonLabel(session);
+    btn.textContent = btn.hasAttribute("data-simple-mic") ? (on ? "Stop" : "Mic") : buttonLabel(session);
     btn.title = buttonTitle(session);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   }
@@ -353,6 +353,14 @@ function syncFromServer() {
 
 function renderCommand(el) {
   bindGlobal();
+  const simpleBtn = document.querySelector("#vo-mic[data-simple-mic]");
+  if (window.CC.uiMode?.() === "simple" && simpleBtn) {
+    if (simpleBtn.dataset.wired !== "1") { simpleBtn.dataset.wired = "1"; wireButton(simpleBtn); }
+    el.innerHTML = "";
+    paint();
+    syncFromServer();
+    return;
+  }
   if (!SR() && !window.ccDesktop?.desktop && typeof MediaRecorder === "undefined") {
     el.innerHTML = `<div class="dim small" style="margin-top:6px">Voice orders need Chrome, Edge or the desktop app (no speech recognition in this browser). Wispr Flow dictation works in the box above.</div>`;
     return;

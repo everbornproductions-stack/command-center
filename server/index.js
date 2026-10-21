@@ -176,9 +176,13 @@ function providerView() {
     .filter((p) => !p.demo || (hasSecret(p.id) && !demosHidden())) // pretend AIs only with no real AI, or when Settings keeps demo on
     .map((p) => {
       const plan = planInfo(p.id);
+      const keyed = hasSecret(p.id, p.keyEnv);
+      // A guessed free plan is not a connection. No key means grey, even if a probe ran earlier.
+      const needsKey = !p.noKey && !p.demo && p.auth !== "handoff" && p.auth !== "local" && p.auth !== "mcp" && p.auth !== "oauth";
+      const status = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
       return {
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined, addedCapabilities: p.custom ? p.addedCapabilities || [] : undefined, addedSource: p.custom ? p.addedSource || "general" : undefined, addedStrengths: p.custom ? learnedStrengths(p.models) : undefined,
-      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" }, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
+      keyed, masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, learned: learnedDeltas(m.id), default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
     }; })
@@ -397,13 +401,13 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid }) {
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid }) {
   const id = runId || "s-" + Date.now().toString(36);
   const priority = chatPriority(mode);
   let cls = null;
@@ -412,9 +416,13 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   const given = capability ? { capability, difficulty: difficulty ?? 2 } : null;
   // An explicit pick of Nova, Atlas or Sage is not a real job while a real AI is connected.
   if (realJobSkipsDemo(provider)) { provider = undefined; model = undefined; }
+  const skipProvider = typeof avoid === "string" && avoid ? avoid : "";
+  if (skipProvider && provider === skipProvider) { provider = undefined; model = undefined; }
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
-    const best = rank({ ...cls, mode: priority })[0];
+    let ranked = rank({ ...cls, mode: priority });
+    if (skipProvider) ranked = ranked.filter((m) => m.provider !== skipProvider);
+    const best = ranked[0];
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);

@@ -87,7 +87,11 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { profile: next, redacted: body?.redacted || [] });
   }
   if (method === "GET" && p === "/schedules") return h.json(res, 200, { items: scheduledPlan(), schedules: SCHEDULES_PRESENT });
-  if (method === "POST" && p === "/schedules") return h.json(res, 200, installSchedules(profileDoc(h)));
+  if (method === "POST" && p === "/schedules") {
+    try { h.guard("scheduler"); }
+    catch (e) { return h.json(res, e.status || 402, { error: e.message, code: e.code }); }
+    return h.json(res, 200, installSchedules(profileDoc(h)));
+  }
   if (method === "POST" && p === "/detect") {
     const text = String(body?.text || "").slice(0, 4000);
     if (!text.trim()) return h.json(res, 400, { error: "Type what you want first." });

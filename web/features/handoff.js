@@ -101,6 +101,7 @@ async function renderCommand(el) {
   paint(el);
 }
 async function renderDeliverable(el) {
+  if (window.CC.uiMode?.() === "simple") { el.innerHTML = ""; return; }
   try { if (!data) await load(); } catch { el.innerHTML = ""; return; }
   paint(el);
 }

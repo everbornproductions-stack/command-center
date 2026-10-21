@@ -44,7 +44,7 @@ Keys are never shown again after saving and never written to a log.
 
 ### Simple and Expert
 
-New installs open in Simple. The first time, Meldmind asks "Keep it simple or show me everything?"
+New installs open in Simple. The first setup step asks which mode you want to start in. You can change this later.
 
 Simple is one chat box. You say what you want, and the council picks the AI. The top bar shows Chat, Projects, Create, Help, and Settings. The chips under the box list only AIs you have connected (a saved key the provider accepted, or an MCP server). Demo shows there only while none are connected.
 

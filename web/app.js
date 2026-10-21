@@ -1,7 +1,9 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
+import { compareTable } from "./compare.js";
 import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -94,6 +96,7 @@ async function api(path, opts = {}) {
     if (j?.code) err.code = j.code;
     if (j?.missing) err.missing = j.missing;
     if (j?.questions) err.questions = j.questions;
+    if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
   }
   return j;
@@ -135,7 +138,38 @@ async function apiBlobUrl(path) {
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+function showUpgrade(message) {
+  if (document.getElementById("cc-upgrade")) return;
+  const box = document.createElement("div");
+  box.id = "cc-upgrade";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a licence key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  document.body.appendChild(box);
+  box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
+  box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
+}
+function toastNeedKey() {
+  const t = document.createElement("div");
+  t.className = "toast err";
+  t.setAttribute("role", "alert");
+  t.append(document.createTextNode("Add at least one API key first. "));
+  const a = document.createElement("a");
+  a.href = "#";
+  a.textContent = "Turn on demo mode";
+  a.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/demo", { method: "POST", body: { on: true } });
+      S.demo = r.demo;
+      toast("Demo AIs online");
+      await refresh();
+    } catch (err) { toast(err.message, true); }
+  });
+  t.append(a);
+  $("#toasts").appendChild(t);
+  setTimeout(() => t.remove(), 8000);
+}
 function toast(msg, err = false) {
+  if (err && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
@@ -431,7 +465,16 @@ function onMission(m) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
+      if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
+      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      if (simpleFail) {
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
+        if (S.view === "command") renderOutput();
+      } else {
+        const failed = m.status === "failed";
+        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`;
+        toast(failed && m.error ? m.error : base, failed);
+      }
     }
   }
 }
@@ -513,9 +556,11 @@ function renderStrip() {
     }
     if (pausedNow(p)) line = PAUSE_LABEL;
     else if (p.access?.label) line = p.access.label;
+    const needsOwnKey = p.kind === "text" && !p.keyed && !p.noKey && !p.demo && !["handoff", "local", "mcp", "oauth"].includes(p.access?.auth);
+    if (needsOwnKey) line = "No key";
     const active = S.activeByProvider[p.id] > 0 && !quietProvider(p);
     if (active) badge = `${S.activeByProvider[p.id]} working`;
-    const stLight = pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
+    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
     const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
     return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
@@ -531,6 +576,8 @@ function renderBudget() {
   const b = S.settings.budgetMonthly || 0, m = S.ledger?.month || 0;
   $("#budget-val").textContent = `${money(m)} / ${money(b, 0)}`;
   $("#budget-pill").style.borderColor = m > b ? "var(--red)" : m > b * 0.8 ? "var(--amber)" : "var(--line)";
+  const spend = $("#cc-spend");
+  if (spend) spend.textContent = spendLine(m);
 }
 
 // ---------------- views ----------------
@@ -582,7 +629,10 @@ function btnLabel(btn, text) {
 }
 function syncChrome() {
   const simple = S.uiMode !== "expert";
-  if (document.body) document.body.dataset.ui = simple ? "simple" : "expert";
+  if (document.body) {
+    document.body.dataset.ui = simple ? "simple" : "expert";
+    document.body.classList.toggle("show-ais", simple && !!S.settings?.simpleStrip);
+  }
   $("#mode-simple")?.setAttribute("aria-pressed", String(simple));
   $("#mode-expert")?.setAttribute("aria-pressed", String(!simple));
   btnLabel($("#mobile-nav button[data-view='command']"), simple ? "Chat" : "Command");
@@ -595,35 +645,41 @@ function syncChrome() {
   if (!simple) $("#simple-create")?.classList.remove("open");
 }
 function renderAsk() {
-  let box = document.getElementById("cc-mode-ask");
-  if (!S.askMode) { box?.remove(); return; }
-  if (box) return;
-  box = document.createElement("div");
-  box.id = "cc-mode-ask";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-mode-ask-title"><h4 id="cc-mode-ask-title">${esc(ASK.title)}</h4><p>${esc(ASK.body)}</p><div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="cc-mode-ask-simple">${esc(ASK.simple)}</button><button class="btn" type="button" id="cc-mode-ask-expert">${esc(ASK.expert)}</button></div></div>`;
-  document.body.appendChild(box);
-  box.querySelector("#cc-mode-ask-simple").addEventListener("click", () => setUiMode("simple"));
-  box.querySelector("#cc-mode-ask-expert").addEventListener("click", () => setUiMode("expert"));
+  document.getElementById("cc-mode-ask")?.remove();
 }
-function setUiMode(mode) {
+function setUiMode(mode, opts = {}) {
   if (mode !== "simple" && mode !== "expert") return;
   const prev = S.uiMode;
+  const firstExpert = mode === "expert" && prev !== "expert" && !S.settings?.expertConfirmed;
+  if (firstExpert && !opts.confirmed && !opts.fromSetup) {
+    if (!confirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?")) return;
+  }
   S.uiMode = mode;
   S.askMode = false;
-  S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
+  const patch = { uiMode: mode, uiModeChosen: true };
+  if (mode === "expert") patch.expertConfirmed = true;
+  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done;
+  S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
     S.view = "command";
-  } else if (mode === "expert" && prev !== "expert" && S.returnView) {
+  } else if (mode === "expert" && prev !== "expert" && S.returnView && !openExpert) {
     S.view = S.returnView;
     S.returnView = null;
+  }
+  if (openExpert) {
+    S.connectWizard = false;
+    S.view = "setup";
+    S.setup = S.setup || {};
+    S.setup.phase = "expert";
+    S.setup.expertStep = S.settings.expertSetup?.step || "ais";
   }
   const root = $("#tabs");
   if (root) root.dataset.nav = "";
   render();
   window.CC?.tour?.onMode?.();
-  api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } })
-    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, uiMode: mode, uiModeChosen: true }; })
+  api("/settings", { method: "POST", body: patch })
+    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
 }
 function toggleSimpleCreate() {
@@ -880,11 +936,12 @@ function jobReply() {
   if (!replyReady()) return "";
   const kind = S.live.kind;
   const label = "Reply to all";
+  const replyLabel = S.uiMode === "simple" ? "Reply" : label;
   const placeholder = kind === "council" ? "This goes to every AI on the council." : kind === "mission" ? "This goes to every AI on the mission." : "This goes to the AI on this chat.";
   const extra = [];
   if (kind === "council") extra.push(...(S.live.council?.members || []).map((m) => m.model), "chair");
   if (kind === "mission") extra.push(...Object.values(S.live.tasks || {}).filter((t) => t.output && t.status === "done" && !t.agent).map((t) => t.id));
-  return `${extra.map((t) => liveSlot("job", t)).join("")}${replyForm({ scope: "job", target: "", label, placeholder })}`;
+  return `${extra.map((t) => liveSlot("job", t)).join("")}${replyForm({ scope: "job", target: "", label: replyLabel, placeholder })}`;
 }
 function mergedSingleTurns(run) {
   return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
@@ -895,10 +952,14 @@ function renderSimpleChat(v) {
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
         <h3>Chat</h3>
-        <textarea id="orders" aria-label="What do you want?" placeholder="Say what you want. The council picks the AI.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="What do you want?" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
+        <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
         <div class="row" style="padding-top:4px">
+          <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
+          <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn primary" id="go" style="margin-left:auto">Send</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -908,17 +969,42 @@ function renderSimpleChat(v) {
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
       <div id="out-follow"></div>
+      <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
   </div>`;
   wireProjectPicker();
-  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
+    const item = STARTERS.find((s) => s.id === b.dataset.starter);
+    if (!item) return;
+    const box = $("#orders");
+    box.value = item.text;
+    S.lastOrders = item.text;
+    paintStarters();
+    box.focus();
+  }));
+  $("#cc-show-ais")?.addEventListener("click", async () => {
+    const on = !S.settings?.simpleStrip;
+    S.settings = { ...(S.settings || {}), simpleStrip: on };
+    syncChrome();
+    const btn = $("#cc-show-ais");
+    if (btn) btn.textContent = on ? "Hide AIs" : "Show AIs";
+    try { const saved = await api("/settings", { method: "POST", body: { simpleStrip: on } }); if (saved) S.settings = { ...S.settings, ...saved, simpleStrip: on }; }
+    catch (e) { toast(e.message, true); }
+  });
   $("#go").addEventListener("click", sendOrders);
   $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
+  paintStarters();
   renderOutput();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+}
+function paintStarters() {
+  const box = $("#cc-starters");
+  if (!box) return;
+  box.hidden = !!($("#orders")?.value.trim() || S.live?.id);
 }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
@@ -1089,18 +1175,32 @@ function renderOutput() {
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">The answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
-  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); return; }
+  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); paintFailure(); return; }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
   paintFollow(outputFollowHtml());
+  paintFailure();
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
+}
+function paintFailure() {
+  const slot = $("#cc-fail-slot");
+  if (!slot) return;
+  if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
+  slot.innerHTML = `<div class="route" id="cc-fail" style="margin-top:10px"><b>${esc(FAILURE.title)}</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" type="button" id="cc-fail-retry">${esc(FAILURE.retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(FAILURE.other)}</button></div></div>`;
+  $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
+  $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
 }
 function outputFollowHtml() {
   const l = S.live;
   const simple = S.uiMode !== "expert";
+  if (simple) {
+    const has = !!(l.deliverable || (l.primary && l.agents[l.primary]?.text));
+    if (!has) return "";
+    return jobReply();
+  }
   const blocks = [];
   if (l.kind === "single") {
     const run = l.mission || {};
@@ -1163,7 +1263,7 @@ async function sendOrders() {
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
-  if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
+  if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
   $("#go").disabled = true;
@@ -1174,6 +1274,10 @@ async function sendOrders() {
     if (mode === "single") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
+      const avoid = S.pendingAvoid || "";
+      S.pendingAvoid = "";
+      S.simpleFail = null;
+      if (avoid) packBody.avoid = avoid;
       await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
@@ -1457,9 +1561,10 @@ function phonePanel() {
 function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
-    <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
+    <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
       <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}</div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
+    ${p.id === "google" && !p.keyed ? `<div class="dim small" style="margin-top:8px">Not connected. A free allowance needs your own AI Studio key.</div>` : ""}
     ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
     ${p.connect?.both ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
       <button type="button" class="btn sm ${p.connect.active === "key" ? "primary" : ""}" data-conn="key" data-prov="${p.id}">Connect with API key</button>
@@ -1525,6 +1630,7 @@ function renderSettings(v) {
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
+        <div style="margin-top:10px">${compareTable(esc)}</div>
         ${(S.license?.tier || "free") === "free" ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-pro-plan="yearly">Pro yearly, $159/year</button><button type="button" class="btn sm" data-pro-plan="lifetime">${esc(lifetimeChoiceLabel())}</button></div><div class="dim small" style="margin-top:6px">${PRO_PLAN_NOTE}</div>` : ""}
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
         ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
@@ -1602,7 +1708,7 @@ function renderSettings(v) {
     renderBudget(); toast("Saved");
   });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
-  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.view = "setup"; render(); });
+  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
   $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
@@ -1745,6 +1851,16 @@ $("#tabs").addEventListener("click", (e) => {
   const trigger = e.target.closest(".nav-trigger");
   if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
+    if (S.uiMode === "simple" && menu?.dataset.menu === "settings") {
+      closeNav(root);
+      trigger.setAttribute("aria-expanded", "false");
+      S.connectWizard = false;
+      S.view = "settings";
+      S.openProject = null;
+      S.navMenu = "settings";
+      render();
+      return;
+    }
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
     if (!wasOpen) { menu.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); }
@@ -1922,8 +2038,105 @@ async function saveShareChoice() {
   await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
   st.shareSaved = on;
 }
+function setupState() {
+  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  if (st.history === undefined) st.history = false;
+  if (!st.phase) {
+    if (!S.settings?.uiModeChosen) st.phase = "mode";
+    else if (S.uiMode !== "expert") st.phase = "simple";
+    else if (S.settings?.expertSetup && !S.settings.expertSetup.done) {
+      if (S.settings.expertSetup.pendingScan) { st.phase = "scan"; st.afterScan = "expert"; }
+      else st.phase = "expert";
+    } else st.phase = "scan";
+  }
+  return st;
+}
+function renderModeStep(v, st) {
+  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px;font-size:22px">${esc(MODE_STEP.title)}</h2>
+    <div class="muted">${esc(MODE_STEP.note)}</div>
+    <div class="grid" style="margin-top:18px;gap:10px">
+      <button type="button" class="route" id="su-mode-simple" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.simple)}</b><div class="dim small">${esc(MODE_STEP.simpleLine)}</div></button>
+      <button type="button" class="route" id="su-mode-expert" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.expert)}</b><div class="dim small">${esc(MODE_STEP.expertLine)}</div></button>
+    </div>
+  </div></div>`;
+  $("#su-mode-simple").addEventListener("click", () => { st.phase = "simple"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
+  $("#su-mode-expert").addEventListener("click", async () => {
+    st.phase = "scan";
+    st.afterScan = "expert";
+    st.history = false;
+    await saveExpert({ pendingScan: true, done: false, step: "ais", skipped: false });
+    setUiMode("expert", { fromSetup: true, confirmed: true });
+  });
+}
+function renderSimpleStart(v) {
+  v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px;font-size:22px">One AI, then chat</h2>
+    <div class="muted">Add one key, or try it now. You can add more later in Settings.</div>
+    <div style="margin-top:16px">${openRouterStartCard()}</div>
+    <div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="su-try">Try it now</button><button class="btn" type="button" id="su-chat">Continue to chat</button></div>
+    <div class="dim small" style="margin-top:8px">Try it now turns on demo mode. Nothing is spent.</div>
+  </div></div>`;
+  wireOpenRouterStart(v);
+  $("#su-try").addEventListener("click", async () => {
+    try { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await finishAiSetup("command"); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#su-chat").addEventListener("click", () => finishAiSetup("command"));
+}
+async function saveExpert(patch) {
+  const expertSetup = { ...(S.settings?.expertSetup || {}), ...patch };
+  S.settings = { ...(S.settings || {}), expertSetup };
+  try {
+    const saved = await api("/settings", { method: "POST", body: { expertSetup } });
+    if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, expertSetup };
+  } catch (e) { toast(e.message, true); }
+}
+function renderExpertExtra(v, st) {
+  const stepId = st.expertStep || S.settings?.expertSetup?.step || "ais";
+  const i = Math.max(0, EXPERT_SETUP.findIndex((s) => s.id === stepId));
+  const step = EXPERT_SETUP[i];
+  const last = i === EXPERT_SETUP.length - 1;
+  v.innerHTML = `<div style="max-width:760px;margin:0 auto"><div class="panel" style="padding:26px">
+    <div class="dim small">Expert setup ${i + 1} of ${EXPERT_SETUP.length}. You can skip this.</div>
+    <h2 style="margin:6px 0;font-size:22px">${esc(step.title)}</h2>
+    <div class="muted">${esc(step.body)}</div>
+    ${step.id === "ais" ? `<div style="margin-top:14px">${openRouterStartCard()}${anyKeyHtml()}</div>` : ""}
+    ${step.id === "integrations" ? `<div class="row" style="margin-top:14px"><button class="btn sm" type="button" id="ex-connect">Get everything connected</button></div>` : ""}
+    ${step.id === "profile" ? `<div style="margin-top:14px"><div class="dim small">Every field is optional. You can fill this in later under Pro prompts.</div><button class="btn sm" type="button" id="ex-profile" style="margin-top:8px">Open business profile</button></div>` : ""}
+    <div class="row" style="margin-top:18px"><button class="btn" type="button" id="ex-skip">Skip</button><button class="btn primary" type="button" id="ex-next" style="margin-left:auto">${last ? "Finish" : "Next"}</button></div>
+  </div></div>`;
+  if (step.id === "ais") { wireOpenRouterStart(v); wireAnyKey(v); }
+  $("#ex-profile")?.addEventListener("click", () => { S.view = "prompts"; render(); });
+  $("#ex-connect")?.addEventListener("click", async () => {
+    try {
+      const offer = await api("/connectsetup/begin", { method: "POST" });
+      S.connectSetup = offer;
+      S.connectWizard = true;
+      S.visitedConnect = true;
+      await saveExpert({ step: "integrations", done: true, skipped: false });
+      S.view = "setup";
+      render();
+    } catch (e) { toast(e.message, true); }
+  });
+  $("#ex-skip").addEventListener("click", async () => { await saveExpert({ step: step.id, skipped: true, done: true }); finishAiSetup("command"); });
+  $("#ex-next").addEventListener("click", async () => {
+    if (!last) {
+      const next = EXPERT_SETUP[i + 1].id;
+      st.expertStep = next;
+      await saveExpert({ step: next, done: false, skipped: false });
+      render();
+      return;
+    }
+    await saveExpert({ step: step.id, done: true, skipped: false });
+    finishAiSetup("command");
+  });
+}
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  const st = setupState();
+  if (st.phase === "mode") return renderModeStep(v, st);
+  if (st.phase === "simple") return renderSimpleStart(v);
+  if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
     api("/brain/settings").then((d) => {
@@ -2029,31 +2242,28 @@ function renderSetup(v) {
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
-  $("#su-done").addEventListener("click", () => finishAiSetup("command"));
+  $("#su-done").addEventListener("click", async () => {
+    if ((st.afterScan === "expert" || S.settings?.expertSetup?.pendingScan) && !S.settings?.expertSetup?.done) {
+      st.afterScan = "";
+      st.phase = "expert";
+      st.expertStep = S.settings?.expertSetup?.step && S.settings.expertSetup.step !== "ais" ? S.settings.expertSetup.step : "ais";
+      await saveExpert({ pendingScan: false, step: st.expertStep, done: false, skipped: false });
+      render();
+      return;
+    }
+    finishAiSetup("command");
+  });
 }
-// After the existing AI setup, a fresh install continues into Get everything connected.
+// Setup finishes into chat. Get everything connected opens only from the Expert integrations step.
 async function finishAiSetup(nextView) {
-  let offer = null;
-  try { offer = await api("/connectsetup"); } catch { offer = null; }
-  const showConnect = !!offer?.show;
-  if (showConnect) {
-    try { offer = await api("/connectsetup/begin", { method: "POST" }); } catch { /* the opened flag is enough to resume */ }
-  }
   try {
     const saved = await api("/setup/done", { method: "POST" });
     S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
     if (S.onboarding) S.onboarding.show = false;
     S.visitedSetup = true;
-    if (showConnect) {
-      S.connectSetup = offer;
-      S.connectWizard = true;
-      S.visitedConnect = true;
-      S.view = "setup";
-    } else {
-      S.connectWizard = false;
-      S.view = nextView;
-      if (nextView === "command") toast("Setup complete");
-    }
+    S.connectWizard = false;
+    S.view = nextView;
+    if (nextView === "command") toast("Setup complete");
     render();
   } catch (e) { toast(e.message, true); }
 }
