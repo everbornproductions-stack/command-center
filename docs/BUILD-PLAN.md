@@ -300,7 +300,7 @@ UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focu
 Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
 
 ### Phases 57 to 62: After app control (planned, not built)
-Chris, 2026-10-20. These six run after phases 45 to 51. Plan only. Do not build them in the app-control sessions. They are not part of the 0.4.8 desktop release. Nothing here posts, sends, buys, or spends without a click. Do not touch Square or billing. Prices stay placeholders until Chris sets them.
+Chris, 2026-10-21. These six run after phases 45 to 51. Plan only. Do not build them in the app-control sessions. Desktop and app control is 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build, separate from these six. Nothing here posts, sends, buys, or spends without a click. Do not touch Square or billing. Prices stay placeholders until Chris sets them.
 
 ### Phase 57: Recipes (effort: L) (planned, not built)
 Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that actually ran. Replay uses the same rules as phases 45 to 51: per-app Allow, a second click before send, buy, or delete, a banner that says Meldmind is using that app, Stop, and no stored passwords. A scheduled replay that would send, buy, or delete waits for that second click. If the app's layout changed, use the app-control fallback (other selectors, then the manual handoff) and say so in plain words. This does not replace saved pipelines or the existing schedules. It starts only after phase 51 is done.

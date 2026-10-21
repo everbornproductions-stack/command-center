@@ -34,7 +34,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 
 ## After app control (planned, not built)
 
-Chris, 2026-10-20. These six run after desktop and app control (build-plan phases 45 to 51). They are plan only. Do not build them yet. They are not part of the 0.4.8 release. The same safety rules apply: nothing posts, sends, buys, or spends without a click, and Square stays untouched.
+Chris, 2026-10-21. These six run after desktop and app control (build-plan phases 45 to 51). They are plan only. Do not build them yet. Desktop and app control is 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build, separate from these six. The same safety rules apply: nothing posts, sends, buys, or spends without a click, and Square stays untouched.
 
 | # | Phase | Feature | Done looks like |
 |---|---|---|---|
