@@ -1606,3 +1606,16 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Watch and talk (phases 32 and 92)
+
+Version stayed 0.4.8. No Square or billing change. No hub was deployed. No real key. data/ was not read. Pull request 86 (Together) is not merged. This work reads that shape when the files are present and does not copy those files.
+
+- Phase 32. Model watch checks each connected text provider's public model list with the key saved for that provider. The request is read only, does not follow a redirect, and runs at most once a day. The first look stores a baseline. Later checks post a plain note for a new model or a price change. A suggested switch can be accepted or undone. Accept hides the old model and adds the new one for routing. Undo puts the old model back. Notes stay in Settings, Model watch. If the Together news list is installed, the same note is also handed to it. Providers with no public model list (Kling, Perplexity) are not called. Env keys and managed keys are not used.
+- Phase 92. People chat is in the Business menu. Direct messages and small groups (up to 8, including you) are limited to people in one team space. A viewer cannot send. When the Together team-space list is empty, a Phase 8 workspace is used. Report and block stay on this computer unless the Together moderation file is present. A message is stored only when Send is clicked. Keys are stripped, and a message that is only a key is refused. Private-mode content is refused. Messages stay on this computer until CC_USERCHAT_HUB is set (https, or a loopback address in tests). That address is unset by default. It is not the licence hub.
+- Commits: 37003f2 (model watch), e8e0ffe (people chat), plus this log entry.
+- Tests here (Linux): npm test 431 tests, 429 pass, 0 fail, 2 skipped (Pyodide is not installed, Electron is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows and Mac were not run here.
+- Clicked through in the browser on this computer: a direct message, a report, block and unblock, a small group, Accept, Undo, and Check now. Check now said it was already checked today. The report line said nothing was sent. Both sends said the message was saved on this computer.
+
+PHASE 32 DONE
+PHASE 92 DONE
