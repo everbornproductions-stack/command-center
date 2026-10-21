@@ -17,6 +17,8 @@
   button.stop { border-color: #7f1d1d; background: #450a0a; }
   button.ok { border-color: #166534; background: #14532d; font-weight: 600; }
   button:disabled { opacity: .4; cursor: default; }
+  .banner { display: none; margin: 0 12px 6px; padding: 6px 8px; border: 1px solid #f59e0b; border-radius: 8px; background: #1c1405; color: #fbbf24; }
+  .banner.on { display: block; }
   .ask { display: none; margin: 0 12px 6px; padding: 8px 10px; border: 1px solid #f59e0b; border-radius: 8px; background: #1c1405; }
   .ask.on { display: block; }
   .ask h4 { margin: 0 0 4px; font-size: 13px; color: #fbbf24; }
@@ -34,6 +36,7 @@
     <span class="meta" id="meta"></span>
     <button class="stop" id="stop" disabled>Stop</button>
   </div>
+  <div class="banner" id="gd">Get it done is on for this job. Stop is still here.</div>
   <div class="ask" id="ask">
     <h4 id="ask-title"></h4>
     <pre id="ask-lines"></pre>
@@ -51,6 +54,7 @@
     $("task").textContent = j.task ? j.task : "Waiting for a job";
     $("meta").textContent = j.status ? `${j.statusLabel} · ${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}` : "";
     $("stop").disabled = !j.id || ["done", "failed"].includes(j.status);
+    $("gd").className = s.getDone && s.getDone.on ? "banner on" : "banner";
     const a = s.approval;
     $("ask").className = a ? "ask on" : "ask";
     $("ask-title").textContent = a ? `${a.kind === "your turn" ? "Your turn" : "OK to do this?"} ${a.title}` : "";

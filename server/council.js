@@ -17,12 +17,15 @@ import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { councilPlan, reviewMode } from "./modes.js";
+import { openGrant, endGrant } from "./getdone.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries, getItDone, sendMessages }) {
   const id = "c-" + Date.now().toString(36);
+  openGrant({ runId: id, text: prompt, toggle: getItDone === true, send: sendMessages === true });
+  try {
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;
@@ -257,10 +260,14 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   council.status = "done";
   council.finishedAt = Date.now();
   council.cost = +council.cost.toFixed(5);
+  endGrant(id);
   emit("council.update", { council: pub(council) });
   emit("mission.update", { mission: summaryOf(council) });
   emit("log", { text: `Council finished in ${((council.finishedAt - t0) / 1000).toFixed(0)}s for $${council.cost.toFixed(4)}.`, missionId: id });
   return finish(council);
+  } finally {
+    endGrant(id);
+  }
 }
 
 function pub(c) { return c; }

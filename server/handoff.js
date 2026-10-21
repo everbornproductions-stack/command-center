@@ -16,6 +16,7 @@ import { missionSummary } from "./mission.js";
 import { observe } from "./brain.js";
 import { heuristicClassify } from "./router.js";
 import { pasteBlock, reportBlock, reportStatus } from "./reportback.js";
+import { permissionFor, ASK_LINE } from "./getdone.js";
 
 export const DOC = "handoff.registry";
 export const SIGNIN_DOC = "handoff.signin";
@@ -199,7 +200,7 @@ export function threadTurns(thread) {
   return turns.filter((t) => t.text);
 }
 
-export function buildHandoffPrompt({ targetName, summary, turns, draft, reportBlockText } = {}) {
+export function buildHandoffPrompt({ targetName, summary, turns, draft, reportBlockText, permissionText } = {}) {
   const name = clip(targetName || "the chat", 60) || "the chat";
   const recent = (Array.isArray(turns) ? turns : []).slice(-6).map((t) => ({
     role: t.role === "user" ? "You" : "Assistant",
@@ -218,9 +219,10 @@ export function buildHandoffPrompt({ targetName, summary, turns, draft, reportBl
   if (!recent.length) lines.push("(none yet)");
   else for (const t of recent) lines.push(`${t.role}: ${t.text}`);
   const block = String(reportBlockText || pasteBlock()).trim();
-  let text = `${lines.join("\n").trim()}\n\n${block}\n`;
+  const perm = String(permissionText || ASK_LINE).trim() || ASK_LINE;
+  let text = `${lines.join("\n").trim()}\n\n${block}\n\n${perm}\n`;
   if (text.length > PROMPT_MAX) {
-    const keep = `${block}\n`;
+    const keep = `${block}\n\n${perm}\n`;
     const room = Math.max(0, PROMPT_MAX - keep.length - 16);
     text = `${text.slice(0, room).trimEnd()}\n[cut to fit]\n\n${keep}`;
   }
@@ -245,7 +247,7 @@ async function loadThread(id) {
   return m || null;
 }
 
-export async function buildForTarget({ targetId, threadId, draft } = {}) {
+export async function buildForTarget({ targetId, threadId, draft, getItDone, sendMessages } = {}) {
   const t = findTarget(targetId);
   if (!t) throw err(404, "No handoff target with that id.");
   const thread = threadId ? await loadThread(threadId) : null;
@@ -253,7 +255,14 @@ export async function buildForTarget({ targetId, threadId, draft } = {}) {
   const turns = threadTurns(thread);
   const safeDraft = stripSecrets(String(draft || "").slice(0, 4000));
   const reported = await reportBlock({ kind: "copy", threadId: threadId || null, targetId: t.id });
-  const built = buildHandoffPrompt({ targetName: t.name, summary: summaryFrom(thread, safeDraft, turns), turns, draft: safeDraft, reportBlockText: reported.block });
+  const perm = permissionFor({
+    runId: threadId || null,
+    ownId: threadId || reported.jobId,
+    text: `${safeDraft}\n${thread?.prompt || ""}`,
+    toggle: getItDone === true,
+    send: sendMessages === true,
+  });
+  const built = buildHandoffPrompt({ targetName: t.name, summary: summaryFrom(thread, safeDraft, turns), turns, draft: safeDraft, reportBlockText: reported.block, permissionText: perm.line });
   return {
     targetId: t.id, name: t.name, url: t.url, label: LABEL, jobId: reported.jobId,
     prompt: built.text, chars: built.chars, maxChars: built.maxChars, bytes: built.bytes, pct: built.pct,

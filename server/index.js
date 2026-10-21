@@ -57,6 +57,7 @@ import { observe } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { isReportRoute, handleReportRoute, startReportPoller } from "./reportback.js";
+import { openGrant, endGrant, grantView } from "./getdone.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
@@ -398,14 +399,20 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, getItDone, sendMessages }) {
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, getItDone, sendMessages }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, getItDone, sendMessages }) {
   const id = runId || "s-" + Date.now().toString(36);
+  openGrant({ runId: id, text: prompt, toggle: getItDone === true, send: sendMessages === true });
+  try {
+  return await runChatWork();
+  } finally { endGrant(id); }
+
+  async function runChatWork() {
   const priority = chatPriority(mode);
   let cls = null;
   // A caller that already asked the router (a walkthrough step) passes that task type.
@@ -419,14 +426,14 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
-      if (named) return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider });
+      if (named) { endGrant(id); return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider }); }
       throw new Error("No AI available. Add a key in Settings.");
     }
     provider = best.provider; model = best.model;
   }
   let agent = `${id}:${provider}`;
   const taskType = () => (cls ||= given || heuristicClassify(prompt));
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(customAgent ? { customAgent } : {}) };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], getDone: grantView(id), ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
@@ -481,6 +488,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
   m.finishedAt = Date.now();
+  endGrant(id);
+  m.getDone = null;
   try {
     ctx().store.saveMission(m, missionSummary({ ...m, title }));
     netTrace(`mission saved ${m.id} ${m.status}`);
@@ -490,6 +499,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   }
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
+  }
 }
 
 // ---------- routes (run inside the signed-in user's context) ----------
@@ -555,7 +565,7 @@ async function api(req, res, url) {
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     let promise;
-    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
+    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, getItDone: job.getItDone === true, sendMessages: job.sendMessages === true }); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -567,7 +577,7 @@ async function api(req, res, url) {
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
     try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
+    const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, getItDone: job.getItDone === true, sendMessages: job.sendMessages === true };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }

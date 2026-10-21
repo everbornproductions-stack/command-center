@@ -44,6 +44,7 @@ function jobHtml(j, { full = false } = {}) {
   return `<div class="cc-bh-job" data-bh-job="${esc(j.id)}">
     <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
       <span class="dim" style="margin-left:auto">${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}${j.model ? ` · ${esc(j.model.name || j.model.model)}` : ""}</span>${OPEN(j) ? `<button class="ghost small" data-stop>Stop</button>` : ""}</div>
+    ${j.getDone?.on ? `<div class="small" style="margin-top:6px">Get it done is on for this job. Stop is still here.</div>` : ""}
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 240))}</div>
     ${askHtml(j)}
     ${j.text ? `<div class="md small" style="margin-top:6px">${md(j.text)}</div>` : ""}
@@ -106,8 +107,9 @@ function renderCommand(el) {
       const projectId = document.querySelector("#proj")?.value || null;
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
       const accountId = el.querySelector("#bh-account")?.value || "";
-      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}) } });
-      toast("The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
+      const gd = window.CC?.getDoneChoice;
+      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}), getItDone: !!gd?.on, sendMessages: !!gd?.send } });
+      toast(gd?.on ? "The browser helper is on it. Get it done is on for this job. Spending money and a permanent delete still need one tap." : "The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
       await refresh();
     } catch (err) { toast(err.message, true); }
     finally { e.target.disabled = false; }
@@ -136,7 +138,7 @@ async function renderSettings(el) {
   const models = [];
   for (const p of S.providers) if (p.kind === "text" && p.keyed) for (const mm of p.models || []) models.push({ id: `${p.id}/${mm.id}`, name: `${p.name}: ${mm.name}` });
   el.innerHTML = `<div class="panel" id="prov-browser-helper"><h3>Integrations: Browser helper <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
-    <div class="small muted">For when you do not have Grok Bot: an AI drives ${esc(c.driverLabel)}, one step at a time, with an action log and a Stop button. It reads pages and, with your Google sign-in, Gmail and Drive. It asks for your OK before it sends, posts, deletes, buys or submits any form, and shows exactly what will happen. It never types passwords (you sign in yourself in its window), never fills in card details, and never handles Square or billing pages. Every AI call is in the ledger and inside your spend caps.</div>
+    <div class="small muted">For when you do not have Grok Bot: an AI drives ${esc(c.driverLabel)}, one step at a time, with an action log and a Stop button. It reads pages and, with your Google sign-in, Gmail and Drive. It asks for your OK before it sends, posts, deletes, buys or submits any form, and shows exactly what will happen. Get it done can run the ordinary steps of one job without asking. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on for the job. It never types passwords (you sign in yourself in its window), never fills in card details, and never handles Square or billing pages. Every AI call is in the ledger and inside your spend caps.</div>
     <div class="row small" style="gap:14px;flex-wrap:wrap;margin-top:10px">
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-on" ${c.on ? "checked" : ""}> On</label>
       <label class="row" style="gap:6px" title="Only when Grok Bot is not set up"><input type="checkbox" id="bh-auto" ${c.auto ? "checked" : ""}> Councils and missions hand it the parts that need a website, Gmail or Drive</label>

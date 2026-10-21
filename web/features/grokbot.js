@@ -58,7 +58,8 @@ function renderCommand(el) {
       let context = "";
       const projectId = document.querySelector("#proj")?.value || null;
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
-      const r = await api("/grokbot/jobs", { method: "POST", body: { task, context, projectId } });
+      const gd = window.CC?.getDoneChoice;
+      const r = await api("/grokbot/jobs", { method: "POST", body: { task, context, projectId, getItDone: !!gd?.on, sendMessages: !!gd?.send } });
       toast(`Sent to Grok Bot. ${ASYNC}`);
       S.grokbotLastClick = r.job.id;
     } catch (err) { toast(err.message, true); }

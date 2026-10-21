@@ -52,7 +52,7 @@ function buttons(targets) {
 }
 
 async function onContinue(id) {
-  const built = await api("/handoff/prompt", { method: "POST", body: { targetId: id, threadId: threadId(), draft: draftText() } });
+  const built = await api("/handoff/prompt", { method: "POST", body: { targetId: id, threadId: threadId(), draft: draftText(), getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
   let copied = false;
   try { await copyPrompt(built.prompt); copied = true; toast("Prompt copied"); }
   catch { toast("Could not copy. Select the prompt and copy it.", true); }

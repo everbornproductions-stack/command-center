@@ -13,7 +13,7 @@ test("the Command bar sends its priority on a Single run only after a click", ()
   const app = read("web", "app.js");
   const server = read("server", "index.js");
   assert.match(app, /const picked = !simple && S\.costMode \? \{ mode: S\.costMode \} : \{\}/);
-  assert.match(app, /body: \{ prompt, projectId, \.\.\.picked, \.\.\.packBody \}/);
+  assert.match(app, /body: \{ prompt, projectId, \.\.\.picked, \.\.\.packBody, getItDone: !!window\.CC\?\.getDoneChoice\?\.on, sendMessages: !!window\.CC\?\.getDoneChoice\?\.send \}/);
   assert.match(server, /function chatPriority\(requested\)/);
   assert.match(server, /rank\(\{ \.\.\.cls, mode: priority \}\)/);
   assert.equal(app.includes("\u2014"), false);

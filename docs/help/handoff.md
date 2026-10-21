@@ -21,3 +21,5 @@ Continue in copies a prompt and opens that AI's own page. Meldmind does not type
 You get a notice, and the summary shows in the job. If that AI cannot call back, use Paste result and paste what it wrote. A line that starts with DONE: is enough. It is saved only when you click Save.
 
 If this computer is not connected to the hosted hub, Paste result is the way the summary gets back in. The hub, when it is used, gives the result only to the person who handed off the job, then deletes it.
+
+Get it done can let that job run its ordinary steps without asking. The prompt tells the other AI the permission level. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. The permission ends when the job ends.

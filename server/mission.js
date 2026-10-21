@@ -20,6 +20,7 @@ import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./age
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import * as MEDIA from "./media-jobs.js";
+import { openGrant, endGrant, grantView } from "./getdone.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
@@ -80,7 +81,7 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries, getItDone, sendMessages }) {
   mode = normalizeMode(mode) || "balanced";
   const planning = planMode(mode);
   const looking = reviewMode(mode);
@@ -108,6 +109,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const stoodIn = (ev, agent, role, taskId = null) => { mission.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, taskId, agentFrom: agent, agentTo: agent, role }); };
 
   try {
+    openGrant({ runId: id, text: goal, toggle: getItDone === true, send: sendMessages === true });
     update();
     const cls = await classify(goal, { onCall: (c) => { spend(recordCall({ ...c, missionId: id })); } });
     mission.classification = cls;
@@ -439,6 +441,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     running.delete(id);
     live.delete(id);
     mission.finishedAt = Date.now();
+    endGrant(id);
     update();
     log(`Mission ${mission.status} in ${((mission.finishedAt - t0) / 1000).toFixed(0)}s, $${mission.cost.toFixed(4)}.`);
     for (const job of lateWhileRunning.get(id) || []) lateResult(job).catch((e) => console.error("[mission] late result:", e.message));
@@ -486,7 +489,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id) };
 }
 function save(m) {
   saveDoc(m);

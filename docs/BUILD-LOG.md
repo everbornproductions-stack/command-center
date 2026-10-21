@@ -1620,3 +1620,15 @@ Not a numbered phase. No locked decision was changed. Decision 15 is unchanged: 
 - Checked in a browser on this machine: What's new shows the report-back note, the tour step says to use Paste result, Continue in shows Paste result, Save stores a DONE: line, and Help opens What can Meldmind do.
 
 REPORT BACK (no phase built)
+
+## 2026-10-21: Get it done for one job
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- A job can run its ordinary steps without asking when the person turns on Get it done, says "get it done, don't ask me", or has saved Always for this kind of job. The grant ends when that job ends. The rule can be revoked any time.
+- Spending money and a permanent delete still need one tap. Sending a message stays off unless that separate control is on. Stop and the activity log stay on. The browser helper still refuses passwords, card fields, Square, and billing pages.
+- Every handoff prompt, including the outbound Grok Bot task, includes the permission level. The line is not stored on the Grok Bot job. callback_url is unchanged. A paid media step still waits for Approve.
+- Tests here (Linux): npm test 438 tests, 436 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). The first full run failed one source assertion in test/chat-priority.test.js; that assertion was updated for the new order fields and the file passed on re-run. The product code was the same. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows Get it done, the checkbox starts with sending off, the phrase ticks the box, Settings can save and revoke Always for this kind of job, the handoff prompt includes the permission line, the Stop banner shows and Stop clears it, Help opens the article, and the tour reaches the step.
+
+GET IT DONE (no phase built)

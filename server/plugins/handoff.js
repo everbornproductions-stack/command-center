@@ -15,7 +15,7 @@ export async function routes(req, res, url, body, h) {
     if ((m === "PATCH" || m === "POST") && seg[0] === "targets" && seg[1] && !seg[2]) return h.json(res, 200, updateTarget(decodeURIComponent(seg[1]), body || {}));
     if (m === "DELETE" && seg[0] === "targets" && seg[1] && !seg[2]) return h.json(res, 200, removeTarget(decodeURIComponent(seg[1])));
     if (m === "POST" && seg[0] === "prompt" && !seg[1]) {
-      const built = await buildForTarget({ targetId: body?.targetId, threadId: body?.threadId, draft: body?.draft });
+      const built = await buildForTarget({ targetId: body?.targetId, threadId: body?.threadId, draft: body?.draft, getItDone: body?.getItDone === true, sendMessages: body?.sendMessages === true });
       return h.json(res, 200, built);
     }
     if (m === "POST" && seg[0] === "reply" && !seg[1]) {
