@@ -1585,7 +1585,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 ## 2026-10-21: Graduate notice
 
-Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bot's handoff is still the webhook. Decision 21 stays: an xAI key is Grok the model, and it does not put Grok Bot on a direct route. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8.
+Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bot's handoff is still the webhook. Decision 21 stays: an xAI key is Grok the model, and it does not put Grok Bot on a direct route. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The graduate notice is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch.
 
 - When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" Add it includes that AI. Not now dismisses the ask. The banner sits at the top of the chat box in Simple and of Marching orders in Expert, so it stays with the box rather than the answers.
 - Grok Bot counts as handoff while it is on the webhook or the built-in mock. A direct route is its own API flag (or a vault id grokbot-direct) or an MCP server whose name is Grok Bot. Approve turns the existing councils and missions switch on. Dispatch stays the webhook.
