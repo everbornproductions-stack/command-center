@@ -3,8 +3,8 @@
 // server/receipts.js (the receipt parser). Renewal reminders are the alerts plugin's renewalSweep.
 // Like the tracker it builds on, this is a Pro feature: Free users get { locked: true }.
 // Keys and mail tokens go to the vault and never come back to the browser (masked only).
-import { servicesView, refreshLive, apiRows, saveAdminKey, removeAdminKey, setMailClient, mailStart, mailFinish, mailDisconnect, scanMail, confirmCandidate, dismissCandidate, mailView, MAIL_SOURCES } from "../services.js";
-import { subscriptionView, deleteSubscription } from "../subscriptions.js";
+import { servicesView, refreshLive, apiRows, saveAdminKey, removeAdminKey, setMailClient, mailStart, mailFinish, mailDisconnect, scanMail, confirmCandidate, dismissCandidate, mailView, MAIL_SOURCES, removeSubscription, undoAutoRow, rescanConnected } from "../services.js";
+import { subscriptionView } from "../subscriptions.js";
 import { subscriptionsLocked } from "../license.js";
 import { renewalSweep, raise } from "./alerts.js";
 import { scheduler } from "../perf/scheduler.js";
@@ -22,6 +22,23 @@ export async function init(h) {
     pause: true,
     run: () => tick(),
   });
+  // keep auto-detected rows current: rescan connected mailboxes once a day, paused while idle or on battery
+  scheduler.register({
+    id: "subscriptions-rescan",
+    everyMs: 24 * 3600 * 1000,
+    firstMs: 10 * 60 * 1000,
+    pause: true,
+    run: () => rescanTick(),
+  });
+}
+
+// Pro only (the tracker's gate); does nothing until a mailbox is connected.
+async function rescanTick() {
+  if (!H || H.HOSTED || subscriptionsLocked()) return;
+  try { H.guard("subscriptions"); } catch { return; }
+  const out = await rescanConnected({ save: (row, meta) => H.saveSubscription(row, meta) });
+  const added = out.reduce((a, x) => a + (x.added || 0), 0), updated = out.reduce((a, x) => a + (x.updated || 0), 0);
+  if (added || updated) H.emit("log", { text: `Subscriptions rescan: ${added} auto-detected row${added === 1 ? "" : "s"} added, ${updated} updated from receipt emails.` });
 }
 
 const monthKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
@@ -61,7 +78,10 @@ async function handle(req, res, url, body, h) {
     try { const saved = h.saveSubscription(row, { origin: "user" }); return h.json(res, 200, { saved, view: servicesView() }); }
     catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
   }
-  if (m === "DELETE" && seg[0] === "subscriptions" && seg[1]) { deleteSubscription(seg[1]); return h.json(res, 200, servicesView()); }
+  // Remove any row; on an auto-detected row it also remembers the dismissal so a rescan does not add it back
+  if (m === "DELETE" && seg[0] === "subscriptions" && seg[1]) { removeSubscription(seg[1]); return h.json(res, 200, servicesView()); }
+  // Undo an auto-detected row: removes it and remembers the dismissal
+  if (m === "POST" && seg[0] === "subscriptions" && seg[1] && seg[2] === "undo") { const r = undoAutoRow(seg[1]); return h.json(res, 200, { ...r, view: servicesView() }); }
 
   // read-only mail connection
   if (seg[0] === "mail") {
@@ -75,8 +95,8 @@ async function handle(req, res, url, body, h) {
     if (m === "POST" && seg[1] === "scan") {
       const src = String(body.source || "");
       if (src !== "demo" && !MAIL_SOURCES.includes(src)) return h.json(res, 400, { error: "source must be gmail, outlook or demo" });
-      const r = await scanMail(src, { days: body.days, max: body.max, subs: subscriptionView(), accountId: body.accountId || null });
-      h.emit("log", { text: `Receipt scan (${src === "demo" ? "sample emails" : src}): ${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood.` });
+      const r = await scanMail(src, { days: body.days, max: body.max, subs: subscriptionView(), accountId: body.accountId || null, save: (row, meta) => h.saveSubscription(row, meta) });
+      h.emit("log", { text: `Receipt scan (${src === "demo" ? "sample emails" : src}): ${r.added.length} auto-detected row${r.added.length === 1 ? "" : "s"} added, ${r.updated.length} updated, ${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood.` });
       return h.json(res, 200, { ...r, view: servicesView() });
     }
     if (m === "DELETE" && seg[1]) return h.json(res, 200, await mailDisconnect(seg[1]));

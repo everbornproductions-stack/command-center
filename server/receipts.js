@@ -145,7 +145,26 @@ function findRenewal(text) {
 const RECEIPTISH = /receipt|invoice|subscription|renew|payment|your plan|billing|order confirmation|membership|thanks for (?:your )?(?:purchase|subscribing)/i;
 const W = { service: 0.3, price: 0.3, cycle: 0.15, renews: 0.15, plan: 0.1 };
 export const LOW_CONFIDENCE = 0.6;
+export const HIGH_CONFIDENCE = 0.8;
 const r2 = (n) => Math.round(n * 100) / 100;
+
+// High confidence (the scan adds the row with no confirm step, labelled "auto-detected"). All of:
+//  1. a known AI service from SERVICES, recognised by its sender domain (service confidence 0.95;
+//     a product name in the text alone is not enough),
+//  2. an amount was found,
+//  3. the plan name matched that service's own plan pattern, or the email states a renewal date
+//     (a date estimated from the receipt date does not count),
+//  4. the overall score is at least HIGH_CONFIDENCE.
+// Anything else stays a suggestion that waits for a click.
+export function isHighConfidence(r) {
+  if (!r?.ok || !r.serviceId || !serviceById(r.serviceId)) return false;
+  if ((r.fields?.service?.conf ?? 0) < 0.95) return false;
+  if (r.price == null) return false;
+  const plan = (r.fields?.plan?.conf ?? 0) >= 0.85;
+  const renewal = !!r.renews && !r.renewsEstimated;
+  if (!plan && !renewal) return false;
+  return r.confidence >= HIGH_CONFIDENCE;
+}
 
 // email: { from, subject, date (any Date-parsable string), text?, html? }
 export function parseReceipt(email) {
@@ -194,11 +213,13 @@ export function parseReceipt(email) {
     renews: renews ? { value: renews.value, conf: renews.conf, estimated: !!renews.estimated } : null,
   };
   const confidence = r2(Object.entries(W).reduce((a, [k, w]) => a + (fields[k] ? w * fields[k].conf : 0), 0));
-  return {
+  const out = {
     ok: true, serviceId: svc?.id || null, service, vendor, provider, url,
     plan: plan?.value || null, price: price?.value ?? null, currency: price?.currency || null, cycle: cycle?.value || null,
     monthly: price ? monthlyOf(price.value, cycle?.value || "monthly") : null,
     renews: renews?.value || null, renewsEstimated: !!renews?.estimated,
     confidence, low: confidence < LOW_CONFIDENCE, fields,
   };
+  out.high = isHighConfidence(out);
+  return out;
 }

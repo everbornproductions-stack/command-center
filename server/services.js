@@ -5,6 +5,8 @@
 //  (b) Subscriptions without an API: an optional, read-only Gmail or Outlook connection scans receipt and
 //      renewal emails; each extracted row has a confidence and a link to its email and waits for the person
 //      to confirm or edit it. Only the extracted fields and the message id are kept, never a body or subject.
+//      Exception: a high-confidence receipt from a known AI service becomes an "auto-detected" row right
+//      away (see autoApply below), and a daily rescan keeps those rows current.
 //  (c) Monthly total across APIs and subscriptions, and "possible duplicate or unused" hints.
 // Renewal reminders live in the alerts plugin (renewalSweep), which reads remindDays from each row.
 import crypto from "node:crypto";
@@ -14,8 +16,8 @@ import { getSecret, setSecret, hasSecret, maskedKey } from "./vault.js";
 import { summary as ledgerSummary, allEntries } from "./ledger.js";
 import { allStatus, networkCause, providerMessage } from "./health.js";
 import { emit } from "./events.js";
-import { subscriptionView, totals as subTotals, saveSubscription } from "./subscriptions.js";
-import { parseReceipt, htmlToText, LOW_CONFIDENCE } from "./receipts.js";
+import { subscriptionView, totals as subTotals, saveSubscription, deleteSubscription, loadSubscriptions } from "./subscriptions.js";
+import { parseReceipt, htmlToText, vendorOf, LOW_CONFIDENCE, HIGH_CONFIDENCE } from "./receipts.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 
 // Test and development hook (like CC_BASE_URL_<ID>): local mocks for the mail and sign-in endpoints. Installed builds ignore it.
@@ -24,7 +26,7 @@ const env = (name, dflt) => (DEV && process.env[name]) || dflt;
 
 const LIVE_DOC = "services.live";       // { [providerId]: { ok, at, creditsLeft, creditsTotal, creditsUnit, mtd, mtdCurrency, inTok, outTok, note, error } }
 const HISTORY_DOC = "services.history"; // { [providerId]: [{ ts, left }] } credit balance snapshots (activity for the unused hint)
-const MAIL_DOC = "services.mail";       // { gmail: {...}, outlook: {...}, pending: [candidate], seen: { "<src>:<messageId>": "confirmed" | "dismissed" } }
+const MAIL_DOC = "services.mail";       // { gmail: {...}, outlook: {...}, pending: [candidate], seen: { "<src>:<messageId>": "confirmed" | "dismissed" | "auto" }, autoDismissed: { serviceId: ts } }
 const DAY = 86400000;
 
 export class ServiceError extends Error { constructor(msg, o = {}) { super(msg); Object.assign(this, o); } }
@@ -257,7 +259,7 @@ const MAIL = {
 export const MAIL_SOURCES = Object.keys(MAIL);
 export const MAIL_SCOPES = Object.fromEntries(Object.entries(MAIL).map(([k, v]) => [k, [...v.scopes]]));
 const mailSecretId = (src) => `mail-${src}`;
-const mailDoc = () => { const d = doc(MAIL_DOC, () => ({ gmail: {}, outlook: {}, pending: [], seen: {} })); d.pending ||= []; d.seen ||= {}; for (const s of MAIL_SOURCES) d[s] ||= {}; return d; };
+const mailDoc = () => { const d = doc(MAIL_DOC, () => ({ gmail: {}, outlook: {}, pending: [], seen: {}, autoDismissed: {} })); d.pending ||= []; d.seen ||= {}; d.autoDismissed ||= {}; for (const s of MAIL_SOURCES) d[s] ||= {}; return d; };
 const saveMail = (d) => putDoc(MAIL_DOC, d);
 const clientIdOf = (src) => mailDoc()[src].clientId || (DEV || !HOSTED ? process.env[MAIL[src].clientEnv] : "") || null;
 const mailSecret = (src) => getSecret(mailSecretId(src)) || null;
@@ -439,8 +441,90 @@ async function* demoMessages() { for (const m of DEMO_RECEIPTS) yield { id: m.id
 
 const candidateId = (src, mid) => "c-" + crypto.createHash("sha256").update(`${src}:${mid}`).digest("hex").slice(0, 12);
 
-// Scan one mailbox (or the built-in samples: src "demo"). New candidates wait in `pending` for a confirm or edit.
-export async function scanMail(src, { days = 400, max = 50, subs = [], accountId } = {}) {
+// ---------- auto-detected rows ----------
+// A high-confidence receipt (receipts.js isHighConfidence: known AI vendor by sender domain + amount +
+// the vendor's plan name or a stated renewal date) adds or refreshes a row with no confirm step. Such a
+// row has autoDetected: true and is labelled "auto-detected" with Undo, Remove and Edit. One row per
+// service: an existing row for the service is refreshed, never duplicated. A row the person filled in
+// by hand (not auto-detected, with a plan, price or renewal) is left alone and the receipt becomes a
+// suggestion instead. Fields the person edited (origin "user") are never overwritten. Undo or Remove of
+// an auto-detected row is remembered in `autoDismissed` so a later scan does not add it back.
+const AUTO_FIELDS = ["plan", "price", "cycle", "renews"];
+const blankRow = (s) => s.price == null && s.monthly == null && (!s.plan || s.plan === "UNKNOWN") && !s.renews;
+const autoMatch = (rows, c) => rows.find((s) => s.id === c.serviceId) || rows.find((s) => s.autoDetected && s.source?.serviceId === c.serviceId) || rows.find((s) => s.vendor && s.vendor === c.vendor);
+function autoApply(c, rows, d, save) {
+  if (d.autoDismissed[c.serviceId]) return { action: "dismissed" };
+  const row = autoMatch(rows, c);
+  const detected = { plan: c.plan, price: c.price, cycle: c.cycle, renews: c.renews };
+  const conf = (k) => c.fields?.[k]?.conf ?? c.confidence;
+  const source = { kind: "email", auto: true, mail: c.source, messageId: c.messageId, link: c.link, confidence: c.confidence, receivedAt: c.receivedAt, serviceId: c.serviceId, at: Date.now(), ...(c.accountId ? { accountId: c.accountId } : {}) };
+  const confidence = {};
+  if (!row) {
+    const out = { id: c.serviceId, name: c.service, provider: c.provider || null, vendor: c.vendor, url: c.url || null, source };
+    confidence.name = c.fields?.service?.conf ?? c.confidence;
+    for (const k of AUTO_FIELDS) if (detected[k] != null) { out[k] = detected[k]; confidence[k] = conf(k); }
+    if (c.currency && c.currency !== "USD") out.currency = c.currency;
+    return { action: "added", row: save(out, { origin: "email", confidence, autoDetected: true }) };
+  }
+  if (!row.autoDetected && !blankRow(row)) return null; // the person's own row: a suggestion, never an overwrite
+  // an older receipt never replaces what a newer one already set
+  if (row.autoDetected && row.source?.receivedAt && c.receivedAt && c.receivedAt < row.source.receivedAt) return { action: "older", row };
+  const patch = { id: row.id };
+  let changed = false;
+  for (const k of AUTO_FIELDS) {
+    if (detected[k] == null) continue;
+    if (row.origin?.[k] === "user" && row.autoDetected) continue; // edited by hand: keep it
+    if (same(row[k], detected[k])) continue;
+    patch[k] = detected[k]; confidence[k] = conf(k); changed = true;
+  }
+  if (!row.autoDetected) { changed = true; if (c.provider && !row.provider) patch.provider = c.provider; if (c.url && !row.url) patch.url = c.url; }
+  if (c.vendor && !row.vendor) patch.vendor = c.vendor;
+  patch.source = source;
+  return { action: changed ? "updated" : "unchanged", row: save(patch, { origin: "email", confidence, autoDetected: true }) };
+}
+
+// Undo (or Remove) one row. An auto-detected row's service is remembered as dismissed so no scan re-adds it.
+export function removeSubscription(id) {
+  const row = loadSubscriptions().find((s) => s.id === id);
+  if (row?.autoDetected) {
+    const d = mailDoc();
+    d.autoDismissed[row.source?.serviceId || row.id] = Date.now();
+    saveMail(d);
+  }
+  deleteSubscription(id);
+  return { removed: !!row, autoDetected: !!row?.autoDetected };
+}
+export function undoAutoRow(id) {
+  const row = loadSubscriptions().find((s) => s.id === id);
+  if (!row) throw fail(404, "That row is gone.");
+  if (!row.autoDetected) throw fail(400, "Only auto-detected rows can be undone. Use Remove for rows you added.");
+  return removeSubscription(id);
+}
+
+// The periodic rescan (registered by the services plugin on the shared scheduler, every 24 hours, paused
+// while idle): every connected mailbox is read again so plan, price and renewal date on auto-detected
+// rows stay current. Mailboxes that need a new sign-in are skipped. Returns one summary per mailbox.
+export async function rescanConnected({ save = saveSubscription, days = 60, max = 50, view = subscriptionView } = {}) {
+  const out = [];
+  for (const src of MAIL_SOURCES) {
+    const targets = [];
+    if (mailSecret(src)?.access && !mailDoc()[src].needsSignIn) targets.push(src);
+    for (const a of listAccounts(src)) if (!a.legacy && a.connected && !a.needsSignIn) targets.push(a.id);
+    for (const accountId of targets) {
+      try {
+        const r = await scanMail(src, { days, max, subs: view(), accountId, save });
+        out.push({ source: src, accountId, ok: true, added: r.added.length, updated: r.updated.length, found: r.found });
+      } catch (e) { out.push({ source: src, accountId, ok: false, error: e.message }); }
+    }
+  }
+  const d = mailDoc(); d.autoRescanAt = Date.now(); saveMail(d);
+  return out;
+}
+
+// Scan one mailbox (or the built-in samples: src "demo"). High-confidence receipts from real mailboxes
+// add or refresh auto-detected rows; everything else waits in `pending` for a confirm or edit.
+// The sample emails never add rows on their own (they are fake data), they only make suggestions.
+export async function scanMail(src, { days = 400, max = 50, subs = [], accountId, save = saveSubscription, auto = src !== "demo" } = {}) {
   if (src !== "demo") srcOk(src);
   days = Math.max(7, Math.min(800, Math.round(Number(days) || 400)));
   max = Math.max(1, Math.min(100, Math.round(Number(max) || 50)));
@@ -448,7 +532,9 @@ export async function scanMail(src, { days = 400, max = 50, subs = [], accountId
   const d = mailDoc();
   const it = src === "gmail" ? gmailMessages({ days, max, accountId }) : src === "outlook" ? outlookMessages({ max, accountId }) : demoMessages();
   let scanned = 0, skipped = 0;
-  const found = [], failed = [];
+  const found = [], failed = [], added = [], updated = [];
+  const rows = subs.map((s) => ({ ...s, vendor: s.vendor || vendorOf(s) }));
+  const keep = (saved) => { const i = rows.findIndex((x) => x.id === saved.id); const v = { ...saved, vendor: vendorOf(saved) }; if (i >= 0) rows[i] = v; else rows.push(v); };
   for await (const m of it) {
     const key = acct ? `${src}:${acct.id}:${m.id}` : `${src}:${m.id}`;
     const cid = candidateId(src, acct ? `${acct.id}:${m.id}` : m.id);
@@ -458,25 +544,36 @@ export async function scanMail(src, { days = 400, max = 50, subs = [], accountId
     try { email = await m.load(); } catch (e) { if (e.code === "sign_in" || e.network) throw e; failed.push({ messageId: m.id, link: m.link, reason: e.message }); continue; }
     const r = parseReceipt(email); // the body lives only in this loop iteration
     if (!r.ok) { failed.push({ messageId: m.id, link: m.link, reason: r.reason }); continue; }
-    const match = subs.find((s) => (r.serviceId && s.id === r.serviceId) || (s.vendor && s.vendor === r.vendor));
+    const match = rows.find((s) => (r.serviceId && s.id === r.serviceId) || (s.vendor && s.vendor === r.vendor));
     const day = (() => { const t = new Date(email.date); return Number.isNaN(t.getTime()) ? null : t.toISOString().slice(0, 10); })();
-    found.push({
+    const c = {
       id: cid, source: src, messageId: m.id, link: m.link, receivedAt: day,
       serviceId: r.serviceId, service: r.service, vendor: r.vendor, provider: r.provider, url: r.url,
       plan: r.plan, price: r.price, currency: r.currency, cycle: r.cycle, monthly: r.monthly, renews: r.renews, renewsEstimated: r.renewsEstimated,
-      confidence: r.confidence, low: r.low, fields: Object.fromEntries(Object.entries(r.fields).filter(([, v]) => v).map(([k, v]) => [k, { conf: v.conf, ...(v.estimated ? { estimated: true } : {}) }])),
+      confidence: r.confidence, low: r.low, high: !!r.high, fields: Object.fromEntries(Object.entries(r.fields).filter(([, v]) => v).map(([k, v]) => [k, { conf: v.conf, ...(v.estimated ? { estimated: true } : {}) }])),
       matches: match ? { id: match.id, name: match.name } : null, foundAt: Date.now(),
       ...(acct ? { accountId: acct.id, accountLabel: acct.label } : {}),
-    });
+    };
+    if (auto && r.high) {
+      const a = autoApply(c, rows, d, save);
+      if (a) {
+        d.seen[key] = "auto";
+        if (a.action === "added") added.push({ id: a.row.id, name: a.row.name, messageId: m.id });
+        else if (a.action === "updated") updated.push({ id: a.row.id, name: a.row.name, messageId: m.id });
+        if (a.row) keep(a.row);
+        continue;
+      }
+    }
+    found.push(c);
   }
   d.pending.push(...found);
   if (d.pending.length > 200) d.pending.splice(0, d.pending.length - 200);
-  const summary = { at: Date.now(), scanned, skipped, found: found.length, low: found.filter((c) => c.low).length, failed: failed.slice(0, 20) };
+  const summary = { at: Date.now(), scanned, skipped, found: found.length, added: added.length, updated: updated.length, low: found.filter((c) => c.low).length, failed: failed.slice(0, 20) };
   if (src !== "demo" && acct) markAccount(acct.id, { lastScanAt: summary.at, lastScan: summary, needsSignIn: false });
   else if (src !== "demo") d[src] = { ...d[src], lastScanAt: summary.at, lastScan: summary, needsSignIn: false };
   else d.demoScan = summary;
   saveMail(d);
-  return { ...summary, candidates: found };
+  return { ...summary, candidates: found, added, updated };
 }
 
 const FIELD_CONF = { name: "service", plan: "plan", price: "price", cycle: "cycle", renews: "renews" };
@@ -518,7 +615,7 @@ export function dismissCandidate(id) {
 
 export function mailView() {
   const d = mailDoc();
-  const out = { pending: d.pending, demoScan: d.demoScan || null, lowConfidence: LOW_CONFIDENCE };
+  const out = { pending: d.pending, demoScan: d.demoScan || null, lowConfidence: LOW_CONFIDENCE, highConfidence: HIGH_CONFIDENCE, autoDismissed: Object.keys(d.autoDismissed), autoRescanAt: d.autoRescanAt || null };
   for (const src of MAIL_SOURCES) {
     const M = MAIL[src], s = mailSecret(src), row = d[src];
     out[src] = { name: M.name, scopes: [...M.scopes], readOnly: true, clientId: clientIdOf(src), clientIdFromEnv: !row.clientId && !!clientIdOf(src), hasClientSecret: !!s?.clientSecret, connected: !!s?.access, needsSignIn: !!row.needsSignIn, connectedAt: row.connectedAt || null, lastScanAt: row.lastScanAt || null, lastScan: row.lastScan || null, accounts: listAccounts(src), setup: M.setup, consoleUrl: M.consoleUrl };

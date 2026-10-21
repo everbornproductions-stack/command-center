@@ -19,6 +19,8 @@ const SEED = [
 export const DEFAULT_REMIND_DAYS = 3;
 // fields whose origin is tracked (what the person sees labelled "you entered" or "auto-detected")
 export const TRACKED = ["name", "plan", "price", "cycle", "monthly", "renews", "credits", "creditsTotal", "remindDays", "url", "notes"];
+// fields the email scan fills on an auto-detected row; a hand edit to any of them sets the row's `edited` flag
+export const SCANNED = ["name", "plan", "price", "cycle", "renews"];
 const subs = () => doc("subscriptions", () => structuredClone(SEED));
 export function loadSubscriptions() { return subs(); }
 const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -47,22 +49,29 @@ function clean(s, prev) {
 
 // meta.origin: "user" (default) | "email" | "api", or a per-field map. meta.confidence: { field: 0..1 }.
 // A field whose value changes gets that origin; editing an auto-detected value turns it into "user".
+// meta.autoDetected: the email scan added or refreshed this row with no confirm step (labelled
+// "auto-detected"). Once the person edits a scanned field by hand the row gets `edited: true`, and
+// that field (origin "user") is never overwritten by a later scan. Neither flag comes from a request body.
 export function saveSubscription(s, meta = {}) {
   const list = subs();
   const i = s.id ? list.findIndex((x) => x.id === s.id) : -1;
   const prev = i >= 0 ? list[i] : null;
   if (!prev && !String(s.name || "").trim()) throw bad("name required");
-  const { origin: _o, confidence: _c, ...rest } = s; // origin labels are never taken from the request body
+  const { origin: _o, confidence: _c, autoDetected: _a, edited: _e, ...rest } = s; // origin labels and flags are never taken from the request body
   const row = clean(rest, prev);
   const origin = { ...(prev?.origin || {}) }, confidence = { ...(prev?.confidence || {}) };
+  let handEdit = false;
   for (const k of TRACKED) {
     if (!(k in row)) continue;
     if (prev && JSON.stringify(prev[k] ?? null) === JSON.stringify(row[k] ?? null)) continue;
     const o = typeof meta.origin === "object" && meta.origin ? meta.origin[k] || "user" : meta.origin || "user";
     origin[k] = o;
+    if (o === "user" && SCANNED.includes(k)) handEdit = true;
     if (o !== "user" && meta.confidence?.[k] != null) confidence[k] = meta.confidence[k]; else delete confidence[k];
   }
   if ("price" in row && !("monthly" in rest)) { origin.monthly = origin.price; if (confidence.price != null) confidence.monthly = confidence.price; else delete confidence.monthly; }
+  if (meta.autoDetected) row.autoDetected = true;
+  if (prev?.autoDetected && !meta.autoDetected && handEdit) row.edited = true;
   const now = Date.now();
   const creditsMoved = prev && "credits" in row && row.credits !== prev.credits;
   if (prev) list[i] = { ...prev, ...row, origin, confidence, updatedAt: now, ...(creditsMoved ? { creditsUpdatedAt: now } : {}) };

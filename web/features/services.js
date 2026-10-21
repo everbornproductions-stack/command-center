@@ -4,7 +4,9 @@
 //    from this app's ledger; amber / red tied to the spend caps; optional OpenAI / Anthropic admin keys.
 //  - Subscriptions: manual add and edit, price per cycle, renewal date, reminder lead time per row.
 //  - Find subscriptions in your email: read-only Gmail or Outlook, suggestions with a confidence and a
-//    link to the email, confirmed or edited before anything is saved. Sample emails for demo mode.
+//    link to the email, confirmed or edited before anything is saved. High-confidence receipts from known
+//    AI services are added right away as "auto-detected" rows with Undo, Remove and Edit (a daily rescan
+//    keeps them current). Sample emails for demo mode only ever make suggestions.
 //  - Every value says where it came from: auto-detected (API, ledger or email, with confidence) or you entered.
 const { api, toast, esc, money, ago, pcolor } = window.CC;
 const S = () => window.CC.S;
@@ -83,18 +85,31 @@ function apisPanel(v) {
   </div>`;
 }
 
+// Auto-detected rows (added by the email scan with no confirm step): the scanned fields stay read-only
+// until Edit is clicked, so a stray keystroke never turns a detected value into "you entered".
+const lockAttr = (s, kind = "input") => (s.autoDetected ? (kind === "select" ? " disabled data-lock" : " readonly data-lock") : "");
+function autoLabel(s) {
+  if (!s.autoDetected) return "";
+  const from = s.source?.link ? `<a href="${esc(s.source.link)}" target="_blank" rel="noopener">receipt email</a>` : "a receipt email";
+  return `<span class="small"><span class="sv-tag auto" data-auto-label title="Added from a receipt email with high confidence. The daily rescan keeps plan, price and renewal current, except fields you edit.">auto-detected</span>${s.edited ? ` <span class="sv-tag user" title="Fields you changed are kept as you entered them">edited by you</span>` : ""} <span class="dim">from ${from}${s.source?.receivedAt ? ` of ${esc(s.source.receivedAt)}` : ""}</span></span>`;
+}
+function rowButtons(s) {
+  if (!s.autoDetected) return `<button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" title="Remove from the tracker">Remove</button>`;
+  return `<button class="ghost small" data-edit title="Change the detected values">Edit</button> <button class="ghost small" data-save hidden>save</button> <button class="ghost small" data-undo title="Remove this auto-detected row. The next scan does not add it back.">Undo</button> <button class="ghost small" data-del style="color:var(--red)" title="Remove from the tracker. The next scan does not add it back.">Remove</button>`;
+}
+
 function subsPanel(v) {
   return `<div class="panel"><h3>Subscriptions <span class="right small dim">reminders go out N days before each renewal (desktop notification, push and email per your alert settings)</span></h3>
   <table class="tbl"><thead><tr><th>Service</th><th>Plan</th><th>Price</th><th>Renews</th><th>Remind</th><th>Credits left</th><th>Signal</th><th></th></tr></thead><tbody>
-  ${v.subscriptions.map((s) => `<tr data-sub="${esc(s.id)}">
-    <td><div class="sv-cell"><span><span class="dot ${s.live?.status || ""}" style="${s.live ? "" : `background:${pcolor(s.provider)}`}"></span> ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>` : esc(s.name)}</span>${s.source?.kind === "email" ? `<span class="small">${s.source.link ? `<a href="${esc(s.source.link)}" target="_blank" rel="noopener">source email</a>` : "sample email"} · ${pct(s.source.confidence)} sure</span>` : ""}${s.notes ? `<span class="dim small">${esc(s.notes)}</span>` : ""}</div></td>
-    <td><div class="sv-cell"><input type="text" data-f="plan" value="${esc(s.plan && s.plan !== "UNKNOWN" ? s.plan : "")}" placeholder="${s.plan === "UNKNOWN" ? "unknown" : ""}" style="width:140px">${s.plan && s.plan !== "UNKNOWN" ? fieldTag(s, "plan") : tag("none")}</div></td>
-    <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" step="0.01" data-f="price" value="${s.price ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px"><select data-f="cycle">${["monthly", "yearly", "weekly"].map((c) => `<option value="${c}" ${(s.cycle || "monthly") === c ? "selected" : ""}>${c === "monthly" ? "/ month" : c === "yearly" ? "/ year" : "/ week"}</option>`).join("")}</select></span>${s.price != null ? fieldTag(s, "price") : s.listPrice != null ? tag("estimate", null, "Public list price, used only for the estimate until you confirm") : tag("none")}${s.cycle && s.cycle !== "monthly" && s.monthly != null ? `<span class="dim small">${money(s.monthly)} a month</span>` : ""}</div></td>
-    <td><div class="sv-cell"><input type="date" data-f="renews" value="${esc(s.renews || "")}" style="width:140px">${s.renews ? fieldTag(s, "renews") : tag("none")}${s.renewsRolled ? `<span class="dim small">next: ${esc(s.nextRenewal)} (rolled forward by the cycle)</span>` : ""}${s.daysLeft != null && s.daysLeft >= 0 ? `<span class="dim small">in ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"}</span>` : ""}</div></td>
+  ${v.subscriptions.map((s) => `<tr data-sub="${esc(s.id)}"${s.autoDetected ? " data-auto" : ""}>
+    <td><div class="sv-cell"><span><span class="dot ${s.live?.status || ""}" style="${s.live ? "" : `background:${pcolor(s.provider)}`}"></span> ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>` : esc(s.name)}</span>${s.autoDetected ? autoLabel(s) : s.source?.kind === "email" ? `<span class="small">${s.source.link ? `<a href="${esc(s.source.link)}" target="_blank" rel="noopener">source email</a>` : "sample email"} · ${pct(s.source.confidence)} sure</span>` : ""}${s.notes ? `<span class="dim small">${esc(s.notes)}</span>` : ""}</div></td>
+    <td><div class="sv-cell"><input type="text" data-f="plan" value="${esc(s.plan && s.plan !== "UNKNOWN" ? s.plan : "")}" placeholder="${s.plan === "UNKNOWN" ? "unknown" : ""}" style="width:140px"${lockAttr(s)}>${s.plan && s.plan !== "UNKNOWN" ? fieldTag(s, "plan") : tag("none")}</div></td>
+    <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" step="0.01" data-f="price" value="${s.price ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px"${lockAttr(s)}><select data-f="cycle"${lockAttr(s, "select")}>${["monthly", "yearly", "weekly"].map((c) => `<option value="${c}" ${(s.cycle || "monthly") === c ? "selected" : ""}>${c === "monthly" ? "/ month" : c === "yearly" ? "/ year" : "/ week"}</option>`).join("")}</select></span>${s.price != null ? fieldTag(s, "price") : s.listPrice != null ? tag("estimate", null, "Public list price, used only for the estimate until you confirm") : tag("none")}${s.cycle && s.cycle !== "monthly" && s.monthly != null ? `<span class="dim small">${money(s.monthly)} a month</span>` : ""}</div></td>
+    <td><div class="sv-cell"><input type="date" data-f="renews" value="${esc(s.renews || "")}" style="width:140px"${lockAttr(s)}>${s.renews ? fieldTag(s, "renews") : tag("none")}${s.renewsRolled ? `<span class="dim small">next: ${esc(s.nextRenewal)} (rolled forward by the cycle)</span>` : ""}${s.daysLeft != null && s.daysLeft >= 0 ? `<span class="dim small">in ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"}</span>` : ""}</div></td>
     <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" max="60" step="1" data-f="remindDays" value="${s.remindDays}" style="width:56px"><span class="dim small">days</span></span>${s.origin?.remindDays ? tag("user") : `<span class="sv-tag">default</span>`}</div></td>
     <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" data-f="credits" value="${s.credits ?? ""}" style="width:72px" ${s.creditsFrom === "api" ? "disabled" : ""}><span class="dim">/</span><input type="number" min="0" data-f="creditsTotal" value="${s.creditsTotal ?? ""}" style="width:72px" ${s.creditsFrom === "api" ? "disabled" : ""}></span>${s.credits == null ? tag("none") : s.creditsFrom === "api" ? tag("api") : s.creditsFrom === "ledger" ? tag("ledger") : fieldTag(s, "credits")}</div></td>
     <td><span class="sig ${esc(s.signal)}">${esc(s.signal)}</span><div class="dim small">${esc(s.why || "")}</div></td>
-    <td class="right nowrap"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" title="Remove from the tracker">Remove</button></td>
+    <td class="right nowrap">${rowButtons(s)}</td>
   </tr>`).join("")}
   </tbody></table>
   <div class="row small" style="gap:8px;margin-top:10px;flex-wrap:wrap" id="sv-add">
@@ -159,7 +174,7 @@ function mailPanel(v) {
     </div>`;
   };
   return `<div class="panel" id="sv-mail-panel"><h3>Find subscriptions in your email <span class="right small"><button class="btn sm" data-scan="demo" ${busy ? "disabled" : ""}>Try with sample emails</button></span></h3>
-    <div class="dim small" style="margin-bottom:8px">For services with no balance API (Google AI Pro or Ultra with Flow, Kling, Suno, ChatGPT Plus, Claude Max, Midjourney, ElevenLabs and others). The app reads receipt and renewal emails on this computer, pulls out the service, plan, price, billing cycle and next renewal, and shows each one here for you to confirm or edit. Only those fields and the message id are kept, never the email itself. Optional: adding rows by hand works the same.</div>
+    <div class="dim small" style="margin-bottom:8px">For services with no balance API (Google AI Pro or Ultra with Flow, Kling, Suno, ChatGPT Plus, Claude Max, Midjourney, ElevenLabs and others). The app reads receipt and renewal emails on this computer, pulls out the service, plan, price, billing cycle and next renewal. A receipt from a known AI service with a clear amount and a plan name or renewal date is added to the table right away, labelled auto-detected, with Undo and Edit; once a day the app rescans connected mailboxes to keep those rows current, and never changes a value you edited. Anything less certain shows below for you to confirm or edit. Only those fields and the message id are kept, never the email itself. Optional: adding rows by hand works the same.</div>
     <div class="sv-mail">${card("gmail")}${card("outlook")}</div>
     ${m.pending.length ? `<div class="cat-h" style="margin-top:14px">${m.pending.length} suggestion${m.pending.length === 1 ? "" : "s"} to confirm</div>${m.pending.map((c) => candidateHtml(c, v.subscriptions)).join("")}` : `<div class="dim small" style="margin-top:10px">No suggestions waiting.</div>`}
   </div>`;
@@ -209,6 +224,13 @@ function draw(el) {
     const collect = () => { const o = { id }; tr.querySelectorAll("[data-f]").forEach((i) => { if (i.disabled) return; o[i.dataset.f] = i.value === "" ? null : i.type === "number" ? Number(i.value) : i.value; }); return o; };
     tr.querySelector("[data-save]").addEventListener("click", () => run(() => api("/services/subscriptions", { method: "POST", body: collect() }), "Saved"));
     tr.querySelector("[data-del]").addEventListener("click", () => { if (!confirm("Remove this subscription from the tracker? Nothing is cancelled with the provider.")) return; run(() => api(`/services/subscriptions/${encodeURIComponent(id)}`, { method: "DELETE" }), "Removed from the tracker"); });
+    // auto-detected rows: Edit unlocks the detected fields; Undo removes the row and the next scan skips it
+    tr.querySelector("[data-edit]")?.addEventListener("click", (e) => {
+      tr.querySelectorAll("[data-lock]").forEach((i) => { i.readOnly = false; i.disabled = false; });
+      tr.querySelector("[data-save]").hidden = false; e.currentTarget.hidden = true;
+      tr.querySelector('[data-f="plan"]')?.focus();
+    });
+    tr.querySelector("[data-undo]")?.addEventListener("click", () => run(() => api(`/services/subscriptions/${encodeURIComponent(id)}/undo`, { method: "POST", body: {} }), "Undone. The next scan will not add it back."));
     tr.querySelectorAll("input").forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") tr.querySelector("[data-save]").click(); }));
   });
   $("#sv-add-go")?.addEventListener("click", () => {
@@ -240,7 +262,8 @@ function draw(el) {
     busy = true; draw(el);
     try {
       const r = await api("/services/mail/scan", { method: "POST", body });
-      V = r.view; toast(`${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm${r.failed.length ? `, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood` : ""}`);
+      const auto = (r.added?.length || 0) + (r.updated?.length || 0);
+      V = r.view; toast(`${auto ? `${r.added.length} added and ${r.updated.length} updated automatically, ` : ""}${r.found} suggestion${r.found === 1 ? "" : "s"} to confirm${r.failed.length ? `, ${r.failed.length} email${r.failed.length === 1 ? "" : "s"} not understood` : ""}`);
     }
     catch (e) { toast(e.message, true); try { await load(); } catch {} }
     busy = false; draw(el);
