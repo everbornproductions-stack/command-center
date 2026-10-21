@@ -12,7 +12,8 @@
     "dist": "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never",
     "dist:mac": "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never",
     "test": "node scripts/test-all.mjs",
-    "smoke": "node test/smoke.mjs"
+    "smoke": "node test/smoke.mjs",
+    "metrics:report": "node scripts/metrics-report.mjs"
   },
   "license": "UNLICENSED",
   "private": true,

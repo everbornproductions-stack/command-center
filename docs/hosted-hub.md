@@ -57,6 +57,7 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_IDLE_EVICT_MIN` | no | minutes a hosted user can sit idle before their in-memory context is dropped (default 30). Ignored in local mode |
 | `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token, and lets the schedule tick load a user who is not already in memory (keep it only on the hub) |
 | `CC_TICK_SECRET` | for schedules | shared secret for `POST /api/internal/schedules/tick`. Set with `npx wrangler secret put CC_TICK_SECRET`. Never written into `wrangler.jsonc` or git |
+| `CC_METRICS_SECRET` | for the owner report | shared secret for `GET /api/metrics/report`. Set with `npx wrangler secret put CC_METRICS_SECRET`. Never written into `wrangler.jsonc` or git. The service key stays on the hub. |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
 | `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |

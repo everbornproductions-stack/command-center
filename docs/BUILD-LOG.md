@@ -2336,3 +2336,26 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothi
 - Checked in a browser on this machine: the Google connection in Settings shows the tip with both links, Dismiss removes it and a later Connect click does not bring it back, and Help opens the article.
 
 PASSWORD TIP (no phase built)
+## 2026-10-21: anonymous usage counts for the owner report
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Square and billing were not changed. The migration was not run.
+
+- The app sends one anonymous active ping a day when Settings has Share anonymous usage counts to help improve Meldmind turned on. That switch is on unless the person turns it off. The ping is a random install id, the version, the operating system, the plan, and feature counts. It does not send prompts, chats, emails, or files. With the switch off, the daily check does not call the network.
+- supabase/migrations/20261021_usage_pings.sql adds usage_pings and record_usage_ping. Row level security allows insert only for anon and authenticated. There is no select policy. The file was not applied.
+- The desktop app POSTs the ping to the hub. The hub inserts with the service key, which stays on the server. GET /api/metrics/report needs CC_METRICS_SECRET. It returns DAU, WAU, MAU, week-1 and week-4 cohorts, installs by version and OS, active users by tier, top features, and paying users plus MRR from the licences table (tier, status, and source only). MRR uses the live monthly price of $15.99. The report does not call Square and does not include emails, licence keys, or install ids. npm run metrics:report prints that JSON.
+- Help, the privacy note, and What's new describe the switch.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The daily ping test uses real waits and removes its temp data. No real key. data/ was not read. The Settings switch was clicked in a browser: it started on, a reload kept it off, and Help showed the same privacy words.
+- Not verified: the migration against a live Supabase project (it was not run). The owner report was checked against a local stand-in, not the live licences table.
+
+ANONYMOUS USAGE COUNTS (not a numbered phase)
+
+## 2026-10-21: owner report MRR uses the list prices
+
+Not a numbered phase. No locked decision was changed. Square and billing were not changed. The live checkout is still the Phase 35 prices. Version stays 0.4.8. Nothing was published. data/ was not read. The new licence plan migration was not run.
+
+- The owner report no longer prices every paying licence at $15.99. It reads `server/metrics-prices.js`: Pro $18.99 a month or $189 a year ($15.75 a month), Extreme $29.99 a month or $299 a year ($24.92 a month). The studio tier is priced as Extreme. A licence with no plan is that tier's monthly price.
+- Lifetime founder licences (`lifetime-349` at $349 and `lifetime-499` at $499) add 0 to MRR. The report adds `lifetimeCount`, `lifetimeRevenueUsd`, and `lifetimeByPrice`. Promo, owner, Free, cancelled, and past due stay out of MRR. Past due is still counted apart. The report still does not call Square and still leaves out emails, licence keys, and install ids.
+- `supabase/migrations/20261021_license_plan.sql` adds nullable `licenses.plan`. It was not applied. The report select is tier, status, source, and plan.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+MRR LIST PRICES (not a numbered phase)

@@ -15,3 +15,5 @@ You can change this any time in Settings. On **Who's best**, clear **I am willin
 **Show what would be shared** lists the anonymous totals on this computer. This version does not send them.
 
 Your own router still learns on this computer when **Learn from every job** is on. That local record is separate. Shared learning is only the anonymous track records above.
+
+Anonymous usage counts are a separate switch in Settings: **Share anonymous usage counts to help improve Meldmind**. That switch is on unless you turn it off. It sends a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files. It is not the track records above. This version still does not send track records.

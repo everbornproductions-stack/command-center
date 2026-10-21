@@ -39,6 +39,8 @@ Run in the SQL editor, in filename order, after `schema.sql`:
 |---|---|
 | `20261018_license_pending.sql` | adds `pending` to `licenses.status`; `gen_license_key()` uses `gen_random_bytes` instead of `random()`. **Not yet applied** (written 2026-10-18 by the fix run; apply by hand). |
 | `20261021_per_person_licences.sql` | per-person cap of 2 computers, optional email lock on promo codes, device list and remove, tester-code function, owner review flag. **Not applied.** Chris runs it by hand after review. See the steps at the end of this file. |
+| `20261021_usage_pings.sql` | `usage_pings` (one anonymous ping per install per day) and `record_usage_ping`. RLS is insert-only for anon and authenticated. No select policy. **Not applied** (written 2026-10-21; apply by hand). |
+| `20261021_license_plan.sql` | nullable `licenses.plan` (`pro-monthly`, `pro-yearly`, `extreme-monthly`, `extreme-yearly`, `lifetime-349`, `lifetime-499`). Prices stay in `server/metrics-prices.js`. **Not applied** (written 2026-10-21; apply by hand). |
 
 ## In the app
 

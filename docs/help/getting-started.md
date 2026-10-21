@@ -39,6 +39,12 @@ We share only anonymous track records: the task type, which AI, and the score. W
 
 If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
+## Anonymous usage counts
+
+Settings includes Share anonymous usage counts to help improve Meldmind. The switch is on unless you turn it off. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files.
+
+Clear the switch under Privacy in Settings and the daily ping stops.
+
 ## Priority
 
 Max quality, Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Max quality is part of Extreme. It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.

@@ -109,6 +109,7 @@ export const FEATURES = [
   { id: "teamrecipes", views: ["workspaces"] },
   { id: "highlevel", settings: true },
   { id: "own-supabase", settings: true },
+  { id: "usage", settings: true },
 ];
 
 // Server plugins that stay out of startup. file is the name in server/plugins.
