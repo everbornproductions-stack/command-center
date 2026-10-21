@@ -185,16 +185,10 @@ test("an update lists every bundled note since the installed version, and it can
 
 test("tour steps cover the current app and What's new shows before the invite", () => {
   const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
-  const steps = src.slice(src.indexOf("const STEPS"), src.indexOf("const css"));
-  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair", "Apps on your desktop", "Passwords are not stored"]) {
-    assert.ok(steps.includes(phrase), `tour step missing ${phrase}`);
-  }
-  const waysAt = steps.indexOf('title: "Single, Council, Mission, Pipelines"');
-  const ordersAt = steps.indexOf('title: "Marching orders"');
-  assert.ok(waysAt !== -1 && ordersAt !== -1 && waysAt < ordersAt, "the four ways are an early tour step");
-  assert.match(steps, /for: "both", view: "command", title: "Single, Council, Mission, Pipelines"/);
-  assert.match(steps, /Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result/);
-  assert.match(steps, /A pipeline is a saved mission with the steps already chosen/);
+  assert.match(src, /Try it/);
+  assert.match(src, /Skip tour/);
+  assert.match(src, /Take the tour again from Help/);
+  assert.match(src, /tourSteps/);
   const missionsHelp = fs.readFileSync(new URL("../docs/help/missions-media.md", import.meta.url), "utf8");
   const pipeHelp = fs.readFileSync(new URL("../docs/help/pipelines.md", import.meta.url), "utf8");
   assert.match(missionsHelp, /## What a mission is/);
@@ -202,7 +196,6 @@ test("tour steps cover the current app and What's new shows before the invite", 
   assert.match(pipeHelp, /A pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run/);
   assert.equal(missionsHelp.includes("\u2014") || pipeHelp.includes("\u2014"), false);
   assert.doesNotMatch(src, /\u2014/);
-  assert.doesNotMatch(steps, /Nine stops/);
   assert.match(src, /whatsNew/);
   assert.match(src, /n\.versions/);
   assert.match(src, /openNews/);

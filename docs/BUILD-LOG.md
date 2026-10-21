@@ -2243,3 +2243,20 @@ WHATS NEW SPAN DONE
 - Tests here (Linux): npm test mcp 8/8, then 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data\ was not read. The simple flow was clicked through in the browser (Make, Start, Preview, Build, Test, Publish to this computer). Windows is the pull request check.
 
 REMIX 2 DONE
+## 2026-10-21: Help and Tour refresh
+
+Not a numbered phase. The chain is unchanged because this entry has no PHASE line. Version stays 0.4.8. Square and the Subscriptions prices are unchanged.
+
+- The short tour is data-driven (`web/features/guide.js`). Each step is one idea with a Try it button. Skip closes it. Replay is on Help, and Take the tour again stays in Settings. A step is hidden when its page is not registered, so Remix, Refocus, Zapier, People, hosted runs, and builders that are only in open pull requests do not appear until those pages exist.
+- On this app the tour is eight steps: one hub, missions and councils, guided builders, research, connect, staying in control, Teams, and What's new. Plan marks are Free, Pro at $18.99 a month, and Extreme at $29.99 a month. The Teams row says the Teams page still asks for a Studio licence.
+- Help opens with a searchable What can Meldmind do list using the same guide. New articles are in docs/help for each area.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. No real key. data/ was not read.
+
+## 2026-10-21: What Meldmind can do guide PDF
+
+Not a numbered phase. Version stays 0.4.8. Square and the Subscriptions prices are unchanged.
+
+- Help has Download the guide (PDF) on the What can Meldmind do list and again on the Help page. The file is `web/what-meldmind-can-do.pdf`, served as a PDF, and it is included with the app because `web/**` is already in the installer.
+- `npm run build:guide` rebuilds that file from `web/features/guide.js`, the same list as the tour. A page is left out when its feature is not in this build. `npm run dist` and `npm run dist:mac` run the script before the installer, and the release job uses `npm run dist`, so a package gets a fresh PDF. The script does not use the network. The PDF shows version 0.4.8 and the build date, with a cover, a one-page overview, and one section per area (steps, Free / Pro / Extreme, and how to start). It says an Everborn product.
+- On this app the PDF lists the eight areas that are here. Remix, Zapier, Refocus, HighLevel, People, and hosted runs stay out until those pages exist.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. No real key. data/ was not read.
