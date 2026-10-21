@@ -1606,3 +1606,25 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Phase 96 (Remix any app), built
+
+- Remix is a Create page. The person describes an app or a game they can see: a web address, screenshots, a short screen recording, or an app on this computer. The address is not opened. Screenshot and recording files are not uploaded. Installed files are not read. A note on the page says Remix rebuilds from scratch.
+- The plan uses the person's own name, characters, art, and ideas. Free engines (Godot, Phaser), a blank template, and the Kenney art pack are named from a catalog on this computer. Each item is license-checked. Missing, non-free, and mixed licenses are dropped. Required credits are written to CREDITS.md in the new project. Official mod tools are listed for Minecraft, Roblox, Godot, and Unity.
+- Preview names the AIs and services before anything runs. Rebuild from scratch is the click that saves the project. A closeness warning blocks that save until the person confirms. Ratings stay on this computer and feed the next remix and the existing learning router. Anonymous totals are not sent.
+- Gate: `server/feature-gate.js`. Free is blocked. Pro and Studio are capped at 8 Remix missions per UTC month (a placeholder, not a price). Extreme and Owner have no monthly cap. `server/license.js` recognizes the Extreme tier name so that gate can read it. Square, prices, and billing are unchanged. Version stays 0.4.8.
+- Not in this build: nothing is downloaded from the internet. Godot, Phaser, and art packs are named and credited, not fetched. Turning the person's art into sprites, models, or voices still waits for a Media approve click. Remix does not call those providers.
+- Tests: `test/remix.test.js` covers the license check, credits, the no-copy guard, and the gates. npm test: mcp 8/8, then 426 tests, 425 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. The Remix page was clicked through in demo mode (preview, rebuild, rating, and a phone-width layout). No real key. data/ was not read.
+
+PHASE 96 DONE
+
+## 2026-10-21: Remix 2 (Phase 96 continued)
+
+- The Remix page is one path: What do you want to make, a starting point, Preview, Build, Test, Publish. Extra choices sit under More options. One main button on each step. A short tip on each step. The same plain words are used in the help page.
+- Fifteen abilities, gated in `server/feature-gate.js`. Pro: a screenshot becomes a new layout, a design file, Godot and Kenney starters, Phaser create-game (npx, license unconfirmed, not started), CC0 art clearance, a smoke test, an accessibility report, website and itch.io publish, colors and type only, and a saved version. Extreme: a recording becomes a clickable preview, a Bevy starter, new levels, voices, a phone build, an installer, online play, and a blend of two ideas. Free still hits the Remix gate first.
+- Licenses checked 2026-10-21. screenshot-to-code is MIT and is not copied. Penpot is MPL-2.0 and is not bundled. Godot demos and Kenney kits are MIT and are named, not copied. The Phaser engine is MIT. `@phaserjs/create-game` stays unconfirmed and is never launched. Bevy is Apache-2.0 OR MIT. Kenney and OpenGameArt art is CC0 only. The wave function collapse project by Maxim Gumin is MIT. This build uses original level code and does not copy that project. Piper is GPL and runs only as its own program. Coqui is MPL-2.0 and also runs as its own program. The FSFE reuse tool is GPL and runs only as its own program. Playwright is Apache-2.0. axe-core is MPL-2.0. pa11y is LGPL and stays a separate program. The Vercel CLI is Apache-2.0. butler is MIT. Tauri is Apache-2.0 OR MIT. Electron Forge is MIT. Colyseus is MIT. Style Dictionary is Apache-2.0. isomorphic-git 1.44.3 is MIT and is the dependency used for saved versions.
+- Art and voices wait for an approve click. Nothing is downloaded. Publish waits for a click. Tokens go in the vault and are not printed. GPL tools are not imported. Version stays 0.4.8. Square and billing were not touched.
+- Not in this build: real downloads, real npx, and real launches of Playwright, axe-core, pa11y, Vercel, butler, Expo, Piper, Coqui, or the reuse tool. Tests mock those tools. Screenshot and recording files are still not uploaded. Turning the person's own art into sprites, models, or voices still waits on the existing Media approve path.
+- Tests here (Linux): npm test mcp 8/8, then 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data\ was not read. The simple flow was clicked through in the browser (Make, Start, Preview, Build, Test, Publish to this computer). Windows is the pull request check.
+
+REMIX 2 DONE
