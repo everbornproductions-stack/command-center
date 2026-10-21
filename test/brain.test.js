@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, ROOT, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, ROOT, waitBudget, chatRunId, newKindPred, runSettled } from "./helpers.js";
 
 const DIR = tmpDir("cc-brain-");
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || DIR;
@@ -257,7 +257,6 @@ async function waitRun(s, pred, label, ms = 60000) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("NETTRACE")).slice(-30).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${trace ? `\n${trace}` : ""}\n--- server log tail ---\n${s.log.slice(-800)}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const readBrain = (s) => JSON.parse(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8"));
 const statsOf = (b, model) => Object.values(b.stats[model]?.t || {}).reduce((a, x) => { for (const [k, v] of Object.entries(x)) a[k] = (a[k] || 0) + v; return a; }, {});
 async function keys(s) { for (const pid of Object.keys(KEYS)) assert.equal((await s.api("/keys", { method: "POST", body: { provider: pid, key: KEYS[pid] } })).json.status.status, "green", pid); }
@@ -279,19 +278,15 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     for (const r of baseline) assert.equal(r.learned, null, "no record yet");
 
     // 1. a pinned single chat: one job, with cost and speed, on the keyword task type (writing)
-    let t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "Write a tagline for ZEBRAFINCH bakery.", provider: "xai", model: "grok-4.3" } });
-    let run = await waitRun(s, finished("single", t0 - 1), "single");
+    let run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a tagline for ZEBRAFINCH bakery.", provider: "xai", model: "grok-4.3" })), "single");
     assert.equal(run.status, "done");
     let b = readBrain(s), g = statsOf(b, "grok-4.3");
     assert.equal(g.jobs, 1); assert.equal(g.ok, 1); assert.equal(g.msN, 1); assert.equal(g.costN, 1);
     assert.ok(Object.keys(b.stats["grok-4.3"].t)[0].startsWith("writing:"));
 
     // 2. a council of three: each member's peer score, the winner, and the chair
-    t0 = Date.now();
     const members = [{ provider: "xai", model: "grok-4.3" }, { provider: "groq", model: "openai/gpt-oss-120b" }, { provider: "mistral", model: "mistral-large-latest" }];
-    await s.api("/council", { method: "POST", body: { prompt: "Write a ZEBRAFINCH launch email.", members, chair: members[0] } });
-    run = await waitRun(s, finished("council", t0 - 1), "council");
+    run = await waitRun(s, await newKindPred(s.api.bind(s), "/council", { prompt: "Write a ZEBRAFINCH launch email.", members, chair: members[0] }, "council"), "council");
     const council = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(council.winner, "the council named a winner");
     b = readBrain(s);
@@ -313,9 +308,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     assert.ok(!Object.keys(readBrain(s).stats[loser.model].t).some((k) => k.startsWith("creative:")), "the thumb went to the run's task type");
 
     // 4. a mission: each task with its QA score, and the assembler
-    t0 = Date.now();
-    await s.api("/mission", { method: "POST", body: { goal: "Plan a ZEBRAFINCH week of posts.", mode: "balanced" } });
-    run = await waitRun(s, finished("mission", t0 - 1), "mission");
+    run = await waitRun(s, await newKindPred(s.api.bind(s), "/mission", { goal: "Plan a ZEBRAFINCH week of posts.", mode: "balanced" }, "mission"), "mission");
     const mission = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(mission.status, "done");
     b = readBrain(s);
@@ -324,16 +317,14 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
 
     // 5. account trouble (402) is smart fallback's business: no failure for the model, the stand-in gets the job
     const before = statsOf(readBrain(s), "grok-4.3");
-    m.behave.xai = 402; t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "single after 402");
+    m.behave.xai = 402;
+    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" })), "single after 402");
     assert.equal(run.status, "done");
     assert.equal(statsOf(readBrain(s), "grok-4.3").fail || 0, before.fail || 0, "402 is not held against the model");
     await s.api("/fallback/clear", { method: "POST", body: {} });
     // ...but a model that errors on the job itself is marked
-    m.behave.xai = 400; t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" } });
-    run = await waitRun(s, finished("single", t0 - 1), "single after 400");
+    m.behave.xai = 400;
+    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" })), "single after 400");
     assert.equal(run.status, "failed");
     assert.equal(statsOf(readBrain(s), "grok-4.3").fail, (before.fail || 0) + 1);
     m.behave.xai = "ok";
@@ -365,9 +356,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     assert.equal((await s.api("/brain/share-preview")).json.sent, false, "opting in sends nothing in this build");
     await s.api("/brain/settings", { method: "POST", body: { on: false } });
     const jobsOff = readBrain(s).jobs;
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "Write a haiku.", provider: "xai", model: "grok-4.3" } });
-    await waitRun(s, finished("single", t0 - 1), "single with learning off");
+    await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a haiku.", provider: "xai", model: "grok-4.3" })), "single with learning off");
     assert.equal(readBrain(s).jobs, jobsOff, "off: nothing new recorded");
     for (const r of (await s.api("/brain/pick?capability=writing&difficulty=2")).json.ranked) assert.equal(r.learned, null, "off: picks ignore the record");
     await s.api("/brain/settings", { method: "POST", body: { on: true } });
