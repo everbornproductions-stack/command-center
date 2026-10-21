@@ -32,10 +32,10 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
 
-## 0.4.8 Simple chat layout
+## 0.4.9 Simple chat layout
 
 On a wide window, Simple keeps the chat box and its options in a fixed panel on the left. Answers scroll on the right and do not carry the box away. On a narrow window, the chat box stays pinned at the bottom while the answers scroll above it.
 
 ## Release order (Chris, 2026-10-21)
 
-0.4.8 does not include the Mac build. The unsigned Mac .dmg and the "new version ready, Download" notice are the next release after 0.4.8. Signing and notarization stay later.
+0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.

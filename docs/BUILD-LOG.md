@@ -1580,7 +1580,7 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.7. data/
 
 - Simple mode no longer lets the chat box scroll away with the answers. On a wide window the chat and its options sit in a fixed panel on the left, and the answers scroll on the right. On a narrow window (900px and under) the chat box is pinned to the bottom.
 - Expert marching orders are unchanged.
-- Roadmap: docs/roadmap.md, section "0.4.8 Simple chat layout".
+- Roadmap: docs/roadmap.md, section "0.4.9 Simple chat layout".
 - Checked in headless Chrome with the real stylesheet: at 1400px the chat panel and the answers sit side by side, the page does not scroll, and the answers do. At 700px the chat box is pinned to the bottom, the page does not scroll, and the answers scroll above it.
 - Tests here (Linux): npm test 419 tests, 418 pass, 0 fail, 1 skipped (Pyodide is not installed). The stdio file was 8 pass. The other files were 411 tests, 410 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 
