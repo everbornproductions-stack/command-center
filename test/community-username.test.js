@@ -8,6 +8,7 @@ import { startServer, ROOT } from "./helpers.js";
 import {
   checkUsername, claimUsername, suggestUsername, publicMessage, USERNAME_COOLDOWN_MS, USERNAME_RE,
 } from "../server/community-chat.js";
+import { addComment, reactionCounts, publicComments } from "../server/ai-news.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const EM = "\u2014";
@@ -104,7 +105,12 @@ test("the chat screen asks for a username and does not show an email field", () 
   assert.doesNotMatch(ui, /cc-email/);
   assert.doesNotMatch(ui, /licenceEmail/);
   assert.equal(ui.includes(EM), false);
-  assert.match(help, /public username the first time you open it/);
+  assert.match(help, /First-run setup asks for it/);
+  assert.match(read("web", "app.js"), /id="su-username"/);
+  assert.match(read("web", "app.js"), /Skip keeps that name/);
+  assert.match(read("web", "features", "agents.js"), /Builders gallery/);
+  assert.match(ui, /data-comment/);
+  assert.match(ui, /Add a comment/);
   assert.match(read("supabase", "community.sql"), /community_set_username/);
   assert.match(read("supabase", "community.sql"), /community_profiles_username_lower_idx/);
   assert.doesNotMatch(read("supabase", "community.sql"), /'email', m\.email/);
@@ -180,5 +186,126 @@ test("claiming a username hides the email, blocks a quick rename, and a taken cl
     assert.equal(hit.body.p_key, "EVB-TEST-TEST-TEST");
     assert.equal(s.log.includes("EVB-TEST-TEST-TEST"), false);
     assert.equal(s.log.includes("ada@example.com"), false);
+  } finally { await s.stop(); }
+});
+
+test("reactions and comments show the username and keep the email on the server", () => {
+  const issue = {
+    id: "2026-W43",
+    status: "published",
+    sections: { ai: [{ id: "item-1", title: "New model", summary: "A note." }], meldmind: [], prompts: [], highlights: [] },
+  };
+  const news = { published: issue, reactions: [], comments: [] };
+  const actor = { email: "ada@example.com", username: "Bright_Otter" };
+  const commented = addComment(news, actor, { issueId: "2026-W43", itemId: "item-1", body: "Looks useful." }, 1000);
+  assert.equal(commented.ok, true);
+  assert.equal(commented.comment.username, "Bright_Otter");
+  assert.equal(commented.comment.email, undefined);
+  assert.equal(commented.news.comments[0].email, "ada@example.com");
+  const shown = publicComments(commented.news, "2026-W43", "item-1", actor);
+  assert.equal(shown[0].username, "Bright_Otter");
+  assert.equal(JSON.stringify(shown).includes("@"), false);
+  const counts = reactionCounts({
+    reactions: [{ email: "ada@example.com", username: "Bright_Otter", issueId: "2026-W43", itemId: "item-1", reaction: "up", at: 1 }],
+  }, "2026-W43", "item-1", actor.email);
+  assert.deepEqual(counts.upNames, ["Bright_Otter"]);
+  assert.equal(JSON.stringify(counts).includes("@"), false);
+  const refused = addComment(news, { email: "ada@example.com" }, { issueId: "2026-W43", itemId: "item-1", body: "Hi there" });
+  assert.equal(refused.status, 401);
+});
+
+function seedNews(dir) {
+  seedRoom(dir);
+  fs.writeFileSync(path.join(dir, "community.news.json"), JSON.stringify({
+    draft: null,
+    published: {
+      id: "2026-W43",
+      week: "2026-W43",
+      title: "AI News",
+      status: "published",
+      createdAt: new Date().toISOString(),
+      publishedAt: new Date().toISOString(),
+      sections: {
+        ai: [{ id: "openai-model", kind: "model", title: "New model", summary: "A new model is out.", provider: "OpenAI", sourceName: "OpenAI", sourceUrl: "https://openai.com/news" }],
+        meldmind: [],
+        prompts: [],
+        highlights: [],
+      },
+    },
+    seen: "2026-W43",
+    reactions: [],
+    comments: [],
+  }));
+}
+
+test("one account username is used in chat, votes, and AI News, and email stays off those responses", async () => {
+  const bare = await startServer();
+  try {
+    const open = await bare.api("/account");
+    assert.equal(open.status, 200);
+    assert.equal(open.json.username, "");
+    assert.match(open.json.suggestion, USERNAME_RE);
+    assert.equal(open.json.needsLicence, true);
+    assert.equal(JSON.stringify(open.json).includes("@"), false);
+    const saved = await bare.api("/account/username", { method: "POST", body: { username: "Kind_Robin" } });
+    assert.equal(saved.status, 200, saved.json?.error);
+    assert.equal(saved.json.username, "Kind_Robin");
+    assert.equal(saved.json.email, undefined);
+    const again = await bare.api("/account");
+    assert.equal(again.json.username, "Kind_Robin");
+    assert.equal(JSON.stringify(again.json).includes("@"), false);
+    const chat = await bare.api("/community/join", { method: "POST", body: { username: "Kind_Robin" } });
+    assert.equal(chat.status, 400);
+    assert.match(chat.json.error, /Add a licence first/);
+    const state = await bare.api("/state");
+    assert.ok(state.json.plugins.includes("account"));
+  } finally { await bare.stop(); }
+
+  const s = await startServer({ seed: seedNews });
+  try {
+    const named = await s.api("/account/username", { method: "POST", body: { username: "Bright_Otter" } });
+    assert.equal(named.status, 200, named.json?.error);
+    const home = await s.api("/community?channel=prompts");
+    assert.equal(home.json.joined, true);
+    assert.equal(home.json.username, "Bright_Otter");
+    assert.equal(home.json.profile.email, undefined);
+    assert.equal(JSON.stringify(home.json).includes("ada@example.com"), false);
+
+    const shared = await s.api("/community/share", { method: "POST", body: { kind: "prompt", id: "weekly-brief", title: "Weekly brief", text: "A short prompt." } });
+    assert.equal(shared.status, 200, shared.json?.error);
+    const voted = await s.api(`/community/messages/${shared.json.message.id}/vote`, { method: "POST", body: { vote: "up" } });
+    assert.equal(voted.status, 200, voted.json?.error);
+    assert.equal(JSON.stringify(voted.json).includes("@"), false);
+    const prompts = await s.api("/community?channel=prompts");
+    const row = prompts.json.messages.find((m) => m.id === shared.json.message.id);
+    assert.ok(row);
+    assert.equal(row.username, "Bright_Otter");
+    assert.deepEqual(row.voters, ["Bright_Otter"]);
+    assert.equal(JSON.stringify(prompts.json).includes("@"), false);
+
+    const news = await s.api("/community/news");
+    const itemId = news.json.issue.sections.ai[0].id;
+    const reacted = await s.api("/community/news/react", { method: "POST", body: { issueId: news.json.issue.id, itemId, reaction: "up" } });
+    assert.equal(reacted.status, 200, reacted.json?.error);
+    assert.deepEqual(reacted.json.upNames, ["Bright_Otter"]);
+    assert.equal(JSON.stringify(reacted.json).includes("@"), false);
+    const commented = await s.api("/community/news/comment", { method: "POST", body: { issueId: news.json.issue.id, itemId, body: "Looks useful." } });
+    assert.equal(commented.status, 200, commented.json?.error);
+    assert.equal(commented.json.comment.username, "Bright_Otter");
+    assert.equal(commented.json.comment.email, undefined);
+    const shown = await s.api("/community/news");
+    const item = shown.json.issue.sections.ai[0];
+    assert.equal(item.comments[0].username, "Bright_Otter");
+    assert.equal(item.comments[0].body, "Looks useful.");
+    assert.deepEqual(item.upNames, ["Bright_Otter"]);
+    assert.equal(JSON.stringify(shown.json).includes("ada@example.com"), false);
+    const stored = JSON.parse(fs.readFileSync(path.join(s.dir, "community.news.json"), "utf8"));
+    assert.equal(stored.comments[0].email, "ada@example.com");
+    assert.equal(stored.reactions[0].username, "Bright_Otter");
+
+    const renamed = await s.api("/account/username", { method: "POST", body: { username: "Calm_Maple" } });
+    assert.equal(renamed.status, 429);
+    const same = await s.api("/account/username", { method: "POST", body: { username: "Bright_Otter" } });
+    assert.equal(same.status, 200, same.json?.error);
   } finally { await s.stop(); }
 });

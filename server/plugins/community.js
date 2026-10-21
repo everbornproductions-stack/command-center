@@ -8,6 +8,7 @@ import * as Chat from "../community-chat.js";
 import * as Votes from "../community-votes.js";
 import * as News from "../ai-news.js";
 import * as Cloud from "../community-cloud.js";
+import * as Account from "../account-name.js";
 
 export const id = "community";
 
@@ -42,6 +43,7 @@ function loadNews(h) {
     published: raw.published || null,
     seen: raw.seen || null,
     reactions: Array.isArray(raw.reactions) ? raw.reactions : [],
+    comments: Array.isArray(raw.comments) ? raw.comments : [],
   };
 }
 function saveNews(h, news) {
@@ -80,20 +82,20 @@ function takenNames(h) {
   if (current && email) names[current] = email;
   return names;
 }
-function actorOf(h) {
-  const saved = h.doc(PROFILE, () => null) || {};
-  const email = Chat.cleanEmail(saved.email);
+function actorOf() {
+  const profile = Account.readProfile();
   const lic = licenceEmail();
-  const username = String(saved.username || saved.displayName || "").trim();
   const owner = isOwner();
-  const changedAt = Number(saved.usernameChangedAt) || 0;
-  if (!email || !lic || email !== lic || !username) return { email: "", username: "", displayName: "", owner, cooldownUntil: 0 };
-  return { email, username, displayName: username, owner, cooldownUntil: changedAt ? changedAt + Chat.USERNAME_COOLDOWN_MS : 0 };
+  const username = profile.username || "";
+  const changedAt = Number(profile.usernameChangedAt) || 0;
+  const cooldownUntil = username && changedAt ? changedAt + Chat.USERNAME_COOLDOWN_MS : 0;
+  if (!lic || !username) return { email: "", username, displayName: "", owner, cooldownUntil };
+  return { email: lic, username, displayName: username, owner, cooldownUntil };
 }
 function needActor(h) {
   if (!licenceEmail()) return { error: "Add a licence first. Community chat uses the email on your licence.", status: 400 };
   const actor = actorOf(h);
-  if (!actor.email) return { error: "Pick a username first.", status: 401 };
+  if (!actor.email || !actor.username) return { error: "Pick a username first.", status: 401 };
   return { actor };
 }
 function clientList(row, { token = false } = {}) {
@@ -101,40 +103,8 @@ function clientList(row, { token = false } = {}) {
   if (token && row.token) out.token = row.token;
   return out;
 }
-async function saveUsername(h, rawName) {
-  const lic = licenceEmail();
-  const saved = h.doc(PROFILE, () => null) || {};
-  const sameAccount = Chat.cleanEmail(saved.email) === lic;
-  const current = sameAccount ? String(saved.username || saved.displayName || "") : "";
-  const result = Chat.claimUsername({
-    username: rawName,
-    email: lic,
-    names: takenNames(h),
-    current,
-    changedAt: sameAccount ? Number(saved.usernameChangedAt) || 0 : 0,
-  });
-  if (!result.ok) return result;
-  if (result.same) return { ok: true, username: result.username, cooldownUntil: result.cooldownUntil || 0 };
-  const key = rawLicenceKey(h);
-  if (key) {
-    const pushed = await Cloud.pushUsername({ p_key: key, p_username: result.username });
-    const remote = pushed.body;
-    if (!pushed.offline && remote && remote.ok === false && (remote.taken === true || /taken/i.test(String(remote.message || "")))) {
-      return { ok: false, status: 409, error: "That username is taken. Pick another." };
-    }
-  }
-  const names = takenNames(h);
-  names[result.username.toLowerCase()] = lic;
-  h.putDoc(NAMES, { names });
-  const changedAt = Date.now();
-  h.putDoc(PROFILE, {
-    email: lic,
-    username: result.username,
-    displayName: result.username,
-    joinedAt: saved.joinedAt || changedAt,
-    usernameChangedAt: changedAt,
-  });
-  return { ok: true, username: result.username, cooldownUntil: changedAt + Chat.USERNAME_COOLDOWN_MS };
+function saveUsername(h, rawName) {
+  return Account.saveAccountUsername(rawName, { requireLicence: true, extraNames: takenNames(h) });
 }
 
 async function libraryVote(h, room, actor, promptId) {
@@ -202,7 +172,11 @@ async function syncPost(message, key) {
 
 function publicNews(news, actor) {
   const issue = news.published && news.published.status === "published" ? news.published : null;
-  const withCounts = (item) => ({ ...item, ...News.reactionCounts(news, issue?.id, item.id, actor?.email || "") });
+  const withCounts = (item) => ({
+    ...item,
+    ...News.reactionCounts(news, issue?.id, item.id, actor?.email || ""),
+    comments: News.publicComments(news, issue?.id, item.id, actor),
+  });
   return {
     unread: News.isUnread(news),
     draft: actor?.owner ? news.draft : null,
@@ -253,7 +227,8 @@ export async function routes(req, res, url, body, h) {
       joined: !!actor.email,
       owner: actor.owner,
       needsLicence: !licenceEmail(),
-      profile: actor.username ? { username: actor.username, displayName: actor.username } : null,
+      username: actor.username || Account.usernameOf(),
+      profile: (actor.username || Account.usernameOf()) ? { username: actor.username || Account.usernameOf(), displayName: actor.username || Account.usernameOf() } : null,
       suggestion: actor.username ? "" : Chat.suggestUsername(takenNames(h)),
       cooldownUntil: actor.cooldownUntil || 0,
       channel,
@@ -378,6 +353,15 @@ export async function routes(req, res, url, body, h) {
       });
     }
     return h.json(res, 200, { ok: true, ...reacted.counts });
+  }
+
+  if (method === "POST" && p === "/news/comment") {
+    const who = needActor(h);
+    if (who.error) return h.json(res, who.status, { error: who.error });
+    const commented = News.addComment(loadNews(h), who.actor, { issueId: body?.issueId, itemId: body?.itemId, body: body?.body });
+    if (!commented.ok) return reply(h, res, commented);
+    saveNews(h, commented.news);
+    return h.json(res, 200, { ok: true, comment: commented.comment });
   }
 
   if (method === "POST" && p === "/news/share") {

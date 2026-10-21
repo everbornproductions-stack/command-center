@@ -109,7 +109,8 @@ function wireMail(root, row) {
 
 function messageHtml(m, owner) {
   const share = m.share ? `<div class="dim small">${esc(m.kind)} · ${esc(m.share.title || "")}</div>` : "";
-  const votes = m.kind === "prompt" ? `<span class="dim small">${m.up || 0} up, ${m.down || 0} down</span>
+  const names = (m.voters || []).slice(0, 8).join(", ");
+  const votes = m.kind === "prompt" ? `<span class="dim small">${m.up || 0} up, ${m.down || 0} down${names ? ` · ${esc(names)}` : ""}</span>
     <button class="btn sm" type="button" data-vote="up" data-id="${esc(m.id)}">Thumbs up</button>
     <button class="btn sm" type="button" data-vote="down" data-id="${esc(m.id)}">Thumbs down</button>` : "";
   const mine = m.mine || owner ? `<button class="btn sm" type="button" data-del="${esc(m.id)}">Delete</button>` : "";
@@ -134,6 +135,9 @@ function itemHtml(item, section) {
   const kind = kindLabel(item.kind);
   const extra = section === "prompts" ? `<div class="dim small">${item.up || 0} up, ${item.down || 0} down</div>` : "";
   const blurb = item.summary || item.excerpt || "";
+  const up = (item.upNames || []).slice(0, 8).join(", ");
+  const down = (item.downNames || []).slice(0, 8).join(", ");
+  const comments = (item.comments || []).map((c) => `<div class="small" style="margin-top:4px"><b>${esc(c.username || "Member")}</b> ${esc(c.body || "")}</div>`).join("");
   return `<div class="cc-item">
     <div><b>${esc(item.title || "Item")}</b> ${kind ? `<span class="chip">${esc(kind)}</span>` : ""}</div>
     <div class="small" style="margin-top:4px">${esc(blurb)}</div>
@@ -142,9 +146,14 @@ function itemHtml(item, section) {
       ${link}
       <button class="btn sm" type="button" data-react="up" data-item="${esc(item.id)}">Up</button>
       <button class="btn sm" type="button" data-react="down" data-item="${esc(item.id)}">Down</button>
-      <span class="dim small">${item.up || 0} up, ${item.down || 0} down</span>
+      <span class="dim small">${item.up || 0} up, ${item.down || 0} down${up ? ` · ${esc(up)}` : ""}${down ? ` · down ${esc(down)}` : ""}</span>
       <button class="btn sm" type="button" data-share-item="${esc(item.id)}">Share in chat</button>
     </div>
+    ${comments}
+    <form class="row" data-comment="${esc(item.id)}" style="gap:6px;margin-top:6px">
+      <input type="text" maxlength="300" placeholder="Add a comment" aria-label="Comment" style="flex:1">
+      <button class="btn sm" type="submit">Comment</button>
+    </form>
   </div>`;
 }
 
@@ -225,10 +234,10 @@ async function render(view) {
     </div>
     <div>
       <div class="panel">
-        ${room.needsLicence ? `<div class="small">Add a licence first. Community chat uses the email on your licence.</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || "")}</b>. Change this name in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
-          <div class="small">Pick a public username. A friendly one is suggested. Your email is not shown.</div>
+        ${room.needsLicence ? `<div class="small">Add a licence first. Community chat uses the email on your licence.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
+          <div class="small">Pick a public username for your account. A friendly one is suggested. Your email is not shown.</div>
           <label>Username <input id="cc-name" name="cc-name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="off" value="${esc(room.suggestion || "")}" aria-label="Username"></label>
-          <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique.</div>
+          <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News.</div>
           <div><button class="btn sm primary" type="submit">Save username</button></div>
         </form>`)}
         <div class="dim small">${esc(SHORT)}</div>
@@ -256,7 +265,7 @@ async function render(view) {
   root.querySelector("#cc-join")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     try {
-      await api("/community/username", { method: "POST", body: { username: root.querySelector("#cc-name").value } });
+      await api("/account/username", { method: "POST", body: { username: root.querySelector("#cc-name").value } });
       toast("Username saved.");
       render(view);
     } catch (e) { toast(e.message, true); }
@@ -308,6 +317,15 @@ async function render(view) {
     try {
       await api("/community/news/react", { method: "POST", body: { issueId: room.news.issue.id, itemId: btn.dataset.item, reaction: btn.dataset.react } });
       toast("Reaction saved.");
+      render(view);
+    } catch (e) { toast(e.message, true); }
+  }));
+  root.querySelectorAll("[data-comment]").forEach((form) => form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const input = form.querySelector("input");
+    try {
+      await api("/community/news/comment", { method: "POST", body: { issueId: room.news.issue.id, itemId: form.dataset.comment, body: input?.value || "" } });
+      toast("Comment posted.");
       render(view);
     } catch (e) { toast(e.message, true); }
   }));
@@ -365,8 +383,8 @@ async function render(view) {
 
 function renderSettings(el) {
   el.innerHTML = `<div class="panel" id="cc-settings-name">
-    <h3>Community username</h3>
-    <p class="small">This is the name people see in chat. Your email is not shown.</p>
+    <h3>Public username</h3>
+    <p class="small">One name for your account. People see it in community chat, on shared and voted prompts, in the Builders gallery, and on AI News. Your email is not shown.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap">
       <input id="cc-settings-username" maxlength="20" aria-label="Username" autocomplete="off">
       <button class="btn sm" type="button" id="cc-settings-username-go">Save username</button>
@@ -376,15 +394,15 @@ function renderSettings(el) {
   <div class="panel" id="cc-settings-mail"><h3>Weekly AI News email</h3>${mailBox(false)}</div>`;
   const note = el.querySelector("#cc-settings-username-note");
   const input = el.querySelector("#cc-settings-username");
-  api("/community").then((state) => {
-    if (input) input.value = state.profile?.username || state.suggestion || "";
-    if (note && state.joined && state.cooldownUntil > Date.now()) {
+  api("/account").then((state) => {
+    if (input) input.value = state.username || state.suggestion || "";
+    if (note && state.username && state.cooldownUntil > Date.now()) {
       note.textContent = `You can change this name after ${new Date(state.cooldownUntil).toLocaleString()}.`;
     }
   }).catch(() => {});
   el.querySelector("#cc-settings-username-go")?.addEventListener("click", async () => {
     try {
-      const saved = await api("/community/username", { method: "POST", body: { username: input?.value || "" } });
+      const saved = await api("/account/username", { method: "POST", body: { username: input?.value || "" } });
       toast("Username saved.");
       if (note) {
         note.textContent = saved.cooldownUntil

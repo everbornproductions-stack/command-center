@@ -1926,6 +1926,14 @@ async function saveNewsChoice() {
   if (S.setup?.newsOptIn !== true) return;
   await api("/community/newsletter", { method: "POST", body: { optedIn: true } });
 }
+async function saveSetupUsername(useDefault) {
+  const input = $("#su-username");
+  const suggestion = input?.dataset.suggestion || S.setup?.usernameDefault || "";
+  const typed = input?.value?.trim() || "";
+  const username = useDefault ? (suggestion || typed) : (typed || suggestion);
+  if (!username) return;
+  await api("/account/username", { method: "POST", body: { username } });
+}
 function renderSetup(v) {
   const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true, newsOptIn: false });
   if (typeof st.newsOptIn !== "boolean") st.newsOptIn = false;
@@ -1938,6 +1946,15 @@ function renderSetup(v) {
       st.shareKnown = true;
       if (S.view === "setup" && !S.connectWizard && !st.result) render();
     }).catch(() => { st.shareKnown = true; }).finally(() => { st.shareLoading = false; });
+  }
+  if (!st.usernameKnown && !st.usernameLoading) {
+    st.usernameLoading = true;
+    api("/account").then((d) => {
+      st.usernameDefault = d?.username || d?.suggestion || "";
+      if (!st.usernameTouched) st.usernameValue = st.usernameDefault;
+      st.usernameKnown = true;
+      if (S.view === "setup" && !S.connectWizard && !st.result) render();
+    }).catch(() => { st.usernameKnown = true; }).finally(() => { st.usernameLoading = false; });
   }
   if (st.step === 1 || !st.result) {
     v.innerHTML = `<div style="max-width:860px;margin:0 auto">
@@ -1952,6 +1969,10 @@ function renderSetup(v) {
         </div>
         <div id="su-news-block" style="margin-top:14px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-news" ${st.newsOptIn ? "checked" : ""} style="margin-top:4px"><div><b>Email me the weekly AI News note</b><div class="dim small">Off until you tick this. The app writes a copy of the weekly note. It does not send email. You can change this any time in Settings.</div></div></label>
+        </div>
+        <div id="su-username-block" style="margin-top:14px">
+          <label>Public username <input id="su-username" maxlength="20" autocomplete="off" aria-label="Public username" data-suggestion="${esc(st.usernameDefault || "")}" value="${esc(st.usernameValue || "")}"></label>
+          <div class="dim small">A friendly name is suggested. Skip keeps that name. People see it in chat, on shared prompts, in the Builders gallery, and on AI News. Your email is not shown. You can change it in Settings.</div>
         </div>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
@@ -1968,6 +1989,10 @@ function renderSetup(v) {
       if (note) note.hidden = st.shareOptIn;
     });
     $("#su-news")?.addEventListener("change", () => { st.newsOptIn = !!$("#su-news").checked; });
+    $("#su-username")?.addEventListener("input", () => {
+      st.usernameTouched = true;
+      st.usernameValue = $("#su-username").value;
+    });
     $("#su-share-what")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       S.helpArticle = "getting-started";
@@ -1977,8 +2002,10 @@ function renderSetup(v) {
     $("#su-go").addEventListener("click", async () => {
       st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
       st.newsOptIn = !!$("#su-news")?.checked;
+      st.usernameValue = $("#su-username")?.value ?? st.usernameValue ?? "";
       st.busy = true; render();
       try {
+        await saveSetupUsername(false);
         await saveShareChoice();
         await saveNewsChoice();
         st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
@@ -1989,6 +2016,8 @@ function renderSetup(v) {
     });
     $("#su-skip").addEventListener("click", async () => {
       st.newsOptIn = !!$("#su-news")?.checked;
+      try { await saveSetupUsername(true); }
+      catch (e) { toast(e.message, true); }
       try { await saveShareChoice(); await saveNewsChoice(); }
       catch (e) { toast(e.message, true); return; }
       finishAiSetup("settings");

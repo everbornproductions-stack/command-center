@@ -1,7 +1,7 @@
 -- Meldmind community chat, AI News, and the optional email list.
 -- MIGRATION FILE ONLY. Review it, then run it yourself in the Supabase SQL editor. Safe to re-run.
 -- The app does not run this file. It was not run against a live database.
--- People pick a public username. The licence email stays on the server and is not returned.
+-- username is the account's one public name. It is unique across people. The licence email stays on the server and is not returned.
 -- Keys and private files are not stored here.
 -- AI News drafts stay hidden. Only a published issue is readable. Email is opt-in and is never sent by the app.
 

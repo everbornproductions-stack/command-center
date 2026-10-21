@@ -11,7 +11,7 @@ Community is in the Business menu. In Simple it is also under Help.
 
 Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.
 
-Community chat asks for a public username the first time you open it. A friendly name is suggested. It is 3 to 20 characters, letters, numbers, and underscore, and it has to be unique. Names like meldmind, admin, and everborn are refused. Your email is never shown. You can change the username in Settings, then wait an hour before the next change.
+Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. It is 3 to 20 characters, letters, numbers, and underscore, and it has to be unique. Names like meldmind, admin, and everborn are refused. Your email is never shown. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. You can change it in Settings, then wait an hour before the next change.
 
 AI News sits next to those channels. It updates weekly from Supabase, so a new issue does not need an app update. It lists model releases, price changes, and new features from major AI providers, each with a source link, plus Meldmind features, top voted prompts, and community highlights. An unread badge shows until you open it. You can react and share an item into chat. A draft waits for the owner before it is published.
 
@@ -19,7 +19,7 @@ Email me the weekly note is off until you tick it in Settings or during setup. T
 
 ## How to join
 
-Use the email on your licence. Pick a display name of 2 to 24 characters. The public name is a username: 3 to 20 characters, letters, numbers, and underscore. A friendly name is suggested the first time you open chat. Your email is never shown. Change the username in Settings, then wait an hour before the next change. Nothing is posted until you click Send.
+Use the email on your licence to join chat. The public name is the one username on your account. Nothing is posted until you click Send. A comment is a click too.
 
 Share a prompt, a builder, or a mission with Share in chat. That click is the post. If you have not joined, the app opens Community and does not post.
 
@@ -33,7 +33,7 @@ A message that looks like a key, a private file path, or spam is refused.
 
 ## AI News
 
-Open AI News next to the chat channels. A New badge means you have not opened the latest issue. React with Up or Down, or click Share in chat to drop an item into General.
+Open AI News next to the chat channels. A New badge means you have not opened the latest issue. React with Up or Down, add a comment, or click Share in chat to drop an item into General. Reactions and comments show the public username.
 
 The owner can paste source JSON under More options, build a draft, and publish it. People do not see the draft. Publishing does not send email.
 

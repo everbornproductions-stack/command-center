@@ -125,9 +125,10 @@ export function suggestUsername(taken, now = Date.now()) {
   return `Kind_Robin${(seed % 90) + 10}`;
 }
 
-export function claimUsername({ username, email, names, current = "", changedAt = 0, now = Date.now() } = {}) {
+export function claimUsername({ username, email, names, current = "", changedAt = 0, now = Date.now(), localOk = false } = {}) {
   const lic = cleanEmail(email);
-  if (!lic || !validEmail(lic)) return fail(400, "Add a licence first. Community chat uses the email on your licence.");
+  const identity = validEmail(lic) ? lic : (localOk ? "local" : "");
+  if (!identity) return fail(400, "Add a licence first. Community chat uses the email on your licence.");
   const checked = checkUsername(username);
   if (!checked.ok) return checked;
   const key = checked.username.toLowerCase();
@@ -136,7 +137,7 @@ export function claimUsername({ username, email, names, current = "", changedAt 
     for (const [rawKey, rawEmail] of Object.entries(names)) map[String(rawKey).toLowerCase()] = cleanEmail(rawEmail);
   }
   const holder = map[key];
-  if (holder && holder !== lic) return fail(409, "That username is taken. Pick another.");
+  if (holder && holder !== identity) return fail(409, "That username is taken. Pick another.");
   const currentKey = String(current || "").trim().toLowerCase();
   if (currentKey && currentKey === key) {
     const until = changedAt ? Number(changedAt) + USERNAME_COOLDOWN_MS : 0;
@@ -253,10 +254,16 @@ export function postMessage(room, actor, input, now = Date.now()) {
 export function promptCounts(room, promptId, email = "") {
   const rows = normalizeRoom(room).votes.filter((item) => item.promptId === promptId);
   const mine = rows.find((item) => item.email === email)?.vote || null;
+  const voters = [];
+  for (const item of rows) {
+    const name = String(item.username || "").trim();
+    if (name && !voters.includes(name)) voters.push(name);
+  }
   return {
     up: rows.filter((item) => item.vote === "up").length,
     down: rows.filter((item) => item.vote === "down").length,
     mine,
+    voters,
   };
 }
 
@@ -270,14 +277,14 @@ export function castPromptVote(room, actor, messageId, vote, now = Date.now()) {
   if (choice !== "" && choice !== "up" && choice !== "down") return fail(400, "Choose thumbs up or thumbs down.");
   const promptId = String(message.share?.id || message.id).slice(0, 80);
   next.votes = next.votes.filter((item) => !(item.email === actor.email && item.promptId === promptId));
-  if (choice) next.votes.push({ email: actor.email, promptId, messageId, vote: choice, at: now });
+  if (choice) next.votes.push({ email: actor.email, username: String(actor.username || actor.displayName || "").trim(), promptId, messageId, vote: choice, at: now });
   return { ok: true, promptId, counts: promptCounts(next, promptId, actor.email), room: next };
 }
 
 export function publicMessage(message, room, actor) {
   const counts = message.share?.kind === "prompt" || message.kind === "prompt"
     ? promptCounts(room, message.share?.id || message.id, actor?.email || "")
-    : { up: 0, down: 0, mine: null };
+    : { up: 0, down: 0, mine: null, voters: [] };
   const row = {
     id: message.id,
     channel: message.channel,
@@ -291,6 +298,7 @@ export function publicMessage(message, room, actor) {
     up: counts.up,
     down: counts.down,
     voted: counts.mine,
+    voters: counts.voters || [],
   };
   return row;
 }
@@ -364,7 +372,7 @@ export function topPromptRows(room) {
   }
   return [...byId.values()].map((row) => {
     const counts = promptCounts(next, row.id);
-    return { ...row, up: counts.up, down: counts.down };
+    return { ...row, up: counts.up, down: counts.down, voters: counts.voters };
   });
 }
 
