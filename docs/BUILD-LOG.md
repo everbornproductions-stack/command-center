@@ -2300,3 +2300,39 @@ Built on branch cursor/guided-builders-web-marketing-5ea7. No Square change. Ver
 - Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check. The browser click-through used a temp data folder: a website note suggested the site builders, Site Health Check ran Preview, Build, Test, Fix it, and Publish, and the result said nothing was sent. A credit repair and insurance note opened Ad Copy Studio with the three checkboxes and the no-advice line.
 
 PHASE 97 DONE
+## 2026-10-21: a handed-off job can report back to the person who sent it
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged: the Grok Bot body is still job_id, task, context, workspace, and callback_url, and the local callback is still POST /api/grokbot/callback/<job_id>. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- The hub accepts POST /api/handoff/:jobId/done. The token is random per job, stored only as a SHA-256 hash, works once, and expires in 7 days. The desktop polls with CC_WORKER_URL and CC_WORKER_TOKEN. It does not open a port.
+- The job and the token belong to the worker token of the account that created them. Another account gets an empty inbox and a 404 on ack. The per-job token can post a result and cannot read one. The hub deletes the result when that app acknowledges it, or after 7 days. The store is memory only. There is no admin view. The log line is the job id and the status, never the summary.
+- With no hub, the prompt only says to reply with DONE: <summary>, and the person uses Paste result. Nothing from that paste is saved until Save.
+- The same block is appended to manual handoff prompts and to the outbound Grok Bot task. It is not stored on the Grok Bot job. callback_url is unchanged.
+- Operators set CC_WORKER_URL to https://meldmind-hub.fly.dev. The app does not default that variable. CC_HUB_URL stays https://hub.meldmind.ai.
+- Tests here (Linux): npm test 432 tests, 430 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows the report-back note, the tour step says to use Paste result, Continue in shows Paste result, Save stores a DONE: line, and Help opens What can Meldmind do.
+
+REPORT BACK (no phase built)
+
+## 2026-10-21: Get it done for one job
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- A job can run its ordinary steps without asking when the person turns on Get it done, says "get it done, don't ask me", or has saved Always for this kind of job. The grant ends when that job ends. The rule can be revoked any time.
+- Spending money and a permanent delete still need one tap. Sending a message stays off unless that separate control is on. Stop and the activity log stay on. The browser helper still refuses passwords, card fields, Square, and billing pages.
+- Every handoff prompt, including the outbound Grok Bot task, includes the permission level. The line is not stored on the Grok Bot job. callback_url is unchanged. A paid media step still waits for Approve.
+- Tests here (Linux): npm test 438 tests, 436 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). The first full run failed one source assertion in test/chat-priority.test.js; that assertion was updated for the new order fields and the file passed on re-run. The product code was the same. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows Get it done, the checkbox starts with sending off, the phrase ticks the box, Settings can save and revoke Always for this kind of job, the handoff prompt includes the permission line, the Stop banner shows and Stop clears it, Help opens the article, and the tour reaches the step.
+
+GET IT DONE (no phase built)
+
+## 2026-10-21: password manager tip
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- When a job, a browser helper step, or a connection hits a sign-in, a small tip appears. Dismiss hides it. The words point at https://1password.com and https://bitwarden.com. Meldmind still never types or stores a password. A sign-in still waits for the person, including when Get it done is on.
+- Help and the guide data say the same thing.
+- Tests here (Linux): npm test 442 tests, 440 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: the Google connection in Settings shows the tip with both links, Dismiss removes it and a later Connect click does not bring it back, and Help opens the article.
+
+PASSWORD TIP (no phase built)

@@ -7,4 +7,9 @@ contextBridge.exposeInMainWorld("ccBar", {
   stop: (jobId) => ipcRenderer.invoke("bar:stop", String(jobId || "")),
   ok: (jobId, approvalId) => ipcRenderer.invoke("bar:ok", String(jobId || ""), String(approvalId || "")),
   no: (jobId, approvalId) => ipcRenderer.invoke("bar:no", String(jobId || ""), String(approvalId || "")),
+  openLink: (url) => {
+    const u = String(url || "");
+    if (u !== "https://1password.com" && u !== "https://bitwarden.com") return Promise.resolve(false);
+    return ipcRenderer.invoke("bar:open-tip", u);
+  },
 });

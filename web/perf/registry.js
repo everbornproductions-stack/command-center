@@ -26,6 +26,7 @@
 //   size and downloads only after a click.
 
 export const FEATURES = [
+  { id: "sign-in-tip", shell: true },
   { id: "themes", shell: true },
   { id: "brand", shell: true },
   { id: "tour", shell: true },
@@ -41,6 +42,7 @@ export const FEATURES = [
   { id: "mcp", home: true, deliverable: true, settings: true },
   { id: "fallback", home: true, deliverable: true, settings: true },
   { id: "handoff", home: true, deliverable: true, settings: true, listen: true },
+  { id: "getdone", home: true, settings: true, listen: true },
   { id: "brain", views: ["brain"] },
   { id: "grokbot", home: true, deliverable: true, settings: true, listen: true },
   { id: "browser", home: true, deliverable: true, settings: true, listen: true },

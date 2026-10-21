@@ -36,6 +36,7 @@ function askHtml(j) {
     <b>${a.kind === "your turn" ? "Your turn:" : "OK to do this?"}</b> ${esc(a.title)}
     <pre>${esc((a.lines || []).join("\n"))}</pre>
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn sm primary" data-ok>OK, do it</button><button class="btn sm" data-no>No</button><span class="dim small" style="margin-left:auto">Nothing happens until you click.</span></div>
+    ${a.login ? (window.CC.passwordTipHtml?.() || "") : ""}
   </div>`;
 }
 function jobHtml(j, { full = false } = {}) {
@@ -44,6 +45,8 @@ function jobHtml(j, { full = false } = {}) {
   return `<div class="cc-bh-job" data-bh-job="${esc(j.id)}">
     <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
       <span class="dim" style="margin-left:auto">${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}${j.model ? ` · ${esc(j.model.name || j.model.model)}` : ""}</span>${OPEN(j) ? `<button class="ghost small" data-stop>Stop</button>` : ""}</div>
+    ${j.getDone?.on ? `<div class="small" style="margin-top:6px">Get it done is on for this job. Stop is still here.</div>` : ""}
+    ${j.passwordTip && !j.approval?.login ? (window.CC.passwordTipHtml?.() || "") : ""}
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 240))}</div>
     ${askHtml(j)}
     ${j.text ? `<div class="md small" style="margin-top:6px">${md(j.text)}</div>` : ""}
@@ -106,8 +109,9 @@ function renderCommand(el) {
       const projectId = document.querySelector("#proj")?.value || null;
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
       const accountId = el.querySelector("#bh-account")?.value || "";
-      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}) } });
-      toast("The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
+      const gd = window.CC?.getDoneChoice;
+      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}), getItDone: !!gd?.on, sendMessages: !!gd?.send } });
+      toast(gd?.on ? "The browser helper is on it. Get it done is on for this job. Spending money and a permanent delete still need one tap." : "The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
       await refresh();
     } catch (err) { toast(err.message, true); }
     finally { e.target.disabled = false; }
@@ -136,7 +140,7 @@ async function renderSettings(el) {
   const models = [];
   for (const p of S.providers) if (p.kind === "text" && p.keyed) for (const mm of p.models || []) models.push({ id: `${p.id}/${mm.id}`, name: `${p.name}: ${mm.name}` });
   el.innerHTML = `<div class="panel" id="prov-browser-helper"><h3>Integrations: Browser helper <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
-    <div class="small muted">For when you do not have Grok Bot: an AI drives ${esc(c.driverLabel)}, one step at a time, with an action log and a Stop button. It reads pages and, with your Google sign-in, Gmail and Drive. It asks for your OK before it sends, posts, deletes, buys or submits any form, and shows exactly what will happen. It never types passwords (you sign in yourself in its window), never fills in card details, and never handles Square or billing pages. Every AI call is in the ledger and inside your spend caps.</div>
+    <div class="small muted">For when you do not have Grok Bot: an AI drives ${esc(c.driverLabel)}, one step at a time, with an action log and a Stop button. It reads pages and, with your Google sign-in, Gmail and Drive. It asks for your OK before it sends, posts, deletes, buys or submits any form, and shows exactly what will happen. Get it done can run the ordinary steps of one job without asking. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on for the job. It never types passwords (you sign in yourself in its window), never fills in card details, and never handles Square or billing pages. Every AI call is in the ledger and inside your spend caps.</div>
     <div class="row small" style="gap:14px;flex-wrap:wrap;margin-top:10px">
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-on" ${c.on ? "checked" : ""}> On</label>
       <label class="row" style="gap:6px" title="Only when Grok Bot is not set up"><input type="checkbox" id="bh-auto" ${c.auto ? "checked" : ""}> Councils and missions hand it the parts that need a website, Gmail or Drive</label>
@@ -153,6 +157,7 @@ async function renderSettings(el) {
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm primary" id="bh-save">Save</button><button class="btn sm" id="bh-demo" ${c.ready ? "" : "disabled"} title="A pretend bakery page that ships with the app: watch it read the page, fill in the contact form and ask for your OK">Try it on the demo page</button></div>
 
     <div class="cat-h" style="margin-top:14px">Google: Gmail, Drive, and Calendar ${g.connected ? `<span class="chip green">connected</span>` : g.needsSignIn ? `<span class="chip amber">sign in again</span>` : ""}</div>
+    ${window.CC.passwordTipHtml?.() || ""}
     <div class="dim small">Uses your own Google sign-in and the least access that works: read Gmail and read Drive, unless you tick sending or Calendar. Even then every email waits for your OK, and a calendar change waits for a click. Grok Bot can still take calendar work. ${esc(g.setup)} <a href="${esc(g.consoleUrl)}" target="_blank" rel="noopener">Open the Google Cloud console</a>. The client secret and tokens stay in the vault and are never shown again.</div>
     ${g.connected ? `<div class="small" style="margin-top:4px">Allowed: ${g.scopes.map((x) => esc(x.label)).join(", ")}${g.connectedAt ? ` · since ${ago(g.connectedAt)} ago` : ""}</div>` : ""}
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -165,7 +170,7 @@ async function renderSettings(el) {
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-send"> Send email (asks you every time)</label>
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-cal" ${g.scopes?.some((x) => x.id === "calendar") ? "checked" : ""}> Google Calendar</label>
     </div>
-    <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
+    <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect" data-pw-login="1">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
     <div id="bh-accounts" style="margin-top:10px">
       ${(g.accounts || []).map((a) => `<div class="row small" data-bh-acct="${esc(a.id)}" style="gap:8px;flex-wrap:wrap;margin-top:6px">
         <input type="text" data-bh-label value="${esc(a.label)}" aria-label="Account label" style="width:160px;padding:4px 6px">
@@ -173,7 +178,7 @@ async function renderSettings(el) {
         <span class="chip ${a.connected ? (a.needsSignIn ? "amber" : "green") : ""}">${a.connected ? (a.needsSignIn ? "sign in again" : "connected") : "not connected"}</span>
         <button class="ghost small" data-bh-remove>Remove</button>
       </div>`).join("")}
-      <div class="row small" style="gap:8px;margin-top:8px"><input type="text" id="bh-new-label" placeholder="Label, e.g. Work" aria-label="Label for another Google account" style="width:160px;padding:4px 6px"><button class="btn sm" id="bh-add-account">Add another account</button></div>
+      <div class="row small" style="gap:8px;margin-top:8px"><input type="text" id="bh-new-label" placeholder="Label, e.g. Work" aria-label="Label for another Google account" style="width:160px;padding:4px 6px"><button class="btn sm" id="bh-add-account" data-pw-login="1">Add another account</button></div>
     </div>
     ${data.jobs.length ? `<div class="cat-h" style="margin-top:14px">Recent jobs</div><div id="bh-jobs">${data.jobs.slice(0, 5).map((j) => jobHtml(j)).join("")}</div>` : ""}
   </div>`;

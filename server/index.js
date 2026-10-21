@@ -68,6 +68,8 @@ import { expandJob } from "./prompts/apply.js";
 import { annotateOutput } from "./prompts/safety.js";
 import { withImported } from "./history-refs.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
+import { isReportRoute, handleReportRoute, startReportPoller } from "./reportback.js";
+import { openGrant, endGrant, grantView } from "./getdone.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
@@ -456,17 +458,23 @@ const publicConfig = () => publicWebConfig({ hosted: HOSTED, version: VERSION, s
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied, getItDone, sendMessages }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
   const pinnedModel = !!(provider && model);
   const id = runId || "s-" + Date.now().toString(36);
   if (isPrivate) markPrivateRun(id);
+  openGrant({ runId: id, text: prompt, toggle: getItDone === true, send: sendMessages === true });
+  try {
+  return await runChatWork();
+  } finally { endGrant(id); }
+
+  async function runChatWork() {
   const priority = chatPriority(mode);
   const shape = outputShape(priority);
   let cls = null;
@@ -485,14 +493,14 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
-      if (named) return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider });
+      if (named) { endGrant(id); return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider }); }
       throw new Error("No AI available. Add a key in Settings.");
     }
     provider = best.provider; model = best.model;
   }
   let agent = `${id}:${provider}`;
   const taskType = () => (cls ||= given || heuristicClassify(prompt));
-  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], getDone: grantView(id), ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search: numbered results go into the prompt; the answer cites them as [n]
@@ -555,6 +563,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
   m.finishedAt = Date.now();
+  endGrant(id);
+  m.getDone = null;
   try {
     ctx().store.saveMission(m, missionSummary({ ...m, title }));
     netTrace(`mission saved ${m.id} ${m.status}`);
@@ -564,6 +574,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   }
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
+  }
 }
 
 // ---------- routes (run inside the signed-in user's context) ----------
@@ -649,7 +660,7 @@ async function api(req, res, url) {
     try {
       if (job.background) guard("backgroundRuns");
       councilId = job.background ? ("c-" + Date.now().toString(36)) : undefined;
-      promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", ...(councilId ? { id: councilId } : {}) });
+      promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", getItDone: job.getItDone === true, sendMessages: job.sendMessages === true, ...(councilId ? { id: councilId } : {}) });
       if (councilId) rememberBackground({ id: councilId, kind: "council", title: job.prompt });
     }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
@@ -679,7 +690,7 @@ async function api(req, res, url) {
     }
     try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
-    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" };
+    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", getItDone: job.getItDone === true, sendMessages: job.sendMessages === true };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -927,6 +938,9 @@ async function handleHttp(req, res) {
     // Grok Bot results (Phase 12): exempt from the session token, the Host pin (a tunnel or the hosted hub
     // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
+    // Report-back relay. The per-job token or the worker token is the check. No session token.
+    // The desktop polls this hub. It does not open a port of its own.
+    if (isReportRoute(req.method, url.pathname)) return await handleReportRoute(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
     if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
     // Meldmind webhook (Zapier / Make inbound): its own token, not the session token. A send inside the run still waits for Allow.
@@ -1266,6 +1280,7 @@ async function initContext() {
     startCreditHealthLoop();
     startUpdateLoop();
     startLicenseLoop();
+    if (!HOSTED) startReportPoller();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
     if (HOSTED) scheduler.register({
       id: "hosted-idle",

@@ -147,6 +147,7 @@ Nothing posts, sends, emails or spends without a click from you.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
+- **Get it done** lets one job run its steps without asking. Turn it on for that job, or say get it done, don't ask me. It ends when the job ends. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. **Always for this kind of job** is in Settings, and you can revoke it any time. The handoff prompt tells the other AI the permission level.
 
 ## Plain requests
 
@@ -156,11 +157,19 @@ On Chat, the box titled Try saying... takes a sentence such as "email this clien
 
 Settings, Google Calendar, lists events after you connect with your own Google sign-in. Create event and Update run only when you click. Free includes 1 connected service. Pro includes every connected service. Grok Bot can still take calendar work. That handoff is unchanged.
 
-## 9. Updates
+## 9. When another AI finishes
+
+You can hand a job to another AI (Continue in, or Send to Grok Bot). The prompt asks that AI to tell Meldmind when it is finished.
+
+You get a notice, and the summary shows in the job. If that AI cannot call back, click **Paste result** and paste what it wrote. A line that starts with DONE: is enough. It is saved only when you click Save.
+
+With no hosted hub on this computer, Paste result is the way back. The hub keeps a report only for the person who handed off the job, and deletes it when the app picks it up, or after 7 days.
+
+## 10. Updates
 
 When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
 
-## 10. When something goes wrong
+## 11. When something goes wrong
 
 | What you see | What it means and what to do |
 |---|---|
@@ -174,7 +183,7 @@ When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Insta
 | "This key is already on 2 computers. Remove one in Settings > Devices." | The licence is already on a PC and a laptop. Open Settings, Devices, and remove one. Each person has their own key. |
 | "This pairing link is not valid" | The code in the link does not match. On the PC, open Settings, Phone and other devices, and scan the code that is on screen. |
 
-## 11. Keyboard and accessibility
+## 12. Keyboard and accessibility
 
 - **Tab** moves through every control. A clear ring shows where you are.
 - **Skip to content** is the first stop after the page loads, so you can jump past the tabs.
@@ -183,9 +192,9 @@ When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Insta
 - Screen readers hear which tab is open, which run mode is chosen, the connection state, and every message (errors right away).
 - If your system asks for reduced motion, the app's blinking and pulsing stop and the live flow map switches to its calmer view.
 
-## 12. Privacy in one paragraph
+## 13. Privacy in one paragraph
 
-## 13. Zapier and Make
+## 14. Zapier and Make
 
 Simple has a **Connect Zapier** card on the chat page. The usual Zapier address is filled in. Paste a token if Zapier showed you one, then click **Connect Zapier**. Meldmind lists the actions you turned on there.
 
@@ -197,4 +206,6 @@ A chat or a mission can call those actions. Anything that sends, posts, or charg
 
 Free includes 1 of these app connections. Pro includes several (5). Extreme is unlimited.
 
-Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.
+When a job, the browser helper, or a connection asks you to sign in, a small tip appears. You can dismiss it. Tip: keep your passwords in a password manager like 1Password (or Bitwarden, free). Meldmind never stores your passwords. 1Password is at https://1password.com and Bitwarden is at https://bitwarden.com.
+
+Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. A report back from another AI reaches only the person who handed off that job. The hub deletes it when your app picks it up, or after 7 days, and it keeps no list of those summaries for anyone else. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.

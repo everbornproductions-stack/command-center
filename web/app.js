@@ -11,6 +11,7 @@ import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
 import { isDesktopOnly } from "./desktop-only.js";
+import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 
 // ---------------- state ----------------
 const S = {
@@ -1533,12 +1534,12 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
-      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background } });
+      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
     else if (mode === "council") {
-      const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
     else if (mode === "opinion") {
@@ -1550,7 +1551,7 @@ async function sendOrders() {
       renderOps();
     }
     else {
-      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
       noteBackground(started);
     }
@@ -2280,6 +2281,7 @@ function renderGate(message = "") {
   g.innerHTML = `<div class="gate-card">
     <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind</span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
+    ${tipHtml(localStorage)}
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
@@ -2325,7 +2327,8 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"] };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
