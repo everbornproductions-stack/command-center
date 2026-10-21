@@ -146,7 +146,7 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     let hit = m.hook.hits.at(-1);
     assert.equal(hit.method, "POST"); assert.equal(hit.headers.authorization, `Bearer ${SENDER}`); assert.match(hit.headers["content-type"], /application\/json/);
     assert.deepEqual(Object.keys(hit.body).sort(), ["callback_url", "context", "job_id", "task", "workspace"]);
-    assert.equal(hit.body.job_id, j1.id); assert.equal(hit.body.task, "Check my Gmail inbox for the Acme invoice"); assert.equal(hit.body.context, "Acme is a supplier."); assert.equal(hit.body.workspace, "personal");
+    assert.equal(hit.body.job_id, j1.id); assert.ok(hit.body.task.startsWith("Check my Gmail inbox for the Acme invoice\n")); assert.match(hit.body.task, /When finished, let Meldmind know:/); assert.match(hit.body.task, /DONE: <summary>/); assert.equal(j1.task, "Check my Gmail inbox for the Acme invoice"); assert.equal(hit.body.context, "Acme is a supplier."); assert.equal(hit.body.workspace, "personal");
     const cb1 = hit.body.callback_url;
     assert.match(cb1, new RegExp(`^http://127\\.0\\.0\\.1:${s.port}/api/grokbot/callback/${j1.id}\\?t=[A-Za-z0-9_-]{30,}$`));
 
@@ -204,7 +204,8 @@ test("server: settings in the vault, hand-off, callback rules, council, mission,
     let hits0 = m.hook.hits.length, t0 = Date.now();
     assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Look in my Gmail inbox for the Acme invoice and tell me the amount" } })).status, 202);
     hit = await waitFor(() => m.hook.hits.length > hits0 && m.hook.hits.at(-1), "council hand-off", 30000, s);
-    assert.equal(hit.body.task, "Look in my Gmail inbox for the Acme invoice and tell me the amount");
+    assert.ok(hit.body.task.startsWith("Look in my Gmail inbox for the Acme invoice and tell me the amount\n"));
+    assert.match(hit.body.task, /DONE: <summary>/);
     assert.equal((await callback(hit.body.callback_url, { status: "working" })).status, 200);
     assert.equal((await callback(hit.body.callback_url, { status: "done", text: "The Acme invoice is $1,200." })).status, 200);
     let run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council in time", 60000, s);

@@ -56,6 +56,7 @@ import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind
 import { observe } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
+import { isReportRoute, handleReportRoute, startReportPoller } from "./reportback.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
@@ -749,6 +750,9 @@ async function handleHttp(req, res) {
     // Grok Bot results (Phase 12): exempt from the session token, the Host pin (a tunnel or the hosted hub
     // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
+    // Report-back relay. The per-job token or the worker token is the check. No session token.
+    // The desktop polls this hub. It does not open a port of its own.
+    if (isReportRoute(req.method, url.pathname)) return await handleReportRoute(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
     if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
     // browser extension (Phase 24): exempt from the session token only; the Host pin stays, web origins are
@@ -1033,6 +1037,7 @@ async function initContext() {
     startCreditHealthLoop();
     startUpdateLoop();
     startLicenseLoop();
+    if (!HOSTED) startReportPoller();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
     if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
   });

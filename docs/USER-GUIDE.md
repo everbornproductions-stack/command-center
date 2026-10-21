@@ -101,11 +101,19 @@ Nothing posts, sends, emails or spends without a click from you.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
 
-## 9. Updates
+## 9. When another AI finishes
+
+You can hand a job to another AI (Continue in, or Send to Grok Bot). The prompt asks that AI to tell Meldmind when it is finished.
+
+You get a notice, and the summary shows in the job. If that AI cannot call back, click **Paste result** and paste what it wrote. A line that starts with DONE: is enough. It is saved only when you click Save.
+
+With no hosted hub on this computer, Paste result is the way back. The hub keeps a report only for the person who handed off the job, and deletes it when the app picks it up, or after 7 days.
+
+## 10. Updates
 
 When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
 
-## 10. When something goes wrong
+## 11. When something goes wrong
 
 | What you see | What it means and what to do |
 |---|---|
@@ -118,7 +126,7 @@ When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Ins
 | "This phone cannot reach the PC" or "The phone cannot reach this PC" | The phone and the PC are not on the same Wi-Fi, phone pairing is off, or Windows Firewall is blocking Meldmind. Turn phone pairing on in Settings, under Phone and other devices, and allow Meldmind on private networks. |
 | "This pairing link is not valid" | The code in the link does not match. On the PC, open Settings, Phone and other devices, and scan the code that is on screen. |
 
-## 11. Keyboard and accessibility
+## 12. Keyboard and accessibility
 
 - **Tab** moves through every control. A clear ring shows where you are.
 - **Skip to content** is the first stop after the page loads, so you can jump past the tabs.
@@ -127,6 +135,6 @@ When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Ins
 - Screen readers hear which tab is open, which run mode is chosen, the connection state, and every message (errors right away).
 - If your system asks for reduced motion, the app's blinking and pulsing stop and the live flow map switches to its calmer view.
 
-## 12. Privacy in one paragraph
+## 13. Privacy in one paragraph
 
-Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.
+Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. A report back from another AI reaches only the person who handed off that job. The hub deletes it when your app picks it up, or after 7 days, and it keeps no list of those summaries for anyone else. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.

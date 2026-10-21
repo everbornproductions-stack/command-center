@@ -1606,3 +1606,17 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: a handed-off job can report back to the person who sent it
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged: the Grok Bot body is still job_id, task, context, workspace, and callback_url, and the local callback is still POST /api/grokbot/callback/<job_id>. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- The hub accepts POST /api/handoff/:jobId/done. The token is random per job, stored only as a SHA-256 hash, works once, and expires in 7 days. The desktop polls with CC_WORKER_URL and CC_WORKER_TOKEN. It does not open a port.
+- The job and the token belong to the worker token of the account that created them. Another account gets an empty inbox and a 404 on ack. The per-job token can post a result and cannot read one. The hub deletes the result when that app acknowledges it, or after 7 days. The store is memory only. There is no admin view. The log line is the job id and the status, never the summary.
+- With no hub, the prompt only says to reply with DONE: <summary>, and the person uses Paste result. Nothing from that paste is saved until Save.
+- The same block is appended to manual handoff prompts and to the outbound Grok Bot task. It is not stored on the Grok Bot job. callback_url is unchanged.
+- Operators set CC_WORKER_URL to https://meldmind-hub.fly.dev. The app does not default that variable. CC_HUB_URL stays https://hub.meldmind.ai.
+- Tests here (Linux): npm test 432 tests, 430 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows the report-back note, the tour step says to use Paste result, Continue in shows Paste result, Save stores a DONE: line, and Help opens What can Meldmind do.
+
+REPORT BACK (no phase built)

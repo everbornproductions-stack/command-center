@@ -153,6 +153,16 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 
 On each tick the hub runs `schedules.tick()` for every user who has a due cron schedule, whether that user is already in memory or only in Supabase. `CC_SUPABASE_SERVICE_KEY` is what loads a user who is not in memory. A slot is claimed before the run starts, so a second tick does not run it again. A slot older than the 5-minute lookback is not replayed. Spend caps and the Approve click are unchanged: a result that is sent out still waits until you click Approve. Webhooks work on the hub too. A watched folder stays on the desktop app. Desktop schedules still run only while the app is open.
 
+## Report-back relay
+
+An AI that was handed a job can POST the outcome to this server at `POST /api/handoff/:jobId/done`. The desktop does not open a port for that. It polls the hub with `CC_WORKER_URL` and `CC_WORKER_TOKEN` (outbound only).
+
+Operators point `CC_WORKER_URL` at the running hub. The live relay address is `https://meldmind-hub.fly.dev`. That variable is not given a default in the app, so a machine with it unset never calls out. `CC_HUB_URL` stays `https://hub.meldmind.ai` for pairing and OAuth. This relay does not change that address.
+
+The hub only relays. Each job and its one-time token are scoped to the worker token of the account that created the job, stored as a hash. Only that account's app can read the inbox. The per-job token can post a result and cannot read one. The result is deleted when that app acknowledges it, or after 7 days. The store is memory only: no disk, no database, and no admin view of the contents. The log line is `report-back <job id> <status>` and never includes the summary, the links, the files, or either token.
+
+A self-hosted or local app with no hub does not advertise a callback address. The prompt tells the other AI to reply with `DONE: <summary>`, and the person uses Paste result.
+
 ### Fallback: Fly.io (not chosen)
 
 Same `Dockerfile`; `fly.toml` is in the folder. Its public address is the same route, `https://hub.meldmind.ai` (`CC_HUB_URL` in `[env]`). The Fly app name stays `everborn-command` (that is the fallback app, not the Cloudflare Worker). Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in. Point the `hub.meldmind.ai` DNS record at Fly only if you are using this fallback instead of Cloudflare.

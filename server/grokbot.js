@@ -20,6 +20,7 @@ import { heuristicClassify } from "./router.js";
 import { demoActive } from "./mock.js";
 import { CFG } from "./hosted.js";
 import { localFetch } from "./loopback-fetch.js";
+import { reportBlock } from "./reportback.js";
 
 export const AGENT_ID = "grokbot";
 export const NAME = "Grok Bot";
@@ -203,9 +204,11 @@ export async function dispatch({ task, context = "", source = {}, needs = [] } =
   const sec = secret();
   const header = sec.header || "Authorization";
   const value = header.toLowerCase() === "authorization" ? `Bearer ${sec.key}` : sec.key;
+  const reported = await reportBlock({ jobId: id, kind: "grokbot", threadId: j.source?.runId || null });
+  const taskOut = `${j.task}\n\n${reported.block}`;
   let res, reply = null;
   try {
-    res = await localFetch(sec.url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", connection: "close", [header]: value }, body: JSON.stringify({ job_id: id, task: j.task, context: j.context, workspace: j.workspace, callback_url }), signal: AbortSignal.timeout(Number(process.env.CC_GROKBOT_TIMEOUT_MS) || 15000), redirect: "error" });
+    res = await localFetch(sec.url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", connection: "close", [header]: value }, body: JSON.stringify({ job_id: id, task: taskOut, context: j.context, workspace: j.workspace, callback_url }), signal: AbortSignal.timeout(Number(process.env.CC_GROKBOT_TIMEOUT_MS) || 15000), redirect: "error" });
     try { reply = await res.json(); } catch { reply = null; }
   } catch (e) {
     return fail(j, `Could not reach Grok Bot: ${netReason(e)}`);
