@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
-import { startServer } from "./helpers.js";
+import { freePort, startServer } from "./helpers.js";
 
 const GOOD_GEMINI = "AIzaFAKEfakeFAKEfakeFAKEfake0123456789";
 
@@ -134,4 +134,54 @@ test("demo AIs hide when a real key is connected, stay hidden after restart, and
       assert.doesNotMatch(s2.log, /pretend AIs listening/);
     } finally { await s2.stop(); }
   } finally { await s.stop().catch(() => {}); await mock.close(); }
+});
+
+test("a saved key the probe cannot reach still hides demo AIs, including after restart", async () => {
+  const dead = await freePort();
+  const env = { CC_BASE_URL_GOOGLE: `http://127.0.0.1:${dead}/v1`, CC_STATUS_PAGES: "off", GEMINI_API_KEY: "" };
+  const s = await startServer({ env });
+  try {
+    await s.api("/demo", { method: "POST", body: { on: true } });
+    let st = (await s.api("/state")).json;
+    assert.ok(demoIds(st.providers).includes("demo-nova"));
+    const saved = await s.api("/keys", { method: "POST", body: { provider: "google", key: GOOD_GEMINI } });
+    assert.match(saved.json.status.detail, /Could not reach/);
+    assert.equal(saved.json.demoRetired, true);
+    await new Promise((r) => setTimeout(r, 400));
+    st = (await s.api("/state")).json;
+    assert.equal(st.realAi, true);
+    assert.equal(st.demo, false);
+    assert.deepEqual(demoIds(st.providers), []);
+    assert.equal((st.rules || []).some((r) => String(r.provider || "").startsWith("demo-")), false, "the Atlas demo price rule leaves the credits list");
+    await stopKeepDir(s);
+    await s.stub.close();
+    const s2 = await startServer({ dataDir: s.dir, env });
+    try {
+      const again = (await s2.api("/state")).json;
+      assert.equal(again.demo, false, "a later health probe does not bring the demo AIs back");
+      assert.equal(again.realAi, true);
+      assert.deepEqual(demoIds(again.providers), []);
+    } finally { await s2.stop(); }
+  } finally { await s.stop().catch(() => {}); }
+});
+
+test("agy on the path hides demo AIs on the next launch", async () => {
+  const s = await startServer({ env: { CC_STATUS_PAGES: "off" } });
+  try {
+    await s.api("/demo", { method: "POST", body: { on: true } });
+    let st = (await s.api("/state")).json;
+    assert.ok(demoIds(st.providers).includes("demo-nova"));
+    assert.equal(st.realAi, false);
+    await stopKeepDir(s);
+    await s.stub.close();
+    const s2 = await startServer({ dataDir: s.dir, env: { CC_STATUS_PAGES: "off", CC_CLI_CONNECTED: "agy" } });
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const again = (await s2.api("/state")).json;
+      assert.equal(again.realAi, true);
+      assert.ok((again.cli || []).includes("agy"));
+      assert.equal(again.demo, false);
+      assert.deepEqual(demoIds(again.providers), []);
+    } finally { await s2.stop(); }
+  } finally { await s.stop().catch(() => {}); }
 });

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./helpers.js";
-import { composerAis, isConnectedAi } from "../web/composer-ais.js";
+import { composerAis, isConnectedAi, hideDemoBots, graphNodes } from "../web/composer-ais.js";
 
 const demo = (id, name) => ({ id, name, demo: true, kind: "text", keyed: true, models: [{ id: "m", name: "Demo model", default: true }] });
 const real = (id, extra = {}) => ({ id, name: id, kind: "text", keyed: false, models: [{ id: "m", name: id + " model", default: true }], ...extra });
@@ -42,8 +42,15 @@ test("unconnected providers stay hidden, and Demo shows only until a real AI is 
   assert.deepEqual(composerAis([rejectedButMcp]).map((c) => c.id), ["kling"]);
 
   const offline = real("google", { name: "Google Gemini", keyed: true, status: { status: "red", detail: "Could not reach Google Gemini: connection refused", network: true } });
-  assert.equal(isConnectedAi(offline), false, "a provider that could not be reached is not a connected AI");
-  assert.deepEqual(composerAis([nova, offline]).map((c) => c.id), ["demo-nova"]);
+  assert.equal(isConnectedAi(offline), true, "a saved key still counts when the probe cannot reach the host");
+  assert.deepEqual(composerAis([nova, offline]).map((c) => c.id), ["google"]);
+  const local = real("ollama", { name: "Ollama", noKey: true, custom: true, keyed: false, status: { status: "red", network: true, detail: "Could not reach Ollama: connection refused" } });
+  assert.equal(isConnectedAi(local), true, "a local model the person added counts");
+  assert.deepEqual(composerAis([nova, local]).map((c) => c.id), ["ollama"]);
+  const hub = graphNodes([nova, atlas, offline, real("openai", { keyed: false })], []);
+  assert.equal(hub.some((p) => String(p.id).startsWith("demo-")), false, "demo nodes leave the hub once a real AI is connected");
+  assert.ok(graphNodes([nova, atlas], []).some((p) => p.id === "demo-nova"), "demo nodes stay while nothing real is connected");
+  assert.ok(hideDemoBots([nova, offline], { demoKeep: true }).some((p) => p.id === "demo-nova"), "demoKeep puts the pretend AIs back");
 
   const broke = real("anthropic", { name: "Claude", keyed: true, status: { status: "red", detail: "out of credits" } });
   assert.equal(isConnectedAi(broke), true, "a key that ran out of credits is still connected");

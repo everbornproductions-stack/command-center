@@ -1,6 +1,8 @@
 // Onboarding tour: a first-run walkthrough with a spotlight on each part of the console and a
 // sample run on the demo AIs (no keys, no spend). State lives on the server (/api/tour); the tour
 // offers itself once with a small invite and can be restarted from Settings.
+import { countsAsRealAi } from "../composer-ais.js";
+
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
@@ -13,13 +15,13 @@ const STEPS = [
   { id: "simple-answer", for: "simple", target: "#out-md", view: "command", title: "The answer", body: "The answer lands here. Copy it when you want. Switch to Expert any time to see the debate, the scores, and the live map." },
   { id: "simple-settings", for: "simple", target: "#settings-keys", view: "settings", title: "Add a key when you are ready", body: "Settings is where a real key goes. Until then, demo AIs can answer and nothing is spent. MCP, webhooks, and spend caps stay in Expert.", action: "keys" },
   { id: "welcome", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour uses three pretend AIs, so nothing is spent." },
-  { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus: Work, Create, Business, Connect, and Settings. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
+  { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus. It uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
   { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
   { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
   { id: "start-project", for: "both", target: "#sp-home", view: "command", title: "Start a project", body: "Start a project walks you from an idea to a finished deliverable. Pick Website, Music video, Marketing campaign, App/software, Business plan, or Social media reels. Watch an example first if you want a full sample. It works in Simple mode and in Expert mode. The same entry is in the Work menu, next to Projects, and on the Help page." },
   { id: "files", target: "#pf-drop", view: "command", title: "Files in this project", body: "Drop a PDF, Word doc, text file, or image here. Meldmind shows what it will read and the cost. Nothing is added until you confirm. Later answers in this project can cite those files. A mission that makes a video, image, or voice clip also shows the price first, and a paid step waits until you click Approve." },
   { id: "prompts", target: "#pp-list", view: "prompts", title: "Pro prompts", body: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert. Search the pack here. Auto-detect on the order box can suggest one; you can remove that chip and write your own." },
-  { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. Demo mode turns on by itself; no keys are needed and nothing is spent.", action: "sample" },
+  { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. The sample runs only while no real AI is connected, so nothing is spent.", action: "sample" },
   { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; a check can send a piece back for one revision when it falls short." },
   { id: "live", target: "#lv-open", view: "command", title: "Open live view", body: "The Open live view button is at the bottom-right of Live Ops. It opens the full live map. Live is also in the Work menu." },
   { id: "deliverable", target: "#out-md", view: "command", title: "The deliverable", body: "The assembled result lands here. Copy it, see the savings receipt under it, and find it later under the project it was filed to. The top bar shows You saved this month and all time." },
@@ -189,9 +191,17 @@ function position() {
   }
 }
 
+function realAiOn() {
+  return !!(S.realAi || (S.providers || []).some(countsAsRealAi));
+}
+
 async function runSample() {
   if (busy) return; busy = true; show(idx);
   try {
+    if (realAiOn()) {
+      msg = `<span class="chip amber">skipped</span> A real AI is connected, so the sample stays off. Demo mode was not turned on.`;
+      busy = false; show(idx); return;
+    }
     if (!S.demo) { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await refresh(); go("command"); }
     const r = await api("/tour/sample", { method: "POST" });
     if (r.kind === "single") { await api("/chat", { method: "POST", body: { prompt: r.prompt } }); msg = `<span class="chip green">running</span> ${esc(r.note || "")} Watch the graph light up, then press Next.`; }

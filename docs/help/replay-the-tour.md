@@ -17,6 +17,6 @@ To replay the tour later:
 2. Or open the Settings page and click **Take the tour again** there.
 3. After an update, the What's new note also has **Take the tour**. **Got it** closes the note without starting the tour.
 
-The sample run uses three pretend AIs (Nova, Atlas, and Sage). They plan a one-week Instagram launch for a coffee roaster. Demo mode turns on for that sample. No keys are needed and nothing is spent. You can move with Next, or leave the tour. Your chats, projects, and keys stay put.
+The sample run uses three pretend AIs (Nova, Atlas, and Sage). They plan a one-week Instagram launch for a coffee roaster. It runs only while no real AI is connected, so demo mode is not turned on over a key you already saved. No keys are needed and nothing is spent. You can move with Next, or leave the tour. Your chats, projects, and keys stay put.
 
 Start a project is the walk for one kind of work (a website, a music video, a marketing campaign, an app, a business plan, or social reels). Replay the tour when you want the console overview. Open Start a project when you want a deliverable.

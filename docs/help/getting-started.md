@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.7
+lastUpdatedVersion: 0.4.8
 ---
 
 # Getting started
@@ -13,11 +13,11 @@ Simple is one chat box. You say what you want, and the council picks the AI. Exp
 
 ## Top bar on a laptop
 
-The top bar is one row of dropdown menus. A wider window splits them into more menus, and a narrower window merges them back. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away. A 1024, 1366, 1920, or 2560 pixel wide window stays on that one row.
+The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away. A 1024, 1366, 1920, or 2560 pixel wide window stays on that one row.
 
 Start a project is in the Work menu, with Projects. The Settings menu keeps Settings, setup, the tour, and Check for updates.
 
-Nova, Atlas and Sage are the demo AIs. They hide once a real AI key or a real AI is connected, and they come back only when every real AI is removed. Real jobs are not sent to those demo AIs while a real AI is connected. You can turn demo mode back on in Settings if you want the pretend AIs in the lists again.
+Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. Real jobs are not sent to those demo AIs while a real AI is connected. You can turn demo mode back on in Settings if you want the pretend AIs in the lists again.
 
 Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour again and Check for updates are both on the Help page. This note shows once after an update. Take the tour again any time from Help or from Settings.
 

@@ -43,7 +43,7 @@ import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscripti
 import { streamChat, complete } from "./providers.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
-import { realAiConnected, demosHidden, realJobSkipsDemo } from "./demo-visibility.js";
+import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
 import { currentPlans } from "./plugins/billing-plans.js";
@@ -194,18 +194,23 @@ function finishPausedChat({ id, prompt, projectId, customAgent, message, billing
 }
 
 function rulesView() {
-  return pricingRules().map((r) => { const a = activeDiscount(r.provider); const nx = nextDiscountStart(r.provider); return { ...r, providerName: PROVIDERS[r.provider]?.name || r.provider, color: PROVIDERS[r.provider]?.color || null, activeNow: !!a && a.id === r.id, nextStart: nx && nx.rule.id === r.id ? nx.at.getTime() : null }; });
+  const hide = demosHidden();
+  return pricingRules()
+    .filter((r) => !(hide && String(r.provider || "").startsWith("demo-")))
+    .map((r) => { const a = activeDiscount(r.provider); const nx = nextDiscountStart(r.provider); return { ...r, providerName: PROVIDERS[r.provider]?.name || r.provider, color: PROVIDERS[r.provider]?.color || null, activeNow: !!a && a.id === r.id, nextStart: nx && nx.rule.id === r.id ? nx.at.getTime() : null }; });
 }
 
 // runs made with the demo AIs stay in history, tagged demo, after demo mode is switched off
 const isDemoRun = (m) => JSON.stringify([m.members?.map((x) => x.provider), m.tasks?.map((t) => t.provider), m.planner, m.assembler, m.provider]).includes('"demo-');
 const summarize = (m) => { const s = m.kind === "council" ? summaryOf(m) : missionSummary(m); return s && isDemoRun(m) ? { ...s, demo: true } : s; };
 
-// Demo mode retires itself once a real AI is connected (a saved key that is not
-// rejected, or an MCP connection). It does not wait for a later health check:
-// a key already in the vault hides the pretend AIs at startup. They come back
-// only when every real AI is removed. Settings can turn them back on (demoKeep).
-async function syncDemoPresence() {
+// Demo mode retires itself once a real AI is connected. A saved key counts even
+// when the probe could not reach the host, so a failed health check cannot put
+// Nova, Atlas and Sage back. They come back only when every real AI is gone.
+// Settings can turn them back on (demoKeep).
+let demoChain = Promise.resolve();
+async function syncDemoPresenceBody() {
+  await Promise.all([refreshCli().catch(() => {}), refreshWindowsEnv().catch(() => {})]);
   const real = realAiConnected();
   const s = settings();
   if (real && s.demoKeep) {
@@ -229,6 +234,11 @@ async function syncDemoPresence() {
     return;
   }
   if (s.demo && !demoActive()) await startDemo();
+}
+function syncDemoPresence() {
+  const run = demoChain.then(syncDemoPresenceBody, syncDemoPresenceBody);
+  demoChain = run.then(() => {}, () => {});
+  return run;
 }
 async function retireDemoIfReal() {
   const before = demoActive();
@@ -361,6 +371,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
+    realAi: realAiConnected(), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
   };
 }
@@ -989,6 +1000,9 @@ async function initContext() {
   setContextInitializer(initContext);
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
   await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, runChat, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
+  // Custom providers (Ollama and the other local presets) register during plugin init.
+  // The boot sync above runs first, so run it again once those providers exist.
+  if (!HOSTED) await syncDemoPresence().catch((e) => console.error("[demo]", e.message));
   pluginsReady = true;
   tryDailyCheck();
   // A taken port is a clear message and exit code 1, not a stack trace. The desktop app picks a free port
