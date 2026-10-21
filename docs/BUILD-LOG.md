@@ -1566,7 +1566,7 @@ WINDOWS TEST HANG FIX (built by Cursor cloud agent)
 
 ## 2026-10-20: Antigravity CLI agent (0.4.9, first slice)
 
-Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch). Phases 45 to 51 are still to build on top of this.
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and this slice is part of 0.4.9). Phases 45 to 51 are still to build on top of this.
 
 - Google Antigravity is an external agent with via local-cli. `server/antigravity-cli.js` runs `agy -p` with `--output-format stream-json`, streams events into the job and the ledger, scrubs output with `stripSecrets()`, and maps sign-in and quota errors to plain sentences.
 - A timeout and Stop kill the process. `agy --version` is pinned. The binary is detected on PATH or in `%LOCALAPPDATA%\agy\bin`. The card says when install or sign-in is still needed. Install and connect runs Google's official installer only after a confirm click, and never puts a key on the command line.
@@ -1586,3 +1586,11 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Checked in the browser on this machine: the setup panel, Allow Antigravity (toast, nothing installed), the Settings card, Add to Antigravity cancelled before a write, and Help, Apps on your desktop. Not verified: a packaged installer, a real agy binary, or the 0.4.9 card on an updated install (it stays hidden until that version).
 
 MELDMIND MCP AND DESKTOP GUIDES (built by Cursor cloud agent)
+
+## 2026-10-21: Desktop control is Pro
+
+Not a numbered phase. No locked decision was changed. Package was not bumped. Square and billing were not touched. data/ was not read.
+
+- Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
+- Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
+- Writing the Antigravity MCP config and queueing a bridge job use the same `desktop` gate. A confirm preview does not write the file.

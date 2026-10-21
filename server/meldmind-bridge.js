@@ -12,6 +12,7 @@ import { doc, putDoc } from "./store.js";
 import { stripSecrets } from "./handoff.js";
 import { listExternalAgents } from "./external-agents.js";
 import { cardView, dispatchJob, findJob, publicJob } from "./antigravity-cli.js";
+import { guard } from "./license.js";
 
 const JOBS = "bridge.jobs";
 const MAX = 80;
@@ -79,6 +80,7 @@ export function previewMcpAdd({ home, command, script, port } = {}) {
 }
 
 export function writeMcpConfig({ confirm, home, command, script, port } = {}) {
+  if (confirm === true) guard("desktop");
   const preview = previewMcpAdd({ home, command, script, port });
   if (!preview.ok) return preview;
   if (confirm !== true) return preview;
@@ -119,6 +121,7 @@ export function listBridgeAgents() {
 }
 
 export async function submitBridgeJob({ task, agent } = {}) {
+  guard("desktop");
   const clean = stripSecrets(String(task || "")).trim();
   if (!clean) {
     const err = new Error("task is required");

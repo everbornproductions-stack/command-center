@@ -1932,10 +1932,10 @@ function renderSetup(v) {
         <div class="panel" id="su-desktop" style="margin-top:16px">
           <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
           <div class="dim small">Meldmind can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Skip this and change it later in Settings.</div>
-          <div class="row" style="margin-top:10px">
+          ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
             <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
             <button class="btn sm" id="su-agy-install" type="button">Install and connect</button>
-          </div>
+          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>

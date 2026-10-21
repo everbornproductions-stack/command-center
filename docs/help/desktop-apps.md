@@ -7,6 +7,8 @@ lastUpdatedVersion: 0.4.9
 
 # Apps on your desktop
 
+Desktop control is part of Pro. On Free the allow and install buttons stay off.
+
 Meldmind can use apps on this computer that have no API. You allow each app. Nothing is used until you do.
 
 Google Antigravity is the first app. It runs on this PC through its agy command. Open Settings and find Google Antigravity.

@@ -514,6 +514,9 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
 });
 
 test("Add to Antigravity writes the MCP config only after confirm, and the bridge token stays out of that file", async () => {
+  process.env.CC_DEV_OWNER = "1";
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(process.env.CC_DATA_DIR)));
   const bridge = await import("../server/meldmind-bridge.js");
   const home = path.join(process.env.CC_DATA_DIR, "home-mcp");
   const file = bridge.mcpConfigPath(home);
@@ -545,7 +548,7 @@ test("Add to Antigravity writes the MCP config only after confirm, and the bridg
 
 test("bridge: a confirm click adds Meldmind, and only the bridge token can queue a job", async () => {
   const home = path.join(tmpDir("cc-mcp-home-"), "h");
-  const s = await startServer({ env: { CC_MCP_HOME: home } });
+  const s = await startServer({ env: { CC_MCP_HOME: home, CC_DEV_OWNER: "1" } });
   const client = McpClient.for(
     { transport: "stdio", command: process.execPath, args: [DEMO] },
     { env: { MELDMIND_PORT: String(s.port), MELDMIND_TOKEN_FILE: path.join(s.dir, "bridge.token") } },
@@ -594,4 +597,32 @@ test("bridge: a confirm click adds Meldmind, and only the bridge token can queue
     try { await client.close(); } catch {}
     await s.stop();
   }
+});
+
+test("Free cannot write the Antigravity config or queue a bridge job", async () => {
+  const prev = process.env.CC_DEV_OWNER;
+  delete process.env.CC_DEV_OWNER;
+  const dir = tmpDir("cc-mcp-free-ctx-");
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(dir)));
+  const bridge = await import("../server/meldmind-bridge.js");
+  const home = path.join(tmpDir("cc-mcp-free-"), "h");
+  try {
+    const preview = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: false });
+    assert.equal(preview.needsConfirm, true);
+    let denied = null;
+    try { bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: true }); }
+    catch (err) { denied = err; }
+    assert.equal(denied?.status, 402);
+    assert.match(denied.message, /Desktop control is part of Pro/);
+    const s = await startServer({ env: { CC_DEV_OWNER: "", CC_MCP_HOME: home } });
+    try {
+      const held = await s.api("/bridge/mcp", { method: "POST", body: {} });
+      assert.equal(held.status, 200);
+      assert.equal(held.json.needsConfirm, true);
+      const wrote = await s.api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+      assert.equal(wrote.status, 402);
+      assert.match(wrote.json.error, /Desktop control is part of Pro/);
+    } finally { await s.stop(); }
+  } finally { if (prev) process.env.CC_DEV_OWNER = prev; }
 });
