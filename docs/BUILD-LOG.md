@@ -1587,6 +1587,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8.
 
-- Typing orders that match a Pro prompt used to attach that prompt and refuse Send until its required facts were filled. The toast was "I need a few facts before I can run <prompt>. I will not invent them." The order never left.
+- Typing orders that match a Pro prompt used to attach that prompt and refuse Send until its required facts were filled. The toast was "I need a few facts before I can run <prompt>. I will not invent them." The order never left. Chris's order ("I have a Craving Finder chat open in Grok Bot. Take a look and see if there are better ways to do the app and new suggestions.") matches no stock phrase. The model was then allowed to guess a template and auto-apply it, which halted Send on that template's facts. A model guess is now only a suggestion. The review goes out as typed.
 - Send now goes out as typed. A match stays a suggestion. Use this asks for the missing facts under the orders box, and Send still goes out while those fields are empty. The prompt is included on a later send once the facts are saved. An explicit empty pack posted to the API is still refused, so a template is not run on invented facts.
-- Tests here (Linux): npm test 429 tests, 427 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.
+- The suggestion chip has a "Send without it" button. It drops the guessed or halted prompt and sends the typed orders on that click.
+- Tests here (Linux): npm test 430 tests, 428 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.

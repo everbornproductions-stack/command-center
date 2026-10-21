@@ -86,19 +86,23 @@ function paintChip() {
   }
   if (!pack || !pack.id || removedId === pack.id) { row.innerHTML = ""; return; }
   const applied = !!pack.applied;
+  const factsOpen = !!(pack.halted && pack.askFacts);
+  const skipBtn = `<button class="btn sm" type="button" id="pp-skip">Send without it</button>`;
   row.innerHTML = `<div class="row small" style="gap:8px;margin-top:6px;flex-wrap:wrap">
     <span class="chip violet">${applied ? "Using" : "Suggested"}: ${esc(pack.name)}</span>
     ${applied ? "" : `<button class="btn sm" type="button" id="pp-use">Use this</button>`}
+    ${factsOpen ? "" : skipBtn}
     <button class="btn sm" type="button" id="pp-chip-x" aria-label="Remove Pro prompt">Remove</button>
-    <span class="dim">${pack.halted && pack.askFacts ? esc(pack.message || "") : "You can remove this before you send."}</span>
+    <span class="dim">${factsOpen ? esc(pack.message || "") : "You can remove this before you send."}</span>
   </div>
-  ${pack.halted && pack.askFacts ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button></div>` : ""}`;
+  ${factsOpen ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button> ${skipBtn}</div>` : ""}`;
   row.querySelector("#pp-use")?.addEventListener("click", () => {
     if (pack.halted) { pack.askFacts = true; paintChip(); return; }
     pack.applied = true;
     window.CC.promptPack = packState();
     paintChip();
   });
+  row.querySelector("#pp-skip")?.addEventListener("click", () => sendWithoutIt());
   row.querySelector("#pp-chip-x")?.addEventListener("click", async () => {
     removedId = pack.id;
     pack.applied = false;
@@ -114,6 +118,16 @@ function paintChip() {
       await consider(document.getElementById("orders")?.value || "", true);
     });
   }
+}
+
+function sendWithoutIt() {
+  if (!pack?.id) return;
+  removedId = pack.id;
+  pack.applied = false;
+  pack.askFacts = false;
+  window.CC.promptPack = { removed: true };
+  paintChip();
+  document.getElementById("go")?.click();
 }
 
 function packState() {
