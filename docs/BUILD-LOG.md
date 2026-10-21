@@ -1576,7 +1576,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 ## 2026-10-21: demo AIs stay hidden, and the wide nav uses the bar
 
-Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.7.
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version is 0.4.8.
 
 - Nova, Atlas and Sage were coming back after a real key was saved. The first sync hid them, then the health probe marked the provider unreachable or rejected and a second sync started the pretend AIs again. A saved text key now counts even when the probe cannot reach the host. A rejected key still does not. A local model, an OpenRouter key, agy on the PATH, an official sign-in, and a configured Grok Bot webhook count. A media key does not. The hub drops demo nodes when a real AI is connected. Saved agents pinned to a demo model are filtered and tagged, not deleted. The tour no longer turns demo mode on when a real AI is already connected. demoKeep is unchanged.
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
