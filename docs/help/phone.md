@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.4
 
 # Phone pairing
 
-Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. Turning phone pairing on is Pro. Turning it off stays free. The QR code and the link both include the pairing code. It stays off until you turn it on.
+Phone pairing uses this PC's Wi-Fi address when you turn it on in Settings, under Phone and other devices. A Wi-Fi address is used ahead of a virtual adapter. Turning phone pairing on is Pro. Turning it off stays free. The QR code opens a short address. The address under the code also works. Both include the pairing code. It stays off until you turn it on.
 
 1. On the PC, open Settings, then Phone and other devices.
 2. Turn on Phone pairing. Leave it off if you do not want a phone to connect. While it is off, this PC answers only on this computer.

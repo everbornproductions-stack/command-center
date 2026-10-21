@@ -116,6 +116,10 @@ test("you saved counter: this month, all time, estimate label, and tooltip", () 
   assert.match(ui, /pays the live price/);
   assert.match(ui, /cc-ms-tip/);
   assert.match(ui, /\.title = SAVED_TIP/);
+  assert.match(ui, /position:\s*fixed/, "the estimate tip is taken out of the top bar");
+  assert.match(ui, /z-index:\s*1000/, "the estimate tip paints above Live ops");
+  assert.match(ui, /document\.body\.appendChild/, "the estimate tip is attached to body");
+  assert.doesNotMatch(ui, /\.cc-money-saved:hover \.cc-ms-tip/, "hover must not depend on a tip trapped in the bar");
   assert.ok(!ui.includes("—"), "the counter copy has no em-dash");
   assert.ok(!ui.includes("–"), "the counter copy has no en-dash");
 });

@@ -1,5 +1,8 @@
-// Pro prompts: browse by category, fill from the Business Profile, and halt when a fact is missing.
+// Pro prompts: browse by category, fill from the Business Profile, and ask inline when a chosen prompt needs a fact.
+// A guessed prompt never stops the orders box.
 import { marketplacePacks, mountPromptBoard } from "./prompt-board.js";
+import { detectApplied } from "./prompt-order.js";
+import { plainExplain, plainLabel } from "../plain.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -18,7 +21,8 @@ function fieldHtml(field, value) {
   const v = value == null ? "" : String(value);
   const speak = voiceReady() ? `<button type="button" class="btn sm" data-speak="${esc(field.key)}">Speak</button>` : "";
   if (field.kind === "bool" || field.key === "scf") {
-    return `<label class="row small" style="gap:8px;margin-top:8px"><input type="checkbox" data-k="${esc(field.key)}" ${v === "true" || v === true ? "checked" : ""}> ${esc(field.label)}</label>`;
+    const scf = field.key === "scf";
+    return `<label class="row small" style="gap:8px;margin-top:8px"><input type="checkbox" data-k="${esc(field.key)}" aria-label="${esc(scf ? plainLabel("scf") : field.label)}" ${v === "true" || v === true ? "checked" : ""}> ${esc(scf ? plainLabel("scf") : field.label)}</label>${scf ? `<div class="hint" role="note">${esc(plainExplain("scf"))} Real estate and mortgage modes are coming.</div>` : ""}`;
   }
   if (field.multiline) return `<label class="small" style="display:block;margin-top:8px">${esc(field.label)}${field.required === false ? "" : " *"} ${speak}<textarea data-k="${esc(field.key)}" rows="3" style="width:100%">${esc(v)}</textarea></label>`;
   return `<label class="small" style="display:block;margin-top:8px">${esc(field.label)}${field.required === false ? "" : " *"} ${speak}<input data-k="${esc(field.key)}" value="${esc(v)}" style="width:100%"></label>`;
@@ -59,7 +63,7 @@ async function mountInterview(el) {
   } catch (e) { el.innerHTML = `<div class="dim small">${esc(e.message)}</div>`; return; }
   const byKey = Object.fromEntries(fields.map((f) => [f.key, f]));
   el.innerHTML = `<div class="panel"><h3>Business Profile</h3>
-    <div class="small dim">A short interview. Later prompts reuse it. You can speak an answer when the mic is available.</div>
+    <div class="small dim">A short interview. Later prompts reuse it. Every field is optional. You can speak an answer when the mic is available.</div>
     ${steps.map((step) => `<div style="margin-top:12px"><b>${esc(step.title)}</b>${step.voice && !voiceReady() ? `<div class="dim small">Type this one. Speech recognition is not available in this window.</div>` : ""}${step.fields.map((key) => fieldHtml(byKey[key] || { key, label: key }, profile[key])).join("")}</div>`).join("")}
     <div class="row" style="margin-top:12px"><button class="btn sm primary" type="button" id="pp-save-profile">Save profile</button></div>
   </div>`;
@@ -84,14 +88,23 @@ function paintChip() {
   }
   if (!pack || !pack.id || removedId === pack.id) { row.innerHTML = ""; return; }
   const applied = !!pack.applied;
+  const factsOpen = !!(pack.halted && pack.askFacts);
+  const skipBtn = `<button class="btn sm" type="button" id="pp-skip">Send without it</button>`;
   row.innerHTML = `<div class="row small" style="gap:8px;margin-top:6px;flex-wrap:wrap">
     <span class="chip violet">${applied ? "Using" : "Suggested"}: ${esc(pack.name)}</span>
     ${applied ? "" : `<button class="btn sm" type="button" id="pp-use">Use this</button>`}
+    ${factsOpen ? "" : skipBtn}
     <button class="btn sm" type="button" id="pp-chip-x" aria-label="Remove Pro prompt">Remove</button>
-    <span class="dim">${pack.halted ? esc(pack.message || "") : "You can remove this before you send."}</span>
+    <span class="dim">${factsOpen ? esc(pack.message || "") : "You can remove this before you send."}</span>
   </div>
-  ${pack.halted ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button></div>` : ""}`;
-  row.querySelector("#pp-use")?.addEventListener("click", () => { pack.applied = true; window.CC.promptPack = packState(); paintChip(); });
+  ${factsOpen ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button> ${skipBtn}</div>` : ""}`;
+  row.querySelector("#pp-use")?.addEventListener("click", () => {
+    if (pack.halted) { pack.askFacts = true; paintChip(); return; }
+    pack.applied = true;
+    window.CC.promptPack = packState();
+    paintChip();
+  });
+  row.querySelector("#pp-skip")?.addEventListener("click", () => sendWithoutIt());
   row.querySelector("#pp-chip-x")?.addEventListener("click", async () => {
     removedId = pack.id;
     pack.applied = false;
@@ -99,7 +112,7 @@ function paintChip() {
     try { await api("/prompts/dismiss", { method: "POST", body: { id: removedId } }); } catch { /* still remove the chip */ }
     paintChip();
   });
-  if (pack.halted && pack.template) {
+  if (pack.halted && pack.askFacts && pack.template) {
     const box = row.querySelector("#pp-miss-fields");
     box.innerHTML = (pack.template.inputs || []).filter((f) => (pack.missing || []).some((m) => m.key === f.key)).map((f) => fieldHtml(f, "")).join("");
     row.querySelector("#pp-fill").addEventListener("click", async () => {
@@ -107,6 +120,16 @@ function paintChip() {
       await consider(document.getElementById("orders")?.value || "", true);
     });
   }
+}
+
+function sendWithoutIt() {
+  if (!pack?.id) return;
+  removedId = pack.id;
+  pack.applied = false;
+  pack.askFacts = false;
+  window.CC.promptPack = { removed: true };
+  paintChip();
+  document.getElementById("go")?.click();
 }
 
 function packState() {
@@ -130,7 +153,8 @@ async function consider(text, keepApplied) {
     const list = await api("/prompts");
     const template = (list.templates || []).find((t) => t.id === match.id);
     const prior = pack?.id === match.id ? pack.inputs || {} : {};
-    pack = { id: match.id, name: match.name, applied: keepApplied || !!match.autoApply, halted: false, inputs: prior, template };
+    const asked = !!(pack?.id === match.id && pack.askFacts);
+    pack = { id: match.id, name: match.name, applied: false, halted: false, askFacts: false, inputs: prior, template };
     try {
       const rendered = await api("/prompts/render", { method: "POST", body: { id: match.id, inputs: prior } });
       pack.inputs = rendered.values || prior;
@@ -138,10 +162,12 @@ async function consider(text, keepApplied) {
     } catch (e) {
       if (e.code !== "prompt_halt") throw e;
       pack.halted = true;
+      pack.askFacts = asked;
       pack.message = e.message;
       pack.questions = e.questions || [];
       pack.missing = e.missing || [];
     }
+    pack.applied = detectApplied({ autoApply: !!match.autoApply, keepApplied: !!keepApplied, halted: pack.halted });
     publishPack();
   } catch { /* a failed detect leaves the orders as typed */ }
 }
@@ -231,6 +257,7 @@ async function openTemplate(data, id) {
   try { profile = (await api("/prompts/profile")).profile || {}; } catch { /* form still works */ }
   const valueFor = (f) => (f.profile && profile[f.profile]) || "";
   box.innerHTML = `<div class="panel"><h3>${esc(t.name)}</h3><div class="small dim">${esc(t.description)}</div>
+    ${t.locked ? `<div class="small">Industry packs are part of Pro ($18.99/month). Add a licence key in Settings. Credit repair does not promise a score change. Outbound text stays a draft.</div>` : ""}
     ${t.inputs.map((f) => fieldHtml(f, valueFor(f))).join("")}
     <div id="pp-halt" class="small" style="margin-top:8px"></div>
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">

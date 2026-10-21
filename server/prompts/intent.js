@@ -58,6 +58,9 @@ function parsePick(raw, templates) {
 }
 
 // ask(system, user) -> text. Used only when the heuristic is not confident.
+// A model pick is a suggestion. It does not auto-apply. An open-ended review
+// ("take a look and suggest") has no stock phrase, and attaching the guess was
+// refusing Send until that template's facts were filled.
 export async function detectIntent(text, templates, { ask } = {}) {
   const h = heuristicMatch(text, templates);
   if (h.autoApply || h.suggest || !ask) return h;
@@ -71,7 +74,7 @@ export async function detectIntent(text, templates, { ask } = {}) {
     if (!hit) return { ...h, fallback: "none" };
     return {
       id: hit.id, name: hit.name, category: hit.category, score: h.score, confidence: 0.7,
-      autoApply: true, suggest: false, source: "router", hits: [], alternatives: h.alternatives || [],
+      autoApply: false, suggest: true, source: "router", hits: [], alternatives: h.alternatives || [],
     };
   } catch {
     return { ...h, fallback: "unavailable" };

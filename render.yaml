@@ -1,0 +1,35 @@
+# Render blueprint for the Meldmind hosted web app and worker.
+# Do not put secret values in this file. Set the sync:false names in the Render dashboard.
+# A free instance sleeps, so a job cannot keep running while the PC is off.
+# Use a paid always-on instance (Starter is the smallest). See the README.
+services:
+  - type: web
+    name: meldmind-hub
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: CC_MODE
+        value: hosted
+      - key: PORT
+        value: "8080"
+      - key: NODE_ENV
+        value: production
+      - key: CC_SUPABASE_URL
+        sync: false
+      - key: CC_SUPABASE_ANON_KEY
+        sync: false
+      - key: CC_SUPABASE_SERVICE_KEY
+        sync: false
+      - key: CC_MASTER_KEY
+        sync: false
+      - key: CC_WORKER_TOKEN
+        sync: false
+      - key: CC_HUB_URL
+        sync: false
+      - key: CC_OWNER_EMAILS
+        sync: false
+      - key: CC_TICK_SECRET
+        sync: false

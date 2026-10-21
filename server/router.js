@@ -2,10 +2,10 @@
 // Score = learned capability (baseline + what the council taught us) minus a cost penalty
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
 // With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
-import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
+import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice, findModel } from "./registry.js";
 import { demosHidden, realAiConnected } from "./demo-visibility.js";
 import { hasSecret } from "./vault.js";
-import { doc, putDoc } from "./store.js";
+import { doc, putDoc, ctx } from "./store.js";
 import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
 import { troubled, freeNow, completeFallback } from "./fallback.js";
@@ -13,8 +13,11 @@ import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
-import { costWeight, normalizeMode, speedBoost } from "./modes.js";
+import { bestModelEach, costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
+import { extraRouteModels } from "./route-extras.js";
+import { searchCoversAnyModel } from "./search.js";
+import { applyTune } from "./learn-tune.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -67,28 +70,67 @@ export function recordHuman(modelId, capability, up, prev = null) {
   if (up) r.up++; else r.down++;
   putDoc("skills", sk);
 }
+// Clears thumbs only. Council wins and rounds stay.
+export function clearHumanRatings() {
+  const sk = skills();
+  for (const model of Object.keys(sk)) {
+    for (const cap of Object.keys(sk[model] || {})) {
+      const r = sk[model][cap];
+      if (!r) continue;
+      r.up = 0;
+      r.down = 0;
+    }
+  }
+  putDoc("skills", sk);
+}
 export const skillTable = () => skills();
 
+// Accepted model switches (Phase 32). Read only. Missing state changes nothing.
+function routeOverlay() {
+  try {
+    const d = ctx().docs["modelwatch.state"];
+    if (!d || !Array.isArray(d.accepted)) return [];
+    return d.accepted.filter((r) => r && r.provider && r.hide && r.model?.id);
+  } catch { return []; }
+}
+
 export function availableModels() {
+  const routes = routeOverlay();
   const out = [];
   for (const p of TEXT_PROVIDERS) {
     const st = getStatus(p.id);
     const keyed = hasSecret(p.id, p.keyEnv);
     if (p.demo && (!keyed || demosHidden())) continue; // pretend AIs leave once a real AI is connected
+    const hidden = new Set(routes.filter((r) => r.provider === p.id).map((r) => r.hide));
+    const d = activeDiscount(p.id);
     for (const m of p.models) {
-      const d = activeDiscount(p.id);
+      if (hidden.has(m.id)) continue;
       const pr = modelPrice(m.id);
       out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), baseCaps: m.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
     }
+    for (const r of routes) {
+      if (r.provider !== p.id || out.some((x) => x.model === r.model.id)) continue;
+      const donor = p.models.find((m) => m.id === r.hide) || p.models.find((m) => m.default) || p.models[0];
+      if (!donor) continue;
+      const prIn = r.model.in == null || r.model.in === "" ? NaN : Number(r.model.in);
+      const prOut = r.model.out == null || r.model.out === "" ? NaN : Number(r.model.out);
+      const price = { in: Number.isFinite(prIn) ? prIn : donor.in, out: Number.isFinite(prOut) ? prOut : donor.out };
+      out.push({ provider: p.id, providerName: p.name, color: p.color, model: r.model.id, name: r.model.name || r.model.id, tier: donor.tier, in: price.in, out: price.out, caps: learnedCaps(r.model.id, donor.caps), baseCaps: donor.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: false });
+    }
   }
+  for (const row of extraRouteModels()) out.push(row);
   return out;
 }
 
-// mode: quality | balanced | savings (alias: economy) | speed
-export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
+// mode: max | quality | balanced | savings (alias: economy) | speed
+export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
-  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  const covered = !!needWeb && searchCoversAnyModel();
+  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || covered || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  // Allowed programs are scored with the same formula, then listed after the text models.
+  // Text jobs, pick(), and missions keep the text ranking unless the caller asks for apps.
+  if (!includeApps) list = list.filter((m) => m.kind !== "app");
   // A real job never goes to Nova, Atlas or Sage while a real AI is connected, even if demo mode was turned back on.
   if (realAiConnected()) list = list.filter((m) => !PROVIDERS[m.provider]?.demo);
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
@@ -105,8 +147,13 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
-  const scored = list.map((m) => {
-    const est = estimateCostAt(m.model, estIn, estOut, when);
+  // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
+  // Prefer-free is skipped so a cheaper model does not replace that flagship.
+  if (mode === "max") list = bestModelEach(list, capability);
+  const scoreOf = (m) => {
+    let est = estimateCostAt(m.model, estIn, estOut, when);
+    // A model accepted from the provider list is not in the built-in table yet. Use the price that was saved with the switch.
+    if (est === 0 && !findModel(m.model) && ((m.in || 0) > 0 || (m.out || 0) > 0)) est = (estIn / 1e6) * (m.in || 0) + (estOut / 1e6) * (m.out || 0);
     // learning router (Phase 28): the person's own track record for this task type, when there is one,
     // replaces the older skills shift: base score blended with the record, cost per job, speed
     const learned = adjust({ model: m.model, baseCaps: m.baseCaps, capability, difficulty, mode, estCost: est });
@@ -131,9 +178,14 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
     return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
-  });
-  const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), readPreferFree()), mode);
-  return ordered;
+  };
+  const scored = list.map(scoreOf);
+  let ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode);
+  if (includeApps) {
+    const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
+    if (appRows.length) ordered = ordered.concat(appRows.map(scoreOf).sort((a, b) => b.score - a.score));
+  }
+  return applyTune(ordered);
 }
 
 // Would waiting for a discount window save real money on this job? Looks 48 h ahead.

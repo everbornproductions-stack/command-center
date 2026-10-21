@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.8
 
 # Getting started
 
-A new install starts in Simple. The first time you open Meldmind it asks: Keep it simple or show me everything?
+A new install starts in Simple. The first setup step asks: Which mode do you want to start in? You can change this later.
 
 Simple is one chat box. You say what you want, and the council picks the AI. Expert is the full console. The Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
 
@@ -23,6 +23,10 @@ Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind.
 
 Until you add a key, Demo can answer in the chat and nothing is spent. Demo does not answer Ask Meldmind.
 
+On a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon.
+
+When you come back, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer. Tone buttons set the next answer only (shorter, warmer, more direct, or plain words) and do not send by themselves. AI credits shows what is left for each AI. Each answer says which AI wrote it. The first council explains itself in plain words. A council or mission lists who will read the prompt before it is sent, including tools and connected services. You can remove one reader. Nothing is sent until Send. After you delete a project, the receipt can be saved as its own file.
+
 ## Learning from each job
 
 Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
@@ -37,7 +41,7 @@ If you clear the box, this note appears: Meldmind learns from the community. Wit
 
 ## Priority
 
-Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.
+Max quality, Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Max quality is part of Extreme. It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.
 
 ## Free models on this PC
 
@@ -55,6 +59,22 @@ The top bar shows You saved this month and all time. It is an estimate based on 
 
 Add a custom provider and tick Good at for the task types it should take. Matching tasks go to it. Scores from your jobs make the pick sharper. Leave none ticked and Meldmind learns from the name.
 
+## Run in background
+
+Run in background is Pro. Leave this screen. You get an alert when the chat, council, or mission is done. Nothing is emailed. The alert stays in the app until you open it or dismiss it.
+
+## What your ratings taught
+
+Settings shows what your ratings taught. Thumbs up and thumbs down change who gets the next job of that kind. Council votes stay separate. Reset clears only the thumbs. Council scores stay. Runs and the ledger stay.
+
+## Pause a mission
+
+Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are. A scheduled mission is cancelled with abort, not paused.
+
 ## Appearance
 
 Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.
+
+## Apps on your desktop
+
+The first setup screen includes Let Meldmind use your desktop. You can skip it. Settings, Google Antigravity, is the same choice later. Allow is per app. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. The full steps are in Apps on your desktop.

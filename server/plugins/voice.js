@@ -4,6 +4,7 @@
 // with the rest of the app's settings. The response is only the voice fields.
 import { DEFAULT_MODE, MODES, coerceSettings, normalizeSettings } from "../../web/features/voice-mode.js";
 import { decodeAudio, transcribeAudio } from "../speech.js";
+import { transcribeWithFallback } from "../dictate.js";
 
 export const id = "voice";
 
@@ -20,6 +21,15 @@ export async function routes(req, res, url, body, h) {
     const audio = decodeAudio(body);
     if (!audio) return h.json(res, 400, { error: "No audio in that recording.", code: "voice_audio" });
     const out = await transcribeAudio(audio, {
+      hasSecret: (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv),
+      getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
+    });
+    return h.json(res, 200, { text: out.text, provider: out.provider, model: out.model });
+  }
+  if (req.method === "POST" && p === "/dictate") {
+    const audio = decodeAudio(body);
+    if (!audio) return h.json(res, 400, { error: "No audio in that recording.", code: "voice_audio" });
+    const out = await transcribeWithFallback(audio, {
       hasSecret: (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv),
       getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
     });

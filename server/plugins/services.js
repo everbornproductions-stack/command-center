@@ -7,10 +7,22 @@ import { servicesView, refreshLive, apiRows, saveAdminKey, removeAdminKey, setMa
 import { subscriptionView, deleteSubscription } from "../subscriptions.js";
 import { subscriptionsLocked } from "../license.js";
 import { renewalSweep, raise } from "./alerts.js";
+import { scheduler } from "../perf/scheduler.js";
 
 export const id = "services";
 let H = null;
-export async function init(h) { H = h; }
+export async function init(h) {
+  H = h;
+  if (h.HOSTED) return;
+  scheduler.register({
+    id: "detection",
+    everyMs: 3600 * 1000,
+    firstMs: 45000,
+    lightEveryMs: 6 * 3600 * 1000,
+    pause: true,
+    run: () => tick(),
+  });
+}
 
 const monthKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
@@ -79,7 +91,5 @@ async function handle(req, res, url, body, h) {
   return false;
 }
 
-// live balances: shortly after start, then hourly (local mode; the hosted hub refreshes on demand)
+// live balances: the shared scheduler runs this (local mode; the hosted hub refreshes on demand)
 const tick = () => { try { if (H && !H.HOSTED && !subscriptionsLocked()) refreshLive().then(() => balanceAlerts(H)).catch(() => {}); } catch {} };
-setTimeout(tick, 45000).unref();
-setInterval(tick, 3600 * 1000).unref();

@@ -18,6 +18,7 @@ Other messages:
 - Tap to talk works in the desktop app. It transcribes with an OpenAI, Groq, ElevenLabs, or Gemini key, and it names the key to add when none is saved. While that runs the status says Transcribing. If a take ends with no words, it says No speech heard.
 - "Could not reach": a network problem. Check the connection, then try the same action again.
 - "This phone cannot reach the PC": use the same Wi-Fi, turn on phone pairing in Settings, under Phone and other devices, and allow Meldmind on private networks in Windows Firewall.
+- "This key is already on 2 computers. Remove one in Settings > Devices.": the licence is already on a PC and a laptop. Open Settings, Devices, and remove one computer. Each person has their own key.
 - The engine panel after a long wait: Restart engine, Check for updates, or Keep waiting. Your keys and history stay on this computer.
 - Out of credits, a spending limit, or a rate limit pauses that AI. The strip says Paused: no credits, with a billing link. Auto-picks skip it until a health check clears it or you save the key again. A pinned chat says the AI is paused and names the billing page.
 - After a run, one upgrade tip can name an AI that usually does that task better, with a link to add credits or a key. Tips stay off during a run. At most one tip per AI per task type each week. Nothing is sent.

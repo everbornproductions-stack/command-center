@@ -35,6 +35,30 @@ export function waitBudget(ms) {
   return ms * 2;
 }
 
+const RUN_DONE = ["done", "done-with-errors", "failed"];
+
+// A Windows runner can stamp a run a tick before Date.now() in the test process.
+// Wait on the id /chat returns, not on startedAt > now.
+export function runSettled(id) {
+  return (st) => (st.missions || []).find((m) => m.id === id && RUN_DONE.includes(m.status));
+}
+
+export async function chatRunId(api, body) {
+  const posted = await api("/chat", { method: "POST", body });
+  if (posted.status !== 202 || !/^s-/.test(posted.json?.runId || "")) {
+    throw new Error(`chat did not start (${posted.status})`);
+  }
+  return posted.json.runId;
+}
+
+// Council and mission do not return an id. Ignore runs that already existed.
+export async function newKindPred(api, route, body, kind) {
+  const before = new Set(((await api("/state")).json.missions || []).map((m) => m.id));
+  const posted = await api(route, { method: "POST", body });
+  if (posted.status !== 202) throw new Error(`${route} did not start (${posted.status})`);
+  return (st) => (st.missions || []).find((m) => m.kind === kind && !before.has(m.id) && RUN_DONE.includes(m.status));
+}
+
 export function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -47,7 +71,10 @@ export const tmpDir = (prefix = "cc-test-") => fs.mkdtempSync(path.join(os.tmpdi
 
 // Raw HTTP request (lets a test set Host / Origin / content-type exactly). Returns { status, headers, text, json }.
 // One socket per call, and the call gives up after a real pause so a wait loop can poll again.
-export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body, timeout = 20000 }) {
+// The socket wait uses the same Windows budget as the polls. A stdio tool server
+// can take longer than 20s to finish initialize on a busy runner, and the server
+// itself allows 30s for that handshake.
+export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body, timeout = waitBudget(20000) }) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : typeof body === "string" ? body : JSON.stringify(body);
     const h = { connection: "close", ...headers };
@@ -199,9 +226,15 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
     CC_NET_TRACE: "1",
+    // Model watch must not call providers during the suite. A test opts in with CC_MODEL_WATCH=on.
+    CC_MODEL_WATCH: env.CC_MODEL_WATCH || "off",
+    // People chat must not inherit a hub address from the machine running the tests.
+    CC_USERCHAT_HUB: env.CC_USERCHAT_HUB || "",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
+  // Tests never call the public web. A loopback mock (CC_SEARCH_URL_*) still answers.
+  if (childEnv.CC_SEARCH_OFFLINE === undefined) childEnv.CC_SEARCH_OFFLINE = "1";
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.
   const child = spawn(process.execPath, ["--import", pathToFileURL(path.join(ROOT, "test", "vault-preload.mjs")).href, path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
   trackChild(child);

@@ -44,19 +44,36 @@ The research (docs/market-research-2026-10-17.md) found nobody ships the full co
 
 Chris's call on 2026-10-18: this is a subscription service. Grok's advice in the "Selling an AI-Made App" chat (read 2026-10-18) and our market research agree on the shape; the research adds one guardrail: never resell opaque credits.
 
-The live Square checkout is still **$15.99 / month** (Chris, 2026-10-18) at **https://square.link/u/dbU38mQC**. The app also shows Pro yearly at $159 and a lifetime founder price, and those buttons do not charge (Phase 35). The current plan (2026-10-21, Phase 91, not in the app yet) is three tiers:
+The live Square checkout for people who already pay is still **$15.99 / month** (Chris, 2026-10-18) at **https://square.link/u/dbU38mQC**. New prices are in the app. A Studio licence is treated as Pro. There is no separate Studio price.
 
-| Tier | Plan price | What you get | Notes |
+| Tier | Price | What you get | Notes |
 |---|---|---|---|
 | Free | $0 | Bring your own keys, 3 projects, Single mode, status strip, 5 councils/month, 1 connected service | Enough to feel the routing. The Credits tab shows what was saved. |
-| Pro | **$18.99 / month** or **$189 / year**. About 6 months later, monthly rises to **$24.99**. | Everything in Free, plus Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | The app still shows $15.99 and $159 until Phase 91. |
-| Extreme | **$29.99 / month** or **$299 / year**. About 6 months later, monthly rises to **$39.99**. | The tier above Pro. The extra features are set when Phase 91 is built. | No fourth public price. The Studio flag in the app stays. |
-| Lifetime founder | $299 for the first 100, then $499 for the next 400, closed at 500 | Pro for the life of the product | The buyer counter stays hidden under 40 buyers. |
+| Pro | **$18.99 / month** or **$189 / year**. About 6 months later, monthly rises to **$24.99**. Lifetime founder is $349 for the first 100, then $499, closed after 500. Lifetime is Pro for life. People who already pay $15.99 stay on that price. | Everything in Free, plus Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support, Deep Research with a monthly limit | Pro monthly, Pro yearly, and the $349 lifetime page open their Square pay pages. The old $15.99 link is not a new-plan button. |
+| Extreme | **$29.99 / month** or **$299 / year**. About 6 months later, monthly rises to **$39.99**. | Everything in Pro, plus more AIs per council, more runs at once, unlimited Deep Research, all industry packs, a compliance audit log, early access, Max quality, and team spaces for 5 people total, counting the owner (the owner plus 4 invited) | Hosted background runs and schedules are gated until those screens exist. Monthly and yearly open their Square pay pages. |
+| Owner | No charge. Issued by hand. | The same limits as Extreme. | Not a public price. |
 | Managed keys (later) | Pro + usage at cost + 10% | We hold the provider accounts for people who do not want API keys | Only with a live, itemised ledger. |
 
-Details are in docs/billing.md. The version groups are in docs/BUILD-PLAN.md.
+The old Square pay link is **https://square.link/u/dbU38mQC** and still bills $15.99. New prices and the published pay pages are in docs/billing.md. The app does not send a new plan to that old link. The $349 founder page is https://square.link/u/nKrsGaj2. The version groups are in docs/BUILD-PLAN.md.
 
 Positioning line (Grok's draft, kept): "One place to talk. It picks the right AI (ChatGPT, Claude, Grok…), routes for speed and cost, and coordinates them to actually finish the project." Sell the savings and the finished work, not "orchestration".
+
+## Marketing: Meldmind can use the apps on your desktop, safely
+
+Headline feature for 0.4.9. The longer page is docs/marketing.md. Use this when the story is the desktop, not another chat window.
+
+| Point | What to say |
+|---|---|
+| Works with apps that have no API | MCP first, then a website in the system browser, then a Windows app in its own window. A screenshot path stays off until the person opts in. |
+| Approval for each app | An app stays off until Allow is on for that app. It can be turned off in Settings. |
+| Confirm before send, buy, or delete | The first click prepares the step. The second click is the one that sends, buys, or deletes. |
+| Stop banner | While an app is in use, a banner says Meldmind is using that app, and Stop ends it. |
+| No passwords stored | Sign-in happens in the app or in the browser. Meldmind does not keep the password, and it does not put a key on a command line. |
+| Self-healing when apps change | Controls are found by role, name, and shortcut. If a control moves, Meldmind tries the other ways it knows, then a manual handoff, and says so in plain words. |
+
+Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in. Add to Antigravity connects Meldmind as a local MCP server after a confirm click. The first-run setup screen and, after an update to 0.4.9, a one-time card (Not now reminds once, Never hides it) both offer the same choice.
+
+Do not claim that Meldmind posts, sends, or spends on its own. Do not mention income. Square and billing stay out of this story.
 
 ## Launch marketing (from the Grok chat, matches the Everborn Reels workflow)
 

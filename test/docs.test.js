@@ -13,7 +13,7 @@ test("docs: user guide and release notes exist, are linked from the README and k
   const readme = read("README.md"), guide = read("docs", "USER-GUIDE.md"), notes = read("docs", "RELEASE-NOTES.md");
   assert.match(readme, /\(docs\/USER-GUIDE\.md\)/);
   assert.match(readme, /\(docs\/RELEASE-NOTES\.md\)/);
-  assert.match(guide, /^# Command AI user guide/);
+  assert.match(guide, /^# Meldmind user guide/);
   assert.match(guide, /an Everborn product/);
   assert.match(notes, /^## v0\.4\.3 /m);
   // the guide describes the locked behaviour (decisions 4, 11, 12, 20)

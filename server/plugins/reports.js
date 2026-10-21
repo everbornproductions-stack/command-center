@@ -4,6 +4,7 @@
 // email draft (opens their own mail app) and a Markdown export, and sends it themselves if they want.
 import { allEntries } from "../ledger.js";
 import { PROVIDERS } from "../registry.js";
+import { scheduler } from "../perf/scheduler.js";
 export const id = "reports";
 const LATEST = "reports.latest", HIST = "reports.history", STATE = "reports.state", PREFS = "reports.prefs";
 const DONE = new Set(["done", "done-with-errors"]);
@@ -13,6 +14,14 @@ export async function init(h) {
   H = h;
   // catch up shortly after start when this week's Monday 07:00 report was missed (the app was closed)
   setTimeout(() => scheduledRun(), 60 * 1000).unref();
+  if (h.HOSTED) return;
+  scheduler.register({
+    id: "reports",
+    everyMs: 10 * 60 * 1000,
+    lightEveryMs: 60 * 60 * 1000,
+    pause: true,
+    run: () => scheduledRun(),
+  });
 }
 
 function weekRange(offsetWeeks = 0, now = new Date()) {
@@ -76,8 +85,23 @@ export function buildReport(h, now = new Date()) {
   return { ts: now.getTime(), week: thisW, markdown: lines.join("\n"), totals: { thisWeek: +a.total.toFixed(4), lastWeek: +b.total.toFixed(4), calls: a.calls, runs: shipped.length }, shipped: shipped.slice(0, 15).map(({ id, kind, title, finishedAt }) => ({ id, kind, title, finishedAt })), low: low.length, renewals: renewals.length, idle: idle.length, cancel: idle.map((s) => s.name) };
 }
 
+// A Monday catch-up stays quiet until some job has run. Run now is a click, so it may announce.
+export function shouldAnnounceReport(reason, hasJob) {
+  if (reason === "run now") return true;
+  return !!hasJob;
+}
+
+function hasJob(h) {
+  try { if (allEntries().some((e) => e && e.kind === "call")) return true; } catch { /* ledger not ready */ }
+  try {
+    const list = h.ctx().store.listMissions((m) => (m && m.id ? m.id : null));
+    return Array.isArray(list) && list.some(Boolean);
+  } catch { return false; }
+}
+
 // In-app only: the report is stored and announced in the live feed. No email, no push, no network.
 function store(h, rep, reason) {
+  if (!shouldAnnounceReport(reason, hasJob(h))) return;
   h.putDoc(LATEST, rep);
   const hist = h.doc(HIST, () => ({ items: [] })); hist.items.unshift({ ts: rep.ts, totals: rep.totals, reason }); hist.items = hist.items.slice(0, 52); h.putDoc(HIST, hist);
   h.putDoc(STATE, { lastRun: rep.ts });
@@ -118,5 +142,3 @@ export async function routes(req, res, url, body, h) {
   return false;
 }
 
-// schedule check every 10 minutes (local mode; hosted users get theirs from Run now)
-setInterval(scheduledRun, 10 * 60 * 1000).unref();

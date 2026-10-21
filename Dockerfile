@@ -1,5 +1,7 @@
 # Everborn Command hosted hub. Build context = the command-center folder.
 # Runs the same server as the desktop app in hosted mode; all state lives in Supabase.
+# This image is the hosted web app and the Extreme job worker (server/worker-service.js
+# is loaded by server/index.js). Nothing in this file is a secret. Set keys on the host.
 FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app

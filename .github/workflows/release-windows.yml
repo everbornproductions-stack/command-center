@@ -138,3 +138,59 @@ jobs:
             fi
           done
           echo "Published ${TAG} to ${R} with the installer, blockmap, and latest.yml."
+
+  # Unsigned Mac disk image and zip. No Apple signing. A missing release stays a draft
+  # so a Mac-only upload cannot replace latest.yml. Automatic updates for Mac are coming soon.
+  mac-release:
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Require the publishable key
+        env:
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/inject-cloud-key.mjs --check
+
+      - name: Build unsigned dmg and zip
+        env:
+          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run dist:mac
+
+      - name: Upload to the releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then echo "RELEASES_TOKEN secret is not set; skipping upload. Files are in the workflow artifacts."; exit 0; fi
+          V=$(node -p "require('./package.json').version")
+          R=everbornproductions-stack/command-center-releases
+          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --draft --title "Meldmind v$V" --notes "Mac build (unsigned)."
+          gh release upload "v$V" --repo "$R" --clobber dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meldmind-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac.yml

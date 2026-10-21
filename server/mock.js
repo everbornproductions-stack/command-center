@@ -158,12 +158,29 @@ function demoDescribe(u, messages) {
 
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
+  if (/Meldmind group chat persona:/.test(sys)) {
+    const persona = (sys.match(/persona: ([a-z]+)/) || [])[1] || "chat";
+    const crisis = persona === "support" ? " I am not a licensed therapist. If you are in crisis, call or text 988." : "";
+    return JSON.stringify({ replies: [`${persona}: first take.${crisis}`, `${persona}: second take.`, `${persona}: third take.`] });
+  }
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
   if (/^You sort browser bookmarks/.test(sys)) return demoBookmarks(u);
   if (/^You describe an image/.test(sys)) return demoDescribe(u, messages);
   const toolResults = messages.filter((m) => m.role === "tool").map((m) => String(m.content || "").slice(0, 400));
   if (toolResults.length) return `## Done, with a little help from a tool\n\n**${model}** called a tool and got back:\n\n> ${toolResults.join("\n> ")}\n\nUsing that: ${u.split("\n")[0].slice(0, 120)}\n\n*Demo mode: the tool really ran on this computer; the pretend AI only narrates.*`;
   if (/Reply with JSON only: \{"capability"/.test(sys)) return JSON.stringify({ capability: /video|song|reel|caption|post/i.test(u) ? "creative" : /code|script/i.test(u) ? "code" : /research|latest|compare/i.test(u) ? "research" : "writing", difficulty: u.length > 200 ? 3 : 2, needWeb: /latest|today|news/i.test(u), summary: "demo classification" });
+  if (/PLAIN_REQUEST_ACTION/.test(sys)) {
+    const addr = (u.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [""])[0];
+    const start = new Date(Date.now() + 3600 * 1000);
+    start.setMinutes(0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    const wantEmail = /\b(e-?mail|write to|send)\b/i.test(u);
+    const wantEvent = /\b(calendar|schedule|meeting|appointment)\b/i.test(u);
+    return JSON.stringify({
+      email: wantEmail || (!wantEmail && !wantEvent) ? { to: addr, subject: "Note for this client", body: "Hello,\n\nFollowing up as you asked.\n" } : null,
+      event: wantEvent || (!wantEmail && !wantEvent) ? { summary: "Client meeting", start: start.toISOString(), end: end.toISOString(), description: "Added from a plain request.", location: "" } : null,
+    });
+  }
   // Start a project asks the council for a step list. Demo mode returns a short plan so the walk can be tried with no key.
   if (/WALKTHROUGH_PLAN/.test(u)) {
     const idea = (u.match(/IDEA:\n([\s\S]*?)\n\nANSWERS:/) || [, ""])[1].replace(/\s+/g, " ").trim().slice(0, 60);

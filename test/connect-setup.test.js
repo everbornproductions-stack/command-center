@@ -62,9 +62,19 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(items.find((it) => it.id === "outlook").flow.type, "mail");
   assert.equal(items.find((it) => it.id === "drive").status, "Not connected");
   assert.equal(items.find((it) => it.id === "calendar").status, "Not connected");
+  assert.equal(items.find((it) => it.id === "calendar").flow.type, "browser-google");
+  assert.equal(items.find((it) => it.id === "calendar").flow.want.calendar, true);
+  assert.match(items.find((it) => it.id === "calendar").blurb, /Grok Bot can still take calendar work/);
   assert.equal(items.find((it) => it.id === "ghl").flow.type, "publish");
   assert.equal(items.find((it) => it.id === "kling").flow.type, "keysetup");
   assert.equal(items.find((it) => it.id === "capcut").flow.type, "mcp");
+  for (const id of ["gmail", "drive", "ghl", "capcut"]) {
+    const steps = items.find((it) => it.id === id).steps;
+    assert.ok(Array.isArray(steps) && steps.length >= 3, id);
+  }
+  assert.match(items.find((it) => it.id === "capcut").steps.join(" "), /outside the US/);
+  assert.match(items.find((it) => it.id === "ghl").steps.join(" "), /waits for a click/);
+  assert.ok(items.every((it) => Array.isArray(it.steps) && it.steps.length > 0));
   const dumped = JSON.stringify(items);
   assert.equal(dumped.includes("must-not-leak"), false);
   assert.equal(dumped.includes("sk-not-real"), false);
@@ -75,7 +85,7 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(statusOf({}), "Not connected");
   assert.equal(offerShow(blankRecord(), { firstRun: true }), true);
   assert.equal(offerShow({ ...blankRecord(), legacy: true }, { firstRun: false }), false);
-  assert.equal(offerShow({ ...blankRecord(), opened: true }, { firstRun: false }), true);
+  assert.equal(offerShow({ ...blankRecord(), opened: true }, { firstRun: false }), false);
   assert.equal(offerShow({ ...blankRecord(), dismissedAt: 5, opened: true }, { firstRun: true }), false);
   assert.equal(isFirstRun(null, {}), true);
   assert.equal(isFirstRun({ completed: true }, {}), false);
@@ -103,6 +113,7 @@ test("the page, Help menu, and Settings can run setup again, and Simple hides th
   assert.doesNotMatch(ui, /type="password"/);
   assert.doesNotMatch(ui, /\/keys/);
   assert.match(ui, /cs-detail/);
+  assert.match(ui, /cs-steps/);
   assert.match(ui, /uiMode/);
   assert.match(app, /connectWizard/);
   assert.match(app, /connect-setup/);
@@ -154,7 +165,8 @@ test("a fresh install offers the checklist, a finished install does not, and a k
     assert.equal(again.json.show, true);
     assert.equal(again.json.items.find((it) => it.id === "kling").skipped, false);
     assert.equal((await fresh.api("/state")).json.plugins.includes("connectsetup"), true);
-    assert.equal((await fresh.api("/state")).json.connectSetup.show, true);
+    assert.equal((await fresh.api("/connectsetup")).json.show, false, "opened once, so the next launch does not auto-open");
+    assert.equal((await fresh.api("/state")).json.connectSetup.show, false);
   } finally { await fresh.stop(); }
 
   const done = await startServer({ seed: (dir) => fs.writeFileSync(path.join(dir, "onboarding.json"), JSON.stringify({

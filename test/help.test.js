@@ -68,7 +68,7 @@ test("the Help tab is in Simple and Expert, and the installer keeps the articles
   const app = read("web", "app.js");
   const html = read("web", "index.html");
   const nav = read("web", "nav.js");
-  const features = read("web", "features", "index.js");
+  const features = read("web", "perf", "registry.js");
   const help = read("web", "features", "help.js");
   const yml = read("electron-builder.yml");
   const releasing = read("docs", "RELEASING.md");

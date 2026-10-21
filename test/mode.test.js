@@ -17,9 +17,9 @@ test("new installs are Simple until the question, existing installs stay Expert"
   const freshDefaults = { uiMode: "simple", uiModeChosen: false, budgetMonthly: 100 };
   assert.equal(resolveMode(freshDefaults, { fresh: true }), "simple");
   assert.equal(shouldAskMode(freshDefaults, { fresh: true }), true);
-  assert.equal(ASK.title, "Keep it simple or show me everything?");
-  assert.match(ASK.simple, /Keep it simple/);
-  assert.match(ASK.expert, /Show me everything/);
+  assert.equal(ASK.title, "Which mode do you want to start in?");
+  assert.equal(ASK.simple, "Simple");
+  assert.equal(ASK.expert, "Expert");
   assert.equal(JSON.stringify(ASK).includes(EM), false);
 
   const picked = { uiMode: "expert", uiModeChosen: true };
@@ -35,7 +35,7 @@ test("new installs are Simple until the question, existing installs stay Expert"
 });
 
 test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pages stay listed as hidden", () => {
-  const views = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "marketplace", "settings", "setup", "help"];
+  const views = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "reports", "marketplace", "settings", "setup", "help"];
   const top = simpleTop(views);
   assert.deepEqual(top.labels, ["Chat", "Projects", "Create", "Help", "Settings"]);
   assert.deepEqual(top.create, CREATE_VIEWS);
@@ -44,7 +44,7 @@ test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pag
     assert.equal(simpleAllows(id), false, id);
     assert.ok(top.hidden.includes(id), id);
   }
-  for (const id of ["command", "projects", "settings", "setup", "help", "prompts", "images", "media", "publish"]) {
+  for (const id of ["command", "projects", "settings", "setup", "help", "prompts", "images", "media", "publish", "remix"]) {
     assert.equal(simpleAllows(id), true, id);
   }
 });
@@ -53,7 +53,7 @@ test("the shell keeps the toggle, the simple chat, and the hotkeys", () => {
   const app = read("web", "app.js");
   const html = read("web", "index.html");
   const hotkey = read("web", "features", "hotkey.js");
-  const features = read("web", "features", "index.js");
+  const features = read("web", "perf", "registry.js");
   const nav = read("web", "nav.js");
   assert.match(html, /id="mode-toggle"/);
   assert.match(html, /data-ui-mode="simple"/);
@@ -61,7 +61,8 @@ test("the shell keeps the toggle, the simple chat, and the hotkeys", () => {
   assert.match(app, /function setUiMode/);
   assert.match(app, /function renderSimpleChat/);
   assert.match(app, /uiModeChosen: true/);
-  assert.match(app, /The council picks the AI/);
+  assert.match(app, /PLACEHOLDER/);
+  assert.match(read("web", "simple-ui.js"), /Ask anything\. Meldmind picks the best AI for you\./);
   assert.match(app, /aria-label="Marching orders"/);
   assert.match(app, /e\.key === "Enter" && \(e\.ctrlKey \|\| e\.metaKey\)/);
   assert.match(app, /getAttribute\("role"\) !== "button"/);

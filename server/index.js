@@ -19,9 +19,9 @@ import { loadForActive as loadWorkspaceKeys } from "./workspace-keys.js";
 import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso.js";
 import { bus, emit } from "./events.js";
 import {
-  BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket, isPrivateIPv4,
-  lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairTokenOk, pairUrl,
-  preferredLanIPv4, probePort, readInterfaces, unreachableError,
+  BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket,
+  lanCandidates, lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
+  preferredLanIPv4, probePort, readInterfaces, tokenFromPairPath, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
 import { allStatus, checkAll, checkProvider, liveModels, noteCall, getStatus } from "./health.js";
@@ -31,35 +31,50 @@ import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { whoWillRead } from "./readers.js";
 import { learnedStrengths } from "./added-caps.js";
-import { normalizeMode } from "./modes.js";
+import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
-import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
-import { loadProjects, listProjects, saveProject, deleteProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
+import { rememberBackground } from "./background.js";
+import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
+import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
 import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
-import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
+import { bridgeAuthorized } from "./meldmind-bridge.js";
+import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier, listDevices, removeDevice } from "./license.js";
+import { gate } from "./feature-gate.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
-import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
+import { scheduler } from "./perf/scheduler.js";
+import { bindPerf, noteActivity } from "./perf/power.js";
+import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
+import { prepareWeb, beginDeep } from "./research.js";
+import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
-import { observe } from "./brain.js";
+import { observe, markPrivateRun } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
+import { annotateOutput } from "./prompts/safety.js";
+import { withImported } from "./history-refs.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
+import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
+import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
+import { publicWebConfig } from "./web-config.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
@@ -98,6 +113,8 @@ let firewallStatus = { ok: true, skipped: true };
 let pairingError = null;
 let lanServer = null;
 let lanWss = null;
+let lanGroup = [];
+let lanPrimary = null;
 let pairLock = Promise.resolve();
 const hasBody = (req) => Number(req.headers["content-length"] || 0) > 0 || !!req.headers["transfer-encoding"];
 const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
@@ -120,17 +137,26 @@ function phonePair() {
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
   return { on: true, token: p.token };
 }
+// The Antigravity MCP process has no browser session. It may call only the
+// job bridge, and only with the token that stays in the data folder.
+function bridgeLoopbackOk(req, url) {
+  const p = url.pathname;
+  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && !p.startsWith("/api/bridge/jobs/")) return false;
+  return bridgeAuthorized(req.headers["x-meldmind-bridge"]);
+}
 function pairPresented(req, url) {
   const token = phonePair().token;
   if (!token) return false;
-  return pairTokenOk(url.searchParams.get("pair"), token) || pairTokenOk(cookieValue(req.headers.cookie, "cc-pair"), token);
+  return pairTokenOk(url.searchParams.get("pair"), token)
+    || pairTokenOk(cookieValue(req.headers.cookie, "cc-pair"), token)
+    || pairTokenOk(tokenFromPairPath(url.pathname), token);
 }
 // Returns { status, error } to send, or null when the request may proceed.
 function localGate(req, url) {
   if (HOSTED) return null;
   if (!hostOk(req)) return { status: 421, error: `wrong host: open http://localhost:${PORT}/ or http://127.0.0.1:${PORT}/`, code: "host" };
   if (!originOk(req)) return { status: 403, error: "cross-site request refused", code: "origin" };
-  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"])) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
+  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"]) && !bridgeLoopbackOk(req, url)) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
   return null;
 }
 // index.html with the per-launch token injected (local mode only).
@@ -148,6 +174,17 @@ const settings = () => {
   return { ...s, defaultMode: mode };
 };
 const saveSettings = (s) => putDoc("settings", s);
+// The armed tone belongs to the next run only. Call this once, just before that run starts.
+function takeNextTone() {
+  const taken = consumeTone(settings());
+  if (!taken.tone) return null;
+  saveSettings(taken.settings);
+  return taken.tone;
+}
+function restoreTone(tone) {
+  if (!tone?.id) return;
+  saveSettings({ ...settings(), nextTone: tone.id });
+}
 // Command bar choice when the person picked one. Otherwise the saved Default priority.
 // economy is the old name for Max savings.
 function chatPriority(requested) {
@@ -164,7 +201,7 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let d = "";
-    req.on("data", (c) => { d += c; if (d.length > 5e6) req.destroy(); });
+    req.on("data", (c) => { d += c; if (d.length > 18e6) req.destroy(); });
     req.on("end", () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(new Error("bad json")); } });
     req.on("error", reject);
   });
@@ -176,9 +213,13 @@ function providerView() {
     .filter((p) => !p.demo || (hasSecret(p.id) && !demosHidden())) // pretend AIs only with no real AI, or when Settings keeps demo on
     .map((p) => {
       const plan = planInfo(p.id);
+      const keyed = hasSecret(p.id, p.keyEnv);
+      // A guessed free plan is not a connection. No key means grey, even if a probe ran earlier.
+      const needsKey = !p.noKey && !p.demo && p.auth !== "handoff" && p.auth !== "local" && p.auth !== "mcp" && p.auth !== "oauth";
+      const status = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
       return {
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined, addedCapabilities: p.custom ? p.addedCapabilities || [] : undefined, addedSource: p.custom ? p.addedSource || "general" : undefined, addedStrengths: p.custom ? learnedStrengths(p.models) : undefined,
-      keyed: hasSecret(p.id, p.keyEnv), masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status: st[p.id] || { status: "grey" }, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
+      keyed, masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
       models: (p.models || []).map((m) => { const pr = modelPrice(m.id); return { id: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, priceSource: priceSource(m.id), caps: learnedCaps(m.id, m.caps), base: m.caps, learned: learnedDeltas(m.id), default: !!m.default, web: !!m.web }; }),
       liveModels: liveModels[p.id] || [],
     }; })
@@ -187,7 +228,7 @@ function providerView() {
 
 function finishPausedChat({ id, prompt, projectId, customAgent, message, billing, provider }) {
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "failed", startedAt: Date.now(), finishedAt: Date.now(), provider: provider || null, model: null, cost: 0, deliverable: message, error: message, sources: [], toolCalls: [], fallbacks: [], notice: { kind: "paused", provider: provider || null, billing: billing || null, text: message }, ...(customAgent ? { customAgent } : {}) };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "failed", startedAt: Date.now(), finishedAt: Date.now(), provider: provider || null, model: null, cost: 0, deliverable: message, error: message, sources: [], searched: false, toolCalls: [], fallbacks: [], notice: { kind: "paused", provider: provider || null, billing: billing || null, text: message }, ...(customAgent ? { customAgent } : {}) };
   ctx().store.saveMission(m, missionSummary({ ...m, title }));
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
@@ -271,20 +312,38 @@ const subsView = () => (subscriptionsLocked() ? { subscriptions: [], subscriptio
 
 // Gated entry points. Routes and plugin helpers both start councils/missions through these, so
 // the Free limits (5 councils per UTC month, 3 projects, no missions, no scheduler) are enforced in one place.
-function startCouncil(opts) {
-  guard("council");
+function runsInFlight() {
   const c = ctx();
-  c.councilsInFlight = (c.councilsInFlight || 0) + 1;
-  const p = runCouncil(opts);
-  p.finally(() => { c.councilsInFlight = Math.max(0, (c.councilsInFlight || 1) - 1); }).catch(() => {});
+  return (c.councilsInFlight || 0) + (c.missionsInFlight || 0);
+}
+function trackRun(kind, promise) {
+  const c = ctx();
+  const key = kind === "council" ? "councilsInFlight" : "missionsInFlight";
+  c[key] = (c[key] || 0) + 1;
+  const p = Promise.resolve(promise);
+  p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
   return p;
 }
+function guardMaxQuality(mode) {
+  if (normalizeMode(mode) !== "max") return;
+  guard("maxQuality");
+}
+function startCouncil(opts) {
+  guardMaxQuality(opts.mode);
+  guard("council");
+  guard("concurrentRuns", { running: runsInFlight() });
+  if (Array.isArray(opts.members) && opts.members.length) guard("aisPerCouncil", { count: opts.members.length });
+  return trackRun("council", runCouncil(opts));
+}
 function startMission(opts) {
+  guardMaxQuality(opts.mode);
   guard("missions");
   if (opts.runAt === "offpeak") guard("scheduler");
-  const { runAt, ...rest } = opts;
-  return runMission(rest);
+  guard("concurrentRuns", { running: runsInFlight() });
+  const { runAt, background, ...rest } = opts;
+  return trackRun("mission", runMission(rest));
 }
+const BACKGROUND_MIX = "A background run starts now. Off-peak stays on the schedule.";
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
 
 function vaultKeyIds() {
@@ -378,9 +437,9 @@ function fullState() {
 
 function pairingView() {
   const saved = phonePair();
-  const address = preferredLanIPv4(readInterfaces());
-  const listening = !!(lanServer && address && lanServer.listening);
-  const url = saved.on && listening ? pairUrl(address, PORT, saved.token) : null;
+  const address = (lanServer?.listening && lanPrimary) ? lanPrimary : preferredLanIPv4(readInterfaces());
+  const listening = !!(lanServer && address && lanServer.listening && saved.on);
+  const url = listening ? pairUrl(address, PORT, saved.token) : null;
   return {
     on: !!url,
     url,
@@ -392,29 +451,37 @@ function pairingView() {
 }
 
 // What the browser may know before signing in.
-const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", tagline: "an Everborn product", subtitle: "Take command of all your AIs.", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null, sso: ssoProviders() });
+const publicConfig = () => publicWebConfig({ hosted: HOSTED, version: VERSION, supabase: { url: CFG.url, anonKey: CFG.anonKey }, hub: CFG.hubUrl, sso: ssoProviders() });
 
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+  guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+  const pinnedModel = !!(provider && model);
   const id = runId || "s-" + Date.now().toString(36);
+  if (isPrivate) markPrivateRun(id);
   const priority = chatPriority(mode);
+  const shape = outputShape(priority);
   let cls = null;
   // A caller that already asked the router (a walkthrough step) passes that task type.
   // The record then uses it, instead of guessing again from the long prompt.
   const given = capability ? { capability, difficulty: difficulty ?? 2 } : null;
   // An explicit pick of Nova, Atlas or Sage is not a real job while a real AI is connected.
   if (realJobSkipsDemo(provider)) { provider = undefined; model = undefined; }
+  const skipProvider = typeof avoid === "string" && avoid ? avoid : "";
+  if (skipProvider && provider === skipProvider) { provider = undefined; model = undefined; }
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
-    const best = rank({ ...cls, mode: priority })[0];
+    let ranked = rank({ ...cls, mode: priority });
+    if (skipProvider) ranked = ranked.filter((m) => m.provider !== skipProvider);
+    const best = ranked[0];
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
@@ -425,28 +492,35 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   }
   let agent = `${id}:${provider}`;
   const taskType = () => (cls ||= given || heuristicClassify(prompt));
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(customAgent ? { customAgent } : {}) };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
-  // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
-  const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  // live web search: numbered results go into the prompt; the answer cites them as [n]
+  // A pinned model uses the local hint. A routed chat trusts the classifier, so a mock that says needWeb false does not search.
+  const needWeb = pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb;
+  const web = await prepareWeb({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
+  m.searched = web != null;
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
   // knowledge libraries (Phase 18): the chat's, the active workspace's, or the ones the request names; excerpts cited as [L1], [L2]
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
-  const ask = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const imported = withImported(prompt, remembered);
+  const ask = imported.ask;
   m.memory = ask.includes(MEMORY_MARKER);
+  if (imported.used.length) m.importedRefs = imported.used;
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
-  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  const who = PROVIDERS[provider]?.name || localRouteName(provider) || provider;
+  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -477,6 +551,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     if (err.code === "paused") m.deliverable = err.message;
   }
   if (!m.deliverable) m.deliverable = text;
+  if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
   m.finishedAt = Date.now();
@@ -515,8 +590,12 @@ async function api(req, res, url) {
     if (!prompt.trim()) return json(res, 400, { error: "prompt required" });
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = normalizeMode(url.searchParams.get("mode") || settings().defaultMode) || "balanced";
-    const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
+    const rankedAll = rank({ ...cls, mode, includeApps: true });
+    const apps = rankedAll.filter((m) => m.kind === "app").slice(0, 6);
+    const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
+    const best = ranked[0];
+    const search = previewSearch({ prompt, needWeb: !!cls.needWeb, provider: best?.provider, model: best?.model });
+    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search, whoWillRead: whoWillRead({ prompt, mode, classification: cls }) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
@@ -553,43 +632,130 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    const tone = takeNextTone();
+    if (job.background && job.runAt === "offpeak") { restoreTone(tone); return json(res, 400, { error: BACKGROUND_MIX }); }
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.prompt, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { restoreTone(tone); return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) { restoreTone(tone); return json(res, gate.status || 402, { error: gate.message, code: gate.code }); }
+    }
     let promise;
-    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
-    catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    let councilId;
+    try {
+      if (job.background) guard("backgroundRuns");
+      councilId = job.background ? ("c-" + Date.now().toString(36)) : undefined;
+      promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", ...(councilId ? { id: councilId } : {}) });
+      if (councilId) rememberBackground({ id: councilId, kind: "council", title: job.prompt });
+    }
+    catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
-    return json(res, 202, { ok: true });
+    return json(res, 202, councilId ? { ok: true, id: councilId, background: true } : { ok: true });
   }
   if (method === "POST" && p === "/mission") {
     let job = body;
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
-    try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
+    try { if (job.background) guard("backgroundRuns"); }
+    catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
+    const tone = takeNextTone();
+    const missionMode = normalizeMode(job.mode || s.defaultMode) || "balanced";
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.goal, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { restoreTone(tone); return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) { restoreTone(tone); return json(res, gate.status || 402, { error: gate.message, code: gate.code }); }
+    }
+    try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); }
+    catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
       emit("log", { text: "A discount window is already open (or none is configured): running now." });
     }
-    const promise = startMission(opts);
+    const missionId = job.background ? ("m-" + Date.now().toString(36)) : undefined;
+    if (missionId) opts.id = missionId;
+    let promise;
+    try { promise = startMission(opts); }
+    catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    if (missionId) rememberBackground({ id: missionId, kind: "mission", title: job.goal });
     promise.catch((e) => emit("log", { text: `Mission failed: ${e.message}`, level: "error" }));
-    return json(res, 202, { ok: true });
+    return json(res, 202, missionId ? { ok: true, id: missionId, background: true } : { ok: true });
   }
-  if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") return json(res, 200, { aborted: abortMission(seg[1]) });
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "pause") {
+    try { guard("missionPause"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    const paused = pauseMission(seg[1]);
+    if (!paused.ok && paused.reason === "scheduled") return json(res, 409, { error: "A scheduled mission is cancelled with abort, not paused." });
+    if (!paused.ok) return json(res, 404, { error: "Mission not found." });
+    return json(res, 202, paused);
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "edit") {
+    try { guard("missionPause"); return json(res, 200, await editPausedMission(seg[1], body)); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "resume") {
+    try { guard("missionPause"); return json(res, 202, await beginResume(seg[1])); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") {
+    const id = seg[1];
+    if (abortMission(id)) return json(res, 200, { aborted: true });
+    const stored = await ctx().store.getMission(id);
+    if (stored?.kind === "mission" && stored.status === "paused") {
+      stored.status = "aborted";
+      stored.finishedAt = Date.now();
+      stored.error = "Mission aborted";
+      ctx().store.saveMission(stored, missionSummary(stored));
+      emit("mission.update", { mission: publicMission(stored) });
+      emit("log", { text: "Paused mission aborted.", missionId: id });
+      return json(res, 200, { aborted: true });
+    }
+    return json(res, 200, { aborted: false });
+  }
   if (method === "POST" && p === "/chat") {
     let job = body;
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    try { guardMaxQuality(chatPriority(job.mode)); }
+    catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
+    if (job.background) {
+      try { guard("backgroundRuns"); }
+      catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.prompt, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) return json(res, gate.status || 402, { error: gate.message, code: gate.code });
+    }
     // The id is known before the chat runs, so a caller can wait for this run
     // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
     const runId = job.runId || ("s-" + Date.now().toString(36));
-    runChat({ ...job, runId }).catch((e) => {
+    const tone = takeNextTone();
+    if (job.background) rememberBackground({ id: runId, kind: "single", title: job.prompt });
+    runChat({ ...job, runId, private: !!job.private, tone: tone?.instruction || "", toneId: tone?.id || "" }).catch((e) => {
       netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
       emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
     });
-    return json(res, 202, { ok: true, runId });
+    return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
   }
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }
@@ -611,7 +777,10 @@ async function api(req, res, url) {
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
     return json(res, 200, saveProject(body));
   }
-  if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) { deleteProject(seg[1]); return json(res, 200, { ok: true }); }
+  if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) {
+    try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true }) }); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
   if (method === "POST" && seg[0] === "projects" && seg[2] === "links") return json(res, 200, addLink(seg[1], body.categoryId, body));
   if (method === "DELETE" && seg[0] === "projects" && seg[2] === "links") return json(res, 200, removeLink(seg[1], url.searchParams.get("category"), url.searchParams.get("url")));
 
@@ -681,6 +850,8 @@ async function api(req, res, url) {
   if (method === "GET" && p === "/update") return json(res, 200, updateState());
   if (method === "POST" && p === "/update/install") { try { return json(res, 202, await installUpdate()); } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, update: updateState() }); } }
   if (method === "POST" && p === "/license") { try { return json(res, 200, body.code ? await redeemPromo(body.code, body.email) : await activateLicense(body.key)); } catch (e) { return json(res, 400, { error: e.message }); } }
+  if (method === "GET" && p === "/license/devices") { try { return json(res, 200, await listDevices()); } catch (e) { return json(res, e.status || 400, { error: e.message }); } }
+  if (method === "POST" && p === "/license/devices/remove") { try { return json(res, 200, await removeDevice(body.deviceId)); } catch (e) { return json(res, e.status || 400, { error: e.message }); } }
   if (method === "POST" && p === "/license/recheck") return json(res, 200, await recheckLicense());
   if (method === "POST" && p === "/cloud") {
     let v;
@@ -700,7 +871,12 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/settings") {
     const { cloud, phonePair: _pair, ...rest } = body; // cloud and phone pairing have their own routes
-    if (rest.defaultMode != null) rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
+    if (rest.defaultMode != null) {
+      rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
+      try { guardMaxQuality(rest.defaultMode); }
+      catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    }
+    if (Object.prototype.hasOwnProperty.call(rest, "lightMode")) rest.lightMode = rest.lightMode === true;
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
   if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());
@@ -715,7 +891,8 @@ async function api(req, res, url) {
     const target = String(body.path || "");
     if (!target || !fs.existsSync(target)) return json(res, 404, { error: "path not found" });
     const { exec } = await import("node:child_process");
-    exec(process.platform === "win32" ? `explorer "${target}"` : `open "${target}"`);
+    const opener = process.platform === "win32" ? `explorer "${target}"` : process.platform === "darwin" ? `open "${target}"` : `xdg-open "${target}"`;
+    exec(opener);
     return json(res, 200, { ok: true });
   }
   if (await handlePlugin(req, res, url, body)) return;
@@ -743,6 +920,7 @@ function cors(req, res) {
 }
 
 async function handleHttp(req, res) {
+  noteActivity();
   let url;
   try { url = new URL(req.url, `http://127.0.0.1:${PORT}`); } catch { return json(res, 400, { error: "bad url" }); }
   try {
@@ -751,14 +929,25 @@ async function handleHttp(req, res) {
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
     if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
+    // Meldmind webhook (Zapier / Make inbound): its own token, not the session token. A send inside the run still waits for Allow.
+    if (isMeldmindHook(url.pathname)) return await meldmindHook(req, res, url, json);
     // browser extension (Phase 24): exempt from the session token only; the Host pin stays, web origins are
     // refused and the pairing code is checked instead (server/plugins/extension.js)
     if (isExtensionHook(url.pathname)) {
       if (!HOSTED && !hostOk(req)) return json(res, 421, { error: `wrong host: use http://127.0.0.1:${PORT}/`, code: "host" });
       return await extensionHook(req, res, url, json);
     }
-    const gate = localGate(req, url);
-    if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
+    const gateResult = localGate(req, url);
+    if (gateResult) return json(res, gateResult.status, { error: gateResult.error, code: gateResult.code });
+    // /p/<code> is the short address in the QR. A wrong code is refused, on this PC and on the LAN.
+    if (!HOSTED && url.pathname.startsWith("/p/")) {
+      if (!pairPresented(req, url)) return text(res, 401, BAD_LINK);
+      res.setHeader("set-cookie", pairCookie(phonePair().token));
+      res.setHeader("referrer-policy", "no-referrer");
+      const html = indexHtml(path.join(WEB_DIR, "index.html"));
+      res.writeHead(200, { "content-type": MIME[".html"], "cache-control": "no-store", "content-length": Buffer.byteLength(html) });
+      return res.end(html);
+    }
     // A phone on the LAN does not receive the session token until it presents the pairing code.
     if (!HOSTED && isLanSocket(req.socket?.remoteAddress) && !url.pathname.startsWith("/api/") && !pairPresented(req, url)) {
       return text(res, 401, BAD_LINK);
@@ -770,6 +959,11 @@ async function handleHttp(req, res) {
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     // Hosted cron tick. The shared secret is the only check. Local mode answers 404 and keeps its own timer.
     if (url.pathname === TICK_PATH) return handleScheduleTick(req, res, json);
+    // Hosted worker queue. The worker token is the check. Local mode does not open keys.
+    if (isWorkerPath(url.pathname)) {
+      if (!HOSTED) return json(res, 404, { error: "not found" });
+      return handleWorkerRequest(req, res);
+    }
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());
@@ -830,6 +1024,12 @@ function onWs(ws, req) {
   if (!HOSTED) {
     // local: same Host/Origin pinning as HTTP, then the per-launch token as the first message
     if (!hostOk(req) || !originOk(req)) { ws.close(4403, "cross-site refused"); return; }
+    if (isLanSocket(req.socket?.remoteAddress)) {
+      let wsUrl = null;
+      try { wsUrl = new URL(req.url || "/ws", `http://127.0.0.1:${PORT}`); } catch { wsUrl = null; }
+      const presented = wsUrl && pairPresented(req, wsUrl);
+      if (!presented) { ws.close(4401, "pairing"); return; }
+    }
     const timer = setTimeout(() => ws.close(4401, "auth timeout"), 15000);
     ws.once("message", (raw) => {
       clearTimeout(timer);
@@ -868,43 +1068,62 @@ function withPairLock(fn) {
   return run;
 }
 async function closeLan() {
-  const lan = lanServer;
-  const w = lanWss;
+  const group = lanGroup;
+  lanGroup = [];
   lanServer = null;
   lanWss = null;
-  if (w) {
-    const i = socketServers.indexOf(w);
-    if (i >= 0) socketServers.splice(i, 1);
-    try { for (const client of w.clients) client.close(1001, "pairing off"); } catch {}
-    try { w.close(); } catch {}
-  }
-  // server.close() stops new connections but leaves a phone's open socket up, so the
-  // phone would never see that pairing turned off. Drop those sockets too.
-  if (lan) {
-    try { lan.closeAllConnections(); } catch {}
-    await new Promise((resolve) => lan.close(() => resolve()));
+  lanPrimary = null;
+  for (const item of group) {
+    const w = item.wss;
+    if (w) {
+      const i = socketServers.indexOf(w);
+      if (i >= 0) socketServers.splice(i, 1);
+      try { for (const client of w.clients) client.close(1001, "pairing off"); } catch {}
+      try { w.close(); } catch {}
+    }
+    // server.close() stops new connections but leaves a phone's open socket up, so the
+    // phone would never see that pairing turned off. Drop those sockets too.
+    if (item.server) {
+      try { item.server.closeAllConnections(); } catch {}
+      await new Promise((resolve) => item.server.close(() => resolve()));
+    }
   }
 }
-async function openLan(ip) {
-  if (!ip || !isPrivateIPv4(ip)) throw Object.assign(new Error(NO_LAN), { code: "lan" });
-  if (lanServer && lanServer.listening && lanWss) {
-    const bound = lanServer.address();
-    if (bound && bound.address === ip) return;
+async function openLan() {
+  const candidates = lanCandidates(readInterfaces());
+  if (!candidates.length) throw Object.assign(new Error(NO_LAN), { code: "lan" });
+  if (lanServer?.listening && lanPrimary && candidates.some((c) => c.address === lanPrimary)) {
+    const reached = await probePort(lanPrimary, PORT, net);
+    return { address: lanPrimary, reachable: reached };
   }
   await closeLan();
-  const lan = http.createServer(handleHttp);
-  await new Promise((resolve, reject) => {
-    const fail = (e) => { lan.off("error", fail); reject(e); };
-    lan.once("error", fail);
-    lan.listen(PORT, ip, () => { lan.off("error", fail); resolve(); });
-  });
-  lanWss = attachWs(lan);
-  lanServer = lan;
-  const reached = await probePort(ip, PORT, net);
-  if (!reached) {
-    await closeLan();
-    throw Object.assign(new Error(unreachableError(ip, PORT)), { code: "reach" });
+  const bound = [];
+  let firstError = null;
+  for (const cand of candidates) {
+    const ip = cand.address;
+    const lan = http.createServer(handleHttp);
+    try {
+      await new Promise((resolve, reject) => {
+        const fail = (e) => { lan.off("error", fail); reject(e); };
+        lan.once("error", fail);
+        lan.listen(PORT, ip, () => { lan.off("error", fail); resolve(); });
+      });
+      lan.on("error", () => {});
+      const wss = attachWs(lan);
+      bound.push({ server: lan, wss, ip });
+    } catch (e) {
+      try { lan.close(); } catch {}
+      if (!bound.length && !firstError) firstError = e;
+    }
   }
+  if (!bound.length) throw firstError || Object.assign(new Error(BIND_FAIL), { code: "bind" });
+  lanGroup = bound;
+  lanServer = bound[0].server;
+  lanWss = bound[0].wss;
+  lanPrimary = bound[0].ip;
+  const reached = await probePort(lanPrimary, PORT, net);
+  // A failed self-check does not turn pairing off. The phone may still reach an address this PC could not probe.
+  return { address: lanPrimary, reachable: reached };
 }
 async function setPhonePair(on) {
   if (HOSTED) { pairingError = "Phone pairing is for the desktop app on this PC."; return pairingView(); }
@@ -919,7 +1138,7 @@ async function setPhonePair(on) {
     emit("log", { text: "Phone pairing off. This PC answers only on this computer." });
     return pairingView();
   }
-  guard("phone");
+  gate("phone");
   const address = preferredLanIPv4(readInterfaces());
   if (!address) {
     pairingError = NO_LAN;
@@ -930,27 +1149,31 @@ async function setPhonePair(on) {
   const prev = phonePair();
   const token = prev.on && prev.token ? prev.token : newPairToken();
   saveSettings({ ...settings(), phonePair: { on: true, token } });
-  try { await openLan(address); }
+  let opened;
+  try { opened = await openLan(); }
   catch (e) {
     await closeLan();
     const next = { ...settings() };
     delete next.phonePair;
     saveSettings(next);
-    pairingError = e.code === "reach" ? e.message : BIND_FAIL;
+    pairingError = e.code === "reach" ? e.message : (e.code === "lan" ? e.message : BIND_FAIL);
     console.log(pairingError);
     emit("log", { text: pairingError });
     return pairingView();
   }
   firewallStatus = await ensureWindowsFirewall();
-  pairingError = firewallStatus.error || null;
-  console.log(`Phone pairing on at ${address}:${PORT}.`);
-  emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+  pairingError = opened.reachable ? (firewallStatus.error || null) : unreachableError(opened.address, PORT);
+  console.log(`Phone pairing on at ${opened.address}:${PORT}.`);
+  emit("log", { text: `Phone pairing on at ${opened.address}:${PORT}.` });
   return pairingView();
 }
 function pairingQr(res) {
   const view = pairingView();
   if (!view.url) return json(res, 404, { error: view.error || "Phone pairing is off." });
-  const qr = qrcode(0, "M"); qr.addData(view.url); qr.make();
+  const shown = new URL(view.url);
+  const qr = qrcode(0, "M");
+  qr.addData(pairPathUrl(shown.hostname, shown.port || PORT, shown.searchParams.get("pair")), "Byte");
+  qr.make();
   const svg = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-store" });
   res.end(svg);
@@ -959,15 +1182,26 @@ bus.on("event", (ev) => {
   const msg = JSON.stringify(ev);
   eachClient((c) => { if (c.readyState === 1 && c.ctx && (!ev.user || c.ctx.userId === ev.user)) c.send(msg); });
 });
-// Periodic state refresh (ledger totals, subscription view) so the UI never drifts
-setInterval(() => {
-  const byCtx = new Map();
-  eachClient((c) => { if (c.readyState !== 1 || !c.ctx) return; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); });
-  for (const [c, clients] of byCtx) {
-    const msg = runAs(c, () => JSON.stringify({ type: "tick", ledger: ledgerSummary(), ...subsView(), providers: providerView(), now: Date.now() }));
-    for (const ws of clients) ws.send(msg);
-  }
-}, 15000).unref();
+// Periodic state refresh (ledger totals, subscription view) so the UI never drifts.
+// One scheduler shared with schedules, model watch, and detection. This refresh
+// pauses only while the app is idle, so an open window stays current on battery.
+bindPerf({
+  light: () => { try { return !!settings().lightMode; } catch { return false; } },
+  sockets: () => { let n = 0; eachClient((c) => { if (c.readyState === 1) n += 1; }); return n; },
+});
+scheduler.register({
+  id: "ui-refresh",
+  everyMs: 15000,
+  pause: "idle",
+  run: () => {
+    const byCtx = new Map();
+    eachClient((c) => { if (c.readyState !== 1 || !c.ctx) return; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); });
+    for (const [c, clients] of byCtx) {
+      const msg = runAs(c, () => JSON.stringify({ type: "tick", ledger: ledgerSummary(), ...subsView(), providers: providerView(), now: Date.now() }));
+      for (const ws of clients) ws.send(msg);
+    }
+  },
+});
 
 // Loads one user's world. Runs inside that user's context (local: once at boot; hosted: on first request).
 async function initContext() {
@@ -1009,7 +1243,7 @@ async function initContext() {
   // and then trusts only its own instance id (decision 6), so it never mistakes another server for this one.
   // ws re-emits the HTTP server's errors on wss; that copy is handled here, so it is ignored there.
   server.on("error", (e) => {
-    console.error(e.code === "EADDRINUSE" ? `Command AI could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Command AI server error: ${e.message}`);
+    console.error(e.code === "EADDRINUSE" ? `Meldmind could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Meldmind server error: ${e.message}`);
     process.exit(1);
   });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", async () => {
@@ -1017,13 +1251,12 @@ async function initContext() {
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);
     else console.log(`data: ${DATA_DIR}\nHQ:   ${HQ_DIR || "(not linked; set CC_HQ_DIR)"}`);
     if (!HOSTED && phonePair().on) {
-      const address = preferredLanIPv4(readInterfaces());
       try {
-        await openLan(address);
+        const opened = await openLan();
         firewallStatus = await ensureWindowsFirewall();
-        pairingError = firewallStatus.error || null;
-        console.log(`Phone pairing on at ${address}:${PORT}.`);
-        emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+        pairingError = opened.reachable ? (firewallStatus.error || null) : unreachableError(opened.address, PORT);
+        console.log(`Phone pairing on at ${opened.address}:${PORT}.`);
+        emit("log", { text: `Phone pairing on at ${opened.address}:${PORT}.` });
       } catch (e) {
         pairingError = e.code === "reach" || e.code === "lan" ? (e.message || BIND_FAIL) : BIND_FAIL;
         console.log(pairingError);
@@ -1034,6 +1267,11 @@ async function initContext() {
     startUpdateLoop();
     startLicenseLoop();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
-    if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
+    if (HOSTED) scheduler.register({
+      id: "hosted-idle",
+      everyMs: 60 * 1000,
+      pause: false,
+      run: () => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)),
+    });
   });
 })().catch((e) => { console.error(e.message); process.exit(1); });

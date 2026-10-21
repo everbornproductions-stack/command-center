@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { ROOT } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
-const { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, buttonLabel, promptButtons, quitInstallAction, cleanError } = require("../electron/updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, CHECK_FAILED, DOWNLOAD_PAGE, GITHUB_FEED, GENERIC_FEED, buttonLabel, promptButtons, quitInstallAction, cleanError, parseLatestYml } = require("../electron/updater.cjs");
 const { createWatchdog, describeProbeError } = require("../electron/watchdog.cjs");
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -22,10 +22,10 @@ function fakeUpdater({ latest = "9.9.9", failDownload = false } = {}) {
   u.quitAndInstall = (...a) => u.calls.push(["quitAndInstall", ...a]);
   return u;
 }
-function harness(opts) {
+function harness(opts = {}) {
   const au = fakeUpdater(opts);
   const seen = { prompts: 0, results: 0, states: [], quit: 0 };
-  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", ui: { prompt: () => seen.prompts++, result: () => seen.results++, state: (s) => seen.states.push(s), beforeQuit: () => seen.quit++ } });
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", readLatest: opts.readLatest || (async () => ({ version: "0.3.2" })), ui: { prompt: () => seen.prompts++, result: () => seen.results++, state: (s) => seen.states.push(s), beforeQuit: () => seen.quit++, failed: () => seen.failed = (seen.failed || 0) + 1 } });
   return { au, c, seen };
 }
 
@@ -185,8 +185,8 @@ test("public feed is the releases repo, latest.yml, and a failed GitHub check re
   assert.equal(s.phase, "available");
   assert.equal(s.version, "0.4.2");
   assert.equal(seen.prompts, 1);
-  assert.equal(buttonLabel(s), "Update available");
-  assert.equal(buttonLabel({ phase: "downloaded", version: "0.4.2" }), "Restart to update");
+  assert.equal(buttonLabel(s), "Update ready, restart");
+  assert.equal(buttonLabel({ phase: "downloaded", version: "0.4.2" }), "Update ready, restart");
   assert.equal(buttonLabel({ phase: "downloading", percent: 40 }), "Downloading 40%");
   assert.equal(buttonLabel({ phase: "idle" }), null);
   const joined = logs.join("\n");
@@ -206,18 +206,79 @@ test("public feed is the releases repo, latest.yml, and a failed GitHub check re
 
 test("a check that fails on both feeds is logged and the server bridge keeps the error", async () => {
   const logs = [];
+  const seen = { failed: 0 };
   const au = new EventEmitter();
   au.setFeedURL = (feed) => { au.feed = feed; };
   au.checkForUpdates = async () => { throw new Error("latest.yml HTTP 404"); };
-  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.4.1", log: (...a) => logs.push(a.join(" ")) });
+  const c = createUpdateController({
+    autoUpdater: au, currentVersion: "0.4.1", log: (...a) => logs.push(a.join(" ")),
+    readLatest: async () => { throw new Error("latest.yml HTTP 404"); },
+    ui: { failed: () => seen.failed++ },
+  });
   const s = await c.check({ prompt: true });
-  assert.equal(s.phase, "idle");
+  assert.equal(s.phase, "failed");
   assert.equal(s.version, null);
-  assert.match(s.error, /latest\.yml HTTP 404/);
+  assert.equal(s.error, CHECK_FAILED);
+  assert.match(s.detail, /latest\.yml HTTP 404/);
+  assert.equal(s.downloadUrl, DOWNLOAD_PAGE);
+  assert.equal(seen.failed, 1, "a failed launch check is shown, not only logged");
   assert.match(logs.join("\n"), /update check failed: latest\.yml HTTP 404/);
+  const again = await c.check({ prompt: true });
+  assert.equal(again.phase, "failed");
+  assert.equal(seen.failed, 1, "the same failure does not open the dialog on every hourly check");
   const r = await c.bridge.check();
   assert.equal(r.version, "0.4.1");
-  assert.match(r.error, /latest\.yml HTTP 404/);
+  assert.equal(r.error, CHECK_FAILED);
+  assert.equal(r.downloadUrl, DOWNLOAD_PAGE);
+});
+
+test("public latest.yml is the version even when the GitHub provider says there is no update", async () => {
+  const yml = "version: 0.4.8\nfiles:\n  - url: Meldmind-Setup-0.4.8.exe\npath: Meldmind-Setup-0.4.8.exe\nsha512: abc\n";
+  assert.deepEqual(parseLatestYml(yml), { version: "0.4.8", file: "Meldmind-Setup-0.4.8.exe" });
+  assert.equal(parseLatestYml("version: '0.4.7'\npath: Meldmind-Setup-0.4.7.exe\n").version, "0.4.7");
+  const au = new EventEmitter();
+  au.calls = [];
+  au.setFeedURL = (feed) => { au.feed = feed; };
+  au.checkForUpdates = async () => {
+    au.calls.push("check");
+    const info = { version: "0.4.7" };
+    au.emit("update-not-available", info);
+    return { updateInfo: info };
+  };
+  au.downloadUpdate = async () => { au.calls.push("download"); };
+  const seen = { prompts: 0 };
+  const c = createUpdateController({
+    autoUpdater: au, currentVersion: "0.4.7",
+    readLatest: async () => ({ version: "0.4.8", file: "Meldmind-Setup-0.4.8.exe" }),
+    ui: { prompt: () => seen.prompts++ },
+  });
+  const s = await c.check({ prompt: true });
+  assert.equal(s.phase, "available");
+  assert.equal(s.version, "0.4.8");
+  assert.equal(s.file, "Meldmind-Setup-0.4.8.exe");
+  assert.equal(seen.prompts, 1);
+  assert.equal(buttonLabel(s), "Update ready, restart");
+  assert.deepEqual(au.calls, ["check"], "finding the version does not download");
+  au.emit("update-not-available", { version: "0.4.7" });
+  assert.equal(c.state.version, "0.4.8", "a later not-available event does not hide the newer build");
+});
+
+test("a provider error still offers the version from public latest.yml", async () => {
+  const au = new EventEmitter();
+  au.setFeedURL = () => {};
+  au.checkForUpdates = async () => { throw new Error("Cannot parse releases feed"); };
+  const seen = { prompts: 0, failed: 0 };
+  const c = createUpdateController({
+    autoUpdater: au, currentVersion: "0.4.7",
+    readLatest: async () => ({ version: "0.4.8", file: "Meldmind-Setup-0.4.8.exe" }),
+    ui: { prompt: () => seen.prompts++, failed: () => seen.failed++ },
+  });
+  const s = await c.check({ prompt: true });
+  assert.equal(s.version, "0.4.8");
+  assert.equal(s.phase, "available");
+  assert.equal(seen.prompts, 1);
+  assert.equal(seen.failed, 0);
+  assert.equal(buttonLabel(s), "Update ready, restart");
 });
 
 test("main process: updater set up before the engine, single instance, tray items, engine-down page", () => {
@@ -236,10 +297,14 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.doesNotMatch(main, /updater\.check\(\{ prompt: true \}\)\.catch\(\(\) => \{\}\)/);
   const ui = fs.readFileSync(path.join(ROOT, "web", "features", "updates.js"), "utf8");
   assert.match(ui, /id = "upd-top"/);
-  assert.match(ui, /Update available/);
-  assert.match(ui, /Restart to update/);
+  assert.match(ui, /Update ready, restart/);
+  assert.match(ui, /Couldn't check for updates/);
+  assert.match(ui, /Download/);
+  assert.match(main, /Couldn't check for updates/);
+  assert.match(main, /second launch update check failed/);
+  assert.match(main, /buttons: \["Download", "Later"\]/);
   assert.match(ui, /data-action='updates'/);
-  assert.match(fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8"), /"updates"/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web", "perf", "registry.js"), "utf8"), /"updates"/);
   assert.match(fs.readFileSync(path.join(ROOT, "server", "update.js"), "utf8"), /60 \* 60 \* 1000/);
   assert.doesNotMatch(ui, /\u2014/);
   assert.match(main, /Install update v\$\{st\.version\}/);

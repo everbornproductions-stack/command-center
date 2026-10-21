@@ -13,18 +13,13 @@ import { HOSTED, ctx, doc, putDoc, allContexts, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
+import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
+import { GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY, LIFETIME_PLAN_ID, moneyPlain } from "./price-config.js";
+import { scheduler } from "./perf/scheduler.js";
 
-const PRO = {
-  missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
-  connectedServices: Infinity, emailAccounts: 8,
-  phone: true, historySearch: true, sharedLearning: true, scores: true,
-};
-export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
-  pro:    { ...PRO, label: "Pro" },
-  studio: { ...PRO, label: "Studio" },
-  owner:  { ...PRO, label: "Owner" },
-};
+// One table. Studio is Pro. Owner is Extreme. Remix is unlimited on Extreme and Owner.
+// See server/feature-gate.js. This does not call Square.
+export const TIERS = LIMITS;
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the
 // last successful check, whichever is sooner. After that the copy drops to Free.
@@ -73,10 +68,18 @@ export function resolveTier({ lic: l, now = Date.now(), ownerEmail = false, devO
     let graceUntil = lastOk + GRACE_MS;
     // offline: the paid period is the other bound (a successful check is authoritative on its own)
     if (l.lastError && l.periodEnd) { const pe = new Date(l.periodEnd).getTime(); if (!Number.isNaN(pe)) graceUntil = Math.min(graceUntil, pe); }
-    if (now <= graceUntil) return { tier: l.tier, reason: l.lastError ? "grace" : "active", graceUntil };
+    if (now <= graceUntil) return applyLifetime(l, { tier: l.tier, reason: l.lastError ? "grace" : "active", graceUntil });
     return { tier: "free", reason: "grace_expired", graceUntil };
   }
   return { tier: "free", reason: l?.status ? `licence_${l.status}` : "no_licence" };
+}
+
+// A lifetime founder licence is Pro for life, including when the row was tagged Extreme by mistake.
+function applyLifetime(l, result) {
+  if (!result || result.tier === "free" || result.tier === "owner") return result;
+  if (l?.plan !== LIFETIME_PLAN_ID) return result;
+  if (result.tier !== "pro" && result.tier !== "extreme") return result;
+  return { ...result, tier: "pro", lifetime: true };
 }
 
 // Free trial (Phase 9, server/growth.js, behind CC_TRIAL): asked only when the licence says Free.
@@ -100,6 +103,8 @@ export function licenseState() {
   else if (r.reason === "dev_override") message = "Developer override (CC_DEV_OWNER=1, unpackaged run)";
   else if (r.reason === "trial") message = `Free trial: Pro for ${r.daysLeft} more day${r.daysLeft === 1 ? "" : "s"}. Nothing is charged.`;
   else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
+  else if (r.lifetime && r.reason === "active") message = "Lifetime founder: Pro for life.";
+  else if (l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro" && r.reason === "active") message = `Pro, grandfathered at $${moneyPlain(GRANDFATHER_PRO_MONTHLY)}/month. That price stays.`;
   else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
   else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
   return {
@@ -113,15 +118,39 @@ export function licenseState() {
     },
     key: l.key ? l.key.replace(/^(.{3}).*(.{4})$/, "$1-••••-••••-$2") : null,
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
-    message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
+    message, deviceId: l.deviceId, maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2, trialEndsAt: r.trialEndsAt || null,
+    compare: compareRows(),
+    plan: l.plan || null,
+    grandfathered: l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro",
+    lifetime: !!r.lifetime,
   };
+}
+
+// The licence server builds the same sentence in verify_license. Default cap is 2.
+export function deviceLimitMessage(maxDevices = 2) {
+  const n = Math.max(1, Math.floor(Number(maxDevices) || 2));
+  return `This key is already on ${n} computer${n === 1 ? "" : "s"}. Remove one in Settings > Devices.`;
+}
+
+export function deviceRpcMessage(err) {
+  const m = String(err?.message || "");
+  if (/schema cache|could not find the function|PGRST202|404/i.test(m)) {
+    return "The computer list is not available on the licence server yet.";
+  }
+  return m || "Could not reach the licence server.";
 }
 
 // Growth (Phase 9) asks the same licence server about referrals.
 export const licenceRpc = (fn, body) => rpc(fn, body);
 
-async function rpc(fn, body) {
-  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => (Array.isArray(j) ? j[0] : j));
+function rpcRows(j, all) {
+  if (all) return Array.isArray(j) ? j : (j == null ? [] : [j]);
+  return Array.isArray(j) ? j[0] : j;
+}
+
+async function rpc(fn, body, opts = {}) {
+  const all = !!opts.all;
+  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => rpcRows(j, all));
   const c = cloud();
   // legacy anon keys are JWTs and go in both headers; new publishable keys (sb_publishable_…) go in apikey only
   const headers = { apikey: c.anonKey, "content-type": "application/json" };
@@ -131,25 +160,43 @@ async function rpc(fn, body) {
     const r = await fetch(`${c.url.replace(/\/$/, "")}/rest/v1/rpc/${fn}`, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal });
     const j = await r.json().catch(() => null);
     if (!r.ok) throw new Error(j?.message || `HTTP ${r.status}`);
-    return Array.isArray(j) ? j[0] : j;
+    return rpcRows(j, all);
   } finally { clearTimeout(t); }
 }
+
+const capOf = (row) => {
+  const n = Number(row?.max_devices ?? row?.maxDevices);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
 
 export async function activate(key) {
   if (!cloudConfigured()) throw new Error("No licence server configured (Settings → Cloud).");
   const l = lic();
   const k = trim(key).toUpperCase();
   if (!k) throw new Error("Licence key required.");
+  const stamp = l.stamp || 0;
   const r = await rpc("verify_license", { p_key: k, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
+  // A remove of this computer while the check was in flight must not put the key back.
+  if ((lic().stamp || 0) !== stamp) return licenseState();
   const now = Date.now();
+  const maxDevices = capOf(r);
   if (r?.ok) {
-    saveLic({ key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" });
+    const patch = { key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
+    if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
+    saveLic(patch);
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
+    try {
+      const { queueWelcome } = await import("./welcome-mail.js");
+      const source = String(r.tier || "").toLowerCase() === "pro" ? "pro-purchase" : "license";
+      await queueWelcome({ email: r.email, firstName: r.first_name || r.name || "", source });
+    } catch (e) {
+      emit("log", { text: `Welcome email was not sent: ${e.message}`, level: "error" });
+    }
     return licenseState();
   }
   // a different key that fails leaves the stored licence alone; the stored key failing means it really is not active
   if (l.key && k !== l.key) throw new Error(r?.message || "Licence key not accepted");
-  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "Licence not active" });
+  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "Licence not active", ...(maxDevices ? { maxDevices } : {}) });
   emit("log", { text: `Licence problem: ${r?.message || "not active"}`, level: "error" });
   return licenseState();
 }
@@ -167,9 +214,14 @@ export async function loadHostedLicense() {
   if (!HOSTED || !email) return licenseState();
   const now = Date.now();
   try {
-    const rows = await rest(`licenses?select=key,tier,status,email,current_period_end&email=ilike.${encodeURIComponent(email)}&order=created_at.desc&limit=5`, { token: ctx().token });
+    const rows = await rest(`licenses?select=key,tier,status,email,current_period_end,max_devices&email=ilike.${encodeURIComponent(email)}&order=created_at.desc&limit=5`, { token: ctx().token });
     const best = (rows || []).find((r) => r.status === "active") || rows?.[0];
-    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: best.status === "active" ? "ok" : `Licence is ${best.status}` });
+    if (best?.status === "active" && best.key) {
+      const maxDevices = capOf(best);
+      if (maxDevices) saveLic({ maxDevices });
+      return await activate(best.key);
+    }
+    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: `Licence is ${best.status}`, ...(capOf(best) ? { maxDevices: capOf(best) } : {}) });
     else saveLic({ tier: null, status: null, checkedAt: now, lastOkAt: now, lastError: null, message: "No licence on this email" });
   } catch (e) { saveLic({ lastError: e.message, checkedAt: now }); }
   return licenseState();
@@ -186,7 +238,13 @@ export async function recheck() {
 export function startLicenseLoop() {
   const tick = () => { for (const c of allContexts()) runAs(c, () => recheck().catch(() => {})); };
   tick();
-  setInterval(tick, 12 * 3600 * 1000).unref();
+  scheduler.register({
+    id: "licence",
+    everyMs: 12 * 3600 * 1000,
+    lightEveryMs: 24 * 3600 * 1000,
+    pause: true,
+    run: tick,
+  });
 }
 
 // Validate a Settings → Cloud change (local mode). Returns the normalised values and whether the
@@ -207,9 +265,52 @@ export function resetVerifiedTier(reason = "cloud settings changed") {
   saveLic({ tier: null, status: null, lastOkAt: 0, lastError: null, periodEnd: null, checkedAt: Date.now(), message: `Re-check needed (${reason}).` });
 }
 
+function viewDevice(row, currentId) {
+  const deviceId = String(row?.device_id || row?.deviceId || "");
+  return {
+    deviceId,
+    name: String(row?.name || "Computer"),
+    platform: String(row?.platform || ""),
+    lastSeen: row?.last_seen || row?.lastSeen || null,
+    thisComputer: !!(row?.this_computer || row?.thisComputer || (currentId && deviceId === currentId)),
+  };
+}
+
+// Computers registered on the key stored on this install. The request cannot name a different key.
+export async function listDevices() {
+  const l = lic();
+  const maxDevices = Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2;
+  const base = { configured: cloudConfigured(), hasKey: !!l.key, maxDevices, deviceId: l.deviceId, devices: [], message: null };
+  if (!base.configured) return { ...base, message: "No licence server is configured, so there is no computer list." };
+  if (!l.key) return { ...base, message: "Activate a licence key to see the computers on it." };
+  try {
+    const rows = await rpc("list_license_devices", { p_key: l.key, p_device_id: l.deviceId }, { all: true });
+    return { ...base, devices: (rows || []).filter((r) => r && (r.device_id || r.deviceId)).map((r) => viewDevice(r, l.deviceId)) };
+  } catch (e) {
+    return { ...base, message: deviceRpcMessage(e) };
+  }
+}
+
+// Remove one computer. Removing this computer also drops the key here so the next check does not take the spot again.
+export async function removeDevice(deviceId) {
+  if (!cloudConfigured()) throw Object.assign(new Error("No licence server configured (Settings → Cloud)."), { status: 400 });
+  const l = lic();
+  if (!l.key) throw Object.assign(new Error("Activate a licence key first."), { status: 400 });
+  const id = trim(deviceId);
+  if (!id || id.length > 128 || /[\u0000-\u001f]/.test(id)) throw Object.assign(new Error("Choose a computer to remove."), { status: 400 });
+  let r;
+  try { r = await rpc("remove_license_device", { p_key: l.key, p_device_id: id }); }
+  catch (e) { throw Object.assign(new Error(deviceRpcMessage(e)), { status: 400 }); }
+  if (!r?.ok) throw Object.assign(new Error(r?.message || "Could not remove that computer."), { status: 400 });
+  const removingThis = id === l.deviceId;
+  if (removingThis) {
+    saveLic({ key: null, tier: null, status: null, email: null, periodEnd: null, plan: null, lastOkAt: 0, lastError: null, checkedAt: Date.now(), stamp: Date.now(), message: "This computer was removed from the key. Activate the key again to use it here.", maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2 });
+  }
+  const list = await listDevices();
+  return { ok: true, ...list, message: removingThis ? "This computer was removed from the key." : (r.message || "Removed."), license: licenseState() };
+}
+
 // ---------- tier gates (one place; routes and plugin helpers both go through guard) ----------
-const PRO_PRICE = "$15.99/month";
-const pro = (what, detail = "") => Object.assign(new Error(`${detail}${what} is part of Pro (${PRO_PRICE}). Add a licence key in Settings.`), { status: 402, code: "pro_required" });
 
 // Councils are counted per UTC calendar month from the mission store (kind === "council"),
 // plus the councils of this user that are still running (they are only written when they finish).
@@ -226,39 +327,28 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
 //   guard("connectedService", { count }) | guard("emailAccounts", { count })
 //   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
+//   guard("desktop") | guard("appScan") | guard("backgroundRuns") | guard("missionPause") | guard("learnedFromRatings")
+// desktop is desktop control (including Antigravity). appScan is the program scan and its suggestions.
+// missions is already Pro. These ids are the feature-gate names. isProFeature reads the same table.
+export function isProFeature(feature) {
+  return !!TIERS[licenseState().tier]?.[feature];
+}
 export function guard(feature, info = {}) {
   const s = licenseState();
-  const T = TIERS[s.tier];
-  switch (feature) {
-    case "missions": if (!T.missions) throw pro("Mission mode"); return s;
-    case "scheduler": if (!T.scheduler) throw pro("The off-peak scheduler"); return s;
-    case "subscriptions": case "subscriptionsTab": if (!T.subscriptionsTab) throw pro("The Subscriptions tracker"); return s;
-    case "council": {
-      const used = councilsThisMonth();
-      if (used >= T.councilsPerMonth) throw pro("Unlimited councils", `You have used ${used} of ${T.councilsPerMonth} councils this month on ${T.label}. `);
-      return s;
-    }
-    case "projects": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.projects) throw pro("Unlimited projects", `${T.label} includes ${T.projects} project${T.projects === 1 ? "" : "s"}. `);
-      return s;
-    }
-    case "connectedService": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.connectedServices) throw pro("Every connected service", `${T.label} includes ${T.connectedServices} connected service${T.connectedServices === 1 ? "" : "s"}. `);
-      return s;
-    }
-    case "emailAccounts": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.emailAccounts) throw pro("More email accounts", `${T.label} includes ${T.emailAccounts} email account${T.emailAccounts === 1 ? "" : "s"} per provider. `);
-      return s;
-    }
-    case "phone": if (!T.phone) throw pro("Phone pairing"); return s;
-    case "historySearch": if (!T.historySearch) throw pro("Full history search"); return s;
-    case "sharedLearning": if (!T.sharedLearning) throw pro("Shared learning"); return s;
-    case "scores": if (!T.scores) throw pro("The scores dashboard"); return s;
-    default: if (!T[feature]) throw pro("This feature"); return s;
+  const T = TIERS[s.tier] || TIERS.free;
+  const spec = { ...info };
+  delete spec.env;
+  if ((feature === "council" || feature === "councilsPerMonth") && spec.used == null && spec.count == null) spec.used = councilsThisMonth();
+  const result = evaluateGate(T, feature, spec);
+  if (!result.ok) {
+    const err = new Error(result.message);
+    err.status = 402;
+    err.code = result.code;
+    err.built = result.built;
+    throw err;
   }
+  return s;
 }
+bindLicenseState(licenseState);
 // Older name, kept for plugins.
 export const requireFeature = (feature) => guard(feature);

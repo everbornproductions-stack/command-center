@@ -38,7 +38,8 @@
     $("install").disabled = busy; $("later").disabled = busy;
     $("install").textContent = busy ? "Installing..." : (running ? "Restart and update" : "Install now");
     $("msg").className = "msg" + (s.error ? " err" : "");
-    const msg = s.error ? `Update failed: ${s.error}. Try again.`
+    const msg = s.manual ? "Automatic updates for Mac are coming soon. Download opens the release page. Install with a right-click, then Open. Your data stays."
+      : s.error ? `Update failed: ${s.error}. Try again.`
       : s.phase === "downloading" ? `Downloading ${s.percent || 0}%`
       : s.phase === "downloaded" ? (s.installOnQuit ? "Downloaded. It will install when you quit." : "Restarting into the new version...")
       : (running ? "Later downloads the update and installs it when you quit." : "");

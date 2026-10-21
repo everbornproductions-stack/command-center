@@ -20,6 +20,7 @@ import { PROVIDERS } from "./registry.js";
 import { streamChat } from "./providers.js";
 import { localFetch } from "./loopback-fetch.js";
 import { networkCause } from "./health.js";
+import { riskyAction } from "./action-policy.js";
 
 export const SERVERS_DOC = "mcp.servers";
 export const SETTINGS_DOC = "mcp.settings";
@@ -134,9 +135,21 @@ export function toolReadOnly(server, tool) {
   if (typeof o === "boolean") return o;
   return tool.annotations?.readOnlyHint === true;
 }
-// Writes, sends and deletes always ask. Read-only tools skip the prompt only when the person turned that on for the server.
-export const needsApproval = (server, tool) => !(toolReadOnly(server, tool) && !!server?.autoReadOnly);
+// Writes, sends and deletes always ask. A send, post, charge, pay, or delete asks even if a server
+// marked the tool read-only. Read-only tools skip the prompt only when the person turned that on.
+export const needsApproval = (server, tool) => riskyAction(tool) || !(toolReadOnly(server, tool) && !!server?.autoReadOnly);
 
+// App connections (Zapier, Make, any remote MCP URL) ask the gate before a new remote server is saved.
+let beforeRemoteAdd = async () => {};
+export function onBeforeRemoteAdd(fn) { beforeRemoteAdd = typeof fn === "function" ? fn : async () => {}; }
+export function markServer(id, extra) {
+  const d = servers();
+  const s = d.list.find((x) => x.id === id);
+  if (!s || !extra) return null;
+  Object.assign(s, extra);
+  saveServers(d);
+  return s;
+}
 // ---------- sessions ----------
 const sessions = new Map(); // `${userId}:${serverId}` -> { client, tools, connectedAt, error, connecting }
 const sessionKey = (id) => `${HOSTED ? ctx().userId : "local"}:${id}`;
@@ -182,11 +195,33 @@ export async function closeSession(id) { const key = sessionKey(id); const sess 
 export async function closeAll() { for (const [k, sess] of sessions) { sessions.delete(k); try { await sess.client?.close(); } catch {} } }
 
 // ---------- CRUD ----------
+const extraProviders = [];
+export function registerExtraTools(fn) {
+  if (typeof fn === "function" && !extraProviders.includes(fn)) extraProviders.push(fn);
+}
+function collectExtraTools() {
+  const out = [];
+  for (const fn of extraProviders) {
+    let list = [];
+    try { list = fn() || []; } catch { list = []; }
+    for (const t of list) if (t?.name && t.server && t.tool) out.push(t);
+  }
+  return out;
+}
+export function redactServerError(id, replacer) {
+  if (typeof replacer !== "function") return;
+  const d = servers();
+  const row = d.list.find((x) => x.id === id);
+  if (row?.lastError) { row.lastError = replacer(String(row.lastError)); saveServers(d); }
+  const sess = sessionOf(id);
+  if (sess?.error) sess.error = replacer(String(sess.error));
+}
 export async function addServer(input) {
   const v = validateServer(input);
   const d = servers();
   const id = input.id && d.list.some((s) => s.id === input.id) ? input.id : "s-" + crypto.randomBytes(5).toString("hex");
   const existing = d.list.find((s) => s.id === id);
+  if (!existing && v.transport !== "stdio") await beforeRemoteAdd();
   const row = existing ? Object.assign(existing, v) : { id, ...v, enabled: {}, prefs: {}, createdAt: Date.now() };
   if (!existing) d.list.push(row);
   if (row.transport === "stdio") { delete row.url; } else { delete row.command; delete row.args; delete row.cwd; }
@@ -194,7 +229,17 @@ export async function addServer(input) {
   const patch = {};
   if (input.headers !== undefined) patch.headers = parsePairs(input.headers);
   if (input.env !== undefined) patch.env = parsePairs(input.env, { upper: false });
-  if (Object.keys(patch).length) await saveSecret(id, patch);
+  try {
+    if (Object.keys(patch).length) await saveSecret(id, patch);
+  } catch (e) {
+    // A failed secret save must not leave a remote server that counts as an app connection.
+    if (!existing) {
+      const again = servers();
+      again.list = again.list.filter((s) => s.id !== id);
+      saveServers(again);
+    }
+    throw e;
+  }
   await closeSession(id);
   return row;
 }
@@ -246,6 +291,15 @@ export function enabledTools(wsKey = workspaceKey()) {
       delete params.$schema; if (!params.type) params.type = "object"; if (!params.properties) params.properties = {};
       out.push({ name, description: `${t.description || t.title || t.name} (tool "${t.name}" from ${s.name})`.slice(0, 1024), parameters: params, server: s, tool: t, readOnly: toolReadOnly(s, t), needsApproval: needsApproval(s, t) });
     }
+  }
+  for (const extra of collectExtraTools() || []) {
+    if (!extra?.name) continue;
+    let name = extra.name;
+    let k = 2;
+    const base = name;
+    while (seen.has(name)) name = `${base}_${k++}`;
+    seen.add(name);
+    out.push({ ...extra, name });
   }
   return out;
 }
@@ -329,7 +383,13 @@ export function chatWithTools(opts, run = {}) {
   const want = run.tools === false ? false : settings.on;
   // run.allow (custom agents, Phase 19): only these "serverId/tool" entries, and only if switched on as well
   const allow = Array.isArray(run.allow) ? new Set(run.allow) : null;
-  const tools = want && supportsTools(pid) ? enabledTools().filter((t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`)) : [];
+  const keep = (t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`);
+  const mcpTools = want && supportsTools(pid) ? enabledTools().filter(keep) : [];
+  // Bring-your-own and webhook tools stay available when the MCP master switch is off.
+  // When it is on, enabledTools already includes them. Adding them again would offer the same name twice.
+  const seen = new Set(mcpTools.map((t) => t.name));
+  const extra = run.tools !== false && supportsTools(pid) ? collectExtraTools().filter((t) => keep(t) && !seen.has(t.name)) : [];
+  const tools = [...mcpTools, ...extra];
   if (!tools.length) return streamChat(opts);
   return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
 }
@@ -376,9 +436,14 @@ async function* loop(opts, tools, { missionId = null, taskId = null, maxRounds =
       const entry = byName.get(c.name);
       let r;
       if (!entry) r = { text: `No tool named ${c.name} is available.`, isError: true, denied: false, ms: 0 };
-      else {
+      else if (entry.byo && typeof entry.call === "function") {
+        yield { type: "tool", phase: "start", id: c.id, name: c.name, tool: entry.tool.name, server: entry.server.name, args: c.args, needsApproval: !!entry.needsApproval };
+        r = await entry.call(c.args || {}, { missionId, taskId, provider: pid, model: opts.model });
+      } else {
         yield { type: "tool", phase: "start", id: c.id, name: c.name, tool: entry.tool.name, server: entry.server.name, args: c.args, needsApproval: entry.needsApproval };
-        r = await executeTool(entry, c.args || {}, { missionId, taskId, provider: pid, model: opts.model });
+        r = typeof entry.run === "function"
+          ? await entry.run(c.args || {}, { missionId, taskId, provider: pid, model: opts.model })
+          : await executeTool(entry, c.args || {}, { missionId, taskId, provider: pid, model: opts.model });
       }
       made.push({ id: c.id, name: c.name, tool: entry?.tool.name || c.name, server: entry?.server.name || null, serverId: entry?.server.id || null, ok: !r.isError, denied: !!r.denied, ms: r.ms, at: Date.now() });
       yield { type: "tool", phase: "done", id: c.id, name: c.name, tool: entry?.tool.name || c.name, server: entry?.server.name || null, ok: !r.isError, denied: !!r.denied, ms: r.ms };

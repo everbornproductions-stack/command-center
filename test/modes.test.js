@@ -13,7 +13,7 @@ process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || DIR;
 const store = await import("../server/store.js");
 store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
 const { rank } = await import("../server/router.js");
-const { normalizeMode, councilPlan, planMode, reviewMode, costWeight, speedBoost, MODE_LABEL } = await import("../server/modes.js");
+const { normalizeMode, councilPlan, planMode, reviewMode, costWeight, speedBoost, outputShape, MODE_LABEL } = await import("../server/modes.js");
 
 test("economy is Max savings, and Speed is its own priority", () => {
   assert.equal(normalizeMode("economy"), "savings");
@@ -34,6 +34,17 @@ test("economy is Max savings, and Speed is its own priority", () => {
   assert.equal(reviewMode("quality"), "balanced");
   assert.equal(reviewMode("speed"), "speed");
   assert.equal(reviewMode("balanced"), "savings");
+  assert.equal(normalizeMode("max quality"), "max");
+  assert.equal(normalizeMode("max-quality"), "max");
+  assert.equal(normalizeMode("maxquality"), "max");
+  assert.equal(planMode("max"), "max");
+  assert.equal(reviewMode("max"), "quality");
+  assert.equal(councilPlan("max").members, 4);
+  assert.equal(councilPlan("max").priority, "max");
+  assert.ok(costWeight("max") < costWeight("quality"));
+  assert.deepEqual(outputShape("max"), { maxTokens: 8000, effort: "high" });
+  assert.deepEqual(outputShape("quality"), { maxTokens: null, effort: null });
+  assert.equal(MODE_LABEL.max, "Max quality");
   assert.equal(MODE_LABEL.savings, "Max savings");
   assert.equal(JSON.stringify(MODE_LABEL).includes("\u2014"), false);
 });
@@ -58,6 +69,16 @@ test("Quality, Max savings and Speed pick different models when both ChatGPT and
   assert.notEqual(speed.model, savings.model);
   assert.notEqual(speed.model, quality.model);
   assert.notEqual(balanced.model, speed.model);
+  const maxed = rank({ capability: "writing", difficulty: 3, mode: "max" });
+  const openaiMax = maxed.filter((m) => m.provider === "openai");
+  assert.equal(openaiMax.length, 1);
+  assert.equal(openaiMax[0].model, "gpt-6-astra");
+  assert.ok(!maxed.some((m) => m.model === "gpt-6-luna" || m.model === "gpt-6.1-sol"));
+  c.docs["alerts.state"] = { stop: ["openai"] };
+  const stopped = rank({ capability: "writing", difficulty: 3, mode: "max" });
+  assert.ok(stopped.some((m) => m.provider === "groq"));
+  assert.ok(stopped.every((m) => m.provider !== "openai"));
+  delete c.docs["alerts.state"];
 });
 
 test("Single, Council and Mission all receive the picked priority", () => {
@@ -65,12 +86,15 @@ test("Single, Council and Mission all receive the picked priority", () => {
   const server = read("server", "index.js");
   const council = read("server", "council.js");
   const mission = read("server", "mission.js");
-  assert.match(app, /\["quality", "Quality"\], \["balanced", "Balanced"\], \["savings", "Max savings"\], \["speed", "Speed"\]/);
+  assert.match(app, /\["max", "Max quality"\], \["quality", "Quality"\], \["balanced", "Balanced"\], \["savings", "Max savings"\], \["speed", "Speed"\]/);
   assert.match(app, /const picked = !simple && S\.costMode \? \{ mode: S\.costMode \} : \{\}/);
   assert.match(app, /mode: costMode, lite: costMode === "savings" \|\| costMode === "economy"/);
   assert.match(app, /goal: prompt, mode: costMode/);
   assert.match(server, /mode: job\.mode/);
   assert.match(server, /normalizeMode\(job\.mode \|\| s\.defaultMode\)/);
+  assert.match(server, /guardMaxQuality/);
+  assert.match(server, /outputShape/);
+  assert.match(council, /outputShape/);
   assert.match(council, /councilPlan\(asked, lite\)/);
   assert.match(council, /reviewMode\(mode\)/);
   assert.match(mission, /planMode\(mode\)/);

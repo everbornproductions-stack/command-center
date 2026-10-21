@@ -117,6 +117,12 @@ async function renderTab(view) {
   const examples = wantExamples;
   wantExamples = false;
   view.innerHTML = `<div class="sp-wrap" id="sp-root"><div class="empty">Loading…</div></div>`;
+  if (pendingWalk) {
+    const w = pendingWalk;
+    pendingWalk = null;
+    paintWalk(w);
+    return;
+  }
   try {
     const data = await api(`/walkthrough?${qexp()}`);
     if (examples) paintExamples(data);
@@ -199,10 +205,13 @@ async function toggleHelp() {
   } catch { showFallback(); }
 }
 
+let pendingWalk = null;
 async function begin(type) {
   try {
     const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
-    paintWalk(w);
+    pendingWalk = w;
+    if (document.getElementById("sp-root") && window.CC.S.view === "start") paintWalk(w);
+    else go("start");
   } catch (e) { toast(e.message, true); }
 }
 async function openWalk(id) {
@@ -456,4 +465,5 @@ window.CC.startProject = {
   experience: clientExperience,
   open: () => { wantExamples = false; go("start"); },
   examples: () => { wantExamples = true; go("start"); },
+  begin,
 };

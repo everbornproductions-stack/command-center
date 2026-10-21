@@ -4,7 +4,7 @@
 const { S, api, toast, esc, money } = window.CC;
 
 const CAP_LABEL = { reasoning: "Reasoning", code: "Code", writing: "Writing", research: "Research", creative: "Creative", analysis: "Analysis", math: "Math", fast: "Quick jobs" };
-const MODE_LABEL = { quality: "Quality first", balanced: "Balanced", savings: "Max savings", speed: "Speed" };
+const MODE_LABEL = { max: "Max quality", quality: "Quality first", balanced: "Balanced", savings: "Max savings", speed: "Speed" };
 const pct = (v) => (v == null ? "n/a" : `${Math.round(v * 100)}%`);
 const secs = (v) => (v == null ? "n/a" : v < 10 ? `${v.toFixed(1)} s` : `${Math.round(v)} s`);
 let mode = null;
@@ -38,7 +38,7 @@ async function renderTab(view) {
       <div class="panel"><h3>Who's best at what <span class="right">${d.jobs} job${d.jobs === 1 ? "" : "s"} learned since ${new Date(d.since).toLocaleDateString()}</span></h3>
         <div class="small muted">Every job teaches the router which AI is best at which kind of work, for the price: council scores and wins, your thumbs, QA scores, cost per job, speed and failures. It uses that to pick the AI for your next job, starting from the built-in scores, and it gets sharper with each job. Only the task type and the numbers are kept, never your prompts, answers or keys.</div>
         <div class="row" style="gap:8px;margin-top:10px"><span class="small muted">Rank for</span>${Object.entries(MODE_LABEL).map(([k, v]) => `<button class="btn sm ${k === mode ? "primary" : ""}" data-mode="${k}">${v}</button>`).join("")}</div>
-        <div class="dim small" style="margin-top:8px">Community track records, when you add them, count for Quality, Balanced, Max savings, and Speed.</div>
+        <div class="dim small" style="margin-top:8px">Community track records, when you add them, count for Max quality, Quality, Balanced, Max savings, and Speed.</div>
       </div>
       ${!on ? `<div class="panel"><div class="dim small">Learning is off: picks use the built-in scores only and nothing new is recorded. Turn it on at the right.</div></div>` : ""}
       ${d.capabilities.length ? d.capabilities.map(table).join("") : `<div class="panel"><div class="empty">Nothing learned yet. Run a chat, a council or a mission and the rankings appear here.</div></div>`}
@@ -54,7 +54,7 @@ async function renderTab(view) {
         <div class="dim small" id="br-share-note" ${d.settings.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div>
         <div class="dim small" style="margin-top:6px">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings. On Who's best, clear I am willing to share anonymous track records. <a href="#what-we-share" id="br-share-what">What we share</a> This version sends nothing. Show what would be shared lists the anonymous totals on this computer.</div>
         <button class="btn sm" id="br-preview" style="margin-top:8px">Show what would be shared</button>
-        <div class="dim small" style="margin-top:10px">Add a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all learn from it. Nothing is uploaded. This stays on this computer.</div>
+        <div class="dim small" style="margin-top:10px">Add a file of anonymous totals from people who opted in. Max quality, Quality, Balanced, Max savings, and Speed all learn from it. Nothing is uploaded. This stays on this computer.</div>
         <label class="btn sm" style="margin-top:8px;display:inline-block">Add community track records<input id="br-community" type="file" accept="application/json,.json" hidden></label>
         <div class="dim small" id="br-community-note" style="margin-top:6px"></div>
         <pre id="br-preview-out" class="small mono" style="display:none;max-height:240px;overflow:auto;margin-top:8px"></pre>

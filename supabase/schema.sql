@@ -11,7 +11,7 @@ create table if not exists public.licenses (
   id            uuid primary key default gen_random_uuid(),
   key           text unique not null,                  -- what the app stores: EVB-XXXX-XXXX-XXXX
   email         text not null,
-  tier          text not null default 'pro' check (tier in ('free','pro','studio','owner')),
+  tier          text not null default 'pro' check (tier in ('free','pro','extreme','studio','owner')),
   status        text not null default 'active' check (status in ('active','past_due','cancelled','revoked')),
   source        text not null default 'square' check (source in ('square','manual','promo')),
   square_customer_id     text,

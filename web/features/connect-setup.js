@@ -6,6 +6,8 @@ const css = `
 .cs-wrap { max-width: 860px; margin: 0 auto; }
 .cs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .cs-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.cs-steps { margin: 6px 0 0; padding-left: 18px; }
+.cs-steps li { margin: 2px 0; }
 .cs-accounts { margin-top: 8px; display: grid; gap: 6px; }
 .cs-acct { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 640px) {
@@ -78,7 +80,7 @@ async function runFlow(item, accountId) {
   }
   if (f.type === "browser-google") {
     if (!f.clientReady) return focusSettings(f.focus, "Add the Google sign-in client in Settings, then connect. The secret stays in the vault.");
-    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, ...(accountId ? { accountId } : {}) } });
+    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, calendar: !!f.want?.calendar, keep: !!f.keep, ...(accountId ? { accountId } : {}) } });
     window.open(r.url, "_blank", "noopener");
     toast("Sign in with Google. This page finishes the link when you come back.");
     return;
@@ -134,6 +136,7 @@ function renderInto(v) {
           <div>
             <b>${esc(it.name)}</b> ${chip(it.status)}${it.skipped ? ` <span class="chip">Skipped</span>` : ""}
             <div class="dim small" style="margin-top:4px">${esc(it.blurb || "")}</div>
+            ${(it.steps || []).length ? `<ol class="cs-steps">${it.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
             ${showDetail && it.detail ? `<div class="dim small cs-detail" style="margin-top:4px">${esc(it.detail)}</div>` : ""}
             ${accountBlock(it)}
           </div>
@@ -149,6 +152,12 @@ function renderInto(v) {
       </div>
     </div>
   </div>`;
+  if (!items.some((it) => it.status === "Connected") && window.CC.everydaySuggest?.mount) {
+    const slot = document.createElement("div");
+    slot.id = "ea-suggest-slot";
+    v.querySelector(".cs-wrap")?.appendChild(slot);
+    try { window.CC.everydaySuggest.mount(slot); } catch { /* the checklist still works */ }
+  }
   v.querySelectorAll("[data-connect]").forEach((b) => b.addEventListener("click", async () => {
     const item = items.find((x) => x.id === b.dataset.connect);
     if (!item || busy) return;

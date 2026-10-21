@@ -20,11 +20,14 @@ const css = `
 .cc-money-saved .cc-ms-all { font-family: var(--mono, ui-monospace, monospace); font-size: 12px; font-weight: 700; color: var(--green, #34d399); }
 .cc-money-saved .cc-ms-est { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--amber, #fbbf24); }
 .cc-money-saved .cc-ms-note { font-size: 9px; color: var(--muted, #8b95a7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cc-money-saved .cc-ms-tip { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0b111b; color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
-.cc-money-saved:hover .cc-ms-tip, .cc-money-saved:focus .cc-ms-tip, .cc-money-saved:focus-within .cc-ms-tip { display: block; }
+/* On document.body, not inside the top bar. backdrop-filter, transform, filter, or overflow on a parent
+   builds a stacking context, and the Live ops panel (backdrop-filter) then paints over an absolute tip. */
+.cc-ms-tip { display: none; position: fixed; z-index: 1000; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0b111b; color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none; }
+.cc-ms-tip.cc-ms-on { display: block; }
+body[data-ui="simple"] .cc-money-saved { display: none; }
 .cc-ms-label { color: var(--muted, #8b95a7); font-size: 12px; margin-top: 6px; }
 html[data-theme="light"] .cc-money-saved { background: #fff; }
-html[data-theme="light"] .cc-money-saved .cc-ms-tip { background: #fff; }
+html[data-theme="light"] .cc-ms-tip { background: #fff; }
 .app { grid-template-rows: auto minmax(0, 1fr) var(--strip-h); }
 .topbar { height: auto; min-height: 56px; padding-top: 6px; padding-bottom: 6px; }
 @media (max-width: 760px) {
@@ -42,6 +45,46 @@ if (!document.getElementById("cc-money-saved-style")) {
   document.head.appendChild(style);
 }
 
+let savedTipHover = false;
+let savedTipFocus = false;
+
+function savedTipEl() {
+  let tip = document.getElementById("cc-ms-tip");
+  if (tip) return tip;
+  tip = document.createElement("div");
+  tip.id = "cc-ms-tip";
+  tip.className = "cc-ms-tip";
+  tip.setAttribute("role", "tooltip");
+  tip.textContent = SAVED_TIP;
+  document.body.appendChild(tip);
+  return tip;
+}
+
+function placeSavedTip() {
+  const anchor = document.getElementById("cc-money-saved");
+  const tip = document.getElementById("cc-ms-tip");
+  if (!anchor || !tip || !tip.classList.contains("cc-ms-on")) return;
+  const r = anchor.getBoundingClientRect();
+  const margin = 8;
+  const width = tip.offsetWidth || Math.min(380, window.innerWidth * 0.78);
+  let left = r.right - width;
+  if (left < margin) left = margin;
+  if (left + width > window.innerWidth - margin) left = Math.max(margin, window.innerWidth - margin - width);
+  let top = r.bottom + 6;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+  const h = tip.offsetHeight;
+  if (h && top + h > window.innerHeight - margin && r.top - h - 6 >= margin) tip.style.top = `${r.top - h - 6}px`;
+}
+
+function syncSavedTip() {
+  const anchor = document.getElementById("cc-money-saved");
+  const tip = savedTipEl();
+  const on = !!(anchor && (savedTipHover || savedTipFocus));
+  tip.classList.toggle("cc-ms-on", on);
+  if (on) placeSavedTip();
+}
+
 function mountBar() {
   const host = document.querySelector(".topbar .top-right") || document.querySelector(".topbar");
   if (!host || document.getElementById("cc-money-saved")) return;
@@ -50,13 +93,21 @@ function mountBar() {
   el.className = "cc-money-saved";
   el.setAttribute("role", "status");
   el.tabIndex = 0;
-  el.innerHTML = `<span class="cc-ms-top"><span class="cc-ms-you">You saved</span><span class="cc-ms-v" data-cc-ms="month">$0.00</span><span class="cc-ms-when">this month</span><span class="cc-ms-est">Estimate</span></span><span class="cc-ms-sub"><span class="cc-ms-k">All time</span><span class="cc-ms-all" data-cc-ms="all">$0.00</span></span><span class="cc-ms-note"></span><span class="cc-ms-tip"></span>`;
+  el.innerHTML = `<span class="cc-ms-top"><span class="cc-ms-you">You saved</span><span class="cc-ms-v" data-cc-ms="month">$0.00</span><span class="cc-ms-when">this month</span><span class="cc-ms-est">Estimate</span></span><span class="cc-ms-sub"><span class="cc-ms-k">All time</span><span class="cc-ms-all" data-cc-ms="all">$0.00</span></span><span class="cc-ms-note"></span>`;
   el.querySelector(".cc-ms-note").textContent = LABEL;
-  el.querySelector(".cc-ms-tip").textContent = SAVED_TIP;
+  const tip = savedTipEl();
   el.title = SAVED_TIP;
+  el.setAttribute("aria-describedby", tip.id);
   el.setAttribute("aria-label", `You saved $0.00 this month. All time $0.00. Estimate. ${LABEL}`);
+  el.addEventListener("pointerenter", () => { savedTipHover = true; syncSavedTip(); });
+  el.addEventListener("pointerleave", () => { savedTipHover = false; syncSavedTip(); });
+  el.addEventListener("focus", () => { savedTipFocus = true; syncSavedTip(); });
+  el.addEventListener("blur", () => { savedTipFocus = false; syncSavedTip(); });
   host.prepend(el);
 }
+
+window.addEventListener("resize", placeSavedTip);
+window.addEventListener("scroll", placeSavedTip, true);
 
 function savedMoney(n) {
   const v = Number(n) || 0;
@@ -106,6 +157,7 @@ function card(r, title) {
     </div>
     <div class="small" style="margin-top:8px">${rows.map(([m, b]) => `<span class="chip" style="margin:2px"><span class="dot" style="background:${pcolor(b.provider)}"></span>${esc(m)} ${money(b.cost, 4)}${b.manual ? " manual" : ""}${b.free ? " free" : ""}</span>`).join(" ")}</div>
     <div class="cc-ms-label">${esc(LABEL)}</div>
+    ${r.nothingCharged ? `<p class="hint" id="cc-receipt-charge" role="status">Nothing was charged</p>` : ""}
   </div>`;
 }
 
@@ -212,7 +264,8 @@ CC.register({
     if (!run?.id) { el.innerHTML = ""; return; }
     try {
       const r = await api(`/receipt/${run.id}`);
-      el.innerHTML = card(r, run.kind);
+      const failed = run.status === "failed" || run.status === "done-with-errors" || run.mission?.status === "failed" || run.council?.status === "failed";
+      el.innerHTML = card({ ...r, nothingCharged: failed && !(Number(r.actual) > 0) }, run.kind);
       el.querySelector("#rcpt-png").addEventListener("click", () => toPng(r));
     } catch { el.innerHTML = ""; }
   } },

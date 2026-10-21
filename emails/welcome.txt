@@ -1,0 +1,12 @@
+Hi {{FIRST_NAME}},
+
+Your Meldmind account is ready.
+
+Chats and settings back up to the cloud automatically. They are hosted on Everborn's Supabase. Each person sees only their own data (row level security).
+
+Add AI keys, or connect via MCP, from Settings.
+
+Nothing is sent until you click.
+
+Download Meldmind for Windows and Mac (one page has the Windows installer and the Mac download):
+{{INSTALL_URL}}

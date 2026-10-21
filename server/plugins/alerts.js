@@ -4,6 +4,7 @@
 import crypto from "node:crypto";
 import { PROVIDERS } from "../registry.js";
 import { searchCaps, nameOfLedgerProvider } from "../search.js";
+import { scheduler } from "../perf/scheduler.js";
 export const id = "alerts";
 const nameOf = (pid) => PROVIDERS[pid]?.name || nameOfLedgerProvider(pid) || pid;
 
@@ -16,7 +17,18 @@ const PREF_DEFAULTS = { email: "", emailOn: false, pushOn: true, jobDoneOn: fals
 const prefsOf = (h) => ({ ...PREF_DEFAULTS, ...h.doc(PREFS, () => ({})) });
 
 let H = null;
-export async function init(h) { H = h; }
+export async function init(h) {
+  H = h;
+  if (h.HOSTED) return;
+  scheduler.register({
+    id: "renewals",
+    everyMs: 12 * 3600 * 1000,
+    firstMs: 20000,
+    lightEveryMs: 24 * 3600 * 1000,
+    pause: true,
+    run: () => { try { renewalSweep(h); } catch { /* a sweep can wait until the next interval */ } },
+  });
+}
 
 function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 
@@ -49,7 +61,8 @@ async function notify(h, key, title, body, level = "amber") {
   const st = h.doc(STATE, () => ({ month: monthKey(), perProvider: {}, stop: [], fired: {} }));
   if (st.fired[key] && Date.now() - st.fired[key] < 12 * 3600 * 1000) return; // once per 12 h per alert
   st.fired[key] = Date.now(); h.putDoc(STATE, st);
-  h.emit("log", { text: `${level === "stop" ? "⛔" : "⚠"} ${title}: ${body}`, level: level === "stop" ? "error" : undefined });
+  const mark = level === "stop" ? "⛔" : level === "done" ? "Done." : level === "note" ? "" : "⚠";
+  h.emit("log", { text: `${mark ? mark + " " : ""}${title}: ${body}`, level: level === "stop" ? "error" : undefined });
   const prefs = prefsOf(h);
   if (prefs.emailOn && prefs.email) await sendEmail(h, prefs.email, title, body).catch((e) => h.emit("log", { text: `Alert email failed: ${e.message}`, level: "error" }));
   if (prefs.pushOn) await pushAll(h, { title, body, level }).catch(() => {});
@@ -159,7 +172,7 @@ function jobDone(h, m) {
   if (pushedDone.size > 500) pushedDone.delete(pushedDone.values().next().value);
   const prefs = prefsOf(h);
   if (!prefs.pushOn || !prefs.jobDoneOn) return;
-  const what = m.kind === "council" ? "Council" : m.kind === "single" ? "Chat" : "Mission";
+  const what = m.kind === "council" ? "Council" : m.kind === "single" ? "Chat" : m.kind === "research" ? "Deep research" : "Mission";
   const title = m.status === "failed" ? `${what} failed` : m.status === "done-with-errors" ? `${what} done, with errors` : `${what} done`;
   const name = String(m.title || m.prompt || "").replace(/\s+/g, " ").trim().slice(0, 80);
   const secs = m.finishedAt && m.startedAt ? Math.max(0, Math.round((m.finishedAt - m.startedAt) / 1000)) : null;
@@ -168,6 +181,11 @@ function jobDone(h, m) {
 }
 
 export function onEvent(ev, h) {
+  if (ev.type === "research.done") {
+    const level = ev.ok ? "done" : ev.aborted ? "note" : "stop";
+    const key = `research:${ev.id}:${ev.ok ? "done" : ev.aborted ? "stopped" : "failed"}`;
+    notify(h, key, ev.title || (ev.aborted ? "Deep research stopped" : "Deep research is done"), ev.body || "Open it in Meldmind.", level);
+  }
   if (ev.type === "mission.update") jobDone(h, ev.mission);
   if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search" || ev.entry?.kind === "image")) alertChanges(h, recompute(h).changes);
   if (ev.type === "provider.status" && ev.status === "red") {
@@ -217,6 +235,3 @@ export async function routes(req, res, url, body, h) {
   return false;
 }
 
-// renewal sweep shortly after start, then twice a day
-setTimeout(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 20000).unref();
-setInterval(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 12 * 3600 * 1000).unref();

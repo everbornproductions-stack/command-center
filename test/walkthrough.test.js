@@ -94,7 +94,7 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
   assert.match(ui, /Watch an example/);
   assert.match(ui, /Simple mode keeps the route/);
   assert.match(ui, /Expert mode shows which AI/);
-  assert.match(read("web/features/index.js"), /"walkthrough"/);
+  assert.match(read("web/perf/registry.js"), /"walkthrough"/);
   assert.match(read("web/features/tour.js"), /Start a project/);
   assert.match(read("web/nav.js"), /Replay the tour/);
   assert.match(read("web/nav.js"), /Watch example projects/);

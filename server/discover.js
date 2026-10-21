@@ -201,7 +201,8 @@ export async function applyToBrowser({ browserId, profileDir, folder }) {
   if (!data) throw new Error("no Bookmarks file for that profile");
   if (data.sync_metadata) throw new Error("This profile syncs bookmarks with a Google account; direct edits would be undone. Use the import file instead (Chrome menu → Bookmarks → Import).");
   const running = await isRunning(b.proc);
-  if (running) {
+  if (running && process.platform === "darwin") throw new Error(`Quit ${b.name} first (a running Mac browser would overwrite this file), then try again.`);
+  if (running && process.platform === "win32") {
     await new Promise((res) => execFile("taskkill.exe", ["/IM", b.proc], { windowsHide: true }, () => res()));
     for (let i = 0; i < 30 && (await isRunning(b.proc)); i++) await new Promise((r) => setTimeout(r, 1000));
     if (await isRunning(b.proc)) throw new Error(`${b.name} did not close (a tab may be asking to save changes). Close it and try again.`);
@@ -219,10 +220,15 @@ export async function applyToBrowser({ browserId, profileDir, folder }) {
   if (running && exe) exec(`start "" "${exe}" --profile-directory="${profileDir}" --restore-last-session`, { windowsHide: true });
   return { backup, relaunched: !!(running && exe) };
 }
-function isRunning(proc) { return new Promise((res) => execFile("tasklist.exe", ["/FI", `IMAGENAME eq ${proc}`, "/NH"], { windowsHide: true }, (e, so) => res(/\.exe/i.test(so || "")))); }
+function isRunning(proc) {
+  if (process.platform === "darwin") return new Promise((res) => execFile("pgrep", ["-x", proc], (e) => res(!e)));
+  if (process.platform !== "win32") return Promise.resolve(false);
+  return new Promise((res) => execFile("tasklist.exe", ["/FI", `IMAGENAME eq ${proc}`, "/NH"], { windowsHide: true }, (e, so) => res(/\.exe/i.test(so || ""))));
+}
 
 export function openUrl(url) {
   if (!/^https?:\/\//.test(url)) throw new Error("bad url");
   if (process.platform === "win32") exec(`start "" "${url.replace(/"/g, "")}"`, { windowsHide: true });
-  else exec(`open "${url}"`);
+  else if (process.platform === "darwin") exec(`open "${url.replace(/"/g, "")}"`);
+  else exec(`xdg-open "${url.replace(/"/g, "")}"`);
 }

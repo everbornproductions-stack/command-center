@@ -18,6 +18,17 @@ function contributors(run) {
   const seen = new Set(); return out.filter((c) => c.model && !seen.has(c.model) && seen.add(c.model));
 }
 
+async function showPreference(el, cap) {
+  const box = el.querySelector("#rt-prefer");
+  if (!box) return;
+  try {
+    const sum = await api("/ratings/summary");
+    if ((sum.count || 0) < 5) { box.textContent = ""; return; }
+    const pick = await api(`/brain/pick?capability=${encodeURIComponent(cap || "writing")}`);
+    const top = pick.ranked?.[0];
+    box.textContent = top?.name ? `Meldmind now prefers ${top.name} for this kind of work.` : "";
+  } catch { box.textContent = ""; }
+}
 async function render(el, run) {
   if (!run || !run.id) { el.innerHTML = ""; return; }
   const list = contributors(run);
@@ -31,13 +42,15 @@ async function render(el, run) {
       <button class="ghost" data-up title="Good">${r?.up ? "👍" : "👍🏻"}</button><button class="ghost" data-down title="Not good">${r && !r.up ? "👎" : "👎🏻"}</button>
       <span class="chip ${r ? (r.up ? "green" : "red") : ""}" style="min-width:52px;justify-content:center">${r ? (r.up ? "good" : "poor") : "not rated"}</span></div>`; }).join("")}
     <input type="text" id="rt-note" placeholder="optional: what was good or wrong" style="margin-top:6px">
-    ${pid && existing.some((x) => x.up) ? `<div class="row small" style="margin-top:6px"><button class="btn sm" id="rt-winner" title="Adds one line to this project's memory, so later prompts for the project learn from it">Keep as a past winner for this project</button></div>` : ""}</div>`;
+    ${pid && existing.some((x) => x.up) ? `<div class="row small" style="margin-top:6px"><button class="btn sm" id="rt-winner" title="Adds one line to this project's memory, so later prompts for the project learn from it">Keep as a past winner for this project</button></div>` : ""}
+    <div id="rt-prefer" class="hint" role="status"></div></div>`;
   el.querySelector("#rt-winner")?.addEventListener("click", async () => {
     const good = existing.filter((x) => x.up).map((x) => list.find((c) => c.model === x.model)?.label || x.model);
     const note = existing.find((x) => x.up && x.note)?.note;
     const text = `"${(run.mission?.title || run.mission?.prompt || run.council?.prompt || "this result").slice(0, 90)}" by ${good.join(", ")}${note ? `: ${note}` : ""}`;
     try { await api("/memory/winner", { method: "POST", body: { projectId: pid, text } }); toast("Saved to this project's past winners"); } catch (e) { toast(e.message, true); }
   });
+  showPreference(el, cap);
   el.querySelectorAll("[data-model]").forEach((row) => {
     const send = async (up) => { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: row.dataset.provider, model: row.dataset.model, capability: row.dataset.cap, up, note: el.querySelector("#rt-note").value } }); toast(up ? "Thanks. The router will favour it for this kind of work." : "Noted. The router will lean away from it for this."); render(el, run); } catch (e) { toast(e.message, true); } };
     row.querySelector("[data-up]").addEventListener("click", () => send(true));
@@ -45,4 +58,29 @@ async function render(el, run) {
   });
 }
 
-CC.register({ id: "ratings", deliverable: { order: 20, render } });
+function renderSettings(el) {
+  el.innerHTML = `<div class="panel"><h3>What your ratings taught</h3>
+    <div class="small">Thumbs up and thumbs down change who gets the next job of that kind. Council votes stay separate. Reset clears only the thumbs.</div>
+    <div id="rt-learned" class="small" style="margin-top:8px">Loading...</div>
+    <button class="btn sm" id="rt-reset" type="button" style="margin-top:8px">Reset ratings</button>
+  </div>`;
+  const box = el.querySelector("#rt-learned");
+  const paint = (view) => {
+    const lines = [...(view?.lines || []), ...(view?.early || [])];
+    box.innerHTML = lines.length ? lines.map((l) => `<div>${esc(l.note)}</div>`).join("") : `<div class="dim">No ratings yet.</div>`;
+  };
+  api("/ratings/learned").then(paint).catch((e) => { box.textContent = e.message; });
+  el.querySelector("#rt-reset").addEventListener("click", async () => {
+    if (!confirm("Clear what your ratings taught? Council scores stay. Runs and the ledger stay.")) return;
+    try {
+      paint(await api("/ratings/reset", { method: "POST", body: { confirm: true } }));
+      toast("Ratings reset. Council scores stay.");
+    } catch (e) { toast(e.message, true); }
+  });
+}
+
+CC.register({
+  id: "ratings",
+  deliverable: { order: 20, render },
+  settings: { order: 40, render: renderSettings },
+});

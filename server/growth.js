@@ -19,7 +19,10 @@ import { ctx, doc, putDoc, HOSTED } from "./store.js";
 import { PROVIDERS } from "./registry.js";
 import { setManagedResolver, getOwnSecret } from "./vault.js";
 import { licenseState, setTrialResolver, cloudConfigured, licenceRpc } from "./license.js";
+import { compareRows } from "./feature-gate.js";
 import { emit } from "./events.js";
+import { extremeMonthlyLabel, proMonthlyLabel } from "./price-config.js";
+import { currentPlans } from "./plugins/billing-plans.js";
 
 // ---------- placeholders (Chris decides real numbers) ----------
 export const PLACEHOLDER = Object.freeze({
@@ -251,9 +254,9 @@ export async function refreshReferrals() {
 function upgrade(f, trial, block) {
   const lic = licenseState();
   if (lic.tier !== "free" && lic.reason !== "trial") return { show: false };
-  if (f.trial && trial.started && !trial.active) return { show: true, reason: "trial_ended", text: "Your free trial has ended. Upgrade to Pro to keep missions, the scheduler and unlimited councils." };
-  if (f.managed && block === "no_credits") return { show: true, reason: "credits_used", text: "Your credits are used up, so the managed AIs are paused. Upgrade to Pro or add your own API key to keep going." };
-  if (f.trial && trial.active && trial.daysLeft <= 3) return { show: true, reason: "trial_ending", text: `Your free trial ends in ${trial.daysLeft} day${trial.daysLeft === 1 ? "" : "s"}. Upgrade to Pro to keep missions, the scheduler and unlimited councils.` };
+  if (f.trial && trial.started && !trial.active) return { show: true, reason: "trial_ended", text: `Your free trial has ended. Upgrade to Pro (${proMonthlyLabel}) to keep missions, the scheduler and unlimited councils. Extreme is ${extremeMonthlyLabel}.` };
+  if (f.managed && block === "no_credits") return { show: true, reason: "credits_used", text: `Your credits are used up, so the managed AIs are paused. Upgrade to Pro (${proMonthlyLabel}) or add your own API key to keep going.` };
+  if (f.trial && trial.active && trial.daysLeft <= 3) return { show: true, reason: "trial_ending", text: `Your free trial ends in ${trial.daysLeft} day${trial.daysLeft === 1 ? "" : "s"}. Upgrade to Pro (${proMonthlyLabel}) to keep missions, the scheduler and unlimited councils. Extreme is ${extremeMonthlyLabel}.` };
   return { show: false };
 }
 
@@ -280,6 +283,13 @@ export function overview() {
       cap: PLACEHOLDER.managedMonthlyCapUsd,
     } : null,
     referrals: f.referrals ? { code: ref.code, link: referralLink(ref.code), redeemed: ref.redeemed, stats: ref.stats, statsAt: ref.statsAt || null, statsError: ref.statsError || null, server: cloudConfigured() } : null,
-    upgrade: upgrade(f, trial, block),
+    upgrade: withPlans(upgrade(f, trial, block)),
+    compare: compareRows(),
   };
+}
+
+function withPlans(upgrade) {
+  let plans = null;
+  try { plans = currentPlans(); } catch { plans = null; }
+  return { ...upgrade, compare: plans?.compare || null, spotsLine: plans?.lifetime?.spotsLine || null, grandfatherNote: plans?.grandfather?.note || null };
 }

@@ -209,6 +209,6 @@ test("Phase 10 files: no em-dash and no payment service", () => {
     assert.ok(!text.includes("\u2014") && !text.includes("\u2013"), `${f} has no em-dash or en-dash`);
     assert.ok(!/square/i.test(text), `${f} does not mention a payment service`);
   }
-  const ui = fs.readFileSync(path.join(ROOT, "web/features/index.js"), "utf8");
+  const ui = fs.readFileSync(path.join(ROOT, "web/perf/registry.js"), "utf8");
   assert.ok(ui.includes("\"marketplace\""));
 });

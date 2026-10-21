@@ -7,6 +7,8 @@ This plan includes the twelve items in `docs/roadmap.md` (marked R1 to R12) and 
 
 Shipped version on main is 0.4.8. Open pull requests are not done. Prices below are the plan. The live Square checkout is still the $15.99 monthly link. This document does not change Square.
 
+The connections workstream (phases 33 and 34, plus the extensions on 38, 39, and 41) keeps the package version at 0.4.8. There is no new What's new version for it.
+
 ### Already done
 
 Marked DONE from `PHASE N DONE` in docs/BUILD-LOG.md, or from a merged pull request checked on 2026-10-21. Do not rebuild these.
@@ -28,12 +30,14 @@ Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done.
 
 ### Version 0.4.9 (next)
 
-Not done. In this order:
+On this branch: phases 45 to 51 with Antigravity first (live drivers are wired, and the tests use stand-ins), the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
+
+Not done until those three are in. The order stays:
 
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
 3. Phase 68. Safety, sharing, and plain words.
-4. Phases 45 to 51. Desktop control, with Antigravity first.
+4. Phases 45 to 51. Desktop control, with Antigravity first. The smarter control workstream has the doors, and the real app control workstream wires Edge through Playwright, the signed-in profile (opt-in only), Windows UI Automation, and the screenshot path. Pull request 62 stays separate.
 5. Phase 69. The program scan.
 6. Phases 53, 54, and 56. Everyday actions and Calendar.
 7. Phase 70. Save in place.
@@ -66,40 +70,47 @@ Not done, except the three rows already marked done above (share links, accessib
 ### Version 0.4.11
 
 1. Phase 87. Background runs.
-2. Phase 40. Learned from ratings.
+2. Phase 40. Learned from ratings. Built in the smarter control workstream: routing leans from thumbs and priority changes, and the person can undo it. Not a version bump.
 3. Phase 88. Mission pause.
+
+### Version 0.4.12
+
+1. Phase 97. Refocus, finish what you started. The full note is in the Version 0.4.12 section further down. The package version stays 0.4.8.
 
 ### New phases after 0.4.11
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
-2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
-3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
-4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
+2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here. This runs before Later.
+3. Phase 96. Remix any app. Built. A Pro mission, 8 a month on Pro and Studio (a placeholder, not a price), no monthly cap on Extreme or Owner. The gate is server/feature-gate.js. It runs right after Phase 90 and before Phase 91.
+4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
 
 ### Later
 
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
-- Phase 44. AI group chat.
-- Phase 92. User chat.
-- Phase 43. Live builds.
+- Phase 44. AI group chat. Built in the Together workstream. The version stayed 0.4.8.
+- Phase 92. User chat. Built in the Watch and talk workstream. The version stayed 0.4.8. Messages stay on this computer until a hub address is set. The hub was not deployed.
+- Phase 43. Live builds. Built in the Together workstream as local rooms. The hub was not deployed. The version stayed 0.4.8.
+- Phase 61. Team spaces. Built in the Together workstream: Extreme, 5 seats counting the owner, shared projects and roles. Phase 8 workspaces were not rebuilt. The version stayed 0.4.8.
 - Phase 93. A newsletter and a monthly savings email.
 - Phase 94. Spanish.
 - Phase 95. Phone apps.
 - Store listings (Apple App Store and Google Play).
 - Signed apps: Windows code signing, and Apple signing and notarization for the Mac build.
-- Phase 52. Hosted web version. Still needs Chris's OK before any hosting is paid for.
+- Phase 52. Hosted web version. The code and the deploy config are in the repo (not live). Still needs Chris's OK before any hosting is paid for. Extreme cloud runs (a schedule or mission keeps going while the PC is off) use the same gate.
 
 ### Not in a version yet
 
 Left on the list so they are not dropped. They are not next.
 
-- Phase 32. Model-version alerts.
-- Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
-- Phase 34. Hide hosted plumbing.
-- Phase 42. Newsfeed and alerts.
+- Phase 32. Model-version alerts. Built in the Watch and talk workstream. The version stayed 0.4.8. Notes go to the Together news list, which is installed.
+- Phase 33. HighLevel contacts, invoices, and workflows as council tools stay with the posting that shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90. The package version stayed 0.4.8.
+- Phase 34. Hide hosted plumbing. The simple licence copy hides the setup form. The package version stayed 0.4.8.
+- Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is built. The news list stores those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
+
+Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the quick patch (adaptive menu for laptops and wide screens, Start a project out of Settings, hide demo bots when real AIs are connected). 0.4.8 is a hotfix (the top bar uses the width it has, and demo AIs stay hidden). 0.4.9 is desktop and app control, phases 45 to 51, with Google Antigravity as the first app, plus Calendar, everyday actions, What's new, and the idea box, and routing to whichever AI already has the login or the prior work. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay in Do last. Windows code signing (Azure) is pending Microsoft verification and stays in Do last. The user-facing page is docs/marketing.md.
 
 ## Rules for every phase (non-negotiable)
 1. Read `README.md`, `docs/roadmap.md`, this file and the end of `docs/BUILD-LOG.md` first.
@@ -139,6 +150,7 @@ Left on the list so they are not dropped. They are not next.
 ### Phase 6: Work with files and media (DONE)
 - Chat with files: drop PDFs, docs or images into a project and ask questions; chunks stored per project; works in demo mode with the mock provider.
 - Media actions (R2): mission steps for video, image and voice through provider adapters, credit estimate first, ledger logging, outputs saved to the project. Stubbed in demo mode.
+- A picture or video uploaded on the idea box or Marching orders can start one of those jobs (vision, image edit, or a local video trim). Plan first, then a separate Run. Preview, download, or save. This does not replace the gallery or the Media tab.
 
 ### Phase 7: Integrations (OAuth, post only on click) (DONE)
 - Connectors for Google Drive, Instagram (Meta Graph), HighLevel and Slack (R3): user OAuth flow scaffolding, tokens kept in the vault, "Save to Drive", "Post to Instagram", "Schedule in HighLevel" and "Send to Slack" buttons, each needing an explicit click. Mock adapters for tests; no real calls in tests.
@@ -284,7 +296,7 @@ Every item below must respect: bring-your-own-key (the user's keys only), spend 
 - Acceptance tests: hotkey registration is mocked and unregisters on quit; the extension's message is accepted only with the pairing token; a pricing fixture updates the router's costs and an override wins; OIDC flows are mocked; a workspace key is used only for that workspace's calls.
 
 ### Phase 14 (low priority, added 2026-10-18): Mac build (BLOCKED for the on-Mac check; unsigned build is version 0.4.10)
-- `docs/ci/mac-build.yml` (added by Grok Bot; move it to `.github/workflows/` after `gh auth refresh -s workflow`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only).
+- The release workflow (`.github/workflows/release-windows.yml`, job `mac-release`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only). `.github/workflows/mac-ci.yml` runs the tests on macOS for every pull request. There is no Apple signing. First open is a right-click, then Open. Automatic updates for Mac are coming soon. `docs/ci/mac-build.yml` points at that job.
 - Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`.
 - TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open and in-app updates do not work on Mac.
 - Never block the Windows installer on this. Any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
@@ -308,22 +320,22 @@ Before a council or a chat, match the orders to a Pro prompt.
 - If the heuristic is unsure, one cheap classify call through the existing router may pick a template id. An unknown id is ignored.
 - The learning router records the template id and a count (suggested, applied, removed, halted). No prompt text, no inputs, no secrets.
 
-### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
-Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
+### Phase 32: Model-version alerts (built, version unchanged)
+Watch connected AI providers for a new model and for a price change. The check uses each provider's public model list with the key saved for that provider. It is read only and runs at most once a day. A plain note is posted to the news list when that list is installed (Together, pull request 86). Until then the note stays in Model watch. A suggested switch can be accepted or undone. Nothing is switched on its own. The version stayed 0.4.8. Providers with no public model list (for example Kling) are not called.
 
-### Phase 33: Bring your own apps (MCP by URL and webhooks moved to Phase 90; HighLevel tools not in 0.4.9 to 0.4.11)
-HighLevel contacts, invoices, and workflows as council tools stay here. They are not in 0.4.9 to 0.4.11. HighLevel posting already shipped in Phase 7.
-1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools.
-2. MCP by URL moved to Phase 90 (version after 0.4.11). Do not build it here.
-3. Custom webhook / API tools moved to Phase 90. Do not build them here.
-Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
+### Phase 33: Bring your own apps (built, version stays 0.4.8)
+HighLevel posting already shipped in Phase 7. Contacts, invoices, and workflows are council tools. Reads run on click. Writes wait for a confirm click.
+1. MCP by URL uses the Phase 16 client. There is no second MCP client. Zapier (paste the MCP address, usually `https://mcp.zapier.com/api/v1/connect`) and Make (`https://mcp.make.com`, a token address, or a scenario webhook) list the actions the person turned on. The router and missions call them through the existing tool loop. Simple has a Connect Zapier card. Expert has the plain-word setup.
+2. Custom webhook tools take a URL, an auth header, and input fields. The header value stays in the vault.
+Inbound: `POST /api/hooks/meldmind` starts a chat, a council, or a mission and returns the result. The ready template is `docs/integrations/meldmind-webhook.json`. The setup guide is `docs/help/zapier-make.md`.
+Every action that sends, posts, or charges waits for Allow. Keys stay in the vault and are never written to logs. App connections: Free includes 1, Pro and Studio include 5, Extreme and Owner are unlimited. Studio is Pro. This does not change Square or billing.
 
-### Phase 34: Hide hosted plumbing (not in 0.4.9 to 0.4.11, not built)
-Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
-- The hosted Supabase URL and the publishable key ship built in. The app uses them. There is no setup form for those values.
-- Once our hosted server exists, the results callback URL auto-fills from that server. Until then the app keeps the current local callback.
-- Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
-- Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.
+### Phase 34: Hide hosted plumbing (shipped in the connections workstream, version stays 0.4.8)
+Customers in Simple never see the licence server form or the Grok Bot webhook form. Those stay under Expert. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
+- The hosted URL and the publishable key already ship with the app. The app uses them. Simple does not show a setup form for those values.
+- The licence connection behavior is unchanged. Saving it is still the existing Settings route, and only the Expert form shows it.
+- Grok Bot fields stay in Expert. The results address shows the callback the app already knows, as a hint, and is not saved on its own.
+- Decision 23 (the optional switch for your own project) is not built. It stays under Planned, not in the run order.
 
 ### Phase 35: Billing, yearly and lifetime founder plans (effort: M) (DONE)
 Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already exists; do not change it. This phase only adds two Square plans: Pro yearly at $159 a year, and a lifetime founder deal at $299 for the first 100 buyers, then $499, capped at 500 total. Update docs/billing.md to match. Done in the app. The monthly link is unchanged. Yearly and lifetime are shown and are not charged. Version stays 0.4.5.
@@ -331,11 +343,18 @@ Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already
 ### Phase 55: Update prompts (effort: S) (DONE)
 Show an update pop-up at startup with "Update now", and check hourly while the app runs, offering "Restart and update" or "Later" (Later installs on quit). Already exists (checked 2026-10-20): `electron/main.cjs` and `electron/updater.cjs` show a launch prompt ("Install now" / "Later") and check every 30 minutes with a prompt; downloads and installs happen only on click (`autoInstallOnAppQuit` is false). Left to do: the hourly interval, the "Restart and update" / "Later" wording on the running prompt, and install on quit after Later. Done: the launch prompt stays Install now / Later, the background check is hourly, the running prompt says Restart and update / Later, and Later on that prompt installs on quit. Version stays 0.4.5.
 
-### Phase 53: Google Calendar connection (effort: M) (version 0.4.9, not done)
-OAuth connect to Google Calendar, create and update events, and show it in the setup checklist. Free and Pro limits follow the connected-service rules (Free 1 connected service, Pro all). Already exists (checked 2026-10-20): `server/connect-setup.js` lists Google Calendar in the checklist, but today Calendar work is handed to Grok Bot (`server/grokbot.js` calendar tag). There is no direct Calendar OAuth yet. Grok Bot's Calendar handoff stays as it is (decision 15).
+### Phase 53: Google Calendar connection (effort: M) (built, package stays 0.4.8)
+OAuth connect to Google Calendar. List, create, and update events. Show it in the setup checklist. Free includes 1 connected service. Pro includes every connected service. Grok Bot's calendar handoff stays as it is (decision 15): tags, webhook, and routing are unchanged.
+- Specified on the docs/new-phases plan, which runs this after Phase 55.
+- Checklist connect asks for Calendar and keeps Gmail or Drive access already granted. The Browser helper checkboxes stay explicit.
+- Settings, Google Calendar, lists upcoming events. Create and Update run only on a click. Events are not deleted.
+- A second fresh connected service on Free is refused before the token is saved.
 
-### Phase 54: Plain-request actions (effort: M) (version 0.4.9, not done)
-The person types a plain request, for example "email this client and put it on my calendar". The router uses a cheap fast AI to draft the email and the event details. Meldmind itself sends and schedules through the connected Gmail and Calendar, only after one approval click (integrations act only on click). No outside AI touches the accounts. The cost is shown (usually a fraction of a cent).
+### Phase 54: Plain-request actions (effort: M) (built, package stays 0.4.8)
+A plain request, for example "email this client and put it on my calendar", is parsed by a cheap fast AI into an email draft plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. No outside AI touches the accounts. The cost is shown, usually a fraction of a cent.
+- Specified on the docs/new-phases plan, which runs this after Phase 53.
+- The model never receives a token. A second click on a finished request does not send again.
+- Guided tour stop "Try saying..." and How-to articles for plain requests and Google Calendar.
 
 ### Phase 56: Everyday actions (effort: L) (version 0.4.9, not done)
 Plain-request everyday actions built on the Phase 53 and 54 connections. Full plan, evidence and catalog: [docs/plans/everyday-actions.md](plans/everyday-actions.md).
@@ -343,7 +362,7 @@ Plain-request everyday actions built on the Phase 53 and 54 connections. Full pl
 - Safety rules for every action: read and draft freely, but any send, post, buy, book, delete, pay, share or invite needs one approval click showing the exact content and recipient. No stored passwords (OAuth or the person's own keys in the vault). No money moved without confirming amount, payee and source; the AI never fills payment fields. Scheduled routines only read and prepare; outgoing actions wait in an Approval queue. Every action is logged in Live Ops with undo where the API allows. Bulk actions (more than 10 items) show a count and a sample first. Grok Bot handoffs and MCP tool calls follow the same rules.
 - Onboarding, tour, how-to and help: each new action gets a line in the welcome tour, a short how-to with an example plain request, and a help entry. (The plan file does not have its own section for this yet; add the detail when the phase starts.)
 - "What's new" prompt: on the first launch after an update that adds connections or actions, show a short card list with Connect or Try it, Skip, and Remind me later (snooze 3 days, then once at 7 days, then it moves to Settings, What's new). "Skip all" is offered. Nothing connects without a click, and skipped items never come back as prompts.
-- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline.
+- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline. For 0.4.9 the same box also takes an upload (files, screenshots, images, documents, kept on this computer) and voice (local Whisper or a connected AI, edited before Send). After Send, the person can edit, delete, re-prioritize, comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer. Marching orders has the same Upload and Voice buttons. Nothing is sent until a click. A picture or video on either box can also start a media job (retouch, variation, trim, caption, or describe) after a plan and a separate Run. That reuses image generation and media jobs. It does not replace them.
 
 ### Phase 36: Free and Pro limits (effort: S) (DONE)
 Free gets 1 connected service, Pro gets all. Free gets 1 email account per provider, Pro up to 8. The learning router stays free; shared learning and the scores dashboard are Pro. Free gets 3 projects and 5 councils a month. Phone pairing and full history search are Pro. A 14-day Pro trial. docs/billing.md matches.
@@ -354,49 +373,72 @@ Free gets 1 connected service, Pro gets all. Free gets 1 email account per provi
 Shipped in pull request 40 (release 0.4.5): built-in background images, solid colors, gradients, and a photo from this computer. Do not rebuild.
 
 ### Phase 38: Guided setup checklist (effort: M) (DONE)
-Shipped in pull request 25 (release 0.4.3): Get everything connected, each row skippable, Run setup again in Settings. Do not rebuild.
+Shipped in pull request 25 (release 0.4.3): Get everything connected, each row skippable, Run setup again in Settings. Do not rebuild. The connections workstream adds a short step list on each row (Gmail, Drive, HighLevel, CapCut, and the rest) on that same checklist. Version stays 0.4.8.
 
 ### Phase 39: Guided "Start a project" tutorials (effort: L) (DONE)
-Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild.
+Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild. The connections workstream adds Start a project tutorials on the live map. Watch on the map is an example. Start this project opens the existing walk. Version stays 0.4.8.
 
-### Phase 40: Learned from ratings (effort: M) (version 0.4.11, not done)
-Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them.
+### Phase 40: Learned from ratings (effort: M) (version 0.4.11, built in smarter control, not released)
+Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them. The smarter control workstream added the nudge and the undo. It did not change the version.
 
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
-Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild.
+Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild. The connections workstream prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if a self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Version stays 0.4.8.
 
-### Phase 42: Newsfeed and alerts (effort: M) (not in 0.4.9 to 0.4.11, not built)
+### Phase 42: Newsfeed and alerts (effort: M) (built, version unchanged)
 One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
+Built in the Together workstream. The version stayed 0.4.8. Phase 32 is built: model watch posts a note here. Nothing downloads from this list.
 
-### Phase 43: Chat rooms with live builds (effort: L) (Later, not done)
+### Phase 43: Chat rooms with live builds (effort: L) (built, version unchanged)
 Share a running mission into a room so others can watch it live, and let them copy it as a recipe. Sharing is opt-in per mission; no keys or secrets are shared.
+Built as local rooms on this PC, with a hub-ready shape (categories, a live snapshot, a recipe copy). The hub was not deployed. A recipe run still goes through the existing mission gate, and only after a click. Report and block stay on this PC. Nothing is sent.
 
-### Phase 44: AI group chat with personas (effort: M) (Later, not done)
+### Phase 44: AI group chat with personas (effort: M) (built, version unchanged)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
+Built in the Together workstream. The version stayed 0.4.8. Nothing is sent until Send.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
+### Phase 61: Team spaces (effort: M) (built, version unchanged)
+Shared projects, roles, and a small team for a business. Phase 8 workspaces stay as they are and were not rebuilt. They remain the Studio teams.
+Team spaces are the Extreme seat cap: 5 seats total, counting the owner. An invite uses a seat. The cap is `teamSeats` in `server/feature-gate.js`. Extreme and Owner get 5. Free, Pro, and Studio get none, because a Studio licence is Pro. No Square change. Nothing is emailed. The version stayed 0.4.8.
 
-### Phase 45: App cards (effort: M) (version 0.4.9, not done)
+### Phases 45 to 51: No-API app control (version 0.4.9, real drivers wired on the fixture doors)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The smarter control workstream landed the doors. Real Edge, Playwright, a signed-in profile only after an explicit opt-in, UI Automation, and computer-use calls are wired. Tests still use stand-in drivers and never a real key. The mission planner assigns an app step through suggestApp. Open pull requests 62 and 65 stay separate and are not done.
+
+### 0.4.9 slice: app discovery and suggestions (built on this branch)
+This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build. Signing stays later.
+
+When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
+
+Phases 45 to 51 use fixture drivers in the test suite. A live step can open Edge through Playwright, use a signed-in profile only after an opt-in, read a UI Automation tree, or call a screenshot model. The program scan slice does not drive those doors.
+
+### Phase 45: App cards (effort: M) (version 0.4.9, fixture drivers in)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, not done)
-Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
+### Phase 46: Score and missions (effort: M) (version 0.4.9, planner assigns through suggestApp)
+Apps get starting scores from `added-caps.js` and record outcomes through the brain. The mission planner assigns a step to an allowed app through suggestApp when the task type matches. Writing steps still go to text models. Grok Bot and the browser helper keep their tags.
 
-### Phase 47: MCP as an app (effort: M) (version 0.4.9, not done)
+### Phase 47: MCP as an app (effort: M) (version 0.4.9, fixture drivers in)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, not done)
+### Phase 48: Websites (effort: L) (version 0.4.9, Playwright Edge wired)
 Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, not done)
-Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, opt-in only)
+Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms. The real profile is used only when the person ticks that choice.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, not done)
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, UI Automation wired)
 UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, not done)
-Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, computer-use path wired)
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. The previous picture stays out of the next step and the spend stops at the cap. The smarter control screen is the settings list for these doors. Tests use stand-in drivers and do not send a picture.
+
+### Phase 57: Recipes (effort: L) (built in smarter control, fixture only)
+Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that ran. Replay uses the same rules as phases 45 to 51. A scheduled replay that would send, buy, or delete waits for that second yes. If the layout changed, say so and stop for the person to finish. Unlimited on Extreme. Pro includes 5. This does not replace saved pipelines or the existing schedules.
+
+### Phase 59: Cost guard (effort: M) (built in smarter control)
+A monthly budget cap for Extreme, and for anyone else who turns it on. At 80% the note is amber. At 100% a new paid run waits until the cap is raised or the month turns. Free, demo, and local runs still go through. The top bar You saved estimate stays. Per-AI spend caps and the ledger stay (decision 16). Do not change Square.
+
+### Phase 60: Phone approvals (effort: M) (built in smarter control)
+A send or a buy asks first. When a phone is paired, approving there is the yes. Declining sends nothing. Phone pairing stays off until the person turns it on. If no phone is paired, the approval stays on the PC. The phone payload is the action and the amount, not a key and not the prompt.
 
 ## Version 0.4.9 phases (not done)
 
@@ -416,23 +458,24 @@ A guessed Pro prompt must not block Send. Chris hit "I need a few facts before I
 - Sharing stays the shipped words: task type, which AI, and the score. Never prompts, content, or keys. The person can change it in Settings.
 - Plain words on the new onboarding, the graduate notice, and the welcome email. No em-dashes in user-facing text.
 
-### Phase 69: Program scan (version 0.4.9, not done)
+### Phase 69: Program scan (version 0.4.9, on this branch)
 When desktop control is on, list installed programs and let the person allow each one. Allowed apps are scored like a tool they add, and the router can pick them.
 - Opt in from Setup or Settings. Names only: Windows uninstall entries, Start menu shortcut names, and command-line tools on PATH. Do not read file contents.
 - While a mission is planned, a card may suggest a program, with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off.
 - The scan is a Pro feature. Free can see the lock and can turn a scan off.
 
-### Phase 70: Save in place (version 0.4.9, not done)
-An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click.
+### Phase 70: Save in place (version 0.4.9, command bar on this branch)
+An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click. On this branch, create and rename from the command bar stay on that page. A chat, a doc, and a connected file do not yet save back onto the same item.
 
-### Phase 71: Welcome email (version 0.4.9, not done)
+### Phase 71: Welcome email (version 0.4.9, on this branch, decision 22 text unchanged)
 Decision 22, spec unchanged. Chris added it to this run order on 2026-10-21. Do not rewrite the spec.
 - On sign-up or license redeem, send a plain welcome email.
 - Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
 - No income or results claims.
 - Do not touch Square or billing. Nothing sends until the mail provider is configured. Tests never send.
+- On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This welcome email is part of 0.4.9. This note does not add the item to the run order.
 
-### Phase 72: Graduate notice (version 0.4.9, not done)
+### Phase 72: Graduate notice (version 0.4.9, on this branch)
 When a handoff-only AI gains its own API or MCP route, ask once: "X can now run directly. Add it to councils and missions?"
 - Add it includes that AI in councils and missions. Not now dismisses the ask. The ask sits with the chat box, not in the answers.
 - Grok Bot stays a webhook for signed-in tasks. An xAI key is Grok the model and does not raise this ask.
@@ -484,6 +527,12 @@ Export an answer or a project deliverable as PDF or DOCX. The file downloads on 
 ### Phase 84: Industry packs (version 0.4.10, not done)
 Prompt and starter packs grouped by industry. Picking one fills the orders and stays editable. Nothing runs until Send.
 
+### Version 0.4.12
+
+Chris asked for this on 2026-10-21, ahead of the unfinished 0.4.9 to 0.4.11 work. Those versions stay as written. The package version stays 0.4.8 until Chris releases.
+
+1. Phase 97. Refocus, finish what you started. Type a topic and Meldmind lists related saved chats, imported chats, project files, saved outputs, and connected Drive files from oldest to newest, with source, date, a finished, partial, or abandoned status, and a short summary. It merges the best parts into one complete version plan (kept, improved, still missing). Rebuild it starts a mission only after that click. The page shows who will read it, the same list as council and mission. Find, the timeline, and the status labels are Pro. The rebuild is Extreme, unlimited, through server/feature-gate.js. Free sees an upgrade note. Private chats are left out. A finished rebuild records which sources and AIs worked so the next Refocus ranks them higher. Read only until the click.
+
 ## Version 0.4.11 phases (not done)
 
 Phase 40 (learned from ratings) is specified above.
@@ -503,18 +552,20 @@ Phase 15 (DONE) is web search with citations and source chips. This phase adds t
 - Filters for academic sources and for news.
 - Search calls stay in the ledger and inside spend caps. Demo mode uses a mock. Tests never call a real search API.
 
-### Phase 90: Zapier and Make, both ways (MCP by URL and webhooks moved here) (not done)
-Runs after 0.4.11 and before Later. Moved earlier from Phase 33.
+### Phase 90: Zapier and Make, both ways (not done)
+Runs after 0.4.11 and before Later.
 - Zapier, both ways: Meldmind can start a Zap, and a Zap can start a Meldmind action.
 - Make, both ways: the same.
-- MCP by URL: any user MCP server by URL, on the Phase 16 client. Do not add a second MCP client.
-- Custom webhooks: a URL, an auth header, and an input schema.
+- MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here.
 - Anything that sends, charges, or modifies data waits for a confirm click. Keys stay in the vault and are never logged.
 
-### Phase 96: Remix any app (after Phase 90, before Phase 91, not done)
-A Pro mission. Extreme has no cap on Remix missions. The Pro cap is set when this phase is built. It does not change the live Square checkout, and it does not rebuild Phase 36 or Phase 91.
-The person shows an app or a game they saw online or on their desktop: screenshots, a recording, or desktop control (Phases 45 to 51, and only after Allow). The AIs write down how it behaves, then rebuild it from scratch with the person's own characters, name, and look.
-- Free open-source code, engines (Godot, Phaser), templates, and free art may be pulled from the internet. Each item keeps its license check and its credits. If the license is missing or is not free to use, it is not used.
+### Phase 96: Remix any app (after Phase 90, before Phase 91, built)
+A Pro mission. Extreme has no cap on Remix missions. The Pro cap is 8 Remix missions per UTC month. That number is a placeholder set in this phase, not a price. Studio uses the same cap. Owner has no cap. Free is blocked. The check is `server/feature-gate.js`. It does not change the live Square checkout, and it does not rebuild Phase 36 or Phase 91. Phase 91 still sets the Extreme price.
+The person shows an app or a game: a URL, screenshots, a short screen recording, or an app on the desktop. Desktop apps are observed only through what is visible on screen. The address is not opened. Screenshot and recording files are not uploaded. The AIs write how it looks, plays, and works from those words, then rebuild it from scratch with the person's own characters, name, and look.
+
+- Free open-source code, engines (Godot, Phaser), templates, and free art are named from a catalog on this computer. Nothing is downloaded in tests or in this build. Each item keeps its license check and its credits in a CREDITS file. If the license is missing or is not free to use, it is not used.
+- A preview lists the AIs and services that would receive data. Nothing runs until Rebuild from scratch.
+- A visible note says Remix rebuilds from scratch.
 - Official mods are supported for Minecraft, Roblox, Godot, and Unity, through those products' own mod tools.
 - The person's own art can be turned into sprites, models, and voices.
 - Before the result is saved, Meldmind warns when the name, look, layout, or characters are too close to the original. Saving still needs a click.
@@ -522,19 +573,19 @@ The person shows an app or a game they saw online or on their desktop: screensho
 - That learning uses the router and the shared-learning opt-in that already exist (decision 18, Phase 28). The record is the app type, the AI, the engine, the kind of source, the rating, and whether a fix was needed. It does not store the prompt, the screenshots, the original name, the characters, or any key. Nothing is shared unless the person has opted in. What would be shared is the same kind of anonymous totals as Who's best, and this phase does not send them on its own.
 - Guardrails: never decompile, unpack, or reuse another app's code, assets, logos, or brand. The pattern library is the person's own remix, not files taken from the app they showed. Nothing is posted or sent without a click. Tests use fixtures only. No real download, no real game, and no real key.
 
-### Phase 91: Three tiers and the lifetime founder counter (not done)
-The plan prices are in docs/billing.md. The app still shows the Phase 35 prices ($15.99 a month, $159 a year, lifetime $299 then $499) until this phase. Do not change the live Square link until Chris publishes new Square plans. Do not call Square from the app.
+### Phase 91: Three tiers and the lifetime founder counter
+The plan prices are in docs/billing.md and in the comparison table in the app. The live Square monthly checkout stays $15.99. Do not change that link. Do not call Square from the app.
 - Free, Pro, and Extreme. Pro is $18.99 a month or $189 a year. Extreme is $29.99 a month or $299 a year.
 - About 6 months after those prices go live, Pro monthly rises to $24.99 and Extreme monthly rises to $39.99. Yearly stays $189 and $299 until Chris sets a yearly change.
-- Lifetime founders: $299 for the first 100 buyers, then $499 for the next 400, closed at 500. The buyer counter stays hidden while fewer than 40 people have bought.
+- Lifetime founders: $349 for the first 100 buyers, then $499 for the next 400, closed at 500. Lifetime is Pro for life. The buyer counter stays hidden while fewer than 40 people have bought.
 - The Studio flag for workspaces (Phase 8, decision 13) stays. This phase does not add a fourth public price and does not rebuild teams.
 
 ## Later (Chris, 2026-10-21)
 
 These wait until after Phase 91. Store listings, signed apps, and paid hosting need Chris's OK before any money is spent.
 
-### Phase 92: User chat (Later, not done)
-People chat with each other inside the app. This is not the AI group chat (Phase 44). Nothing is sent until the person clicks send. No keys are shared.
+### Phase 92: User chat (built, version unchanged)
+People chat with each other inside the app. This is not the AI group chat (Phase 44). Direct messages and small groups are limited to people in the same team space. When team spaces from the Together work are not installed yet, a Phase 8 workspace is used so this computer still works. Report and block stay on this computer. Messages stay on this computer until a people-chat hub address is set (`CC_USERCHAT_HUB`, https, or a loopback address in tests). Nothing is sent until Send. Keys and private-mode content are not shared. The version stayed 0.4.8. The hub was not deployed.
 
 ### Phase 93: Newsletter and monthly savings email (Later, not done)
 An opt-in newsletter, and a monthly email of what was saved. Phase 4's weekly report stays in the app and is still a draft until a click. This email does not send until the person opts in. No income or results claims. Do not touch Square.
@@ -551,8 +602,12 @@ Publish the phone app on the Apple App Store and Google Play. Listings, screensh
 ### Signed apps (Later, not done)
 Windows code signing so SmartScreen stops warning on first run. Apple Developer ID signing and notarization for the Mac build (the rest of Phase 14). Certificate secrets go in repo secrets only. The unsigned Mac build is version 0.4.10, not this item.
 
-### Phase 52: Hosted online (web) version (effort: L) (Later, not done)
+### Phase 52: Hosted online (web) version (effort: L) (code ready, not live)
 A hosted web version of the app, so it can be used in a browser without installing. Needs paid hosting. Going live needs Chris's OK before paying for anything.
+
+Code and deploy config (not deployed, version stays 0.4.8):
+- The same UI is served with `CC_MODE=hosted` (`Dockerfile`, `fly.toml`, `render.yaml`). Sign-in reuses Supabase. The browser gets the publishable key only. The service key stays on the server. Desktop-only features are hidden on the web. The deploy guide, env var names, and the monthly cost estimate are in the README. About $2 a month on Fly.io if the machine stays on, or about $7 a month on Render.
+- Extreme, "run while this PC is off": a desktop schedule or mission can be handed to the Node worker (`server/worker-service.js`) after the person opts in. The only gate is `server/feature-gate.js` (Extreme, and owner). The worker has a job queue, per-user isolation, a budget cap check, and a client-sealed key vault that is opened only in the worker. Results sync back when the PC is on again. The header says "Running in the cloud". A watched folder stays on the PC. Prices and Square are unchanged (Phase 91). Hosting is not turned on.
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 

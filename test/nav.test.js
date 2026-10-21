@@ -5,13 +5,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import { EventEmitter } from "node:events";
-import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, navSingleRow, eightMenuMin, NAV_LAYOUT_WAIT_MS, watchNavLayout, resetNavMeasure, isSettingsItem, menuLabeledSettings, rowOverflows, measureMenuSlot, layoutForSlot } from "../web/nav.js";
+import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, navSingleRow, eightMenuMin, eightNeed, NAV_LAYOUT_WAIT_MS, watchNavLayout, resetNavMeasure, isSettingsItem, menuLabeledSettings, rowOverflows, measureMenuSlot, layoutForSlot } from "../web/nav.js";
 
 const require = createRequire(import.meta.url);
 const { createNavDisplayWatch } = require("../electron/nav-display.cjs");
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
+const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "refocus", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
 
 test("every known view is in exactly one menu", () => {
   const model = menuModel(VIEWS);
@@ -22,11 +22,13 @@ test("every known view is in exactly one menu", () => {
   for (const view of VIEWS) assert.ok(homes.includes(view), view);
   assert.equal(groupFor("prompts"), "create");
   assert.equal(groupFor("liveview"), "work");
+  assert.equal(groupFor("refocus"), "work");
   assert.equal(groupFor("subscriptions"), "business");
   assert.equal(groupFor("settings"), "help");
   const create = model.find((g) => g.id === "create").items.map((i) => i.view);
   assert.ok(create.includes("prompts"));
   assert.ok(model.find((g) => g.id === "work").items.some((i) => i.view === "liveview" && i.label === "Live"));
+  assert.ok(model.find((g) => g.id === "work").items.some((i) => i.view === "refocus" && i.label === "Refocus"));
 });
 
 test("Connect links scroll the Settings page and Help can start the tour", () => {
@@ -92,7 +94,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
   assert.equal(help.label, "Help");
   assert.deepEqual(
     help.items.map((i) => i.label),
-    ["Help", "Run setup again", "Replay the tour", "Watch example projects"],
+    ["Help", "Check for updates", "Run setup again", "Replay the tour", "Watch example projects"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
   assert.equal(groupIdFor("agents", "normal"), "agents");
@@ -124,7 +126,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
 test("the app wires the menus and does not drop the setup tab id", () => {
   const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
   const html = fs.readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
-  const features = fs.readFileSync(new URL("../web/features/index.js", import.meta.url), "utf8");
+  const features = fs.readFileSync(new URL("../web/perf/registry.js", import.meta.url), "utf8");
   assert.match(app, /installNav/);
   assert.match(app, /id="settings-keys"/);
   assert.match(html, /id="tab-setup"/);
@@ -291,6 +293,58 @@ test("ultra-wide bar uses its free space, and a small desktop report cannot coll
   assert.doesNotMatch(navSrc, /min-width:\s*max-content/);
   assert.match(navSrc, /flex-wrap:\s*nowrap/);
   assert.match(navSrc, /justify-content:\s*space-between/);
+});
+
+test("a late button in the right cluster is measured and the row stays compact when eight menus no longer fit", async () => {
+  resetNavMeasure();
+  const seen = [];
+  const kids = [
+    { getBoundingClientRect: () => ({ width: 72 }) },
+    { getBoundingClientRect: () => ({ width: 88 }) },
+  ];
+  const right = { getBoundingClientRect: () => ({ width: 180 }), children: kids, scrollWidth: 180 };
+  const bar = {
+    clientWidth: 0,
+    querySelector(sel) {
+      if (sel === ".brand") return { getBoundingClientRect: () => ({ width: 160 }) };
+      if (sel === ".top-right") return right;
+      return null;
+    },
+  };
+  const before = measureMenuSlot({ ...bar, clientWidth: 100000 });
+  // Pad, brand, and the right cluster are the fixed part. Size the bar so eight menus just fit.
+  const fixed = 100000 - before;
+  bar.clientWidth = fixed + eightNeed() + 20;
+  assert.equal(layoutForSlot(measureMenuSlot(bar)), "normal");
+  class RO {
+    constructor(cb) { this.cb = cb; RO.last = this; }
+    observe() {}
+    disconnect() {}
+  }
+  const win = {
+    innerWidth: bar.clientWidth,
+    devicePixelRatio: 1,
+    screen: { width: bar.clientWidth, height: 900 },
+    document: { querySelector: (sel) => (sel === ".topbar" ? bar : null) },
+    ResizeObserver: RO,
+    addEventListener() {},
+    removeEventListener() {},
+    matchMedia() { return { addEventListener() {}, removeEventListener() {} }; },
+    visualViewport: { addEventListener() {}, removeEventListener() {} },
+  };
+  const stop = watchNavLayout((layout) => seen.push(layout), win);
+  try {
+    assert.equal(seen.at(-1), "normal");
+    kids.push({ getBoundingClientRect: () => ({ width: 220 }) });
+    right.scrollWidth = 400;
+    RO.last.cb();
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(layoutForSlot(measureMenuSlot(bar)), "narrow");
+    assert.equal(seen.at(-1), "narrow");
+  } finally {
+    stop();
+    resetNavMeasure();
+  }
 });
 
 test("desktop display watch reports resize, move, and display changes, then stops", async () => {

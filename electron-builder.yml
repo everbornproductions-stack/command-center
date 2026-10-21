@@ -20,6 +20,9 @@ files:
   - "!release/**"
   - "!Start Command Center.cmd"
   - "!**/*.map"
+  # Heavy tools are add-ons. They are never packed into the installer.
+  - "!addons/**"
+  - "!**/{playwright,playwright-core,puppeteer,lighthouse,tesseract,tesseract.js,whisper,whisperx,piper,godot,bevy,postiz,chatwoot,docuseal}/**"
 # Zip codesign toolset. The legacy 7z bundle contains macOS symlinks, and a
 # Windows runner cannot unpack those, so packaging stops before the installer exists.
 toolsets:
@@ -52,6 +55,9 @@ nsis:
   artifactName: "Meldmind-Setup-${version}.${ext}"
 mac:
   # unsigned until there is an Apple Developer account (see docs/RELEASING.md); zip is what Mac updates use
+  # identity null keeps the build unsigned even when a cert is on the Mac
+  identity: null
+  gatekeeperAssess: false
   target: [dmg, zip]
   category: public.app-category.productivity
   icon: web/icons/icon-512.png

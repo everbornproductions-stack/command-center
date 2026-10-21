@@ -1,7 +1,7 @@
 // Meldmind desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session, powerMonitor } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -96,7 +96,15 @@ function setupUpdater() {
         rebuildTrayMenu();
       },
       prompt: () => showUpdateWindow(),
-      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Could not check for updates", detail: st.error }); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
+      failed: (st) => {
+        const page = (st && st.downloadUrl) || `${RELEASES_PAGE}/latest`;
+        dialog.showMessageBox({
+          type: "warning", title: "Meldmind", message: "Couldn't check for updates",
+          detail: (st && st.detail) || "The releases page did not answer. You can download the installer yourself.",
+          buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true,
+        }).then(({ response }) => { if (response === 0) shell.openExternal(page); }).catch(() => {});
+      },
+      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Couldn't check for updates", detail: st.detail || st.error, buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true }).then(({ response }) => { if (response === 0) shell.openExternal((st && st.downloadUrl) || `${RELEASES_PAGE}/latest`); }).catch(() => {}); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
       beforeQuit: () => { quittingForUpdate = true; },
     },
   });
@@ -254,6 +262,17 @@ function createWindow() {
     screen, win,
     send: (payload) => { try { if (win && !win.isDestroyed()) win.webContents.send("nav:display", payload); } catch {} },
   });
+  const markHidden = (hidden) => {
+    const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
+    if (hidden && !g.hidden) g.hiddenAt = Date.now();
+    g.hidden = !!hidden;
+    if (!hidden) g.hiddenAt = 0;
+  };
+  win.on("minimize", () => markHidden(true));
+  win.on("hide", () => markHidden(true));
+  win.on("restore", () => markHidden(false));
+  win.on("show", () => markHidden(false));
+  win.on("focus", () => markHidden(false));
   win.on("closed", () => { try { stopNav(); } catch {} win = null; });
 }
 
@@ -316,7 +335,7 @@ function trayTemplate() {
 function macMenuTemplate() {
   return [
     { label: "Meldmind", submenu: [
-      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs." }) },
+      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs.\nOn a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon." }) },
       { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Meldmind", message: "Updates work in the installed app." }) },
       { type: "separator" }, { role: "hide", label: "Hide Meldmind" }, { role: "hideOthers" }, { role: "unhide" },
       { type: "separator" }, { label: "Quit Meldmind", accelerator: "Command+Q", click: () => app.quit() },
@@ -382,7 +401,13 @@ function allowMicrophone() {
   });
 }
 
-app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
+app.on("second-instance", () => {
+  log("second launch: focusing the open window");
+  focusWindow();
+  // Closing the window leaves the app in the tray, so opening it again is not a new process.
+  // Check here too, or a restart from the shortcut never looks for an update.
+  if (updater) updater.check({ prompt: true }).catch((e) => log("second launch update check failed:", e && e.message));
+});
 // Running prompt: Later downloads the update, and quit installs it. The launch prompt's Later does not.
 let holdingQuitForUpdate = false;
 app.on("before-quit", (event) => {
@@ -411,6 +436,12 @@ process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
+  try {
+    const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
+    g.battery = powerMonitor.isOnBatteryPower();
+    powerMonitor.on("on-battery", () => { g.battery = true; });
+    powerMonitor.on("on-ac", () => { g.battery = false; });
+  } catch (e) { log("power monitor unavailable:", e && e.message); }
   Menu.setApplicationMenu(IS_MAC ? Menu.buildFromTemplate(macMenuTemplate()) : null);
   allowMicrophone();
   log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);

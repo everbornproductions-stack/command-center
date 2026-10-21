@@ -1,19 +1,25 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
+import { compareTable } from "./compare.js";
 import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
+import { attachPack } from "./features/prompt-order.js";
+import { maskNotice, riskyHits } from "./copy-guard.js";
+import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { isDesktopOnly } from "./desktop-only.js";
 
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
-  navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false, settingsLoaded: false, backgroundQuiet: new Set(),
+  navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null, awaitingRun: false,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
-const PRIORITY = [["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
+const PRIORITY = [["max", "Max quality"], ["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
 function priorityNow() {
   const raw = S.costMode || S.settings?.defaultMode || "balanced";
   return raw === "economy" ? "savings" : raw;
@@ -94,6 +100,7 @@ async function api(path, opts = {}) {
     if (j?.code) err.code = j.code;
     if (j?.missing) err.missing = j.missing;
     if (j?.questions) err.questions = j.questions;
+    if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
   }
   return j;
@@ -124,7 +131,7 @@ async function apiFetch(url, opts) {
   catch (e) {
     if (e?.name === "AbortError") throw e;
     if (phoneSide()) throw new Error(PHONE_FETCH);
-    throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Command AI's engine. Check that the app is still running, then try again.");
+    throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Meldmind's engine. Check that the app is still running, then try again.");
   }
 }
 function httpError(r, j) { return j?.error || (r.status === 404 ? "Not found (404)" : `Request failed (HTTP ${r.status}${r.statusText ? " " + r.statusText : ""})`); }
@@ -135,8 +142,48 @@ async function apiBlobUrl(path) {
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
-function toast(msg, err = false) {
-  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
+function showUpgrade(message) {
+  if (document.getElementById("cc-upgrade")) return;
+  const box = document.createElement("div");
+  box.id = "cc-upgrade";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a licence key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  document.body.appendChild(box);
+  box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
+  box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
+}
+function toastNeedKey() {
+  const t = document.createElement("div");
+  t.className = "toast err";
+  t.setAttribute("role", "alert");
+  t.append(document.createTextNode("Add at least one API key first. "));
+  const a = document.createElement("a");
+  a.href = "#";
+  a.textContent = "Turn on demo mode";
+  a.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/demo", { method: "POST", body: { on: true } });
+      S.demo = r.demo;
+      toast("Demo AIs online");
+      await refresh();
+    } catch (err) { toast(err.message, true); }
+  });
+  t.append(a);
+  $("#toasts").appendChild(t);
+  setTimeout(() => t.remove(), 8000);
+}
+function toast(msg, err = false, link = null) {
+  if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
+  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
+  t.append(document.createTextNode(msg));
+  if (link?.label && typeof link.onClick === "function") {
+    const a = document.createElement("a");
+    a.href = "#";
+    a.className = "toast-link";
+    a.textContent = link.label;
+    a.addEventListener("click", (ev) => { ev.preventDefault(); link.onClick(); t.remove(); });
+    t.append(a);
+  }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
 }
@@ -179,7 +226,7 @@ function md(src) {
   s = s.replace(/^(?:[-*] .*(?:\n|$))+/gm, (m) => `<ul>${m.trim().split("\n").map((l) => `<li>${l.replace(/^[-*] /, "")}</li>`).join("")}</ul>\n`);
   s = s.replace(/^(?:\d+\. .*(?:\n|$))+/gm, (m) => `<ol>${m.trim().split("\n").map((l) => `<li>${l.replace(/^\d+\. /, "")}</li>`).join("")}</ol>\n`);
   s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>").replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   s = s.split(/\n{2,}/).map((p) => (/^<(h\d|ul|ol|pre|table|blockquote)/.test(p.trim()) ? p : `<p>${p.replace(/\n/g, "<br>")}</p>`)).join("\n");
   s = s.replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[i]);
   return s;
@@ -223,7 +270,7 @@ async function engineDown(on) {
     <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
   $("#ed-reason", el).textContent = reason;
   $("#ed-restart", el)?.addEventListener("click", () => { $("#ed-msg", el).textContent = "Restarting..."; window.ccDesktop.restart(); });
-  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `v${st.version} is available: use Install now in the update window.` : st?.error ? `Could not check: ${st.error}` : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
+  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `Update ready, restart: v${st.version}. Use Install now in the update window.` : st?.error ? "Couldn't check for updates" : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
   $("#ed-retry", el)?.addEventListener("click", () => { el.remove(); clearTimeout(wsTimer); connect(); });
   $("#ed-wait", el).addEventListener("click", () => { el.remove(); downSince = Date.now(); });
 }
@@ -271,6 +318,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
+  S.settingsLoaded = true;
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
@@ -289,7 +337,8 @@ function handle(ev) {
       applyState(ev.state);
       S.feed = (ev.state.recent || []).filter((e) => ["log", "agent.msg", "agent.error", "agent.start", "agent.done", "provider.status", "ledger.entry"].includes(e.type)).slice(-60);
       const run = ev.state.lastRun;
-      if (run && !S.live.id) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
+      const runFinished = run && ["done", "done-with-errors", "failed", "aborted", "cancelled"].includes(run.status);
+      if (run && !S.live.id && !runFinished) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
       if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
       else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
@@ -351,10 +400,15 @@ function noteRunJob(entry) {
   if (entry.missionId && entry.missionId !== S.live.id) return;
   runJobs[entry.provider] = (Number(runJobs[entry.provider]) || 0) + 1;
 }
+function isQuiet(id) {
+  return !!(id && S.backgroundQuiet?.has(id) && S.live?.id !== id);
+}
 function ensureLive(id, kind) {
-  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
+  if (isQuiet(id)) return;
+  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : id?.startsWith("r-") ? "research" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
+  if (isQuiet(ev.missionId)) return;
   if (quietProvider(P(ev.provider))) return;
   ensureLive(ev.missionId);
   S.live.agents[ev.agent] = { ...ev, text: "", done: false };
@@ -391,6 +445,7 @@ function onAgentDelta(ev) {
   if (S.live.kind === "mission" && ev.taskId) { const t = $(`[data-task="${ev.taskId}"] .bar i`); if (t) { const cur = parseFloat(t.style.width) || 0; t.style.width = Math.max(cur, Math.min(96, 10 + a.text.length / 40)) + "%"; } }
 }
 function onAgentEnd(ev, err) {
+  if (isQuiet(ev.missionId)) return;
   const a = S.live.agents[ev.agent]; if (a) { a.done = true; a.error = ev.error; a.ms = ev.ms; a.cost = ev.cost; }
   S.activeByProvider[ev.provider] = Math.max(0, (S.activeByProvider[ev.provider] || 1) - 1);
   // A finished AI stays in this run's tally while someone else is still working, then the resting sizes return.
@@ -402,6 +457,7 @@ function onAgentEnd(ev, err) {
   if (S.view === "command" && ev.agent === S.live.primary) $("#out-md")?.classList.remove("cursor");
 }
 function onTask(ev) {
+  if (isQuiet(ev.missionId)) return;
   ensureLive(ev.missionId, "mission");
   S.live.tasks[ev.task.id] = ev.task;
   if (S.view === "command") renderTasks();
@@ -415,6 +471,12 @@ function replyTurns(run) {
 }
 function onMission(m) {
   if (m.kind === "council") return; // councils arrive through council.update
+  if (isQuiet(m.id)) {
+    const i = S.missions.findIndex((x) => x.id === m.id);
+    const summ = { id: m.id, kind: m.kind, title: m.title, projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt, cost: m.cost, tasks: (m.tasks || []).length, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
+    if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
+    return;
+  }
   const before = S.live.id === m.id ? replyTurns(S.live.mission) : 0;
   ensureLive(m.id, m.kind);
   S.live.mission = m; S.live.status = m.status;
@@ -424,23 +486,45 @@ function onMission(m) {
   const i = S.missions.findIndex((x) => x.id === m.id);
   const summ = { id: m.id, kind: m.kind, title: m.title, projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt, cost: m.cost, tasks: (m.tasks || []).length, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
+  if (m.status) S.awaitingRun = false;
+  syncSendButton();
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
+  if (m.status === "paused" && S.live.pauseStamp !== m.pausedAt) {
+    S.live.pauseStamp = m.pausedAt;
+    toast("Mission paused. You can edit the steps that have not finished, then resume.");
+  }
   if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) {
     const stamp = `${m.id}|${m.status}|${m.finishedAt || 0}|${replyTurns(m)}`;
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
+      if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
+      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      const cost = Number(m.cost) || 0;
+      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission";
+      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
+      if (simpleFail) {
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
+        if (S.view === "command") renderOutput();
+      } else {
+        const failed = m.status === "failed";
+        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${noun} ${stateWord} · ${money(m.cost, 4)}`;
+        toast(failed && m.error ? m.error : base, failed);
+      }
+      maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
     }
   }
 }
 function onCouncil(c) {
+  if (isQuiet(c?.id)) return;
   const before = S.live.id === c.id ? replyTurns(S.live.council) : 0;
   ensureLive(c.id, "council");
   S.live.council = c; S.live.status = c.status;
   if (c.verdict?.text) S.live.deliverable = c.verdict.text;
   if (replyTurns(c) > before) S.live.replying = null;
+  if (c.status) S.awaitingRun = false;
+  syncSendButton();
   if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict || replyTurns(c) > 0) renderOutput(); }
   if (c.status === "done") {
     const i = S.missions.findIndex((x) => x.id === c.id);
@@ -451,6 +535,7 @@ function onCouncil(c) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       toast(replyTurns(c) > 0 ? `Reply in · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+      maybeNotifyFinish("Meldmind finished a run", "Council done");
     }
   }
 }
@@ -513,9 +598,11 @@ function renderStrip() {
     }
     if (pausedNow(p)) line = PAUSE_LABEL;
     else if (p.access?.label) line = p.access.label;
+    const needsOwnKey = p.kind === "text" && !p.keyed && !p.noKey && !p.demo && !["handoff", "local", "mcp", "oauth"].includes(p.access?.auth);
+    if (needsOwnKey) line = "No key";
     const active = S.activeByProvider[p.id] > 0 && !quietProvider(p);
     if (active) badge = `${S.activeByProvider[p.id]} working`;
-    const stLight = pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
+    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
     const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
     return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
@@ -531,18 +618,26 @@ function renderBudget() {
   const b = S.settings.budgetMonthly || 0, m = S.ledger?.month || 0;
   $("#budget-val").textContent = `${money(m)} / ${money(b, 0)}`;
   $("#budget-pill").style.borderColor = m > b ? "var(--red)" : m > b * 0.8 ? "var(--amber)" : "var(--line)";
+  const spend = $("#cc-spend");
+  if (spend) spend.textContent = spendLine(m);
 }
 
 // ---------------- views ----------------
 function renderUpdateBar() {
   const u = S.update, bar = $("#update-bar"); if (!bar) return;
+  if (u?.error && !u?.available) {
+    bar.style.display = "";
+    const href = esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest");
+    bar.innerHTML = `<div><b>Couldn't check for updates</b></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a>`;
+    return;
+  }
   if (!u?.available || S.updateDismissed === u.latest) { bar.style.display = "none"; return; }
   bar.style.display = "";
   const busy = u.phase === "downloading" || u.phase === "installing";
   const action = u.desktop
-    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
-    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: Meldmind v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update ready, restart"}</button>`
+    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Download</a>`;
+  bar.innerHTML = `<span>↑</span><div><b>Update ready, restart</b> Meldmind v${esc(u.latest)} (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -552,17 +647,17 @@ function updateBoxHtml() {
   const busy = u.phase === "downloading" || u.phase === "installing";
   const status = u.phase === "downloading" ? `Downloading v${esc(u.latest)}: ${u.progress ?? 0}%`
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
-    : u.available ? `Update available: v${esc(u.latest)}`
+    : u.available ? `Update ready, restart: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
   return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
-    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
+    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update ready, restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
-    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
+    + (u.error && !u.available ? ` <span>Couldn't check for updates</span> <a class="btn sm" href="${esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest")}" target="_blank" rel="noopener">Download</a>` : (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : ""));
 }
 function renderUpdateBox() {
   const box = $("#s-upd-box"); if (!box) return;
   box.innerHTML = updateBoxHtml();
-  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version", !!S.update.error); });
+  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `Update ready, restart: v${S.update.latest}` : S.update.error ? "Couldn't check for updates" : "You are on the latest version", !!S.update.error); });
   $("#s-upd-go")?.addEventListener("click", installUpdate);
 }
 async function installUpdate() {
@@ -582,7 +677,10 @@ function btnLabel(btn, text) {
 }
 function syncChrome() {
   const simple = S.uiMode !== "expert";
-  if (document.body) document.body.dataset.ui = simple ? "simple" : "expert";
+  if (document.body) {
+    document.body.dataset.ui = simple ? "simple" : "expert";
+    document.body.classList.toggle("show-ais", simple && !!S.settings?.simpleStrip);
+  }
   $("#mode-simple")?.setAttribute("aria-pressed", String(simple));
   $("#mode-expert")?.setAttribute("aria-pressed", String(!simple));
   btnLabel($("#mobile-nav button[data-view='command']"), simple ? "Chat" : "Command");
@@ -595,35 +693,41 @@ function syncChrome() {
   if (!simple) $("#simple-create")?.classList.remove("open");
 }
 function renderAsk() {
-  let box = document.getElementById("cc-mode-ask");
-  if (!S.askMode) { box?.remove(); return; }
-  if (box) return;
-  box = document.createElement("div");
-  box.id = "cc-mode-ask";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-mode-ask-title"><h4 id="cc-mode-ask-title">${esc(ASK.title)}</h4><p>${esc(ASK.body)}</p><div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="cc-mode-ask-simple">${esc(ASK.simple)}</button><button class="btn" type="button" id="cc-mode-ask-expert">${esc(ASK.expert)}</button></div></div>`;
-  document.body.appendChild(box);
-  box.querySelector("#cc-mode-ask-simple").addEventListener("click", () => setUiMode("simple"));
-  box.querySelector("#cc-mode-ask-expert").addEventListener("click", () => setUiMode("expert"));
+  document.getElementById("cc-mode-ask")?.remove();
 }
-function setUiMode(mode) {
+function setUiMode(mode, opts = {}) {
   if (mode !== "simple" && mode !== "expert") return;
   const prev = S.uiMode;
+  const firstExpert = mode === "expert" && prev !== "expert" && !S.settings?.expertConfirmed;
+  if (firstExpert && !opts.confirmed && !opts.fromSetup) {
+    if (!confirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?")) return;
+  }
   S.uiMode = mode;
   S.askMode = false;
-  S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
+  const patch = { uiMode: mode, uiModeChosen: true };
+  if (mode === "expert") patch.expertConfirmed = true;
+  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done;
+  S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
     S.view = "command";
-  } else if (mode === "expert" && prev !== "expert" && S.returnView) {
+  } else if (mode === "expert" && prev !== "expert" && S.returnView && !openExpert) {
     S.view = S.returnView;
     S.returnView = null;
+  }
+  if (openExpert) {
+    S.connectWizard = false;
+    S.view = "setup";
+    S.setup = S.setup || {};
+    S.setup.phase = "expert";
+    S.setup.expertStep = S.settings.expertSetup?.step || "ais";
   }
   const root = $("#tabs");
   if (root) root.dataset.nav = "";
   render();
   window.CC?.tour?.onMode?.();
-  api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } })
-    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, uiMode: mode, uiModeChosen: true }; })
+  api("/settings", { method: "POST", body: patch })
+    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
 }
 function toggleSimpleCreate() {
@@ -653,6 +757,17 @@ function toggleSimpleCreate() {
   sheet.classList.add("open");
 }
 function render() {
+  if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
+  document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
+  const cc = window.CC;
+  const light = !!S.settings?.lightMode;
+  if (cc?.viewReady && !cc.viewReady(S.view, { light })) {
+    const token = (cc._paintToken = (cc._paintToken || 0) + 1);
+    cc.ensureView(S.view, { light }).then(() => {
+      if (cc._paintToken === token) render();
+    }).catch((e) => console.warn("[features]", e));
+    return;
+  }
   syncChrome();
   renderAsk();
   markTabs();
@@ -672,13 +787,14 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
 function knownViews() {
-  const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
+  const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
   for (const f of window.CC?.byKind?.("tab") || []) have.add(f.id);
-  const ordered = NAV_ORDER.filter((id) => have.has(id));
+  let ordered = NAV_ORDER.filter((id) => have.has(id));
   for (const id of have) if (!ordered.includes(id)) ordered.push(id);
+  if (S.mode === "hosted") ordered = ordered.filter((id) => !isDesktopOnly(id));
   return ordered;
 }
 function ensureMobileMore() {
@@ -701,14 +817,16 @@ function ensureFeatureTabs() {
   let layout = currentNavLayout();
   if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
-  if (root) installNav(root, knownViews(), mode, layout);
+  const surface = S.mode === "hosted" ? "web" : "";
+  if (root) installNav(root, knownViews(), mode, layout, surface);
   // Eight menus that still overflow this window merge back to the compact row.
   // A zero clientWidth means the bar has not been laid out yet, so it must not lock the compact row.
   if (mode === "expert" && root && root.dataset.navLayout === "normal" && root.clientWidth > 0 && rowOverflows(root)) {
     root.dataset.nav = "";
-    installNav(root, knownViews(), mode, "narrow");
+    installNav(root, knownViews(), mode, "narrow", surface);
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
+    if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
@@ -738,12 +856,22 @@ function ensureFeatureTabs() {
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
+  if (S.settings?.lightMode && (kind === "command" || kind === "deliverable")) return;
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
+    if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
     const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
   }
+}
+function renderFeature(kind, id, sel) {
+  const box = $(sel); if (!box) return;
+  box.innerHTML = "";
+  const f = (window.CC?.byKind?.(kind) || []).find((x) => x.id === id);
+  if (!f) return;
+  const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d);
+  try { f[kind].render(d); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
 }
 function projectOptions(sel) {
   return projectOptionsHtml(S.projects, sel);
@@ -762,6 +890,17 @@ function projectField() {
       </div>
       <div class="small" id="proj-err" role="alert" style="color:var(--red)"></div>
     </form>`;
+}
+// Open is a click on the Saved note. Saving itself stays on the command bar.
+function openSavedProject(id) {
+  if (!id) return;
+  S.openProject = id;
+  S.view = "projects";
+  render();
+}
+function toastSaved(id) {
+  const link = id ? { label: "Open", onClick: () => openSavedProject(id) } : null;
+  toast("Saved", false, link);
 }
 function wireProjectPicker() {
   const sel = $("#proj");
@@ -805,16 +944,17 @@ function wireProjectPicker() {
     const problem = projectNameError(name, S.projects, exceptId);
     if (problem) { err.textContent = problem; input.focus(); return; }
     saveBtn.disabled = true;
+    let savedId = "";
     try {
       if (mode === "rename") {
         await api("/projects", { method: "POST", body: { id: S.project, name } });
-        toast("Project renamed");
+        savedId = S.project;
       } else {
         const created = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
-        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); }
-        toast("Project created");
+        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); savedId = created.id; }
       }
       await refresh();
+      toastSaved(savedId);
     } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
   });
 }
@@ -880,11 +1020,12 @@ function jobReply() {
   if (!replyReady()) return "";
   const kind = S.live.kind;
   const label = "Reply to all";
+  const replyLabel = S.uiMode === "simple" ? "Reply" : label;
   const placeholder = kind === "council" ? "This goes to every AI on the council." : kind === "mission" ? "This goes to every AI on the mission." : "This goes to the AI on this chat.";
   const extra = [];
   if (kind === "council") extra.push(...(S.live.council?.members || []).map((m) => m.model), "chair");
   if (kind === "mission") extra.push(...Object.values(S.live.tasks || {}).filter((t) => t.output && t.status === "done" && !t.agent).map((t) => t.id));
-  return `${extra.map((t) => liveSlot("job", t)).join("")}${replyForm({ scope: "job", target: "", label, placeholder })}`;
+  return `${extra.map((t) => liveSlot("job", t)).join("")}${replyForm({ scope: "job", target: "", label: replyLabel, placeholder })}`;
 }
 function mergedSingleTurns(run) {
   return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
@@ -894,31 +1035,67 @@ function renderSimpleChat(v) {
   <div class="cmd simple-chat">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+        <div id="graduate-slot"></div>
         <h3>Chat</h3>
-        <textarea id="orders" aria-label="What do you want?" placeholder="Say what you want. The council picks the AI.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
+        <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
         <div class="row" style="padding-top:4px">
-          <button class="btn primary" id="go" style="margin-left:auto">Send</button>
+          <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
+          <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
+          <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
+    <div id="cc-zapier-slot"></div>
     <div class="panel output">
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
       <div id="out-follow"></div>
+      <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
   </div>`;
   wireProjectPicker();
-  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
+    const item = STARTERS.find((s) => s.id === b.dataset.starter);
+    if (!item) return;
+    const box = $("#orders");
+    box.value = item.text;
+    S.lastOrders = item.text;
+    paintStarters();
+    const note = $("#mask-line");
+    if (note) note.textContent = maskNotice(item.text);
+    box.focus();
+  }));
+  $("#cc-show-ais")?.addEventListener("click", async () => {
+    const on = !S.settings?.simpleStrip;
+    S.settings = { ...(S.settings || {}), simpleStrip: on };
+    syncChrome();
+    const btn = $("#cc-show-ais");
+    if (btn) btn.textContent = on ? "Hide AIs" : "Show AIs";
+    try { const saved = await api("/settings", { method: "POST", body: { simpleStrip: on } }); if (saved) S.settings = { ...S.settings, ...saved, simpleStrip: on }; }
+    catch (e) { toast(e.message, true); }
+  });
   $("#go").addEventListener("click", sendOrders);
-  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
+  $("#stop-research").addEventListener("click", stopResearch);
+  $("#copy").addEventListener("click", () => copyDeliverable());
+  paintStarters();
   renderOutput();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+}
+function paintStarters() {
+  const box = $("#cc-starters");
+  if (!box) return;
+  box.hidden = !!($("#orders")?.value.trim() || S.live?.id);
 }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
@@ -927,8 +1104,10 @@ function renderCommand(v) {
   <div class="cmd">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div id="graduate-slot"></div>
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
-        <textarea id="orders" aria-label="Marching orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
@@ -953,13 +1132,13 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
-          <button class="btn primary" id="go" style="margin-left:auto">Send orders ⏎</button>
+          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
     <div class="panel ops">
-      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="abort" style="display:none;color:var(--red)">abort</button></h3>
+      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
       <div class="graph-wrap" id="graph"></div>
       <div id="tasks" class="tasks"></div>
       <div id="council"></div>
@@ -981,12 +1160,22 @@ function renderCommand(v) {
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
   wireProjectPicker();
-  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
   $("#preview").addEventListener("click", previewRoute);
-  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
-  $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
+  $("#copy").addEventListener("click", () => copyDeliverable());
+  $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
+  $("#ops-pause")?.addEventListener("click", async () => {
+    if (!S.live.id) return;
+    try { await api(`/mission/${S.live.id}/pause`, { method: "POST" }); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#ops-resume")?.addEventListener("click", async () => {
+    if (!S.live.id) return;
+    try { await api(`/mission/${S.live.id}/resume`, { method: "POST" }); toast("Mission resumed."); }
+    catch (e) { toast(e.message, true); }
+  });
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
@@ -1015,19 +1204,48 @@ function renderComposerAis() {
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
-function renderOpsHead() {
-  const h = $("#ops-head"); if (!h) return;
+function stopResearch() {
+  if (!S.live.id || S.live.kind !== "research") return;
+  api(`/research/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true));
+}
+function syncResearchStop() {
   const l = S.live;
-  if (!l.id) { h.textContent = "idle"; $("#abort").style.display = "none"; return; }
-  const cost = l.mission?.cost ?? l.council?.cost ?? 0;
-  h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
-  $("#abort").style.display = l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status) ? "" : "none";
+  const researchLive = !!(l.id && l.kind === "research" && l.status === "running");
+  const stop = $("#stop-research");
+  if (stop) stop.style.display = researchLive ? "" : "none";
+  const abort = $("#abort");
+  const pause = $("#ops-pause");
+  const resume = $("#ops-resume");
+  const show = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
+  const mission = l.kind === "mission";
+  const missionLive = !!(l.id && mission && ["scheduled", "planning", "running", "assembling"].includes(l.status));
+  show(pause, mission && ["planning", "running", "assembling"].includes(l.status));
+  show(resume, mission && l.status === "paused");
+  show(abort, researchLive || missionLive || (mission && l.status === "paused"));
+  if (abort) {
+    abort.textContent = researchLive ? "Stop" : "abort";
+    abort.title = researchLive ? "Stop this deep research run" : "";
+  }
+}
+function renderOpsHead() {
+  const h = $("#ops-head");
+  const l = S.live;
+  if (h) {
+    if (!l.id) h.textContent = "idle";
+    else {
+      const cost = l.mission?.cost ?? l.council?.cost ?? 0;
+      h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
+    }
+  }
+  syncResearchStop();
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
   const tasks = Object.values(S.live.tasks);
-  if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="dim small">It will start on its own; use abort to cancel.</span></div>`; return; }
-  if (S.live.kind !== "mission" || !tasks.length) { box.innerHTML = S.live.kind === "mission" && S.live.status === "planning" ? `<div class="empty">Planning…</div>` : ""; return; }
+  if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="hint">Click Stop to cancel.</span></div>`; return; }
+  if ((S.live.kind !== "mission" && S.live.kind !== "research") || !tasks.length) { box.innerHTML = (S.live.kind === "mission" || S.live.kind === "research") && (S.live.status === "planning" || S.live.status === "running") && !tasks.length ? `<div class="empty">${S.live.kind === "research" ? "Researching…" : "Planning…"}</div>` : ""; return; }
+  const paused = S.live.status === "paused";
+  const editable = paused ? tasks.filter((t) => t.status !== "done" && t.status !== "waiting" && t.status !== "failed") : [];
   box.innerHTML = tasks.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
@@ -1045,7 +1263,23 @@ function renderTasks() {
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
       ${follow}
     </div>`;
-  }).join("");
+  }).join("") + (paused ? `<form id="pause-edit" style="margin-top:12px">
+      <div class="small">Done steps stay as they are. Edit the goal or a step that has not finished, then resume.</div>
+      <label class="lbl" for="pause-goal">Goal</label>
+      <textarea id="pause-goal" rows="2">${esc(S.live.mission?.prompt || "")}</textarea>
+      ${editable.map((t) => `<label class="lbl" for="pause-task-${esc(t.id)}">${esc(t.title || t.id)}</label><textarea id="pause-task-${esc(t.id)}" data-pause-task="${esc(t.id)}" rows="2">${esc(t.instructions || "")}</textarea>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="btn sm primary" type="submit">Save and resume</button></div>
+    </form>` : "");
+  box.querySelector("#pause-edit")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const goal = box.querySelector("#pause-goal")?.value || "";
+    const taskEdits = [...box.querySelectorAll("[data-pause-task]")].map((el) => ({ id: el.dataset.pauseTask, instructions: el.value }));
+    try {
+      await api(`/mission/${S.live.id}/edit`, { method: "POST", body: { goal, tasks: taskEdits } });
+      await api(`/mission/${S.live.id}/resume`, { method: "POST" });
+      toast("Saved. Mission resumed.");
+    } catch (err) { toast(err.message, true); }
+  });
 }
 function renderCouncil() {
   const box = $("#council"); if (!box) return;
@@ -1071,7 +1305,7 @@ function renderCouncil() {
     const waiting = isGrok && !text && !a.error;
     const followWait = isGrok && !!text && (stored?.followPending || partsFor(a.model).some((p) => p.pending));
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
-      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
+      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
       <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span></div>
       <div class="body md">${waiting ? grokWaitHtml() : md(text)}</div>
       ${followWait ? grokWaitHtml() : ""}
@@ -1084,23 +1318,46 @@ function renderCouncil() {
 }
 function renderOutput() {
   const o = $("#out-md"), h = $("#out-head"); if (!o) return;
+  syncResearchStop();
   const follow = $("#out-follow");
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); return; }
-  h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
-  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
+  h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
+  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
+    if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
+    else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
+    else if (l.kind === "research" && l.status === "running") o.innerHTML = `<div class="empty">Deep research is running. Stop ends it. You can keep using the chat.</div>`;
+    else o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`;
+    paintFollow("");
+    paintFailure();
+    return;
+  }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
-  paintFollow(outputFollowHtml());
+  paintFollow(`${outputFollowHtml()}${chargeNote(l)}`);
+  paintFailure();
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
+}
+function paintFailure() {
+  const slot = $("#cc-fail-slot");
+  if (!slot) return;
+  if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
+  slot.innerHTML = `<div class="route" id="cc-fail" style="margin-top:10px"><b>${esc(FAILURE.title)}</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" type="button" id="cc-fail-retry">${esc(FAILURE.retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(FAILURE.other)}</button></div></div>`;
+  $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
+  $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
 }
 function outputFollowHtml() {
   const l = S.live;
   const simple = S.uiMode !== "expert";
+  if (simple) {
+    const has = !!(l.deliverable || (l.primary && l.agents[l.primary]?.text));
+    if (!has) return "";
+    return jobReply();
+  }
   const blocks = [];
   if (l.kind === "single") {
     const run = l.mission || {};
@@ -1114,7 +1371,7 @@ function outputFollowHtml() {
     blocks.push((c.members || []).map((m) => {
       const a = c.answers?.[m.model];
       if (!a?.text) return "";
-      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
+      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
     }).join(""));
     blocks.push((c.agents || []).filter((g) => g.id === "grokbot").map(() => {
       const a = c.answers?.grokbot || {};
@@ -1152,39 +1409,146 @@ async function previewRoute() {
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
       ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
-      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>`;
+      ${r.search?.note ? `<div class="small" style="margin-top:4px">${esc(r.search.note)}</div>` : ""}
+      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>
+      ${(r.apps || []).length ? `<div class="small" style="margin-top:4px">Allowed programs: ${(r.apps || []).slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>` : ""}
+      ${r.whoWillRead ? `<div class="small" style="margin-top:6px"><b>${esc(r.whoWillRead.heading || "Who will read this")}</b>: ${r.whoWillRead.readers?.length ? `${r.whoWillRead.readers.map((x) => esc(x.name)).join(", ")}. ` : ""}${esc(r.whoWillRead.note || "Nothing is sent until you click.")}</div>` : ""}`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
   } catch (e) { box.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
 }
+const BUSY_STATUS = new Set(["running", "planning", "assembling"]);
+function runBusy() {
+  if (S.awaitingRun) return true;
+  const st = S.live?.status;
+  return !!(S.live?.id && BUSY_STATUS.has(st));
+}
+function syncSendButton() {
+  const g = $("#go");
+  if (!g) return;
+  const busy = runBusy();
+  g.disabled = busy;
+  g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
+  g.setAttribute("aria-busy", busy ? "true" : "false");
+}
+async function confirmRisky(text) {
+  const projectId = $("#proj")?.value || S.project || null;
+  let neverSay = "";
+  let scf = false;
+  try {
+    const profile = await api("/prompts/profile");
+    neverSay = String(profile.profile?.neverSay || "");
+    scf = profile.profile?.scf === true || profile.profile?.scf === "true";
+  } catch { /* a missing profile still lets the copy go through */ }
+  if (projectId) {
+    try {
+      const mem = await api(`/memory/project/${encodeURIComponent(projectId)}`);
+      if (mem?.never) neverSay = [neverSay, mem.never].filter(Boolean).join("\n");
+    } catch { /* project memory is optional */ }
+  }
+  const hits = riskyHits(text, { neverSay, scf });
+  if (!hits.length) return true;
+  return confirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`);
+}
+async function copyDeliverable() {
+  const t = S.live.deliverable || $("#out-md")?.innerText || "";
+  if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true);
+  if (!(await confirmRisky(t))) return;
+  try { await navigator.clipboard.writeText(t); toast("Copied"); }
+  catch { toast("Could not copy: select the text and press Ctrl+C", true); }
+}
+function chargeNote(l) {
+  if (!l || (l.status !== "failed" && l.status !== "done-with-errors")) return "";
+  const cost = Number(l.mission?.cost ?? l.council?.cost ?? 0);
+  if (cost > 0) return "";
+  return `<p class="hint" id="cc-no-charge" role="status">Nothing was charged</p>`;
+}
+function maybeNotifyFinish(title, body) {
+  if (typeof Notification === "undefined") return;
+  if (!document.hidden && document.hasFocus()) return;
+  if (Notification.permission !== "granted") return;
+  try { new Notification(title, { body, tag: "meldmind-run" }); } catch { /* the in-app toast already said it */ }
+}
+function askNotify() {
+  if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+  try { Notification.requestPermission(); } catch { /* desktop alerts stay off */ }
+}
 async function sendOrders() {
+  if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  if (!(await confirmRisky(prompt))) return;
   const simple = S.uiMode === "simple";
   const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
-  if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
+  if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
-  if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
-  $("#go").disabled = true;
+  const attached = attachPack(pp);
+  const ask = window.CC.searchAsk?.() || {};
+  const background = !!$("#bg-run")?.checked;
+  askNotify();
+  S.awaitingRun = true;
+  syncSendButton();
+  const noteBackground = (started) => {
+    if (background && started && !started.scheduled) {
+      const rid = started.runId || started.id;
+      if (rid) S.backgroundQuiet.add(rid);
+      S.awaitingRun = false;
+      toast("Running in the background. You will get an alert when it is done.");
+      S.live = newLive();
+      renderOps();
+      return;
+    }
+    S.live = newLive();
+    S.live.status = "running";
+    renderOps();
+  };
   try {
-    const usePack = !!(pp?.templateId && !pp.removed);
-    const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
+    const priv = !!S.settings?.privateMode;
+    let skip = [];
+    if (!simple && (mode === "council" || mode === "mission") && window.CC?.desk?.beforeSend) {
+      const allowed = await window.CC.desk.beforeSend({ mode, prompt });
+      if (!allowed || allowed.ok === false) { S.awaitingRun = false; return; }
+      if (Array.isArray(allowed.skip)) skip = allowed.skip;
+    }
+    const packBody = attached ? { promptPack: attached } : (pp?.removed ? { promptPack: { removed: true } } : {});
+    if (ask.searchMode === "deep") {
+      const started = await api("/research/deep", { method: "POST", body: { prompt, projectId, filter: ask.filter } });
+      S.live = newLive();
+      S.live.id = started.id;
+      S.live.kind = "research";
+      S.live.status = "running";
+      renderOps();
+      toast("Deep research started. You will get an alert when the report is ready.");
+      S.awaitingRun = false;
+    }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
-    if (mode === "single") {
+    else if (mode === "single") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
-      await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
+      const avoid = S.pendingAvoid || "";
+      S.pendingAvoid = "";
+      S.simpleFail = null;
+      if (avoid) packBody.avoid = avoid;
+      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background } });
+      noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
-    S.live = newLive(); renderOps();
+    else if (mode === "council") {
+      const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      noteBackground(started);
+    }
+    else {
+      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
+      noteBackground(started);
+    }
   } catch (e) {
+    S.awaitingRun = false;
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
     else toast(e.message, true);
   }
-  finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }
+  finally { syncSendButton(); }
 }
 
 // ----- Projects -----
@@ -1265,7 +1629,29 @@ function renderProjectDetail(v, p) {
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
-  $("#del").addEventListener("click", async () => { if (!confirm(`Delete project "${p.name}"? Links only; nothing external is touched.`)) return; await api(`/projects/${p.id}`, { method: "DELETE" }); S.openProject = null; await refresh(); });
+  $("#del").addEventListener("click", async () => {
+    let lines = `Delete project "${p.name}"? Links on this card go away. Chats stay in My chats. AI keys are not touched.`;
+    try {
+      const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
+      if (preview?.lines?.length) lines = preview.lines.join("\n");
+    } catch { /* the short line above is enough to confirm */ }
+    if (!confirm(`${lines}\n\nDelete this project?`)) return;
+    try {
+      const done = await api(`/projects/${p.id}`, { method: "DELETE" });
+      const file = done.receipt?.file;
+      if (file?.text) {
+        const blob = new Blob([file.text], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = file.name || "meldmind-receipt.txt";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      }
+      toast((done.receipt?.lines || ["Project deleted."]).join(" "));
+      S.openProject = null;
+      await refresh();
+    } catch (e) { toast(e.message, true); }
+  });
   $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = prompt("Link URL"); if (!url) return; const name = prompt("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
   $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
@@ -1273,6 +1659,7 @@ function renderProjectDetail(v, p) {
 }
 async function openRun(id) {
   try {
+    S.backgroundQuiet?.delete(id);
     const m = await api(`/missions/${id}`);
     S.live = newLive(); S.live.id = m.id; S.live.kind = m.kind; S.live.status = m.status;
     if (m.kind === "council") { S.live.council = m; S.live.deliverable = m.verdict?.text || ""; }
@@ -1344,12 +1731,6 @@ function renderCredits(v) {
 }
 
 // ----- Subscriptions -----
-function lifetimeChoiceLabel() {
-  const L = S.proPlans && S.proPlans.lifetime;
-  if (L && L.open === false) return "Lifetime founder is sold out";
-  if (L && L.price) return "Lifetime founder, $" + L.price;
-  return "Lifetime founder, $299 then $499";
-}
 function openPayLink(url) {
   try {
     const u = new URL(url);
@@ -1360,30 +1741,33 @@ function openPayLink(url) {
 }
 function chooseProPlan(which) {
   const plans = S.proPlans || {};
-  if (which === "yearly") {
-    if (plans.yearly && plans.yearly.payLink && openPayLink(plans.yearly.payLink)) return;
-    toast("Pro yearly is $159 a year. The Square checkout link is not published yet. Nothing was charged.");
-    return;
-  }
-  const L = plans.lifetime || {};
-  if (L.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
-  if (L.payLink && openPayLink(L.payLink)) return;
-  const price = L.price ? "$" + L.price : "$299 for the first 100, then $499";
-  toast("Lifetime founder is " + price + ", capped at 500. The Square checkout link is not published yet. Nothing was charged.");
+  const all = [plans.monthly, plans.yearly, plans.extremeMonthly, plans.extremeYearly, plans.lifetime].filter(Boolean);
+  const plan = all.find((p) => p.id === which) || (which === "yearly" ? plans.yearly : which === "lifetime" ? plans.lifetime : null);
+  if (!plan) { toast("That plan is not available. Nothing was charged."); return; }
+  if (plan.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
+  if (plan.payLink && plan.checkout !== false && openPayLink(plan.payLink)) return;
+  const name = plan.button || plan.label || "This plan";
+  toast(name + ". The Square checkout link is not published yet. Nothing was charged.");
 }
 function bindProPlans(root) {
   $$("[data-pro-plan]", root).forEach((b) => b.addEventListener("click", () => chooseProPlan(b.dataset.proPlan)));
 }
-const PRO_PLAN_NOTE = "Lifetime founder is $299 for the first 100, then $499, capped at 500. Yearly and lifetime do not open Square until those links are published. Nothing is charged from here.";
+function upgradeBlock(primary) {
+  const tier = S.license?.tier || "free";
+  return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" id="sub-lic">I have a licence key</button></div>
+      ${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}
+      ${extremeExtrasHtml()}
+      <div class="dim small" style="margin-top:8px">Pro, Extreme, and the $349 lifetime button open their Square pay page. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
+}
 
 function renderSubscriptions(v) {
   if (S.subscriptionsLocked) {
     v.innerHTML = `<div class="panel" style="max-width:720px;margin:24px auto;text-align:center;padding:36px 28px">
       <div style="font-size:28px;margin-bottom:8px">🔒</div>
       <h2 style="margin:0 0 8px;font-size:20px">The Subscriptions tracker is part of Pro</h2>
-      <div class="muted">What you pay for every AI subscription, when it renews, credits left, burn per day, runway, and a plain keep / watch / cancel signal. Pro also unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler.</div>
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap"><a class="btn primary" href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a><button type="button" class="btn" data-pro-plan="yearly">Pro yearly, $159/year</button><button type="button" class="btn" data-pro-plan="lifetime">${esc(lifetimeChoiceLabel())}</button><button class="btn" id="sub-lic">I have a licence key</button></div>
-      <div class="dim small" style="margin-top:8px">${PRO_PLAN_NOTE}</div>
+      <div class="muted">What you pay for every AI subscription, when it renews, credits left, burn per day, runway, and a plain keep / watch / cancel signal. Pro also unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler. Extreme adds more AIs per council, more runs at once, and the rows in the table.</div>
+      ${upgradeBlock(true)}
     </div>`;
     $("#sub-lic").addEventListener("click", () => { S.view = "settings"; render(); });
     bindProPlans(v);
@@ -1444,7 +1828,7 @@ function phonePanel() {
       <img id="pair-qr" alt="QR code for phone pairing" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px;display:block">
       <div id="pair-url" class="mono small">${esc(p.url)}</div>
       <button class="btn sm" id="pair-copy" type="button">Copy</button>
-      <div class="dim small" style="margin-top:8px">The phone and this PC need the same Wi-Fi. Scan the code, or copy the address under it.</div>
+      <div class="dim small" style="margin-top:8px">The phone and this PC need the same Wi-Fi. Scan the code, or copy the address under it. The code opens a short address. The address under the code also works. Both include the pairing code. A Wi-Fi address is used ahead of a virtual adapter.</div>
     </div>` : `<div class="dim small" style="margin-top:8px">Turn this on to show a code your phone can scan. Until then, this PC answers only on this computer.</div>`;
   return `<div class="panel" id="phone-pair"><h3>Phone &amp; other devices <span class="right">pairing</span></h3>
     <label class="row small" style="gap:8px"><input type="checkbox" id="pair-on" ${p.on ? "checked" : ""}> Phone pairing</label>
@@ -1454,12 +1838,23 @@ function phonePanel() {
       <div class="dim small" style="margin-top:8px">A hosted hub is a server elsewhere. The phone can use that address when this PC is off.</div>
     </details></div>`;
 }
+function licenceCloudFields() {
+  if (S.mode === "hosted") return "";
+  if (S.uiMode !== "expert") {
+    return `<div class="dim small" style="margin-top:8px">The licence connection ships with the app. The setup fields stay in Expert.</div>`;
+  }
+  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
+  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
+    <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
+    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
+}
 function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
-    <div class="hd"><span class="dot ${p.status?.status || "grey"}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
+    <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
       <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}</div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
+    ${p.id === "google" && !p.keyed ? `<div class="dim small" style="margin-top:8px">Not connected. A free allowance needs your own AI Studio key.</div>` : ""}
     ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
     ${p.connect?.both ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
       <button type="button" class="btn sm ${p.connect.active === "key" ? "primary" : ""}" data-conn="key" data-prov="${p.id}">Connect with API key</button>
@@ -1524,13 +1919,10 @@ function renderSettings(v) {
       ${phonePanel()}
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
-        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
-        ${(S.license?.tier || "free") === "free" ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-pro-plan="yearly">Pro yearly, $159/year</button><button type="button" class="btn sm" data-pro-plan="lifetime">${esc(lifetimeChoiceLabel())}</button></div><div class="dim small" style="margin-top:6px">${PRO_PLAN_NOTE}</div>` : ""}
+        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
+        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
-        ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
-        ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
-          <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://xxxx.supabase.co" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
-          <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`}
+        ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
       <div class="panel"><h3>Media &amp; creative tools <span class="right">credits tracked · API where one exists</span></h3>
@@ -1598,11 +1990,13 @@ function renderSettings(v) {
       defaultMode: $("#s-mode") ? $("#s-mode").value : S.settings.defaultMode,
       missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
     };
-    S.settings = await api("/settings", { method: "POST", body });
-    renderBudget(); toast("Saved");
+    try {
+      S.settings = await api("/settings", { method: "POST", body });
+      renderBudget(); toast("Saved");
+    } catch (e) { toast(e.message, true); }
   });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
-  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.view = "setup"; render(); });
+  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
   $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
@@ -1629,6 +2023,7 @@ function renderSettings(v) {
   });
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
+  $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
   $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
   $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
   $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });
@@ -1745,6 +2140,16 @@ $("#tabs").addEventListener("click", (e) => {
   const trigger = e.target.closest(".nav-trigger");
   if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
+    if (S.uiMode === "simple" && menu?.dataset.menu === "settings") {
+      closeNav(root);
+      trigger.setAttribute("aria-expanded", "false");
+      S.connectWizard = false;
+      S.view = "settings";
+      S.openProject = null;
+      S.navMenu = "settings";
+      render();
+      return;
+    }
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
     if (!wasOpen) { menu.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); }
@@ -1909,7 +2314,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
@@ -1922,8 +2327,106 @@ async function saveShareChoice() {
   await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
   st.shareSaved = on;
 }
+function setupState() {
+  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  if (st.history === undefined) st.history = false;
+  if (!st.phase) {
+    if (!S.settings?.uiModeChosen) st.phase = "mode";
+    else if (S.uiMode !== "expert") st.phase = "simple";
+    else if (S.settings?.expertSetup && !S.settings.expertSetup.done) {
+      if (S.settings.expertSetup.pendingScan) { st.phase = "scan"; st.afterScan = "expert"; }
+      else st.phase = "expert";
+    } else st.phase = "scan";
+  }
+  return st;
+}
+function renderModeStep(v, st) {
+  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px;font-size:22px">${esc(MODE_STEP.title)}</h2>
+    <div class="muted">${esc(MODE_STEP.note)}</div>
+    <div class="grid" style="margin-top:18px;gap:10px">
+      <button type="button" class="route" id="su-mode-simple" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.simple)}</b><div class="dim small">${esc(MODE_STEP.simpleLine)}</div></button>
+      <button type="button" class="route" id="su-mode-expert" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.expert)}</b><div class="dim small">${esc(MODE_STEP.expertLine)}</div></button>
+    </div>
+  </div></div>`;
+  $("#su-mode-simple").addEventListener("click", () => { st.phase = "simple"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
+  $("#su-mode-expert").addEventListener("click", async () => {
+    st.phase = "scan";
+    st.afterScan = "expert";
+    st.history = false;
+    await saveExpert({ pendingScan: true, done: false, step: "ais", skipped: false });
+    setUiMode("expert", { fromSetup: true, confirmed: true });
+  });
+}
+function renderSimpleStart(v) {
+  v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px;font-size:22px">One AI, then chat</h2>
+    <div class="muted">Add one key, or try it now. You can add more later in Settings.</div>
+    <div style="margin-top:16px">${openRouterStartCard()}</div>
+    <div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="su-try">Try it now</button><button class="btn" type="button" id="su-chat">Continue to chat</button></div>
+    <div class="dim small" style="margin-top:8px">Try it now turns on demo mode. Nothing is spent.</div>
+  </div></div>`;
+  wireOpenRouterStart(v);
+  $("#su-try").addEventListener("click", async () => {
+    try { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await finishAiSetup("command"); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#su-chat").addEventListener("click", () => finishAiSetup("command"));
+}
+async function saveExpert(patch) {
+  const expertSetup = { ...(S.settings?.expertSetup || {}), ...patch };
+  S.settings = { ...(S.settings || {}), expertSetup };
+  try {
+    const saved = await api("/settings", { method: "POST", body: { expertSetup } });
+    if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, expertSetup };
+  } catch (e) { toast(e.message, true); }
+}
+function renderExpertExtra(v, st) {
+  const stepId = st.expertStep || S.settings?.expertSetup?.step || "ais";
+  const i = Math.max(0, EXPERT_SETUP.findIndex((s) => s.id === stepId));
+  const step = EXPERT_SETUP[i];
+  const last = i === EXPERT_SETUP.length - 1;
+  v.innerHTML = `<div style="max-width:760px;margin:0 auto"><div class="panel" style="padding:26px">
+    <div class="dim small">Expert setup ${i + 1} of ${EXPERT_SETUP.length}. You can skip this.</div>
+    <h2 style="margin:6px 0;font-size:22px">${esc(step.title)}</h2>
+    <div class="muted">${esc(step.body)}</div>
+    ${step.id === "ais" ? `<div style="margin-top:14px">${openRouterStartCard()}${anyKeyHtml()}</div>` : ""}
+    ${step.id === "integrations" ? `<div class="row" style="margin-top:14px"><button class="btn sm" type="button" id="ex-connect">Get everything connected</button></div>` : ""}
+    ${step.id === "profile" ? `<div style="margin-top:14px"><div class="dim small">Every field is optional. You can fill this in later under Pro prompts.</div><button class="btn sm" type="button" id="ex-profile" style="margin-top:8px">Open business profile</button></div>` : ""}
+    <div class="row" style="margin-top:18px"><button class="btn" type="button" id="ex-skip">Skip</button><button class="btn primary" type="button" id="ex-next" style="margin-left:auto">${last ? "Finish" : "Next"}</button></div>
+  </div></div>`;
+  if (step.id === "ais") { wireOpenRouterStart(v); wireAnyKey(v); }
+  $("#ex-profile")?.addEventListener("click", () => { S.view = "prompts"; render(); });
+  $("#ex-connect")?.addEventListener("click", async () => {
+    try {
+      const offer = await api("/connectsetup/begin", { method: "POST" });
+      S.connectSetup = offer;
+      S.connectWizard = true;
+      S.visitedConnect = true;
+      await saveExpert({ step: "integrations", done: true, skipped: false });
+      S.view = "setup";
+      render();
+    } catch (e) { toast(e.message, true); }
+  });
+  $("#ex-skip").addEventListener("click", async () => { await saveExpert({ step: step.id, skipped: true, done: true }); finishAiSetup("command"); });
+  $("#ex-next").addEventListener("click", async () => {
+    if (!last) {
+      const next = EXPERT_SETUP[i + 1].id;
+      st.expertStep = next;
+      await saveExpert({ step: next, done: false, skipped: false });
+      render();
+      return;
+    }
+    await saveExpert({ step: step.id, done: true, skipped: false });
+    finishAiSetup("command");
+  });
+}
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  const st = setupState();
+  if (st.desktop === undefined) st.desktop = false;
+  if (st.phase === "mode") return renderModeStep(v, st);
+  if (st.phase === "simple") return renderSimpleStart(v);
+  if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
     api("/brain/settings").then((d) => {
@@ -1939,7 +2442,7 @@ function renderSetup(v) {
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. The scans below run on this PC only; nothing from them is uploaded.</div>
+          <div class="muted">These steps are optional. The scans below run on this PC only; nothing from them is uploaded.</div>
           <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
         <div id="su-share-block" style="margin-top:18px">
           <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings.</div><div class="dim small" id="su-share-note" ${st.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div></div></label>
@@ -1949,6 +2452,15 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a licence key in Settings. Nothing is installed or bought."}</div></div></label>
+        </div>
+        <div class="panel" id="su-desktop-card" style="margin-top:16px">
+          <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
+          <div class="dim small">Meldmind can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Skip this and change it later in Settings.</div>
+          ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
+            <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
+            <button class="btn sm" id="su-agy-install" type="button">Install and connect</button>
+          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
@@ -1966,15 +2478,35 @@ function renderSetup(v) {
       render();
     });
     $("#su-go").addEventListener("click", async () => {
-      st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
+      st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.desktop = !!$("#su-desktop")?.checked; st.days = Number($("#su-days").value) || 180;
       st.busy = true; render();
       try {
         await saveShareChoice();
         st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
+        if (st.desktop && S.license?.limits?.appScan) {
+          try { await api("/apps/opt-in", { method: "POST", body: { on: true } }); }
+          catch (e) { toast(e.message, true); }
+        }
         st.step = 2;
       }
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
+    });
+    $("#su-agy-allow")?.addEventListener("click", async () => {
+      try { await api("/antigravity/allow", { method: "POST", body: { allow: true } }); toast("Antigravity is allowed. Change this any time in Settings."); }
+      catch (e) { toast(e.message, true); }
+    });
+    $("#su-agy-install")?.addEventListener("click", async () => {
+      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      try {
+        const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+        toast(r.message || "Installer finished", !r.ok);
+        if (r.ok) {
+          await api("/antigravity/allow", { method: "POST", body: { allow: true } });
+          const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+          toast(s.message || "Sign-in opened", !s.ok);
+        }
+      } catch (e) { toast(e.message, true); }
     });
     $("#su-skip").addEventListener("click", async () => {
       try { await saveShareChoice(); }
@@ -2014,6 +2546,7 @@ function renderSetup(v) {
         <select id="su-prof" style="width:auto">${profiles.map((x) => `<option value="${x.browser}|${x.dir}" ${x.synced ? "disabled" : ""}>${esc(x.browserName)} · ${esc(x.name)}${x.email ? ` (${esc(x.email)})` : ""}${x.synced ? " · synced, use import" : ""}</option>`).join("")}</select>
         <button class="btn sm primary" id="su-apply">Add to this browser now</button><span class="dim small">closes and reopens the browser, keeps your tabs, backs up first</span></div></div>` : ""}
     ${st.bookmarks ? `<div id="su-extras"></div>` : ""}
+    <div id="su-apps"></div>
     <div class="row"><button class="btn" id="su-back">← Back</button><button class="btn primary" id="su-done" style="margin-left:auto">Finish setup</button></div></div>`;
   $$("[data-import]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/import-keys", { method: "POST", body: { providers: [b.dataset.import] } }); toast(r2.imported.length ? `${pname(b.dataset.import)} linked` : "Nothing imported", !r2.imported.length); await refresh(); }));
   $$("[data-setup-mcp]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupMcp, { mode: "mcp" })));
@@ -2022,6 +2555,7 @@ function renderSetup(v) {
   wireOpenRouterStart(v);
   wireAnyKey(v);
   renderExtras("setup", "#su-extras");
+  renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
   $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
@@ -2029,31 +2563,68 @@ function renderSetup(v) {
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
-  $("#su-done").addEventListener("click", () => finishAiSetup("command"));
+  $("#su-done").addEventListener("click", async () => {
+    if ((st.afterScan === "expert" || S.settings?.expertSetup?.pendingScan) && !S.settings?.expertSetup?.done) {
+      st.afterScan = "";
+      st.phase = "expert";
+      st.expertStep = S.settings?.expertSetup?.step && S.settings.expertSetup.step !== "ais" ? S.settings.expertSetup.step : "ais";
+      await saveExpert({ pendingScan: false, step: st.expertStep, done: false, skipped: false });
+      render();
+      return;
+    }
+    finishAiSetup("command");
+  });
 }
-// After the existing AI setup, a fresh install continues into Get everything connected.
+// Setup finishes into chat. Get everything connected opens only from the Expert integrations step.
 async function finishAiSetup(nextView) {
-  let offer = null;
-  try { offer = await api("/connectsetup"); } catch { offer = null; }
-  const showConnect = !!offer?.show;
-  if (showConnect) {
-    try { offer = await api("/connectsetup/begin", { method: "POST" }); } catch { /* the opened flag is enough to resume */ }
-  }
   try {
     const saved = await api("/setup/done", { method: "POST" });
     S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
     if (S.onboarding) S.onboarding.show = false;
     S.visitedSetup = true;
-    if (showConnect) {
-      S.connectSetup = offer;
-      S.connectWizard = true;
-      S.visitedConnect = true;
-      S.view = "setup";
-    } else {
-      S.connectWizard = false;
-      S.view = nextView;
-      if (nextView === "command") toast("Setup complete");
-    }
+    S.connectWizard = false;
+    S.view = nextView;
+    if (nextView === "command") toast("Setup complete");
     render();
   } catch (e) { toast(e.message, true); }
 }
+
+// Daily-spend labels. A ::after inside the chart panel is trapped by that panel's backdrop-filter
+// and can paint under the next panel. This one is attached to body.
+function mountSparkTip() {
+  if (document.getElementById("cc-spark-tip")) return;
+  const tip = document.createElement("div");
+  tip.id = "cc-spark-tip";
+  tip.className = "cc-spark-tip";
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let current = null;
+  const hide = () => { current = null; tip.hidden = true; };
+  const show = (bar) => {
+    const text = bar?.getAttribute?.("data-v");
+    if (!text) return hide();
+    current = bar;
+    tip.textContent = text;
+    tip.hidden = false;
+    const r = bar.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    let left = r.left + r.width / 2 - w / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    let top = r.top - h - 2;
+    if (top < 8) top = Math.min(window.innerHeight - h - 8, r.bottom + 2);
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+  };
+  const barOf = (node) => (node instanceof Element ? node.closest(".sparks i") : null);
+  document.addEventListener("pointerover", (e) => { const bar = barOf(e.target); if (bar) show(bar); });
+  document.addEventListener("pointerout", (e) => {
+    const bar = barOf(e.target);
+    if (!bar || bar !== current) return;
+    const next = barOf(e.relatedTarget);
+    if (next) show(next); else hide();
+  });
+  window.addEventListener("scroll", () => { if (current) show(current); }, true);
+  window.addEventListener("resize", () => { if (current) show(current); });
+}
+mountSparkTip();

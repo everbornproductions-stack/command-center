@@ -8,24 +8,33 @@ import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { isDemoProvider, realAiConnected } from "./demo-visibility.js";
 import { ctx } from "./store.js";
-import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
-import { observe } from "./brain.js";
+import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
-import { councilPlan, reviewMode } from "./modes.js";
+import { withImported } from "./history-refs.js";
+import { councilPlan, outputShape, reviewMode } from "./modes.js";
+import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
-  const id = "c-" + Date.now().toString(36);
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId }) {
+  const id = givenId || ("c-" + Date.now().toString(36));
+  if (isPrivate) markPrivateRun(id);
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;
+  const skipped = cleanSkip(skip);
+  const skipSet = new Set(skipped);
+  const held = skipAvoid(skipped);
+  const shape = outputShape(mode);
+  const answerTokens = shape.maxTokens || maxTokens;
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
   // Grok Bot (Phase 12) and the browser helper (Phase 27) are agents, not text models: one of them is picked
   // by what the job needs (signed-in browsing, Gmail, Drive, Calendar, teammate bots), never for plain text
@@ -36,26 +45,22 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   if (realAiConnected()) members = (members || []).filter((m) => m && !isDemoProvider(PROVIDERS[m.provider] || { id: m.provider }));
   const agentPick = pickAgent({ prompt, grokbot, browser });
   const A = agentPick.agent;
-  if (!members?.length) {
-    const ranked = rank({ ...cls, mode });
-    const seen = new Set();
-    members = [];
-    for (const m of ranked) {
-      if (seen.has(m.provider)) continue;
-      seen.add(m.provider);
-      members.push({ provider: m.provider, model: m.model });
-      if (members.length >= plan.members) break;
-    }
-  }
+  // A named seat list (Do this again) keeps those seats. A removed reader is dropped and not replaced.
+  const hadNamed = Array.isArray(members) && members.length > 0;
+  if (hadNamed && skipSet.size) members = members.filter((m) => m && !skipSet.has(m.provider));
+  if (!hadNamed) members = takeMembers(rank({ ...cls, mode }), { limit: plan.members, skip: skipped });
   if (!members.length) throw new Error("No AI is available. Add at least one API key in Settings.");
   if (chair && realAiConnected() && isDemoProvider(PROVIDERS[chair.provider] || { id: chair.provider })) chair = null;
-  chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model)) || members[0];
+  if (chair && skipSet.has(chair.provider)) chair = null;
+  chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model) && !skipSet.has(m.provider)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
   const memBlock = contextFor(projectId);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
-  const council = { id, kind: "council", prompt, projectId: projectId || null, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
+  const answerSystem = toneAdd("Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", tone);
+  const chairSystem = toneAdd("You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.", tone);
+  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -100,12 +105,16 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   }
 
   // ---- live web search (Phase 15): one search, the same numbered sources for every member and the chair ----
-  const web = await webAugment({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  const web = await prepareWeb({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb: !!cls?.needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
+  council.searched = web != null;
   if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; emit("council.update", { council: pub(council) }); }
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
-  const askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const importedRefs = withImported(prompt, askPrompt);
+  askPrompt = importedRefs.ask;
+  if (importedRefs.used.length) council.importedRefs = importedRefs.used;
   const nativeFor = (m) => !!web?.native && nativeSupported(m.provider, m.model);
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
@@ -118,7 +127,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     try {
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: members.filter((x) => x !== m) })) {
+      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held] })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -134,13 +143,17 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       noteCall(m.provider, true, ms);
       const e = recordCall({ provider: m.provider, model: m.model, usage, missionId: id, role: "answer", ms });
       council.cost += e.cost;
+      let own = [];
       if (nativeFor(m) && citations?.length) {
-        // a member that searched on its own: its pages join the shared list, numbered after the others
-        council.sources = [...council.sources, ...sourcesFromCitations(citations, council.sources.length)];
-        council.searchEngine = council.searchEngine || web.name;
+        // this member's own pages stay on its answer, numbered after the shared list
+        own = sourcesFromCitations(citations, council.sources.length);
+        council.searchEngine = council.searchEngine || web?.name;
         council.cost += recordNative(m.provider, citations, { missionId: id });
       }
-      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null };
+      const shared = council.sources || [];
+      const extra = own.filter((s) => !shared.some((x) => x.url === s.url));
+      const answerSources = extra.length ? [...shared, ...extra] : shared;
+      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null, sources: answerSources };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err);
@@ -225,10 +238,10 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
       let text = "";
       for await (const ev of fallbackChat({
-        provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
-        system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
+        provider: chair.provider, model: chair.model, maxTokens: Math.max(shape.maxTokens || 0, 1200, maxTokens), ...(shape.effort ? { effort: shape.effort } : {}),
+        system: chairSystem,
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
-      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -277,7 +290,7 @@ function finish(c) {
   return c;
 }
 export function summaryOf(c) {
-  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
+  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, private: !!c.private, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
 }
 
 // ---- an agent's answer (Grok Bot or the browser helper) that came back after the council moved on ----

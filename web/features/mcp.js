@@ -3,6 +3,7 @@
 // server's tools, enable them for the current workspace, mark read-only, try one by hand.
 // Command: how many tools a run gets, on / off, and the approval prompts (Allow once / Deny) for tools that write.
 // Deliverable: which tools ran during the run. Secrets never reach this page: the server sends names only.
+import { plainExplain, plainLabel } from "../plain.js";
 const { S, api, toast, esc } = window.CC;
 
 const css = `
@@ -49,7 +50,7 @@ function renderApprovals() {
 async function renderCommand(el) {
   try { await load(); } catch { el.innerHTML = ""; return; }
   const d = data;
-  if (!d.servers.length) { el.innerHTML = `<div class="route" style="margin-top:8px"><span class="small muted">Tools: none yet. <a href="#" id="cc-mcp-go">Add an MCP server in Settings</a>${d.demoAvailable ? ` or <a href="#" id="cc-mcp-demo">try the demo tools</a>` : ""}.</span></div>`; }
+  if (!d.servers.length) { el.innerHTML = `<div class="route" style="margin-top:8px"><span class="small muted">Tools: none yet. <a href="#" id="cc-mcp-go">Add an ${esc(plainLabel("mcp"))} server in Settings</a>${d.demoAvailable ? ` or <a href="#" id="cc-mcp-demo">try the demo tools</a>` : ""}.</span><div class="hint">${esc(plainExplain("mcp"))}</div></div>`; }
   else el.innerHTML = `<div class="route" style="margin-top:8px"><div class="row small" style="gap:10px;flex-wrap:wrap"><span class="muted">Tools:</span>
       <label class="row small" style="gap:5px;cursor:pointer"><input type="checkbox" id="cc-mcp-on" ${d.settings.on ? "checked" : ""}> let AIs use them</label>
       <span class="chip ${d.enabledCount && d.settings.on ? "green" : ""}">${d.enabledCount} enabled in ${esc(d.workspace.name)}</span>
@@ -78,7 +79,7 @@ function serverCard(s, d) {
     <div class="hd"><span class="dot ${dot}"></span><b>${esc(s.name)}</b><span class="chip">${esc(TRANSPORT_LABEL[s.transport] || s.transport)}</span>${s.demo ? `<span class="chip">demo</span>` : ""}
       <span class="mono dim small" style="overflow:hidden;text-overflow:ellipsis;max-width:320px;white-space:nowrap" title="${esc(remote ? s.url : `${s.command} ${s.args.join(" ")}`)}">${esc(remote ? s.url : `${s.command} ${s.args.join(" ")}`)}</span>
       <span style="margin-left:auto" class="row small" style="gap:6px">
-        ${remote && (oauth || s.lastError?.includes("Not authorized")) ? (oauth?.signedIn ? `<span class="chip green">signed in</span><button class="ghost small" data-signout="${esc(s.id)}">sign out</button>` : `<button class="btn sm" data-signin="${esc(s.id)}">Sign in (OAuth)</button>`) : ""}
+        ${remote && (oauth || s.lastError?.includes("Not authorized")) ? (oauth?.signedIn ? `<span class="chip green">signed in</span><button class="ghost small" data-signout="${esc(s.id)}">sign out</button>` : `<button class="btn sm" data-signin="${esc(s.id)}" title="${esc(plainExplain("oauth"))}">Sign in (${esc(plainLabel("oauth"))})</button>`) : ""}
         <button class="ghost small" data-refresh="${esc(s.id)}">refresh</button><button class="ghost small" data-edit="${esc(s.id)}">edit</button><button class="ghost small" style="color:var(--red)" data-remove="${esc(s.id)}">remove</button></span></div>
     ${s.lastError ? `<div class="small" style="color:var(--red);margin-top:4px">${esc(s.lastError)}</div>` : s.serverInfo ? `<div class="dim small" style="margin-top:4px">${esc(s.serverInfo.name || "")} ${esc(s.serverInfo.version || "")}${s.headerNames.length ? ` · headers: ${esc(s.headerNames.join(", "))} (values in the vault)` : ""}${s.envNames.length ? ` · env: ${esc(s.envNames.join(", "))} (values in the vault)` : ""}</div>` : ""}
     <div class="row small" style="gap:12px;margin-top:6px;flex-wrap:wrap">
@@ -99,7 +100,7 @@ function serverCard(s, d) {
 }
 function formHtml(f = {}) {
   const t = f.transport || "http";
-  return `<div class="route" style="margin-top:10px" id="cc-mcp-form"><div class="cat-h">${f.id ? `Edit ${esc(f.name)}` : "Add an MCP server"}</div>
+  return `<div class="route" style="margin-top:10px" id="cc-mcp-form"><div class="cat-h">${f.id ? `Edit ${esc(f.name)}` : `Add an ${esc(plainLabel("mcp"))} server`}</div><div class="hint">${esc(plainExplain("mcp"))}</div>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
       <label class="small">Name<input type="text" id="mf-name" value="${esc(f.name || "")}" placeholder="GitHub, Notion, my files…" style="width:100%"></label>
       <label class="small">How to reach it<select id="mf-transport" style="width:100%">${Object.entries(TRANSPORT_LABEL).filter(([k]) => !(data?.hosted && k === "stdio")).map(([k, v]) => `<option value="${k}" ${t === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
@@ -111,7 +112,7 @@ function formHtml(f = {}) {
       <div id="mf-http" style="grid-column:1/3;display:${t === "stdio" ? "none" : "grid"};grid-template-columns:1fr;gap:8px">
         <label class="small">Server address<input type="text" id="mf-url" value="${esc(f.url || "")}" placeholder="https://mcp.example.com/mcp" style="width:100%;font-family:var(--mono)"></label>
         <label class="small">Headers (optional, one per line as Name: value; stored in the vault)<textarea id="mf-headers" rows="2" style="width:100%;font-family:var(--mono)" placeholder="${f.headerNames?.length ? `saved: ${esc(f.headerNames.join(", "))} (leave empty to keep)` : "Authorization: Bearer ..."}"></textarea></label>
-        <label class="small">OAuth client ID (optional; only if the service gave you one and does not register clients itself)<input type="text" id="mf-client" value="${esc(f.oauth?.clientId || "")}" style="width:100%;font-family:var(--mono)"></label>
+        <label class="small">${esc(plainLabel("oauth"))} client ID (optional; only if the service gave you one and does not register clients itself)<input type="text" id="mf-client" value="${esc(f.oauth?.clientId || "")}" aria-label="OAuth client ID" style="width:100%;font-family:var(--mono)"></label><div class="hint">${esc(plainExplain("oauth"))}</div>
       </div>
       <label class="row small" style="gap:6px;grid-column:1/3"><input type="checkbox" id="mf-auto" ${f.autoReadOnly ? "checked" : ""}> Run this server's read-only tools without asking (tools that write always ask)</label>
     </div>
@@ -122,8 +123,8 @@ function formHtml(f = {}) {
 async function renderSettings(el) {
   try { await load(); } catch (e) { el.innerHTML = `<div class="panel" id="cc-mcp-panel"><h3>Tools</h3><div class="dim small">${esc(e.message)}</div></div>`; return; }
   const d = data;
-  el.innerHTML = `<div class="panel" id="cc-mcp-panel"><h3>Tools (MCP servers) <span class="right">${d.enabledCount} enabled in ${esc(d.workspace.name)}${d.pending.length ? ` · ${d.pending.length} waiting for your OK` : ""}</span></h3>
-    <div class="small muted" style="margin-bottom:8px">Model Context Protocol servers give the AIs tools: files, GitHub, Notion, databases, your own scripts. Enable tools per workspace (switch workspaces in the header). Calls go through this app's local server, never from the browser. Tools that write, send or delete ask for your OK every time.</div>
+  el.innerHTML = `<div class="panel" id="cc-mcp-panel"><h3>Tools (${esc(plainLabel("mcp"))} servers) <span class="right">${d.enabledCount} enabled in ${esc(d.workspace.name)}${d.pending.length ? ` · ${d.pending.length} waiting for your OK` : ""}</span></h3>
+    <div class="hint" style="margin-bottom:8px">${esc(plainExplain("mcp"))} Enable tools per workspace (switch workspaces in the header). Calls go through this app's local server, never from the browser. Tools that write, send or delete ask for your OK every time.</div>
     <div class="row small" style="gap:12px;flex-wrap:wrap"><label class="row small" style="gap:5px;cursor:pointer"><input type="checkbox" id="mcp-on" ${d.settings.on ? "checked" : ""}> Let AIs use enabled tools</label>
       <label class="row small" style="gap:5px">Max tool rounds per answer <input type="number" id="mcp-rounds" min="1" max="20" value="${d.settings.maxRounds}" style="width:56px;padding:3px 5px"></label>
       <button class="btn sm" id="mcp-add" style="margin-left:auto">+ Add server</button>${d.demoAvailable && !d.servers.some((s) => s.demo) ? `<button class="btn sm" id="mcp-demo">Add demo tools</button>` : ""}</div>
@@ -173,7 +174,7 @@ async function renderSettings(el) {
     b.disabled = true; b.textContent = "Opening…";
     try { const r = await api("/tools/oauth/start", { method: "POST", body: { id: b.dataset.signin, origin: location.origin } }); localStorage.setItem("cc.mcp.oauth", b.dataset.signin); window.open(r.url, "_blank", "noopener"); toast(`Sign in at ${r.issuer}; this page finishes the link when you come back.`); }
     catch (e) { toast(e.message, true); }
-    b.disabled = false; b.textContent = "Sign in (OAuth)";
+    b.disabled = false; b.textContent = `Sign in (${plainLabel("oauth")})`;
   }));
   el.querySelectorAll("[data-signout]").forEach((b) => b.addEventListener("click", async () => { try { await api(`/tools/servers/${encodeURIComponent(b.dataset.signout)}/oauth`, { method: "DELETE" }); toast("Signed out; the token was removed from the vault"); re(); } catch (e) { toast(e.message, true); } }));
 }

@@ -1583,6 +1583,196 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
+## 2026-10-20: Antigravity CLI agent (0.4.9, first slice)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and this slice is part of 0.4.9). Phases 45 to 51 are still to build on top of this.
+
+- Google Antigravity is an external agent with via local-cli. `server/antigravity-cli.js` runs `agy -p` with `--output-format stream-json`, streams events into the job and the ledger, scrubs output with `stripSecrets()`, and maps sign-in and quota errors to plain sentences.
+- A timeout and Stop kill the process. `agy --version` is pinned. The binary is detected on PATH or in `%LOCALAPPDATA%\agy\bin`. The card says when install or sign-in is still needed. Install and connect runs Google's official installer only after a confirm click, and never puts a key on the command line.
+- The manual handoff target in `server/handoff.js` is unchanged. The router can pick Antigravity only after Allow and a successful sign-in check. Tests use `test/fixtures/fake-agy.mjs`.
+- Tests here (Linux): npm test, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke passed. Node 22. No real key. data/ was not read. Windows CI is the pull request check.
+
+ANTIGRAVITY CLI (built by Cursor cloud agent)
+
+## 2026-10-20: Meldmind MCP bridge and desktop control guides
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and 0.4.9 is the desktop release). Phases 45 to 51 are not marked done. UI Automation and the screenshot fallback are still to build.
+
+- The demo MCP server now lists agents, queues a job, and reads a stored result. It talks to this PC only, with a bridge token that stays in the data folder. Add to Antigravity writes `~/.gemini/config/mcp_config.json` after a confirm click and keeps other servers in that file. The token is not copied into the config and is not placed on a command line. A queued task does not send, buy, or delete.
+- The first setup screen has Let Meldmind use your desktop, with Allow Antigravity and Install and connect. After an update to 0.4.9, the first launch shows New: let Meldmind use your desktop. Not now reminds once. Never hides it. The card stays hidden on 0.4.6, 0.4.7, and the 0.4.8 hotfix.
+- User-facing guides: docs/help/desktop-apps.md, the tour stop Apps on your desktop, USER-GUIDE.md, What's new for 0.4.9, docs/product-brief.md, docs/marketing.md, and the market-research positioning note. The headline is: Meldmind can use the apps on your desktop, safely.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and a fake agy only. No real key. data/ was not read. Windows CI is the pull request check.
+- Checked in the browser on this machine: the setup panel, Allow Antigravity (toast, nothing installed), the Settings card, Add to Antigravity cancelled before a write, and Help, Apps on your desktop. Not verified: a packaged installer, a real agy binary, or the 0.4.9 card on an updated install (it stays hidden until that version).
+
+MELDMIND MCP AND DESKTOP GUIDES (built by Cursor cloud agent)
+
+## 2026-10-21: Desktop control is Pro
+
+Not a numbered phase. No locked decision was changed. Package was not bumped. Square and billing were not touched. data/ was not read.
+
+- Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
+- Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
+- Writing the Antigravity MCP config and queueing a bridge job use the same `desktop` gate. A confirm preview does not write the file.
+- Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.
+- Windows CI timed out waiting for the denied tool run even though that run had already finished. The MCP chat tests now wait on the run id from the chat response. A Windows clock can stamp the run a tick before the test's Date.now(), so a startedAt comparison never sees it.
+
+## 2026-10-21: app discovery and suggestions (0.4.9 slice)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not called. Package version stays 0.4.8, the hotfix. This slice is part of 0.4.9. 0.4.10 is the unsigned Mac build. Signing stays later. Phases 45 to 51 stay planned, not built.
+
+- Desktop control is off until the person opts in, in Setup or in Settings. The scan lists names only. On Windows that is the uninstall registry keys and Start menu shortcut names, plus command-line tools on PATH. Other computers get the PATH list. File contents are not read.
+- A curated catalog maps a name to task types, Free or Paid, a short reason, and an official https link. Update the app list fetches an https address only after a click. It refuses http, redirects, and any installer or purchase field.
+- The person allows each app. Allowed apps are scored with the same formula as a user-added tool and join the router's choices. Text jobs, pick(), and missions stay on text models.
+- While a mission or client job is planned, a dismissible card can suggest a program. It shows a short reason, Free or Paid, and the official link. Nothing is installed or bought. A setting turns suggestions off.
+- Setup, the tour, Help, What's new (0.4.9), the user guide, and the roadmap mention it. The help article is stamped 0.4.9. The catalog stays 0.4.8 so the current release gate still checks the hotfix notes.
+- Tests here (Linux): npm test is the mcp file (8 pass) then 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine: Setup lists FFmpeg with Allow, Free, and the official link, and says nothing is installed or bought. Typing a video job shows a dismissible card with the reason, Free, and the official link. Dismiss hides that program. Turning suggestions off hides the card. Expert Preview route shows Allowed programs: FFmpeg with a score. The same Programs on this PC panel is in Settings. No install control.
+
+## 2026-10-21: Program scan is Pro
+
+Not a numbered phase. No locked decision was changed. Package stays 0.4.8. Square and billing were not touched. data/ was not read.
+
+- Program scan is registered as `appScan` on the licence tier table, next to `desktop` (desktop control) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("appScan")` and `isProFeature("appScan")` read that table, so a later feature-gate map can use the same ids.
+- Turning the scan on, scanning again, allowing a program, turning suggestions on, and updating the capability list are refused on Free with 402. Turning the scan off still works. Suggestions and router rows stay empty on Free. The Settings and Setup panels say Program scan is part of Pro.
+
+## 2026-10-21: Graduate notice
+
+Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bot's handoff is still the webhook. Decision 21 stays: an xAI key is Grok the model, and it does not put Grok Bot on a direct route. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The graduate notice is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch.
+
+- When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" Add it includes that AI. Not now dismisses the ask. The banner sits at the top of the chat box in Simple and of Marching orders in Expert, so it stays with the box rather than the answers.
+- Grok Bot counts as handoff while it is on the webhook or the built-in mock. A direct route is its own API flag (or a vault id grokbot-direct) or an MCP server whose name is Grok Bot. Approve turns the existing councils and missions switch on. Dispatch stays the webhook.
+- Suno and Google Flow are handoff until they have a key, a linked MCP server, or a recorded api or mcp route. Claude, ChatGPT, Grok, and Gemini cannot be recorded as a graduate route.
+- The first look at a handoff-only setup is a baseline and does not ask. A later gain asks. Already both on the first look asks. Direct-only, with no handoff behind it, does not ask. Approved and dismissed stay quiet.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). The MCP file is 8 pass. The other files are 420 tests, 419 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. The saved webhook was http://127.0.0.1:9/hook and was not called. data/ was not read.
+- Checked in a browser on this machine: Simple at 1400 and 700, and Expert, show the ask inside the orders panel and not in the answers. Add it turns Grok Bot's councils and missions switch on and the handoff stays a webhook. Not now clears the ask and leaves that switch off.
+
+GRADUATE NOTICE (built by Cursor cloud agent)
+
+## 2026-10-21: Welcome email
+
+Not a numbered phase. Decision 22's text is unchanged and still says it is not built in the run order. Decision 23 is unchanged. Square and billing were not edited. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The welcome email is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch. No real key.
+
+- A branded welcome letter is emails/welcome.html and emails/welcome.txt. Placeholders are {{FIRST_NAME}} and {{INSTALL_URL}}. It names the person, says the account is ready, that chats and settings back up automatically on Everborn's Supabase, that each person sees only their own data (row level security), and how to add AI keys or connect via MCP from Settings. Nothing in the product is sent until they click. The download link is one page for Windows and Mac. No income or results claims.
+- It queues on a website download signup, an in-app account, and after a licence activates. A Pro licence is recorded as a Pro purchase. The same address is not mailed again on a later recheck. A mail failure does not fail the licence check.
+- The provider is pluggable and defaults to none, so nothing is sent until Chris sets one. POST /api/welcome/config does not accept a key. The key is vault id welcome-mail. The Resend adapter uses that key and does not log it. The Supabase service key is not read by this module. Every test server has CC_INSTANCE starting with test-, and that process never sends.
+- Docs: docs/welcome-email.md. The plan's "do not start" line is still there.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped (Pyodide is not installed). The MCP file is 8 pass. The other files are 421 tests, 420 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: a rendered letter for Ada shows the account copy, the Supabase sentence, and the Windows and Mac link. There is no in-app screen for this. Nothing was sent.
+
+WELCOME EMAIL (built by Cursor cloud agent)
+## 2026-10-20: Everyday actions, inbox summary and reminders (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 (calendar agenda and create or move) stays with Phases 53 and 54. Phases 35 and 55 were not touched. No locked decision text was rewritten. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version was not bumped.
+
+- Inbox and tasks: a summary across connected Google mailboxes, sample mailboxes when you click Try this example, and a reply draft that uses How to talk to me and My voice. Send is a separate click and posts the To, subject, and body on screen. Without send access the draft stays. Reminders and to-dos are plain text on this computer. More than 10 lines asks for a count and a sample first.
+- Each of those has a try saying line on the welcome tour, a How to section on the page, and a Help article.
+- The run-order checks now follow the order already merged on main. docs/DECISIONS.md was not edited.
+- Tests: `test/everyday-inbox.test.js`. npm test 402 tests, 401 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY INBOX AND REMINDERS (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, day plan (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. This page does not connect Google Calendar and does not write events there. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped.
+
+- Morning briefing: one free weekday routine prepares agenda, inbox note, tasks, a weather line, and a news line. Weather and news are not fetched. A second routine is Pro. Nothing is sent.
+- Email to a task or a calendar hold: preview first, then Save writes both on this computer. A password or an SSN is refused. More than 10 emails shows a count and a sample first.
+- Find a time: open weekday slots, skipping local busy blocks and local holds, drafted as an email. Send is a separate click with the exact text.
+- Each has a try saying line, a How to section, and a Help article.
+- The help catalog matches package 0.4.6, which was already on main. The version note lists these three actions.
+- Tests: `test/everyday-plan.test.js`. After merging main: npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DAY PLAN (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, What's new and suggestions (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- What's new is a card of new connections and actions. Try it is a sample and does not send. Skip never returns. Remind me later waits 3 days, then 7 days, then the item moves to Settings and stops asking. Skip all clears the card.
+- Google Calendar on that card does not start sign-in. The checklist row still does.
+- Suggest a connection or idea sits in Settings, on the card, and on the connections page when nothing is connected. The page shows the exact note. Send is a separate click. A loopback stub can take it. Otherwise it stays on this computer. The confirmation is: Thanks, Chris reads these.
+- Each has a try saying line, a How to section, and a Help article. The version note for 0.4.6 was missing, so those two behaviors are listed there too. The updater prompt was not changed.
+- Tests: `test/everyday-news.test.js`. npm test 417 tests, 416 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (409 tests, 408 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY WHATS NEW (built by Cursor cloud agent)
+
+## 2026-10-20: Idea box uploads, voice, and status (Cursor cloud agent)
+
+Not Phase 56 done. This sits on the suggestion box. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. A new help article is stamped 0.4.9 so it is ready for that release note. No locked decision text was rewritten. data/ was not read. Square was not called.
+
+- Upload takes an image, a screenshot, a PDF, a text file, or a Word document with an idea. Up to 4 files, about 4 MB each. The bytes stay on this computer. The note that can be sent lists the file name only. A download is an attachment.
+- Voice records, then transcribes with local Whisper when that program is installed, otherwise with a connected OpenAI, Groq, ElevenLabs, or Gemini key. The words land in the box. The person edits them. Nothing is sent until Send.
+- After Send, an idea can be edited, deleted, moved higher or lower, commented on, and given a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again.
+- Marching orders, and the Simple chat box, have the same Upload and Voice buttons. Tap to talk is still there. The new Voice button does not auto-send.
+- Help, the tour, the user guide, and the 0.4.9 What's new bullets describe it.
+- Tests: `test/everyday-news.test.js` with a fake whisper. npm test 419 tests, 418 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (411 tests, 410 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders and the Simple chat box show Upload and Voice. Settings sends an idea after the exact note, then Save on status planned says the edit was not sent.
+
+IDEA BOX UPGRADES (built by Cursor cloud agent)
+
+## 2026-10-21: Uploads can start a media job (Cursor cloud agent)
+
+Not Phase 56 done. This extends the idea box and Marching orders uploads. It reuses image generation and the project media folder. It does not replace the gallery or the Media tab. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. No locked decision text was rewritten. data/ was not read. Square was not called. Nothing is posted.
+
+- A picture (up to 8 MB) or a video (up to 12 MB) can be attached on the idea box and on Marching orders. Documents stay at 4 MB. The page says so when a file is too big. A picture over 3.5 MB can stay attached, and retouch says it is too big.
+- Retouch, Variation, Describe, Trim, and Caption only fill the ask. Show the plan picks a connected AI for that kind (image edit, vision, or ffmpeg on this computer). Run is a second click and must repeat the price. Demo mode spends nothing. The result can be previewed, downloaded, or saved in a project.
+- The suggestion Send click is unchanged. It still posts names only. A media job does not send the idea.
+- Help, the user guide, the tour, the roadmap, and the 0.4.9 What's new note describe it.
+- Tests: `test/media-modify.test.js`. npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (414 tests, 413 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders upload, Retouch, Show the plan ("Demo, nothing spent"), then Run, preview, Download, and Save to project. Simple still shows Upload and Voice. Settings idea box says the Run click is separate from Send. No error toast.
+
+MEDIA JOBS FROM UPLOADS (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, docs, meetings, and lead drafts (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- Find and summarize reads a local doc, and Google Drive and Notion when those libraries are already connected. The summary keeps the first three sentences. Save a copy writes on this computer. Drive and Notion are not written.
+- Meeting prep reads notes and related docs on this computer. A transcript summary lists action items. Adding those to-dos is a click. This build does not record calls.
+- A new lead follow-up is Pro. It drafts an email and a text on this computer. HighLevel is not called. Send is one click for one channel and lands in a local outbox, or a loopback stub. Twilio is not contacted and no price is looked up.
+- Each has a try saying line, a How to section, and a Help article. The Work menu label is Docs and follow-up.
+- Tests: `test/everyday-work.test.js`. npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. After the menu label, `test/nav.test.js` passed (5). Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DOCS MEETINGS LEADS (built by Cursor cloud agent)
+
+## 2026-10-20 22:45 UTC: Phases 53 and 54 (Cursor cloud agent)
+
+Phases 35 and 55 are still planned. The docs/new-phases plan runs 53 after 55. This work was requested directly, so 53 and 54 were built now. No locked decision was changed. Decision 15 stays: Grok Bot's calendar tags, webhook, and routing are unchanged. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version stays 0.4.5. data/ was not read. No key was printed.
+
+- Phase 53 commit f8ffec2: Google Calendar OAuth (`calendar.events`). The setup checklist connects Calendar and keeps Gmail or Drive access already granted. List, create, and update run on the primary calendar. Nothing is deleted. Free still allows 1 connected service. Pro allows all. A second fresh service on Free is refused before the token is saved. The Calendar row is a Google sign-in, not a Grok Bot handoff. Grok Bot's own row stays Handoff.
+- Phase 54 commit e46ad2b: a sentence such as "email this client and put it on my calendar" is drafted by a cheap fast model into an email plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. The model never receives a token. A second click does not send again. The cost is shown, usually a fraction of a cent. The guided tour has a Try saying... stop. Help has Plain requests and Google Calendar.
+- Tests: `test/calendar.test.js`, `test/actions.test.js`. npm test 411 tests, 410 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only (127.0.0.1). No real Google host and no real model.
+- Checked in the browser on the local app: Settings, Google Calendar, says it is not connected and does not list or create events. Browser helper has a Google Calendar checkbox. Chat, Try saying..., drafts the example in demo mode, shows a cost that is a fraction of a cent, and Approve refuses with "Nothing was sent" until Gmail sending is connected. The tour stop Try saying... is present. Help lists both articles. The connected send path was checked against a local Google mock in `test/actions.test.js`, not against a real account.
+- Not verified here: a real Google account, a real model provider, the packaged Electron app, and the Windows pull request check.
+
+PHASE 53 DONE
+PHASE 54 DONE
+
+## 2026-10-21: Everyday actions and idea box on the 0.4.8 hotfix
+
+Not a new phase. This brings the open everyday and idea-box work onto current main. package.json stays 0.4.8. The help catalog stays 0.4.8. The 0.4.8 What's new note stays the hotfix (top bar width, Nova, Atlas, and Sage). The everyday, idea box, and calendar notes are listed under 0.4.9. Phases 35 and 55 were not reworked. Decision 22 and 23 stay "Not built yet". Phase 14 stays BLOCKED. Square and billing were not touched. data/ was not read.
+
+- Merged: inbox and reminders, the day plan, What's new and suggestions, the idea box (upload, voice, status, media jobs), docs and meetings and lead drafts, Google Calendar, and plain-request actions.
+- The run order line is unchanged, including "Do last: 14,". Welcome email and Use your own Supabase stay out of that line.
+- The licence table registers `missions`, `desktop` (desktop control, including Antigravity), and `appScan` (program scan) as Pro. Free is false. Pro, Studio, and Owner are true. `guard` and `isProFeature` read that table. The scan and the Antigravity bridge enforce it on their own branches.
+
+## 2026-10-21: installed 0.4.7 never offered 0.4.8
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Brought onto this branch from the updater fix (pull request 73). That fix is on the hide-demos branch, not on main yet, so it was cherry-picked here. main stays the base.
+
+- The public feed was already right. v0.4.8 is the latest release, not a draft, and latest.yml says version 0.4.8 and path Meldmind-Setup-0.4.8.exe. productName is Meldmind. The install folder Command AI\Meldmind is the old shortcut location. It is not what the version compare uses. app.setName stays Everborn Command so the data folder does not move. The feed is the public repo, channel latest, private false, no token.
+- A failed check was only written to the log. The launch window opens only when a newer version is found, and the launch promise drops the error. Opening the app from the shortcut while it is still in the tray does not check again. On a wide window, Check for updates was under Settings, not Help.
+- The check still runs on launch and every hour. It also runs when the shortcut focuses the open app. If electron-updater does not report a newer build, the app reads the public latest.yml itself. A newer file shows Update ready, restart. Nothing downloads until that click. If the file cannot be read, the app shows Couldn't check for updates with Download, which opens the releases page. Help, the Help page, and Settings all have Check for updates.
+- The Update ready, restart button sits in the right side of the top bar. The menu row watches that cluster, so the button does not cover Settings or Help. Eight menus stay when they still fit. Otherwise the row goes back to the compact menus, still on one line.
+- Tests here (Linux): npm test 428 tests, 426 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.
+
+## 2026-10-21: saving a project from the command bar stays put
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). package.json stays 0.4.8. The help catalog stays 0.4.8. The note is under 0.4.9. Square and billing were not touched. data/ was not read.
+
+- Create and rename on the command bar save in place. The page stays on the command view. A toast says Saved. Open is a link on that toast and is the only way to the project. The Projects page does not open by itself.
+- Test: `test/project-picker.test.js`. npm test 441 tests, 440 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Checked in the browser: Chat, new project Spring Sale, toast Saved with Open, still on Chat. Rename to Spring, toast Saved, still on Chat. Open then shows the project.
+
 ## 2026-10-21: plan docs regrouped by version
 
 Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
@@ -1606,3 +1796,371 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: orders no longer wait on a guessed Pro prompt
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8.
+
+- Typing orders that match a Pro prompt used to attach that prompt and refuse Send until its required facts were filled. The toast was "I need a few facts before I can run <prompt>. I will not invent them." The order never left. Chris's order ("I have a Craving Finder chat open in Grok Bot. Take a look and see if there are better ways to do the app and new suggestions.") matches no stock phrase. The model was then allowed to guess a template and auto-apply it, which halted Send on that template's facts. A model guess is now only a suggestion. The review goes out as typed.
+- Send now goes out as typed. A match stays a suggestion. Use this asks for the missing facts under the orders box, and Send still goes out while those fields are empty. The prompt is included on a later send once the facts are saved. An explicit empty pack posted to the API is still refused, so a template is not run on invented facts.
+- The suggestion chip has a "Send without it" button. It drops the guessed or halted prompt and sends the typed orders on that click.
+- Tests here (Linux): npm test 430 tests, 428 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.
+
+## 2026-10-21: Simple first-run setup and the Free/Pro feature map
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8 so a parallel 0.4.9 release can own the bump. No What's new entry was added.
+
+- First-run setup starts with "Which mode do you want to start in?" Simple or Expert, one line each, changeable later. That replaces the separate mode popup. Simple then offers one key or Try it now (demo mode) and goes to chat. It does not scan browser history and it does not auto-open Get everything connected. The first time you enter Expert, the history scan stays off until you tick it, then a short skippable setup covers more AIs, councils and missions, integrations, and the business profile. Skip or finish does not bring that setup back. The integrations step opens Get everything connected only when you click it. After that checklist is opened, or after Finish later, the next launch does not auto-open it. Run setup again stays in Settings.
+- All business profile fields are optional, including the safety fields. A Pro prompt still stops when that prompt's own required inputs are missing.
+- Simple chat: the bottom AI strip stays hidden until Show AIs. Starter buttons fill the box and do not send. The placeholder is "Ask anything. Meldmind picks the best AI for you." One spend line (Free so far, or this month in cents or dollars). The $100 cap stays hidden. Failed and aborted runs do not count as savings. Extra reply boxes, the share link, and handoff stay hidden until there is an answer, then one Reply box. A mic button uses the existing voice control. The first switch from Simple to Expert asks you to confirm.
+- One popup at a time: What's new is skipped on a first install and still shows after an upgrade. The tour invite waits until an answer has finished. Take the tour again still starts immediately. The weekly report stays quiet on Monday until a job has run. Run now still writes it.
+- A fresh install does not ship a built-in Gemini key. With no key the Google card is grey and says a free allowance needs your own AI Studio key. A GEMINI_API_KEY in the environment can still mark it keyed. The smart fallback hop limit is unchanged.
+- Free vs Pro lives in server/feature-gate.js. Later features register an id and a tier, then call guard. The same rows are the table in Settings and in the upgrade prompt. Pro: desktop control and program scan, missions, councils past 5 a month, schedules and Do this again, industry packs, public share links, PDF and Word export, background runs, pause missions, shared learning, the scores dashboard, phone pairing, full history search, the subscriptions tracker. Free: Try it now, Simple mode, the learning router, safety checks, backup and restore, Double-check this, 1 connected service, 1 email account per provider, 3 projects, 5 councils a month. Rows marked not landed yet are registered and not given a new screen here. Public share links have landed, so creating one is Pro. Reading an existing link stays open. Creating, updating, resuming, or running a schedule is Pro. Pause and delete stay available so a schedule can be turned off. A free person who hits a Pro feature gets one dialog with the comparison and the line that upgrading means adding a licence key in Settings. Nothing is charged. Square is untouched. The 14-day trial still starts only from Settings, and the end date shows from day 1 of an active trial.
+- Tests here (Linux): npm test 430 tests, 428 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Browser (headless Chrome): a fresh install showed the mode step, Simple, Try it now, the chat placeholder, a starter that filled the box and did not send, Show AIs, Settings from the top bar (and from the phone Settings button at 390px), the unkeyed Google note, the Free vs Pro table, and the upgrade dialog on a mission. The settings page grid was already a little wider than 390px. That was not introduced by the chat layout. The chat page itself did not scroll sideways.
+
+## 2026-10-21: v0.4.9 workstream B (share, schedules, safety copy, help)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The pull request stamped 0.4.9. This integration leaves package.json at 0.4.8. Onboarding, Simple mode, and desktop control were left to the other workstreams.
+
+- A share link built from this PC (loopback or a private address, because the server binds 127.0.0.1) says "This link only works on this PC" and offers Copy the text or Export. A public origin still says "Share link copied".
+- Schedules use day buttons, a time, and presets (Weekdays at 5 pm, Fridays at 4 pm). A cron that is not a simple week pattern is kept until those controls are used. A slot missed while the app was closed shows "Last run missed (app was closed)" with Run now. That click catches up. Missed slots are not replayed on their own.
+- Never-say phrases, and credit-repair words such as guarantee when SCF mode is on, are confirmed before copy or send. The person can continue. The line under the box names SSNs and account numbers.
+- Help has Security and your data, and a one-page security summary PDF downloaded with the session token.
+- MCP, OAuth, webhook, sender key, Handoff, and SCF mode use plain words. Each Handoff row says the prompt is copied and the page opens, and that Meldmind does not type or send.
+- The user guide and the current README say Meldmind. The installer name in the guide is Meldmind-Setup. The data folder name Everborn Command and the repo folder command-center stay. New Google Drive uploads use a folder named Meldmind. Existing Drive folders are not renamed.
+- The later Contrarian hooks template (contrarian-view-hooks) is removed. The original 12-hook template stays. Hint text is 13px with stronger contrast. Real estate and mortgage modes are coming, under the credit repair safety setting. Marketplace stays capitalized.
+- Stop replaces the abort label. The API path is still abort. Send is disabled and reads Still working while a run is going. Search off shows Did not search the web. After 5 ratings, Meldmind says which AI it now prefers. A finished run can notify when the window is in the background. Help says you can type in any language. A failed run that cost $0 says Nothing was charged.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Chrome on 127.0.0.1: the mask line, a Single answer with Did not search the web, the local-only share note, Help (Security and your data, PDF download), schedule day buttons and the two presets, Marketplace, and the credit repair note. The Stop control is the mission button; a Single demo run does not show it.
+
+## 2026-10-21: fallback tests wait on the chat run id
+
+Not a numbered phase. No product behavior changed. Square and billing were not touched. data/ was not read.
+
+- Windows CI on the graduate notice and the everyday integration timed out on "openrouter retry" after that run had already finished. The same clock step that hid the MCP tool run: the server stamps startedAt a tick before the test's Date.now(), so startedAt > t0 never matches.
+- Chat waits in the fallback, learning, search, priority, growth, handoff, and MCP tests now use the run id from /chat. Council and mission still do not return an id, so those waits ignore runs that already existed before the post. The browser helper and Grok Bot tests do the same.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app behavior was changed.
+- Mac CI is a pull request check that runs the tests and the smoke check on macos-latest. It does not build the unsigned disk image and does not publish. Phase 14 stays blocked for a real Mac.
+- Mac CI refused to save Ctrl+Alt+Delete as a launcher shortcut only on Windows and Linux. That combination is now refused on a Mac too. The pairing test reads the in-app feed. A Windows runner can hold later console lines in a buffer, so the process log missed "Phone pairing on" after the run had already started.
+
+## 2026-10-21: PR 62 holds the 0.4.9 desktop scope
+
+Not a numbered phase by itself. Decision 22 and decision 23 text are unchanged. Phase 14 stays BLOCKED (needs a Mac). Package stays 0.4.8. The help catalog stays 0.4.8. Square and billing were not touched. data/ was not read.
+
+- This branch now includes the Antigravity CLI, the MCP bridge, the program scan (free or paid, official link, ask before use, suggestions can be turned off), the graduate notice, everyday actions and Calendar (pull requests 53, 56, 60, 61, and 63), the command-bar save, and the welcome email. Free AIs and upgrade tips were already on main.
+- Phases 45 to 51 have fixture drivers in server/desktop-doors.js. Allow registers a hub node. Revoke hides the app. A writing step stays on a text model. MCP calls use the existing approval gate. A local fixture page refuses a password and waits before submit. A signed-in profile is blocked while the browser is open. A fixture window refuses a password edit and a Delete until OK, and does nothing if another program is in front. Screenshot steps drop the previous picture, stop at the cap, and refuse Square and billing. No Edge window, no profile read, no UI Automation, and no picture is sent to a model.
+- Phase 70 on this branch is the command bar only. A chat, a doc, and a connected file do not yet save back onto the same item.
+- Phases 66, 67, and 68 stay out of this pull request.
+- Tests here (Linux): npm test is the MCP file (11 pass) then 477 tests, 476 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node on this machine. No real key. data/ was not read.
+
+## 2026-10-21: pull requests run the Windows test job only
+
+No product code. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. data/ was not read.
+
+- A pull request starts Windows CI only. That job runs `npm ci`, `npm test`, and `npm run smoke`. It does not package. A push to main still packages, and that installer is not published.
+- Mac CI runs on a `v*` tag or when someone starts the workflow. It does not run on a pull request or on a push to main.
+- Windows CI and Mac CI cancel the older run of the same ref when a new one starts. The Windows release workflow still retries `npm test` once, and it does not cancel a release that is already running.
+## 2026-10-21: 0.4.10 workstream C (unsigned Mac, private mode, backup, home)
+
+Rebased onto main after the plan docs regroup (7eda74e) and the Phase 96 plan note (21bf063). No locked decision was changed. Version stays 0.4.8. Square and billing were not touched. data/ was not read. Nothing was merged.
+
+- Unsigned Mac: the Windows release workflow job `mac-release` builds a dmg and zip with electron-builder, identity null, no Apple signing. A missing release is created as a draft. The job does not upload latest.yml and does not publish. `.github/workflows/mac-ci.yml` runs npm test and npm run smoke on macos-latest for every pull request and every push to main. Windows CI is unchanged and still runs on every pull request. Help, About, and the update window say the first open is a right-click, then Open, and that automatic updates for Mac are coming soon. Install now on an unsigned Mac opens the release page and does not download or quit.
+- Private mode is off until a click. A private run stays on this computer, is not used to teach the router, and is left out of sync. The one-file backup includes it and keeps it marked private. Keys are not in that file.
+- Before a council or mission Send, a dialog lists the AIs that will read the prompt. Nothing is sent until Send. Cancel does not mark the first council as seen. The first council explains, in plain words, that several AIs answer, score each other, and one writes the final answer.
+- Backup and restore is one file (projects, chats, settings). Restore refuses a file that says it includes keys or that contains a key-shaped string. The vault is not touched.
+- Do this again is Pro, gated in server/feature-gate.js. Free gets 402. A missing chat on a Pro or owner copy is 404.
+- Home (Welcome back) shows for a returning user instead of opening a finished last run. A run that is still going still opens. My chats lists chats. Opening one does not start a new job.
+- Delete project asks first and shows a receipt: links, chats that stay in My chats, project files, and a line that AI keys were not touched.
+- Double-check this is free. A second AI reviews the answer. The review is labeled as a check and does not replace the answer.
+- Tone buttons (Shorter, Warmer, More direct, Plain words) rewrite the current answer after a click. Plain credits say what the AIs used this month. Answers say which AI wrote them.
+- Mac fixes in this change: a running Mac browser is asked to quit instead of taskkill, folder open uses `open` on macOS, and the builder stays unsigned even if a cert is present.
+
+PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, Dock, and data folder were not started on macOS. Signing and notarization still need an Apple Developer account. Automatic updates for Mac are coming soon because an unsigned build cannot replace itself.
+
+- Not in this change: removing one reader before Send, listing tools and connected services in that dialog (Phase 74), saving the delete receipt as its own file (Phase 78), tone as a setting for the next answer only (Phase 80), remaining balance per AI (Phase 81), PDF and DOCX export (Phase 85), and industry packs (Phase 84).
+- Tests here (Linux), before this log line, on the same code: npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux clicked Home, private mode, My chats, Written by, tone, Double-check, the first-council dialog, Cancel, the delete receipt, backup, and plain credits. Windows CI and Mac CI were not run on this machine.
+- 0.4.9 feature work had not merged. This branch keeps its own feature gate for private mode, backup, double-check, and Do this again. If a later gate table lands, keep those rows and do not drop the other rows.
+
+WORKSTREAM C (unsigned Mac job is in the release workflow; on-Mac check still blocked)
+
+## 2026-10-21: 0.4.10 workstream C leftovers (readers, receipt file, tone, balance)
+
+Same branch and pull request #81. Version stays 0.4.8. No locked decision was changed. Square and billing were not touched. data/ was not read. Nothing was merged. PDF and DOCX export (Phase 85) and industry packs (Phase 84) stay with workstream D.
+
+- Phase 74: before Send, the dialog lists each AI, the tools that are on, and the connected services that will receive this prompt. Remove drops that AI. The last AI stays. Send passes those provider ids. The council does not refill the seat. A mission does not assign, retry, or review with that AI, and a fallback cannot hand them the prompt. Cancel still does not send.
+- Phase 78: after the confirm click, the receipt is saved as meldmind-receipt.txt. The ask still comes first. Nothing is deleted without the click. AI keys were not touched.
+- Phase 80: Shorter, Warmer, More direct, and Plain words set the tone of the next answer only. The same button again clears it. The click does not start a run. The next chat, council, or mission uses that instruction once, then the setting is cleared.
+- Phase 81: AI credits shows what is left for each connected AI from the health balance already collected. A missing balance is said in words. No number is invented. The spend line stays. Subscriptions and the receipt scanner were not rebuilt.
+
+PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, Dock, and data folder were not started on macOS. Signing and notarization still need an Apple Developer account.
+
+- Not in this change: PDF and DOCX export (Phase 85) and industry packs (Phase 84).
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux removed readers until one remained, checked the tools and services lines, saved the receipt file after confirm, set Shorter without starting a run, and read the remaining-balance line. Windows CI and Mac CI run on the pull request after this push.
+- CI fix: Mac refused `Ctrl+Alt+Delete` only on Windows and Linux, so the hotkey route test now uses `Command+Space` on macOS. Windows test requests use the doubled wait, because a stdio tool server can take longer than 20s to finish initialize.
+
+WORKSTREAM C LEFTOVERS (readers, receipt file, next-answer tone, remaining balance)
+## 2026-10-21: workstream D, public share, export, industry packs, reading
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Phase 14 stays BLOCKED: a signed Mac build still needs a Mac and an Apple Developer account. Mac CI on this pull request runs tests and smoke only. It does not sign, notarize, or publish. Nothing was deployed. Square and billing were not touched. data/ was not read. Nothing is posted or sent without a click.
+
+- Public share links are Pro. The free live share link is unchanged. The person saves an https address, then Public link (Pro) copies a page. The snapshot is frozen, so the link still opens after the run file is gone. Keys and costs stay hidden unless show costs is ticked. Nothing is posted.
+- PDF and Word export are Pro. Headings, bold, italic, lists, and code stay in the file. The download is base64 JSON. Keys are left out. Nothing is sent.
+- Industry packs are Pro: real estate, mortgage, credit repair, and creators. Credit repair is CROA-safe and does not promise a score change or a deletion. Real estate, mortgage, and creator answers that promise a result are marked. Outbound text stays a draft. They sit on the Industry packs shelf. Free does not auto-apply them.
+- Settings, Reading, has text size (small, default, large, extra large) and high contrast. Read aloud is on an answer and uses the window speech API only after a click.
+- A chat or council that names an imported ChatGPT or Claude conversation, in quotes or by a title of 12 characters or more, gets that transcript only. Other imports stay out. Keys in the excerpt are hidden.
+- What's new bullets for these five items were added to the existing 0.4.8 note. People who already dismissed 0.4.8 will not see the note again. Help article docs/help/share-export.md is stamped 0.4.8.
+- Commit edd8f8f.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). That is mcp.test.js 8 pass, then the other files 425 tests, 424 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs, and local mocks only. No real key. data/ was not read. Windows CI and Mac CI are the pull request checks.
+- Checked in the browser on this machine, owner copy, demo AIs: Extra large and High contrast apply (data-text xlarge, data-contrast high). Saving https://share.example.test and clicking Public link (Pro) shows that address and says nothing was posted. Download PDF toasts PDF downloaded. Read aloud switches to Stop reading. Industry packs shows Credit dispute draft with the CROA line and no lock. The chat box says to name an imported ChatGPT or Claude conversation in quotes.
+
+PHASE 14 BLOCKED: a signed Mac build needs a Mac and an Apple Developer account. Mac CI runs tests and smoke only.
+WORKSTREAM D DONE
+
+## 2026-10-21: Pro $18.99, Extreme $29.99, lifetime spots hidden until 40
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called and nothing was charged. Studio workspaces were not rebuilt.
+
+- Pro monthly is $18.99. Extreme is a third tier at $29.99 a month. Pro yearly is $189 (the unpublished $159 figure is retired). Extreme yearly is $299. Lifetime is Pro for life: $299 for the first 100, then $499, closed after 500. Prices live in server/price-config.js. Changing PRICE_SET from current to next is the later monthly raise (Pro $24.99, Extreme $39.99) and does not change yearly or lifetime.
+- The spots-left counter stays hidden until 40 founders have bought (FOUNDER_SPOTS_HIDDEN_UNTIL, default 40). Before that the line is "Limited to the first 100 founders". The price rule still shows.
+- People already on the live Square plan stay at $15.99. Plan id pro-monthly-1599. The pay link https://square.link/u/dbU38mQC is not edited and is not the new buy button. New checkouts have no pay link until Chris publishes them.
+- Extreme gates (no new screens): more AIs per council (8), more runs at once (8), hosted background runs and schedules, team spaces with 3 seats, unlimited desktop apps and recipes, all industry packs, a compliance audit log, a monthly budget cap, unlimited Deep Research. Pro Deep Research is 8 a month. Free is unchanged. The existing Settings monthly API budget stays the local cap and is not gated. Email accounts stay at 8 on Pro, Extreme, and owner.
+- The comparison table is three columns at desktop and at 390px. It does not use the stacking grid.
+- Chris creates these Square plan ids by hand: pro-monthly-1899, pro-yearly-189, extreme-monthly-2999, extreme-yearly-299, founder-lifetime. Leave pro-monthly-1599 alone. Run supabase/migrations/20261021_extreme_tier.sql before issuing an Extreme key. The app does not run it.
+- Mac CI is .github/workflows/mac-ci.yml. It runs npm test and npm run smoke. It does not package or publish. Windows CI is unchanged.
+- Tests here (Linux): npm test 435 tests, 434 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+- Checked in a browser on this machine: the Subscriptions lock and Settings show Free, Pro at $18.99, and Extreme at $29.99 in three columns, including a 390px wide window. With 12 founders sold the line is "Limited to the first 100 founders" and there is no spots-left number. Pro yearly shows a toast that nothing was charged. No Square page opened.
+
+## 2026-10-21: Founder lifetime $349, published pay links, Extreme extras
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called and nothing was charged. Studio workspaces were not rebuilt. Extreme yearly stays $299.
+
+- Lifetime for the first 100 founders is $349. The next 400 stay at $499. The deal still closes at 500. The spots-left counter still stays hidden until 40 sales.
+- Published pay pages, stored next to the grandfather link and not fetched by the app: Pro monthly https://square.link/u/UrcjlAqi, Pro yearly https://square.link/u/8JlyJzxb, Extreme monthly https://square.link/u/u5FdCONv, Extreme yearly https://square.link/u/LxwtyrCy. The founder link is a placeholder (`LIFETIME_PAY_LINK` is null) until it is reissued at $349. The old $15.99 link is still not a new-plan button.
+- Extreme also includes early access (flag `CC_EARLY_ACCESS`, off only when it is `0`), Max quality (best model each connected AI offers, more reasoning and a longer context, inside the existing spend caps), and team spaces with 5 seats. Team spaces stay a gate with no new screen. Max quality is in the command bar and in Settings. Free, Pro, and a trial get a 402 for that mode.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+- Checked in a browser on this machine: Subscriptions and Settings show $349, three columns at 390px, team seats 5, early access, and Max quality. Lifetime toasts that nothing was charged. Pro and Extreme yearly show a Square pay page on hover and were not opened. An owner copy can save Max quality. No Square page opened.
+
+## 2026-10-21: Founder lifetime pay page
+
+Not a numbered phase. No locked decision was changed. Square was not called. The $349 founder page is https://square.link/u/nKrsGaj2. The later $499 price does not use that page, so that button stays on the page. Extreme yearly stays $299. The old $15.99 link is unchanged.
+
+## 2026-10-21: Extreme team is 5 people total
+
+Not a numbered phase. No locked decision was changed. Square was not called. Studio workspaces were not rebuilt. The Extreme team cap stays 5. The count is the headcount before an invite, so 4 people (the owner plus 3 invited) can still invite one more, and 5 people total (the owner plus 4 invited) refuses the next person. The table, the Settings line, and the gate message say 5 people total, counting the owner.
+
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+
+## 2026-10-21: research in the chat (web, Pro search, deep research)
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Live search stays in the router. DuckDuckGo is the free engine when no key is saved and demo mode is off. SearXNG is used when an address is saved. A saved Tavily, Brave, Serper, Exa, or Perplexity key still wins on Auto, and demo mode still uses the pretend engine. Gemini can ground a search inside the Gemini call. The same engines work for any model the router picks.
+- A question that needs current information is searched on its own. A pinned model uses the local hint. A routed chat trusts the classifier. Search can still be turned off for one run.
+- Free includes 20 live searches a day. Pro search (a few queries, one numbered source list) is Pro. Deep research reads pages, writes a cited report, and a second AI from another vendor cross-checks it. It runs in the background, raises a done alert, and can be exported as PDF or Word. Pro and Studio get 30 a month. Extreme and Owner have no monthly limit. The gate is server/feature-gate.js. Extreme is a licence tier here, not a Square checkout.
+- News and academic filters sit next to the search toggles. A finished deep research run can continue as a mission, which is where the browser helper and desktop steps take over.
+- Mac tests run on every pull request (`.github/workflows/mac-ci.yml`: npm test and smoke, no package, no secrets). Windows CI is unchanged. Mac packaging stays on the parked tag workflow.
+- Tests mock every provider. No real key and no public web call. Waits are real timers.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. No real key. data/ was not read. The chat screen was not clicked in a browser.
+
+## 2026-10-21: Stop a deep research run
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Stop ends a deep research run that is still going. The server aborts the search, the page reads, and the writer. The row is marked aborted, the unfinished report cannot be exported, and the alert is a plain "Deep research stopped" line rather than a failure alarm. Chat shows a Stop button while the run is going. Expert live ops uses Stop on the same control that aborts a mission. A later run can still finish.
+- Search depth (Auto, Pro, Deep) and the source filters are on the Chat screen, with the sources panel under the answer.
+- A fast chat can finish before Send returns. The answer that already arrived stays on screen, so the sources panel is not wiped.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. The abort check holds the writer on a local mock and waits with a real timer. No real key. data/ was not read.
+- Headless Chrome on the Chat screen, against local mocks: turned on Single search, sent a price question, saw numbered citations and the sources panel, opened a source page, ran Pro search (three steps), started Deep research and clicked Stop while the writer was still going, then ran a second report and clicked Export PDF and Export Word. Both files came back (PDF header, Word zip). Screenshots are on the pull request.
+
+## 2026-10-21 04:32 UTC: background runs, what ratings taught, mission pause
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not touched. Version stays 0.4.8.
+
+- Background runs are Pro. A chat, council, or mission can leave this screen. When it finishes, an in-app alert offers Open and Dismiss. Nothing is emailed. A background run starts now, so it cannot also be scheduled off-peak. Free gets 402 and the run does not start. The live view stays quiet until you open the alert.
+- Settings shows what ratings taught. Thumbs up and thumbs down change who gets the next job of that kind. Reset clears the ratings log, skill up and down counts, and brain thumbs. Council wins, jobs, cost, and latency stay. This view is free.
+- Pause, edit, and resume are Pro. Pause stops the mission with status paused. Finished steps stay. Steps that were running or in review go back to queued. Edit is only while paused. Resume continues the same mission and skips planning when steps already exist. A paused mission can still be aborted.
+- Gates are in server/feature-gate.js. backgroundRuns and missionPause are Pro. learnedFromRatings is free. license.js guard() uses them, and the tier flags include them so the UI can read license.limits.
+- Mac CI is .github/workflows/mac-ci.yml. Every pull request and every push to main runs npm ci, npm test, npm run smoke, and an unsigned package (CC_PACK_UNPUBLISHED, signing discovery off, empty GH_TOKEN). It does not publish. The release workflow stays parked at docs/ci/mac-build.yml. Windows CI was already on every pull request.
+- The three features share server/index.js and web/app.js, so they are one commit rather than three broken intermediate trees: b96c677 Add background alerts, ratings learned view, and mission pause.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed at 04:31:42 UTC. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine (headless Chrome): Expert shows Run in background, Pause stays hidden while idle, and Settings shows What your ratings taught with a reset that asks first. A paused mission form edited a step that had not finished, resume kept the finished step, and the new instructions ran. A background chat raised Chat done with Open and Dismiss. Open brought that run back and cleared the banner.
+- Not verified here: Mac CI and Windows CI (this machine is Linux). Phase 14 release packaging stays parked. What's new shows once per version, so people who already dismissed 0.4.8 will not see the new bullets. docs/billing.md was not updated. Square was not touched.
+
+## 2026-10-21: Together (phases 42, 43, 44, 61)
+
+Version stayed 0.4.8. No Square change. The hub was not deployed. data/ was not read. Phase 8 workspaces were not rebuilt. No real key.
+
+- Phase 61: Team spaces on the Extreme seat cap. 5 seats total, counting the owner. An invite uses a seat. Shared projects and roles (owner, admin, member, viewer). Invite links are shown once and nothing is emailed. The cap calls `evaluateGate(..., "teamSeats", { seats })` when `server/feature-gate.js` is present (pull request 84). On this branch that file is not here yet, so the same numbers are used: Extreme, Studio, and Owner get 5, and Free and Pro get none.
+- Phase 44: AI group chat, up to 4 AIs, personas fun, technical, coach, and support. The support persona says it is not a licensed therapist and the page shows the 988 note. Each AI returns 2 or 3 short replies. Nothing is sent until Send.
+- Phase 43: Rooms by category. A build can be shared in so it can be watched, then copied as a recipe. Keys are stripped. Report and block stay on this PC. Nothing is sent. A recipe run still uses the existing mission gate, and only after a click. Local only.
+- Phase 42: One news list for finished jobs, spend warnings, model notes, and app updates. Phase 32 (watching providers for a new model) is not built. Nothing downloads from this list.
+- Not verified on a hosted hub, because the hub was not deployed. A second signed-in person was not joined from another machine. Windows and Mac were not run here.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The Together page was also clicked through in headless Chrome: Business, Together, create a space, the 988 note on the support persona, a room, and the news list.
+
+PHASE 42 DONE
+PHASE 43 DONE
+PHASE 44 DONE
+PHASE 61 DONE
+
+## 2026-10-21: Phase 97 Refocus, finish what you started
+
+Chris asked for 0.4.12 ahead of the unfinished 0.4.9 to 0.4.11 work. Those phases were not built. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched. The package version stays 0.4.8.
+
+- Refocus is in the Work menu. Type a topic and Meldmind lists related saved chats, imported chats, project files, saved outputs, and connected Drive files from oldest to newest. Each row has a source, a date, a finished, partial, or abandoned label, and a short summary.
+- The complete version plan lists what was kept, what was improved, and what is still missing. Find is read only. Rebuild it starts a mission only after that click, then the app opens Command.
+- Find, the timeline, and the status labels are Pro. The rebuild is Extreme, with no cap, through server/feature-gate.js. Free sees an upgrade note and does not search. Studio can find and cannot rebuild. Owner can do both. Extreme is accepted as a licence name only. No price and no Square link were added. Phase 91 still owns the public prices.
+- Who will read this is one shared list for council, mission, and Refocus. It names the AIs and services that would receive the words. Nothing is sent until the click. Private chats are left out.
+- A finished rebuild records which source kinds and which AI ids worked, not the chat text and not keys. The next Refocus ranks those higher in Kept and in the reader list. The timeline stays in date order.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Headless Chrome: Free shows the upgrade note, Pro Find lists the timeline and leaves Rebuild it off, Extreme Rebuild it starts a mission. Windows CI is the pull request check.
+
+PHASE 97 DONE
+
+## 2026-10-21 07:28 UTC: Connections and setup (phases 33, 34, and extensions of 38, 39, 41)
+
+Built by Cursor cloud agent. Version stays 0.4.8. No new What's new entry. Square and billing were not touched. Decision 23 (Use your own Supabase) was not built. Decision 15 stays as shipped: the Grok Bot webhook fields moved under Expert and still work there. No real key. data/ was not read. Nothing was deployed.
+
+- Phase 33: HighLevel contacts, invoices, and workflows are council tools. Reads run on the Run click. Writes and custom webhooks wait for Send. MCP by URL uses the existing Phase 16 client (no second client). Custom webhooks take a URL, an auth header, and input fields. Header values stay in the vault and are scrubbed from errors and logs. MCP by URL and custom webhooks are Pro through server/feature-gate.js. HighLevel uses the connection already saved and is not a second Pro gate. Phase 90 still owns Zapier and Make. Do not rebuild MCP by URL or custom webhooks there.
+- Phase 34: Simple settings do not show the licence server form or the Grok Bot webhook form. Expert still has both. The licence save route is unchanged. The setup fields say "Licence server connection" and the placeholder is https://your-project.example.
+- Phase 38 was already done. This adds a short step list on each existing checklist row, including Gmail, Drive, HighLevel, and CapCut. The checklist was not rebuilt.
+- Phase 39 was already done. The live map now has Start a project tutorials. Watch on the map plays an example and calls no AI. Start this project opens the existing walk. The walks were not rebuilt.
+- Phase 41 was already done. Pairing prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if the self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Free tier stays closed (402). Paired phones are not remembered by IP.
+- Commit: d8e2d44 Add your own apps, hide licence plumbing, and fix phone pairing.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3.
+- Browser check (headless Chrome, local stub server, owner tier): Simple settings show Your apps and the line that the licence fields stay in Expert, with no licence form and no webhook form. Expert settings show the licence form (summary "Licence server connection") and Your apps. The checklist shows step lists for Gmail, Drive, HighLevel, and CapCut. Watch on the map toasts "Example playing on the map. No AI was called." Start this project opens the website walk.
+- Not verified: a real phone, a real LAN, a firewall, or a Mac. Real HighLevel, a real MCP server, and the hosted licence project were not contacted (mocks and the test stub only).
+
+PHASE 33 DONE
+PHASE 34 DONE
+PHASE 38 DONE
+PHASE 39 DONE
+PHASE 41 DONE
+
+## 2026-10-21: Zapier and Make actions, and a Meldmind webhook
+
+Not a numbered phase. Phase 33 items 2 and 3 are in. Item 1 (HighLevel) stays planned. Phase 33 is not marked done. No locked decision was changed. Decision 26 keeps its spec and has a status line only. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Square and billing were not touched. Nothing was deployed. data/ was not read.
+
+- Zapier: paste the MCP address (usually https://mcp.zapier.com/api/v1/connect). A token in the address is stored in the vault and removed from the address. Meldmind lists the actions turned on in Zapier. A chat or a mission can call them. Anything that sends, posts, or charges waits for Allow, even if the server marks it read only. Zapier's write action always asks. A read can run once read-only tools are allowed.
+- Make: the same, through https://mcp.make.com, a token address (the /mcp/u/ token is stored and the call uses /mcp/stateless), or a scenario webhook. A scenario runs only after Allow, unless it is marked read only and the name is not a send, post, or charge. A Make API key is sent as x-make-apikey.
+- Any MCP server by URL reuses the Phase 16 client. It was not rebuilt. A custom webhook tool is a URL, GET or POST, an optional header in the vault, and a JSON input schema. The router and missions can call it. Try in settings is the Allow for that one call.
+- Inbound: POST /api/hooks/meldmind starts a chat, a council, or a mission and returns the result. The token is shown once and stored only as SHA-256. The route does not use the session token or the host pin, so a tunnel can reach it. Meldmind does not open a tunnel. If the run is still going after about 45 seconds (60 at most), the reply is 202 and a poll address. The template is docs/integrations/meldmind-webhook.json. The setup guide is docs/help/zapier-make.md.
+- Simple has a Connect Zapier card on the chat page, under the composer so the 16rem chat box does not hide it. Expert Settings has the plain-word setup for Zapier, Make, any MCP server, webhook tools, and the Meldmind webhook.
+- The gate is server/feature-gate.js. Free includes 1 app connection. Pro includes 5. Extreme and Owner are unlimited. The Studio licence tier already in the product gets the Pro limit. Extreme is read from an active licence row. It is not a sold tier and it does not unlock the rest of the product. Local commands and demo tools are not counted. An unlinked remote MCP server is counted, so Settings > Tools cannot bypass the gate. If saving the secret fails, that new remote server is removed so it does not use up the slot.
+- Pull requests run Windows tests only. Mac runs from docs/ci/mac-build.yml on a v* tag or a manual start. The Mac CI workflow that would have run on every pull request and every push to main was removed.
+- Tests here (Linux): npm test 434 tests, 433 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Mocks only. No real Zapier, Make, model, or key. data/ was not read.
+- Checked in a browser on this machine, against a local mock MCP server: Simple shows the Connect Zapier card, Connect lists lookup (read) and send_mail (asks first), and the pasted token is not shown. Expert Settings shows Zapier, Make, any MCP server, webhook tools, and Create the Meldmind webhook. The token is shown once. Real Zapier and Make were not contacted.
+## 2026-10-21: Phase 52 hosted web app and Extreme cloud runs
+
+Code and deploy config only. Nothing was deployed. No cloud account or machine was created. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key.
+
+- Hosted web app: the same UI is served with CC_MODE=hosted. Sign-in is the existing Supabase magic link. The browser gets the publishable key only. The service key stays on the server. Desktop-only pages (setup, libraries, bookmarks, the quick launcher, files on this computer, the installer, the browser extension, and the in-app browser) are hidden on the web. A watched folder stays on the desktop app.
+- Extreme, run while this PC is off: after the person turns cloud runs on, a schedule or a mission can be handed to a Node worker. The only gate is server/feature-gate.js (Extreme, and owner). The worker has a job queue, per-user isolation, and a budget cap. Keys are sealed on the PC and opened only in the worker. Results sync back when the PC is on again. The header says "Running in the cloud" until they do. Prices stay with Phase 91.
+- Deploy files: Dockerfile, fly.toml, render.yaml. The README has the Fly.io and Render guide, env var names only, and the cost estimate (about $2 a month on Fly if the machine stays on, or about $7 a month on Render).
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local mock worker covered the handoff. Chrome clicked Turn on cloud runs, Hand to the cloud, and Bring results back on an owner desktop, and opened the hosted sign-in gate. The service key was not in the page.
+- Not verified: a paid Fly or Render machine, a real Supabase magic link on a public address, and a job that calls a live model. Those wait for Chris.
+
+PHASE 52 DONE
+## 2026-10-21: Smarter control (phases 40, 45 to 51, 57, 59, 60)
+
+No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key was used or printed. Pull request 62 (desktop doors) was not edited. Phases 58, 61, and 62 were not built.
+
+- Phase 40. Thumbs and a Default priority change can nudge quality, cost, or speed. The change is shown in Settings and Undo puts the last one back, including the priority dropdown. Prompts and keys are not stored. Three thumbs of one lean are required before a nudge. Zero weights leave rank() in its old order.
+- Phases 45 to 51. Fixture drivers only. An allowed app gets a card, a starting score from added-caps.js, and a Who's best row through the brain. MCP uses the existing approval gate and does not open a second client. A website run uses the helper action list, a profile the person chooses (owned, Edge, or Chrome), a 12-step cap, and a $0.25 page cap. It refuses password fields and refuses a signed-in profile while that browser is open. A Windows run stays on one exe, stops if focus leaves, and refuses password edits. Screenshot control is off until it is turned on, downscales the long edge to 1280, drops older pictures, shows an estimate before any click, and stops at $1. Square and billing screens are refused. A banner says Meldmind is using that app, and Stop halts the next step. Real Edge, Playwright, UI Automation, and computer-use calls are not wired.
+- Phase 57. A recipe stores the app, the Allow, and the steps that ran, and can repeat on a cron schedule. A scheduled send, buy, or delete waits. A layout change stops for the person. Pro includes 5 recipes. Extreme is unlimited. This does not replace pipelines or the existing schedules.
+- Phase 59. A monthly budget cap is included for Extreme and for a developer owner. Anyone else can turn it on. At 80% the note is amber. At 100% a new paid run waits. Free, demo, and local runs still go through. The You saved figure stays an estimate. Per-AI caps and the ledger stay. Square was not changed.
+- Phase 60. A send or a buy asks first. When a phone is paired, the phone can give that yes, and the payload is the action and the amount only. Declining sends nothing. Pairing stays off until it is turned on. With no phone, the yes stays on this PC, and publish and image routes behave as they did.
+- Tiers go through server/feature-gate.js. Free is blocked from desktop apps and recipes. Pro is 3 apps and 5 recipes. Extreme is unlimited. The live licence table was not edited, so Extreme is read from a stored active licence row.
+- Settings shows Routing, Apps, Recipes, Monthly budget, and Phone approvals. Help article docs/help/smarter-control.md is stamped 0.4.8. The plan notes these phases. The version was not bumped.
+- Commit: 93a7b9d.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome: Settings shows the routing sentence, an Invoices app can be allowed and revoked, the monthly cap saves, and the phone panel says pairing is off. Desktop and a 390px wide view. A real phone, a real browser profile, and Windows UI Automation were not used.
+- Not in this change: the mission planner does not assign an app step by itself (POST /api/control-apps/run and suggestApp are the door). Pull request 62 remains a separate desktop-doors stack.
+
+PHASE 40 DONE
+PHASE 45 DONE
+PHASE 46 DONE
+PHASE 47 DONE
+PHASE 48 DONE
+PHASE 49 DONE
+PHASE 50 DONE
+PHASE 51 DONE
+PHASE 57 DONE
+PHASE 59 DONE
+PHASE 60 DONE
+## 2026-10-21: Phase 96 (Remix any app), built
+
+- Remix is a Create page. The person describes an app or a game they can see: a web address, screenshots, a short screen recording, or an app on this computer. The address is not opened. Screenshot and recording files are not uploaded. Installed files are not read. A note on the page says Remix rebuilds from scratch.
+- The plan uses the person's own name, characters, art, and ideas. Free engines (Godot, Phaser), a blank template, and the Kenney art pack are named from a catalog on this computer. Each item is license-checked. Missing, non-free, and mixed licenses are dropped. Required credits are written to CREDITS.md in the new project. Official mod tools are listed for Minecraft, Roblox, Godot, and Unity.
+- Preview names the AIs and services before anything runs. Rebuild from scratch is the click that saves the project. A closeness warning blocks that save until the person confirms. Ratings stay on this computer and feed the next remix and the existing learning router. Anonymous totals are not sent.
+- Gate: `server/feature-gate.js`. Free is blocked. Pro and Studio are capped at 8 Remix missions per UTC month (a placeholder, not a price). Extreme and Owner have no monthly cap. `server/license.js` recognizes the Extreme tier name so that gate can read it. Square, prices, and billing are unchanged. Version stays 0.4.8.
+- Not in this build: nothing is downloaded from the internet. Godot, Phaser, and art packs are named and credited, not fetched. Turning the person's art into sprites, models, or voices still waits for a Media approve click. Remix does not call those providers.
+- Tests: `test/remix.test.js` covers the license check, credits, the no-copy guard, and the gates. npm test: mcp 8/8, then 426 tests, 425 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. The Remix page was clicked through in demo mode (preview, rebuild, rating, and a phone-width layout). No real key. data/ was not read.
+
+PHASE 96 DONE
+
+## 2026-10-21: Watch and talk (phases 32 and 92)
+
+Version stayed 0.4.8. No Square or billing change. No hub was deployed. No real key. data/ was not read. Pull request 86 (Together) is not merged. This work reads that shape when the files are present and does not copy those files.
+
+- Phase 32. Model watch checks each connected text provider's public model list with the key saved for that provider. The request is read only, does not follow a redirect, and runs at most once a day. The first look stores a baseline. Later checks post a plain note for a new model or a price change. A suggested switch can be accepted or undone. Accept hides the old model and adds the new one for routing. Undo puts the old model back. Notes stay in Settings, Model watch. If the Together news list is installed, the same note is also handed to it. Providers with no public model list (Kling, Perplexity) are not called. Env keys and managed keys are not used.
+- Phase 92. People chat is in the Business menu. Direct messages and small groups (up to 8, including you) are limited to people in one team space. A viewer cannot send. When the Together team-space list is empty, a Phase 8 workspace is used. Report and block stay on this computer unless the Together moderation file is present. A message is stored only when Send is clicked. Keys are stripped, and a message that is only a key is refused. Private-mode content is refused. Messages stay on this computer until CC_USERCHAT_HUB is set (https, or a loopback address in tests). That address is unset by default. It is not the licence hub.
+- Commits: 37003f2 (model watch), e8e0ffe (people chat), plus this log entry.
+- Tests here (Linux): npm test 431 tests, 429 pass, 0 fail, 2 skipped (Pyodide is not installed, Electron is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows and Mac were not run here.
+- Clicked through in the browser on this computer: a direct message, a report, block and unblock, a small group, Accept, Undo, and Check now. Check now said it was already checked today. The report line said nothing was sent. Both sends said the message was saved on this computer.
+
+PHASE 32 DONE
+PHASE 92 DONE
+
+## 2026-10-21: Real app drivers for phases 45 to 51
+
+No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key was used or printed. Pull request 62 was not edited. This sits on the fixture doors. The PHASE lines above stay as they were.
+
+- A website step opens Edge or Chromium through Playwright (playwright-core). The profile Meldmind owns lives under the data folder in app-profiles. A signed-in Edge or Chrome profile is used only when the person ticks that box and picks Edge or Chrome. If that browser is already open, the step stops and asks them to close it. Tests do not launch a browser. CC_APP_DRIVERS=fake and stand-in hooks refuse with driver_off.
+- A Windows step reads the focused window with UI Automation. Focus loss stops the next input. A password field is refused and the value is not logged.
+- Screenshot control calls the computer-use tool (Anthropic computer_toolset_20260801, or the OpenAI computer tool). The estimate is shown before a grab or a model call. Older pictures are dropped. The spend stops at $1. The key stays in the request header and is not written into the ledger, the log, or an error.
+- Passwords, Square, and billing screens are still refused. The banner still says Meldmind is using that app. Stop still halts the next step. Send, buy, and delete still wait for a yes.
+- The mission planner calls suggestApp when the task is not writing, an agent, or media. A matching allowed app runs through the live driver. Writing stays with a text model.
+- Tests here (Linux): npm test 439 tests, 438 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome on Linux: the signed-in box starts off, the browser picker follows the tick, an app can be allowed, the banner names the app, and Stop clears it. Desktop and a 390px wide view. A real Edge profile, Windows UI Automation, and a live computer-use call were not used.
+
+REAL APP DRIVERS WIRED (phases 45 to 51, on top of the fixture doors)
+
+## 2026-10-21: Per-person licences
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. Version stays 0.4.8. The migration was not applied to the live project. data/ was not read. No real key was used.
+
+- A licence is one person. `licenses.max_devices` defaults to 2 (a PC and a laptop). Rows still on the old default of 3 are set to 2 when Chris applies the migration. Any other number is left alone. An Extreme team seat is its own licence, so computers are not pooled across the team.
+- `verify_license` refuses a new computer past that cap and does not store it. Computers already on the key keep working until they are removed. The refusal is: "This key is already on 2 computers. Remove one in Settings > Devices."
+- Settings > Devices lists the computers on the key stored on this install. Remove asks for a confirm click. Removing this computer also drops the key here so the next check does not take the spot again.
+- `promo_codes.email`, when set, redeems only for that email. Empty still means any email, including EVERBORN-OWNER.
+- `scripts/make-tester-code.mjs` is owner-only (`CC_DEV_OWNER=1`, unpackaged, service role key). It stores one single-use code locked to the given email, then prints that code once. A publishable key is refused. The service key is not printed.
+- A licence used from 4 or more different computers, or 4 or more different IP addresses, in 24 hours is written to `license_reviews` for the owner. The person is not blocked. Customers cannot read that table.
+- Migration file only: `supabase/migrations/20261021_per_person_licences.sql`. Chris reviews it and runs it in the SQL editor. Steps are in docs/database.md under "Per-person licences (not applied)".
+- Tests here (Linux): npm test 436 tests, 435 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The Settings > Devices panel was opened in a browser against a local licence stub: the list showed HOME-PC and Laptop, cancel left Laptop in place, and accepting Remove took Laptop off and left HOME-PC. The live Supabase project was not contacted. Windows is the pull request check.
+
+PER-PERSON LICENCES DONE (migration not applied)
+
+## 2026-10-21: Stay light (performance)
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called.
+
+- Baseline on main is in docs/PERFORMANCE.md. Installer Meldmind-Setup-0.4.8.exe is 112,077,608 bytes. Linux unpacked install is 305,198,150 bytes. Electron cold start was 470 ms to health and 753 ms to the first window. Idle RAM across six Electron processes was 743,976 KB (about 727 MiB). The engine alone was 100,112 KB and 0% CPU, cold start 224 ms. Main-process idle CPU was 0% and the renderer about 8%. The gpu-process near 98% was Xvfb on this VM, not an ordinary PC.
+- Feature modules load when their page opens. web/perf/registry.js is the list open pull requests should extend. Shell modules still load with the window. Command still loads home, deliverable, and listen modules after settings arrive. Light mode skips those until their own page is open.
+- Schedules, model watch, detection, reports, renewals, history sync, credits, the server update check, the licence check, the UI refresh, and hosted idle eviction share one scheduler. They pause while the app is idle or on battery. Light mode waits longer. The desktop updater (hourly) and the 3 second watchdog stay in the Electron main process so an update can still install if the engine is down (decision 4).
+- OCR, Whisper, WhisperX, Piper, Godot and Bevy templates, Lighthouse, Playwright browsers, Postiz, Chatwoot, and DocuSeal are not in the installer. Settings, Performance lists each size. Install runs only after that click. Remove deletes the copy. Until then the cloud or connected AI route is used.
+- Settings, Performance has Light mode for an older PC. Help article: Stay fast on an older PC.
+- scripts/perf-budget.mjs fails if electron/main.cjs or server/index.js requires a heavy module, if package.json depends on one, if the installer grows more than 15% past 112,077,608 bytes (cap 128,889,249), or if CC_IDLE_RAM_BYTES is over 900 MiB. Windows CI runs it after packaging with CC_REQUIRE_INSTALLER=1. The unit test checks the recorded idle RAM and, on Linux, the running engine RSS against 300 MiB.
+- Tests here (Linux): npm test 423 tests, 422 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+STAY LIGHT (built by Cursor cloud agent)
+
+## 2026-10-21: Release candidate 0.4.9
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. The hub was not deployed. data/ was not read. No real key was printed.
+
+- Windows CI on 5971c0c failed in test/apps.test.js. The program scan on Windows only lists .exe, .cmd, .bat, and .com. The test created an extensionless ffmpeg file, so the opt-in list did not include it. The test now writes ffmpeg.exe on Windows and sets both PATH and Path to that folder.
+- package.json is 0.4.9. docs/help/catalog.json lastUpdatedVersion is 0.4.9. Notes that were written under 0.4.8 after that hotfix shipped (background runs, ratings, pause, public share, export, industry packs, Reading, imported chats, Extreme, Zapier and Make) are in the 0.4.9 What's new note, because the updater shows only the new version. The shipped 0.4.8 note stays the top bar and the demo AI hide.
+- Help articles stamped 0.4.9 for that note: desktop-apps, idea-box, security, using-meldmind, everyday-leads, smarter-control, share-export, license, zapier-make.
+- Tests here (Linux): npm test, mcp 11 pass, then 609 tests, 608 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. The live Supabase project was not contacted. Windows is the pull request check.
+- The tag v0.4.9 waits until Windows CI on this commit is green. Nothing is published before that.
+
+RELEASE CANDIDATE 0.4.9 (not tagged yet)

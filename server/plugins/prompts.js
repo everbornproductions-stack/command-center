@@ -8,6 +8,7 @@ import { renderTemplate } from "../prompts/render.js";
 import { annotateOutput } from "../prompts/safety.js";
 import { loadProfile, PROFILE_KIND } from "../prompts/apply.js";
 import { KLING_PRESENT, VOICE_PRESENT, SCHEDULES_PRESENT, createTeam, createLeveragePipelines, createBriefPipeline, installSchedules, scheduledPlan } from "../prompts/actions.js";
+import { featureOpen, requirePro } from "../feature-gate.js";
 import { noteTemplate } from "../brain.js";
 import { createPrompt, listPrompts } from "../custom-agents.js";
 import { cheapest } from "../router.js";
@@ -68,10 +69,12 @@ export async function routes(req, res, url, body, h) {
   const method = req.method;
 
   if (method === "GET" && (p === "" || p === "/")) {
+    const industryOpen = featureOpen("industryPacks").ok;
     return h.json(res, 200, {
       note: NOTE,
       categories: CATEGORIES,
-      templates: listTemplates().map((t) => ({ ...t, shelf: shelfFor(t) })),
+      industryOpen,
+      templates: listTemplates().map((t) => ({ ...t, shelf: shelfFor(t), locked: !!(t.industry && !industryOpen) })),
       shelves: SHELVES,
       custom: customRows(h),
       interview: INTERVIEW,
@@ -87,17 +90,26 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { profile: next, redacted: body?.redacted || [] });
   }
   if (method === "GET" && p === "/schedules") return h.json(res, 200, { items: scheduledPlan(), schedules: SCHEDULES_PRESENT });
-  if (method === "POST" && p === "/schedules") return h.json(res, 200, installSchedules(profileDoc(h)));
+  if (method === "POST" && p === "/schedules") {
+    try { h.guard("scheduler"); }
+    catch (e) { return h.json(res, e.status || 402, { error: e.message, code: e.code }); }
+    return h.json(res, 200, installSchedules(profileDoc(h)));
+  }
   if (method === "POST" && p === "/detect") {
     const text = String(body?.text || "").slice(0, 4000);
     if (!text.trim()) return h.json(res, 400, { error: "Type what you want first." });
-    const match = await detectIntent(text, TEMPLATES, { ask: body?.llm === false ? null : (system, user) => askModel(system, user) });
+    const visible = featureOpen("industryPacks").ok ? TEMPLATES : TEMPLATES.filter((t) => !t.industry);
+    const match = await detectIntent(text, visible, { ask: body?.llm === false ? null : (system, user) => askModel(system, user) });
     if (match?.id) logMatch(match.id, match.autoApply ? "suggested" : "suggested");
     return h.json(res, 200, { match });
   }
   if (method === "POST" && p === "/render") {
     const tpl = getTemplate(body?.id);
     if (!tpl) return h.json(res, 404, { error: "That Pro prompt does not exist." });
+    if (tpl.industry) {
+      try { requirePro("industryPacks"); }
+      catch (e) { return h.json(res, e.status || 402, { error: e.message, code: e.code }); }
+    }
     const extras = tpl.usesSubscriptions ? { subscriptions: subscriptionLines() } : null;
     let result;
     try { result = renderTemplate(tpl, body?.inputs || {}, profileDoc(h), { extras, unattended: !!body?.unattended }); }

@@ -2,7 +2,7 @@
 // saved choice stays on Expert, so an update does not hide the console they already use.
 // The choice itself is not "history": answering it must not skip first-run setup.
 
-export const CREATE_VIEWS = ["prompts", "images", "media", "publish"];
+export const CREATE_VIEWS = ["prompts", "images", "media", "publish", "remix"];
 
 export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", ...CREATE_VIEWS]);
 
@@ -10,16 +10,16 @@ export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup",
 // so a hotkey or a switch back to Expert still reaches them.
 export const EXPERT_COMMAND = new Set([
   "pipelines", "agents", "liveview", "mcp", "fallback", "grokbot", "browser",
-  "libraries", "search", "alerts", "growth", "receipt", "images",
+  "libraries", "alerts", "growth", "receipt", "images",
 ]);
 
 export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
 
 export const ASK = {
-  title: "Keep it simple or show me everything?",
-  body: "Simple is one chat box. You say what you want, and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. You can switch any time from the top bar. Nothing you already did is lost.",
-  simple: "Keep it simple",
-  expert: "Show me everything",
+  title: "Which mode do you want to start in?",
+  body: "You can change this later. Simple is one chat box. Expert shows every menu, including MCP (a plug-in connection) and webhooks (a web address that receives a message).",
+  simple: "Simple",
+  expert: "Expert",
 };
 
 export function normalizeMode(value) {

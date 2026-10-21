@@ -6,31 +6,44 @@ import { countsAsRealAi } from "../composer-ais.js";
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
-  { id: "mode", for: "both", target: "#mode-toggle", view: "command", title: "Simple or Expert", body: "Simple is one chat box. You say what you want and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. This switch is on every screen. One click changes it, and nothing you already did is lost." },
+  { id: "mode", for: "both", target: "#mode-toggle", view: "command", title: "Simple or Expert", body: "Simple is one chat box. You say what you want and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, Marketplace, MCP (a plug-in connection), webhooks (a web address that receives a message), and every menu. This switch is on every screen. One click changes it, and nothing you already did is lost." },
   { id: "ways", for: "both", view: "command", title: "Single, Council, Mission, Pipelines", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result. Pipelines: a pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
   { id: "simple-welcome", for: "simple", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. You are in Simple. Type what you want in the chat box. The council picks the AI. This tour uses pretend AIs, so nothing is spent." },
-  { id: "simple-nav", for: "simple", target: "#tabs", view: "command", title: "Chat, Projects, Create, and Settings", body: "Chat, Projects, Create, and Settings stay at the top, and Help sits with them. Chat is this box. Projects keeps one client or campaign together. Create holds prompts, images, media, and publishing. Settings is where a key goes. Everything else is one click away in Expert." },
+  { id: "simple-nav", for: "simple", target: "#tabs", view: "command", title: "Chat, Projects, Create, and Settings", body: "Chat, Projects, Create, and Settings stay at the top, and Help sits with them. Chat is this box. Projects keeps one client or campaign together. Create holds prompts, images, media, publishing, and Remix. Settings is where a key goes. Everything else is one click away in Expert." },
   { id: "help-tab", for: "both", target: "#help-search", view: "help", title: "Help", body: "Search the guides here. Ask Meldmind answers from these articles with a connected AI. If no AI is connected, you get the search only. Take the tour again, Check for updates, and Run setup again are on this page." },
-  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
+  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
   { id: "simple-answer", for: "simple", target: "#out-md", view: "command", title: "The answer", body: "The answer lands here. Copy it when you want. Switch to Expert any time to see the debate, the scores, and the live map." },
   { id: "simple-settings", for: "simple", target: "#settings-keys", view: "settings", title: "Add a key when you are ready", body: "Settings is where a real key goes. Until then, demo AIs can answer and nothing is spent. MCP, webhooks, and spend caps stay in Expert.", action: "keys" },
   { id: "welcome", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour uses three pretend AIs, so nothing is spent." },
   { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus. It uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
   { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
-  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
+  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
+  { id: "plain-request", for: "both", target: "#plain-request", view: "command", title: "Try saying...", body: "Try saying: email this client and put it on my calendar. A cheap fast AI drafts the email and the event. You see the cost, usually a fraction of a cent. Meldmind sends the email and adds the event only after you click Approve once. No outside AI touches your Gmail or Calendar." },
+  { id: "home-return", for: "both", view: "command", title: "Home when you come back", body: "After you have used Meldmind, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer, and it is free. Tone buttons set the next answer only and do not send by themselves. AI credits shows what is left for each AI. Each answer says which AI wrote it. The first time you run a council, Meldmind explains it in plain words and lists who will read the prompt. You can remove one reader. Tools and connected services are listed too. A delete receipt can be saved as its own file." },
   { id: "start-project", for: "both", target: "#sp-home", view: "command", title: "Start a project", body: "Start a project walks you from an idea to a finished deliverable. Pick Website, Music video, Marketing campaign, App/software, Business plan, or Social media reels. Watch an example first if you want a full sample. It works in Simple mode and in Expert mode. The same entry is in the Work menu, next to Projects, and on the Help page." },
   { id: "files", target: "#pf-drop", view: "command", title: "Files in this project", body: "Drop a PDF, Word doc, text file, or image here. Meldmind shows what it will read and the cost. Nothing is added until you confirm. Later answers in this project can cite those files. A mission that makes a video, image, or voice clip also shows the price first, and a paid step waits until you click Approve." },
+  { id: "refocus", target: "#rf-root", view: "refocus", title: "Refocus", body: "Type a topic, such as music videos or half-done reels. Refocus lists the related chats, files, and saved work from oldest to newest, with a finished, partial, or abandoned label. Rebuild it starts a mission only after you click. The page shows who will read it first. Private chats stay out." },
   { id: "prompts", target: "#pp-list", view: "prompts", title: "Pro prompts", body: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert. Search the pack here. Auto-detect on the order box can suggest one; you can remove that chip and write your own." },
   { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. The sample runs only while no real AI is connected, so nothing is spent.", action: "sample" },
   { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; a check can send a piece back for one revision when it falls short." },
+  { id: "pause-bg", target: "#bg-run", view: "command", title: "Pause a mission, or leave it running", body: "Pro can pause a mission, edit the steps that have not finished, and resume. Run in background leaves this screen. You get an alert when it is done. Nothing starts until you click Send orders." },
   { id: "live", target: "#lv-open", view: "command", title: "Open live view", body: "The Open live view button is at the bottom-right of Live Ops. It opens the full live map. Live is also in the Work menu." },
   { id: "deliverable", target: "#out-md", view: "command", title: "The deliverable", body: "The assembled result lands here. Copy it, see the savings receipt under it, and find it later under the project it was filed to. The top bar shows You saved this month and all time." },
+  { id: "share-export", target: "#out-md", view: "command", title: "Share and export", body: "A public share link is a Pro page anyone with the link can open. Download PDF or Word keeps headings, bold text, and lists. Industry packs for real estate, mortgage, credit repair, and creators are Pro. Credit repair does not promise a score change. Name an imported ChatGPT or Claude conversation in quotes and the chat uses it." },
+  { id: "reading", target: "#a11y-panel", view: "settings", title: "Text size and read aloud", body: "Settings, Reading, has a text size and a high-contrast mode. Read aloud is on an answer and speaks only when you click it." },
   { id: "pipelines", target: "#pl-form", view: "pipelines", title: "Pipelines", body: "A pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
   { id: "schedules", target: "#sch-root", view: "schedules", title: "Scheduled agents", body: "Schedules run an agent, a chat, or a mission on a clock, from a webhook, or when a file lands in a folder. A result that would be sent somewhere waits until you approve it. Desktop schedules only run while the app is open." },
   { id: "publish", target: "#pub-tour", view: "publish", title: "Publishing preview", body: "Publishing always shows a preview first. Nothing posts, schedules, or saves until you click Confirm. If credentials are not saved yet, the preview says it will record a dry run. Connect Google Drive, Instagram, HighLevel and Slack with your own sign-in in Settings, Publishing." },
   { id: "marketplace", view: "marketplace", title: "Marketplace", body: "Browse and install templates other people shared. Every template is signed and checked before it installs, and nothing runs until you start it. You can share one of your own pipelines here too." },
   { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again. A custom provider can be marked Good at the task types it should take.", action: "keys" },
+  { id: "desktop", for: "both", target: "#prov-antigravity", view: "settings", title: "Apps on your desktop", body: "Meldmind can use apps on this PC that have no API, after you allow each one. Google Antigravity is the first. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Add to Antigravity writes the local MCP config only after you confirm. You can change this later in Settings." },
+  { id: "desktop-apps", for: "both", target: "#app-discovery", view: "settings", title: "Programs on this PC", body: "When you turn on desktop control, Meldmind lists installed programs. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. Allow each app you want. Allowed apps are scored and join the router's choices, the same as a tool you add. While you plan a mission or client work, a card can suggest a program with a short reason, Free or Paid, and the official link. Dismiss hides that suggestion. Nothing is installed or bought. Program scan is part of Pro. Turn suggestions off in Settings." },
+  { id: "remix", for: "both", target: "#remix-root", view: "remix", title: "Remix any app", body: "Remix rebuilds from scratch. It does not copy the app or game you show. It does not decompile, extract, or reuse that app's code, assets, names, or brand. Show a URL, screenshots, a short recording, or an app on this computer, then describe what you can see. A preview lists the AIs and services before anything runs. Free tools stay only when the license is allowed, and the credits go in a CREDITS file." },
   { id: "phone", for: "both", target: "#phone-pair", view: "settings", title: "Phone pairing", body: "Settings, Phone and other devices, turns on a link for a phone on the same Wi-Fi. The QR code and the address under it include the pairing code. It stays off until you turn it on. Copy works if the camera cannot scan." },
+  { id: "your-apps", for: "both", target: "[data-feature='byo']", view: "settings", title: "Your apps", body: "Your apps is where a HighLevel account, an MCP server address, and a custom webhook are connected. A change waits until you click Send." },
+  { id: "map-tutorials", target: "#lv-tutorials", view: "liveview", title: "Start a project on the map", body: "The live map lists Start a project. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click." },
+  { id: "watch-talk", target: "#model-watch", view: "settings", title: "Model watch and people chat", body: "Model watch looks at the model list for each AI you connected. It uses your own key, read only, at most once a day. A new model or a price change shows up as a note. A suggested switch waits until you accept it, and you can undo it. People chat is in the Business menu. Direct messages and small groups stay with people in your team space. Messages stay on this computer until a hub is set. Nothing is sent until you click Send. Keys are not shared." },
+  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
 ];
 
 const css = `
@@ -46,11 +59,11 @@ const css = `
 #cc-tour .dots i.on { background: var(--accent); }
 #cc-tour .dots i.done { background: var(--muted); }
 .cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
-#cc-whats-new { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
-#cc-whats-new .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
-#cc-whats-new h4 { margin: 0 0 6px; font-size: 18px; }
-#cc-whats-new ul { margin: 10px 0 0; padding-left: 18px; }
-#cc-whats-new li { margin: 6px 0; }
+#cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 18px; }
+#cc-whats-new ul, #cc-desktop-prompt ul { margin: 10px 0 0; padding-left: 18px; }
+#cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
 @media (max-width: 760px) { #cc-tour .card { left: 12px !important; right: 12px; bottom: calc(var(--strip-h) + 64px); top: auto !important; width: auto; } .cc-tour-invite { left: 12px; right: 12px; bottom: calc(var(--strip-h) + 66px); } }
 `;
 const style = document.createElement("style"); style.id = "cc-tour-style"; style.textContent = css; document.head.appendChild(style);
@@ -64,6 +77,8 @@ let msg = "";         // message under the current step (sample result etc.)
 let busy = false;
 let newsOpen = false;
 let newsDismissed = false;
+let desktopOpen = false;
+let desktopDismissed = false;
 
 async function sync() { try { tour = await api("/tour"); synced = true; } catch {} maybeInvite(); }
 
@@ -74,19 +89,27 @@ function hideNews() {
   box?.remove();
   newsOpen = false;
 }
+function answeredOnce() {
+  try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch {}
+  return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
+}
 function steps() {
   const mode = window.CC.uiMode?.() || "expert";
-  return STEPS.filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
+  const extra = Array.isArray(window.CC.everydaySteps) ? window.CC.everydaySteps : [];
+  return [...STEPS, ...extra].filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
 }
 function maybeInvite() {
   if (idx >= 0) return;
-  if (window.CC.askingMode?.()) { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
-  if (S.view === "setup") { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
+  if (window.CC.askingMode?.()) { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
+  if (S.view === "setup") { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
   if (newsOpen) return;
+  if (!desktopDismissed && tour?.desktopPrompt) { showDesktop(); return; }
+  if (desktopOpen) return;
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
   if (!show) { existing?.remove(); return; }
+  if (!answeredOnce()) { existing?.remove(); return; }
   if (existing) return;
   const d = document.createElement("div"); d.className = "cc-tour-invite";
   d.innerHTML = `<span>👋</span><span>New here? <b>Take the tour</b>: it runs a sample on pretend AIs.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
@@ -121,6 +144,52 @@ async function dismissNews(thenTour) {
   try { tour = await api("/tour/whats-new/seen", { method: "POST" }); } catch {}
   if (thenTour) start();
   else maybeInvite();
+}
+function hideDesktop() {
+  const box = document.getElementById("cc-desktop-prompt");
+  if (box?._deskKey) document.removeEventListener("keydown", box._deskKey);
+  box?.remove();
+  desktopOpen = false;
+}
+function showDesktop() {
+  const p = tour?.desktopPrompt;
+  if (!p || idx >= 0 || S.view === "setup") return;
+  document.querySelector(".cc-tour-invite")?.remove();
+  if (document.getElementById("cc-desktop-prompt")) return;
+  desktopOpen = true;
+  const box = document.createElement("div");
+  box.id = "cc-desktop-prompt";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-desktop-title"><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
+  document.body.appendChild(box);
+  const onKey = (e) => { if (e.key === "Escape") dismissDesktop("later"); };
+  document.addEventListener("keydown", onKey);
+  box._deskKey = onKey;
+  box.querySelector("#cc-desktop-later").addEventListener("click", () => dismissDesktop("later"));
+  box.querySelector("#cc-desktop-never").addEventListener("click", () => dismissDesktop("never"));
+  box.querySelector("#cc-desktop-allow").addEventListener("click", () => allowDesktop(false));
+  box.querySelector("#cc-desktop-install").addEventListener("click", () => allowDesktop(true));
+}
+async function dismissDesktop(action) {
+  desktopDismissed = true;
+  hideDesktop();
+  try { tour = await api("/tour/desktop", { method: "POST", body: { action } }); } catch {}
+  maybeInvite();
+}
+async function allowDesktop(install) {
+  try {
+    await api("/antigravity/allow", { method: "POST", body: { allow: true } });
+    if (install) {
+      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+      toast(r.message || "Installer finished", !r.ok);
+      if (r.ok) {
+        const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+        toast(s.message || "Sign-in opened", !s.ok);
+      }
+    } else toast("Antigravity is allowed");
+  } catch (err) { toast(err.message, true); return; }
+  await dismissDesktop("done");
+  go("settings");
 }
 
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
@@ -223,7 +292,12 @@ function renderPanel(el2) {
 }
 
 function onMode() { if (idx >= 0) { msg = ""; show(0); } }
-window.CC.tour = { start, open: start, state: () => tour, onMode };
+function markFirstAnswer() {
+  try { localStorage.setItem("cc.firstAnswer", "1"); } catch {}
+  maybeInvite();
+}
+window.CC.firstAnswer = markFirstAnswer;
+window.CC.tour = { start, open: start, state: () => tour, onMode, onAnswer: markFirstAnswer };
 
 CC.register({
   id: "tour",

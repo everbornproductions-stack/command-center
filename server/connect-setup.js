@@ -54,13 +54,14 @@ export function isFirstRun(onboarding, settings) {
   return !(onboarding && onboarding.completed === true) && settings?.onboarded !== true;
 }
 
-// Auto-open only on a fresh install, or when this checklist was opened and not finished.
+// Auto-open only on a fresh install that has not opened the checklist yet.
+// Once it has been opened, or Finish later was used, it stays in Settings.
 // An install that already finished AI setup before this checklist existed stays quiet (legacy).
 export function offerShow(record, { firstRun = false } = {}) {
   const rec = normalizeRecord(record);
   if (rec.completedAt || rec.dismissedAt) return false;
-  if (rec.legacy && !rec.opened) return false;
-  if (rec.opened) return true;
+  if (rec.opened) return false;
+  if (rec.legacy) return false;
   return !!firstRun;
 }
 
@@ -88,6 +89,38 @@ function mailRows(deps, provider) {
   catch { return []; }
 }
 
+const GUIDE = {
+  gmail: [
+    "Connect opens the same Google sign-in as Settings.",
+    "Allow Gmail when Google asks. The client secret stays in the vault.",
+    "Come back to this list. The row shows Connected or Not connected.",
+    "Reading mail does not send a message. Sending still needs a click.",
+  ],
+  drive: [
+    "Connect opens the same Google sign-in as Settings.",
+    "Allow Google Drive when Google asks. The client secret stays in the vault.",
+    "Come back to this list. The row shows Connected or Not connected.",
+    "This step does not upload or delete a file. Changes still need a click.",
+  ],
+  ghl: [
+    "In Publishing, add the HighLevel client, or paste a private token and the location id.",
+    "Connect does not post, send, or charge.",
+    "When the row says Connected, contacts, invoices, and workflows are tools.",
+    "A change waits for a click.",
+  ],
+  capcut: [
+    "Connect uses MCP sign-in. The secret stays in the vault.",
+    "CapCut is available outside the US, with US access coming soon.",
+    "Come back to this list. The row shows Connected, Not connected, or Handoff.",
+    "Nothing is exported until you click.",
+  ],
+};
+const DEFAULT_STEPS = [
+  "Connect uses the same sign-in, key, or handoff as Settings.",
+  "The secret stays in the vault.",
+  "Come back and this row shows Connected, Not connected, or Handoff.",
+];
+
 function row(item) {
   const status = STATUSES.includes(item.status) ? item.status : "Not connected";
   const out = {
@@ -98,6 +131,7 @@ function row(item) {
     status,
     flow: item.flow,
     skipped: false,
+    steps: (item.steps || GUIDE[item.id] || DEFAULT_STEPS).slice(0, 6),
   };
   if (item.mail) {
     out.mail = { provider: item.mail.provider };
@@ -178,10 +212,10 @@ function integrationRows(deps) {
     }),
     row({
       id: "calendar", name: "Google Calendar",
-      blurb: "Calendar work is handed to Grok Bot.",
-      detail: "Grok Bot does Calendar. The webhook and sender key stay in Settings, and only in Expert.",
-      status: statusOf({ handoff: gbReady }),
-      flow: { type: "settings", focus: "[data-feature='grokbot']", expertOnly: true },
+      blurb: "List, create, and update events with your Google sign-in. Grok Bot can still take calendar work.",
+      detail: "Uses the browser helper Google sign-in. The client secret stays in the vault. Grok Bot's calendar handoff is unchanged.",
+      status: statusOf({ connected: googleOn && scopes.has("calendar") }),
+      flow: { type: "browser-google", want: { calendar: true }, keep: true, clientReady: googleClient, focus: "[data-feature='browser']" },
     }),
     row({
       id: "ghl", name: "HighLevel",
@@ -351,7 +385,9 @@ export function completeSetup() {
 export function resetSetup() {
   const { firstRun } = ensureRecord();
   const next = save({ ...blankRecord(), opened: true, legacy: false });
-  return viewFrom(next, firstRun);
+  const view = viewFrom(next, firstRun);
+  // The click that asked to run setup again opens it now. The next launch does not.
+  return { ...view, show: true, manual: true };
 }
 
 export function skipSetup(id) {

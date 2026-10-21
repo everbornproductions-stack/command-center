@@ -88,12 +88,23 @@ test("package.json version has a What's new entry, and a version with no bullets
   assert.throws(() => readChangelog("[]"), /keyed by version/);
 });
 
-test("what's new is returned once per version and a tour reset does not show it again", async () => {
+test("what's new is skipped on first install, shown after an upgrade, and a tour reset does not show it again", async () => {
   const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  const s = await startServer();
+  const fresh = await startServer();
+  try {
+    const g = await fresh.api("/tour");
+    assert.equal(g.json.whatsNew, null);
+    const file = path.join(fresh.dir, "whatsnew.state.json");
+    const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(doc.firstInstall, true);
+    assert.equal(doc.installed, pkg.version);
+  } finally { await fresh.stop(); }
+
+  const s = await startServer({ seed: (dir) => fs.writeFileSync(path.join(dir, "whatsnew.state.json"), JSON.stringify({ seen: null, installed: "0.0.0", firstInstall: false })) });
   try {
     const g = await s.api("/tour");
     assert.equal(g.json.whatsNew.version, pkg.version);
+    assert.equal(g.json.desktopPrompt?.title, "New: let Meldmind use your desktop");
     assert.ok(g.json.whatsNew.bullets.length > 0);
     const seen = await s.api("/tour/whats-new/seen", { method: "POST" });
     assert.equal(seen.status, 200);
@@ -110,7 +121,7 @@ test("what's new is returned once per version and a tour reset does not show it 
 test("tour steps cover the current app and What's new shows before the invite", () => {
   const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
   const steps = src.slice(src.indexOf("const STEPS"), src.indexOf("const css"));
-  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair"]) {
+  for (const phrase of ["Meldmind", "dropdown menus", "Council", "Pro prompts", "Auto-detect", "bottom-right", "Open live view", "MCP", "pipeline", "Scheduled agents", "preview", "Files in this project", "Approve", "#lv-open", "#pp-list", "#pl-form", "#sch-root", "#pub-tour", "#pf-drop", "#settings-keys", "Simple or Expert", "Chat, Projects, Create, and Settings", "One chat box", "#mode-toggle", "Phone pairing", "#phone-pair", "Apps on your desktop", "Passwords are not stored"]) {
     assert.ok(steps.includes(phrase), `tour step missing ${phrase}`);
   }
   const waysAt = steps.indexOf('title: "Single, Council, Mission, Pipelines"');

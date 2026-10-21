@@ -182,7 +182,7 @@ test("Post to Instagram, Send to Slack, Schedule in HighLevel, Save to Drive: on
 
   // Google Drive: upload the deliverable and the media job's file into one app folder
   const dp = await s.api("/publish/preview", { method: "POST", body: { channel: "drive", title: "Week plan", text: "the plan", mediaJobId: "mj-int", files: [path.join(s.dir, "settings.json")] } });
-  assert.match(dp.json.summary, /Google Drive, folder "Command AI"/); assert.equal(dp.json.media.files, 1);
+  assert.match(dp.json.summary, /Google Drive, folder "Meldmind"/); assert.equal(dp.json.media.files, 1);
   const dPost = await s.api("/publish/post", { method: "POST", body: { previewId: dp.json.previewId, confirmed: true } });
   assert.equal(dPost.json.status, "posted", dPost.text); assert.equal(dPost.json.result.via, "api");
   assert.equal(dPost.json.result.url, "https://drive.google.com/file/d/doc-1/view");
