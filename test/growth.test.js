@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
-import { startServer, ROOT } from "./helpers.js";
+import { startServer, ROOT, chatRunId } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DAY = 86400000;
@@ -37,10 +37,9 @@ async function mockOpenAI() {
 }
 
 async function chat(s, prompt) {
-  const t0 = Date.now();
-  assert.equal((await s.api("/chat", { method: "POST", body: { prompt, provider: "openai", model: "gpt-6-luna" } })).status, 202);
+  const id = await chatRunId(s.api, { prompt, provider: "openai", model: "gpt-6-luna" });
   for (let i = 0; i < 240; i++) {
-    const m = (await s.api("/missions")).json.find((x) => x.kind === "single" && x.startedAt >= t0 - 1 && ["done", "done-with-errors", "failed"].includes(x.status));
+    const m = (await s.api("/missions")).json.find((x) => x.id === id && ["done", "done-with-errors", "failed"].includes(x.status));
     if (m) return (await s.api(`/missions/${m.id}`)).json;
     await sleep(250);
   }
