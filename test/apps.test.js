@@ -272,7 +272,7 @@ test("user-facing copy has no em dash and no install button", () => {
   assert.match(tour, /Nothing is installed or bought/);
   const news = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "WHATS-NEW.json"), "utf8"));
   assert.ok(news["0.4.9"].bullets.some((b) => /Free or Paid/.test(b)));
-  assert.match(news["0.4.8"].bullets[1], /Nova, Atlas and Sage/);
+  assert.ok(news["0.4.8"].bullets.some((b) => /Nova, Atlas and Sage/.test(b)));
   const plan = fs.readFileSync(path.join(ROOT, "docs", "BUILD-PLAN.md"), "utf8");
   assert.match(plan, /Do last: 14,/);
   assert.match(plan, /Phases 45 to 51 use fixture drivers/);

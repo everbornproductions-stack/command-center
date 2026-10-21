@@ -69,6 +69,19 @@ export function recordHuman(modelId, capability, up, prev = null) {
   if (up) r.up++; else r.down++;
   putDoc("skills", sk);
 }
+// Clears thumbs only. Council wins and rounds stay.
+export function clearHumanRatings() {
+  const sk = skills();
+  for (const model of Object.keys(sk)) {
+    for (const cap of Object.keys(sk[model] || {})) {
+      const r = sk[model][cap];
+      if (!r) continue;
+      r.up = 0;
+      r.down = 0;
+    }
+  }
+  putDoc("skills", sk);
+}
 export const skillTable = () => skills();
 
 export function availableModels() {

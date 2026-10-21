@@ -68,6 +68,24 @@ test("Mac CI workflow: test and smoke on a release tag or by hand, never on a pu
   assert.equal((wf.match(/npm test/g) || []).length, 1, "the Mac job runs the suite once");
 });
 
+test("Mac CI does not run on a pull request, and Windows CI does", () => {
+  const wf = read(".github/workflows/mac-ci.yml");
+  const win = read(".github/workflows/windows-ci.yml");
+  assert.match(wf, /runs-on: macos-latest/);
+  assert.match(wf, /workflow_dispatch:/);
+  assert.match(wf, /tags: \["v\*"\]/);
+  assert.doesNotMatch(wf, /pull_request:/);
+  assert.match(win, /pull_request:/);
+  assert.match(wf, /run: npm ci/);
+  assert.match(wf, /run: npm test/);
+  assert.match(wf, /run: npm run smoke/);
+  assert.doesNotMatch(wf, /run: npm run dist:mac/);
+  assert.doesNotMatch(wf, /secrets\./);
+  assert.doesNotMatch(wf, /gh release/);
+  assert.doesNotMatch(wf, /—/);
+  assert.match(read("docs/ci/mac-build.yml"), /not a workflow/);
+});
+
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
   const y = read("electron-builder.yml");
   assert.match(y, /^appId: com\.everborn\.command/m);

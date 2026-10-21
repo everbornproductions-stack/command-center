@@ -264,6 +264,20 @@ export function exportBrain() {
   if (b.templates) out.templates = b.templates;
   return out;
 }
+// Thumbs only. Jobs, scores, wins, cost, and latency stay.
+export function clearRatingMemory() {
+  const b = brain();
+  for (const m of Object.values(b.stats || {})) {
+    for (const s of Object.values(m.t || {})) { s.up = 0; s.down = 0; }
+  }
+  for (const r of Object.values(b.runs || {})) {
+    for (const row of Object.values(r.m || {})) if (row) row.up = null;
+  }
+  save(b);
+  emit("brain.update", { ratingsReset: true });
+  return b;
+}
+
 export function resetBrain() {
   const prev = brain();
   const next = { ...fresh(), settings: { ...prev.settings }, resetAt: Date.now() };

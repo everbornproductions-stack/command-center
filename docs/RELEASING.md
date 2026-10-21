@@ -87,12 +87,10 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 
 `.github/workflows/mac-ci.yml` runs when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
 
-`.github/workflows/mac-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. It does not package the app, it does not publish, and it does not read secrets. Mac packaging stays on the tag workflow parked at `docs/ci/mac-build.yml`.
-
 ## Mac (unsigned for now)
 
 - The Windows release workflow (`.github/workflows/release-windows.yml`) has a `mac-release` job. A `vX.Y.Z` tag, or Run workflow, builds an unsigned `Meldmind-<version>-<arch>.dmg` and `.zip` (x64 and arm64) with electron-builder. There is no Apple signing.
-- `.github/workflows/mac-ci.yml` runs `npm test` and `npm run smoke` on macOS for every pull request and every push to main. It does not build a disk image.
+- `.github/workflows/mac-ci.yml` runs `npm test` and `npm run smoke` on macOS when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It does not build a disk image.
 - One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
 - The Mac job runs `npm test`, `npm run smoke` and `npm run dist:mac`. It never publishes: if the release `vX.Y.Z` does not exist yet, it creates it as a **draft** with the Mac files, and the Windows job adds the installer and publishes it as usual. If the Windows release is already published, the Mac files and `latest-mac.yml` are added to it. The Mac job does not upload `latest.yml`.
 - Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates). Keys are sealed with the macOS Keychain through the desktop app.

@@ -68,14 +68,16 @@ const ALIAS = {
 // Flags the older routes still read by name. Caps stay numeric on the objects above.
 const FREE_FLAGS = {
   shareLinks: false, desktop: false, programScan: false, appScan: false, repeats: false,
-  exportDocs: false, backgroundRuns: false, pauseMissions: false,
+  exportDocs: false, backgroundRuns: false, pauseMissions: false, missionPause: false,
+  learnedFromRatings: true,
   publicShare: false, documentExport: false,
   tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
   learningRouter: true, privateMode: true,
 };
 const PRO_FLAGS = {
   shareLinks: true, desktop: true, programScan: true, appScan: true, repeats: true,
-  exportDocs: true, backgroundRuns: true, pauseMissions: true,
+  exportDocs: true, backgroundRuns: true, pauseMissions: true, missionPause: true,
+  learnedFromRatings: true,
   publicShare: true, documentExport: true,
   tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
   learningRouter: true, privateMode: true,
@@ -193,7 +195,7 @@ function messageFor(limits, key, info, sell) {
   if (key === "documentExport" || key === "exportDocs") return part("PDF and Word export");
   if (key === "repeats") return part("Do this again");
   if (key === "backgroundRuns") return part("Background runs");
-  if (key === "pauseMissions") return part("Pause missions");
+  if (key === "pauseMissions" || key === "missionPause") return part("Pause, edit and resume");
   if (key === "deepResearchPerMonth") {
     if (!limit) return `Deep Research is part of Pro (${proMonthlyLabel}). Unlimited Deep Research is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
     return `You have used ${n} of ${limit} Deep Research runs this month on ${limits.label}. Unlimited Deep Research is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
@@ -562,4 +564,36 @@ export function requireResearch(feature, now = Date.now()) {
     return { ok: true, plan, limit: plan.deepMonthly, used };
   }
   return deny("This feature is not on your plan.", "pro_required");
+}
+
+// Named product gates. The limit objects above are the source of truth, so Extreme
+// and Owner keep Pro flags, and Studio stays Pro. license.js guard() reads the same table.
+export const GATES = {
+  backgroundRuns: { min: "pro", label: "Background runs" },
+  missionPause: { min: "pro", label: "Pause, edit and resume" },
+  learnedFromRatings: { min: "free", label: "What ratings taught" },
+};
+
+export function gateAllows(tier, name) {
+  if (!GATES[name]) return false;
+  const limits = LIMITS[tier] || LIMITS.free;
+  return !!limits[name];
+}
+
+export function flagsFor(tier) {
+  const out = {};
+  for (const name of Object.keys(GATES)) out[name] = gateAllows(tier, name);
+  return out;
+}
+
+export function gateError(name) {
+  const label = GATES[name]?.label || "This feature";
+  return Object.assign(
+    new Error(`${label} is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`),
+    { status: 402, code: "pro_required" },
+  );
+}
+
+export function assertGate(tier, name) {
+  if (!GATES[name] || !gateAllows(tier, name)) throw gateError(name);
 }

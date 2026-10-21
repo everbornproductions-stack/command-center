@@ -68,6 +68,13 @@ test("TIERS: free is the limited tier", () => {
   assert.equal(TIERS.pro.missions, true);
   assert.equal(TIERS.pro.desktop, true);
   assert.equal(TIERS.pro.appScan, true);
+  assert.equal(TIERS.free.backgroundRuns, false);
+  assert.equal(TIERS.free.missionPause, false);
+  assert.equal(TIERS.free.learnedFromRatings, true);
+  assert.equal(TIERS.pro.backgroundRuns, true);
+  assert.equal(TIERS.pro.missionPause, true);
+  assert.equal(TIERS.pro.learnedFromRatings, true);
+  assert.equal(TIERS.owner.backgroundRuns, true);
   assert.equal(TIERS.pro.connectedServices, Infinity);
   assert.equal(TIERS.pro.emailAccounts, 8);
   assert.equal(TIERS.pro.phone, true);

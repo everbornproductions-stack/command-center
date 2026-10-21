@@ -240,7 +240,7 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
 //   guard("connectedService", { count }) | guard("emailAccounts", { count })
 //   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
-//   guard("desktop") | guard("appScan")
+//   guard("desktop") | guard("appScan") | guard("backgroundRuns") | guard("missionPause") | guard("learnedFromRatings")
 // desktop is desktop control (including Antigravity). appScan is the program scan and its suggestions.
 // missions is already Pro. These ids are the feature-gate names. isProFeature reads the same table.
 export function isProFeature(feature) {

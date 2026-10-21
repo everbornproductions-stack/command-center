@@ -24,8 +24,8 @@ import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
-  const id = "c-" + Date.now().toString(36);
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId }) {
+  const id = givenId || ("c-" + Date.now().toString(36));
   if (isPrivate) markPrivateRun(id);
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);

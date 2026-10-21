@@ -25,8 +25,47 @@ import * as MEDIA from "./media-jobs.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
+const issued = new Set(); // ids handed to a run, so pause can find one that has not registered yet
+const pendingPause = new Set();
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
 const saveDoc = (m) => ctx().store.saveMission(m, missionSummary(m));
+
+class MissionPause extends Error {
+  constructor() {
+    super("Mission paused");
+    this.name = "MissionPause";
+    this.code = "paused";
+  }
+}
+function shouldPause(mission) {
+  if (mission && pendingPause.has(mission.id)) {
+    pendingPause.delete(mission.id);
+    mission.pauseRequested = true;
+  }
+  return !!mission?.pauseRequested;
+}
+function armPause(mission, ctl) {
+  if (mission) mission.pauseRequested = true;
+  if (mission) pendingPause.delete(mission.id);
+  if (ctl && !ctl.signal.aborted) {
+    try { ctl.abort("pause"); } catch { /* already stopped */ }
+  }
+}
+function rewindTask(t) {
+  if (!t || t.status === "done" || t.status === "waiting" || t.status === "failed") return;
+  t.status = "queued";
+  t.error = null;
+  t.output = null;
+  t.startedAt = null;
+}
+function throwIfPause(mission, ctl, t) {
+  const reason = ctl?.signal?.reason;
+  const pausing = shouldPause(mission) || (ctl?.signal?.aborted && reason === "pause");
+  if (!pausing) return;
+  armPause(mission, ctl);
+  if (t) rewindTask(t);
+  throw new MissionPause();
+}
 
 // Compact row for lists (the same shape index.js used to build from the files).
 export function missionSummary(m) {
@@ -34,6 +73,7 @@ export function missionSummary(m) {
 }
 
 export function abortMission(id) {
+  pendingPause.delete(id);
   const scheduled = scheduledOf();
   if (scheduled.has(id)) {
     clearTimeout(scheduled.get(id).timer);
@@ -44,8 +84,80 @@ export function abortMission(id) {
     emit("log", { text: `Scheduled mission cancelled: ${m.title}`, missionId: id });
     return true;
   }
-  running.get(id)?.abort();
+  const mission = live.get(id);
+  if (mission) mission.pauseRequested = false;
+  const ctl = running.get(id);
+  if (ctl && !ctl.signal.aborted) {
+    try { ctl.abort("abort"); } catch { /* already stopped */ }
+  }
   return running.has(id);
+}
+
+export function pauseMission(id) {
+  const scheduled = scheduledOf();
+  if (scheduled.has(id)) return { ok: false, reason: "scheduled" };
+  const mission = live.get(id);
+  const ctl = running.get(id);
+  if (mission && ctl) {
+    if (mission.status === "paused") return { ok: true, state: "paused" };
+    armPause(mission, ctl);
+    return { ok: true, state: "stopping" };
+  }
+  if (issued.has(id)) {
+    pendingPause.add(id);
+    return { ok: true, state: "queued" };
+  }
+  return { ok: false, reason: "missing" };
+}
+
+function httpError(message, status) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+export async function editPausedMission(id, patch = {}) {
+  if (live.has(id) || running.has(id)) throw httpError("Wait until the mission is paused.", 409);
+  const m = await ctx().store.getMission(id);
+  if (!m || m.kind !== "mission") throw httpError("Mission not found.", 404);
+  if (m.status !== "paused") throw httpError("Only a paused mission can be edited.", 409);
+  if (typeof patch.goal === "string" && patch.goal.trim()) {
+    m.prompt = patch.goal.trim().slice(0, 8000);
+    m.goalEdited = true;
+  }
+  if (Array.isArray(patch.tasks)) {
+    for (const edit of patch.tasks) {
+      const t = (m.tasks || []).find((x) => x && x.id === edit?.id);
+      if (!t || t.status === "done" || t.status === "waiting") continue;
+      if (typeof edit.title === "string" && edit.title.trim()) t.title = edit.title.trim().slice(0, 200);
+      if (typeof edit.instructions === "string") t.instructions = String(edit.instructions).slice(0, 4000);
+      if (typeof edit.deliverable === "string") t.deliverable = String(edit.deliverable).slice(0, 1000);
+      t.edited = true;
+    }
+  }
+  saveDoc(m);
+  emit("mission.update", { mission: publicMission(m) });
+  emit("log", { text: "Paused mission updated.", missionId: id });
+  return publicMission(m);
+}
+
+export async function beginResume(id) {
+  if (running.has(id)) throw httpError("This mission is already running.", 409);
+  const stored = await ctx().store.getMission(id);
+  if (!stored || stored.kind !== "mission") throw httpError("Mission not found.", 404);
+  if (stored.status !== "paused") throw httpError("Only a paused mission can resume.", 409);
+  // Register the run before this function resolves, so pause can see it, and do not wait for the work.
+  const promise = runMission({
+    goal: stored.prompt,
+    mode: stored.mode || "balanced",
+    projectId: stored.projectId,
+    qa: stored.qa !== false,
+    budgetUsd: stored.budgetUsd ?? 2,
+    id: stored.id,
+    restore: stored,
+  });
+  promise.catch((e) => emit("log", { text: `Mission failed: ${e.message}`, level: "error" }));
+  return { ok: true, id: stored.id };
 }
 
 function persistScheduled() {
@@ -82,7 +194,7 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId, restore = null }) {
   mode = normalizeMode(mode) || "balanced";
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
@@ -91,22 +203,33 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const openPick = (opts) => openRank(opts)[0] || null;
   const planning = planMode(mode);
   const looking = reviewMode(mode);
-  const id = "m-" + Date.now().toString(36);
+  const id = restore?.id || givenId || ("m-" + Date.now().toString(36));
+  issued.add(id);
   if (isPrivate) markPrivateRun(id);
   const ctl = new AbortController();
   running.set(id, ctl);
   lateWhileRunning.set(id, []);
-  const t0 = Date.now();
+  const t0 = restore?.startedAt || Date.now();
   // project memory (R5): voice, offers, never-say list and past winners ride along in the context of every step
   // (the QA reviewer and the assembler get it too, so the never-say list holds in the final deliverable)
   const memBlock = contextFor(projectId);
   context = withMemory(context, projectId);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
-  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER), ...(toneId ? { tone: toneId } : {}) };
+  const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER), ...(toneId ? { tone: toneId } : {}) };
+  if (restore) {
+    mission.status = "running";
+    mission.pauseRequested = false;
+    mission.finishedAt = null;
+    mission.error = null;
+    for (const t of mission.tasks || []) rewindTask(t);
+  }
   live.set(id, mission);
   const user = ctx();
   user.missionsInFlight = (user.missionsInFlight || 0) + 1;
   let lib = null; // knowledge-library excerpts for this mission (Phase 18)
+  let searchOn = false;
+  let MA = null;
+  const needsWebModel = (t) => !!t.needWeb && !searchOn;
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
@@ -114,16 +237,28 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const explicitSearch = typeof search === "boolean" ? search : undefined;
   // smart fallback (Phase 26): every hop is kept on the mission and announced in the feed
   const stoodIn = (ev, agent, role, taskId = null) => { mission.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, taskId, agentFrom: agent, agentTo: agent, role }); };
+  let plan = null;
+  let planner = null;
 
   try {
     update();
+    if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
+    if (restore?.tasks?.length) {
+      plan = { title: mission.plan?.title || mission.title || String(goal || "").slice(0, 40), assembly: mission.plan?.assembly || "", tasks: mission.tasks };
+      context = mission.runContext || context;
+      searchOn = !!mission.searchWasOn;
+      MA = missionAgent({ grokbot, browser });
+      planner = mission.planner ? { ...mission.planner, providerName: mission.planner.providerName || PROVIDERS[mission.planner.provider]?.name || mission.planner.provider } : null;
+      mission.status = "running";
+      update();
+    } else {
     const cls = await classify(goal, { onCall: (c) => { spend(recordCall({ ...c, missionId: id })); } });
     mission.classification = cls;
 
     // ---- live web search (Phase 15): one search on the goal; the sources ride along as context ----
     const web = await prepareWeb({ prompt: goal, kind: "mission", missionId: id, explicit: explicitSearch, needWeb: !!cls?.needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
     mission.searched = web != null;
-    const searchOn = !!web && !web.native && !web.skipped;
+    searchOn = !!web && !web.native && !web.skipped;
     if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
     if (web?.sources?.length) { mission.sources = web.sources; mission.searchEngine = web.name; spend({ cost: web.cost || 0 }); context = `${context ? `${context}\n\n` : ""}${web.block}`; }
     // ---- knowledge libraries (Phase 18): the best excerpts for the goal ride along as context, cited as [L1], [L2] ----
@@ -132,21 +267,20 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
 
     // Grok Bot (Phase 12), else the built-in browser helper (Phase 27): offered to the planner only when it
     // is ready and not left out by the person
-    const MA = missionAgent({ grokbot, browser });
+    MA = missionAgent({ grokbot, browser });
     const agentOn = !!MA;
     const agentLine = !agentOn ? "" : MA.id === GROKBOT
       ? `\nA step that must act in the person's signed-in browser, Gmail, Google Drive, Google Calendar or with their teammate bots gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; their own assistant, ${MA.name}, does those steps. Never use "agent" for plain writing, research or analysis.`
       : `\nA step that must act on a website (signed-in pages, forms), in the person's Gmail or in their Google Drive gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; the built-in ${MA.name} does those steps in its own browser window (every send, post or form submit waits for the person's OK). Never use "agent" for plain writing, research or analysis.`;
 
     // ---- 1. Plan ----
-    const planner = openPick({ capability: "reasoning", difficulty: 3, mode: planning });
+    planner = openPick({ capability: "reasoning", difficulty: 3, mode: planning });
     if (!planner) throw new Error("No AI is available to plan. Add an API key in Settings.");
     mission.planner = { provider: planner.provider, model: planner.model };
     const pAgent = `${id}:planner`;
     emit("agent.start", { agent: pAgent, provider: planner.provider, model: planner.model, role: "plan", missionId: id, label: `${planner.providerName} planning` });
     log(`${planner.providerName} is drawing up the plan.`);
     const s0 = Date.now();
-    let plan;
     try {
       const r = await completeFallback({
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
@@ -175,7 +309,6 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // ---- 2. Assign ----
     // a task that needs live information is limited to models with their own web access, unless the
     // search engine is on: then any model can do it, because the task gets its own search results
-    const needsWebModel = (t) => !!t.needWeb && !searchOn;
     const used = new Map();
     for (const t of plan.tasks) {
       // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
@@ -219,12 +352,21 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
     }
+    mission.runContext = context;
+    mission.searchWasOn = searchOn;
     mission.status = "running";
     update();
+    }
 
     // ---- 3. Execute in waves ----
     const done = new Set();
     const outputs = {};
+    for (const t of mission.tasks) {
+      if (t.status === "done" || t.status === "waiting" || t.status === "failed") {
+        done.add(t.id);
+        if (t.output) outputs[t.id] = t.output;
+      }
+    }
     // An agent step (Grok Bot or the browser helper): hand it over, then wait for the result (up to the
     // mission wait). A result that comes back later is added to this mission by the finish listener at the end of this file.
     const agentTask = async (t) => {
@@ -251,6 +393,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         } else if (fin?.status === "failed") {
           throw new Error(fin.error || `${ANAME} reported a failure`);
         } else if (ctl.signal.aborted) {
+          throwIfPause(mission, ctl, t);
           try { cancelAgentJob(job.id, "mission aborted"); } catch {}
           t.status = "failed"; t.error = "Mission aborted";
         } else {
@@ -260,6 +403,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
         }
       } catch (err) {
+        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        throwIfPause(mission, ctl, t);
         t.status = "failed"; t.error = err.message;
         if (!ctl.signal.aborted) observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: false });
         emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: err.message });
@@ -285,14 +430,25 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         mediaOnTask(t, fin || MEDIA.getJob(job.id) || job);
         if (t.output) outputs[t.id] = t.output;
         if (t.cost) spend({ cost: t.cost });
-      } catch (err) { t.status = "failed"; t.error = err.message; }
+      } catch (err) {
+        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        throwIfPause(mission, ctl, t);
+        t.status = "failed"; t.error = err.message;
+      }
       if (t.status !== "failed") done.add(t.id);
       t.finishedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
     };
     while (done.size < mission.tasks.length) {
-      if (ctl.signal.aborted) throw new Error("Mission aborted");
+      if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
+      if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
+      const hold = Number(process.env.CC_MISSION_WAVE_HOLD_MS) || 0;
+      if (hold > 0) {
+        await new Promise((r) => setTimeout(r, hold));
+        if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
+        if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
+      }
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
       if (!wave.length) {
         // unresolved deps (cycle or failed dep): run the rest without inputs
@@ -301,7 +457,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         for (const t of rest) t.deps = [];
         continue;
       }
-      await Promise.all(wave.map(async (t) => {
+      const settled = await Promise.allSettled(wave.map(async (t) => {
+        if (shouldPause(mission)) { rewindTask(t); throw new MissionPause(); }
         if (t.agent) return agentTask(t);
         if (t.media) return mediaTask(t);
         const agent = `${id}:${t.id}`;
@@ -347,6 +504,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           outputs[t.id] = text;
           t.status = qa ? "review" : "done";
         } catch (err) {
+          if (err instanceof MissionPause || err?.code === "paused") throw err;
+          throwIfPause(mission, ctl, t);
           noteCall(t.provider, false, Date.now() - s, err);
           emit("agent.error", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: err.message });
           // learning router (Phase 28): a model that failed the job itself is marked; account trouble is not held against it
@@ -403,9 +562,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
                   const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
                   spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
                   t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
-                } catch (err3) { noteCall(t.provider, false, Date.now() - s4, err3); }
+                } catch (err3) {
+                  if (err3 instanceof MissionPause || err3?.code === "paused") throw err3;
+                  throwIfPause(mission, ctl, t);
+                  noteCall(t.provider, false, Date.now() - s4, err3);
+                }
               }
             } catch (err) {
+              if (err instanceof MissionPause || err?.code === "paused") throw err;
+              throwIfPause(mission, ctl, t);
               noteCall(reviewer.provider, false, Date.now() - s3, err);
               emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: err.message });
             }
@@ -421,6 +586,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("task.update", { missionId: id, task: pubTask(t) });
         update();
       }));
+      if (shouldPause(mission) || settled.some((r) => r.status === "rejected" && (r.reason instanceof MissionPause || r.reason?.code === "paused"))) {
+        armPause(mission, ctl);
+        throw new MissionPause();
+      }
       // failed tasks count as resolved so the loop ends
       for (const t of mission.tasks) if (t.status === "failed") done.add(t.id);
     }
@@ -440,16 +609,26 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     mission.status = mission.tasks.some((t) => t.status === "failed") ? "done-with-errors" : "done";
   } catch (err) {
-    mission.status = ctl.signal.aborted ? "aborted" : "failed";
-    mission.error = err.message;
-    log(`Mission ${mission.status}: ${err.message}`);
+    if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
+      mission.status = "paused";
+      mission.pausedAt = Date.now();
+      mission.error = null;
+      for (const t of mission.tasks || []) if (t.status === "running" || t.status === "review") rewindTask(t);
+      log("Mission paused. You can edit the steps that have not finished, then resume.");
+    } else {
+      mission.status = ctl.signal.aborted ? "aborted" : "failed";
+      mission.error = err.message;
+      log(`Mission ${mission.status}: ${err.message}`);
+    }
   } finally {
     user.missionsInFlight = Math.max(0, (user.missionsInFlight || 1) - 1);
     running.delete(id);
     live.delete(id);
-    mission.finishedAt = Date.now();
+    issued.delete(id);
+    pendingPause.delete(id);
+    if (mission.status !== "paused") mission.finishedAt = Date.now();
     update();
-    log(`Mission ${mission.status} in ${((mission.finishedAt - t0) / 1000).toFixed(0)}s, $${mission.cost.toFixed(4)}.`);
+    log(`Mission ${mission.status} in ${((Date.now() - t0) / 1000).toFixed(0)}s, $${mission.cost.toFixed(4)}.`);
     for (const job of lateWhileRunning.get(id) || []) lateResult(job).catch((e) => console.error("[mission] late result:", e.message));
     lateWhileRunning.delete(id);
   }
@@ -483,6 +662,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       mission.deliverable = text;
     } catch (err) {
+      if (err instanceof MissionPause || err?.code === "paused") throw err;
+      throwIfPause(mission, ctl);
       noteCall(asm.provider, false, Date.now() - s5, err);
       if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: asm.provider, model: asm.model, capability: "writing", difficulty: 3, runId: id, ok: false });
       emit("agent.error", { agent: aAgent, provider: asm.provider, model: asm.model, missionId: id, error: err.message });
@@ -492,10 +673,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
 }
 function save(m) {
   saveDoc(m);
