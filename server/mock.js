@@ -158,6 +158,11 @@ function demoDescribe(u, messages) {
 
 function answerFor(model, system, user, messages = []) {
   const sys = system || "", u = user || "";
+  if (/Meldmind group chat persona:/.test(sys)) {
+    const persona = (sys.match(/persona: ([a-z]+)/) || [])[1] || "chat";
+    const crisis = persona === "support" ? " I am not a licensed therapist. If you are in crisis, call or text 988." : "";
+    return JSON.stringify({ replies: [`${persona}: first take.${crisis}`, `${persona}: second take.`, `${persona}: third take.`] });
+  }
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
   if (/^You sort browser bookmarks/.test(sys)) return demoBookmarks(u);
   if (/^You describe an image/.test(sys)) return demoDescribe(u, messages);

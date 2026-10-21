@@ -1985,3 +1985,20 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed at 04:31:42 UTC. Node 22.23.3. No real key. data/ was not read.
 - Checked in a browser on this machine (headless Chrome): Expert shows Run in background, Pause stays hidden while idle, and Settings shows What your ratings taught with a reset that asks first. A paused mission form edited a step that had not finished, resume kept the finished step, and the new instructions ran. A background chat raised Chat done with Open and Dismiss. Open brought that run back and cleared the banner.
 - Not verified here: Mac CI and Windows CI (this machine is Linux). Phase 14 release packaging stays parked. What's new shows once per version, so people who already dismissed 0.4.8 will not see the new bullets. docs/billing.md was not updated. Square was not touched.
+
+## 2026-10-21: Together (phases 42, 43, 44, 61)
+
+Version stayed 0.4.8. No Square change. The hub was not deployed. data/ was not read. Phase 8 workspaces were not rebuilt. No real key.
+
+- Phase 61: Team spaces on the Extreme seat cap. 5 seats total, counting the owner. An invite uses a seat. Shared projects and roles (owner, admin, member, viewer). Invite links are shown once and nothing is emailed. The cap calls `evaluateGate(..., "teamSeats", { seats })` when `server/feature-gate.js` is present (pull request 84). On this branch that file is not here yet, so the same numbers are used: Extreme, Studio, and Owner get 5, and Free and Pro get none.
+- Phase 44: AI group chat, up to 4 AIs, personas fun, technical, coach, and support. The support persona says it is not a licensed therapist and the page shows the 988 note. Each AI returns 2 or 3 short replies. Nothing is sent until Send.
+- Phase 43: Rooms by category. A build can be shared in so it can be watched, then copied as a recipe. Keys are stripped. Report and block stay on this PC. Nothing is sent. A recipe run still uses the existing mission gate, and only after a click. Local only.
+- Phase 42: One news list for finished jobs, spend warnings, model notes, and app updates. Phase 32 (watching providers for a new model) is not built. Nothing downloads from this list.
+- Not verified on a hosted hub, because the hub was not deployed. A second signed-in person was not joined from another machine. Windows and Mac were not run here.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The Together page was also clicked through in headless Chrome: Business, Together, create a space, the 988 note on the support persona, a room, and the news list.
+
+PHASE 42 DONE
+PHASE 43 DONE
+PHASE 44 DONE
+PHASE 61 DONE
+

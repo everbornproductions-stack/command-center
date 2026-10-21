@@ -76,15 +76,16 @@ Not done, except the three rows already marked done above (share links, accessib
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
 3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
-4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
+4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
 
 ### Later
 
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
-- Phase 44. AI group chat.
+- Phase 44. AI group chat. Built in the Together workstream. The version stayed 0.4.8.
 - Phase 92. User chat.
-- Phase 43. Live builds.
+- Phase 43. Live builds. Built in the Together workstream as local rooms. The hub was not deployed. The version stayed 0.4.8.
+- Phase 61. Team spaces. Built in the Together workstream: Extreme, 5 seats counting the owner, shared projects and roles. Phase 8 workspaces were not rebuilt. The version stayed 0.4.8.
 - Phase 93. A newsletter and a monthly savings email.
 - Phase 94. Spanish.
 - Phase 95. Phone apps.
@@ -99,7 +100,7 @@ Left on the list so they are not dropped. They are not next.
 - Phase 32. Model-version alerts.
 - Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
 - Phase 34. Hide hosted plumbing.
-- Phase 42. Newsfeed and alerts.
+- Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is still not built. The news list has a place for those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
@@ -377,14 +378,21 @@ Version 0.4.11. This is the learned-from-ratings work. The learning router keeps
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
 Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild.
 
-### Phase 42: Newsfeed and alerts (effort: M) (not in 0.4.9 to 0.4.11, not built)
+### Phase 42: Newsfeed and alerts (effort: M) (built, version unchanged)
 One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
+Built in the Together workstream. The version stayed 0.4.8. Phase 32 itself is still not built: the list can show a model note, and it does not watch providers or call them. Nothing downloads from this list.
 
-### Phase 43: Chat rooms with live builds (effort: L) (Later, not done)
+### Phase 43: Chat rooms with live builds (effort: L) (built, version unchanged)
 Share a running mission into a room so others can watch it live, and let them copy it as a recipe. Sharing is opt-in per mission; no keys or secrets are shared.
+Built as local rooms on this PC, with a hub-ready shape (categories, a live snapshot, a recipe copy). The hub was not deployed. A recipe run still goes through the existing mission gate, and only after a click. Report and block stay on this PC. Nothing is sent.
 
-### Phase 44: AI group chat with personas (effort: M) (Later, not done)
+### Phase 44: AI group chat with personas (effort: M) (built, version unchanged)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
+Built in the Together workstream. The version stayed 0.4.8. Nothing is sent until Send.
+
+### Phase 61: Team spaces (effort: M) (built, version unchanged)
+Shared projects, roles, and a small team for a business. Phase 8 workspaces stay as they are and were not rebuilt. They remain the Studio teams.
+Team spaces are the Extreme seat cap: 5 seats total, counting the owner. An invite uses a seat. The cap is `teamSeats` in `server/feature-gate.js`. Extreme and Owner get 5. Free, Pro, and Studio get none, because a Studio licence is Pro. No Square change. Nothing is emailed. The version stayed 0.4.8.
 
 ### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, fixture drivers in)
 Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through a fixture page on this computer, Windows desktop through a fixture control tree), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The drivers in this build are fixtures. They do not open Edge, read a browser profile, call UI Automation, or send a picture to a model.
@@ -542,11 +550,11 @@ The person shows an app or a game they saw online or on their desktop: screensho
 - That learning uses the router and the shared-learning opt-in that already exist (decision 18, Phase 28). The record is the app type, the AI, the engine, the kind of source, the rating, and whether a fix was needed. It does not store the prompt, the screenshots, the original name, the characters, or any key. Nothing is shared unless the person has opted in. What would be shared is the same kind of anonymous totals as Who's best, and this phase does not send them on its own.
 - Guardrails: never decompile, unpack, or reuse another app's code, assets, logos, or brand. The pattern library is the person's own remix, not files taken from the app they showed. Nothing is posted or sent without a click. Tests use fixtures only. No real download, no real game, and no real key.
 
-### Phase 91: Three tiers and the lifetime founder counter (not done)
-The plan prices are in docs/billing.md. The app still shows the Phase 35 prices ($15.99 a month, $159 a year, lifetime $299 then $499) until this phase. Do not change the live Square link until Chris publishes new Square plans. Do not call Square from the app.
+### Phase 91: Three tiers and the lifetime founder counter
+The plan prices are in docs/billing.md and in the comparison table in the app. The live Square monthly checkout stays $15.99. Do not change that link. Do not call Square from the app.
 - Free, Pro, and Extreme. Pro is $18.99 a month or $189 a year. Extreme is $29.99 a month or $299 a year.
 - About 6 months after those prices go live, Pro monthly rises to $24.99 and Extreme monthly rises to $39.99. Yearly stays $189 and $299 until Chris sets a yearly change.
-- Lifetime founders: $299 for the first 100 buyers, then $499 for the next 400, closed at 500. The buyer counter stays hidden while fewer than 40 people have bought.
+- Lifetime founders: $349 for the first 100 buyers, then $499 for the next 400, closed at 500. Lifetime is Pro for life. The buyer counter stays hidden while fewer than 40 people have bought.
 - The Studio flag for workspaces (Phase 8, decision 13) stays. This phase does not add a fourth public price and does not rebuild teams.
 
 ## Later (Chris, 2026-10-21)

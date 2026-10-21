@@ -214,7 +214,7 @@ test("the comparison table is Free, Pro, and Extreme", () => {
   assert.equal(evaluateGate(LIMITS.free, "earlyAccess").code, "extreme_required");
   assert.equal(FEATURES.earlyAccess.built, true);
   assert.equal(FEATURES.maxQuality.built, true);
-  assert.equal(FEATURES.teamSeats.built, false);
+  assert.equal(FEATURES.teamSeats.built, true);
 });
 
 test("the check route answers every Free gate", async () => {

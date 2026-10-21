@@ -38,7 +38,7 @@ export const FEATURES = {
   concurrentRuns: { kind: "cap", built: true },
   hostedBackground: { kind: "bool", built: false },
   hostedSchedules: { kind: "bool", built: false },
-  teamSeats: { kind: "cap", built: false },
+  teamSeats: { kind: "cap", built: true },
   desktopApps: { kind: "cap", built: false },
   recipes: { kind: "cap", built: false },
   industryPacks: { kind: "cap", built: true },
