@@ -801,3 +801,53 @@ export function gateHostedRuns(tier) {
     { status: 402, code: "extreme_required" }
   );
 }
+
+// Remix is a Pro mission. Studio is Pro, so it uses the Pro cap. Extreme and Owner have no monthly cap.
+// The Pro cap is a placeholder. It is not a price. This does not import license.js.
+export const REMIX_PRO_CAP = 8;
+
+export function countRemixMonth(items, now = Date.now()) {
+  const since = monthStartUtcLocal(now);
+  return (items || []).filter((r) => Number(r?.ts) >= since).length;
+}
+
+export function remixPolicy(tier) {
+  const t = String(tier || "free").toLowerCase();
+  if (t === "extreme" || t === "owner") {
+    return { tier: t, allowed: true, unlimited: true, cap: null, label: LIMITS[t]?.label || (t === "extreme" ? "Extreme" : "Owner") };
+  }
+  if (t === "pro" || t === "studio") {
+    return { tier: t, allowed: true, unlimited: false, cap: REMIX_PRO_CAP, label: LIMITS[t]?.label || "Pro" };
+  }
+  return { tier: "free", allowed: false, unlimited: false, cap: 0, label: LIMITS.free.label };
+}
+
+export function remixGate({ tier = "free", used = 0 } = {}) {
+  const policy = remixPolicy(tier);
+  const n = Math.max(0, Number(used) || 0);
+  if (!policy.allowed) {
+    return {
+      ...policy, used: n, remaining: 0, ok: false, status: 402, code: "pro_required",
+      message: "Remix is a Pro mission. Extreme has no monthly cap.",
+    };
+  }
+  if (!policy.unlimited && n >= policy.cap) {
+    return {
+      ...policy, used: n, remaining: 0, ok: false, status: 402, code: "remix_cap",
+      message: `You have used ${n} of ${policy.cap} Remix missions this month on ${policy.label}. Extreme has no monthly cap.`,
+    };
+  }
+  const remaining = policy.unlimited ? null : policy.cap - n;
+  return {
+    ...policy, used: n, remaining, ok: true, status: 200, code: null,
+    message: policy.unlimited
+      ? "Remix has no monthly cap on this plan."
+      : `${remaining} Remix mission${remaining === 1 ? "" : "s"} left this month.`,
+  };
+}
+
+export function assertRemix({ tier, used } = {}) {
+  const g = remixGate({ tier: tier ?? readLicense().tier, used });
+  if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
+  return g;
+}
