@@ -13,6 +13,7 @@ import { HOSTED, ctx, doc, putDoc, allContexts, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
+import { scheduler } from "./perf/scheduler.js";
 
 const PRO = {
   missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
@@ -186,7 +187,13 @@ export async function recheck() {
 export function startLicenseLoop() {
   const tick = () => { for (const c of allContexts()) runAs(c, () => recheck().catch(() => {})); };
   tick();
-  setInterval(tick, 12 * 3600 * 1000).unref();
+  scheduler.register({
+    id: "licence",
+    everyMs: 12 * 3600 * 1000,
+    lightEveryMs: 24 * 3600 * 1000,
+    pause: true,
+    run: tick,
+  });
 }
 
 // Validate a Settings → Cloud change (local mode). Returns the normalised values and whether the

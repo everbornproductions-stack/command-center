@@ -20,6 +20,9 @@ files:
   - "!release/**"
   - "!Start Command Center.cmd"
   - "!**/*.map"
+  # Heavy tools are add-ons. They are never packed into the installer.
+  - "!addons/**"
+  - "!**/{playwright,playwright-core,puppeteer,lighthouse,tesseract,tesseract.js,whisper,whisperx,piper,godot,bevy,postiz,chatwoot,docuseal}/**"
 # Zip codesign toolset. The legacy 7z bundle contains macOS symlinks, and a
 # Windows runner cannot unpack those, so packaging stops before the installer exists.
 toolsets:

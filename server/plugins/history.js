@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import * as I from "../history-import.js";
 import * as Y from "../history-sync.js";
 import { cloud } from "../license.js";
+import { scheduler } from "../perf/scheduler.js";
 
 export const id = "history";
 const HOSTED_IMPORT = "Import runs on the desktop app, so your export never leaves your PC. Import there, then turn on sync to read the chats here.";
@@ -64,10 +65,16 @@ export function init(h) {
   if (h.HOSTED) return;
   const every = Math.max(1000, Number(process.env.CC_SYNC_EVERY_MS) || 10 * 60 * 1000);
   const c = h.ctx();
-  setInterval(() => h.runAs(c, async () => {
-    try { const s = Y.status(); if (s.enabled && s.keyOnDevice) { const r = await Y.syncNow(); if (r.result.pulled) h.emit("history.synced", { pulled: r.result.pulled }); } }
-    catch (e) { console.error("[history sync]", e.message); }
-  }), every).unref();
+  scheduler.register({
+    id: "history-sync",
+    everyMs: every,
+    lightEveryMs: Math.max(every * 4, 60 * 60 * 1000),
+    pause: true,
+    run: () => h.runAs(c, async () => {
+      try { const s = Y.status(); if (s.enabled && s.keyOnDevice) { const r = await Y.syncNow(); if (r.result.pulled) h.emit("history.synced", { pulled: r.result.pulled }); } }
+      catch (e) { console.error("[history sync]", e.message); }
+    }),
+  });
 }
 
 export async function routes(req, res, url, body, h) {

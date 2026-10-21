@@ -4,6 +4,7 @@
 import crypto from "node:crypto";
 import { PROVIDERS } from "../registry.js";
 import { searchCaps, nameOfLedgerProvider } from "../search.js";
+import { scheduler } from "../perf/scheduler.js";
 export const id = "alerts";
 const nameOf = (pid) => PROVIDERS[pid]?.name || nameOfLedgerProvider(pid) || pid;
 
@@ -16,7 +17,18 @@ const PREF_DEFAULTS = { email: "", emailOn: false, pushOn: true, jobDoneOn: fals
 const prefsOf = (h) => ({ ...PREF_DEFAULTS, ...h.doc(PREFS, () => ({})) });
 
 let H = null;
-export async function init(h) { H = h; }
+export async function init(h) {
+  H = h;
+  if (h.HOSTED) return;
+  scheduler.register({
+    id: "renewals",
+    everyMs: 12 * 3600 * 1000,
+    firstMs: 20000,
+    lightEveryMs: 24 * 3600 * 1000,
+    pause: true,
+    run: () => { try { renewalSweep(h); } catch { /* a sweep can wait until the next interval */ } },
+  });
+}
 
 function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 
@@ -217,6 +229,3 @@ export async function routes(req, res, url, body, h) {
   return false;
 }
 
-// renewal sweep shortly after start, then twice a day
-setTimeout(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 20000).unref();
-setInterval(() => { try { if (H && !H.HOSTED) renewalSweep(H); } catch {} }, 12 * 3600 * 1000).unref();

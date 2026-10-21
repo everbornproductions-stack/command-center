@@ -9,7 +9,7 @@ import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false, settingsLoaded: false,
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -271,6 +271,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
+  S.settingsLoaded = true;
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
@@ -653,6 +654,16 @@ function toggleSimpleCreate() {
   sheet.classList.add("open");
 }
 function render() {
+  document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
+  const cc = window.CC;
+  const light = !!S.settings?.lightMode;
+  if (cc?.viewReady && !cc.viewReady(S.view, { light })) {
+    const token = (cc._paintToken = (cc._paintToken || 0) + 1);
+    cc.ensureView(S.view, { light }).then(() => {
+      if (cc._paintToken === token) render();
+    }).catch((e) => console.warn("[features]", e));
+    return;
+  }
   syncChrome();
   renderAsk();
   markTabs();
@@ -674,7 +685,7 @@ function render() {
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
 const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
 function knownViews() {
-  const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
+  const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
   for (const f of window.CC?.byKind?.("tab") || []) have.add(f.id);
   const ordered = NAV_ORDER.filter((id) => have.has(id));
@@ -738,6 +749,7 @@ function ensureFeatureTabs() {
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
+  if (S.settings?.lightMode && (kind === "command" || kind === "deliverable")) return;
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
     if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;

@@ -92,7 +92,7 @@ test("page and server sources: manual handoff, no automation, no secrets, no em-
   const ui = read("web/features/handoff.js");
   const preload = read("electron/desk-preload.cjs");
   const main = read("electron/main.cjs");
-  const features = read("web/features/index.js");
+  const features = read("web/perf/registry.js");
   for (const src of [server, plugin, ui, read("web/features/fallback.js")]) assert.ok(!src.includes("—"), "no em-dash");
   assert.match(features, /"handoff"/);
   assert.match(ui, /Manual handoff/);

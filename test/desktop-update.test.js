@@ -239,7 +239,7 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.match(ui, /Update available/);
   assert.match(ui, /Restart to update/);
   assert.match(ui, /data-action='updates'/);
-  assert.match(fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8"), /"updates"/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web", "perf", "registry.js"), "utf8"), /"updates"/);
   assert.match(fs.readFileSync(path.join(ROOT, "server", "update.js"), "utf8"), /60 \* 60 \* 1000/);
   assert.doesNotMatch(ui, /\u2014/);
   assert.match(main, /Install update v\$\{st\.version\}/);

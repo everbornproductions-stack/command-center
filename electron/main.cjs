@@ -1,7 +1,7 @@
 // Meldmind desktop shell (an Everborn product; internal name Everborn Command Center). Starts the same Node server the web version uses, inside
 // Electron's Node, then opens it in a window. Data lives in the per-user app folder, never
 // inside the install directory.
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session } = require("electron");
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog, safeStorage, ipcMain, globalShortcut, screen, session, powerMonitor } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -254,6 +254,17 @@ function createWindow() {
     screen, win,
     send: (payload) => { try { if (win && !win.isDestroyed()) win.webContents.send("nav:display", payload); } catch {} },
   });
+  const markHidden = (hidden) => {
+    const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
+    if (hidden && !g.hidden) g.hiddenAt = Date.now();
+    g.hidden = !!hidden;
+    if (!hidden) g.hiddenAt = 0;
+  };
+  win.on("minimize", () => markHidden(true));
+  win.on("hide", () => markHidden(true));
+  win.on("restore", () => markHidden(false));
+  win.on("show", () => markHidden(false));
+  win.on("focus", () => markHidden(false));
   win.on("closed", () => { try { stopNav(); } catch {} win = null; });
 }
 
@@ -411,6 +422,12 @@ process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
+  try {
+    const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
+    g.battery = powerMonitor.isOnBatteryPower();
+    powerMonitor.on("on-battery", () => { g.battery = true; });
+    powerMonitor.on("on-ac", () => { g.battery = false; });
+  } catch (e) { log("power monitor unavailable:", e && e.message); }
   Menu.setApplicationMenu(IS_MAC ? Menu.buildFromTemplate(macMenuTemplate()) : null);
   allowMicrophone();
   log(`starting v${app.getVersion()} packaged=${isPackaged} preferred port=${PREFERRED_PORT} data=${process.env.CC_DATA_DIR}`);

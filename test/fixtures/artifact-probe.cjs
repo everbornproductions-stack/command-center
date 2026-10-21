@@ -18,8 +18,10 @@ app.whenReady().then(async () => {
     await w.loadURL(base + "/");
     const r = await w.webContents.executeJavaScript(`new Promise((resolve, reject) => {
       const t0 = Date.now();
-      const go = () => {
-        if (!window.CC || !window.CC.artifacts) { if (Date.now() - t0 > 20000) return reject(new Error("panel code not loaded")); return setTimeout(go, 100); }
+      const go = async () => {
+        if (!window.CC || !window.CC.ensureView) { if (Date.now() - t0 > 20000) return reject(new Error("panel code not loaded")); return setTimeout(go, 100); }
+        try { await window.CC.ensureView("artifacts"); } catch (e) {}
+        if (!window.CC.artifacts) { if (Date.now() - t0 > 20000) return reject(new Error("panel code not loaded")); return setTimeout(go, 100); }
         window.addEventListener("message", (e) => { if (e.data && e.data.ccProbe) {
           const f = document.querySelector("#art-panel iframe");
           resolve({ probe: e.data.ccProbe, sandbox: f && f.getAttribute("sandbox"), fromFrame: f && e.source === f.contentWindow, token: (document.querySelector('meta[name="cc-token"]') || {}).content || "" });

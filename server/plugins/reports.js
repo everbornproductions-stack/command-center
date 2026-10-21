@@ -4,6 +4,7 @@
 // email draft (opens their own mail app) and a Markdown export, and sends it themselves if they want.
 import { allEntries } from "../ledger.js";
 import { PROVIDERS } from "../registry.js";
+import { scheduler } from "../perf/scheduler.js";
 export const id = "reports";
 const LATEST = "reports.latest", HIST = "reports.history", STATE = "reports.state", PREFS = "reports.prefs";
 const DONE = new Set(["done", "done-with-errors"]);
@@ -13,6 +14,14 @@ export async function init(h) {
   H = h;
   // catch up shortly after start when this week's Monday 07:00 report was missed (the app was closed)
   setTimeout(() => scheduledRun(), 60 * 1000).unref();
+  if (h.HOSTED) return;
+  scheduler.register({
+    id: "reports",
+    everyMs: 10 * 60 * 1000,
+    lightEveryMs: 60 * 60 * 1000,
+    pause: true,
+    run: () => scheduledRun(),
+  });
 }
 
 function weekRange(offsetWeeks = 0, now = new Date()) {
@@ -118,5 +127,3 @@ export async function routes(req, res, url, body, h) {
   return false;
 }
 
-// schedule check every 10 minutes (local mode; hosted users get theirs from Run now)
-setInterval(scheduledRun, 10 * 60 * 1000).unref();

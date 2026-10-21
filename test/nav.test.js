@@ -124,7 +124,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
 test("the app wires the menus and does not drop the setup tab id", () => {
   const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
   const html = fs.readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
-  const features = fs.readFileSync(new URL("../web/features/index.js", import.meta.url), "utf8");
+  const features = fs.readFileSync(new URL("../web/perf/registry.js", import.meta.url), "utf8");
   assert.match(app, /installNav/);
   assert.match(app, /id="settings-keys"/);
   assert.match(html, /id="tab-setup"/);
