@@ -15,7 +15,7 @@ const ORDER = ["CommandOrControl", "Command", "Ctrl", "Super", "Alt", "AltGr", "
 // combinations the OS keeps for itself; RegisterHotKey would not always say so
 const RESERVED = {
   win32: ["Alt+Tab", "Alt+F4", "Ctrl+Alt+Delete", "Ctrl+Shift+Escape", "Super+L", "Super+D", "Super+Tab", "Alt+Escape"],
-  darwin: ["Command+Space", "Command+Tab", "Command+Q", "Command+Alt+Escape", "Ctrl+Space"],
+  darwin: ["Command+Space", "Command+Tab", "Command+Q", "Command+Alt+Escape", "Ctrl+Space", "Ctrl+Alt+Delete"],
   linux: ["Alt+Tab", "Alt+F4", "Ctrl+Alt+Delete", "Super+L"],
 };
 
