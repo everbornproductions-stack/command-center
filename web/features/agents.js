@@ -2,16 +2,17 @@
 // libraries, starters), saved prompts with {{variables}} filled in a small form before sending, export and
 // import as JSON, sharing with a workspace, what others shared with me, and Marketplace listing drafts.
 // The Command view gets a row of saved prompts and agents. A run is a single chat: it shows in the Command view.
+import { missionTeamHtml } from "../employees-ui.js";
 const { api, toast, esc, md } = window.CC;
 const S = () => window.CC.S;
 
-const st = { data: null, edit: null, editPrompt: null, workspaces: [], loaded: false };
+const st = { data: null, edit: null, editPrompt: null, workspaces: [], loaded: false, browse: false, find: "", cat: "" };
 const currentProject = () => document.getElementById("proj")?.value || S().project || null;
 const VAR_RE = /\{\{\s*([A-Za-z][\w .-]{0,39}?)\s*\}\}/g;
 const varsOf = (t) => { const out = []; for (const m of String(t || "").matchAll(VAR_RE)) if (!out.includes(m[1])) out.push(m[1]); return out; };
 
 async function load() {
-  try { st.data = await api("/agents"); } catch (e) { toast(e.message, true); st.data = st.data || { agents: [], prompts: [], shared: [], listings: [], tools: [], libraries: [], categories: [] }; }
+  try { st.data = await api("/agents"); } catch (e) { toast(e.message, true); st.data = st.data || { agents: [], prompts: [], shared: [], listings: [], tools: [], libraries: [], categories: [], employees: { team: [], library: [], categories: [] } }; }
   try { const w = await api("/workspaces"); st.workspaces = [...(w.owned || []), ...(w.memberOf || [])].filter((x) => ["owner", "admin", "member"].includes(x.role)); } catch { st.workspaces = []; }
   st.loaded = true;
 }
@@ -35,9 +36,10 @@ function dialog(html) {
 }
 const afterRun = () => { document.querySelector(".cc-agents-dlg")?.remove(); toast("Running. Watch it in the Command view."); window.CC.go("command"); };
 
-function runAgentDialog(a, { shared = null } = {}) {
-  const el = dialog(`<h3>Run ${esc(a.name)} <span class="right small dim">${esc(a.modelName || "Auto")}</span></h3>
+function runAgentDialog(a, { shared = null, employee = false } = {}) {
+  const el = dialog(`<h3>${employee ? esc(a.name) : `Run ${esc(a.name)}`} <span class="right small dim">${esc(a.modelName || "Auto")}</span></h3>
     ${a.description ? `<div class="small muted">${esc(a.description)}</div>` : ""}
+    ${employee ? `<div class="small dim" style="margin-top:4px">Tell it about your business in your message, or use Customize once to fill in its blanks.</div>` : ""}
     ${(a.starters || []).length ? `<div class="row small" style="gap:6px;flex-wrap:wrap;margin-top:8px">${a.starters.map((s, i) => `<button class="btn sm" data-starter="${i}">${esc(s)}</button>`).join("")}</div>` : ""}
     <textarea id="ag-run-text" rows="4" style="width:100%;margin-top:8px" placeholder="What should ${esc(a.name)} do?"></textarea>
     <div class="small dim" style="margin-top:6px">Runs as one chat with your own keys; the cost goes in the ledger and counts toward your spend caps. Tools that change something still ask for your OK.</div>
@@ -47,7 +49,8 @@ function runAgentDialog(a, { shared = null } = {}) {
     const prompt = el.querySelector("#ag-run-text").value.trim();
     if (!prompt) return toast("Type what you want, or pick a starter.", true);
     try {
-      if (shared) await api(`/agents/shared/${encodeURIComponent(shared.workspaceId)}/agent/${encodeURIComponent(shared.itemId)}/run`, { method: "POST", body: { prompt, projectId: currentProject() } });
+      if (employee) await api(`/agents/employees/${encodeURIComponent(a.id)}/run`, { method: "POST", body: { prompt, projectId: currentProject() } });
+      else if (shared) await api(`/agents/shared/${encodeURIComponent(shared.workspaceId)}/agent/${encodeURIComponent(shared.itemId)}/run`, { method: "POST", body: { prompt, projectId: currentProject() } });
       else await api(`/agents/${a.id}/run`, { method: "POST", body: { prompt, projectId: currentProject() } });
       afterRun();
     } catch (e) { toast(e.message, true); }
@@ -153,6 +156,81 @@ function promptEditor(p) {
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn primary" id="pe-save">Save</button><button class="btn" id="pe-cancel">Cancel</button></div></div>`;
 }
 
+// ---------- AI employees ----------
+const empOf = () => st.data?.employees || { team: [], library: [], categories: [] };
+const findEmp = (id) => [...empOf().team, ...empOf().library].find((e) => e.id === id);
+export function useEmployee(e) {
+  if (!e) return;
+  runAgentDialog({ id: e.id, name: e.name, description: e.oneLiner, starters: e.starters, modelName: "Auto (best for each job)" }, { employee: true });
+}
+async function scriptDialog(id) {
+  try {
+    const e = await api(`/agents/employees/${encodeURIComponent(id)}`);
+    const el = dialog(`<h3>${esc(e.name)} <span class="right small dim">${esc(e.category)}</span></h3>
+      <div class="small">${esc(e.oneLiner)}</div>
+      ${e.blanks?.length ? `<div class="small dim" style="margin-top:6px">Blanks to fill in: ${e.blanks.slice(0, 12).map((b) => `[${esc(b)}]`).join(" ")}${e.blanks.length > 12 ? " and more" : ""}</div>` : ""}
+      <div class="mono small" style="white-space:pre-wrap;margin-top:8px;max-height:46vh;overflow:auto;border:1px solid var(--line);padding:8px;border-radius:6px">${esc(e.instructions)}</div>
+      <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">${e.onTeam ? `<button class="btn primary" data-use>Use</button>` : `<button class="btn primary" data-add>Add to my team</button>`}<button class="btn" data-custom title="Copy it into My agents, where you can edit every word">Customize</button><button class="btn" data-close>Close</button></div>`);
+    el.querySelector("[data-use]")?.addEventListener("click", () => useEmployee(e));
+    el.querySelector("[data-add]")?.addEventListener("click", async () => { await addEmp(e.id); el.remove(); });
+    el.querySelector("[data-custom]").addEventListener("click", async () => { await customizeEmp(e.id); el.remove(); });
+  } catch (err) { toast(err.message, true); }
+}
+async function addEmp(id) {
+  try { const e = await api(`/agents/employees/${encodeURIComponent(id)}/add`, { method: "POST" }); toast(`${e.name} joined your team.`); await refresh(); }
+  catch (err) { toast(err.message, true); }
+}
+async function removeEmp(id) {
+  try { const e = await api(`/agents/employees/${encodeURIComponent(id)}/remove`, { method: "POST" }); toast(`${e.name} left your team. Add it back any time from the library.`); await refresh(); }
+  catch (err) { toast(err.message, true); }
+}
+async function customizeEmp(id) {
+  try { const a = await api(`/agents/employees/${encodeURIComponent(id)}/customize`, { method: "POST" }); st.edit = structuredClone(a); toast(`A copy of ${a.name} is in My agents. Fill in its blanks and Save.`); await refresh(); }
+  catch (err) { toast(err.message, true); }
+}
+const empCard = (e) => `<div class="emp-card" style="border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px">
+  <div><b>${esc(e.name)}</b>${e.source === "library" ? ` <span class="chip">added</span>` : ""}</div>
+  <div class="small">${esc(e.oneLiner)}</div>
+  <div class="row small" style="gap:6px;margin-top:auto;flex-wrap:wrap"><button class="btn sm primary" data-emp-use="${esc(e.id)}">Use</button>
+    <details><summary class="small dim" style="cursor:pointer">More</summary><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap"><button class="btn sm" data-emp-script="${esc(e.id)}">See script</button><button class="btn sm" data-emp-custom="${esc(e.id)}">Customize</button><button class="btn sm" data-emp-remove="${esc(e.id)}">Take off team</button></div></details></div></div>`;
+const libCard = (e) => `<div class="emp-card" style="border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px">
+  <div><b>${esc(e.name)}</b> <span class="dim small">${esc(e.category)}</span></div>
+  <div class="small">${esc(e.oneLiner)}</div>
+  <div class="row small" style="gap:6px;margin-top:auto"><button class="btn sm primary" data-emp-add="${esc(e.id)}">Add</button><button class="btn sm" data-emp-script="${esc(e.id)}">See script</button></div></div>`;
+const GRID = "display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:8px";
+function libraryMatches() {
+  const q = st.find.trim().toLowerCase();
+  return empOf().library.filter((e) => (!st.cat || e.category === st.cat) && (!q || `${e.name} ${e.oneLiner} ${e.category}`.toLowerCase().includes(q)));
+}
+function employeesPanel() {
+  const E = empOf();
+  const byCat = E.categories.map((c) => [c, E.team.filter((e) => e.category === c)]).filter(([, list]) => list.length);
+  return `<div class="panel" id="emp-panel"><h3>Your AI employees <span class="dim small">(${E.team.length})</span> <span class="right"><button class="btn sm ${st.browse ? "" : "primary"}" id="emp-browse">${st.browse ? "Back to my team" : "+ Add more employees"}</button></span></h3>
+    <div class="small muted">Ready-made helpers, each with a job script. Click Use, say what you need, and it does the work. They use your own AI keys, and nothing is sent or posted without your click.</div>
+    ${st.browse ? `<div class="row small" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input type="search" id="emp-find" placeholder="Find an employee (for example: invoices, YouTube, contracts)" value="${esc(st.find)}" style="flex:1;min-width:220px" aria-label="Find an employee">
+        <select id="emp-cat" aria-label="Category"><option value="">All kinds</option>${E.categories.map((c) => `<option ${c === st.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div>
+      <div id="emp-lib" style="${GRID}">${libraryMatches().map(libCard).join("") || `<div class="dim small">No match. Try another word.</div>`}</div>`
+    : byCat.map(([c, list]) => `<div class="small dim" style="margin-top:10px;text-transform:uppercase;letter-spacing:.08em">${esc(c)}</div><div style="${GRID}">${list.map(empCard).join("")}</div>`).join("") || `<div class="dim small" style="margin-top:8px">No employees on your team. Click + Add more employees.</div>`}
+  </div>`;
+}
+function wireEmployees(view) {
+  const q = (s) => view.querySelector(s);
+  q("#emp-browse")?.addEventListener("click", () => { st.browse = !st.browse; renderTab(view); });
+  const paintLib = () => { const box = q("#emp-lib"); if (!box) return; box.innerHTML = libraryMatches().map(libCard).join("") || `<div class="dim small">No match. Try another word.</div>`; wireCards(box); };
+  q("#emp-find")?.addEventListener("input", (e) => { st.find = e.target.value; paintLib(); });
+  q("#emp-cat")?.addEventListener("change", (e) => { st.cat = e.target.value; paintLib(); });
+  wireCards(q("#emp-panel"));
+}
+function wireCards(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-emp-use]").forEach((b) => b.addEventListener("click", () => useEmployee(findEmp(b.dataset.empUse))));
+  root.querySelectorAll("[data-emp-script]").forEach((b) => b.addEventListener("click", () => scriptDialog(b.dataset.empScript)));
+  root.querySelectorAll("[data-emp-custom]").forEach((b) => b.addEventListener("click", () => customizeEmp(b.dataset.empCustom)));
+  root.querySelectorAll("[data-emp-remove]").forEach((b) => b.addEventListener("click", () => removeEmp(b.dataset.empRemove)));
+  root.querySelectorAll("[data-emp-add]").forEach((b) => b.addEventListener("click", () => addEmp(b.dataset.empAdd)));
+}
+
 // ---------- the tab ----------
 const agentCard = (a) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
   <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
@@ -169,12 +247,12 @@ const sharedCard = (x) => `<div class="row small" style="gap:6px;padding:6px 0;b
   ${x.permissions.use ? `<button class="btn sm primary" data-srun="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">${x.kind === "agent" ? "Run" : "Use"}</button><button class="btn sm" data-scopy="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">Copy to mine</button>` : ""}
   ${x.permissions.remove ? `<button class="btn sm" data-sdel="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}" title="Remove from the workspace">Remove</button>` : ""}</div>`;
 
-async function refresh() { await load(); const v = document.querySelector("#view"); if (v?.querySelector("#ag-root")) renderTab(v); }
+async function refresh() { await load(); const v = document.querySelector("#view"); if (v?.querySelector("#ag-root")) renderTab(v); window.dispatchEvent(new CustomEvent("cc:employees")); }
 
 async function renderTab(view) {
   if (!st.loaded) { view.innerHTML = `<div class="empty">Loading…</div>`; await load(); }
   const d = st.data;
-  view.innerHTML = `<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr)">
+  view.innerHTML = `${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
     <div class="grid" style="align-content:start">
       ${st.edit ? agentEditor(st.edit) : ""}
       <div class="panel"><h3>My agents <span class="right"><button class="btn sm primary" id="ag-new">+ New agent</button></span></h3>
@@ -195,6 +273,7 @@ async function renderTab(view) {
         ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}${l.author ? ` · by ${esc(l.author)}` : ""}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">Delete</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
         <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>
     </div></div>`;
+  wireEmployees(view);
   const $v = (s) => view.querySelector(s);
   const findA = (id) => d.agents.find((x) => x.id === id), findP = (id) => d.prompts.find((x) => x.id === id);
   const splitRef = (v) => { const [workspaceId, kind, itemId] = v.split("|"); return { workspaceId, kind, itemId }; };
@@ -256,16 +335,59 @@ async function renderTab(view) {
   }
 }
 
-// ---------- Command view: saved prompts and agents one click away ----------
+// ---------- Command view: saved prompts and agents one click away, and employees for a mission ----------
 async function renderCommand(el) {
   if (!st.loaded) await load();
   const d = st.data;
-  if (!d || (!d.prompts.length && !d.agents.length)) { el.innerHTML = ""; return; }
-  el.innerHTML = `<div class="route" style="margin-top:8px"><div class="row small" style="gap:6px;flex-wrap:wrap"><span class="muted">Saved:</span>
+  const saved = d && (d.prompts.length || d.agents.length) ? `<div class="route" style="margin-top:8px"><div class="row small" style="gap:6px;flex-wrap:wrap"><span class="muted">Saved:</span>
     ${d.prompts.slice(0, 8).map((p) => `<button class="btn sm" data-cmd-p="${esc(p.id)}" title="${esc(p.text.slice(0, 200))}">${esc(p.name)}</button>`).join("")}
-    ${d.agents.slice(0, 6).map((a) => `<button class="btn sm" data-cmd-a="${esc(a.id)}" title="Run this agent">▸ ${esc(a.name)}</button>`).join("")}</div></div>`;
+    ${d.agents.slice(0, 6).map((a) => `<button class="btn sm" data-cmd-a="${esc(a.id)}" title="Run this agent">▸ ${esc(a.name)}</button>`).join("")}</div></div>` : "";
+  el.innerHTML = `${saved}<div id="emp-mission-slot"></div>`;
   el.querySelectorAll("[data-cmd-p]").forEach((b) => b.addEventListener("click", () => fillDialog(d.prompts.find((p) => p.id === b.dataset.cmdP))));
   el.querySelectorAll("[data-cmd-a]").forEach((b) => b.addEventListener("click", () => runAgentDialog(d.agents.find((a) => a.id === b.dataset.cmdA))));
+  mountMissionTeam(el.querySelector("#emp-mission-slot"));
+}
+
+// Missions can be handed to AI employees. Shown when "Mission" is the run mode. A project with a saved
+// team starts with that team; typing a goal suggests employees that fit it.
+function mountMissionTeam(slot) {
+  if (!slot) return;
+  const team = [...(st.data?.employees?.team || []), ...(st.data?.agents || []).map((a) => ({ id: a.id, name: a.name, oneLiner: a.description || "One of My agents" }))];
+  let suggested = [], timer = null, lastProject = null;
+  const picked = () => (S().missionEmployees ||= []);
+  const projectTeam = () => { const id = document.getElementById("proj")?.value; return (S().projects || []).find((p) => p.id === id)?.team || []; };
+  const paint = () => {
+    const mode = S().cmdMode || "mission";
+    slot.hidden = mode !== "mission";
+    if (slot.hidden) return;
+    const pid = document.getElementById("proj")?.value || null;
+    if (pid !== lastProject) { lastProject = pid; if (!picked().length || S().missionTeamFrom === "project") { const t = projectTeam(); if (t.length) { S().missionEmployees = t.slice(0, 6); S().missionTeamFrom = "project"; } } }
+    slot.innerHTML = missionTeamHtml({ team, picked: picked(), suggested, esc });
+    slot.querySelectorAll("[data-emp-mission]").forEach((c) => c.addEventListener("change", () => {
+      const ids = [...slot.querySelectorAll("[data-emp-mission]:checked")].map((x) => x.dataset.empMission);
+      if (ids.length > 6) { c.checked = false; return toast("6 employees at most for one mission.", true); }
+      S().missionEmployees = ids; S().missionTeamFrom = "you";
+      const open = slot.querySelector("details")?.open; paint(); if (open) slot.querySelector("details").open = true;
+    }));
+    slot.querySelectorAll("[data-emp-suggest]").forEach((b) => b.addEventListener("click", async () => {
+      const id = b.dataset.empSuggest;
+      if (picked().length >= 6) return toast("6 employees at most for one mission.", true);
+      if (!team.some((e) => e.id === id)) { try { await api(`/agents/employees/${encodeURIComponent(id)}/add`, { method: "POST" }); const e = suggested.find((x) => x.id === id); if (e) team.push(e); } catch (err) { return toast(err.message, true); } }
+      S().missionEmployees = [...picked(), id]; S().missionTeamFrom = "you";
+      paint();
+    }));
+  };
+  const look = async () => {
+    const text = document.getElementById("orders")?.value.trim() || "";
+    if (text.length < 8) { suggested = []; return paint(); }
+    try { suggested = (await api(`/agents/employees/suggest?limit=3&text=${encodeURIComponent(text.slice(0, 1500))}`)).items || []; } catch { suggested = []; }
+    paint();
+  };
+  document.getElementById("orders")?.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(look, 500); });
+  document.getElementById("run-mode")?.addEventListener("click", () => setTimeout(paint, 0));
+  document.getElementById("proj")?.addEventListener("change", () => setTimeout(paint, 0));
+  paint();
+  look();
 }
 
 function onEvent(ev) {

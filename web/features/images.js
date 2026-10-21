@@ -102,7 +102,7 @@ function galleryHtml() {
     <img data-img="${r.id}:${f.i}" alt="${esc(r.params?.prompt || "")}" title="${esc(r.params?.prompt || "")}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#0003">
     <div style="padding:6px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.params?.prompt || "")}</div>
     <div class="dim">${esc(OP_LABEL[r.op] || r.op)} · ${esc(r.provider)}${r.cost ? ` · ${money(r.cost / r.files.length, 3)}` : ""}</div>
-    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button><button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">Delete</button></div></div></div>`)).join("")}</div>`;
+    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button><button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">Delete</button><button class="btn sm" data-act="personas" data-id="${r.id}" title="See how real people would react to this design idea">Test with personas</button></div></div></div>`)).join("")}</div>`;
 }
 
 async function renderTab(view) {
@@ -124,6 +124,11 @@ function wireGallery(view, form) {
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const { act, id } = b.dataset, i = Number(b.dataset.i) || 0;
     if (act === "edit" || act === "variation") { st.source = { imageId: id, index: i, label: `${id}${i ? ` #${i + 1}` : ""}` }; form.setOp(act); view.querySelector("#im-form").scrollIntoView({ behavior: "smooth" }); return; }
+    if (act === "personas") {
+      const r = st.items.find((x) => x.id === id);
+      const box = view.querySelector("#im-prompt");
+      return window.CC.testWithPersonas?.({ text: `An image made from this description:\n${r?.params?.prompt || ""}`, kind: "design", onUse: (text) => { if (box) { box.value = text.replace(/^An image made from this description:\s*/i, ""); box.scrollIntoView({ behavior: "smooth" }); } } });
+    }
     if (act === "save") { try { const u = await blob(id, i); const a = document.createElement("a"); a.href = u; a.download = b.dataset.name; document.body.appendChild(a); a.click(); a.remove(); } catch (er) { toast(er.message, true); } return; }
     if (act === "del") { if (!confirm("Delete this batch of images and its files?")) return; try { await api(`/images/${id}`, { method: "DELETE" }); for (const k of [...urls.keys()]) if (k.startsWith(id + ":")) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); } renderGallery(view); } catch (er) { toast(er.message, true); } }
   });

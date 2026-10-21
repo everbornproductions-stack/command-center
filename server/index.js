@@ -692,7 +692,7 @@ async function api(req, res, url) {
     }
     try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
-    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", getItDone: job.getItDone === true, sendMessages: job.sendMessages === true };
+    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", getItDone: job.getItDone === true, sendMessages: job.sendMessages === true, employees: Array.isArray(job.employees) ? job.employees.map(String).slice(0, 12) : undefined };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -762,9 +762,15 @@ async function api(req, res, url) {
     // The id is known before the chat runs, so a caller can wait for this run
     // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
     const runId = job.runId || ("s-" + Date.now().toString(36));
+    // an AI employee picked for this chat (Simple mode suggestion): its script is the system prompt
+    let staff = {};
+    if (typeof job.employee === "string" && job.employee) {
+      try { const { employeeRunOptions } = await import("./employees.js"); const o = employeeRunOptions(job.employee, { prompt: job.prompt, projectId: job.projectId }); staff = { system: o.system, agent: o.agent, tools: o.tools }; }
+      catch (e) { return json(res, e.status || 400, { error: e.message }); }
+    }
     const tone = takeNextTone();
     if (job.background) rememberBackground({ id: runId, kind: "single", title: job.prompt });
-    runChat({ ...job, runId, private: !!job.private, tone: tone?.instruction || "", toneId: tone?.id || "" }).catch((e) => {
+    runChat({ ...job, ...staff, runId, private: !!job.private, tone: tone?.instruction || "", toneId: tone?.id || "" }).catch((e) => {
       netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
       emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
     });

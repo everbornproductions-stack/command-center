@@ -11,8 +11,16 @@
 //   POST /api/agents/<id>/share | /api/agents/prompts/<id>/share { workspaceId }
 //   GET  /api/agents/shared ; POST /api/agents/shared/<ws>/<kind>/<itemId>/run|copy ; DELETE /api/agents/shared/<ws>/<kind>/<itemId>
 //   POST /api/agents/<id>/listing | /api/agents/prompts/<id>/listing { category, promise } ; DELETE /api/agents/listings/<id>
+// AI employees (server/employees.js), ready-made agents with a job script:
+//   GET  /api/agents/employees                            the team, the library, categories
+//   GET  /api/agents/employees/suggest?text=&limit=       best employees for what the person typed
+//   GET|POST /api/agents/employees/project/<projectId> { ids }   a project's team (and the suggested one)
+//   GET  /api/agents/employees/<id>                       one employee with its full script
+//   POST /api/agents/employees/<id>/add|remove|customize  team membership; customize copies it into My agents
+//   POST /api/agents/employees/<id>/run { prompt, projectId }   run it (202, { runId })
 import crypto from "node:crypto";
 import * as A from "../custom-agents.js";
+import * as E from "../employees.js";
 import { listServers } from "../mcp.js";
 import * as L from "../libraries.js";
 import { demosHidden, visibleCustomAgents } from "../demo-visibility.js";
@@ -30,6 +38,7 @@ async function overview(h) {
   try { shared = await A.listShared(); } catch (e) { sharedError = e.message; }
   return {
     agents: visibleCustomAgents(A.listAgents(), { hidden: demosHidden() }), prompts: A.listPrompts(), shared, sharedError, listings: A.listListings(),
+    employees: E.overview(),
     tools: toolChoices(), libraries: L.available() ? L.listLibraries().map((l) => ({ id: l.id, name: l.name, chunks: l.chunks })) : [],
     limits: A.LIMITS, toolModes: A.TOOL_MODES, categories: A.LISTING_CATEGORIES, sharePermissions: A.SHARE_PERMISSIONS, hosted: !!h.HOSTED,
   };
@@ -85,6 +94,25 @@ export async function routes(req, res, url, body, h) {
         if (row.data?.agentRef) { const a = (await A.listShared()).find((x) => x.workspaceId === ws && x.kind === "agent" && x.itemId === row.data.agentRef); if (a) opts = A.runOptions(A.agentFromSnapshot(a.data).agent, opts); }
         return h.json(res, 202, start(h, opts));
       }
+      return false;
+    }
+
+    // ---- AI employees ----
+    if (seg[0] === "employees") {
+      if (m === "GET" && seg.length === 1) return h.json(res, 200, E.overview());
+      if (m === "GET" && seg[1] === "suggest") return h.json(res, 200, { items: E.suggestEmployees(url.searchParams.get("text"), { limit: Number(url.searchParams.get("limit")) || 3 }) });
+      if (seg[1] === "project" && seg[2]) {
+        if (m === "GET") return h.json(res, 200, E.projectTeam(seg[2]));
+        if (m === "POST") return h.json(res, 200, E.setProjectTeam(seg[2], body?.ids));
+        return false;
+      }
+      const e = E.getEmployee(seg[1]);
+      if (!e) return h.json(res, 404, { error: "No such employee." });
+      if (m === "GET" && seg.length === 2) return h.json(res, 200, E.employeeView(e, { full: true }));
+      if (m === "POST" && seg[2] === "add") return h.json(res, 200, E.addEmployee(e.id));
+      if (m === "POST" && seg[2] === "remove") return h.json(res, 200, E.removeEmployee(e.id));
+      if (m === "POST" && seg[2] === "customize") return h.json(res, 200, E.customizeEmployee(e.id));
+      if (m === "POST" && seg[2] === "run") return h.json(res, 202, start(h, E.employeeRunOptions(e.id, { prompt: body?.prompt, projectId: projectOf(body), search: body?.search })));
       return false;
     }
 
