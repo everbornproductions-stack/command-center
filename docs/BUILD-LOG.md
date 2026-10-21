@@ -1678,3 +1678,13 @@ Not a new phase. This brings the open everyday and idea-box work onto current ma
 - Merged: inbox and reminders, the day plan, What's new and suggestions, the idea box (upload, voice, status, media jobs), docs and meetings and lead drafts, Google Calendar, and plain-request actions.
 - The run order line is unchanged, including "Do last: 14,". Welcome email and Use your own Supabase stay out of that line.
 - The licence table registers `missions`, `desktop` (desktop control, including Antigravity), and `appScan` (program scan) as Pro. Free is false. Pro, Studio, and Owner are true. `guard` and `isProFeature` read that table. The scan and the Antigravity bridge enforce it on their own branches.
+
+## 2026-10-21: installed 0.4.7 never offered 0.4.8
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Brought onto this branch from the updater fix (pull request 73). That fix is on the hide-demos branch, not on main yet, so it was cherry-picked here. main stays the base.
+
+- The public feed was already right. v0.4.8 is the latest release, not a draft, and latest.yml says version 0.4.8 and path Meldmind-Setup-0.4.8.exe. productName is Meldmind. The install folder Command AI\Meldmind is the old shortcut location. It is not what the version compare uses. app.setName stays Everborn Command so the data folder does not move. The feed is the public repo, channel latest, private false, no token.
+- A failed check was only written to the log. The launch window opens only when a newer version is found, and the launch promise drops the error. Opening the app from the shortcut while it is still in the tray does not check again. On a wide window, Check for updates was under Settings, not Help.
+- The check still runs on launch and every hour. It also runs when the shortcut focuses the open app. If electron-updater does not report a newer build, the app reads the public latest.yml itself. A newer file shows Update ready, restart. Nothing downloads until that click. If the file cannot be read, the app shows Couldn't check for updates with Download, which opens the releases page. Help, the Help page, and Settings all have Check for updates.
+- The Update ready, restart button sits in the right side of the top bar. The menu row watches that cluster, so the button does not cover Settings or Help. Eight menus stay when they still fit. Otherwise the row goes back to the compact menus, still on one line.
+- Tests here (Linux): npm test 428 tests, 426 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.

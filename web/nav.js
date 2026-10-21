@@ -369,6 +369,8 @@ export function menuModel(views, layout = "narrow") {
     buckets.settings.push({ ...TOUR_ITEM });
     buckets.settings.push({ ...UPDATES_ITEM });
     if (!buckets.guides.some((i) => i.view === "help")) buckets.guides.unshift({ view: "help", label: "Help", home: true });
+    const helpAt = buckets.guides.findIndex((i) => i.view === "help");
+    buckets.guides.splice(helpAt + 1, 0, { ...UPDATES_ITEM });
     buckets.guides.push({ ...SETUP_AGAIN });
     buckets.guides.push({ ...REPLAY_ITEM });
     buckets.guides.push({ ...EXAMPLES_ITEM });
@@ -486,6 +488,7 @@ function buttonFor(buttons, view, label) {
 function helpMenu(buttons) {
   const help = menuShell("guides", "Help");
   help.panel.appendChild(buttonFor(buttons, "help", "Help"));
+  help.panel.appendChild(itemButton(UPDATES_ITEM));
   help.panel.appendChild(itemButton(SETUP_AGAIN));
   help.panel.appendChild(itemButton(REPLAY_ITEM));
   help.panel.appendChild(itemButton(EXAMPLES_ITEM));
@@ -585,6 +588,11 @@ export function watchNavLayout(onChange, win = globalThis) {
     if (!bar) return;
     try {
       ro = new win.ResizeObserver(() => schedule());
+      // The update button is added to the right cluster after the first measure.
+      // Watching that cluster, then the bar, so a late button shrinks the menu slot
+      // instead of covering Settings and Help. The bar is observed last.
+      const right = bar.querySelector?.(".top-right");
+      if (right) ro.observe(right);
       ro.observe(bar);
     } catch { ro = null; }
   };
