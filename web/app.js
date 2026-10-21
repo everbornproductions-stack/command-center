@@ -2057,3 +2057,43 @@ async function finishAiSetup(nextView) {
     render();
   } catch (e) { toast(e.message, true); }
 }
+
+// Daily-spend labels. A ::after inside the chart panel is trapped by that panel's backdrop-filter
+// and can paint under the next panel. This one is attached to body.
+function mountSparkTip() {
+  if (document.getElementById("cc-spark-tip")) return;
+  const tip = document.createElement("div");
+  tip.id = "cc-spark-tip";
+  tip.className = "cc-spark-tip";
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let current = null;
+  const hide = () => { current = null; tip.hidden = true; };
+  const show = (bar) => {
+    const text = bar?.getAttribute?.("data-v");
+    if (!text) return hide();
+    current = bar;
+    tip.textContent = text;
+    tip.hidden = false;
+    const r = bar.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    let left = r.left + r.width / 2 - w / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    let top = r.top - h - 2;
+    if (top < 8) top = Math.min(window.innerHeight - h - 8, r.bottom + 2);
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+  };
+  const barOf = (node) => (node instanceof Element ? node.closest(".sparks i") : null);
+  document.addEventListener("pointerover", (e) => { const bar = barOf(e.target); if (bar) show(bar); });
+  document.addEventListener("pointerout", (e) => {
+    const bar = barOf(e.target);
+    if (!bar || bar !== current) return;
+    const next = barOf(e.relatedTarget);
+    if (next) show(next); else hide();
+  });
+  window.addEventListener("scroll", () => { if (current) show(current); }, true);
+  window.addEventListener("resize", () => { if (current) show(current); });
+}
+mountSparkTip();

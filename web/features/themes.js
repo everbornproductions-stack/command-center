@@ -182,7 +182,7 @@ const css = `
 input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
 .hub-ring { stroke: var(--accent-soft); }
 .sparks i { background: linear-gradient(180deg, var(--accent), var(--accent-deep)); }
-.sparks i:hover::after { color: var(--accent-2); }
+.cc-spark-tip { color: var(--accent-2); }
 .cursor::after { color: var(--accent); }
 .update-bar { background: linear-gradient(90deg, var(--accent-soft), transparent 60%), var(--panel-solid); border-color: var(--accent-glow); }
 .linkt:hover { border-color: var(--accent); }
