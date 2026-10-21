@@ -22,6 +22,7 @@ import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memor
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
+import { suggestApp, runLive } from "./control-apps.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
@@ -327,6 +328,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       if (t.capability === "media") t.capability = "creative"; // not a kind a media provider makes: a text AI writes the brief
       if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
+      // An allowed app takes a step of its own task type. Writing stays with a text model.
+      // Grok Bot and the browser helper already took their agent steps above.
+      if (t.capability !== "writing" && t.capability !== "agent" && t.capability !== "media") {
+        const appPick = suggestApp(t.capability || "");
+        if (appPick) {
+          mission.tasks.push({ ...t, app: true, appId: appPick.id, status: "queued", provider: "app", model: appPick.name, agentName: `${appPick.name} · ${t.capability}`, estCost: 0, output: null, review: null, cost: 0 });
+          continue;
+        }
+      }
       const ranked = openRank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) });
       // spread the load: prefer a provider not already carrying 2 tasks when scores are close
       let choice = ranked[0];
@@ -343,11 +353,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const agentTasks = mission.tasks.filter((t) => t.agent).length;
     const mediaTasks = mission.tasks.filter((t) => t.media);
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
-    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
+    const appNames = mission.tasks.filter((t) => t.app).map((t) => t.model);
+    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(appNames).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
-        if (t.agent || t.media) continue;
+        if (t.agent || t.media || t.app) continue;
         const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
@@ -440,6 +451,41 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
     };
+    const appTask = async (t) => {
+      t.status = "running"; t.startedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      try {
+        const result = await runLive(t.appId, {
+          capability: t.capability,
+          title: t.title,
+          instructions: t.instructions,
+          live: true,
+          honorStop: true,
+          signal: ctl.signal,
+        });
+        t.cost = result.cost || 0;
+        if (t.cost) spend({ cost: t.cost });
+        if (result.status === "done") {
+          t.output = (result.log || []).filter(Boolean).join("\n") || `${t.model} finished this step.`;
+          outputs[t.id] = t.output;
+          t.status = "done";
+        } else if (result.status === "needs_approval" || result.status === "estimate") {
+          t.output = result.reason || (result.log || [])[0] || "Waiting for your OK.";
+          outputs[t.id] = t.output;
+          t.status = "waiting";
+        } else {
+          t.status = "failed";
+          t.error = result.reason || "The app stopped.";
+        }
+      } catch (err) {
+        t.status = "failed";
+        t.error = err.message;
+      }
+      if (t.status !== "failed") done.add(t.id);
+      t.finishedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      update();
+    };
     while (done.size < mission.tasks.length) {
       if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
       if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
@@ -461,6 +507,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (shouldPause(mission)) { rewindTask(t); throw new MissionPause(); }
         if (t.agent) return agentTask(t);
         if (t.media) return mediaTask(t);
+        if (t.app) return appTask(t);
         const agent = `${id}:${t.id}`;
         t.status = "running"; t.startedAt = Date.now();
         emit("task.update", { missionId: id, task: pubTask(t) });
@@ -673,7 +720,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
 }
 export function publicMission(m) {
   return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };

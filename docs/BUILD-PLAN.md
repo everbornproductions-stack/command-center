@@ -30,14 +30,14 @@ Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done.
 
 ### Version 0.4.9 (next)
 
-On this branch: phases 45 to 51 as fixture drivers with Antigravity first, the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
+On this branch: phases 45 to 51 with Antigravity first (live drivers are wired, and the tests use stand-ins), the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
 
 Not done until those three are in. The order stays:
 
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
 3. Phase 68. Safety, sharing, and plain words.
-4. Phases 45 to 51. Desktop control, with Antigravity first. Fixture doors for app cards, scores, MCP, websites, a signed-in profile, Windows UI Automation, and the $1 screenshot cap are in the smarter control workstream. Pull request 62 stays separate.
+4. Phases 45 to 51. Desktop control, with Antigravity first. The smarter control workstream has the doors, and the real app control workstream wires Edge through Playwright, the signed-in profile (opt-in only), Windows UI Automation, and the screenshot path. Pull request 62 stays separate.
 5. Phase 69. The program scan.
 6. Phases 53, 54, and 56. Everyday actions and Calendar.
 7. Phase 70. Save in place.
@@ -386,7 +386,7 @@ Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off u
 
 ### Phase 42: Newsfeed and alerts (effort: M) (built, version unchanged)
 One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
-Built in the Together workstream. The version stayed 0.4.8. Phase 32 itself is still not built: the list can show a model note, and it does not watch providers or call them. Nothing downloads from this list.
+Built in the Together workstream. The version stayed 0.4.8. Phase 32 is built: model watch posts a note here. Nothing downloads from this list.
 
 ### Phase 43: Chat rooms with live builds (effort: L) (built, version unchanged)
 Share a running mission into a room so others can watch it live, and let them copy it as a recipe. Sharing is opt-in per mission; no keys or secrets are shared.
@@ -400,36 +400,36 @@ Built in the Together workstream. The version stayed 0.4.8. Nothing is sent unti
 Shared projects, roles, and a small team for a business. Phase 8 workspaces stay as they are and were not rebuilt. They remain the Studio teams.
 Team spaces are the Extreme seat cap: 5 seats total, counting the owner. An invite uses a seat. The cap is `teamSeats` in `server/feature-gate.js`. Extreme and Owner get 5. Free, Pro, and Studio get none, because a Studio licence is Pro. No Square change. Nothing is emailed. The version stayed 0.4.8.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, fixture drivers in)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through a fixture page on this computer, Windows desktop through a fixture control tree), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The drivers in this build are fixtures. They do not open Edge, read a browser profile, call UI Automation, or send a picture to a model.
+### Phases 45 to 51: No-API app control (version 0.4.9, real drivers wired on the fixture doors)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The smarter control workstream landed the doors. Real Edge, Playwright, a signed-in profile only after an explicit opt-in, UI Automation, and computer-use calls are wired. Tests still use stand-in drivers and never a real key. The mission planner assigns an app step through suggestApp. Open pull requests 62 and 65 stay separate and are not done.
 
 ### 0.4.9 slice: app discovery and suggestions (built on this branch)
 This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build. Signing stays later.
 
 When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
 
-Phases 45 to 51 use fixture drivers. A real Edge window, a real UI Automation tree, and a real screenshot model are not called. The program scan slice does not drive those doors.
+Phases 45 to 51 use fixture drivers in the test suite. A live step can open Edge through Playwright, use a signed-in profile only after an opt-in, read a UI Automation tree, or call a screenshot model. The program scan slice does not drive those doors.
 
 ### Phase 45: App cards (effort: M) (version 0.4.9, fixture drivers in)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, fixture drivers in)
-Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
+### Phase 46: Score and missions (effort: M) (version 0.4.9, planner assigns through suggestApp)
+Apps get starting scores from `added-caps.js` and record outcomes through the brain. The mission planner assigns a step to an allowed app through suggestApp when the task type matches. Writing steps still go to text models. Grok Bot and the browser helper keep their tags.
 
 ### Phase 47: MCP as an app (effort: M) (version 0.4.9, fixture drivers in)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, fixture drivers in)
-Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop. This branch fills a fixture page on 127.0.0.1. Playwright and system Edge are not called.
+### Phase 48: Websites (effort: L) (version 0.4.9, Playwright Edge wired)
+Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, fixture drivers in)
-Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, opt-in only)
+Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms. The real profile is used only when the person ticks that choice.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, fixture drivers in)
-UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused. This branch uses a fixture control tree. UI Automation is not called.
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, UI Automation wired)
+UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, fixture drivers in)
-Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. This branch keeps the previous picture out of the next step and stops at the cap. No picture is sent to a model. The smarter control screen is the settings list for these doors. Real Edge, Playwright, UI Automation, and computer-use calls are not wired.
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, computer-use path wired)
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. The previous picture stays out of the next step and the spend stops at the cap. The smarter control screen is the settings list for these doors. Tests use stand-in drivers and do not send a picture.
 
 ### Phase 57: Recipes (effort: L) (built in smarter control, fixture only)
 Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that ran. Replay uses the same rules as phases 45 to 51. A scheduled replay that would send, buy, or delete waits for that second yes. If the layout changed, say so and stop for the person to finish. Unlimited on Extreme. Pro includes 5. This does not replace saved pipelines or the existing schedules.

@@ -49,13 +49,16 @@ CC.register({
     const recipeRows = (recipes.recipes || []).map((recipe) => `<div class="small" style="margin-top:6px"><b>${esc(recipe.name)}</b> <span class="dim">${esc(recipe.lastPlain || "")}</span></div>`).join("");
     el.innerHTML = `<div class="grid">
       ${panel("Routing", `<div class="small">${esc(tune.plain)}</div>${tune.canUndo ? `<button class="btn sm" id="sc-undo" type="button" style="margin-top:8px">Undo</button>` : ""}`)}
-      ${panel("Apps", `<div class="dim small">Add an app, then Allow it. A draft stays out of missions. Revoke hides it. Passwords are never stored.</div>
+      ${panel("Apps", `<div class="dim small">Add an app, then Allow it. A draft stays out of missions. Revoke hides it. Passwords are never stored. A banner says Meldmind is using the app, and Stop halts the next step.</div>
         <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
           <input id="sc-name" placeholder="App name" maxlength="40">
           <select id="sc-kind">${KINDS.map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>
           <select id="sc-cap">${CAPS.map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>
           <button class="btn sm" id="sc-add" type="button">Add app</button>
         </div>
+        <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="sc-signed" type="checkbox"> Use my signed-in Edge or Chrome profile</label>
+        <select id="sc-browser" disabled style="margin-top:6px"><option value="edge">Edge</option><option value="chrome">Chrome</option></select>
+        <div class="dim small" style="margin-top:6px">This uses the cookies in that browser profile. Site terms may limit automation. The profile is not uploaded. Leave this off and Meldmind uses a profile it owns. Send, buy, and delete still wait for a yes.</div>
         ${appRows || `<div class="dim small" style="margin-top:8px">No apps yet.</div>`}
         ${apps.using ? `<div class="row" style="gap:8px;margin-top:8px"><b>${esc(apps.using.text)}</b><button class="btn sm" id="sc-stop2" type="button">Stop</button></div>` : ""}`)}
       ${panel("Recipes", `<div class="dim small">Record a task once, then run it again on a schedule. A send, buy, or delete still waits for a yes. Unlimited on Extreme.</div>${recipeRows || `<div class="dim small" style="margin-top:8px">No recipes yet.</div>`}`)}
@@ -81,10 +84,21 @@ CC.register({
         else render(el);
       } catch (e) { toast(e.message); }
     });
+    el.querySelector("#sc-signed")?.addEventListener("change", () => {
+      const box = el.querySelector("#sc-browser");
+      if (box) box.disabled = !el.querySelector("#sc-signed").checked;
+    });
     el.querySelector("#sc-add")?.addEventListener("click", async () => {
       const name = el.querySelector("#sc-name").value.trim();
+      const signedIn = !!el.querySelector("#sc-signed")?.checked;
       try {
-        await api("/control-apps/apps", { method: "POST", body: { name, kind: el.querySelector("#sc-kind").value, capabilities: [el.querySelector("#sc-cap").value] } });
+        await api("/control-apps/apps", { method: "POST", body: {
+          name,
+          kind: el.querySelector("#sc-kind").value,
+          capabilities: [el.querySelector("#sc-cap").value],
+          signedIn,
+          profile: signedIn ? el.querySelector("#sc-browser").value : "owned",
+        } });
         toast("App added. Allow it before Meldmind uses it.");
         render(el);
       } catch (e) { toast(e.message); }

@@ -1,5 +1,6 @@
-// Smarter control: routing undo, app doors (fixtures only), recipes, the monthly budget, phone approvals.
-// No real key, no Edge, no UI Automation, no screenshot model, no data/ folder.
+// Smarter control: routing undo, app doors, recipes, the monthly budget, phone approvals.
+// Fixture jobs stay in this file. Live drivers are covered in test/app-drivers.test.js.
+// No real key, no data/ folder.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -266,17 +267,18 @@ test("phone approvals carry the action and the amount, and a decline sends nothi
   assert.equal(Phone.holdOutbound({ kind: "send", action: "Post", amount: null, confirmed: true }), null);
 });
 
-test("smarter control files stay plain and do not call a real driver", () => {
+test("smarter control files stay plain and the version is unchanged", () => {
   const files = [
-    "server/feature-gate.js", "server/learn-tune.js", "server/control-apps.js", "server/recipes.js",
+    "server/feature-gate.js", "server/learn-tune.js", "server/control-apps.js", "server/app-drivers.js", "server/recipes.js",
     "server/cost-guard.js", "server/phone-approvals.js", "web/features/smarter-control.js", "docs/help/smarter-control.md",
   ];
   for (const file of files) {
     const text = fs.readFileSync(path.join(ROOT, file), "utf8");
     assert.equal(text.includes(EM), false, file);
-    assert.equal(/playwright|UIAutomation|computer_toolset|powershell/i.test(text), false, file);
+    assert.equal(/sk-ant-api03-[A-Za-z0-9]{8,}|sk-proj-[A-Za-z0-9]{8,}|AIza[0-9A-Za-z]{20}/.test(text), false, file);
   }
-  assert.match(fs.readFileSync(path.join(ROOT, "server/control-apps.js"), "utf8"), /Fixture drivers only/);
+  assert.match(fs.readFileSync(path.join(ROOT, "server/mission.js"), "utf8"), /suggestApp\(/);
+  assert.match(fs.readFileSync(path.join(ROOT, "server/mission.js"), "utf8"), /capability !== "writing"/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 57: Recipes/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 59: Cost guard/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 60: Phone approvals/);

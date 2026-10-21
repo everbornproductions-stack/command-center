@@ -9,7 +9,7 @@ lastUpdatedVersion: 0.4.8
 
 Meldmind can lean its routing toward quality, lower cost, or speed from your thumbs and from the priority you set. The change is shown in Settings. Undo puts the last change back. Prompts and keys are not stored for this.
 
-Apps you allow can take a mission step. A website uses a browser profile you choose. A Windows app uses that program's controls. A screenshot fallback stays off until you turn it on for that app, and it stops at $1 unless you raise it. Password fields are refused. Square and billing screens are refused. A banner says Meldmind is using that app, and Stop halts the next step.
+Apps you allow can take a mission step. The planner assigns that step itself when the app's task type matches. A website opens in Edge. A signed-in Edge or Chrome profile is used only after you tick that choice. Otherwise Meldmind uses a profile it owns. A Windows app uses that program's controls. A screenshot fallback stays off until you turn it on for that app, and it stops at $1 unless you raise it. Password fields are refused. Square and billing screens are refused. A banner says Meldmind is using that app, and Stop halts the next step. Send, buy, and delete wait for a yes.
 
 A recipe records a task you already ran and can repeat it on a schedule. A scheduled send, buy, or delete waits for your yes. Extreme has unlimited recipes.
 

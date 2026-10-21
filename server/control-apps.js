@@ -1,16 +1,23 @@
 // Phases 45 to 51. App cards, scores, MCP as an app, a website door, a signed-in
 // profile, Windows UI Automation, and a screenshot fallback.
-// Fixture drivers only. This file does not open Edge, does not read a browser profile,
-// does not call UI Automation, and does not send a picture to a model.
+// A job with a fixture page, tree, or picture list stays on the fixture path.
+// A live job opens Edge through Playwright, reads one Windows program through
+// UI Automation, or sends one downscaled picture to the computer-use tool.
+// A signed-in Edge or Chrome profile is used only when signedIn is true.
 // It stays separate from the desktop-doors module in pull request 62.
 // Safety: Allow per app, a second yes before send, buy, or delete, a banner, Stop,
 // and no stored passwords.
 
 import { capsFor } from "./added-caps.js";
+import {
+  askComputer, blockedScreen, blockedUrl, browserRunning, clickAt, computerRequest,
+  computerTarget, grabScreen, invokeControl, openBrowser, profilePlan, readWindow,
+} from "./app-drivers.js";
 import { observe, bestAtWhat } from "./brain.js";
 import { emit } from "./events.js";
 import { registerExternalAgent, unregisterExternalAgent } from "./external-agents.js";
 import { gate } from "./feature-gate.js";
+import { recordCall } from "./ledger.js";
 import { needsApproval } from "./mcp.js";
 import { ask, decide, phoneReady } from "./phone-approvals.js";
 import { doc, putDoc } from "./store.js";
@@ -77,6 +84,7 @@ function publicApp(app) {
     screenshot: !!app.screenshot,
     screenshotCap: app.screenshotCap,
     profile: app.profile,
+    signedIn: !!app.signedIn,
     allowed: !!app.allowed,
     status: app.status,
     light: app.status === "allowed" ? "green" : app.status === "revoked" ? "grey" : "grey",
@@ -127,6 +135,7 @@ export function addApp(raw = {}) {
   let id = slug(name);
   if (state.apps.some((app) => app.id === id)) id = `${id}-${state.apps.length + 1}`.slice(0, 40);
   const profile = ["edge", "chrome", "owned"].includes(raw.profile) ? raw.profile : "owned";
+  const signedIn = raw.signedIn === true && (profile === "edge" || profile === "chrome");
   const app = {
     id,
     name,
@@ -139,6 +148,7 @@ export function addApp(raw = {}) {
     screenshot: !!raw.screenshot,
     screenshotCap: SCREENSHOT_CAP,
     profile,
+    signedIn,
     allowed: false,
     status: "draft",
     activity: "",
@@ -226,17 +236,17 @@ function safeLog(line) {
   return String(line || "").replace(/\b(sk-[A-Za-z0-9_\-]{4,})\b/g, "").slice(0, 160);
 }
 
-export function runJob(id, body = {}) {
+function prepareJob(id, body) {
   const state = loadState();
   const app = find(id, state);
   if (!app || !app.allowed) throw bad("Allow this app before Meldmind uses it.", 403, "allow");
   if (body.honorStop && state.stopped[id]) {
-    return { status: "stopped", steps: [], log: ["Stopped."], banner: null };
+    return { early: { status: "stopped", steps: [], log: ["Stopped."], banner: null } };
   }
   delete state.stopped[id];
   const capability = String(body.capability || app.capabilities[0] || "analysis");
   if (capability === "writing") {
-    return { handed: false, status: "skipped", reason: "Writing stays with a text model.", steps: [], log: [] };
+    return { early: { handed: false, status: "skipped", reason: "Writing stays with a text model.", steps: [], log: [] } };
   }
   if (body.browserRunning && (app.profile === "edge" || app.profile === "chrome")) {
     throw bad(`Close ${app.profile === "chrome" ? "Chrome" : "Edge"} before Meldmind uses that profile.`, 409, "browser_open");
@@ -246,23 +256,29 @@ export function runJob(id, body = {}) {
   handoff(app, "working", { job: String(body.title || app.name).slice(0, 80), relay });
   emit("agent.start", { agent: agentId(app.id), provider: "app", model: app.name, role: "work", label: app.name });
   const using = banner(app, state);
-  let result;
-  try {
-    if (app.kind === "mcp") result = runMcp(app, body, state);
-    else if (app.kind === "website") result = runWebsite(app, body, state);
-    else if (body.shots || app.screenshot && body.useScreenshot) result = runShots(app, body, state);
-    else result = runDesktop(app, body, state);
-  } catch (err) {
-    app.activity = "Stopped";
-    app.light = "red";
-    state.using = null;
-    saveState(state);
-    handoff(app, "failed", { result: err.message });
-    emit("agent.error", { agent: agentId(app.id), provider: "app", model: app.name, error: err.message });
-    throw err;
+  return { state, app, capability, relay, warn, using };
+}
+
+function failJob(prep, err) {
+  const app = prep.app;
+  app.activity = "Stopped";
+  app.light = "red";
+  prep.state.using = null;
+  saveState(prep.state);
+  handoff(app, "failed", { result: err.message });
+  emit("agent.error", { agent: agentId(app.id), provider: "app", model: app.name, error: err.message });
+}
+
+function finishJob(prep, result) {
+  const fresh = loadState();
+  if (fresh.stopped?.[prep.app.id]) {
+    prep.state.stopped[prep.app.id] = fresh.stopped[prep.app.id];
+    prep.state.using = null;
+    if (result.status === "done") result = { ...result, status: "stopped", log: [...(result.log || []), "Stopped."] };
   }
+  const { state, app, capability, relay, warn, using } = prep;
   result.relay = relay;
-  result.warning = warn;
+  result.warning = result.driver ? (result.signedIn ? PROFILE_WARNING : "") : warn;
   result.banner = result.status === "needs_approval" ? using : null;
   result.handed = result.status !== "skipped";
   if (result.status === "done") {
@@ -283,6 +299,47 @@ export function runJob(id, body = {}) {
   saveState(state);
   result.who = bestAtWhat({}).capabilities.flatMap((row) => row.models).find((row) => row.model === app.name) || null;
   return result;
+}
+
+function dispatchFixture(app, body, state) {
+  if (app.kind === "mcp") return runMcp(app, body, state);
+  if (app.kind === "website") return runWebsite(app, body, state);
+  if (body.shots || (app.screenshot && body.useScreenshot)) return runShots(app, body, state);
+  return runDesktop(app, body, state);
+}
+
+export function runJob(id, body = {}) {
+  const prep = prepareJob(id, body);
+  if (prep.early) return prep.early;
+  let result;
+  try {
+    result = dispatchFixture(prep.app, body, prep.state);
+  } catch (err) {
+    failJob(prep, err);
+    throw err;
+  }
+  return finishJob(prep, result);
+}
+
+export async function runLive(id, body = {}) {
+  const prep = prepareJob(id, body);
+  if (prep.early) return prep.early;
+  let result;
+  try {
+    if (prep.app.kind === "mcp") result = runMcp(prep.app, body, prep.state);
+    else if (prep.app.kind === "website") result = await runWebsiteLive(prep.app, body);
+    else if (prep.app.screenshot && (body.useScreenshot || body.shots)) result = await runShotsLive(prep.app, body);
+    else result = await runDesktopLive(prep.app, body);
+  } catch (err) {
+    failJob(prep, err);
+    throw err;
+  }
+  return finishJob(prep, result);
+}
+
+function halted(id, body) {
+  if (body.signal?.aborted) return true;
+  return !!loadState().stopped?.[id];
 }
 
 function relayOf(origin) {
@@ -415,6 +472,171 @@ function runMcp(app, body) {
     log: [`Ran ${toolName} through the existing MCP client.`],
     cost: 0,
   };
+}
+
+function passwordField(field) {
+  return !!(field && (field.password || field.type === "password" || SECRET.test(field.label || "")));
+}
+
+async function runWebsiteLive(app, body) {
+  const plan = profilePlan(app);
+  if (plan.signedIn) {
+    const running = await browserRunning(plan.browser);
+    if (running) throw bad(`Close ${plan.browser === "chrome" ? "Chrome" : "Edge"} before Meldmind uses that profile.`, 409, "browser_open");
+  }
+  const opened = blockedUrl(app.origin);
+  if (opened) return { status: "refused", reason: opened, steps: [], log: [], cost: 0, driver: "playwright", signedIn: plan.signedIn };
+  const session = await openBrowser(plan);
+  const log = [];
+  const steps = [];
+  let spent = 0;
+  const cap = app.spendCap || PAGE_CAP;
+  const profile = plan.signedIn ? plan.browser : "owned";
+  try {
+    if (app.origin) await session.goto(app.origin);
+    let page = await session.snapshot();
+    const screen = blockedUrl(page?.url) || blockedScreen(page?.title);
+    if (screen) return { status: "refused", reason: screen, steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+    const actions = Array.isArray(body.actions) ? body.actions : (Array.isArray(body.page?.actions) ? body.page.actions : []);
+    if (!actions.length) {
+      log.push("Read the page.");
+      steps.push({ action: "open", ref: page?.url || app.origin || "" });
+      return { status: "done", steps, log, cost: spent, driver: "playwright", profile, signedIn: plan.signedIn };
+    }
+    for (const action of actions) {
+      if (halted(app.id, body) || (body.stopAfter != null && steps.length >= body.stopAfter)) {
+        return { status: "stopped", steps, log: log.concat(["Stopped."]), cost: spent, driver: "playwright", signedIn: plan.signedIn };
+      }
+      if (steps.length >= STEP_CAP) return { status: "stopped", reason: "Step cap reached.", steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+      if (spent >= cap) return { status: "stopped", reason: "Spend cap reached.", steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+      if (!ACTIONS.includes(action.action)) continue;
+      page = await session.snapshot();
+      const blocked = blockedUrl(page?.url) || blockedScreen(page?.title);
+      if (blocked) return { status: "refused", reason: blocked, steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+      const field = (page?.fields || []).find((item) => item.ref === action.ref);
+      if (action.action === "type" && passwordField(field)) {
+        log.push("Refused a password field.");
+        continue;
+      }
+      const button = (page?.buttons || []).find((item) => item.ref === action.ref);
+      const label = button?.label || field?.label || "";
+      const kind = needsYes(action, label);
+      if (kind && !body.confirm) {
+        const item = approvalFor(app, kind, label || action.action, action.amount);
+        return { status: "needs_approval", approvalId: item.id, reason: `Waiting to ${kind}.`, steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+      }
+      if (kind && body.confirm) accepted(approvalFor(app, kind, label || action.action, action.amount), true);
+      if (action.action === "open" && action.url) {
+        const no = blockedUrl(action.url);
+        if (no) return { status: "refused", reason: no, steps, log, cost: spent, driver: "playwright", signedIn: plan.signedIn };
+        await session.goto(action.url);
+      } else if (action.action === "click" || action.action === "submit") await session.click(action.ref);
+      else if (action.action === "type") await session.type(action.ref, action.text || "");
+      steps.push({ action: action.action, ref: action.ref || "" });
+      log.push(safeLog(action.action === "type" ? `Typed into ${label || action.ref || "a field"}` : `${action.action} ${label || action.ref || ""}`.trim()));
+      spent = +(spent + 0.01).toFixed(4);
+    }
+    return { status: "done", steps, log, cost: spent, driver: "playwright", profile, signedIn: plan.signedIn };
+  } finally {
+    await session.close();
+  }
+}
+
+async function runDesktopLive(app, body) {
+  const tree = await readWindow(app.exe);
+  if (tree?.focusLost || (tree?.foreground && app.exe && tree.foreground !== app.exe)) {
+    return { status: "stopped", reason: "Focus left the allowed program. Input stopped.", steps: [], log: [], cost: 0, driver: "uia" };
+  }
+  const nodes = tree?.nodes || [];
+  if (!nodes.length && app.screenshot) return runShotsLive(app, body);
+  const list = Array.isArray(body.actions) && body.actions.length ? body.actions : nodes;
+  const log = [];
+  const steps = [];
+  if (!list.length) {
+    return { status: "done", steps: [{ action: "invoke", ref: "ready" }], log: ["Read the window."], cost: 0, driver: "uia", exe: app.exe };
+  }
+  for (const node of list) {
+    if (halted(app.id, body) || (body.stopAfter != null && steps.length >= body.stopAfter)) {
+      return { status: "stopped", steps, log: log.concat(["Stopped."]), cost: 0, driver: "uia" };
+    }
+    const known = nodes.find((item) => item.id && (item.id === node.id || item.id === node.ref)) || node;
+    if (known.password || known.type === "password") {
+      log.push("Refused a password edit.");
+      continue;
+    }
+    const kind = needsYes({ action: known.action || node.action || "click" }, known.name || node.name || "");
+    if (kind && !body.confirm) {
+      const item = approvalFor(app, kind, known.name || node.name || kind, known.amount);
+      return { status: "needs_approval", approvalId: item.id, reason: `Waiting to ${kind}.`, steps, log, cost: 0, driver: "uia" };
+    }
+    if (kind && body.confirm) accepted(approvalFor(app, kind, known.name || kind, known.amount), true);
+    const ref = known.id || node.id || node.ref || known.name || "";
+    if (ref && ref !== "ready") await invokeControl(app.exe, ref);
+    steps.push({ action: "invoke", ref });
+    log.push(safeLog(`Used ${known.name || node.name || "a control"}`));
+  }
+  return { status: "done", steps, log, cost: 0, driver: "uia", exe: app.exe };
+}
+
+async function runShotsLive(app, body) {
+  if (!app.screenshot) throw bad("Screenshot control is off for this app. Turn it on for this app first.", 403, "screenshot_off");
+  const supplied = Array.isArray(body.shots) ? body.shots : null;
+  const cap = app.screenshotCap || SCREENSHOT_CAP;
+  const estimate = +(((supplied?.length) || 1) * SHOT_USD).toFixed(2);
+  if (!body.seenEstimate) {
+    return { status: "estimate", estimate, cap, steps: [], log: [`About $${estimate.toFixed(2)} for this screenshot job. The cap is $${cap.toFixed(2)}.`], cost: 0, driver: "computer" };
+  }
+  const target = computerTarget();
+  if (!target) throw bad("Add an Anthropic or OpenAI key before screenshot control can run.", 400, "needs_key");
+  const rounds = supplied ? supplied.length : 1;
+  const log = [];
+  const steps = [];
+  let spent = 0;
+  let sent = [];
+  for (let i = 0; i < rounds; i++) {
+    if (halted(app.id, body)) return { status: "stopped", steps, log: log.concat(["Stopped."]), sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+    if (spent + SHOT_USD > cap) {
+      return { status: "stopped", reason: "Screenshot cap reached.", steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+    }
+    const image = supplied ? supplied[i] : await grabScreen();
+    if (shotBlocked(image) || blockedScreen(image?.title)) {
+      return { status: "refused", reason: "Square and billing screens are refused.", steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+    }
+    const picture = downscale(image);
+    const req = computerRequest({
+      vendor: target.vendor,
+      model: target.model,
+      image: { data: image?.data || picture.id },
+      task: body.title || app.name,
+      width: picture.width,
+      height: picture.height,
+    });
+    const reply = await askComputer(req);
+    sent = [picture.id];
+    recordCall({
+      provider: target.vendor,
+      model: target.model,
+      usage: { input: 1200, output: 40, cost: SHOT_USD },
+      role: "app-screenshot",
+      estimated: true,
+    });
+    spent = +(spent + SHOT_USD).toFixed(2);
+    const kind = riskyLabel({ action: "click", text: reply?.why || "" }, reply?.why || "");
+    if (reply?.action === "click" && kind && !body.confirm) {
+      const item = approvalFor(app, kind, reply.why || kind, null);
+      return { status: "needs_approval", approvalId: item.id, reason: `Waiting to ${kind}.`, steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+    }
+    if (reply?.action === "click" && kind && body.confirm) accepted(approvalFor(app, kind, reply.why || kind, null), true);
+    if (reply?.action === "click") {
+      await clickAt(reply.x, reply.y);
+      steps.push({ action: "click", ref: picture.id, width: picture.width, height: picture.height });
+      log.push(`Clicked from picture ${picture.id}`);
+    } else {
+      steps.push({ action: "ask", ref: picture.id, width: picture.width, height: picture.height });
+      log.push("Read the screen.");
+    }
+  }
+  return { status: "done", steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
 }
 
 export function suggestApp(capability) {
