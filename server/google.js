@@ -1,14 +1,17 @@
-// Built-in browser helper (Phase 27): Gmail and Google Drive through the person's own Google sign-in.
-// OAuth 2 with PKCE (S256) and the least scopes that do the job: Gmail read-only and Drive read-only by
-// default; sending mail (gmail.send) only when the person ticks it, and even then every single email
-// waits for an explicit OK in the helper (server/browser.js). The person registers their own OAuth
+// Built-in browser helper (Phase 27): Gmail, Google Drive, and Google Calendar through the person's own
+// Google sign-in. OAuth 2 with PKCE (S256) and the least scopes that do the job: Gmail read-only and
+// Drive read-only by default; sending mail (gmail.send) only when the person ticks it, and even then
+// every single email waits for an explicit OK. Calendar events (list, create, update) use calendar.events
+// only, and a create or update runs only when a route is clicked. The person registers their own OAuth
 // client (Google Cloud console, Desktop app); its secret and the tokens live in the vault, never in a
 // file, a log or a reply to the browser. A grant wider than what was asked for is refused, nothing kept.
+// Grok Bot's calendar handoff is a separate route and is not changed here.
 import crypto from "node:crypto";
 import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { htmlToText } from "./receipts.js";
+import { localFetch } from "./loopback-fetch.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 import { assertServiceSlots } from "./service-limit.js";
 
@@ -19,15 +22,17 @@ const authUrl = () => `${env("CC_GOOGLE_AUTH_URL", "https://accounts.google.com"
 const tokenUrl = () => `${env("CC_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com")}/token`;
 const gmailApi = () => env("CC_GMAIL_API_URL", "https://gmail.googleapis.com");
 const driveApi = () => env("CC_DRIVE_API_URL", "https://www.googleapis.com");
+const calendarApi = () => env("CC_CALENDAR_API_URL", "https://www.googleapis.com/calendar/v3");
 
 export const SCOPES = {
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
   drive: "https://www.googleapis.com/auth/drive.readonly",
   send: "https://www.googleapis.com/auth/gmail.send",
+  calendar: "https://www.googleapis.com/auth/calendar.events",
 };
-export const SCOPE_LABEL = { gmail: "read Gmail", drive: "read Google Drive", send: "send email (asks you every time)" };
+export const SCOPE_LABEL = { gmail: "read Gmail", drive: "read Google Drive", send: "send email (asks you every time)", calendar: "Google Calendar events" };
 const HARMLESS = new Set(["openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]);
-export const SETUP = "Google Cloud console: create an OAuth client of type Desktop app, enable the Gmail API and the Google Drive API, and paste its client ID and client secret here.";
+export const SETUP = "Google Cloud console: create an OAuth client of type Desktop app, enable the Gmail API, the Google Drive API, and the Google Calendar API, and paste its client ID and client secret here.";
 
 const fail = (status, msg, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
 const gdoc = () => doc(DOC, () => ({ clientId: null, scopes: [], connectedAt: null, needsSignIn: false }));
@@ -35,7 +40,7 @@ const saveDoc = (d) => putDoc(DOC, d);
 const secret = () => getSecret(VAULT_ID) || null;
 const clientId = () => gdoc().clientId || (!HOSTED ? process.env.CC_GOOGLE_CLIENT_ID || "" : "") || null;
 
-// granted scopes as the short names gmail / drive / send.
+// granted scopes as the short names gmail / drive / send / calendar.
 // No accountId (and no added account chosen as the default) keeps the original single-account token.
 export function granted(accountId) {
   const extra = activeExtra("google", accountId);
@@ -54,6 +59,7 @@ export function connected(accountId) {
   return granted().length > 0 && !gdoc().needsSignIn;
 }
 export const canSend = (accountId) => connected(accountId) && granted(accountId).includes("send");
+export const canCalendar = (accountId) => connected(accountId) && granted(accountId).includes("calendar");
 
 // The account a task picked. Null means "use the default when the job runs".
 export function useAccount(accountId) {
@@ -89,18 +95,20 @@ const pending = new Map(); // state -> { verifier, redirectUri, scopes, user, at
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 const b64url = (b) => Buffer.from(b).toString("base64url");
 
-export function start({ want = {}, redirectUri, accountId } = {}) {
+export function start({ want = {}, redirectUri, accountId, keep = false } = {}) {
   const id = clientId();
   if (!id) throw fail(400, `Add your Google OAuth client ID first. ${SETUP}`, { code: "client_id" });
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
-  const keys = ["gmail", "drive", "send"].filter((k) => want[k]);
-  if (!keys.length) throw fail(400, "Pick at least one: read Gmail, read Google Drive or send email.");
   let extraId = null;
   if (accountId && accountId !== "google") {
     const a = activeExtra("google", accountId);
     if (!a) throw fail(404, "That Google account is not in the list.");
     extraId = a.id;
   }
+  const asked = new Set(["gmail", "drive", "send", "calendar"].filter((k) => want[k]));
+  if (keep) for (const k of granted(extraId)) asked.add(k);
+  const keys = ["gmail", "drive", "send", "calendar"].filter((k) => asked.has(k));
+  if (!keys.length) throw fail(400, "Pick at least one: read Gmail, read Google Drive, send email, or Google Calendar.");
   for (const [k, p] of pending) if (Date.now() - p.at > 10 * 60 * 1000 || p.user === userId()) pending.delete(k);
   const verifier = b64url(crypto.randomBytes(48));
   const state = "bh-" + b64url(crypto.randomBytes(24));
@@ -126,7 +134,7 @@ async function tokenRequest(form) {
   const s = secret();
   const body = new URLSearchParams({ ...form, client_id: clientId(), ...(s?.clientSecret ? { client_secret: s.clientSecret } : {}) });
   let r;
-  try { r = await fetch(tokenUrl(), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body: body.toString(), signal: AbortSignal.timeout(12000) }); }
+  try { r = await localFetch(tokenUrl(), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body: body.toString(), signal: AbortSignal.timeout(12000) }); }
   catch (e) { throw fail(502, `Could not reach Google sign-in: ${netReason(e)}`, { network: true }); }
   let j = null; try { j = await r.json(); } catch {}
   if (!r.ok || !j?.access_token) throw fail(r.status >= 500 ? 502 : 400, `Google sign-in failed${j?.error_description || j?.error ? `: ${String(j.error_description || j.error).slice(0, 160)}` : ` (HTTP ${r.status})`}`, { rejected: r.status === 400 || r.status === 401 });
@@ -148,6 +156,7 @@ export async function finish({ code, state } = {}) {
   const slots = [];
   if (scopes.includes(SCOPES.gmail) || scopes.includes(SCOPES.send)) slots.push("gmail");
   if (scopes.includes(SCOPES.drive)) slots.push("drive");
+  if (scopes.includes(SCOPES.calendar)) slots.push("calendar");
   await assertServiceSlots(slots);
   if (p.accountId) {
     const a = activeExtra("google", p.accountId);
@@ -210,7 +219,7 @@ async function accessToken(accountId) {
 async function call(url, { method = "GET", body, raw = false } = {}, accountId) {
   const token = await accessToken(accountId);
   let r;
-  try { r = await fetch(url, { method, headers: { authorization: `Bearer ${token}`, accept: raw ? "*/*" : "application/json", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000), redirect: "error" }); }
+  try { r = await localFetch(url, { method, headers: { authorization: `Bearer ${token}`, accept: raw ? "*/*" : "application/json", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000), redirect: "error" }); }
   catch (e) { throw fail(502, `Could not reach Google: ${netReason(e)}`, { network: true }); }
   if (r.status === 401) { markSignIn(accountId); throw fail(409, "Google refused the sign-in (401). Connect it again.", { code: "sign_in" }); }
   if (r.status === 403) throw fail(403, "Google said no (403): the sign-in does not allow this.");
@@ -285,6 +294,106 @@ export async function driveRead(id, accountId) {
   else if (/^text\/|json|csv|xml/.test(meta.mimeType || "") && Number(meta.size || 0) < 2_000_000) text = await call(`${base}?alt=media`, { raw: true }, accountId);
   else text = "(the helper can only read Google Docs, Sheets, Slides and text files; this one was not opened)";
   return { id, name: meta.name, mimeType: meta.mimeType, modified: meta.modifiedTime || null, link: meta.webViewLink || null, text: String(text).slice(0, 8000) };
+}
+
+// ---------- Google Calendar (list, create, update; never delete) ----------
+const EVENT_ID = /^[A-Za-z0-9_-]{1,1024}$/;
+
+function parseWhen(value) {
+  const s = String(value || "").trim();
+  if (!s || s.length > 40) return null;
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  return new Date(t);
+}
+
+function whenBody(date) {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return { dateTime: date.toISOString(), timeZone };
+}
+
+export function publicEvent(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const link = typeof raw.htmlLink === "string" && raw.htmlLink.startsWith("https://") ? raw.htmlLink : "";
+  return {
+    id: String(raw.id || ""),
+    summary: String(raw.summary || "").slice(0, 200),
+    description: String(raw.description || "").slice(0, 500),
+    location: String(raw.location || "").slice(0, 300),
+    start: raw.start?.dateTime || raw.start?.date || "",
+    end: raw.end?.dateTime || raw.end?.date || "",
+    link,
+    status: String(raw.status || ""),
+  };
+}
+
+// Validates a create body, or a partial update when `partial` is set. Nothing is sent from here.
+export function checkEvent(raw, { partial = false } = {}) {
+  const summary = String(raw?.summary || "").replace(/[\r\n]/g, " ").trim();
+  if (summary.length > 200) throw fail(400, "The event title must be 200 characters or fewer.");
+  if (!partial && !summary) throw fail(400, "The event needs a title.");
+  const description = String(raw?.description || "");
+  if (description.length > 8000) throw fail(400, "The event description must be 8,000 characters or fewer.");
+  const location = String(raw?.location || "").replace(/[\r\n]/g, " ").trim();
+  if (location.length > 300) throw fail(400, "The event location must be 300 characters or fewer.");
+  const start = raw?.start ? parseWhen(raw.start) : null;
+  const end = raw?.end ? parseWhen(raw.end) : null;
+  if (!partial && (!start || !end)) throw fail(400, "The event needs a start and an end.");
+  if ((raw?.start && !start) || (raw?.end && !end)) throw fail(400, "The event times have to be real dates.");
+  if (start && end && end.getTime() <= start.getTime()) throw fail(400, "The event has to end after it starts.");
+  if (start && end && end.getTime() - start.getTime() > 7 * 24 * 3600 * 1000) throw fail(400, "The event has to be shorter than 7 days.");
+  const body = {};
+  if (summary) body.summary = summary;
+  if (description) body.description = description;
+  if (location) body.location = location;
+  if (start) body.start = whenBody(start);
+  if (end) body.end = whenBody(end);
+  if (partial && !Object.keys(body).length) throw fail(400, "Nothing to update.");
+  return body;
+}
+
+export function calendarStatus() {
+  const v = view();
+  return {
+    connected: canCalendar(),
+    canSend: canSend(),
+    scopes: v.scopes,
+    clientReady: !!(v.clientId || v.clientIdFromEnv) && !!v.clientSecretSaved,
+    needsSignIn: !!v.needsSignIn,
+  };
+}
+
+export async function listEvents({ q = "", timeMin = "", timeMax = "", max = 10, accountId } = {}) {
+  need("calendar", accountId);
+  const params = new URLSearchParams({ singleEvents: "true", orderBy: "startTime", maxResults: String(Math.min(20, Math.max(1, Number(max) || 10))) });
+  const query = String(q || "").replace(/['\\]/g, " ").trim().slice(0, 200);
+  if (query) params.set("q", query);
+  const start = timeMin ? parseWhen(timeMin) : null;
+  const end = timeMax ? parseWhen(timeMax) : null;
+  if (timeMin && !start) throw fail(400, "timeMin is not a real date.");
+  if (timeMax && !end) throw fail(400, "timeMax is not a real date.");
+  if (start) params.set("timeMin", start.toISOString());
+  if (end) params.set("timeMax", end.toISOString());
+  const r = await call(`${calendarApi()}/calendars/primary/events?${params}`, {}, accountId);
+  return (r.items || []).map(publicEvent).filter(Boolean);
+}
+
+export async function createEvent(raw, accountId) {
+  need("calendar", accountId);
+  const body = checkEvent(raw);
+  const r = await call(`${calendarApi()}/calendars/primary/events`, { method: "POST", body }, accountId);
+  emit("log", { text: "Google Calendar event created after a click." });
+  return publicEvent(r);
+}
+
+export async function updateEvent(id, raw, accountId) {
+  need("calendar", accountId);
+  const eventId = String(id || "");
+  if (!EVENT_ID.test(eventId)) throw fail(400, "That is not a Calendar event id.");
+  const body = checkEvent(raw, { partial: true });
+  const r = await call(`${calendarApi()}/calendars/primary/events/${encodeURIComponent(eventId)}`, { method: "PATCH", body }, accountId);
+  emit("log", { text: "Google Calendar event updated after a click." });
+  return publicEvent(r);
 }
 
 onRemoveLegacy("google", () => disconnect());

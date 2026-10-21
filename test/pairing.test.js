@@ -107,7 +107,9 @@ test("pairing stays on this computer until it is turned on, then the phone must 
     const token = u.searchParams.get("pair");
     assert.equal(/^[a-f0-9]{64}$/.test(token), true);
     assert.equal(s.log.includes(token), false, "the pairing code is not logged");
-    assert.match(s.log, new RegExp(`Phone pairing on at ${ip.replace(/\./g, "\\.")}:${s.port}\\.`));
+    // The feed is what the app shows. A Windows runner block-buffers later console lines, so the process log can miss them.
+    const feed = () => s.api("/state").then((r) => r.json.recent || []);
+    assert.ok((await feed()).some((e) => e.type === "log" && e.text === `Phone pairing on at ${ip}:${s.port}.`), "the feed says pairing is on");
 
     const home = await s.raw({ path: "/" });
     assert.equal(home.status, 200);
@@ -173,7 +175,7 @@ test("pairing stays on this computer until it is turned on, then the phone must 
     assert.equal((await s.api("/pairing/qr.svg")).status, 404);
     assert.equal(await canConnect(ip, s.port), false, "LAN closes when pairing is turned off");
     assert.equal((await s.api("/health")).status, 200);
-    assert.match(s.log, /Phone pairing off/);
+    assert.ok((await feed()).some((e) => e.type === "log" && /Phone pairing off/.test(e.text || "")), "the feed says pairing is off");
 
     const rotated = await s.api("/pairing", { method: "POST", body: { on: true } });
     assert.equal(rotated.json.on, true);

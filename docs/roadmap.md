@@ -35,9 +35,33 @@ Build order for the twelve was by payoff and by what could run in parallel witho
 | 11 | Shared workspaces (Studio) | hosted-hub session: `server/hosted.js`, `server/store.js`, `supabase/workspaces.sql`, `web/features/workspaces.js` | Owner invites members by email; members see only shared projects; owner sees members' usage; tier gate on Studio |
 | 12 | Pipeline marketplace | `server/plugins/marketplace.js`, `web/features/marketplace.js`, `docs/marketplace.md` | Local and demo catalog, signed template file, install, moderation, placeholder revenue share. Payments are not built |
 
+## Uploads that start a media job
+
+A picture or a video on the idea box or on Marching orders can start a media job. The router picks a connected AI that can see, edit an image, or trim video on this computer. You see the plan, then a preview, and you can download or save the result. The upload itself does not spend or send. This sits on the media actions above. It does not replace them.
+
 ## Rules for every session
 
 - New files only, except the one-line mounts in the hooks above. If a change to a shared file is unavoidable, message the main session with the exact diff.
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## 0.4.9 App discovery and suggestions
+
+0.4.8 is the hotfix. This app discovery slice is part of 0.4.9. 0.4.10 is the unsigned Mac .dmg and the new-version Download notice. Signing and notarization stay later.
+
+When the person opts into desktop control, Meldmind lists installed programs. On Windows that is the uninstall registry keys and the Start menu, plus command-line tools on PATH. File contents are not read. Each name is matched to a curated capability list that can be updated from an https address when the person clicks Update the app list. The person allows each app. Allowed apps are scored and join the router's choices, the same as a tool you add. While planning a mission or client work, a dismissible card suggests a program with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off in Settings.
+
+Phases 45 to 51 use fixture drivers. A real Edge window, a real UI Automation tree, and a real screenshot model are not called.
+
+## 0.4.9 Graduate notice
+
+When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" One click (Add it) includes it. Not now dismisses the ask. Grok Bot's webhook stays the handoff for signed-in tasks. An xAI key is Grok the model and does not raise this ask. Suno and Google Flow count when they gain a key or an MCP route.
+
+## 0.4.9 Welcome email
+
+Send a branded welcome email when someone gets the app: a website download signup, a Square Pro purchase (the Pro licence), or an in-app account. The template is emails/welcome.html and emails/welcome.txt with {{FIRST_NAME}} and {{INSTALL_URL}}. The install link is one page for Windows and Mac. The mail provider is pluggable and off until it is configured. Tests never send. The Supabase service key stays server-only. See docs/welcome-email.md.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.

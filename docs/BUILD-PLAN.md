@@ -28,7 +28,9 @@ Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done.
 
 ### Version 0.4.9 (next)
 
-Not done. In this order:
+On this branch: phases 45 to 51 as fixture drivers with Antigravity first, the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
+
+Not done until those three are in. The order stays:
 
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
@@ -101,6 +103,8 @@ Left on the list so they are not dropped. They are not next.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
+Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the quick patch (adaptive menu for laptops and wide screens, Start a project out of Settings, hide demo bots when real AIs are connected). 0.4.8 is a hotfix (the top bar uses the width it has, and demo AIs stay hidden). 0.4.9 is desktop and app control, phases 45 to 51, with Google Antigravity as the first app, plus Calendar, everyday actions, What's new, and the idea box, and routing to whichever AI already has the login or the prior work. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay in Do last. Windows code signing (Azure) is pending Microsoft verification and stays in Do last. The user-facing page is docs/marketing.md.
+
 ## Rules for every phase (non-negotiable)
 1. Read `README.md`, `docs/roadmap.md`, this file and the end of `docs/BUILD-LOG.md` first.
 2. One commit per feature (`git add <your files>` only, never `git add -A`). Do NOT commit files you did not write in this phase. Other sessions may have uncommitted work here (e.g. workspaces files); leave it alone.
@@ -139,6 +143,7 @@ Left on the list so they are not dropped. They are not next.
 ### Phase 6: Work with files and media (DONE)
 - Chat with files: drop PDFs, docs or images into a project and ask questions; chunks stored per project; works in demo mode with the mock provider.
 - Media actions (R2): mission steps for video, image and voice through provider adapters, credit estimate first, ledger logging, outputs saved to the project. Stubbed in demo mode.
+- A picture or video uploaded on the idea box or Marching orders can start one of those jobs (vision, image edit, or a local video trim). Plan first, then a separate Run. Preview, download, or save. This does not replace the gallery or the Media tab.
 
 ### Phase 7: Integrations (OAuth, post only on click) (DONE)
 - Connectors for Google Drive, Instagram (Meta Graph), HighLevel and Slack (R3): user OAuth flow scaffolding, tokens kept in the vault, "Save to Drive", "Post to Instagram", "Schedule in HighLevel" and "Send to Slack" buttons, each needing an explicit click. Mock adapters for tests; no real calls in tests.
@@ -331,11 +336,18 @@ Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already
 ### Phase 55: Update prompts (effort: S) (DONE)
 Show an update pop-up at startup with "Update now", and check hourly while the app runs, offering "Restart and update" or "Later" (Later installs on quit). Already exists (checked 2026-10-20): `electron/main.cjs` and `electron/updater.cjs` show a launch prompt ("Install now" / "Later") and check every 30 minutes with a prompt; downloads and installs happen only on click (`autoInstallOnAppQuit` is false). Left to do: the hourly interval, the "Restart and update" / "Later" wording on the running prompt, and install on quit after Later. Done: the launch prompt stays Install now / Later, the background check is hourly, the running prompt says Restart and update / Later, and Later on that prompt installs on quit. Version stays 0.4.5.
 
-### Phase 53: Google Calendar connection (effort: M) (version 0.4.9, not done)
-OAuth connect to Google Calendar, create and update events, and show it in the setup checklist. Free and Pro limits follow the connected-service rules (Free 1 connected service, Pro all). Already exists (checked 2026-10-20): `server/connect-setup.js` lists Google Calendar in the checklist, but today Calendar work is handed to Grok Bot (`server/grokbot.js` calendar tag). There is no direct Calendar OAuth yet. Grok Bot's Calendar handoff stays as it is (decision 15).
+### Phase 53: Google Calendar connection (effort: M) (built, package stays 0.4.8)
+OAuth connect to Google Calendar. List, create, and update events. Show it in the setup checklist. Free includes 1 connected service. Pro includes every connected service. Grok Bot's calendar handoff stays as it is (decision 15): tags, webhook, and routing are unchanged.
+- Specified on the docs/new-phases plan, which runs this after Phase 55.
+- Checklist connect asks for Calendar and keeps Gmail or Drive access already granted. The Browser helper checkboxes stay explicit.
+- Settings, Google Calendar, lists upcoming events. Create and Update run only on a click. Events are not deleted.
+- A second fresh connected service on Free is refused before the token is saved.
 
-### Phase 54: Plain-request actions (effort: M) (version 0.4.9, not done)
-The person types a plain request, for example "email this client and put it on my calendar". The router uses a cheap fast AI to draft the email and the event details. Meldmind itself sends and schedules through the connected Gmail and Calendar, only after one approval click (integrations act only on click). No outside AI touches the accounts. The cost is shown (usually a fraction of a cent).
+### Phase 54: Plain-request actions (effort: M) (built, package stays 0.4.8)
+A plain request, for example "email this client and put it on my calendar", is parsed by a cheap fast AI into an email draft plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. No outside AI touches the accounts. The cost is shown, usually a fraction of a cent.
+- Specified on the docs/new-phases plan, which runs this after Phase 53.
+- The model never receives a token. A second click on a finished request does not send again.
+- Guided tour stop "Try saying..." and How-to articles for plain requests and Google Calendar.
 
 ### Phase 56: Everyday actions (effort: L) (version 0.4.9, not done)
 Plain-request everyday actions built on the Phase 53 and 54 connections. Full plan, evidence and catalog: [docs/plans/everyday-actions.md](plans/everyday-actions.md).
@@ -343,7 +355,7 @@ Plain-request everyday actions built on the Phase 53 and 54 connections. Full pl
 - Safety rules for every action: read and draft freely, but any send, post, buy, book, delete, pay, share or invite needs one approval click showing the exact content and recipient. No stored passwords (OAuth or the person's own keys in the vault). No money moved without confirming amount, payee and source; the AI never fills payment fields. Scheduled routines only read and prepare; outgoing actions wait in an Approval queue. Every action is logged in Live Ops with undo where the API allows. Bulk actions (more than 10 items) show a count and a sample first. Grok Bot handoffs and MCP tool calls follow the same rules.
 - Onboarding, tour, how-to and help: each new action gets a line in the welcome tour, a short how-to with an example plain request, and a help entry. (The plan file does not have its own section for this yet; add the detail when the phase starts.)
 - "What's new" prompt: on the first launch after an update that adds connections or actions, show a short card list with Connect or Try it, Skip, and Remind me later (snooze 3 days, then once at 7 days, then it moves to Settings, What's new). "Skip all" is offered. Nothing connects without a click, and skipped items never come back as prompts.
-- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline.
+- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline. For 0.4.9 the same box also takes an upload (files, screenshots, images, documents, kept on this computer) and voice (local Whisper or a connected AI, edited before Send). After Send, the person can edit, delete, re-prioritize, comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer. Marching orders has the same Upload and Voice buttons. Nothing is sent until a click. A picture or video on either box can also start a media job (retouch, variation, trim, caption, or describe) after a plan and a separate Run. That reuses image generation and media jobs. It does not replace them.
 
 ### Phase 36: Free and Pro limits (effort: S) (DONE)
 Free gets 1 connected service, Pro gets all. Free gets 1 email account per provider, Pro up to 8. The learning router stays free; shared learning and the scores dashboard are Pro. Free gets 3 projects and 5 councils a month. Phone pairing and full history search are Pro. A 14-day Pro trial. docs/billing.md matches.
@@ -374,29 +386,36 @@ Share a running mission into a room so others can watch it live, and let them co
 ### Phase 44: AI group chat with personas (effort: M) (Later, not done)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
+### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, fixture drivers in)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through a fixture page on this computer, Windows desktop through a fixture control tree), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The drivers in this build are fixtures. They do not open Edge, read a browser profile, call UI Automation, or send a picture to a model.
 
-### Phase 45: App cards (effort: M) (version 0.4.9, not done)
+### 0.4.9 slice: app discovery and suggestions (built on this branch)
+This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build. Signing stays later.
+
+When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
+
+Phases 45 to 51 use fixture drivers. A real Edge window, a real UI Automation tree, and a real screenshot model are not called. The program scan slice does not drive those doors.
+
+### Phase 45: App cards (effort: M) (version 0.4.9, fixture drivers in)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, not done)
+### Phase 46: Score and missions (effort: M) (version 0.4.9, fixture drivers in)
 Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
 
-### Phase 47: MCP as an app (effort: M) (version 0.4.9, not done)
+### Phase 47: MCP as an app (effort: M) (version 0.4.9, fixture drivers in)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, not done)
-Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
+### Phase 48: Websites (effort: L) (version 0.4.9, fixture drivers in)
+Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop. This branch fills a fixture page on 127.0.0.1. Playwright and system Edge are not called.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, not done)
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, fixture drivers in)
 Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, not done)
-UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, fixture drivers in)
+UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused. This branch uses a fixture control tree. UI Automation is not called.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, not done)
-Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, fixture drivers in)
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. This branch keeps the previous picture out of the next step and stops at the cap. No picture is sent to a model.
 
 ## Version 0.4.9 phases (not done)
 
@@ -416,23 +435,24 @@ A guessed Pro prompt must not block Send. Chris hit "I need a few facts before I
 - Sharing stays the shipped words: task type, which AI, and the score. Never prompts, content, or keys. The person can change it in Settings.
 - Plain words on the new onboarding, the graduate notice, and the welcome email. No em-dashes in user-facing text.
 
-### Phase 69: Program scan (version 0.4.9, not done)
+### Phase 69: Program scan (version 0.4.9, on this branch)
 When desktop control is on, list installed programs and let the person allow each one. Allowed apps are scored like a tool they add, and the router can pick them.
 - Opt in from Setup or Settings. Names only: Windows uninstall entries, Start menu shortcut names, and command-line tools on PATH. Do not read file contents.
 - While a mission is planned, a card may suggest a program, with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off.
 - The scan is a Pro feature. Free can see the lock and can turn a scan off.
 
-### Phase 70: Save in place (version 0.4.9, not done)
-An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click.
+### Phase 70: Save in place (version 0.4.9, command bar on this branch)
+An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click. On this branch, create and rename from the command bar stay on that page. A chat, a doc, and a connected file do not yet save back onto the same item.
 
-### Phase 71: Welcome email (version 0.4.9, not done)
+### Phase 71: Welcome email (version 0.4.9, on this branch, decision 22 text unchanged)
 Decision 22, spec unchanged. Chris added it to this run order on 2026-10-21. Do not rewrite the spec.
 - On sign-up or license redeem, send a plain welcome email.
 - Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
 - No income or results claims.
 - Do not touch Square or billing. Nothing sends until the mail provider is configured. Tests never send.
+- On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This welcome email is part of 0.4.9. This note does not add the item to the run order.
 
-### Phase 72: Graduate notice (version 0.4.9, not done)
+### Phase 72: Graduate notice (version 0.4.9, on this branch)
 When a handoff-only AI gains its own API or MCP route, ask once: "X can now run directly. Add it to councils and missions?"
 - Add it includes that AI in councils and missions. Not now dismisses the ask. The ask sits with the chat box, not in the answers.
 - Grok Bot stays a webhook for signed-in tasks. An xAI key is Grok the model and does not raise this ask.

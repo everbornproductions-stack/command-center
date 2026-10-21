@@ -60,6 +60,13 @@ const BUILTIN = [
     via: "in-app",
   }),
   specOf({
+    id: "antigravity",
+    aliases: ["agy", "google-antigravity"],
+    name: "Google Antigravity",
+    color: "#34d399",
+    via: "local-cli",
+  }),
+  specOf({
     id: "cursor",
     aliases: ["cursor-cloud", "cursor-agent", "cursor_cloud"],
     name: "Cursor",

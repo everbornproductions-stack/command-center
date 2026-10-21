@@ -1,0 +1,37 @@
+# Mac tests on a release tag or when someone starts the workflow by hand.
+# A pull request and a push to main do not start this job.
+# This does not build a disk image, does not publish, and does not read a secret.
+# The unsigned Mac installer stays in docs/ci/mac-build.yml until that workflow can be moved.
+name: Mac CI
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke

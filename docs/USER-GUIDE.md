@@ -16,6 +16,7 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
    After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
+   The same first screen includes **Let Meldmind use your desktop**. It explains that you allow each app, that a send, a buy, or a delete waits for a second click, that a banner says Meldmind is using that app and has Stop, and that passwords are not stored. **Allow Antigravity** and **Install and connect** are on that screen. Install and connect runs Google's installer, then opens sign-in in your browser. You can skip it and change it later in Settings.
 
 Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and survive updates and reinstalls.
 
@@ -41,6 +42,12 @@ Keys are never shown again after saving and never written to a log.
 ## 4. Give orders (the Command tab)
 
 1. Type what you want in **Marching orders**. One line is enough. Press **Send orders** (or Ctrl+Enter).
+
+**Upload** adds a file, a screenshot, or a document to the box. **Voice** writes what you say into the box. Edit the words, then send. Nothing is sent until that click. In Simple, the same buttons sit under the chat box. Tap to talk is separate: its auto-send box can still send when you turn that on.
+
+A picture or a video can go further. Choose Retouch, Variation, Describe, Trim, or Caption. Those only fill the box. **Show the plan** names the connected AI and the price, or says "Demo, nothing spent." **Run** is a second click. You can preview the result, download it, or save it in a project. Nothing is posted. Pictures can be 8 MB, videos 12 MB, and other files 4 MB. A picture over 3.5 MB can stay attached, and the page says it is too big to retouch.
+
+**Suggest a connection or idea** is in Settings. Upload and Voice work there too. You read the exact note, then click Send. After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those later changes stay on this computer.
 
 ### Simple and Expert
 
@@ -93,6 +100,33 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
 
+## 7a. Apps on your desktop
+
+Meldmind can use an app on this PC that has no API, after you allow that app.
+
+**Settings > Google Antigravity** is the first one.
+
+- Tick **Allow Meldmind to hand coding tasks to Antigravity**. Clear it any time. The manual handoff stays available.
+- **Install and connect** runs Google's installer, then opens sign-in in your browser. You sign in once. Meldmind does not see the password.
+- **Check** sends one short test task. **Send task** hands over the words you typed. **Stop** ends the task that is running.
+- **Add to Antigravity** writes the Meldmind server into Antigravity's MCP config on this PC, and only after you confirm. Other servers in that file stay. The bridge token stays in Meldmind's data folder. It is not copied into the config.
+
+You confirm before a send, a buy, or a delete. While an app is in use, a banner says Meldmind is using that app, and Stop ends it. Passwords are not stored. If a control in an app moves, Meldmind tries the other ways it knows to find it, then stops and offers the manual handoff.
+
+After you update to 0.4.9, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
+
+Help has the same steps under Apps on your desktop. Take the tour again includes that stop.
+
+## Programs on this PC
+
+Program scan is part of Pro. On Free the list stays off.
+
+Turn on desktop control in Setup or in Settings. Meldmind lists installed programs. On Windows that list comes from the uninstall list and the Start menu, plus command-line tools on PATH. It reads names only. File contents are not read.
+
+Allow the apps you want. Allowed apps are scored and join the router's choices, the same as a tool you add. They do not replace the AIs that write.
+
+While you plan a mission or client work, a card may suggest a program that would speed the job up. It shows a short reason, Free or Paid, and the official link. Dismiss hides that card. Meldmind will not install or buy anything. Turn suggestions off under Settings, Programs on this PC.
+
 ## 8. Sending things out: always your click
 
 Nothing posts, sends, emails or spends without a click from you.
@@ -100,6 +134,14 @@ Nothing posts, sends, emails or spends without a click from you.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
+
+## Plain requests
+
+On Chat, the box titled Try saying... takes a sentence such as "email this client and put it on my calendar". A cheap fast AI drafts the email and the event. The cost is shown, usually a fraction of a cent. Click Approve once and Meldmind sends the email through connected Gmail and creates the event on connected Google Calendar. Nothing is sent before that click. The drafting AI does not touch those accounts. Grok Bot's calendar handoff is unchanged.
+
+## Google Calendar
+
+Settings, Google Calendar, lists events after you connect with your own Google sign-in. Create event and Update run only when you click. Free includes 1 connected service. Pro includes every connected service. Grok Bot can still take calendar work. That handoff is unchanged.
 
 ## 9. Updates
 

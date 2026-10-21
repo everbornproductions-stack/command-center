@@ -41,10 +41,12 @@ import { loadProjects, listProjects, saveProject, deleteProject, addLink, remove
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
+import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
 import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
+import { bridgeAuthorized } from "./meldmind-bridge.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
@@ -120,6 +122,13 @@ function phonePair() {
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
   return { on: true, token: p.token };
 }
+// The Antigravity MCP process has no browser session. It may call only the
+// job bridge, and only with the token that stays in the data folder.
+function bridgeLoopbackOk(req, url) {
+  const p = url.pathname;
+  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && !p.startsWith("/api/bridge/jobs/")) return false;
+  return bridgeAuthorized(req.headers["x-meldmind-bridge"]);
+}
 function pairPresented(req, url) {
   const token = phonePair().token;
   if (!token) return false;
@@ -130,7 +139,7 @@ function localGate(req, url) {
   if (HOSTED) return null;
   if (!hostOk(req)) return { status: 421, error: `wrong host: open http://localhost:${PORT}/ or http://127.0.0.1:${PORT}/`, code: "host" };
   if (!originOk(req)) return { status: 403, error: "cross-site request refused", code: "origin" };
-  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"])) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
+  if (url.pathname.startsWith("/api/") && !PUBLIC_API.has(url.pathname) && !url.pathname.startsWith("/api/share/t/") && !tokenOk(req.headers["x-cc-token"]) && !bridgeLoopbackOk(req, url)) return { status: 401, error: "session token missing or wrong: reload the page", code: "token" };
   return null;
 }
 // index.html with the per-launch token injected (local mode only).
@@ -164,7 +173,7 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let d = "";
-    req.on("data", (c) => { d += c; if (d.length > 5e6) req.destroy(); });
+    req.on("data", (c) => { d += c; if (d.length > 18e6) req.destroy(); });
     req.on("end", () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(new Error("bad json")); } });
     req.on("error", reject);
   });
@@ -448,7 +457,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   m.memory = ask.includes(MEMORY_MARKER);
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
-  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${PROVIDERS[provider].name})` : PROVIDERS[provider].name} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  const who = PROVIDERS[provider]?.name || localRouteName(provider) || provider;
+  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   let text = "";
   try {
@@ -524,8 +534,10 @@ async function api(req, res, url) {
     if (!prompt.trim()) return json(res, 400, { error: "prompt required" });
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = normalizeMode(url.searchParams.get("mode") || settings().defaultMode) || "balanced";
-    const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
+    const rankedAll = rank({ ...cls, mode, includeApps: true });
+    const apps = rankedAll.filter((m) => m.kind === "app").slice(0, 6);
+    const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
+    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 

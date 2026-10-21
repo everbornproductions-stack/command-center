@@ -41,6 +41,26 @@ test("Simple and Expert chat both offer new and rename on the project picker", (
   assert.equal(app.includes("\u2014"), false);
 });
 
+test("saving a project from the command bar stays put and confirms with Saved", () => {
+  const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
+  const picker = app.slice(app.indexOf("function wireProjectPicker"), app.indexOf("// ----- Command -----"));
+  assert.ok(picker.includes("function wireProjectPicker"));
+  assert.match(picker, /toastSaved\(savedId\)/);
+  assert.equal(picker.includes('S.view = "projects"'), false);
+  assert.equal(picker.includes('go("projects")'), false);
+  assert.doesNotMatch(picker, /Project created|Project renamed/);
+  const note = app.slice(app.indexOf("function openSavedProject"), app.indexOf("function wireProjectPicker"));
+  assert.match(note, /function toastSaved/);
+  assert.match(note, /toast\("Saved", false, link\)/);
+  assert.match(note, /label: "Open"/);
+  assert.match(note, /onClick: \(\) => openSavedProject\(id\)/);
+  assert.match(note, /const link = id \? \{ label: "Open", onClick: \(\) => openSavedProject\(id\) \} : null/);
+  assert.match(note, /S\.openProject = id/);
+  assert.match(note, /S\.view = "projects"/);
+  assert.equal(note.includes("\u2014"), false);
+  assert.equal(picker.includes("\u2014"), false);
+});
+
 test("API creates a trimmed project, refuses a blank or duplicate, and renames in place", async () => {
   const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {

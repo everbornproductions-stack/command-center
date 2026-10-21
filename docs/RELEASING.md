@@ -1,9 +1,9 @@
 # Releasing a new version of Meldmind (so the in-app update button finds it)
 
-The Windows app checks for updates when it starts and every 30 minutes. People can also press
-**Help > Check for updates** (the top-bar menu that also has Settings and Take the tour again).
-When a newer version is out, the top bar shows **Update available**. After it has downloaded, the
-same button says **Restart to update**. A banner still offers **Update and restart**. Nothing downloads until they click it.
+The Windows app checks for updates when it starts, when it is opened again from the shortcut, and every hour. People can also press
+**Help > Check for updates** (the top-bar Help menu, and the Help page).
+When a newer version is out, the app shows **Update ready, restart**. Nothing downloads until they click it.
+If the check cannot read the public `latest.yml`, it shows **Couldn't check for updates** with **Download**, which opens the releases page.
 
 Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Meldmind vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
 
@@ -54,8 +54,9 @@ not in the install folder, so updating or reinstalling keeps it.
    upload the missing file again with
    `gh release upload vX.Y.Z <file> --repo everbornproductions-stack/command-center-releases --clobber`.
    You can also drag the files onto the release page on github.com.
-6. **Check.** Open the installed app, Settings, **Check for updates**. It should say
-   "Update available: vX.Y.Z". Click **Update and restart**.
+6. **Check.** Open the installed app and choose **Help > Check for updates**. It should say
+   **Update ready, restart** for vX.Y.Z. Nothing downloads until that click. If the check
+   cannot read the release, it says **Couldn't check for updates** and **Download** opens the releases page.
 
 ## Good to know
 
@@ -82,7 +83,9 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 - `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Set either name as a secret or as a repository variable. Without one of them the workflow stops, because an empty key would leave every installed copy on the Free tier.
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
 
-`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. A pull request runs `npm ci`, `npm test`, and `npm run smoke` only. A push to `main` also runs `npm run dist`. A new push cancels the older run of that ref. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+
+`.github/workflows/mac-ci.yml` runs when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
 
 ## Mac (unsigned for now)
 

@@ -79,6 +79,21 @@ Honourable mentions: **Suprmind** (council, 5 models in one chat, $19–95/mo, n
 13. Desktop-native, local-first, no Docker, Windows + macOS.
 14. Pricing that undercuts the credit model and proves it paid for itself through cancelled subscriptions.
 
+## Positioning addendum (2026-10-20): desktop apps
+
+The 2026-10-17 gap was still "one console for the AIs you already pay for." A second gap showed up beside it: many useful apps have no API, and the tools that drive them ask for stored passwords or act without a second click.
+
+The line to use: **Meldmind can use the apps on your desktop, safely.** The points that match the complaints already in this research (key-harvesting fear, opaque credits, actions that fire on their own):
+
+- Works with apps that have no API.
+- Approval for each app.
+- Confirm before send, buy, or delete.
+- A banner says Meldmind is using that app, with Stop.
+- No passwords stored.
+- Self-healing when apps change, then a manual handoff if the app still cannot be driven.
+
+Google Antigravity is the first named app. The full marketing page is docs/marketing.md. Do not fold this into a credit-wallet pitch.
+
 Re-verify before quoting externally: ChatHub/Manus/Zapier/Devin/Simtheory exact prices, Not Diamond pricing, Flowise Cloud shutdown date, Abacus "75% throttle" (user-reported).
 
 Sources (selection): chathub.gg, cloud.typingmind.com/buy, magai.co/pricing, kagi.com/pricing, openrouter.ai/chat, msty.ai/pricing, github.com/karpathy/llm-council, council-ai.app, suprmind.ai, aiscouncil.com, modelcouncil.co, openai.com/index/introducing-agentkit, docs.langchain.com/langgraph-platform/langgraph-studio, flowiseai.com/sunset, mindstudio.ai/pricing, code.claude.com/docs/en/agents, tokens4breakfast.app, blog.abacus.ai, venturebeat.com (Perplexity Computer), eesel.ai (Genspark, Manus, Abacus pricing), news.ycombinator.com/item?id=44740957, news.ycombinator.com/item?id=44549209.

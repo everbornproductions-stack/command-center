@@ -176,7 +176,8 @@ input::placeholder, textarea::placeholder { color: #d2d8e4; opacity: 1; font-siz
 .right { text-align: right; }
 .empty { color: var(--dim); padding: 24px; text-align: center; border: 1px dashed var(--line-2); border-radius: 12px; }
 .toasts { position: fixed; right: 360px; bottom: 110px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
-.toast { background: #111827; border: 1px solid var(--line-2); padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px #0008; animation: fadein .2s; max-width: 420px; }
+.toast { background: #111827; border: 1px solid var(--line-2); padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px #0008; animation: fadein .2s; max-width: 420px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.toast-link { color: var(--accent-2); }
 .toast.err { border-color: #5a2a2a; color: #fca5a5; }
 /* Accessibility (Phase 11): a visible ring for keyboard focus only, a skip link, and a quieter shell when the
    system asks for reduced motion. The live flow map keeps its own approved reduced-motion fallback. */
@@ -237,6 +238,8 @@ input::placeholder, textarea::placeholder { color: #d2d8e4; opacity: 1; font-siz
 .reply-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; min-width: 0; }
 .reply-turn, .reply-part, .task-answer, .reply-live { min-width: 0; overflow-wrap: anywhere; }
 .grok-wait { color: var(--amber); font-size: 13px; padding: 6px 0; }
+.graduate-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid var(--line); border-left: 3px solid var(--violet); background: var(--panel-solid); border-radius: 10px; padding: 10px 12px; }
+.graduate-banner p { margin: 0; flex: 1 1 180px; }
 .reply-you, .reply-ai { border-left: 2px solid var(--line-2); padding-left: 8px; }
 .reply-ai { border-left-color: var(--accent); }
 .task-follow { grid-column: 1 / -1; min-width: 0; }

@@ -24,6 +24,7 @@ const SHORT_NAMES = {
 };
 const EXTRA = {
   grokbot: { color: "#c4b5fd", kind: "agent" },
+  antigravity: { color: "#34d399", kind: "agent" },
   "grok-bot": { color: "#c4b5fd", kind: "agent" },
   browser: { color: "#38bdf8", kind: "agent" },
   "browser-helper": { color: "#38bdf8", kind: "agent" },

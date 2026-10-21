@@ -7,8 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, ROOT, raw, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, ROOT, raw, waitBudget, newKindPred } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-mcp-");
 const { McpClient, McpError, spawnSpec, normalizeResult, PROTOCOL_VERSION } = await import("../server/mcp-client.js");
@@ -63,7 +64,7 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
     const init = await c.connect();
     assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
     const tools = await c.listTools();
-    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]);
+    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]);
     assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
     const wc = await c.callTool("word_count", { text: "one two three. four!" });
     assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
@@ -71,6 +72,11 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
     assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
     assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
     assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
+    assert.match((await c.callTool("list_agents", {})).text, /Google Antigravity/);
+    assert.equal((await c.callTool("get_result", {})).isError, true);
+    assert.match((await c.callTool("get_result", { job_id: "missing" })).text, /not running/);
+    assert.match((await c.callTool("submit_job", { task: "say hello" })).text, /not running/);
+    assert.equal((await c.callTool("submit_job", {})).isError, true);
     await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
     assert.equal(c.alive, true);
     await c.close();
@@ -254,8 +260,14 @@ async function waitRun(s, pred, label, ms = 60000) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${trace ? `\n${trace}` : ""}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
+// Follow the id the chat returns. A Windows clock can stamp the run a tick before Date.now() in this process, so startedAt > t0 never matches a run that already finished.
+async function postSingle(s, body) {
+  const posted = await s.api("/chat", { method: "POST", body });
+  assert.equal(posted.status, 202);
+  assert.match(posted.json?.runId || "", /^s-/);
+  return posted.json.runId;
+}
 async function waitPending(s, ms = 20000) {
   const budget = waitBudget(ms);
   const t0 = Date.now();
@@ -290,7 +302,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     let r = await s.api("/tools/servers", { method: "POST", body: { name: "Demo tools", transport: "stdio", command: process.execPath, args: [DEMO], env: `DEMO_SECRET=${SECRET}\nOTHER=1` } });
     assert.equal(r.status, 200); assert.equal(r.json.ok, true, r.json.error);
     const srv = r.json.server; const sid = srv.id;
-    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
+    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
     assert.equal(srv.tools[0].readOnlyHint, true); assert.equal(srv.tools[0].needsApproval, true, "read-only asks until the server allows it"); assert.equal(srv.tools[3].readOnly, false, "no hint: treated as a write");
     assert.equal(srv.enabledCount, 0, "nothing enabled by default");
     assert.ok(!JSON.stringify(r.json).includes(SECRET), "env value never in a response");
@@ -312,21 +324,21 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.equal(v.workspace.key, ws.id); assert.equal(v.workspace.name, "Studio A"); assert.equal(v.enabledCount, 0, "the other workspace has nothing enabled yet");
     assert.deepEqual((await s.api("/tools/enabled")).json.tools, []);
     r = await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { all: true } });
-    assert.equal(r.json.server.enabledCount, 4);
+    assert.equal(r.json.server.enabledCount, 7);
     await s.api("/workspaces/active", { method: "POST", body: { id: null } });
     assert.equal((await s.api("/tools")).json.enabledCount, 1, "Personal keeps its own list");
 
     // the mock model gets the tools, calls clock, the app asks, we allow: result lands in the answer
     assert.equal((await s.api("/keys", { method: "POST", body: { provider: "groq", key: KEYS.groq } })).json.status.status, "green");
-    let t0 = Date.now(); const n0 = model.seen.length;
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "What does the clock say right now?", provider: "groq", model: "openai/gpt-oss-120b" } })).status, 202);
+    const n0 = model.seen.length;
+    let runId = await postSingle(s, { prompt: "What does the clock say right now?", provider: "groq", model: "openai/gpt-oss-120b" });
     let ask = await waitPending(s);
     assert.equal(ask.tool, "clock"); assert.equal(ask.serverName, "Demo tools"); assert.equal(ask.provider, "groq"); assert.equal(ask.readOnly, true); assert.deepEqual(ask.args, {});
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "mcp.approval" && e.id === ask.id), "the approval request is an event the UI can show");
     assert.equal((await s.api("/tools/approvals/nope", { method: "POST", body: { allow: true } })).status, 404);
     r = await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: true } });
     assert.equal(r.json.allowed, true); assert.deepEqual(r.json.pending, []);
-    let run = await waitRun(s, finished("single", t0 - 1), "single with clock");
+    let run = await waitRun(s, settled(runId), "single with clock");
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.match(full.deliverable, /Let me check\.\s+Tool said: 20\d\d-/);
     assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].tool, "clock"); assert.equal(full.toolCalls[0].ok, true); assert.equal(full.toolCalls[0].denied, false);
@@ -343,11 +355,10 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "log" && /wants to run "clock" on Demo tools: waiting for your OK/.test(e.text)));
 
     // deny: the model is told, the run still finishes
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "clock please", provider: "groq", model: "openai/gpt-oss-120b" } });
+    runId = await postSingle(s, { prompt: "clock please", provider: "groq", model: "openai/gpt-oss-120b" });
     ask = await waitPending(s);
     await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: false } });
-    run = await waitRun(s, finished("single", t0 - 1), "denied single");
+    run = await waitRun(s, settled(runId), "denied single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.match(full.deliverable, /declined to run the tool "clock"/);
     assert.equal(full.toolCalls[0].denied, true); assert.equal(full.toolCalls[0].ok, false);
@@ -359,12 +370,11 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "list_notes", enabled: true } });
     v = (await s.api("/tools")).json; const tl = Object.fromEntries(v.servers[0].tools.map((t) => [t.name, t]));
     assert.equal(tl.clock.needsApproval, false); assert.equal(tl.save_note.needsApproval, true); assert.equal(tl.list_notes.needsApproval, true);
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "clock then save_note", provider: "groq", model: "openai/gpt-oss-120b" } });
+    runId = await postSingle(s, { prompt: "clock then save_note", provider: "groq", model: "openai/gpt-oss-120b" });
     ask = await waitPending(s);
     assert.equal(ask.tool, "save_note", "only the write asked"); assert.deepEqual(ask.args, { title: "T", body: "B" }); assert.equal(ask.readOnly, false);
     await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: true } });
-    run = await waitRun(s, finished("single", t0 - 1), "clock + note");
+    run = await waitRun(s, settled(runId), "clock + note");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.deepEqual(full.toolCalls.map((c) => [c.tool, c.ok, c.denied]), [["clock", true, false], ["save_note", true, false]]);
     assert.match(full.deliverable, /Saved note "T"/);
@@ -373,9 +383,9 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     r = await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", readOnly: false } });
     assert.equal(r.json.server.tools[0].needsApproval, true, "an override to writes wins over the hint");
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", readOnly: null } });
-    t0 = Date.now(); const before = (await s.api("/tools")).json.pending.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "list_notes", provider: "groq", model: "openai/gpt-oss-120b" } });
-    run = await waitRun(s, finished("single", t0 - 1), "list_notes without a prompt");
+    const before = (await s.api("/tools")).json.pending.length;
+    runId = await postSingle(s, { prompt: "list_notes", provider: "groq", model: "openai/gpt-oss-120b" });
+    run = await waitRun(s, settled(runId), "list_notes without a prompt");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.match(full.deliverable, /1\. T: B/); assert.equal((await s.api("/tools")).json.pending.length, before, "no approval was asked");
 
@@ -389,20 +399,18 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     // the master switch and the per-request flag
     await s.api("/tools/settings", { method: "POST", body: { on: false, maxRounds: 3 } });
     v = (await s.api("/tools")).json; assert.deepEqual(v.settings, { on: false, maxRounds: 3 });
-    t0 = Date.now(); const n1 = model.seen.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b" } });
-    run = await waitRun(s, finished("single", t0 - 1), "tools off");
+    const n1 = model.seen.length;
+    runId = await postSingle(s, { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b" });
+    run = await waitRun(s, settled(runId), "tools off");
     assert.ok(model.seen.slice(n1).every((j) => !j.tools), "no tools offered when off"); assert.deepEqual((await s.api(`/missions/${run.id}`)).json.toolCalls, []);
     await s.api("/tools/settings", { method: "POST", body: { on: true } });
-    t0 = Date.now(); const n2 = model.seen.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b", tools: false } });
-    await waitRun(s, finished("single", t0 - 1), "tools off for one request");
+    const n2 = model.seen.length;
+    runId = await postSingle(s, { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b", tools: false });
+    await waitRun(s, settled(runId), "tools off for one request");
     assert.ok(model.seen.slice(n2).every((j) => !j.tools), "tools: false on the request wins");
 
     // council: members with tools; the council records who used what
-    t0 = Date.now();
-    assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false } })).status, 202);
-    run = await waitRun(s, finished("council", t0 - 1), "council with tools", 90000);
+    run = await waitRun(s, await newKindPred(s.api, "/council", { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false }, "council"), "council with tools", 90000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].by, "groq"); assert.equal(full.toolCalls[0].tool, "clock");
 
@@ -479,7 +487,7 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
     let r = await s.api("/tools/demo", { method: "POST" });
-    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 4); assert.equal(r.json.server.autoReadOnly, true);
+    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 7); assert.equal(r.json.server.autoReadOnly, true);
     assert.equal(r.json.server.tools.find((t) => t.name === "clock").needsApproval, false); assert.equal(r.json.server.tools.find((t) => t.name === "save_note").needsApproval, true);
     assert.equal((await s.api("/tools/demo", { method: "POST" })).json.view.servers.length, 1, "added once");
     let posted = await s.api("/chat", { method: "POST", body: { prompt: "What time is it right now?", provider: "demo-nova", model: "nova-lite" } });
@@ -496,13 +504,125 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
     assert.equal(full.status, "done", full.error || "");
     assert.deepEqual(full.toolCalls, []);
     // a mission: specialists get the tools; the goal mentions the time, so the pretend AIs use the clock
-    const t0 = Date.now();
-    assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 } })).status, 202);
-    run = await waitRun(s, finished("mission", t0 - 1), "demo mission", 180000);
+    run = await waitRun(s, await newKindPred(s.api, "/mission", { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 }, "mission"), "demo mission", 180000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(["done", "done-with-errors"].includes(full.status), `mission ${full.status}: ${full.error || ""}`);
     assert.ok(full.toolCalls.length >= 1, "at least one task used a tool"); assert.ok(full.toolCalls.every((c) => c.tool === "clock" && c.ok && c.taskId));
     assert.ok(full.tasks.some((t) => t.toolCalls >= 1));
     assert.deepEqual((await s.api("/tools")).json.pending, [], "read-only tools never asked");
   } finally { await s.stop(); }
+});
+
+test("Add to Antigravity writes the MCP config only after confirm, and the bridge token stays out of that file", async () => {
+  process.env.CC_DEV_OWNER = "1";
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(process.env.CC_DATA_DIR)));
+  const bridge = await import("../server/meldmind-bridge.js");
+  const home = path.join(process.env.CC_DATA_DIR, "home-mcp");
+  const file = bridge.mcpConfigPath(home);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ mcpServers: { other: { command: "npx", args: ["keep-me"] } }, note: "stay" }));
+  const preview = bridge.previewMcpAdd({ home, port: 4747, script: bridge.scriptPath() });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.needsConfirm, true);
+  assert.equal(fs.readFileSync(file, "utf8").includes("meldmind"), false);
+  const held = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: false });
+  assert.equal(held.needsConfirm, true);
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).mcpServers.meldmind, undefined);
+  const wrote = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: true });
+  assert.equal(wrote.ok, true);
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(saved.note, "stay");
+  assert.deepEqual(saved.mcpServers.other.args, ["keep-me"]);
+  assert.equal(saved.mcpServers.meldmind.env.MELDMIND_PORT, "4747");
+  assert.equal(saved.mcpServers.meldmind.env.MELDMIND_TOKEN_FILE, bridge.tokenPath());
+  const token = fs.readFileSync(bridge.tokenPath(), "utf8").trim();
+  assert.ok(token.length >= 32);
+  assert.equal(JSON.stringify(saved).includes(token), false);
+  assert.equal(JSON.stringify(saved).includes("sk-"), false);
+  fs.writeFileSync(file, "{");
+  const refused = bridge.writeMcpConfig({ home, confirm: true, port: 1, script: "node" });
+  assert.equal(refused.ok, false);
+  assert.equal(fs.readFileSync(file, "utf8"), "{");
+});
+
+test("bridge: a confirm click adds Meldmind, and only the bridge token can queue a job", async () => {
+  const home = path.join(tmpDir("cc-mcp-home-"), "h");
+  const s = await startServer({ env: { CC_MCP_HOME: home, CC_DEV_OWNER: "1" } });
+  const client = McpClient.for(
+    { transport: "stdio", command: process.execPath, args: [DEMO] },
+    { env: { MELDMIND_PORT: String(s.port), MELDMIND_TOKEN_FILE: path.join(s.dir, "bridge.token") } },
+  );
+  try {
+    const file = path.join(home, ".gemini", "config", "mcp_config.json");
+    const preview = await s.api("/bridge/mcp");
+    assert.equal(preview.status, 200);
+    assert.equal(preview.json.needsConfirm, true);
+    assert.equal(fs.existsSync(file), false);
+    const held = await s.api("/bridge/mcp", { method: "POST", body: {} });
+    assert.equal(held.status, 200);
+    assert.equal(held.json.needsConfirm, true);
+    assert.equal(fs.existsSync(file), false);
+    const wrote = await s.api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+    assert.equal(wrote.status, 200, wrote.json?.error || s.log);
+    assert.equal(wrote.json.ok, true);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    const token = fs.readFileSync(path.join(s.dir, "bridge.token"), "utf8").trim();
+    assert.equal(JSON.stringify(saved).includes(token), false);
+    assert.equal((await s.api("/bridge/jobs", { method: "POST", body: { task: "hello" } })).status, 401);
+    assert.equal((await s.api("/bridge/agents", { noToken: true })).status, 401);
+    assert.equal((await s.api("/bridge/agents", { noToken: true, headers: { "x-meldmind-bridge": "not-the-token" } })).status, 401);
+    const secret = "sk-" + "a".repeat(24);
+    const queued = await s.api("/bridge/jobs", {
+      method: "POST",
+      noToken: true,
+      headers: { "x-meldmind-bridge": token },
+      body: { task: `remember ${secret} please`, agent: "antigravity" },
+    });
+    assert.equal(queued.status, 200, queued.json?.error || s.log);
+    assert.match(queued.json.job.text, /Nothing was sent|Waiting in Meldmind/);
+    assert.equal(JSON.stringify(queued.json).includes(secret), false);
+    const got = await s.api(`/bridge/jobs/${encodeURIComponent(queued.json.job.id)}`, { noToken: true, headers: { "x-meldmind-bridge": token } });
+    assert.equal(got.status, 200);
+    assert.equal(JSON.stringify(got.json).includes(secret), false);
+    await client.connect();
+    assert.match((await client.callTool("list_agents", {})).text, /Antigravity/);
+    const submitted = await client.callTool("submit_job", { task: "queue this local task", agent: "antigravity" });
+    assert.match(submitted.text, /Job id:/);
+    assert.equal(submitted.isError, false);
+    const read = await client.callTool("get_result", { job_id: submitted.structured.job.id });
+    assert.equal(read.isError, false);
+    assert.match(read.text, /Nothing was sent|Waiting|queue/i);
+  } finally {
+    try { await client.close(); } catch {}
+    await s.stop();
+  }
+});
+
+test("Free cannot write the Antigravity config or queue a bridge job", async () => {
+  const prev = process.env.CC_DEV_OWNER;
+  delete process.env.CC_DEV_OWNER;
+  const dir = tmpDir("cc-mcp-free-ctx-");
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(dir)));
+  const bridge = await import("../server/meldmind-bridge.js");
+  const home = path.join(tmpDir("cc-mcp-free-"), "h");
+  try {
+    const preview = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: false });
+    assert.equal(preview.needsConfirm, true);
+    let denied = null;
+    try { bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: true }); }
+    catch (err) { denied = err; }
+    assert.equal(denied?.status, 402);
+    assert.match(denied.message, /Desktop control is part of Pro/);
+    const s = await startServer({ env: { CC_DEV_OWNER: "", CC_MCP_HOME: home } });
+    try {
+      const held = await s.api("/bridge/mcp", { method: "POST", body: {} });
+      assert.equal(held.status, 200);
+      assert.equal(held.json.needsConfirm, true);
+      const wrote = await s.api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+      assert.equal(wrote.status, 402);
+      assert.match(wrote.json.error, /Desktop control is part of Pro/);
+    } finally { await s.stop(); }
+  } finally { if (prev) process.env.CC_DEV_OWNER = prev; }
 });

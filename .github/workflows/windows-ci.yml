@@ -1,4 +1,6 @@
-# Windows test and package on every pull request and every push to main.
+# Windows tests on every pull request and every push to main.
+# A pull request runs the tests and the smoke check only.
+# Packaging runs on a push to main, not on a pull request.
 # This does not publish, and it does not read a signing certificate or the releases token.
 # CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
 # The installer from this job is not a release. Do not upload it.
@@ -17,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-and-package:
+  test:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +39,7 @@ jobs:
         run: npm run smoke
 
       - name: Package the Windows app
+        if: github.event_name == 'push'
         shell: bash
         env:
           CC_PACK_UNPUBLISHED: "1"
@@ -45,6 +48,7 @@ jobs:
         run: npm run dist
 
       - name: Check the installer files
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail

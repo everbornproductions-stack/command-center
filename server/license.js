@@ -31,9 +31,10 @@ const PRO = {
   connectedServices: Infinity, emailAccounts: 8,
   phone: true, historySearch: true, sharedLearning: true, scores: true,
   ...PRO_EXTRA,
+  desktop: true, appScan: true, programScan: true,
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, desktop: false, appScan: false, programScan: false, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },
@@ -159,6 +160,13 @@ export async function activate(key) {
   if (r?.ok) {
     saveLic({ key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" });
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
+    try {
+      const { queueWelcome } = await import("./welcome-mail.js");
+      const source = String(r.tier || "").toLowerCase() === "pro" ? "pro-purchase" : "license";
+      await queueWelcome({ email: r.email, firstName: r.first_name || r.name || "", source });
+    } catch (e) {
+      emit("log", { text: `Welcome email was not sent: ${e.message}`, level: "error" });
+    }
     return licenseState();
   }
   // a different key that fails leaves the stored licence alone; the stored key failing means it really is not active
@@ -240,12 +248,21 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
 //   guard("connectedService", { count }) | guard("emailAccounts", { count })
 //   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
+//   guard("desktop") | guard("appScan")
+// desktop is desktop control (including Antigravity). appScan is the program scan and its suggestions.
+// missions is already Pro. These ids are the feature-gate names. isProFeature reads the same table.
+export function isProFeature(feature) {
+  return !!TIERS[licenseState().tier]?.[feature];
+}
 export function guard(feature, info = {}) {
   const s = licenseState();
   const T = TIERS[s.tier];
   switch (feature) {
     case "missions": if (!T.missions) throw pro("Mission mode"); return s;
     case "scheduler": if (!T.scheduler) throw pro("Schedules"); return s;
+    case "desktop": if (!T.desktop) throw pro("Desktop control"); return s;
+    case "appScan": if (!T.appScan) throw pro("Program scan"); return s;
+    case "programScan": if (!T.programScan) throw pro("Program scan"); return s;
     case "subscriptions": case "subscriptionsTab": if (!T.subscriptionsTab) throw pro("The Subscriptions tracker"); return s;
     case "council": {
       const used = councilsThisMonth();

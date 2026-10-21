@@ -170,9 +170,18 @@ function toastNeedKey() {
   $("#toasts").appendChild(t);
   setTimeout(() => t.remove(), 8000);
 }
-function toast(msg, err = false) {
-  if (err && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
-  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
+function toast(msg, err = false, link = null) {
+  if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
+  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
+  t.append(document.createTextNode(msg));
+  if (link?.label && typeof link.onClick === "function") {
+    const a = document.createElement("a");
+    a.href = "#";
+    a.className = "toast-link";
+    a.textContent = link.label;
+    a.addEventListener("click", (ev) => { ev.preventDefault(); link.onClick(); t.remove(); });
+    t.append(a);
+  }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
 }
@@ -259,7 +268,7 @@ async function engineDown(on) {
     <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
   $("#ed-reason", el).textContent = reason;
   $("#ed-restart", el)?.addEventListener("click", () => { $("#ed-msg", el).textContent = "Restarting..."; window.ccDesktop.restart(); });
-  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `v${st.version} is available: use Install now in the update window.` : st?.error ? `Could not check: ${st.error}` : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
+  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `Update ready, restart: v${st.version}. Use Install now in the update window.` : st?.error ? "Couldn't check for updates" : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
   $("#ed-retry", el)?.addEventListener("click", () => { el.remove(); clearTimeout(wsTimer); connect(); });
   $("#ed-wait", el).addEventListener("click", () => { el.remove(); downSince = Date.now(); });
 }
@@ -592,13 +601,19 @@ function renderBudget() {
 // ---------------- views ----------------
 function renderUpdateBar() {
   const u = S.update, bar = $("#update-bar"); if (!bar) return;
+  if (u?.error && !u?.available) {
+    bar.style.display = "";
+    const href = esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest");
+    bar.innerHTML = `<div><b>Couldn't check for updates</b></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a>`;
+    return;
+  }
   if (!u?.available || S.updateDismissed === u.latest) { bar.style.display = "none"; return; }
   bar.style.display = "";
   const busy = u.phase === "downloading" || u.phase === "installing";
   const action = u.desktop
-    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
-    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: Meldmind v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update ready, restart"}</button>`
+    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Download</a>`;
+  bar.innerHTML = `<span>↑</span><div><b>Update ready, restart</b> Meldmind v${esc(u.latest)} (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -608,17 +623,17 @@ function updateBoxHtml() {
   const busy = u.phase === "downloading" || u.phase === "installing";
   const status = u.phase === "downloading" ? `Downloading v${esc(u.latest)}: ${u.progress ?? 0}%`
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
-    : u.available ? `Update available: v${esc(u.latest)}`
+    : u.available ? `Update ready, restart: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
   return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
-    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
+    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update ready, restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
-    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
+    + (u.error && !u.available ? ` <span>Couldn't check for updates</span> <a class="btn sm" href="${esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest")}" target="_blank" rel="noopener">Download</a>` : (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : ""));
 }
 function renderUpdateBox() {
   const box = $("#s-upd-box"); if (!box) return;
   box.innerHTML = updateBoxHtml();
-  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version", !!S.update.error); });
+  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `Update ready, restart: v${S.update.latest}` : S.update.error ? "Couldn't check for updates" : "You are on the latest version", !!S.update.error); });
   $("#s-upd-go")?.addEventListener("click", installUpdate);
 }
 async function installUpdate() {
@@ -810,6 +825,14 @@ function renderExtras(kind, sel, ...args) {
     const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
   }
 }
+function renderFeature(kind, id, sel) {
+  const box = $(sel); if (!box) return;
+  box.innerHTML = "";
+  const f = (window.CC?.byKind?.(kind) || []).find((x) => x.id === id);
+  if (!f) return;
+  const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d);
+  try { f[kind].render(d); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
+}
 function projectOptions(sel) {
   return projectOptionsHtml(S.projects, sel);
 }
@@ -827,6 +850,17 @@ function projectField() {
       </div>
       <div class="small" id="proj-err" role="alert" style="color:var(--red)"></div>
     </form>`;
+}
+// Open is a click on the Saved note. Saving itself stays on the command bar.
+function openSavedProject(id) {
+  if (!id) return;
+  S.openProject = id;
+  S.view = "projects";
+  render();
+}
+function toastSaved(id) {
+  const link = id ? { label: "Open", onClick: () => openSavedProject(id) } : null;
+  toast("Saved", false, link);
 }
 function wireProjectPicker() {
   const sel = $("#proj");
@@ -870,16 +904,17 @@ function wireProjectPicker() {
     const problem = projectNameError(name, S.projects, exceptId);
     if (problem) { err.textContent = problem; input.focus(); return; }
     saveBtn.disabled = true;
+    let savedId = "";
     try {
       if (mode === "rename") {
         await api("/projects", { method: "POST", body: { id: S.project, name } });
-        toast("Project renamed");
+        savedId = S.project;
       } else {
         const created = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
-        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); }
-        toast("Project created");
+        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); savedId = created.id; }
       }
       await refresh();
+      toastSaved(savedId);
     } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
   });
 }
@@ -960,6 +995,7 @@ function renderSimpleChat(v) {
   <div class="cmd simple-chat">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+        <div id="graduate-slot"></div>
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
@@ -1025,6 +1061,7 @@ function renderCommand(v) {
   <div class="cmd">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div id="graduate-slot"></div>
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
@@ -1265,7 +1302,8 @@ async function previewRoute() {
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
       ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
-      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>`;
+      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>
+      ${(r.apps || []).length ? `<div class="small" style="margin-top:4px">Allowed programs: ${(r.apps || []).slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>` : ""}`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
   } catch (e) { box.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
 }
@@ -2112,7 +2150,7 @@ async function saveShareChoice() {
   st.shareSaved = on;
 }
 function setupState() {
-  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
   if (st.history === undefined) st.history = false;
   if (!st.phase) {
     if (!S.settings?.uiModeChosen) st.phase = "mode";
@@ -2207,6 +2245,7 @@ function renderExpertExtra(v, st) {
 }
 function renderSetup(v) {
   const st = setupState();
+  if (st.desktop === undefined) st.desktop = false;
   if (st.phase === "mode") return renderModeStep(v, st);
   if (st.phase === "simple") return renderSimpleStart(v);
   if (st.phase === "expert") return renderExpertExtra(v, st);
@@ -2225,7 +2264,7 @@ function renderSetup(v) {
       <div class="panel" style="padding:26px">
         <div class="row" style="gap:14px;align-items:flex-start"><span class="brand-mark" style="margin-top:6px"></span><div>
           <h2 style="margin:0 0 6px;font-size:22px">Let's connect the AIs you already use</h2>
-          <div class="muted">Three optional steps. The scans below run on this PC only; nothing from them is uploaded.</div>
+          <div class="muted">These steps are optional. The scans below run on this PC only; nothing from them is uploaded.</div>
           <div class="dim small" style="margin-top:8px">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server. You make that choice in the guided setup, and you can switch later in Settings.</div></div></div>
         <div id="su-share-block" style="margin-top:18px">
           <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings.</div><div class="dim small" id="su-share-note" ${st.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div></div></label>
@@ -2235,6 +2274,15 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a licence key in Settings. Nothing is installed or bought."}</div></div></label>
+        </div>
+        <div class="panel" id="su-desktop-card" style="margin-top:16px">
+          <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
+          <div class="dim small">Meldmind can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Skip this and change it later in Settings.</div>
+          ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
+            <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
+            <button class="btn sm" id="su-agy-install" type="button">Install and connect</button>
+          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
@@ -2252,15 +2300,35 @@ function renderSetup(v) {
       render();
     });
     $("#su-go").addEventListener("click", async () => {
-      st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
+      st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.desktop = !!$("#su-desktop")?.checked; st.days = Number($("#su-days").value) || 180;
       st.busy = true; render();
       try {
         await saveShareChoice();
         st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
+        if (st.desktop && S.license?.limits?.appScan) {
+          try { await api("/apps/opt-in", { method: "POST", body: { on: true } }); }
+          catch (e) { toast(e.message, true); }
+        }
         st.step = 2;
       }
       catch (e) { toast(e.message, true); }
       st.busy = false; render();
+    });
+    $("#su-agy-allow")?.addEventListener("click", async () => {
+      try { await api("/antigravity/allow", { method: "POST", body: { allow: true } }); toast("Antigravity is allowed. Change this any time in Settings."); }
+      catch (e) { toast(e.message, true); }
+    });
+    $("#su-agy-install")?.addEventListener("click", async () => {
+      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      try {
+        const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+        toast(r.message || "Installer finished", !r.ok);
+        if (r.ok) {
+          await api("/antigravity/allow", { method: "POST", body: { allow: true } });
+          const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+          toast(s.message || "Sign-in opened", !s.ok);
+        }
+      } catch (e) { toast(e.message, true); }
     });
     $("#su-skip").addEventListener("click", async () => {
       try { await saveShareChoice(); }
@@ -2300,6 +2368,7 @@ function renderSetup(v) {
         <select id="su-prof" style="width:auto">${profiles.map((x) => `<option value="${x.browser}|${x.dir}" ${x.synced ? "disabled" : ""}>${esc(x.browserName)} · ${esc(x.name)}${x.email ? ` (${esc(x.email)})` : ""}${x.synced ? " · synced, use import" : ""}</option>`).join("")}</select>
         <button class="btn sm primary" id="su-apply">Add to this browser now</button><span class="dim small">closes and reopens the browser, keeps your tabs, backs up first</span></div></div>` : ""}
     ${st.bookmarks ? `<div id="su-extras"></div>` : ""}
+    <div id="su-apps"></div>
     <div class="row"><button class="btn" id="su-back">← Back</button><button class="btn primary" id="su-done" style="margin-left:auto">Finish setup</button></div></div>`;
   $$("[data-import]", v).forEach((b) => b.addEventListener("click", async () => { const r2 = await api("/setup/import-keys", { method: "POST", body: { providers: [b.dataset.import] } }); toast(r2.imported.length ? `${pname(b.dataset.import)} linked` : "Nothing imported", !r2.imported.length); await refresh(); }));
   $$("[data-setup-mcp]", v).forEach((b) => b.addEventListener("click", () => window.CC.keysetup?.open?.(b.dataset.setupMcp, { mode: "mcp" })));
@@ -2308,6 +2377,7 @@ function renderSetup(v) {
   wireOpenRouterStart(v);
   wireAnyKey(v);
   renderExtras("setup", "#su-extras");
+  renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
   $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
