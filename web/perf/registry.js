@@ -36,6 +36,7 @@ export const FEATURES = [
   { id: "updates", shell: true },
   { id: "hotkey", shell: true },
   { id: "access", shell: true },
+  { id: "personas", shell: true },
 
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },

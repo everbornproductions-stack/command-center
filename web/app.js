@@ -14,6 +14,7 @@ import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
+import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
 
 // ---------------- state ----------------
 const S = {
@@ -1085,6 +1086,7 @@ function renderSimpleChat(v) {
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <div id="cc-emp-hint" aria-live="polite"></div>
         <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
@@ -1131,6 +1133,8 @@ function renderSimpleChat(v) {
     try { const saved = await api("/settings", { method: "POST", body: { simpleStrip: on } }); if (saved) S.settings = { ...S.settings, ...saved, simpleStrip: on }; }
     catch (e) { toast(e.message, true); }
   });
+  // AI employees: the best helper for what was typed, one click to use it for this chat
+  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
@@ -1608,6 +1612,8 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
+      // an AI employee picked from the Simple hint answers this chat with its script
+      if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
@@ -1625,7 +1631,7 @@ async function sendOrders() {
       renderOps();
     }
     else {
-      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, employees: S.missionEmployees?.length ? S.missionEmployees : undefined, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
       noteBackground(started);
     }
@@ -1692,7 +1698,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -1709,11 +1715,13 @@ function renderProjectDetail(v, p) {
       <div class="cat-h">Add category <button class="ghost small" id="addcat">+ category</button></div>
     </div>
     <div class="grid">
+      <div class="panel" id="proj-team"></div>
       <div class="panel"><h3>Open HQ tasks <span class="right">${tasks.length}</span></h3>${tasks.slice(0, 15).map((t) => `<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="mono dim">${t.id}</span> ${esc(t.title)} <span class="chip">${t.status.replace(/_/g, " ")}</span>${t.owner ? ` <span class="dim">${t.owner}</span>` : ""}</div>`).join("") || `<div class="dim small">None.</div>`}</div>
       ${projCredits.length ? `<div class="panel"><h3>Media credits (HQ log)</h3>${projCredits.map(([k, val]) => `<div class="row small"><span>${esc(k)}</span><span class="mono" style="margin-left:auto">${fmtN(val)}</span></div>`).join("")}</div>` : ""}
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
+  renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
   $("#del").addEventListener("click", async () => {
     let lines = `Delete project "${p.name}"? Links on this card go away. Chats stay in My chats. AI keys are not touched.`;

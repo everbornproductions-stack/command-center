@@ -179,7 +179,8 @@ function previewHtml() {
     <div class="lbl">AIs that would receive your words</div><ul class="small">${ais}</ul>
     <div class="lbl">Service</div><p class="small">${esc(preview.service?.name || "")}: ${esc(preview.service?.receives || "")}</p>
     <div class="lbl">Not sent</div><ul class="small">${held}</ul>
-    <div class="lbl">Draft</div><p class="small" style="white-space:pre-wrap">${esc(draftText(preview.draft))}</p>`;
+    <div class="lbl">Draft</div><p class="small" style="white-space:pre-wrap">${esc(draftText(preview.draft))}</p>
+    ${draftText(preview.draft).trim() ? `<div class="row small" id="builders-personas"></div>` : ""}`;
 }
 
 function paint() {
@@ -196,6 +197,9 @@ function paint() {
     conn.textContent = on.length ? `Saved: ${on.join(", ")}.` : "Nothing saved from this form yet.";
   }
   wire(root);
+  // Test with personas on the draft
+  const pt = root.querySelector("#builders-personas");
+  if (pt && window.CC.personaButton) pt.appendChild(window.CC.personaButton({ getText: () => draftText(preview?.draft), kind: "draft" }));
 }
 function markStale(root) {
   previewKey = "";

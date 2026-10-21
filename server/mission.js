@@ -24,6 +24,7 @@ import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
 import { suggestApp, runLive } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
+import { resolveCrew, crewFor, crewSystem } from "./employees.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
@@ -196,7 +197,7 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId, restore = null, getItDone, sendMessages }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId, restore = null, getItDone, sendMessages, employees }) {
   mode = normalizeMode(mode) || "balanced";
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
@@ -218,6 +219,9 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   context = withMemory(context, projectId);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
   const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER), ...(toneId ? { tone: toneId } : {}) };
+  // AI employees picked for this mission: each step goes to the best fit and runs with its job script
+  const crew = resolveCrew(restore ? restore.employees : employees);
+  if (!restore && crew.length) mission.employees = crew.map((c) => c.id);
   if (restore) {
     mission.status = "running";
     mission.pauseRequested = false;
@@ -232,6 +236,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   let searchOn = false;
   let MA = null;
   const needsWebModel = (t) => !!t.needWeb && !searchOn;
+  const crewMember = (t) => (t.employee ? crew.find((c) => c.id === t.employee.id) || null : null);
   const log = (text, extra = {}) => { mission.log.push({ ts: Date.now(), text }); emit("log", { text, missionId: id, ...extra }); };
   const update = () => { emit("mission.update", { mission: publicMission(mission) }); save(mission); };
   const spend = (e) => { mission.cost = +(mission.cost + e.cost).toFixed(5); };
@@ -364,6 +369,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
+    }
+    if (crew.length) {
+      let n = 0;
+      for (const t of mission.tasks) {
+        if (t.agent || t.media || t.app) continue;
+        const c = crewFor(crew, t, n++);
+        t.employee = { id: c.id, name: c.name };
+      }
+      log(`Team: ${mission.tasks.filter((t) => t.employee).map((t) => `${t.employee.name} on "${t.title}"`).join(", ")}.`);
     }
     mission.runContext = context;
     mission.searchWasOn = searchOn;
@@ -530,7 +544,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // its key is replaced (same model via OpenRouter first, then the next-best model) and the task says so.
           for await (const ev of fallbackChat({
             provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal,
-            system: toneAdd(`You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone),
+            system: toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone),
             messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }],
           }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
@@ -723,10 +737,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id) };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [] };
 }
 function save(m) {
   saveDoc(m);
