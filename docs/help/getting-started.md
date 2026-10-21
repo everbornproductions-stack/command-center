@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.10
+lastUpdatedVersion: 0.4.11
 ---
 
 # Getting started

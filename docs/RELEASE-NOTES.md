@@ -2,6 +2,13 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.11 (2026-10-21)
+
+**New**
+- Run in background is Pro. Leave this screen. You get an alert when the chat, council, or mission is done. Nothing is emailed.
+- Settings shows what your ratings taught. Thumbs up and thumbs down change who gets the next job of that kind. Reset clears only the thumbs. Council scores stay.
+- Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are.
+
 ## v0.4.10 (2026-10-21)
 
 **New**

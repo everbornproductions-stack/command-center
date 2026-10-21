@@ -111,7 +111,7 @@ test("reading prefs reject a bad size and keep the previous one", () => {
   assert.equal(normalize({ contrast: false }, next).textSize, "large");
 });
 
-test("workstream sources: no em dash, Mac CI runs tests, release is 0.4.10", () => {
+test("workstream sources: no em dash, Mac CI runs tests, release is 0.4.11", () => {
   const files = [
     "server/feature-gate.js", "server/doc-export.js", "server/history-refs.js",
     "server/plugins/a11y.js", "server/plugins/export.js", "server/plugins/share.js",
@@ -132,7 +132,7 @@ test("workstream sources: no em dash, Mac CI runs tests, release is 0.4.10", () 
   assert.match(mac, /npm run smoke/);
   assert.equal(mac.includes("dist:mac"), false);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.10");
+  assert.equal(pkg.version, "0.4.11");
   assert.match(fs.readFileSync(path.join(ROOT, "web/features/prompts.js"), "utf8"), /Industry packs are part of Pro/);
 });
 

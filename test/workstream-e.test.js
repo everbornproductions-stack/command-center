@@ -15,9 +15,9 @@ const EN = "\u2013";
 const KEY = "xai-workstreamEfakefake000";
 const MARK = "PAUSEEDIT-QUILL-7741";
 
-test("gates: background and pause are Pro, ratings stay on Free, release is 0.4.10", () => {
+test("gates: background and pause are Pro, ratings stay on Free, release is 0.4.11", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.10");
+  assert.equal(pkg.version, "0.4.11");
   assert.equal(gateAllows("free", "backgroundRuns"), false);
   assert.equal(gateAllows("free", "missionPause"), false);
   assert.equal(gateAllows("free", "learnedFromRatings"), true);

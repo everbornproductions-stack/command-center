@@ -2174,3 +2174,13 @@ Same tree as the 0.4.9 candidate, with the package version set to 0.4.10. This c
 - The tag v0.4.10 waits until Windows CI on this branch is green, and until v0.4.9 is already queued so latest.yml does not move backwards.
 
 RELEASE CUT 0.4.10 (not tagged yet)
+
+## 2026-10-21: Release cut 0.4.11
+
+Same tree as 0.4.10, with the package version set to 0.4.11. Not held for later pull requests. Square and billing were not touched. The hub was not deployed. data/ was not read.
+
+- What's new covers background run alerts, what ratings taught, and mission pause.
+- docs/help/getting-started.md is stamped 0.4.11. The catalog lastUpdatedVersion is 0.4.11.
+- The tag v0.4.11 waits until Windows CI on this branch is green, after v0.4.10 is queued.
+
+RELEASE CUT 0.4.11 (not tagged yet)
