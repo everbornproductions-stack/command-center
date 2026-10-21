@@ -1595,3 +1595,27 @@ Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bo
 - Checked in a browser on this machine: Simple at 1400 and 700, and Expert, show the ask inside the orders panel and not in the answers. Add it turns Grok Bot's councils and missions switch on and the handoff stays a webhook. Not now clears the ask and leaves that switch off.
 
 GRADUATE NOTICE (built by Cursor cloud agent)
+
+## 2026-10-21: plan docs regrouped by version
+
+Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
+
+- docs/BUILD-PLAN.md now groups the work that is not done: 0.4.9, 0.4.10, 0.4.11, then research, Zapier and Make (MCP by URL and webhooks moved earlier), then the three tiers, then Later (AI group chat, user chat, live builds, newsletter, Spanish, phone apps, store listings, signed apps).
+- Phases with PHASE N DONE in this log are marked DONE in the plan. Also marked DONE from merged pull requests: 36 (0.4.4 limits), 37 (pull request 40), 38 (pull request 25), 39 (pull requests 13 and 18), 41 (pull request 11). Phase 14 stays BLOCKED for a real Mac. The unsigned build is 0.4.10. Signing is Later.
+- The welcome email (decision 22, spec unchanged) is Phase 71 in version 0.4.9. Use your own Supabase stays out of the run order.
+- docs/billing.md keeps the live $15.99 Square link and the Phase 35 prices the app shows. The plan prices are Pro $18.99/month or $189/year, Extreme $29.99/month or $299/year, a monthly rise to $24.99 and $39.99 in about 6 months, and lifetime founders at $299 for the first 100 then $499 for the next 400, closed at 500, counter hidden under 40 buyers.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PLAN DOCS REGROUPED (no phase built)
+
+## 2026-10-21: Phase 96 Remix any app added to the plan
+
+Docs only. No code. No Square change. The phase is not built.
+
+- Phase 96 sits after Phase 90 (Zapier and Make) and before Phase 91 (the three tiers). It is a Pro mission, with no cap on Extreme.
+- The person shows an app or game (screenshots, a recording, or desktop control). The AIs document how it behaves and rebuild it from scratch with the person's own characters, name, and look. Free open-source code, Godot, Phaser, templates, and free art can be used when the license checks out and the credits stay. Official mods for Minecraft, Roblox, Godot, and Unity are in scope. The person's art can become sprites, models, and voices. A warning shows when the result is too close to the original.
+- It learns as it goes: which AIs, engines, and open-source sources worked for that app type, from ratings and fixes, plus a local library of the person's own patterns. Shared learning stays the existing opt-in (decision 18). No screenshots, original names, characters, or keys are stored for that record.
+- Guardrail: never decompile, unpack, or reuse another app's code, assets, logos, or brand.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PHASE 96 PLANNED (not built)

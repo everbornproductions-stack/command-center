@@ -1,6 +1,16 @@
 # Roadmap: the twelve (approved by Chris 2026-10-18, "get all this done")
 
-Build order is by payoff and by what can run in parallel without two sessions editing the same file.
+The twelve below shipped with Phases 2, 3, 4, 5, 6, 7, 8, and 10. They are DONE. Do not rebuild them.
+
+The current plan (2026-10-21) is in docs/BUILD-PLAN.md:
+
+- **0.4.9:** onboarding with the mode choice and extra Expert setup, the few-facts fix, safety / sharing / plain words, desktop control with Antigravity first, the program scan, everyday and Calendar actions, save in place, the welcome email, the graduate notice.
+- **0.4.10:** the unsigned Mac build (right-click Open; Apple signing is Later), private mode, see who reads the prompt, backup and restore, Do this again, home screen, delete with receipt, Double-check, tone buttons, AI credits, My chats, answers name their AI, first council explained, share links (Phase 4, already done), PDF and DOCX export, industry packs, accessibility (Phase 11, already done), imported chats (Phase 23, already done).
+- **0.4.11:** background runs, learned from ratings, mission pause.
+- **Then:** research (citations already shipped in Phase 15; add Pro Search, Deep Research with a second-AI check, academic and news filters), Zapier and Make both ways, with MCP by URL and webhooks moved earlier (Phase 90), Remix any app (Phase 96, a Pro mission, unlimited on Extreme, right after Zapier and Make), and the three tiers (Free, Pro $18.99/month or $189/year, Extreme $29.99/month or $299/year; monthly prices rise to $24.99 and $39.99 in about 6 months; lifetime founders $299 for the first 100, then $499 for the next 400, closed at 500, counter hidden under 40 buyers).
+- **Later:** AI group chat, user chat, live builds, a newsletter and a monthly savings email, Spanish, phone apps, store listings, signed apps.
+
+Build order for the twelve was by payoff and by what could run in parallel without two sessions editing the same file.
 
 ## Shared plumbing first (main session)
 
