@@ -71,8 +71,9 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .help-item { display: grid; gap: 2px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .help-item:hover, .help-item:focus-visible { border-color: var(--line-2); }
 .help-page textarea, .help-page input[type="search"] { width: 100%; }
-.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: auto minmax(0, 1fr); justify-content: center; }
+.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: auto auto minmax(0, 1fr); justify-content: center; }
 .cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow-y: auto; max-height: 16rem; }
+#cc-zapier-slot:empty { display: none; }
 #cc-mode-ask, #cc-upgrade { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card, #cc-upgrade .card { width: 560px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-mode-ask h4, #cc-upgrade h4 { margin: 0 0 8px; font-size: 18px; }

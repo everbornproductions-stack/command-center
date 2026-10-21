@@ -673,3 +673,49 @@ export function gate(feature, info = {}) {
   }
   return s;
 }
+
+// App connections. Free includes 1. Pro and Studio include 5. Extreme and Owner are unlimited.
+// Studio is Pro. An active Extreme licence is Extreme for the whole product.
+export const PRO_APP_CONNECTIONS = 5;
+
+export function connectionLimit(tier) {
+  const t = String(tier || "free").toLowerCase();
+  if (t === "extreme" || t === "owner") return Infinity;
+  if (t === "pro" || t === "studio") return PRO_APP_CONNECTIONS;
+  return 1;
+}
+
+export function limitMessage(limit) {
+  if (limit === 1) return "Free includes 1 app connection. Pro includes several (5). Extreme is unlimited.";
+  return `This plan includes ${limit} app connections. Extreme is unlimited.`;
+}
+
+export function gateTier() {
+  const tier = String(readLicense().tier || "free").toLowerCase();
+  if (tier === "owner" || tier === "pro" || tier === "studio" || tier === "extreme") return tier;
+  return "free";
+}
+
+export function assertRoom(count, tier = gateTier()) {
+  const limit = connectionLimit(tier);
+  if (count >= limit) {
+    const err = new Error(limitMessage(limit));
+    err.status = 402;
+    err.code = "app_connection_limit";
+    err.limit = limit;
+    throw err;
+  }
+  return { tier, limit, used: count };
+}
+
+export function gateView(used) {
+  const tier = gateTier();
+  const limit = connectionLimit(tier);
+  return {
+    tier,
+    limit: limit === Infinity ? null : limit,
+    unlimited: limit === Infinity,
+    used,
+    remaining: limit === Infinity ? null : Math.max(0, limit - used),
+  };
+}

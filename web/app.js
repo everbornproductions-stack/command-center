@@ -1034,6 +1034,7 @@ function renderSimpleChat(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
+    <div id="cc-zapier-slot"></div>
     <div class="panel output">
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>

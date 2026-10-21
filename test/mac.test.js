@@ -86,6 +86,24 @@ test("Mac CI does not run on a pull request, and Windows CI does", () => {
   assert.match(read("docs/ci/mac-build.yml"), /not a workflow/);
 });
 
+test("pull requests run Windows tests only; Mac runs on a v* tag or a manual start", () => {
+  const macCi = read(".github/workflows/mac-ci.yml");
+  const win = read(".github/workflows/windows-ci.yml");
+  assert.match(macCi, /workflow_dispatch:/);
+  assert.match(macCi, /tags: \["v\*"\]/);
+  assert.doesNotMatch(macCi, /pull_request:/);
+  assert.match(win, /pull_request:/);
+  assert.match(win, /runs-on: windows-latest/);
+  assert.doesNotMatch(win, /macos-latest/);
+  const dir = path.join(ROOT, ".github", "workflows");
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith(".yml") && !name.endsWith(".yaml")) continue;
+    const wf = read(path.join(".github", "workflows", name));
+    if (/pull_request:/.test(wf)) assert.doesNotMatch(wf, /macos-latest/, `${name} must not run on Mac for a pull request`);
+  }
+  assert.match(read("docs/ci/mac-build.yml"), /not a workflow/);
+});
+
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
   const y = read("electron-builder.yml");
   assert.match(y, /^appId: com\.everborn\.command/m);

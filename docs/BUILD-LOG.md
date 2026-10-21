@@ -2034,3 +2034,17 @@ PHASE 34 DONE
 PHASE 38 DONE
 PHASE 39 DONE
 PHASE 41 DONE
+
+## 2026-10-21: Zapier and Make actions, and a Meldmind webhook
+
+Not a numbered phase. Phase 33 items 2 and 3 are in. Item 1 (HighLevel) stays planned. Phase 33 is not marked done. No locked decision was changed. Decision 26 keeps its spec and has a status line only. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Square and billing were not touched. Nothing was deployed. data/ was not read.
+
+- Zapier: paste the MCP address (usually https://mcp.zapier.com/api/v1/connect). A token in the address is stored in the vault and removed from the address. Meldmind lists the actions turned on in Zapier. A chat or a mission can call them. Anything that sends, posts, or charges waits for Allow, even if the server marks it read only. Zapier's write action always asks. A read can run once read-only tools are allowed.
+- Make: the same, through https://mcp.make.com, a token address (the /mcp/u/ token is stored and the call uses /mcp/stateless), or a scenario webhook. A scenario runs only after Allow, unless it is marked read only and the name is not a send, post, or charge. A Make API key is sent as x-make-apikey.
+- Any MCP server by URL reuses the Phase 16 client. It was not rebuilt. A custom webhook tool is a URL, GET or POST, an optional header in the vault, and a JSON input schema. The router and missions can call it. Try in settings is the Allow for that one call.
+- Inbound: POST /api/hooks/meldmind starts a chat, a council, or a mission and returns the result. The token is shown once and stored only as SHA-256. The route does not use the session token or the host pin, so a tunnel can reach it. Meldmind does not open a tunnel. If the run is still going after about 45 seconds (60 at most), the reply is 202 and a poll address. The template is docs/integrations/meldmind-webhook.json. The setup guide is docs/help/zapier-make.md.
+- Simple has a Connect Zapier card on the chat page, under the composer so the 16rem chat box does not hide it. Expert Settings has the plain-word setup for Zapier, Make, any MCP server, webhook tools, and the Meldmind webhook.
+- The gate is server/feature-gate.js. Free includes 1 app connection. Pro includes 5. Extreme and Owner are unlimited. The Studio licence tier already in the product gets the Pro limit. Extreme is read from an active licence row. It is not a sold tier and it does not unlock the rest of the product. Local commands and demo tools are not counted. An unlinked remote MCP server is counted, so Settings > Tools cannot bypass the gate. If saving the secret fails, that new remote server is removed so it does not use up the slot.
+- Pull requests run Windows tests only. Mac runs from docs/ci/mac-build.yml on a v* tag or a manual start. The Mac CI workflow that would have run on every pull request and every push to main was removed.
+- Tests here (Linux): npm test 434 tests, 433 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Mocks only. No real Zapier, Make, model, or key. data/ was not read.
+- Checked in a browser on this machine, against a local mock MCP server: Simple shows the Connect Zapier card, Connect lists lookup (read) and send_mail (asks first), and the pasted token is not shown. Expert Settings shows Zapier, Make, any MCP server, webhook tools, and Create the Meldmind webhook. The token is shown once. Real Zapier and Make were not contacted.

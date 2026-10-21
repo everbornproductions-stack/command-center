@@ -323,13 +323,12 @@ Before a council or a chat, match the orders to a Pro prompt.
 ### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
 Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
 
-### Phase 33: Bring your own apps (shipped in the connections workstream, version stays 0.4.8)
-HighLevel posting already shipped in Phase 7. This workstream also ships the council tools, MCP by URL, and custom webhooks. The package version stays 0.4.8.
-1. HighLevel contacts, invoices, and workflows are council tools. Reads run on click. Writes wait for a confirm click.
-2. MCP by URL uses the Phase 16 client. There is no second MCP client. It is Pro, through server/feature-gate.js.
-3. Custom webhook tools take a URL, an auth header, and input fields. They are Pro, through the same gate. The header value stays in the vault.
-Every action that sends, charges, or modifies something waits for a confirm click. Keys are never written to logs.
-Phase 90 still owns Zapier and Make, both ways. Do not rebuild MCP by URL or custom webhooks there.
+### Phase 33: Bring your own apps (built, version stays 0.4.8)
+HighLevel posting already shipped in Phase 7. Contacts, invoices, and workflows are council tools. Reads run on click. Writes wait for a confirm click.
+1. MCP by URL uses the Phase 16 client. There is no second MCP client. Zapier (paste the MCP address, usually `https://mcp.zapier.com/api/v1/connect`) and Make (`https://mcp.make.com`, a token address, or a scenario webhook) list the actions the person turned on. The router and missions call them through the existing tool loop. Simple has a Connect Zapier card. Expert has the plain-word setup.
+2. Custom webhook tools take a URL, an auth header, and input fields. The header value stays in the vault.
+Inbound: `POST /api/hooks/meldmind` starts a chat, a council, or a mission and returns the result. The ready template is `docs/integrations/meldmind-webhook.json`. The setup guide is `docs/help/zapier-make.md`.
+Every action that sends, posts, or charges waits for Allow. Keys stay in the vault and are never written to logs. App connections: Free includes 1, Pro and Studio include 5, Extreme and Owner are unlimited. Studio is Pro. This does not change Square or billing.
 
 ### Phase 34: Hide hosted plumbing (shipped in the connections workstream, version stays 0.4.8)
 Customers in Simple never see the licence server form or the Grok Bot webhook form. Those stay under Expert. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.

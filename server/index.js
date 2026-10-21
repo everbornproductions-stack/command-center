@@ -69,6 +69,7 @@ import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, rou
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
+import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
@@ -920,6 +921,8 @@ async function handleHttp(req, res) {
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);
     // schedule webhooks (Phase 22): same exemption, checked against the trigger's own secret token instead
     if (isScheduleHook(url.pathname)) return await scheduleHook(req, res, url, json);
+    // Meldmind webhook (Zapier / Make inbound): its own token, not the session token. A send inside the run still waits for Allow.
+    if (isMeldmindHook(url.pathname)) return await meldmindHook(req, res, url, json);
     // browser extension (Phase 24): exempt from the session token only; the Host pin stays, web origins are
     // refused and the pairing code is checked instead (server/plugins/extension.js)
     if (isExtensionHook(url.pathname)) {
