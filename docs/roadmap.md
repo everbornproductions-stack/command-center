@@ -49,3 +49,11 @@ Build order for the twelve was by payoff and by what could run in parallel witho
 When the person opts into desktop control, Meldmind lists installed programs. On Windows that is the uninstall registry keys and the Start menu, plus command-line tools on PATH. File contents are not read. Each name is matched to a curated capability list that can be updated from an https address when the person clicks Update the app list. The person allows each app. Allowed apps are scored and join the router's choices, the same as a tool you add. While planning a mission or client work, a dismissible card suggests a program with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off in Settings.
 
 Phases 45 to 51 stay planned, not built. This slice does not drive apps. It does not add UI Automation, Playwright, screenshot computer use, hub cards, or registerExternalAgent.
+
+## 0.4.9 Graduate notice
+
+When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" One click (Add it) includes it. Not now dismisses the ask. Grok Bot's webhook stays the handoff for signed-in tasks. An xAI key is Grok the model and does not raise this ask. Suno and Google Flow count when they gain a key or an MCP route.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.

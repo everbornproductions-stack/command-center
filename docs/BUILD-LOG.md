@@ -1635,6 +1635,19 @@ Not a numbered phase. No locked decision was changed. Package stays 0.4.8. Squar
 - Program scan is registered as `appScan` on the licence tier table, next to `desktop` (desktop control) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("appScan")` and `isProFeature("appScan")` read that table, so a later feature-gate map can use the same ids.
 - Turning the scan on, scanning again, allowing a program, turning suggestions on, and updating the capability list are refused on Free with 402. Turning the scan off still works. Suggestions and router rows stay empty on Free. The Settings and Setup panels say Program scan is part of Pro.
 
+## 2026-10-21: Graduate notice
+
+Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bot's handoff is still the webhook. Decision 21 stays: an xAI key is Grok the model, and it does not put Grok Bot on a direct route. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The graduate notice is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch.
+
+- When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" Add it includes that AI. Not now dismisses the ask. The banner sits at the top of the chat box in Simple and of Marching orders in Expert, so it stays with the box rather than the answers.
+- Grok Bot counts as handoff while it is on the webhook or the built-in mock. A direct route is its own API flag (or a vault id grokbot-direct) or an MCP server whose name is Grok Bot. Approve turns the existing councils and missions switch on. Dispatch stays the webhook.
+- Suno and Google Flow are handoff until they have a key, a linked MCP server, or a recorded api or mcp route. Claude, ChatGPT, Grok, and Gemini cannot be recorded as a graduate route.
+- The first look at a handoff-only setup is a baseline and does not ask. A later gain asks. Already both on the first look asks. Direct-only, with no handoff behind it, does not ask. Approved and dismissed stay quiet.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). The MCP file is 8 pass. The other files are 420 tests, 419 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. The saved webhook was http://127.0.0.1:9/hook and was not called. data/ was not read.
+- Checked in a browser on this machine: Simple at 1400 and 700, and Expert, show the ask inside the orders panel and not in the answers. Add it turns Grok Bot's councils and missions switch on and the handoff stays a webhook. Not now clears the ask and leaves that switch off.
+
+GRADUATE NOTICE (built by Cursor cloud agent)
+
 ## 2026-10-21: plan docs regrouped by version
 
 Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
