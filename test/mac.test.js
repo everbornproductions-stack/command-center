@@ -28,8 +28,9 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \}\}/);
   assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY \}\}/);
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.scripts["dist:mac"], "node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never");
-  assert.equal(pkg.scripts.dist, "node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never");
+  assert.equal(pkg.scripts["build:guide"], "node scripts/build-guide.mjs");
+  assert.equal(pkg.scripts["dist:mac"], "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never");
+  assert.equal(pkg.scripts.dist, "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never");
   const secrets = [...wf.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(secrets)].sort(), ["CC_SUPABASE_ANON_KEY", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);
   assert.equal(secrets.some((s) => /SERVICE|SECRET_KEY|SB_SECRET/.test(s)), false);

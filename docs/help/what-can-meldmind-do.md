@@ -14,3 +14,5 @@ Every row is marked Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29
 A row is hidden when its page is not in your app. The list never points at a missing feature. Pages that are still being added, including some builders and Remix, show up in the list after they are in the app.
 
 Take the tour again for a short walk through the same list. Each step has one idea and a Try it button. You can skip the tour, and you can replay it from Help. A tour button never sends, posts, or buys anything.
+
+Download the guide (PDF) saves that same list. The button is on this page and on Help. The file shows the app version and the date it was built. It lists only the pages that are in this app.

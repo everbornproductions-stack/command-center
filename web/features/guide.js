@@ -517,6 +517,162 @@ export function visibleGuide(probe) {
   return rows;
 }
 
+// Plain steps and a how-to-start line for the downloadable guide.
+// The same parts as the tour, so a hidden feature never gets a step.
+const GUIDE_COPY = {
+  hub: {
+    steps: () => [
+      "Open the chat box.",
+      "Say what you want in plain words.",
+      "Meldmind picks the best AI for that task.",
+      "It learns from the jobs you run, so the next pick gets sharper.",
+    ],
+    start: () => "Type a request in the chat box. You can try this on Free, including while the pretend AIs are on.",
+  },
+  missions: {
+    steps(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      const steps = ["Open the chat box and type the job in plain words."];
+      if (ids.has("council")) steps.push("Pick a council when you want several AIs to answer the same question.");
+      if (ids.has("mission")) steps.push("Pick a mission when the job should be split into steps that get checked.");
+      steps.push("Nothing starts until you click.");
+      return steps;
+    },
+    start(parts) {
+      if (parts.some((p) => p.id === "mission")) {
+        return "Open the chat box. In Expert you can pick Council or Mission before you run it. Free includes 5 councils a month.";
+      }
+      return "Open the chat box and ask for a council. Free includes 5 councils a month.";
+    },
+  },
+  remix: {
+    steps(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      const steps = ["Open Remix."];
+      if (ids.has("screenshot")) steps.push("Show a screenshot of the app or game you want to rebuild.");
+      if (ids.has("starters")) steps.push("Pick a game starter when you want a game.");
+      steps.push("Keep your own name, characters, and look.");
+      if (ids.has("test")) steps.push("Test it before you share it.");
+      if (ids.has("publish")) steps.push("Publish only when you click.");
+      return steps;
+    },
+    start: () => "Open Remix from Help. Extreme is $29.99 a month and has no monthly cap.",
+  },
+  builders: {
+    steps(parts) {
+      const list = joinAnd(parts.map((p) => p.name));
+      const onStart = parts.every((p) => p.open.view === "start");
+      return [
+        onStart ? "Open Start a project." : "Open the builder for the job you want.",
+        `Pick ${list}.`,
+        "Answer the short questions in plain words.",
+        "Read the draft and ask for changes before anything is finished.",
+      ];
+    },
+    start(parts) {
+      const list = joinAnd(parts.map((p) => p.name));
+      const where = parts.every((p) => p.open.view === "start") ? "Start a project" : "the builder";
+      return `Open ${where} and choose ${list}. Opening a builder is free. A full mission is part of Pro.`;
+    },
+  },
+  research: {
+    steps(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      const steps = [];
+      if (ids.has("research")) {
+        steps.push("Turn on web search when you want sources.");
+        steps.push("Ask the question in plain words.");
+        steps.push("Open a page it lists and read it yourself.");
+      }
+      if (ids.has("refocus")) {
+        steps.push("Open Refocus and type the work you already started.");
+        steps.push("Read the list from oldest to newest, and rebuild only when you click.");
+      }
+      return steps;
+    },
+    start(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      if (ids.has("research") && ids.has("refocus")) {
+        return "Open Settings for web search, or open Refocus when you want to finish work you already started.";
+      }
+      if (ids.has("refocus")) return "Open Refocus and type a topic, such as half-done reels.";
+      return "Open Settings and find Web search. Search stays off until you turn it on.";
+    },
+  },
+  connect: {
+    steps(parts) {
+      const steps = parts.map((p) => {
+        if (p.id === "mcp") return "Open Settings for MCP. In Simple, switch to Expert to see that panel.";
+        if (p.id === "webhooks") return "Open Schedules for webhooks.";
+        if (p.id === "zapier") return "Open the Zapier and Make page when you want those apps.";
+        return `Open ${p.name}.`;
+      });
+      steps.push("Nothing goes out until you say so.");
+      return steps;
+    },
+    start(parts) {
+      const first = parts.find((p) => p.open.view !== "settings") || parts[0];
+      const where = first.id === "webhooks" ? "Schedules" : first.id === "mcp" ? "Settings" : first.name;
+      return `Open ${where} and connect one service. Free includes one connected service, and Pro includes more.`;
+    },
+  },
+  safety: {
+    steps(parts) {
+      const steps = [
+        "Read the preview before anything is sent, posted, or bought.",
+        "Click OK only when it is what you wanted.",
+      ];
+      if (parts.some((p) => p.id === "phone")) steps.push("Turn on the phone link if you want your phone to approve a waiting action.");
+      steps.push("Stop ends a control that is using an app.");
+      return steps;
+    },
+    start(parts) {
+      if (parts.some((p) => p.id === "phone")) return "Open Settings and find Phone and other devices. The link stays off until you turn it on.";
+      return "Open Publish and read the preview. Click OK only when you want it sent.";
+    },
+  },
+  teams: {
+    steps(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      const steps = [];
+      if (ids.has("teams")) {
+        steps.push("Open Teams.");
+        steps.push("Invite a person with a link you send yourself.");
+        steps.push("Share only the projects you choose.");
+      }
+      if (ids.has("people")) steps.push("Open People when you want to talk with your team.");
+      if (ids.has("hosted")) steps.push("On Extreme, a hosted run can keep going while this PC is off. It still waits for your OK.");
+      if (!steps.length) steps.push("Open the page for your team.");
+      return steps;
+    },
+    start(parts) {
+      const ids = new Set(parts.map((p) => p.id));
+      if (ids.has("teams")) return "Open Teams. The page asks for a Studio licence before you create a workspace.";
+      if (ids.has("people")) return "Open People to talk with your team.";
+      return "Open hosted runs. Extreme is $29.99 a month.";
+    },
+  },
+  "whats-new": {
+    steps: () => [
+      "After an update, read the short What's new note.",
+      "Click Got it to close it, or Take the tour to walk through the app.",
+      "Open Help any time to read the note again.",
+    ],
+    start: () => "Open Help and click Check for updates when you want to look. Nothing downloads until you click.",
+  },
+};
+
+export function guidePages(probe) {
+  return visibleGuide(probe).map((row) => {
+    const copy = GUIDE_COPY[row.id] || {};
+    return {
+      ...row,
+      steps: copy.steps ? copy.steps(row.parts) : [],
+      start: copy.start ? copy.start(row.parts) : "",
+    };
+  });
+}
+
 export function tourSteps(probe) {
   return visibleGuide(probe).map((row) => ({
     id: row.id,
