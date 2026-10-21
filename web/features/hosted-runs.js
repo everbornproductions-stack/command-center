@@ -1,8 +1,10 @@
 // Extreme: opt in, then hand one schedule or mission to the hosted worker.
-// The header pill says "Running in the cloud" while that job is still out.
+// The header pill says "Cloud" while that job is still out. The full
+// "Running in the cloud" text is in its tooltip and aria-label.
 const { api, toast, esc, money } = window.CC;
 const S = () => window.CC.S;
 const CLOUD_LABEL = "Running in the cloud";
+const CLOUD_SHORT = "Cloud";
 
 function paintPill(data) {
   const pill = document.getElementById("cloud-pill");
@@ -10,7 +12,10 @@ function paintPill(data) {
   if (!pill || !text) return;
   const on = !!(data && data.runningInCloud);
   pill.hidden = !on;
-  text.textContent = on ? (data.label || CLOUD_LABEL) : CLOUD_LABEL;
+  const full = on ? (data.label || CLOUD_LABEL) : CLOUD_LABEL;
+  text.textContent = CLOUD_SHORT;
+  pill.title = full;
+  pill.setAttribute("aria-label", full);
 }
 
 async function refresh() {

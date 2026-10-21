@@ -182,6 +182,13 @@ test("web surface hides desktop-only pages", () => {
   const plugin = fs.readFileSync(path.join(ROOT, "server", "plugins", "hosted-runs.js"), "utf8");
   const gate = fs.readFileSync(path.join(ROOT, "server", "feature-gate.js"), "utf8");
   assert.match(ui, /Running in the cloud/);
+  const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8");
+  const pill = html.match(/<div class="pill" id="cloud-pill"[^>]*>.*?<\/div>/)[0];
+  assert.match(pill, /<span id="cloud-txt"[^>]*>Cloud<\/span>/);
+  assert.match(pill, /title="Running in the cloud"/);
+  assert.match(pill, /aria-label="Running in the cloud"/);
+  assert.match(ui, /text\.textContent = CLOUD_SHORT/);
+  assert.match(ui, /pill\.setAttribute\("aria-label", full\)/);
   assert.match(plugin, /gateHostedRuns/);
   assert.match(gate, /extreme/);
   for (const file of [ui, plugin, gate, fs.readFileSync(path.join(ROOT, "web", "desktop-only.js"), "utf8")]) {
