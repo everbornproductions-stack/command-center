@@ -80,9 +80,10 @@ Not done, except the three rows already marked done above (share links, accessib
 
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
-- Phase 44. AI group chat.
+- Phase 44. AI group chat. Built in the Together workstream. The version stayed 0.4.8.
 - Phase 92. User chat.
-- Phase 43. Live builds.
+- Phase 43. Live builds. Built in the Together workstream as local rooms. The hub was not deployed. The version stayed 0.4.8.
+- Phase 61. Team spaces. Built in the Together workstream: Extreme, 5 seats counting the owner, shared projects and roles. Phase 8 workspaces were not rebuilt. The version stayed 0.4.8.
 - Phase 93. A newsletter and a monthly savings email.
 - Phase 94. Spanish.
 - Phase 95. Phone apps.
@@ -97,7 +98,7 @@ Left on the list so they are not dropped. They are not next.
 - Phase 32. Model-version alerts.
 - Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
 - Phase 34. Hide hosted plumbing.
-- Phase 42. Newsfeed and alerts.
+- Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is still not built. The news list has a place for those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
@@ -365,14 +366,21 @@ Version 0.4.11. This is the learned-from-ratings work. The learning router keeps
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
 Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild.
 
-### Phase 42: Newsfeed and alerts (effort: M) (not in 0.4.9 to 0.4.11, not built)
+### Phase 42: Newsfeed and alerts (effort: M) (built, version unchanged)
 One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
+Built in the Together workstream. The version stayed 0.4.8. Phase 32 itself is still not built: the list can show a model note, and it does not watch providers or call them. Nothing downloads from this list.
 
-### Phase 43: Chat rooms with live builds (effort: L) (Later, not done)
+### Phase 43: Chat rooms with live builds (effort: L) (built, version unchanged)
 Share a running mission into a room so others can watch it live, and let them copy it as a recipe. Sharing is opt-in per mission; no keys or secrets are shared.
+Built as local rooms on this PC, with a hub-ready shape (categories, a live snapshot, a recipe copy). The hub was not deployed. A recipe run still goes through the existing mission gate, and only after a click. Report and block stay on this PC. Nothing is sent.
 
-### Phase 44: AI group chat with personas (effort: M) (Later, not done)
+### Phase 44: AI group chat with personas (effort: M) (built, version unchanged)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
+Built in the Together workstream. The version stayed 0.4.8. Nothing is sent until Send.
+
+### Phase 61: Team spaces (effort: M) (built, version unchanged)
+Shared projects, roles, and a small team for a business. Phase 8 workspaces stay as they are and were not rebuilt. They remain the Studio teams.
+Team spaces are the Extreme seat cap: 5 seats total, counting the owner. An invite uses a seat. The cap is enforced through `server/feature-gate.js` (`teamSeats`) when that module is present (pull request 84). Until that file is on this branch, the same numbers are used: Extreme, Studio, and Owner get 5, and Free and Pro get none. No Square change. Nothing is emailed. The version stayed 0.4.8.
 
 ### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
 Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
