@@ -30,6 +30,6 @@ Try saying: Reply to Dana, say yes to Thursday
 4. Click **Send**. That click sends the To, subject, and body on screen, and nothing else.
 5. Send stays off until Gmail is connected with send email ticked. The draft remains until then.
 
-Show the examples walks these phrases on the page. Take the tour again also stops on them.
+Show the examples walks these phrases on the page. Take the tour also stops on them.
 
 Passwords and Social Security numbers are not kept in a draft.

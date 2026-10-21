@@ -1,16 +1,18 @@
-// Grouped main menu. Every existing view stays reachable in Expert.
-// Simple shows Chat, Projects, Create, Help, and Settings.
+// Grouped main menu. Every existing view stays reachable in Expert and in Simple.
+// Simple shows Chat, Start a project, Projects, My day, Create, More, Help, and Settings.
+// Settings holds settings only. Help holds the tour, setup, updates, What's new,
+// the user guide, contact, and About. Each action has one name everywhere.
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
 //
 // The wide row is chosen from the free space in the top bar (ResizeObserver),
 // not from a fixed window width and not from the desktop content-bounds report.
 // That report can be smaller than the layout viewport on a scaled or multi-monitor
 // display, so it only asks the bar to measure again. Dropdowns stay on one line:
-//   narrow  the compact menus (about five), plus Help
+//   narrow  the compact menus (about six, Help included)
 //   normal  about eight dropdowns, spread across the free space, when they fit
 // If eight menus would overflow the top bar, they merge back.
 
-import { CREATE_VIEWS } from "./mode.js";
+import { CREATE_VIEWS, DAY_VIEWS } from "./mode.js";
 import { isDesktopOnly } from "./desktop-only.js";
 
 export const NAV_NORMAL = 1280;
@@ -22,10 +24,9 @@ export const NAV_CHROME_BASE = 547;
 // would not fit beside them.
 export const NAV_CHROME_EXTRA = 190;
 
-export const GROUP_ORDER = ["work", "create", "business", "connect", "help"];
+export const GROUP_ORDER = ["work", "create", "business", "connect", "help", "guides"];
 
 // Work (the largest menu) splits into Work, Agents, and Library. Live stays in Work.
-// Settings splits off a Help menu so Replay the tour and Watch example projects fit.
 export const SPLIT_ORDER = ["work", "agents", "library", "create", "business", "connect", "settings", "guides"];
 
 export const GROUPS = {
@@ -34,6 +35,7 @@ export const GROUPS = {
   business: { id: "business", label: "Business" },
   connect: { id: "connect", label: "Connect" },
   help: { id: "help", label: "Settings" },
+  guides: { id: "guides", label: "Help" },
 };
 
 const SPLIT_GROUPS = {
@@ -70,6 +72,7 @@ const HOME = {
   remix: "create",
   builders: "create",
   webbuilders: "create",
+  marketplace: "create",
   subscriptions: "business",
   credits: "business",
   workspaces: "business",
@@ -79,7 +82,7 @@ const HOME = {
   community: "business",
   settings: "help",
   setup: "help",
-  help: "help",
+  help: "guides",
   start: "work",
 };
 
@@ -108,6 +111,7 @@ const SPLIT_HOME = {
   remix: "create",
   builders: "create",
   webbuilders: "create",
+  marketplace: "create",
   subscriptions: "business",
   credits: "business",
   workspaces: "business",
@@ -144,6 +148,7 @@ export const LABELS = {
   remix: "Remix",
   builders: "Builders",
   webbuilders: "Web and marketing",
+  marketplace: "Marketplace",
   subscriptions: "Subscriptions",
   credits: "Credits",
   workspaces: "Teams",
@@ -153,32 +158,77 @@ export const LABELS = {
   community: "Community",
   settings: "Settings",
   setup: "Setup",
-  help: "Help",
+  help: "Search help",
   start: "Start a project",
 };
 
 const SETUP_AGAIN = { id: "connect-setup", label: "Run setup again", action: "connect-setup", home: false };
-const TOUR_ITEM = { id: "tour", label: "Take the tour again", action: "tour", home: false };
-const REPLAY_ITEM = { id: "replay-tour", label: "Replay the tour", action: "replay-tour", home: false };
-const EXAMPLES_ITEM = { id: "watch-examples", label: "Watch example projects", action: "examples", home: false };
+const TOUR_ITEM = { id: "tour", label: "Take the tour", action: "tour", home: false };
+const NEWS_ITEM = { id: "news", label: "What's new", action: "news", home: false };
 const UPDATES_ITEM = { id: "updates", label: "Check for updates", action: "updates", home: false };
+const GUIDE_ITEM = { id: "user-guide", label: "User guide", view: "help", focus: "#can-do", home: false };
+const CONTACT_ITEM = { id: "contact", label: "Contact and feedback", view: "help", focus: "#help-contact", home: false };
+const ABOUT_ITEM = { id: "about", label: "About Meldmind", view: "help", focus: "#help-about", home: false };
 const START_ITEM = { id: "start-project", label: "Start a project", view: "start", home: false };
 
-// What the Settings menu is allowed to hold, in every layout.
-export const SETTINGS_VIEWS = ["settings", "setup", "help"];
-export const SETTINGS_ACTIONS = ["connect-setup", "tour", "updates"];
+// The Help menu, in this order, in Simple and Expert and at every width.
+// The web app has no setup scan and no updater, so those two are desktop only.
+export function helpItems(surface = "") {
+  const web = surface === "web";
+  return [
+    { view: "help", label: LABELS.help, home: true },
+    { ...TOUR_ITEM },
+    ...(web ? [] : [{ ...SETUP_AGAIN }, { ...UPDATES_ITEM }]),
+    { ...NEWS_ITEM },
+    { ...GUIDE_ITEM },
+    { ...CONTACT_ITEM },
+    { ...ABOUT_ITEM },
+  ];
+}
+
+// Every data-action a menu item can carry, and who handles it.
+export const MENU_ACTIONS = {
+  tour: "window.CC.tour.start (web/app.js menu click)",
+  "connect-setup": "window.CC.connectSetup.open (web/app.js menu click)",
+  news: "window.CC.tour.openNews (web/app.js menu click)",
+  updates: "manualCheck (web/features/updates.js document click)",
+};
+
+// Pages that need a paid plan. The menu item still opens the page, which explains
+// the plan. The note is only a label. cap is the licence limit that unlocks it.
+export const VIEW_LOCKS = {
+  pipelines: { cap: "missions", plan: "Pro" },
+  schedules: { cap: "scheduler", plan: "Pro" },
+  history: { cap: "historySearch", plan: "Pro" },
+  subscriptions: { cap: "subscriptionsTab", plan: "Pro" },
+  workspaces: { cap: "teamSeats", plan: "Extreme" },
+};
+
+// The plan a view needs on these limits, or "" when it is open. No limits means
+// the licence has not loaded yet, so nothing is marked.
+export function lockFor(view, limits) {
+  const lock = VIEW_LOCKS[view];
+  if (!lock || !limits || typeof limits !== "object") return "";
+  const v = limits[lock.cap];
+  if (v === null || v === true || (typeof v === "number" && v > 0)) return "";
+  return lock.plan;
+}
+
+export function lockNote(plan) {
+  return plan ? `Part of ${plan}. The page explains the plan. Add a licence key in Settings.` : "";
+}
+
+// What the Settings menu is allowed to hold, in every layout: settings pages only.
+export const SETTINGS_VIEWS = ["settings", "setup"];
+export const SETTINGS_ACTIONS = [];
 
 export function menuLabeledSettings(model) {
   return (model || []).find((g) => g.label === "Settings") || null;
 }
 
 export function isSettingsItem(item) {
-  if (!item) return false;
-  if (item.view === "start" || item.label === "Start a project") return false;
-  if (item.action === "examples" || item.action === "replay-tour") return false;
-  if (item.action && SETTINGS_ACTIONS.includes(item.action) && !item.view) return true;
-  if (item.view && SETTINGS_VIEWS.includes(item.view) && !item.action) return true;
-  return false;
+  if (!item || item.action) return false;
+  return !!(item.view && SETTINGS_VIEWS.includes(item.view) && !item.focus);
 }
 
 // Start a project sits right before Projects, in Simple and Expert.
@@ -193,8 +243,7 @@ function ensureStart(bucket) {
 // Button text for one dropdown, matching the trigger labels in the bar.
 export function rowLabels(layout) {
   if (layout === "normal") return SPLIT_ORDER.map((id) => SPLIT_GROUPS[id].label);
-  // Narrow mounts the compact menus and a separate Help menu for the tour.
-  return [...GROUP_ORDER.map((id) => GROUPS[id].label), "Help"];
+  return GROUP_ORDER.map((id) => GROUPS[id].label);
 }
 
 // Inter at 14px, weight 600, plus 8px of horizontal padding on each trigger.
@@ -403,24 +452,17 @@ export function menuModel(views, layout = "narrow", opts = {}) {
   for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
   // Start a project belongs with Projects, in Work. It is not a settings item.
   ensureStart(buckets.work);
-  if (split) {
-    if (!web) buckets.settings.push({ ...SETUP_AGAIN });
-    buckets.settings.push({ ...TOUR_ITEM });
-    if (!web) buckets.settings.push({ ...UPDATES_ITEM });
-    if (!buckets.guides.some((i) => i.view === "help")) buckets.guides.unshift({ view: "help", label: "Help", home: true });
-    const helpAt = buckets.guides.findIndex((i) => i.view === "help");
-    if (!web) buckets.guides.splice(helpAt + 1, 0, { ...UPDATES_ITEM });
-    if (!web) buckets.guides.push({ ...SETUP_AGAIN });
-    buckets.guides.push({ ...REPLAY_ITEM });
-    buckets.guides.push({ ...EXAMPLES_ITEM });
-  } else if (!web) {
-    buckets.help.push({ ...SETUP_AGAIN });
-    buckets.help.push({ ...TOUR_ITEM });
-    buckets.help.push({ ...UPDATES_ITEM });
-  } else {
-    buckets.help.push({ ...TOUR_ITEM });
-  }
+  const help = buckets.guides;
+  const rest = help.filter((i) => i.view !== "help");
+  help.length = 0;
+  help.push(...helpItems(web ? "web" : ""), ...rest);
   return order.map((id) => ({ ...groups[id], items: buckets[id] }));
+}
+
+// Every item a mounted menu can show, for the audit test and docs/menu-audit-0.4.13.md.
+export function allMenuItems(views, { mode = "expert", layout = "narrow", surface = "" } = {}) {
+  if (mode === "simple") return simpleModel(views, surface).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
+  return menuModel(views, layout, { surface }).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
 }
 
 // Keyboard inside one menu. Alt, Ctrl, and Meta are not handled here.
@@ -463,6 +505,7 @@ const CSS = `
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }
 .nav-panel button.active { color: var(--accent-2); }
+.nav-lock { color: var(--amber, #f59e0b); font-size: 12px; margin-left: 4px; }
 .nav-menu:nth-last-child(-n+3) .nav-panel { left: auto; right: 0; }
 @media (max-width: ${NAV_TRIM_AT}px) { .brand-tag, .clock { display: none; } }
 .mobile-more-label { grid-column: 1 / -1; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 6px 4px 0; }
@@ -526,84 +569,73 @@ function buttonFor(buttons, view, label) {
   return btn;
 }
 
-function helpMenu(buttons, surface) {
+// Simple keeps a short row. Pages that are not on it are under More, grouped the
+// same way as Expert, so every page is still one click away.
+const SIMPLE_TOP = new Set(["command", "start", "projects", "help", "settings", ...CREATE_VIEWS, ...DAY_VIEWS]);
+
+export function simpleModel(views, surface = "") {
   const web = surface === "web";
-  const help = menuShell("guides", "Help");
-  help.panel.appendChild(buttonFor(buttons, "help", "Help"));
-  if (!web) help.panel.appendChild(itemButton(UPDATES_ITEM));
-  if (!web) help.panel.appendChild(itemButton(SETUP_AGAIN));
-  help.panel.appendChild(itemButton(REPLAY_ITEM));
-  help.panel.appendChild(itemButton(EXAMPLES_ITEM));
-  return help.menu;
+  const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
+  const day = [["everyday-inbox", "Inbox and tasks"], ["everyday-plan", "Day plan"], ["userchat", "People"]]
+    .filter(([view]) => have.has(view)).map(([view, label]) => ({ view, label, home: true }));
+  const create = CREATE_VIEWS.filter((view) => have.has(view)).map((view) => ({ view, label: LABELS[view], home: true }));
+  const more = [];
+  for (const view of have) {
+    if (SIMPLE_TOP.has(view)) continue;
+    more.push({ view, label: LABELS[view] || view, home: true });
+  }
+  return [
+    { id: "chat", label: "Chat", direct: true, items: [{ view: "command", label: "Chat", home: true }] },
+    { id: "start", label: "Start a project", direct: true, items: [{ view: "start", label: "Start a project", home: true }] },
+    { id: "projects", label: "Projects", direct: true, items: [{ view: "projects", label: "Projects", home: true }] },
+    { id: "myday", label: "My day", items: day },
+    { id: "create", label: "Create", items: create },
+    { id: "more", label: "More", items: more },
+    { id: "guides", label: "Help", items: helpItems(surface) },
+    { id: "settings", label: "Settings", direct: true, items: [{ view: "settings", label: "Settings", home: true }] },
+  ];
+}
+
+function mountItems(panel, buttons, items) {
+  for (const item of items) {
+    if (item.home && item.view && !item.focus) panel.appendChild(buttonFor(buttons, item.view, item.label));
+    else panel.appendChild(itemButton(item));
+  }
 }
 
 function mountExpert(root, views, buttons, layout, surface) {
   const model = menuModel(views, layout, { surface });
   for (const group of model) {
     const { menu, panel } = menuShell(group.id, group.label);
-    for (const item of group.items) {
-      if (item.home && item.view) panel.appendChild(buttonFor(buttons, item.view, item.label));
-      else panel.appendChild(itemButton(item));
-    }
+    mountItems(panel, buttons, group.items);
     root.appendChild(menu);
   }
-  // Narrow keeps the compact menus and still mounts the walkthrough Help menu.
-  // The wider row already includes that menu in the split model.
-  if (!model.some((g) => g.id === "guides")) root.appendChild(helpMenu(buttons, surface));
 }
 
 function mountSimple(root, views, buttons, surface) {
-  const web = surface === "web";
-  const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
-  const chat = buttonFor(buttons, "command", "Chat");
-  chat.classList.add("nav-direct");
-  chat.removeAttribute("role");
-  root.appendChild(chat);
-  if (have.has("start")) {
-    const start = buttonFor(buttons, "start", "Start a project");
-    start.classList.add("nav-direct");
-    start.removeAttribute("role");
-    root.appendChild(start);
+  for (const group of simpleModel(views, surface)) {
+    if (group.direct) {
+      const item = group.items[0];
+      let btn;
+      if (item.view === "command") btn = buttonFor(buttons, "command", "Chat");
+      else if (item.view === "start") btn = buttonFor(buttons, "start", "Start a project");
+      else if (item.view === "projects") btn = buttonFor(buttons, "projects", "Projects");
+      else btn = buttonFor(buttons, item.view, item.label);
+      btn.classList.add("nav-direct");
+      btn.removeAttribute("role");
+      root.appendChild(btn);
+      continue;
+    }
+    // My day, Create, and More hide when they would be empty.
+    if (!group.items.length && group.id !== "guides") continue;
+    const shell = menuShell(group.id, group.label);
+    if (group.id === "myday") {
+      const trigger = shell.menu.querySelector(".nav-trigger");
+      if (trigger) trigger.textContent = "\u2600 My day";
+    }
+    mountItems(shell.panel, buttons, group.items);
+    root.appendChild(shell.menu);
   }
-  const projects = buttonFor(buttons, "projects", "Projects");
-  projects.classList.add("nav-direct");
-  projects.removeAttribute("role");
-  root.appendChild(projects);
-
-  const day = menuShell("myday", "My day");
-  const dayTrigger = day.menu.querySelector(".nav-trigger");
-  if (dayTrigger) dayTrigger.textContent = "\u2600 My day";
-  const dayItems = [
-    ["everyday-inbox", "Inbox and tasks"],
-    ["everyday-plan", "Day plan"],
-    ["userchat", "People"],
-  ];
-  for (const [view, label] of dayItems) {
-    if (have.has(view)) day.panel.appendChild(buttonFor(buttons, view, label));
-  }
-  root.appendChild(day.menu);
-
-  const create = menuShell("create", "Create");
-  for (const view of CREATE_VIEWS) {
-    if (have.has(view)) create.panel.appendChild(buttonFor(buttons, view, LABELS[view]));
-  }
-  root.appendChild(create.menu);
-  const help = helpMenu(buttons, surface);
-  if (have.has("community")) {
-    const panel = help.querySelector("#nav-panel-guides");
-    const btn = buttonFor(buttons, "community", "Community");
-    const replay = panel?.querySelector("button[data-action='replay-tour']");
-    if (panel && replay) panel.insertBefore(btn, replay);
-    else if (panel) panel.appendChild(btn);
-  }
-  root.appendChild(help);
-
-  const settings = menuShell("settings", "Settings");
-  settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
-  if (!web && have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
-  if (!web) settings.panel.appendChild(itemButton(SETUP_AGAIN));
-  settings.panel.appendChild(itemButton(TOUR_ITEM));
-  root.appendChild(settings.menu);
 }
 
 // Rebuilds when the mode or the width layout changes. The same pair is left in place so a re-render does not drop focus.
@@ -771,8 +803,9 @@ function tuneItem(_root, btn) {
 export function placeNavItem(root, view, label) {
   if (!root) return;
   if (root.dataset.uiMode === "simple") {
+    if (view === "help" || view === "settings") return;
+    if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]:not([data-focus])`)) return;
     if (view === "start") {
-      if (root.querySelector('button.nav-direct[data-view="start"]')) return;
       const btn = itemButton({ view, label: label || "Start a project" });
       btn.classList.add("nav-direct");
       btn.removeAttribute("role");
@@ -781,45 +814,49 @@ export function placeNavItem(root, view, label) {
       else root.appendChild(btn);
       return;
     }
-    if (view === "community" || view === "help") {
-      const panel = root.querySelector("#nav-panel-guides");
-      const labelText = view === "community" ? (label || "Community") : (label || "Help");
-      if (panel) {
-        if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-        const btn = tuneItem(root, itemButton({ view, label: labelText }));
-        const replay = panel.querySelector("button[data-action='replay-tour']");
-        if (replay) panel.insertBefore(btn, replay);
-        else panel.appendChild(btn);
-        return;
-      }
-      if (view === "community") return;
-      if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-      const btn = itemButton({ view, label: labelText });
-      btn.classList.add("nav-direct");
-      btn.removeAttribute("role");
-      const settingsMenu = root.querySelector(".nav-menu[data-menu='settings']");
-      if (settingsMenu) root.insertBefore(btn, settingsMenu);
-      else root.appendChild(btn);
-      return;
+    const gid = CREATE_VIEWS.includes(view) ? "create" : DAY_VIEWS.includes(view) ? "myday" : "more";
+    let panel = root.querySelector(`#nav-panel-${gid}`);
+    if (!panel) {
+      const shell = menuShell(gid, gid === "more" ? "More" : gid === "create" ? "Create" : "My day");
+      const help = root.querySelector(".nav-menu[data-menu='guides']");
+      if (help) root.insertBefore(shell.menu, help);
+      else root.appendChild(shell.menu);
+      panel = shell.panel;
     }
-    if (!CREATE_VIEWS.includes(view) && view !== "setup") return;
-    const panel = root.querySelector(`#nav-panel-${view === "setup" ? "settings" : "create"}`);
-    if (!panel) return;
-    if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-    const btn = tuneItem(root, itemButton({ view, label: label || LABELS[view] || view, home: true }));
-    const tour = panel.querySelector("button[data-action='tour']");
-    if (tour) panel.insertBefore(btn, tour);
-    else panel.appendChild(btn);
+    panel.appendChild(tuneItem(root, itemButton({ view, label: LABELS[view] || label || view, home: true })));
     return;
   }
   const group = groupIdFor(view, root.dataset.navLayout || "narrow");
   let panel = root.querySelector(`#nav-panel-${group}`);
   if (!panel) return;
-  if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-  const btn = tuneItem(root, itemButton({ view, label: label || LABELS[view] || view, home: true }));
+  if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]:not([data-focus])`)) return;
+  const btn = tuneItem(root, itemButton({ view, label: LABELS[view] || label || view, home: true }));
   const links = panel.querySelector("button[data-focus]");
   if (links) panel.insertBefore(btn, links);
   else panel.appendChild(btn);
+}
+
+// Adds or clears the plan note on locked pages. Called after each licence load.
+export function markLocks(root, limits) {
+  if (!root) return;
+  root.querySelectorAll("button[data-view]").forEach((b) => {
+    if (b.dataset.focus) return;
+    const plan = lockFor(b.dataset.view, limits);
+    let tag = b.querySelector(".nav-lock");
+    if (!plan) {
+      tag?.remove();
+      if (b.dataset.lock) { b.removeAttribute("title"); delete b.dataset.lock; }
+      return;
+    }
+    if (!tag) {
+      tag = document.createElement("span");
+      tag.className = "nav-lock";
+      b.appendChild(tag);
+    }
+    tag.textContent = ` \u{1F512} ${plan}`;
+    b.dataset.lock = plan;
+    b.title = lockNote(plan);
+  });
 }
 
 export function markNav(root, view, menuId) {
@@ -830,8 +867,9 @@ export function markNav(root, view, menuId) {
     let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
     if (root.dataset.uiMode === "simple" && !menuId) {
       if (id === "create") on = CREATE_VIEWS.includes(view);
-      else if (id === "guides") on = view === "help" || view === "community";
-      else if (id === "settings") on = view === "settings" || view === "setup";
+      else if (id === "guides") on = view === "help";
+      else if (id === "myday") on = DAY_VIEWS.includes(view);
+      else if (id === "more") on = !SIMPLE_TOP.has(view);
     }
     t.classList.toggle("active", !!on);
   });

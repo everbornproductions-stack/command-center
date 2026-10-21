@@ -81,7 +81,7 @@ test("the guide builds from this app and lists every enabled feature", async () 
 
   const help = fs.readFileSync(path.join(ROOT, "web", "features", "help.js"), "utf8");
   const buttons = help.match(/Download the guide \(PDF\)/g) || [];
-  assert.equal(buttons.length, 2);
+  assert.equal(buttons.length, 1, "one guide download on the Help page");
   assert.match(help, /what-meldmind-can-do\.pdf/);
   const server = fs.readFileSync(path.join(ROOT, "server", "index.js"), "utf8");
   assert.match(server, /"\.pdf": "application\/pdf"/);

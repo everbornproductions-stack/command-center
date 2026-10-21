@@ -171,7 +171,7 @@ test("web surface hides desktop-only pages", () => {
   assert.equal(labels.includes("Setup"), false);
   assert.equal(labels.includes("Run setup again"), false);
   assert.equal(labels.includes("Check for updates"), false);
-  assert.equal(labels.includes("Take the tour again"), true);
+  assert.equal(labels.includes("Take the tour"), true);
   assert.equal(labels.includes("Schedules"), true);
   const desktop = menuModel(["command", "libraries", "setup", "settings", "help"], "normal");
   const desktopLabels = desktop.flatMap((g) => g.items.map((i) => i.label));

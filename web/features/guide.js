@@ -470,7 +470,7 @@ export const GUIDE = [
     helpId: "after-an-update",
     tier: "free",
     sentence: () => "After each update, a short What's new note shows what changed.",
-    note: () => "The note shows once. Replay the tour any time from Help.",
+    note: () => "The note shows once. Take the tour any time from Help.",
     badge: () => "free",
     prefer: (parts) => parts[0].open,
     parts: [

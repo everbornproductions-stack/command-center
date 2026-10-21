@@ -30,7 +30,7 @@ test("help catalog matches this version and What's new bullets have a matching a
   assert.ok(pack.articles.some((a) => a.lastUpdatedVersion === pkg.version));
 
   const joined = pack.articles.map((a) => `${a.title}\n${a.summary}\n${a.body}`).join("\n");
-  for (const phrase of ["Getting started", "AQ.", "AIza", "Simple", "Expert", "council", "Approve", "handoff", "Licence", "license", "Check for updates", "SmartScreen", "antivirus", "Ask Meldmind", "Take the tour again"]) {
+  for (const phrase of ["Getting started", "AQ.", "AIza", "Simple", "Expert", "council", "Approve", "handoff", "Licence", "license", "Check for updates", "SmartScreen", "antivirus", "Ask Meldmind", "Take the tour"]) {
     assert.ok(joined.includes(phrase), phrase);
   }
   for (const file of fs.readdirSync(path.join(ROOT, "docs", "help"))) {
@@ -72,15 +72,15 @@ test("the Help tab is in Simple and Expert, and the installer keeps the articles
   const help = read("web", "features", "help.js");
   const yml = read("electron-builder.yml");
   const releasing = read("docs", "RELEASING.md");
-  assert.match(app, /f\.id !== "help"/);
+  assert.match(nav, /if \(view === "help" \|\| view === "settings"\) return;/);
   assert.match(html, /data-view="help"/);
-  assert.match(nav, /buttonFor\(buttons, "help", "Help"\)/);
-  const settingsMenu = menuModel(["command", "settings", "setup", "help"]).find((g) => g.id === "help");
-  assert.ok(settingsMenu.items.some((i) => i.view === "help" && i.label === "Help"));
-  assert.ok(settingsMenu.items.some((i) => i.action === "tour" && i.label === "Take the tour again"));
+  assert.match(nav, /export function helpItems/);
+  const helpMenu = menuModel(["command", "settings", "setup", "help"]).find((g) => g.id === "guides");
+  assert.ok(helpMenu.items.some((i) => i.view === "help" && i.label === "Search help"));
+  assert.ok(helpMenu.items.some((i) => i.action === "tour" && i.label === "Take the tour"));
   assert.match(features, /"help"/);
   assert.match(help, /Ask Meldmind/);
-  assert.match(help, /Take the tour again/);
+  assert.match(help, /Take the tour/);
   assert.match(help, /Check for updates/);
   assert.match(help, /\/help\/ask/);
   assert.match(yml, /docs\/help\/\*\*/);

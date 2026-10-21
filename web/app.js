@@ -1,7 +1,7 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { CREATE_VIEWS, DAY_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
+import { EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
@@ -647,7 +647,7 @@ function renderUpdateBar() {
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
-// Settings: current version, Check for updates, and the install button when one is waiting
+// Help > About: current version, Check for updates, and the install button when one is waiting
 function updateBoxHtml() {
   const u = S.update || {};
   const busy = u.phase === "downloading" || u.phase === "installing";
@@ -762,6 +762,13 @@ function toggleSimpleCreate() {
   }));
   sheet.classList.add("open");
 }
+// A menu item with data-focus opens its page scrolled to that panel.
+function focusNavTarget() {
+  if (!S.navFocus || S.view === "settings") return;
+  const sel = S.navFocus;
+  S.navFocus = "";
+  setTimeout(() => document.querySelector(sel)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+}
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
@@ -782,7 +789,7 @@ function render() {
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -793,7 +800,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "builders", "webbuilders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "community", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "marketplace", "images", "media", "publish", "remix", "builders", "webbuilders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "community", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -833,7 +840,6 @@ function ensureFeatureTabs() {
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
-    if (mode === "simple" && f.id !== "help" && f.id !== "start" && f.id !== "community" && !CREATE_VIEWS.includes(f.id) && !DAY_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
@@ -856,6 +862,7 @@ function ensureFeatureTabs() {
     group.appendChild(b);
   }
   markNav(root, S.view, S.navMenu);
+  markLocks(root, S.license?.limits);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
 }
@@ -1917,12 +1924,8 @@ function renderSimpleBasics(v) {
       <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
     </div>
     <div class="panel basics-card" id="basics-help"><h3>Get help</h3>
-      <div class="row" style="gap:8px">
-        <button type="button" class="btn sm" id="basics-help-go">Help</button>
-        <button type="button" class="btn sm" id="basics-tour">Take the tour</button>
-        <button type="button" class="btn sm" id="basics-upd">Check for updates</button>
-        <button type="button" class="btn sm" id="basics-more-tour">See what else</button>
-      </div>
+      <p class="small" style="margin:0 0 10px">The tour, setup, updates, and What's new are in the Help menu.</p>
+      <button type="button" class="btn sm" id="basics-help-go">Search help</button>
     </div>
     <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
   </div>`;
@@ -1949,14 +1952,6 @@ function renderSimpleBasics(v) {
   });
   $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
   $("#basics-help-go").addEventListener("click", () => { S.view = "help"; render(); });
-  $("#basics-tour").addEventListener("click", () => { S.settingsMore = false; window.CC.tour?.start?.(); });
-  $("#basics-more-tour").addEventListener("click", () => { window.CC.tour?.startFull?.(); });
-  $("#basics-upd").addEventListener("click", async () => {
-    try {
-      S.update = await api("/update/check", { method: "POST" });
-      toast(S.update?.available ? `Update ready, restart: v${S.update.latest}` : S.update?.error ? "Couldn't check for updates" : "You are on the latest version", !!S.update?.error);
-    } catch (err) { toast(err.message, true); }
-  });
 }
 function renderSettings(v) {
   if (S.uiMode === "simple" && S.settingsMore !== true) return renderSimpleBasics(v);
@@ -2020,7 +2015,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2266,16 +2261,6 @@ $("#tabs").addEventListener("click", (e) => {
   const trigger = e.target.closest(".nav-trigger");
   if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
-    if (S.uiMode === "simple" && menu?.dataset.menu === "settings") {
-      closeNav(root);
-      trigger.setAttribute("aria-expanded", "false");
-      S.connectWizard = false;
-      S.view = "settings";
-      S.openProject = null;
-      S.navMenu = "settings";
-      render();
-      return;
-    }
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
     if (!wasOpen) { menu.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); }
@@ -2283,9 +2268,10 @@ $("#tabs").addEventListener("click", (e) => {
   }
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
-  if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  // Each data-action is listed in MENU_ACTIONS (web/nav.js). updates is handled in web/features/updates.js.
+  if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
   if (b.dataset.action === "connect-setup") { closeNav(root); window.CC.connectSetup?.open?.(); return; }
-  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.connectWizard = false; S.view = "start"; render(); } return; }
+  if (b.dataset.action === "news") { closeNav(root); window.CC.tour?.openNews?.(); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
   S.view = b.dataset.view;
@@ -2454,7 +2440,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

@@ -261,7 +261,7 @@ function close() {
   window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("keydown", onKey);
 }
 function onKey(e) { if (e.key === "Escape") skip(); else if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") back(); }
-async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch { /* skip still closes the card */ } toast("Tour skipped. Take the tour again from Help."); }
+async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch { /* skip still closes the card */ } toast("Tour skipped. Take the tour from Help."); }
 async function finish() { close(); try { tour = await api("/tour/complete", { method: "POST" }); } catch { /* the card is already closed */ } toast("Tour done. Replay it any time from Help."); }
 function next() { const list = steps(); if (idx >= list.length - 1) return finish(); show(idx + 1); }
 function back() { if (idx > 0) show(idx - 1); }
@@ -327,7 +327,7 @@ function renderPanel(el2) {
   const t = tour || {};
   const n = steps().length;
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><button class="btn sm" id="cc-tour-full" type="button">See what else it can do</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${n} steps in this app. Each one has a Try it button. Skip any time, and replay from Help.</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour</button><button class="btn sm" id="cc-tour-full" type="button">See what else it can do</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${n} steps in this app. Each one has a Try it button. Skip any time, and replay from Help.</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
   el2.querySelector("#cc-news-open").addEventListener("click", () => openNews());

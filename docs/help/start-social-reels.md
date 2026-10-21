@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. Film only what you are willing to post, and read each caption aloud before you use it. A paid clip waits until you click **Approve** in Media. Nothing is generated on its own.
 
-To see a labeled sample first, click **Watch an example** on the Social media reels card. That sample is Milo's Guitar. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the Social media reels card. That sample is Milo's Guitar. See Watch example projects. To walk the rest of the console again, see Take the tour.

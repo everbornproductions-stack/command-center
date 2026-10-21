@@ -55,7 +55,7 @@ New installs open in Simple. The first setup step asks which mode you want to st
 
 Simple is one chat box. You say what you want, and the council picks the AI. The top bar shows Chat, Projects, Create, Help, and Settings. The chips under the box list only AIs you have connected (a saved key the provider accepted, or an MCP server). Demo shows there only while none are connected.
 
-Help searches the guides. Ask Meldmind answers from those guides with a connected AI. With no AI connected, it searches and does not invent steps. Take the tour again and Check for updates are on that page.
+Help searches the guides. Ask Meldmind answers from those guides with a connected AI. With no AI connected, it searches and does not invent steps. Take the tour is on that page, and Check for updates is under About Meldmind. The Help menu has Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, and About Meldmind. The Settings menu holds Settings and Setup only.
 
 Expert is the full console: the council debate, router scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu.
 
@@ -128,7 +128,7 @@ You confirm before a send, a buy, or a delete. While an app is in use, a banner 
 
 After you update to 0.4.9, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
 
-Help has the same steps under Apps on your desktop. Take the tour again includes that stop.
+Help has the same steps under Apps on your desktop. Take the tour includes that stop.
 
 ## Programs on this PC
 

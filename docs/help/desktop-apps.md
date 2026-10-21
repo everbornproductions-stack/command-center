@@ -54,7 +54,7 @@ While you plan a mission or client work, a card suggests a program with a short 
 
 Turn suggestions off in Settings. The switch is Suggest a program while I plan a mission or client work. Update the app list only when you click the button, and only from an https address. That update changes the capability list. It does not install or buy anything.
 
-This note shows once after an update. Take the tour again any time from Settings. The tour step is Programs on this PC.
+This note shows once after an update. Take the tour any time from the Help menu. The tour step is Programs on this PC.
 
 ## Doors after Antigravity
 

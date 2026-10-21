@@ -21,4 +21,4 @@ The Builders category has one ready prompt for each guided builder, including Sn
 
 Legal, contract, mortgage, insurance, and credit repair prompts are information only. They are not advice, and they do not promise a result. A contract prompt says it is not legal advice. Nothing is posted or sent until you click Send, or approve a later step.
 
-This note shows once after an update. Take the tour again any time from Settings.
+This note shows once after an update. Take the tour any time from the Help menu.

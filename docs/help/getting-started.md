@@ -15,11 +15,11 @@ Simple is one chat box. You say what you want, and the council picks the AI. Exp
 
 The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away. A 1024, 1366, 1920, or 2560 pixel wide window stays on that one row.
 
-Start a project is in the Work menu, with Projects. The Settings menu keeps Settings, setup, the tour, and Check for updates.
+Start a project is in the Work menu, with Projects. The Settings menu keeps Settings and Setup. The Help menu has Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, and About Meldmind.
 
 Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. Real jobs are not sent to those demo AIs while a real AI is connected. You can turn demo mode back on in Settings if you want the pretend AIs in the lists again.
 
-Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour again and Check for updates are both on the Help page. This note shows once after an update. Take the tour again any time from Help or from Settings.
+Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour is on the Help page, and Check for updates is under About Meldmind. This note shows once after an update. Take the tour any time from the Help menu.
 
 Community is in the Business menu, and under Help in Simple. AI News sits next to the chat channels. See Community and AI News.
 

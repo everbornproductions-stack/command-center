@@ -1,4 +1,5 @@
-// Help tab: searchable guides from /api/help, plus Ask Meldmind.
+// Help tab: searchable guides from /api/help, plus Ask Meldmind, the tour and setup,
+// the user guide, contact and feedback, and About (version and Check for updates).
 // Ask sends only when the button is clicked. With no connected AI the server returns search hits.
 // What can Meldmind do? is the same guide as the tour. A row hides when its page is missing.
 import { liveProbe, matchesQuery, rememberWalks, visibleGuide } from "./guide.js";
@@ -28,21 +29,16 @@ function follow(open) {
   if (open.focus) setTimeout(() => document.querySelector(open.focus)?.scrollIntoView({ block: "center" }), 60);
 }
 
+// Contact for questions and feedback. The link opens the mail app; nothing is sent from here.
+const CONTACT_EMAIL = "hello@everbornproductions.com";
+
 function renderTab(view) {
+  const S = window.CC.S || {};
+  const desk = S.mode !== "hosted";
   view.innerHTML = `<div class="help-page">
     <div class="panel" id="help-article" hidden></div>
-    <div class="panel" id="can-do">
-      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
-        <h3 style="margin:0">What can Meldmind do?</h3>
-        <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="margin-left:auto;text-decoration:none">Download the guide (PDF)</a>
-      </div>
-      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a licence happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
-      <label class="lbl" for="can-do-search">Search what Meldmind can do</label>
-      <input id="can-do-search" type="search" placeholder="Try councils, remix, or phone" autocomplete="off">
-      <div id="can-do-list" class="help-list"></div>
-    </div>
     <div class="panel" id="help-list-panel">
-      <h3>Help</h3>
+      <h3>Search help</h3>
       <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
       <p class="hint" role="note">You can type in any language.</p>
       <label class="lbl" for="help-search">Search</label>
@@ -56,19 +52,44 @@ function renderTab(view) {
       <textarea id="help-q" rows="3" placeholder="Ask about keys, Simple mode, or approvals"></textarea>
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <button class="btn sm primary" type="button" id="help-ask">Ask Meldmind</button>
-        <button class="btn sm" type="button" id="help-start">Start a project</button>
-        <button class="btn sm" type="button" id="help-replay">Replay the tour</button>
-        <button class="btn sm" type="button" id="help-news">What's new</button>
-        <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="text-decoration:none">Download the guide (PDF)</a>
-        <button class="btn sm" type="button" id="help-more-tour">See what else it can do</button>
-        <button class="btn sm" type="button" id="help-examples">Watch example projects</button>
-        <button class="btn sm" type="button" id="help-upd">Check for updates</button>
-        <button class="btn sm" type="button" id="help-setup">Run setup again</button>
-        <p class="dim small" style="margin:8px 0 0">Take the tour again any time. See what else it can do opens the longer tour. Watch example projects replays a labeled sample. No AI is called for an example.</p>
       </div>
       <div id="help-answer" class="help-answer"></div>
     </div>
+    <div class="panel" id="help-again">
+      <h3>Tour and setup</h3>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button class="btn sm" type="button" id="help-replay">Take the tour</button>
+        <button class="btn sm" type="button" id="help-more-tour">See what else it can do</button>
+        ${desk ? `<button class="btn sm" type="button" id="help-setup">Run setup again</button>` : ""}
+        <button class="btn sm" type="button" id="help-news">What's new</button>
+        <button class="btn sm" type="button" id="help-start">Start a project</button>
+        <button class="btn sm" type="button" id="help-examples">Watch example projects</button>
+      </div>
+      <p class="dim small" style="margin:8px 0 0">Take the tour any time. See what else it can do opens the longer tour. Watch example projects replays a labeled sample. No AI is called for an example.</p>
+    </div>
+    <div class="panel" id="can-do">
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <h3 style="margin:0">User guide: What can Meldmind do?</h3>
+        <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="margin-left:auto;text-decoration:none">Download the guide (PDF)</a>
+      </div>
+      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a licence happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
+      <label class="lbl" for="can-do-search">Search what Meldmind can do</label>
+      <input id="can-do-search" type="search" placeholder="Try councils, remix, or phone" autocomplete="off">
+      <div id="can-do-list" class="help-list"></div>
+    </div>
+    <div class="panel" id="help-contact">
+      <h3>Contact and feedback</h3>
+      <p class="small" style="margin:0 0 10px">Questions or a problem: write to <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. The link opens your mail app. Nothing is sent until you click Send there.</p>
+      <p class="small" style="margin:0 0 10px">Ideas for Meldmind go in the idea box. You review the note and click Send yourself.</p>
+      <button class="btn sm" type="button" id="help-idea">Open the idea box</button>
+    </div>
+    <div class="panel" id="help-about">
+      <h3>About Meldmind</h3>
+      <p class="small" style="margin:0 0 6px"><b>Meldmind</b>, an Everborn product by Everborn Productions. Take command of all your AIs.</p>
+      <div class="small" id="s-upd-box">${desk && window.CC.updateBoxHtml ? window.CC.updateBoxHtml() : `Version ${esc(S.version || "")}`}</div>
+    </div>
   </div>`;
+  if (desk) window.CC.renderUpdateBox?.();
 
   let articles = [];
   let guideRows = [];
@@ -184,23 +205,17 @@ function renderTab(view) {
   view.querySelector("#help-news").addEventListener("click", () => { window.CC.tour?.openNews?.(); });
   view.querySelector("#help-more-tour").addEventListener("click", () => { (window.CC.tour?.startFull || window.CC.tour?.start)?.(); });
   view.querySelector("#help-examples").addEventListener("click", () => { (window.CC.startProject?.examples || window.CC.startProject?.open || window.CC.go)?.(); });
-  view.querySelector("#help-setup").addEventListener("click", () => { window.CC.connectSetup?.open?.(); });
+  view.querySelector("#help-setup")?.addEventListener("click", () => { window.CC.connectSetup?.open?.(); });
+  view.querySelector("#help-idea").addEventListener("click", () => {
+    if (window.CC.openSettings) window.CC.openSettings("[data-feature='everyday-news']");
+    else go("settings");
+  });
   view.querySelector("#help-pdf").addEventListener("click", async () => {
     try {
       const url = await window.CC.apiBlobUrl("/help/security.pdf");
       window.CC.downloadBlob(url, "meldmind-security.pdf");
     } catch (e) { toast(e.message, true); }
   });
-  view.querySelector("#help-upd").addEventListener("click", async () => {
-    try {
-      const S = window.CC.S;
-      S.update = await api("/update/check", { method: "POST" });
-      const failed = !!S.update?.error;
-      toast(S.update?.available ? `Update ready, restart: v${S.update.latest}` : failed ? "Couldn't check for updates" : "You are on the latest version", failed);
-      window.CC.render?.();
-    } catch (e) { toast(e.message, true); }
-  });
-
   list.innerHTML = `<div class="dim small">Loading...</div>`;
   canList.innerHTML = `<div class="dim small">Loading...</div>`;
   rememberWalks(api).then(() => {

@@ -2413,3 +2413,9 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Version 0.4.13. What's new, the release notes, the help catalog, and the guide PDF say 0.4.13.
 - Desktop card fix (Chris, Windows 0.4.12): Allow Antigravity, Install and connect, Open settings, Not now, Never, Close, Escape, and a click outside all close the card first. Install progress shows as toasts. The card stays closed for the app session, while an install runs, and on Settings or Setup, so Open settings (Settings, Antigravity under connections) cannot bring it back. It is an in-page card, never an always-on-top window. Logic in web/desktop-prompt-flow.js, regression test in test/desktop-prompt.test.js.
 - Start a project now comes right before Projects in Simple and Expert menus (test/nav.test.js).
+
+## 2026-10-21 Menu, page, and link audit (0.4.13)
+
+Settings menu holds settings only. Help menu is Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, About Meldmind, in Simple and Expert. Simple adds More so every page is reachable. Marketplace has a menu item. Lock notes on Pro and Extreme pages. Report: docs/menu-audit-0.4.13.md. Test: test/menu-audit.test.js.
+
+MENU AUDIT BLOCKED (one item): "Run setup again" names two actions. Decision 20 keeps it on the Settings page for the first-run setup page; the tray, Help, and the Get everything connected card use it for the connections checklist. Renaming either touches decision 20 or the tray. Chris to decide which keeps the name.

@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. Approve the shot list before you film. A paid video step waits until you click **Approve**. Nothing is generated on its own. Keep wardrobe and light the same from shot to shot.
 
-To see a labeled sample first, click **Watch an example** on the Music video card. That sample is Lumen Park and the song Glass Orchard. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the Music video card. That sample is Lumen Park and the song Glass Orchard. See Watch example projects. To walk the rest of the console again, see Take the tour.

@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. Do not treat [ASK] as a real number. The draft is not sent to a bank or a partner. Figures in an example project are not yours.
 
-To see a labeled sample first, click **Watch an example** on the Business plan card. That sample is Bright Kettle. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the Business plan card. That sample is Bright Kettle. See Watch example projects. To walk the rest of the console again, see Take the tour.

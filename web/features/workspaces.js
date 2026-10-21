@@ -159,6 +159,6 @@ async function tryJoin() {
 let loadedOnce = false;
 CC.register({
   id: "workspaces",
-  tab: { label: "Workspaces", short: "Teams", icon: "⚑", order: 40, render },
+  tab: { label: "Teams", short: "Teams", icon: "⚑", order: 40, render },
   onState() { if (!loadedOnce) { loadedOnce = true; load().catch(() => {}); } tryJoin(); },
 });

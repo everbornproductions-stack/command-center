@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. The result is an outline, not shipped software. Cut anything that is not a must-have for this pass. You start the build yourself. This walk does not deploy or ship code.
 
-To see a labeled sample first, click **Watch an example** on the App/software card. That sample is Fieldnote. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the App/software card. That sample is Fieldnote. See Watch example projects. To walk the rest of the console again, see Take the tour.

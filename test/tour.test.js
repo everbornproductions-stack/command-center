@@ -187,7 +187,7 @@ test("tour steps cover the current app and What's new shows before the invite", 
   const src = fs.readFileSync(new URL("../web/features/tour.js", import.meta.url), "utf8");
   assert.match(src, /Try it/);
   assert.match(src, /Skip tour/);
-  assert.match(src, /Take the tour again from Help/);
+  assert.match(src, /Take the tour from Help/);
   assert.match(src, /tourSteps/);
   const missionsHelp = fs.readFileSync(new URL("../docs/help/missions-media.md", import.meta.url), "utf8");
   const pipeHelp = fs.readFileSync(new URL("../docs/help/pipelines.md", import.meta.url), "utf8");
