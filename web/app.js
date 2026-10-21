@@ -1200,6 +1200,9 @@ async function sendOrders() {
   const pp = window.CC?.promptPack;
   if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
   const ask = window.CC.searchAsk?.() || {};
+  const beforeId = S.live.id;
+  // A fast run can finish before this request returns. Keep that answer so the sources panel is not wiped.
+  const keepArrived = () => { if (S.live.id && S.live.id !== beforeId) { renderOps(); return; } S.live = newLive(); renderOps(); };
   $("#go").disabled = true;
   try {
     const usePack = !!(pp?.templateId && !pp.removed);
@@ -1220,11 +1223,11 @@ async function sendOrders() {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
       await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody, ...ask } });
-      S.live = newLive(); renderOps();
+      keepArrived();
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") { await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); S.live = newLive(); renderOps(); }
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); S.live = newLive(); renderOps(); }
+    else if (mode === "council") { await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); keepArrived(); }
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); keepArrived(); }
   } catch (e) {
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
     else toast(e.message, true);
