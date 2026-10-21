@@ -60,6 +60,7 @@ import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
+import { handleUsageHttp, isUsageHttp } from "./usage.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
@@ -746,6 +747,9 @@ async function handleHttp(req, res) {
   let url;
   try { url = new URL(req.url, `http://127.0.0.1:${PORT}`); } catch { return json(res, 400, { error: "bad url" }); }
   try {
+    // Anonymous usage ingest and the owner report. Open only on the hub (or CC_USAGE_INGEST=1).
+    // The desktop app sends the ping outward. It does not accept one. The report needs CC_METRICS_SECRET.
+    if (isUsageHttp(url.pathname)) return await handleUsageHttp(req, res, url, json, readBody);
     // Grok Bot results (Phase 12): exempt from the session token, the Host pin (a tunnel or the hosted hub
     // forwards its own host name) and sign-in; the per-job token is checked instead and everything else is refused
     if (isGrokbotCallback(url.pathname)) return await grokbotCallback(req, res, url, json);

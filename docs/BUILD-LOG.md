@@ -1606,3 +1606,16 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: anonymous usage counts for the owner report
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Square and billing were not changed. The migration was not run.
+
+- The app sends one anonymous active ping a day when Settings has Share anonymous usage counts to help improve Meldmind turned on. That switch is on unless the person turns it off. The ping is a random install id, the version, the operating system, the plan, and feature counts. It does not send prompts, chats, emails, or files. With the switch off, the daily check does not call the network.
+- supabase/migrations/20261021_usage_pings.sql adds usage_pings and record_usage_ping. Row level security allows insert only for anon and authenticated. There is no select policy. The file was not applied.
+- The desktop app POSTs the ping to the hub. The hub inserts with the service key, which stays on the server. GET /api/metrics/report needs CC_METRICS_SECRET. It returns DAU, WAU, MAU, week-1 and week-4 cohorts, installs by version and OS, active users by tier, top features, and paying users plus MRR from the licences table (tier, status, and source only). MRR uses the live monthly price of $15.99. The report does not call Square and does not include emails, licence keys, or install ids. npm run metrics:report prints that JSON.
+- Help, the privacy note, and What's new describe the switch.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The daily ping test uses real waits and removes its temp data. No real key. data/ was not read. The Settings switch was clicked in a browser: it started on, a reload kept it off, and Help showed the same privacy words.
+- Not verified: the migration against a live Supabase project (it was not run). The owner report was checked against a local stand-in, not the live licences table.
+
+ANONYMOUS USAGE COUNTS (not a numbered phase)

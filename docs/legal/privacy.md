@@ -25,3 +25,11 @@ You can change this any time in Settings. On **Who's best**, clear **I am willin
 **Show what would be shared** lists the anonymous totals on this computer. This version does not send them.
 
 The same words are in docs/legal/shared-learning.md.
+
+## Anonymous usage counts
+
+Settings includes **Share anonymous usage counts to help improve Meldmind**. The switch is on unless you turn it off.
+
+Once a day, if this is on, Meldmind sends a random install id, the app version, the operating system, your plan, and how many times each feature was used. It does not send prompts, chats, emails, or files.
+
+You can change this any time in Settings. Clear the switch and the daily ping stops.
