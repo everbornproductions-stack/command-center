@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { busyLabel, setBusy, withBusy, flashDone, trackBusy, installClickTracking, noteToast, WORKING, SEARCHING, DONE } from "../web/busy.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
+// Windows checkouts use CRLF; the source checks below match "\n".
+const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\r\n/g, "\n");
 
 function fakeButton(text, dataset = {}) {
   const classes = new Set();
