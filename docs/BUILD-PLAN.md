@@ -81,7 +81,7 @@ Not done, except the three rows already marked done above (share links, accessib
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
 - Phase 44. AI group chat.
-- Phase 92. User chat.
+- Phase 92. User chat. Built in the Watch and talk workstream. The version stayed 0.4.8. Messages stay on this computer until a hub address is set. The hub was not deployed.
 - Phase 43. Live builds.
 - Phase 93. A newsletter and a monthly savings email.
 - Phase 94. Spanish.
@@ -533,8 +533,8 @@ The plan prices are in docs/billing.md. The app still shows the Phase 35 prices 
 
 These wait until after Phase 91. Store listings, signed apps, and paid hosting need Chris's OK before any money is spent.
 
-### Phase 92: User chat (Later, not done)
-People chat with each other inside the app. This is not the AI group chat (Phase 44). Nothing is sent until the person clicks send. No keys are shared.
+### Phase 92: User chat (built, version unchanged)
+People chat with each other inside the app. This is not the AI group chat (Phase 44). Direct messages and small groups are limited to people in the same team space. When team spaces from the Together work are not installed yet, a Phase 8 workspace is used so this computer still works. Report and block stay on this computer. Messages stay on this computer until a people-chat hub address is set (`CC_USERCHAT_HUB`, https, or a loopback address in tests). Nothing is sent until Send. Keys and private-mode content are not shared. The version stayed 0.4.8. The hub was not deployed.
 
 ### Phase 93: Newsletter and monthly savings email (Later, not done)
 An opt-in newsletter, and a monthly email of what was saved. Phase 4's weekly report stays in the app and is still a draft until a click. This email does not send until the person opts in. No income or results claims. Do not touch Square.
