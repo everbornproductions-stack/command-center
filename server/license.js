@@ -146,6 +146,13 @@ export async function activate(key) {
   if (r?.ok) {
     saveLic({ key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" });
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
+    try {
+      const { queueWelcome } = await import("./welcome-mail.js");
+      const source = String(r.tier || "").toLowerCase() === "pro" ? "pro-purchase" : "license";
+      await queueWelcome({ email: r.email, firstName: r.first_name || r.name || "", source });
+    } catch (e) {
+      emit("log", { text: `Welcome email was not sent: ${e.message}`, level: "error" });
+    }
     return licenseState();
   }
   // a different key that fails leaves the stored licence alone; the stored key failing means it really is not active

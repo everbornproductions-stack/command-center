@@ -54,6 +54,10 @@ Phases 45 to 51 stay planned, not built. This slice does not drive apps. It does
 
 When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" One click (Add it) includes it. Not now dismisses the ask. Grok Bot's webhook stays the handoff for signed-in tasks. An xAI key is Grok the model and does not raise this ask. Suno and Google Flow count when they gain a key or an MCP route.
 
+## 0.4.9 Welcome email
+
+Send a branded welcome email when someone gets the app: a website download signup, a Square Pro purchase (the Pro licence), or an in-app account. The template is emails/welcome.html and emails/welcome.txt with {{FIRST_NAME}} and {{INSTALL_URL}}. The install link is one page for Windows and Mac. The mail provider is pluggable and off until it is configured. Tests never send. The Supabase service key stays server-only. See docs/welcome-email.md.
+
 ## Release order (Chris, 2026-10-21)
 
 0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.

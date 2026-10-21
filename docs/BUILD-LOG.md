@@ -1648,6 +1648,19 @@ Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bo
 
 GRADUATE NOTICE (built by Cursor cloud agent)
 
+## 2026-10-21: Welcome email
+
+Not a numbered phase. Decision 22's text is unchanged and still says it is not built in the run order. Decision 23 is unchanged. Square and billing were not edited. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The welcome email is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch. No real key.
+
+- A branded welcome letter is emails/welcome.html and emails/welcome.txt. Placeholders are {{FIRST_NAME}} and {{INSTALL_URL}}. It names the person, says the account is ready, that chats and settings back up automatically on Everborn's Supabase, that each person sees only their own data (row level security), and how to add AI keys or connect via MCP from Settings. Nothing in the product is sent until they click. The download link is one page for Windows and Mac. No income or results claims.
+- It queues on a website download signup, an in-app account, and after a licence activates. A Pro licence is recorded as a Pro purchase. The same address is not mailed again on a later recheck. A mail failure does not fail the licence check.
+- The provider is pluggable and defaults to none, so nothing is sent until Chris sets one. POST /api/welcome/config does not accept a key. The key is vault id welcome-mail. The Resend adapter uses that key and does not log it. The Supabase service key is not read by this module. Every test server has CC_INSTANCE starting with test-, and that process never sends.
+- Docs: docs/welcome-email.md. The plan's "do not start" line is still there.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped (Pyodide is not installed). The MCP file is 8 pass. The other files are 421 tests, 420 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: a rendered letter for Ada shows the account copy, the Supabase sentence, and the Windows and Mac link. There is no in-app screen for this. Nothing was sent.
+
+WELCOME EMAIL (built by Cursor cloud agent)
+
 ## 2026-10-21: plan docs regrouped by version
 
 Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.

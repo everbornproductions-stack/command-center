@@ -440,6 +440,7 @@ Decision 22, spec unchanged. Chris added it to this run order on 2026-10-21. Do 
 - Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
 - No income or results claims.
 - Do not touch Square or billing. Nothing sends until the mail provider is configured. Tests never send.
+- On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This welcome email is part of 0.4.9. This note does not add the item to the run order.
 
 ### Phase 72: Graduate notice (version 0.4.9, not done)
 When a handoff-only AI gains its own API or MCP route, ask once: "X can now run directly. Add it to councils and missions?"
