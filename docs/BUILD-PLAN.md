@@ -28,7 +28,9 @@ Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done.
 
 ### Version 0.4.9 (next)
 
-Not done. In this order:
+On this branch: phases 45 to 51 as fixture drivers with Antigravity first, the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
+
+Not done until those three are in. The order stays:
 
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
@@ -384,36 +386,36 @@ Share a running mission into a room so others can watch it live, and let them co
 ### Phase 44: AI group chat with personas (effort: M) (Later, not done)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
+### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, fixture drivers in)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through a fixture page on this computer, Windows desktop through a fixture control tree), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The drivers in this build are fixtures. They do not open Edge, read a browser profile, call UI Automation, or send a picture to a model.
 
 ### 0.4.9 slice: app discovery and suggestions (built on this branch)
 This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build. Signing stays later.
 
 When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
 
-Phases 45 to 51 stay planned, not built. UI Automation, Playwright, screenshot fallback, hub cards, and registerExternalAgent are not in this slice.
+Phases 45 to 51 use fixture drivers. A real Edge window, a real UI Automation tree, and a real screenshot model are not called. The program scan slice does not drive those doors.
 
-### Phase 45: App cards (effort: M) (version 0.4.9, not done)
+### Phase 45: App cards (effort: M) (version 0.4.9, fixture drivers in)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, not done)
+### Phase 46: Score and missions (effort: M) (version 0.4.9, fixture drivers in)
 Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
 
-### Phase 47: MCP as an app (effort: M) (version 0.4.9, not done)
+### Phase 47: MCP as an app (effort: M) (version 0.4.9, fixture drivers in)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, not done)
-Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
+### Phase 48: Websites (effort: L) (version 0.4.9, fixture drivers in)
+Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop. This branch fills a fixture page on 127.0.0.1. Playwright and system Edge are not called.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, not done)
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, fixture drivers in)
 Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, not done)
-UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, fixture drivers in)
+UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused. This branch uses a fixture control tree. UI Automation is not called.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, not done)
-Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, fixture drivers in)
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. This branch keeps the previous picture out of the next step and stops at the cap. No picture is sent to a model.
 
 ## Version 0.4.9 phases (not done)
 
@@ -433,16 +435,16 @@ A guessed Pro prompt must not block Send. Chris hit "I need a few facts before I
 - Sharing stays the shipped words: task type, which AI, and the score. Never prompts, content, or keys. The person can change it in Settings.
 - Plain words on the new onboarding, the graduate notice, and the welcome email. No em-dashes in user-facing text.
 
-### Phase 69: Program scan (version 0.4.9, not done)
+### Phase 69: Program scan (version 0.4.9, on this branch)
 When desktop control is on, list installed programs and let the person allow each one. Allowed apps are scored like a tool they add, and the router can pick them.
 - Opt in from Setup or Settings. Names only: Windows uninstall entries, Start menu shortcut names, and command-line tools on PATH. Do not read file contents.
 - While a mission is planned, a card may suggest a program, with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off.
 - The scan is a Pro feature. Free can see the lock and can turn a scan off.
 
-### Phase 70: Save in place (version 0.4.9, not done)
-An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click.
+### Phase 70: Save in place (version 0.4.9, command bar on this branch)
+An edit to a chat, a doc, or a connected file saves back onto that same item. One click. No second copy unless the person asks for one. Send, share, and delete still need their own click. On this branch, create and rename from the command bar stay on that page. A chat, a doc, and a connected file do not yet save back onto the same item.
 
-### Phase 71: Welcome email (version 0.4.9, not done)
+### Phase 71: Welcome email (version 0.4.9, on this branch, decision 22 text unchanged)
 Decision 22, spec unchanged. Chris added it to this run order on 2026-10-21. Do not rewrite the spec.
 - On sign-up or license redeem, send a plain welcome email.
 - Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
@@ -450,7 +452,7 @@ Decision 22, spec unchanged. Chris added it to this run order on 2026-10-21. Do 
 - Do not touch Square or billing. Nothing sends until the mail provider is configured. Tests never send.
 - On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This welcome email is part of 0.4.9. This note does not add the item to the run order.
 
-### Phase 72: Graduate notice (version 0.4.9, not done)
+### Phase 72: Graduate notice (version 0.4.9, on this branch)
 When a handoff-only AI gains its own API or MCP route, ask once: "X can now run directly. Add it to councils and missions?"
 - Add it includes that AI in councils and missions. Not now dismisses the ask. The ask sits with the chat box, not in the answers.
 - Grok Bot stays a webhook for signed-in tasks. An xAI key is Grok the model and does not raise this ask.

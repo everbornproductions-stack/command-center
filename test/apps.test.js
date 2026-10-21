@@ -275,7 +275,7 @@ test("user-facing copy has no em dash and no install button", () => {
   assert.match(news["0.4.8"].bullets[1], /Nova, Atlas and Sage/);
   const plan = fs.readFileSync(path.join(ROOT, "docs", "BUILD-PLAN.md"), "utf8");
   assert.match(plan, /Do last: 14,/);
-  assert.match(plan, /Phases 45 to 51 stay planned, not built/);
+  assert.match(plan, /Phases 45 to 51 use fixture drivers/);
   const help = fs.readFileSync(path.join(ROOT, "docs", "help", "desktop-apps.md"), "utf8");
   assert.match(help, /lastUpdatedVersion: 0\.4\.9/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));

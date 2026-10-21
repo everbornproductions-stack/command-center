@@ -52,7 +52,7 @@ A picture or a video on the idea box or on Marching orders can start a media job
 
 When the person opts into desktop control, Meldmind lists installed programs. On Windows that is the uninstall registry keys and the Start menu, plus command-line tools on PATH. File contents are not read. Each name is matched to a curated capability list that can be updated from an https address when the person clicks Update the app list. The person allows each app. Allowed apps are scored and join the router's choices, the same as a tool you add. While planning a mission or client work, a dismissible card suggests a program with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off in Settings.
 
-Phases 45 to 51 stay planned, not built. This slice does not drive apps. It does not add UI Automation, Playwright, screenshot computer use, hub cards, or registerExternalAgent.
+Phases 45 to 51 use fixture drivers. A real Edge window, a real UI Automation tree, and a real screenshot model are not called.
 
 ## 0.4.9 Graduate notice
 
