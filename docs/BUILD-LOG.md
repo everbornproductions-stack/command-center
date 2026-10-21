@@ -1582,3 +1582,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: plan docs regrouped by version
+
+Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
+
+- docs/BUILD-PLAN.md now groups the work that is not done: 0.4.9, 0.4.10, 0.4.11, then research, Zapier and Make (MCP by URL and webhooks moved earlier), then the three tiers, then Later (AI group chat, user chat, live builds, newsletter, Spanish, phone apps, store listings, signed apps).
+- Phases with PHASE N DONE in this log are marked DONE in the plan. Also marked DONE from merged pull requests: 36 (0.4.4 limits), 37 (pull request 40), 38 (pull request 25), 39 (pull requests 13 and 18), 41 (pull request 11). Phase 14 stays BLOCKED for a real Mac. The unsigned build is 0.4.10. Signing is Later.
+- The welcome email (decision 22, spec unchanged) is Phase 71 in version 0.4.9. Use your own Supabase stays out of the run order.
+- docs/billing.md keeps the live $15.99 Square link and the Phase 35 prices the app shows. The plan prices are Pro $18.99/month or $189/year, Extreme $29.99/month or $299/year, a monthly rise to $24.99 and $39.99 in about 6 months, and lifetime founders at $299 for the first 100 then $499 for the next 400, closed at 500, counter hidden under 40 buyers.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PLAN DOCS REGROUPED (no phase built)

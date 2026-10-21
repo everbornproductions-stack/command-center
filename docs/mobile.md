@@ -1,5 +1,7 @@
 # Phone version: Play Store and App Store plan (2026-10-18)
 
+Status, 2026-10-21: phone apps and store listings are Later in docs/BUILD-PLAN.md (Phase 95 and store listings). They are not part of 0.4.9, 0.4.10, or 0.4.11. The phone-sized web layout that already ships is not the native app. The plan price for Pro is $18.99 a month. The live Square checkout is still $15.99 until Chris changes it.
+
 ## What exists now
 
 The web app is a **Progressive Web App**: phone layout (bottom navigation, stacked panels, swipeable council columns), install manifest, icons, offline shell. On Android, Chrome offers "Install app"; on iPhone, Safari → Share → Add to Home Screen. It runs full-screen like a native app. This is the shell the store builds wrap.
@@ -14,7 +16,7 @@ The orchestration (router, council, missions, ledger) runs on the PC today and t
 | Works when the PC is off | No | Yes |
 | Cost to us | Nothing | Hosting per user (small: the hub is idle most of the time) |
 | Privacy pitch | Strongest ("your keys never leave your PC") | Standard SaaS; needs a clear policy |
-| Fits a $15.99 subscription | Yes for power users | Yes, and it is what most buyers expect from a subscription |
+| Fits the Pro plan | Yes for power users. The live checkout is $15.99 a month. The plan price is $18.99 a month. | Yes, and it is what most buyers expect from a subscription |
 | Build effort | Days: an address field in the app, a QR pairing screen, the tunnel instructions | Weeks: multi-tenant server, accounts, encrypted vault, billing-linked provisioning |
 
 Recommendation: ship **A first** (it needs only a settings screen and a pairing QR code), and build **B** as the subscription matures, because B is also what solves licensing, updates and "works anywhere". The phone app is the same build either way; only the hub address changes.
