@@ -1582,3 +1582,11 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: orders no longer wait on a guessed Pro prompt
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8.
+
+- Typing orders that match a Pro prompt used to attach that prompt and refuse Send until its required facts were filled. The toast was "I need a few facts before I can run <prompt>. I will not invent them." The order never left.
+- Send now goes out as typed. A match stays a suggestion. Use this asks for the missing facts under the orders box, and Send still goes out while those fields are empty. The prompt is included on a later send once the facts are saved. An explicit empty pack posted to the API is still refused, so a template is not run on invented facts.
+- Tests here (Linux): npm test 429 tests, 427 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.

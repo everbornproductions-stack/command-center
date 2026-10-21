@@ -1,5 +1,7 @@
-// Pro prompts: browse by category, fill from the Business Profile, and halt when a fact is missing.
+// Pro prompts: browse by category, fill from the Business Profile, and ask inline when a chosen prompt needs a fact.
+// A guessed prompt never stops the orders box.
 import { marketplacePacks, mountPromptBoard } from "./prompt-board.js";
+import { detectApplied } from "./prompt-order.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -88,10 +90,15 @@ function paintChip() {
     <span class="chip violet">${applied ? "Using" : "Suggested"}: ${esc(pack.name)}</span>
     ${applied ? "" : `<button class="btn sm" type="button" id="pp-use">Use this</button>`}
     <button class="btn sm" type="button" id="pp-chip-x" aria-label="Remove Pro prompt">Remove</button>
-    <span class="dim">${pack.halted ? esc(pack.message || "") : "You can remove this before you send."}</span>
+    <span class="dim">${pack.halted && pack.askFacts ? esc(pack.message || "") : "You can remove this before you send."}</span>
   </div>
-  ${pack.halted ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button></div>` : ""}`;
-  row.querySelector("#pp-use")?.addEventListener("click", () => { pack.applied = true; window.CC.promptPack = packState(); paintChip(); });
+  ${pack.halted && pack.askFacts ? `<div id="pp-missing" class="small" style="margin-top:6px">${(pack.questions || []).map((q) => `<div>${esc(q)}</div>`).join("")}<div id="pp-miss-fields"></div><button class="btn sm" type="button" id="pp-fill">Save these facts</button></div>` : ""}`;
+  row.querySelector("#pp-use")?.addEventListener("click", () => {
+    if (pack.halted) { pack.askFacts = true; paintChip(); return; }
+    pack.applied = true;
+    window.CC.promptPack = packState();
+    paintChip();
+  });
   row.querySelector("#pp-chip-x")?.addEventListener("click", async () => {
     removedId = pack.id;
     pack.applied = false;
@@ -99,7 +106,7 @@ function paintChip() {
     try { await api("/prompts/dismiss", { method: "POST", body: { id: removedId } }); } catch { /* still remove the chip */ }
     paintChip();
   });
-  if (pack.halted && pack.template) {
+  if (pack.halted && pack.askFacts && pack.template) {
     const box = row.querySelector("#pp-miss-fields");
     box.innerHTML = (pack.template.inputs || []).filter((f) => (pack.missing || []).some((m) => m.key === f.key)).map((f) => fieldHtml(f, "")).join("");
     row.querySelector("#pp-fill").addEventListener("click", async () => {
@@ -130,7 +137,8 @@ async function consider(text, keepApplied) {
     const list = await api("/prompts");
     const template = (list.templates || []).find((t) => t.id === match.id);
     const prior = pack?.id === match.id ? pack.inputs || {} : {};
-    pack = { id: match.id, name: match.name, applied: keepApplied || !!match.autoApply, halted: false, inputs: prior, template };
+    const asked = !!(pack?.id === match.id && pack.askFacts);
+    pack = { id: match.id, name: match.name, applied: false, halted: false, askFacts: false, inputs: prior, template };
     try {
       const rendered = await api("/prompts/render", { method: "POST", body: { id: match.id, inputs: prior } });
       pack.inputs = rendered.values || prior;
@@ -138,10 +146,12 @@ async function consider(text, keepApplied) {
     } catch (e) {
       if (e.code !== "prompt_halt") throw e;
       pack.halted = true;
+      pack.askFacts = asked;
       pack.message = e.message;
       pack.questions = e.questions || [];
       pack.missing = e.missing || [];
     }
+    pack.applied = detectApplied({ autoApply: !!match.autoApply, keepApplied: !!keepApplied, halted: pack.halted });
     publishPack();
   } catch { /* a failed detect leaves the orders as typed */ }
 }
