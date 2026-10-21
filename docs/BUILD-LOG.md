@@ -1616,7 +1616,7 @@ Built by Cursor cloud agent. Version stays 0.4.8. No new What's new entry. Squar
 - Phase 38 was already done. This adds a short step list on each existing checklist row, including Gmail, Drive, HighLevel, and CapCut. The checklist was not rebuilt.
 - Phase 39 was already done. The live map now has Start a project tutorials. Watch on the map plays an example and calls no AI. Start this project opens the existing walk. The walks were not rebuilt.
 - Phase 41 was already done. Pairing prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if the self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Free tier stays closed (402). Paired phones are not remembered by IP.
-- Commit: pending
+- Commit: d8e2d44 Add your own apps, hide licence plumbing, and fix phone pairing.
 - Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3.
 - Browser check (headless Chrome, local stub server, owner tier): Simple settings show Your apps and the line that the licence fields stay in Expert, with no licence form and no webhook form. Expert settings show the licence form (summary "Licence server connection") and Your apps. The checklist shows step lists for Gmail, Drive, HighLevel, and CapCut. Watch on the map toasts "Example playing on the map. No AI was called." Start this project opens the website walk.
 - Not verified: a real phone, a real LAN, a firewall, or a Mac. Real HighLevel, a real MCP server, and the hosted licence project were not contacted (mocks and the test stub only).
