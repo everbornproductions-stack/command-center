@@ -17,6 +17,8 @@
 // uses the same public latest.yml URL directly. Nothing downloads before a click.
 
 const CHECK_EVERY_MS = 60 * 60 * 1000;
+const CHECK_FAILED = "Couldn't check for updates";
+const DOWNLOAD_PAGE = "https://github.com/everbornproductions-stack/command-center-releases/releases/latest";
 const GITHUB_FEED = {
   provider: "github",
   owner: "everbornproductions-stack",
@@ -59,13 +61,43 @@ function quitInstallAction(state) {
 
 function buttonLabel(state) {
   if (!state) return null;
-  if (state.phase === "downloaded" || state.phase === "installing") return "Restart to update";
   if (state.phase === "downloading") {
     const n = state.percent != null ? state.percent : state.progress;
     return `Downloading ${n ?? 0}%`;
   }
-  if (state.phase === "available" || state.available) return "Update available";
+  if (state.phase === "downloaded" || state.phase === "installing" || state.phase === "available" || state.available) return "Update ready, restart";
   return null;
+}
+
+// latest.yml is a short release file. The version line is the one electron-updater compares.
+function parseLatestYml(text) {
+  const src = String(text || "");
+  const version = /(?:^|\n)version:\s*['"]?v?([0-9][0-9A-Za-z.+-]*)['"]?/.exec(src);
+  const file = /(?:^|\n)path:\s*['"]?([^'"\n]+)['"]?/.exec(src);
+  return { version: version ? version[1].trim() : "", file: file ? file[1].trim() : "" };
+}
+
+// Node's fetch follows the public GitHub redirect. No token is sent. electron-updater's own
+// client can fail this same URL after several redirects and then report "no update".
+async function readPublicLatest() {
+  const url = GENERIC_FEED.url + "latest.yml";
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      signal: ctl.signal,
+      redirect: "follow",
+      headers: { accept: "text/yaml, text/plain, */*", "cache-control": "no-cache" },
+    });
+    if (!res.ok) throw new Error(`latest.yml HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text || /^\s*</.test(text)) throw new Error("latest.yml was not a release file");
+    const parsed = parseLatestYml(text);
+    if (!parsed.version) throw new Error("latest.yml has no version");
+    return parsed;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function applyUpdateFeed(autoUpdater, which = "github") {
@@ -80,10 +112,12 @@ function applyUpdateFeed(autoUpdater, which = "github") {
   return which;
 }
 
-function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false }) {
+function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false, readLatest = readPublicLatest }) {
   const listeners = [];
-  let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, checkedAt: 0, offer: "launch", installOnQuit: false };
+  let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: 0, offer: "launch", installOnQuit: false };
   let dismissed = null;    // version the person said "Later" to (this launch only)
+  let failureNoted = false; // the "Couldn't check" dialog is once per failure, until a check works
+  let providerReady = false; // electron-updater has updateInfo, so download can start without another check
   let pending = null;      // in-flight check
   let installing = false;
   let arming = null;       // running-prompt Later download, still in flight
@@ -109,19 +143,28 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   try { feed = applyUpdateFeed(autoUpdater, "github") || "github"; }
   catch (e) { log("updater feed failed:", cleanError(e)); }
 
+  const latched = () => !!(state.version && newer(state.version, currentVersion));
   autoUpdater.on("update-available", (info) => {
     if (!newer(info.version, currentVersion)) return;
-    setState({ phase: busyPhase() ? state.phase : "available", version: info.version, notes: notes(info), error: null });
+    providerReady = true;
+    setState({ phase: busyPhase() ? state.phase : "available", version: info.version, notes: notes(info), error: null, downloadUrl: DOWNLOAD_PAGE });
     emit({ type: "available", version: info.version, notes: state.notes });
   });
-  autoUpdater.on("update-not-available", (info) => { setState({ phase: "idle", version: null, error: null, checkedAt: Date.now() }); emit({ type: "none", version: info && info.version }); });
+  autoUpdater.on("update-not-available", (info) => {
+    // A public latest.yml result already proved a newer build. A provider that says
+    // otherwise (a bad redirect, or the wrong repo) must not clear that offer.
+    if (latched() || busyPhase()) { setState({ checkedAt: Date.now() }); return; }
+    setState({ phase: "idle", version: null, error: null, checkedAt: Date.now() });
+    emit({ type: "none", version: info && info.version });
+  });
   autoUpdater.on("download-progress", (p) => { setState({ phase: "downloading", percent: Math.max(0, Math.min(100, Math.round(p.percent || 0))) }); emit({ type: "progress", percent: p.percent }); });
   autoUpdater.on("update-downloaded", () => { setState({ phase: "downloaded", percent: 100 }); emit({ type: "downloaded" }); });
   autoUpdater.on("error", (e) => {
     const message = cleanError(e);
     log("updater error:", message);
     installing = false;
-    setState({ phase: state.version ? "available" : "idle", error: message });
+    if (latched() || busyPhase()) setState({ phase: busyPhase() ? state.phase : "available", error: message, downloadUrl: DOWNLOAD_PAGE });
+    else if (state.phase !== "failed") setState({ phase: "idle", error: message });
     emit({ type: "error", message });
   });
 
@@ -138,38 +181,66 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     }
   }
 
+  // The public latest.yml is the source of truth when electron-updater does not report a
+  // newer version. A failed read stays visible. It does not look like "you are up to date".
+  async function applyFeed(base) {
+    const fromProvider = base && base.version && newer(base.version, currentVersion) ? base.version : null;
+    let listed = null;
+    let feedError = null;
+    if (!fromProvider && !busyPhase()) {
+      try { listed = await readLatest(); }
+      catch (e) { feedError = cleanError(e); log("public latest.yml failed:", feedError); }
+    }
+    if (listed && listed.version && newer(listed.version, currentVersion)) {
+      log(`update available: v${listed.version} (have v${currentVersion})`);
+      return setState({ phase: busyPhase() ? state.phase : "available", version: listed.version, file: listed.file || null, notes: (base && base.notes) || state.notes || "", error: null, detail: null, downloadUrl: DOWNLOAD_PAGE, checkedAt: Date.now() });
+    }
+    if (fromProvider) {
+      log(`update available: v${fromProvider} (have v${currentVersion})`);
+      return setState({ phase: busyPhase() ? state.phase : "available", version: fromProvider, notes: (base && base.notes) || state.notes || "", error: null, detail: null, downloadUrl: DOWNLOAD_PAGE, checkedAt: Date.now() });
+    }
+    if (busyPhase()) return setState({ checkedAt: Date.now() });
+    // A readable latest.yml that is not newer means this install is current, even if the GitHub provider errored.
+    if (listed && listed.version) {
+      log(`update check: no newer release (have v${currentVersion})`);
+      return setState({ phase: "idle", version: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: Date.now() });
+    }
+    if (feedError || (base && base.failed)) {
+      const detail = feedError || (base && base.error) || "update check failed";
+      log("update check failed:", detail);
+      return setState({ phase: "failed", version: null, error: CHECK_FAILED, detail, downloadUrl: DOWNLOAD_PAGE, checkedAt: Date.now() });
+    }
+    log(`update check: no newer release (have v${currentVersion})`);
+    return setState({ phase: "idle", version: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: Date.now() });
+  }
+
   // check({ prompt: true }) is the launch prompt (Install now / Later).
   // check({ prompt: true, running: true }) is the hourly prompt (Restart and update / Later).
-  // A manual check (tray) always shows the result, and uses the running wording.
+  // A manual check (tray, Help) always shows the result, and uses the running wording.
   async function check({ prompt = false, manual = false, running = false } = {}) {
     if (installing) return state;
     if (!pending) {
-      if (!busyPhase()) setState({ phase: state.phase === "available" ? "available" : "checking", error: null });
+      if (!busyPhase() && state.phase !== "available" && state.phase !== "failed") setState({ phase: "checking", error: null });
       pending = Promise.resolve().then(() => runCheck()).then((r) => {
         const i = r && r.updateInfo;
-        const available = !!(i && i.version && newer(i.version, currentVersion));
-        if (available) {
-          log(`update available: v${i.version} (have v${currentVersion})`);
-          setState({ phase: busyPhase() ? state.phase : "available", version: i.version, notes: notes(i) || state.notes, error: null });
-        } else if (!busyPhase()) {
-          log(r ? `update check: no newer release (have v${currentVersion})` : "update check returned nothing");
-          setState({ phase: "idle", version: null, error: null });
-        }
-        return setState({ checkedAt: Date.now() });
-      }).catch((e) => {
-        const message = cleanError(e);
-        log("update check failed:", message);
-        if (busyPhase()) return setState({ error: message, checkedAt: Date.now() });
-        return setState({ phase: state.version ? "available" : "idle", error: message, checkedAt: Date.now() });
-      }).finally(() => { pending = null; });
+        const version = i && i.version && newer(i.version, currentVersion) ? i.version : null;
+        return applyFeed({ version, notes: version ? (notes(i) || "") : "", failed: !r, error: r ? null : "update check returned nothing" });
+      }).catch((e) => applyFeed({ failed: true, error: cleanError(e), version: null })).finally(() => { pending = null; });
     }
     const s = await pending;
     if (s.phase === "available" && (manual || (prompt && dismissed !== s.version))) {
+      failureNoted = false;
       const offer = (running || manual) && !manualInstall ? "running" : "launch";
       const next = setState({ offer });
       try { ui.prompt && ui.prompt(next); } catch (e) { log("update prompt failed:", e && e.message); }
       return next;
     }
+    if (s.phase === "failed" && (manual || (prompt && !failureNoted))) {
+      failureNoted = true;
+      try { (ui.failed || ui.result) && (ui.failed || ui.result)(s); } catch (e) { log("update failure notice failed:", e && e.message); }
+      return s;
+    }
+    if (s.phase !== "failed") failureNoted = false;
     if (manual) { try { ui.result && ui.result(s); } catch {} }
     return state;
   }
@@ -230,11 +301,12 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     if (installing) return state;
     if (!state.version) { const s = await check(); if (!s.version) throw Object.assign(new Error("No update to install."), { code: "no_update" }); }
     if (manualInstall) return openDownload();
+    if (!providerReady) { try { await runCheck(); } catch (e) { log("update feed before download:", cleanError(e)); } }
     installing = true;
-    setState({ phase: "downloading", percent: state.percent || 0, error: null });
+    setState({ phase: "downloading", percent: state.percent || 0, error: null, downloadUrl: state.downloadUrl || DOWNLOAD_PAGE });
     log(`downloading update v${state.version}`);
     try { await autoUpdater.downloadUpdate(); }
-    catch (e) { installing = false; const message = cleanError(e); log("update download failed:", message); setState({ phase: "available", error: message }); emit({ type: "error", message }); throw e; }
+    catch (e) { installing = false; const message = cleanError(e); log("update download failed:", message); setState({ phase: "available", error: message, downloadUrl: DOWNLOAD_PAGE }); emit({ type: "error", message }); throw e; }
     setState({ phase: "downloaded", percent: 100 });
     log("installing update and restarting");
     try { ui.beforeQuit && ui.beforeQuit(); } catch {}
@@ -248,7 +320,10 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     async check() {
       const s = await check();
       const found = !!(s.version && newer(s.version, currentVersion));
-      return found ? { version: s.version, notes: s.notes || "", error: s.error || null } : { version: currentVersion, notes: "", error: s.error || null };
+      const error = s.phase === "failed" ? (s.error || CHECK_FAILED) : (s.error || null);
+      return found
+        ? { version: s.version, notes: s.notes || "", error, downloadUrl: s.downloadUrl || DOWNLOAD_PAGE }
+        : { version: currentVersion, notes: "", error, downloadUrl: s.phase === "failed" ? (s.downloadUrl || DOWNLOAD_PAGE) : null };
     },
     download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); openDownload(); return Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" })); },
     install() {
@@ -258,4 +333,4 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   return { check, later, install, installDownloaded, whenQuitInstallReady, bridge, manualInstall, onEvent: (f) => listeners.push(f), get state() { return state; } };
 }
 
-module.exports = { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, applyUpdateFeed, buttonLabel, promptButtons, quitInstallAction, cleanError };
+module.exports = { createUpdateController, CHECK_EVERY_MS, CHECK_FAILED, DOWNLOAD_PAGE, GITHUB_FEED, GENERIC_FEED, applyUpdateFeed, buttonLabel, promptButtons, quitInstallAction, cleanError, parseLatestYml, readPublicLatest };

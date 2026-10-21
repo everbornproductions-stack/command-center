@@ -223,7 +223,7 @@ async function engineDown(on) {
     <div class="dim small" style="margin-top:10px" id="ed-msg">${desk ? "Restarting keeps your settings, keys and history." : "If this is the desktop app's address, open the app or restart it from its tray icon."}</div></div>`;
   $("#ed-reason", el).textContent = reason;
   $("#ed-restart", el)?.addEventListener("click", () => { $("#ed-msg", el).textContent = "Restarting..."; window.ccDesktop.restart(); });
-  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `v${st.version} is available: use Install now in the update window.` : st?.error ? `Could not check: ${st.error}` : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
+  $("#ed-update", el)?.addEventListener("click", async () => { $("#ed-msg", el).textContent = "Checking for updates..."; try { const st = await window.ccDesktop.checkForUpdates(); $("#ed-msg", el).textContent = st?.version ? `Update ready, restart: v${st.version}. Use Install now in the update window.` : st?.error ? "Couldn't check for updates" : "You have the newest version."; } catch (e) { $("#ed-msg", el).textContent = e.message; } });
   $("#ed-retry", el)?.addEventListener("click", () => { el.remove(); clearTimeout(wsTimer); connect(); });
   $("#ed-wait", el).addEventListener("click", () => { el.remove(); downSince = Date.now(); });
 }
@@ -536,13 +536,19 @@ function renderBudget() {
 // ---------------- views ----------------
 function renderUpdateBar() {
   const u = S.update, bar = $("#update-bar"); if (!bar) return;
+  if (u?.error && !u?.available) {
+    bar.style.display = "";
+    const href = esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest");
+    bar.innerHTML = `<div><b>Couldn't check for updates</b></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a>`;
+    return;
+  }
   if (!u?.available || S.updateDismissed === u.latest) { bar.style.display = "none"; return; }
   bar.style.display = "";
   const busy = u.phase === "downloading" || u.phase === "installing";
   const action = u.desktop
-    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update and restart"}</button>`
-    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Get the update</a>`;
-  bar.innerHTML = `<span>↑</span><div><b>Update available: Meldmind v${esc(u.latest)}</b> (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
+    ? `<button class="btn sm primary" style="margin-left:auto" id="upd-go" ${busy ? "disabled" : ""}>${u.phase === "downloading" ? `Downloading ${u.progress ?? 0}%` : u.phase === "installing" ? "Restarting..." : "Update ready, restart"}</button>`
+    : `<a class="btn sm primary" style="margin-left:auto" href="${esc(u.url || "#")}" target="_blank" rel="noopener">Download</a>`;
+  bar.innerHTML = `<span>↑</span><div><b>Update ready, restart</b> Meldmind v${esc(u.latest)} (you have v${esc(u.current)}). ${esc(u.notes || "")}${u.error ? ` <span style="color:var(--amber)">${esc(u.error)}</span>` : ""}</div>${action}${busy ? "" : `<button class="ghost small" id="upd-later">later</button>`}`;
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
@@ -552,17 +558,17 @@ function updateBoxHtml() {
   const busy = u.phase === "downloading" || u.phase === "installing";
   const status = u.phase === "downloading" ? `Downloading v${esc(u.latest)}: ${u.progress ?? 0}%`
     : u.phase === "installing" ? "Installing; the app restarts in a moment"
-    : u.available ? `Update available: v${esc(u.latest)}`
+    : u.available ? `Update ready, restart: v${esc(u.latest)}`
     : u.checkedAt && !u.error ? "You are on the latest version" : "";
   return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
-    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update and restart</button>` : "")
+    + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update ready, restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
-    + (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : "");
+    + (u.error && !u.available ? ` <span>Couldn't check for updates</span> <a class="btn sm" href="${esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest")}" target="_blank" rel="noopener">Download</a>` : (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : ""));
 }
 function renderUpdateBox() {
   const box = $("#s-upd-box"); if (!box) return;
   box.innerHTML = updateBoxHtml();
-  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `v${S.update.latest} is available` : S.update.error ? `Check failed: ${S.update.error}` : "You are on the latest version", !!S.update.error); });
+  $("#s-upd")?.addEventListener("click", async (e) => { e.preventDefault(); try { S.update = await api("/update/check", { method: "POST" }); } catch (err) { return toast(err.message, true); } S.updateDismissed = null; renderUpdateBar(); renderUpdateBox(); toast(S.update.available ? `Update ready, restart: v${S.update.latest}` : S.update.error ? "Couldn't check for updates" : "You are on the latest version", !!S.update.error); });
   $("#s-upd-go")?.addEventListener("click", installUpdate);
 }
 async function installUpdate() {
