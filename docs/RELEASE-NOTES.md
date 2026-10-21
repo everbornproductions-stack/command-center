@@ -2,6 +2,14 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.12 (2026-10-21)
+
+**New**
+- Refocus is in the Work menu. Type a topic and click Find.
+- Meldmind reads saved chats, imported chats, project files, saved outputs, and Google Drive when Drive is already connected.
+- Private chats are left out. Nothing is sent when you click Find.
+- The full rebuild is part of Extreme. Finding the timeline is part of Pro. Free shows an upgrade note and does not search.
+
 ## v0.4.11 (2026-10-21)
 
 **New**

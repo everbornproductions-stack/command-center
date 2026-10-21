@@ -2,7 +2,7 @@
 id: refocus
 title: Refocus
 summary: Find unfinished work on a topic and rebuild one complete version after you click.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.12
 ---
 
 # Refocus
