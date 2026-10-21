@@ -2174,3 +2174,16 @@ Same tree as the 0.4.9 candidate, with the package version set to 0.4.10. This c
 - The tag v0.4.10 waits until Windows CI on this branch is green, and until v0.4.9 is already queued so latest.yml does not move backwards.
 
 RELEASE CUT 0.4.10 (not tagged yet)
+
+## 2026-10-21: Ease of use from the v0.4.9 tester panel
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.10. No release tag was moved. Square and billing were not touched. data/ was not read.
+
+- Help search ranks ordinary questions. Start here is pinned. An open article sits at the top with Back to all help. An empty search offers three articles and Ask Meldmind, which does not send by itself.
+- Large and Extra large set the size on the html element so buttons, labels, headings, and chips grow. Simple keeps buttons at 16px and other small text at 14px. First-run Simple setup asks Bigger text? with a live preview. The top bar stays on one row from 1024px wide.
+- Simple Settings opens five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens the existing page and a search box. Expert is still the full page.
+- Reply, forward, share, invite, submit, transfer, refund, cancel, remove, archive, move, unsubscribe, order, checkout, sign, approve, update, edit, write, create, schedule, and book wait for a second click. A tool is read-only only when its name starts with a read word and the name has no risky word. The demo clock stays read-only.
+- The Simple tour is five short steps. See what else it can do opens the full tour.
+- My day in Simple opens Inbox and tasks, Day plan, and People. Icon buttons say Remove, Delete, Close, Good, or Not good. A practice answer says it is from a pretend AI. Help dropped the stale Mac and abort lines. The data folder name stays Everborn Command (decision 2).
+
+EASE OF USE (panel items, not a new version)

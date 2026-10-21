@@ -158,16 +158,16 @@ const agentCard = (a) => `<div class="row small" style="gap:6px;padding:6px 0;bo
   <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
     <div class="dim">${esc(a.description || a.instructions.slice(0, 90))}</div>
     <div class="dim">${a.tools.mode === "off" ? "no tools" : a.tools.mode === "all" ? "all switched-on tools" : `${a.tools.allow.length} tool(s)`} · ${a.libraryNames.length} librar${a.libraryNames.length === 1 ? "y" : "ies"} · ${a.starters.length} starter(s)</div></div>
-  <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">✕</button></div>`;
+  <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">Delete</button></div>`;
 const promptCard = (p) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
   <div style="flex:1;min-width:160px"><b>${esc(p.name)}</b>${p.agentName ? ` <span class="chip">${esc(p.agentName)}</span>` : ""}<div class="dim mono" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px">${esc(p.text)}</div></div>
-  <button class="btn sm primary" data-puse="${esc(p.id)}">Use</button><button class="btn sm" data-pedit="${esc(p.id)}">Edit</button><button class="btn sm" data-pshare="${esc(p.id)}">Share</button><button class="btn sm" data-plist="${esc(p.id)}">List</button><button class="btn sm" data-pdel="${esc(p.id)}" title="Delete">✕</button></div>`;
+  <button class="btn sm primary" data-puse="${esc(p.id)}">Use</button><button class="btn sm" data-pedit="${esc(p.id)}">Edit</button><button class="btn sm" data-pshare="${esc(p.id)}">Share</button><button class="btn sm" data-plist="${esc(p.id)}">List</button><button class="btn sm" data-pdel="${esc(p.id)}" title="Delete">Delete</button></div>`;
 const sharedCard = (x) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
   <div style="flex:1;min-width:160px"><b>${esc(x.name)}</b> <span class="chip">${x.kind}</span> <span class="dim">${esc(x.workspaceName || "workspace")} · shared by ${esc(x.mine ? "you" : x.sharedBy || "someone")} · you are ${esc(x.role)}</span>
     ${x.permissions.use ? "" : `<div class="dim">Read-only for your role.</div>`}</div>
   <button class="btn sm" data-sview="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">View</button>
   ${x.permissions.use ? `<button class="btn sm primary" data-srun="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">${x.kind === "agent" ? "Run" : "Use"}</button><button class="btn sm" data-scopy="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">Copy to mine</button>` : ""}
-  ${x.permissions.remove ? `<button class="btn sm" data-sdel="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}" title="Remove from the workspace">✕</button>` : ""}</div>`;
+  ${x.permissions.remove ? `<button class="btn sm" data-sdel="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}" title="Remove from the workspace">Remove</button>` : ""}</div>`;
 
 async function refresh() { await load(); const v = document.querySelector("#view"); if (v?.querySelector("#ag-root")) renderTab(v); }
 
@@ -190,7 +190,7 @@ async function renderTab(view) {
         <div class="small muted">Saved prompts with {{variables}}: a small form asks for each value before sending.</div>
         ${d.prompts.length ? d.prompts.map(promptCard).join("") : `<div class="dim small" style="margin-top:8px">No saved prompts yet.</div>`}</div>
       <div class="panel"><h3>Marketplace drafts</h3>
-        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">✕</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
+        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">Delete</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
         <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>
     </div></div>`;
   const $v = (s) => view.querySelector(s);

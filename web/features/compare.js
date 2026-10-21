@@ -79,7 +79,7 @@ async function renderTab(view) {
       <div class="panel"><h3>Side-by-side</h3>
         <div class="small muted">One prompt goes to every model you pick, at the same time. Each column shows its answer, what it cost and how long it took. Each column uses exactly the model you picked, with no stand-ins: an AI without a key or at its monthly spend cap is skipped with a note.</div>
         <textarea id="cmp-prompt" rows="4" placeholder="Type the prompt to compare" style="width:100%;margin-top:10px">${esc(st.prompt)}</textarea>
-        <div id="cmp-pickers" style="margin-top:8px">${st.cols.map((c, i) => `<div class="row" style="gap:6px;margin-top:4px"><span class="small dim" style="width:18px">${i + 1}</span><select data-pick="${i}" style="flex:1">${options(key(c))}</select>${st.cols.length > MIN ? `<button class="btn sm" data-rm="${i}" title="Remove">✕</button>` : ""}</div>`).join("")}</div>
+        <div id="cmp-pickers" style="margin-top:8px">${st.cols.map((c, i) => `<div class="row" style="gap:6px;margin-top:4px"><span class="small dim" style="width:18px">${i + 1}</span><select data-pick="${i}" style="flex:1">${options(key(c))}</select>${st.cols.length > MIN ? `<button class="btn sm" data-rm="${i}" title="Remove">Remove</button>` : ""}</div>`).join("")}</div>
         <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
           ${st.cols.length < MAX ? `<button class="btn sm" id="cmp-add">+ Add a model</button>` : `<span class="small dim">${MAX} models at most</span>`}
           <label class="small dim row" style="gap:4px">Max answer tokens <input type="number" id="cmp-max" min="100" max="4000" step="100" value="${st.maxTokens}" style="width:80px"></label>
@@ -91,7 +91,7 @@ async function renderTab(view) {
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>Model sets</h3>
-        ${st.presets.length ? st.presets.map((p) => `<div class="row small" style="gap:6px;padding:3px 0"><button class="btn sm" data-load="${esc(p.id)}" style="flex:1;text-align:left" title="${esc(p.columns.map((c) => c.model).join(", "))}">${esc(p.name)} <span class="dim">(${p.columns.length})</span></button><button class="btn sm" data-del="${esc(p.id)}" title="Delete">✕</button></div>`).join("") : `<div class="dim small">No saved sets yet.</div>`}
+        ${st.presets.length ? st.presets.map((p) => `<div class="row small" style="gap:6px;padding:3px 0"><button class="btn sm" data-load="${esc(p.id)}" style="flex:1;text-align:left" title="${esc(p.columns.map((c) => c.model).join(", "))}">${esc(p.name)} <span class="dim">(${p.columns.length})</span></button><button class="btn sm" data-del="${esc(p.id)}" title="Delete">Delete</button></div>`).join("") : `<div class="dim small">No saved sets yet.</div>`}
         <div class="row" style="gap:6px;margin-top:8px"><input type="text" id="cmp-pname" placeholder="Name this set" maxlength="60" style="flex:1"><button class="btn sm" id="cmp-psave">Save</button></div>
       </div>
       <div class="panel"><h3>Recent comparisons</h3><div id="cmp-hist"></div></div>

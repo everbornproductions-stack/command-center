@@ -32,6 +32,41 @@ export const TERMS = {
     plain: "credit repair safety",
     explain: "Extra rules so a draft does not promise a score, a deletion, or a guaranteed result.",
   },
+  openRouter: {
+    label: "OpenRouter",
+    plain: "one key for many AIs",
+    explain: "One password that reaches several AIs. Meldmind does not charge extra for it.",
+  },
+  teamSpace: {
+    label: "Team space",
+    plain: "a shared place for people you invite",
+    explain: "People you invite can see the projects you share. Nothing is emailed until you pass the link on yourself.",
+  },
+  pipeline: {
+    label: "Pipeline",
+    plain: "a saved set of steps",
+    explain: "The steps are already chosen. Nothing starts until you click Run.",
+  },
+  council: {
+    label: "Council",
+    plain: "several AIs answer",
+    explain: "Several AIs answer, then one writes the result you see.",
+  },
+  mission: {
+    label: "Mission",
+    plain: "a job split into steps",
+    explain: "Meldmind splits the job, then shows you the result. A send still waits for a click.",
+  },
+  api: {
+    label: "API",
+    plain: "a connection for apps",
+    explain: "A way for one app to ask another app to do something.",
+  },
+  model: {
+    label: "Model",
+    plain: "which version of an AI answers",
+    explain: "The same AI company can offer a fast version and a careful version.",
+  },
 };
 
 export function plainLabel(id) {

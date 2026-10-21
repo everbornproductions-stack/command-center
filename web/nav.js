@@ -548,6 +548,20 @@ function mountSimple(root, views, buttons, surface) {
   projects.classList.add("nav-direct");
   projects.removeAttribute("role");
   root.appendChild(projects);
+
+  const day = menuShell("myday", "My day");
+  const dayTrigger = day.menu.querySelector(".nav-trigger");
+  if (dayTrigger) dayTrigger.textContent = "\u2600 My day";
+  const dayItems = [
+    ["everyday-inbox", "Inbox and tasks"],
+    ["everyday-plan", "Day plan"],
+    ["userchat", "People"],
+  ];
+  for (const [view, label] of dayItems) {
+    if (have.has(view)) day.panel.appendChild(buttonFor(buttons, view, label));
+  }
+  root.appendChild(day.menu);
+
   if (have.has("start")) {
     const start = buttonFor(buttons, "start", "Start a project");
     start.classList.add("nav-direct");

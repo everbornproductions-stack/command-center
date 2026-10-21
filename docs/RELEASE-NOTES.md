@@ -12,7 +12,14 @@ Plain-words notes for each release, newest first. Paste the top section into `gh
 - Double-check this asks a second AI to review an answer.
 - Tone buttons set the next answer only and do not send by themselves.
 - AI credits shows what is left for each AI. Each answer says which AI wrote it.
-- The Mac build is unsigned. The first time you open it, right-click the app, then Open.
+- The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+- Help search answers a plain question. Start here stays at the top. Back to all help returns to the list.
+- Large and Extra large text grow buttons, labels, headings, and chips. Simple setup asks Bigger text? with a live preview.
+- Simple Settings starts with Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens the rest.
+- The Simple tour is five short steps. See what else it can do opens the full tour.
+- My day opens Inbox and tasks, Day plan, and People from Simple.
+- Home screen, private mode, and backup and restore stay in this build.
+- Background runs, Together, People, Remix, Zapier and Make, and hosted runs are in this build. A send still waits for a click.
 
 ## v0.4.9 (2026-10-21)
 

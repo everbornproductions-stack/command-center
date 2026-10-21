@@ -102,7 +102,7 @@ function galleryHtml() {
     <img data-img="${r.id}:${f.i}" alt="${esc(r.params?.prompt || "")}" title="${esc(r.params?.prompt || "")}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#0003">
     <div style="padding:6px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.params?.prompt || "")}</div>
     <div class="dim">${esc(OP_LABEL[r.op] || r.op)} · ${esc(r.provider)}${r.cost ? ` · ${money(r.cost / r.files.length, 3)}` : ""}</div>
-    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button><button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">✕</button></div></div></div>`)).join("")}</div>`;
+    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button><button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">Delete</button></div></div></div>`)).join("")}</div>`;
 }
 
 async function renderTab(view) {

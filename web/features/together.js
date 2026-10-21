@@ -20,7 +20,7 @@ async function drawSpaces(v) {
   try { data = await api("/teamspaces"); }
   catch (e) { v.innerHTML = `${bar("spaces")}<div class="empty">${esc(e.message)}</div>`; wireBar(v); return; }
   const seats = data.seats || {};
-  const lock = seats.message ? `<div class="panel" role="status"><h3>Team spaces</h3><p>${esc(seats.message)}</p><p class="dim small">Phase 8 teams stay on their own page. This does not replace them.</p></div>` : "";
+  const lock = seats.message ? `<div class="panel" role="status"><h3>Team spaces</h3><p>${esc(seats.message)}</p><p class="dim small">Teams on the other page stay there. This does not replace them.</p></div>` : "";
   const cards = (data.spaces || []).map((s) => `<div class="panel" data-space="${esc(s.id)}">
     <h3>${esc(s.name)} <span class="chip">${esc(s.role)}</span> <span class="right">${s.seats} in this space</span></h3>
     <div class="dim small" style="margin-bottom:8px">${(s.members || []).map((m) => `${esc(m.email)} (${esc(m.role)}, ${esc(m.status)})`).join(", ") || "No one else yet. You count as one seat."}</div>
@@ -41,12 +41,17 @@ async function drawSpaces(v) {
   </div>`).join("");
   v.innerHTML = `${bar("spaces")}
     <div class="panel"><h3>Team spaces <span class="right">${seats.used || 0} of ${seats.limit ?? seats.cap ?? 5} seats</span></h3>
-      <p class="dim small">Extreme includes 5 seats, counting you. Shared projects and roles live here. Studio teams are unchanged.</p>
+      <p class="dim small">Extreme includes 5 seats, counting you. Shared projects and roles live here. The other teams page is unchanged. <button type="button" class="ghost small" data-whats="teamSpace">What's this?</button></p>
+      <p class="hint" data-whats-note="teamSpace" hidden>A shared place for people you invite. Nothing is emailed until you pass the link on yourself.</p>
       ${seats.open ? `<form id="ts-new" class="row" style="gap:6px"><input name="name" required maxlength="80" placeholder="Space name" aria-label="Team space name" style="flex:1"><button class="btn sm primary" type="submit">Create</button></form>` : ""}
     </div>
     ${lock}
     ${cards || (seats.open ? `<div class="empty">No team spaces yet.</div>` : "")}`;
   wireBar(v);
+  v.querySelector("[data-whats='teamSpace']")?.addEventListener("click", () => {
+    const note = v.querySelector("[data-whats-note='teamSpace']");
+    if (note) note.hidden = !note.hidden;
+  });
   const proj = $("#ts-new", v);
   const options = (window.CC.S.projects || []).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
   $$("[data-project]", v).forEach((sel) => { sel.insertAdjacentHTML("beforeend", options); });

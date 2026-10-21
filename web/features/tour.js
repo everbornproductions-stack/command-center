@@ -5,6 +5,15 @@ import { countsAsRealAi } from "../composer-ais.js";
 
 const { S, api, toast, esc, go, refresh } = window.CC;
 
+// Short Simple tour. Each body stays at 30 words or fewer, with no expert jargon.
+export const SIMPLE_STEPS = [
+  { id: "s-type", for: "simple", target: "#orders", view: "command", title: "Type your question here", body: "Type what you want in the box. Then tap Send. Meldmind picks an AI for you." },
+  { id: "s-example", for: "simple", target: "#cc-starters", view: "command", title: "Or tap an example", body: "Or tap an example under the box. It fills the words. You can change them before you send." },
+  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Your answer shows here. Tap Read aloud to hear it." },
+  { id: "s-help", for: "simple", target: "#help-search", view: "help", title: "Help is here, any time", body: "Help is here, any time. Type a question in your own words." },
+  { id: "s-text", for: "simple", target: "#basics-reading", view: "settings", title: "Make text bigger", body: "Make text bigger in Settings. Open Text and reading, then pick Large or Extra large." },
+];
+
 const STEPS = [
   { id: "mode", for: "both", target: "#mode-toggle", view: "command", title: "Simple or Expert", body: "Simple is one chat box. You say what you want and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, Marketplace, MCP (a plug-in connection), webhooks (a web address that receives a message), and every menu. This switch is on every screen. One click changes it, and nothing you already did is lost." },
   { id: "ways", for: "both", view: "command", title: "Single, Council, Mission, Pipelines", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result. Pipelines: a pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
@@ -71,6 +80,7 @@ const style = document.createElement("style"); style.id = "cc-tour-style"; style
 let tour = null;      // server state
 let synced = false;
 let idx = -1;         // current step (-1 = closed)
+let fullTour = false;
 let el = null;        // overlay root
 let timer = null;     // reposition loop
 let msg = "";         // message under the current step (sample result etc.)
@@ -93,10 +103,15 @@ function answeredOnce() {
   try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch {}
   return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
 }
-function steps() {
+function fullSteps() {
   const mode = window.CC.uiMode?.() || "expert";
   const extra = Array.isArray(window.CC.everydaySteps) ? window.CC.everydaySteps : [];
   return [...STEPS, ...extra].filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
+}
+function steps() {
+  const mode = window.CC.uiMode?.() || "expert";
+  if (mode === "simple" && !fullTour) return SIMPLE_STEPS;
+  return fullSteps();
 }
 function maybeInvite() {
   if (idx >= 0) return;
@@ -195,7 +210,8 @@ async function allowDesktop(install) {
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
 
 // ---- the tour itself ----
-export function start(at = 0) {
+export function start(at = 0, opts = {}) {
+  fullTour = !!opts.full;
   document.querySelector(".cc-tour-invite")?.remove();
   if (!el) {
     el = document.createElement("div"); el.id = "cc-tour"; el.innerHTML = `<div class="spot none"></div><div class="card"></div>`; document.body.appendChild(el);
@@ -205,6 +221,7 @@ export function start(at = 0) {
   }
   msg = ""; show(at);
 }
+export function startFull() { start(0, { full: true }); }
 function close() {
   if (!el) return;
   el.remove(); el = null; idx = -1; clearInterval(timer); timer = null;
@@ -221,8 +238,11 @@ function show(i) {
   if (!list.length) return close();
   if (i >= list.length) i = list.length - 1;
   idx = i; const st = list[i];
+  if (st.target === "#basics-reading") S.settingsMore = false;
   if (st.view && S.view !== st.view) { go(st.view); }
+  else if (st.target === "#basics-reading" && S.view === "settings") { go("settings"); }
   const last = i === list.length - 1;
+  const simpleShort = (window.CC.uiMode?.() || "expert") === "simple" && !fullTour;
   const card = el.querySelector(".card");
   card.innerHTML = `<div class="row" style="gap:8px"><h4>${esc(st.title)}</h4><span class="step">${i + 1} / ${list.length}</span></div>
     <div class="muted">${esc(st.body)}</div>
@@ -230,8 +250,9 @@ function show(i) {
     ${st.action === "keys" ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-keys">Set up my keys</button><span class="dim small">or finish and do it later in Settings</span></div>` : ""}
     ${msg ? `<div class="msg">${msg}</div>` : ""}
     <div class="dots">${list.map((_, k) => `<i class="${k === i ? "on" : k < i ? "done" : ""}"></i>`).join("")}</div>
-    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next →"}</button></div>`;
+    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${simpleShort && last ? `<button class="btn sm" id="cc-tour-more" type="button">See what else it can do</button>` : ""}${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next →"}</button></div>`;
   card.querySelector("#cc-tour-skip").addEventListener("click", skip);
+  card.querySelector("#cc-tour-more")?.addEventListener("click", () => { fullTour = true; msg = ""; show(0); });
   card.querySelector("#cc-tour-back")?.addEventListener("click", back);
   card.querySelector("#cc-tour-next").addEventListener("click", next);
   card.querySelector("#cc-tour-sample")?.addEventListener("click", runSample);
@@ -285,9 +306,10 @@ async function runSample() {
 function renderPanel(el2) {
   const t = tour || {};
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${steps().length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><button class="btn sm" id="cc-tour-full" type="button">See what else it can do</button><span class="dim small">${steps().length} stops.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
+  el2.querySelector("#cc-tour-full").addEventListener("click", () => { go("command"); setTimeout(() => startFull(), 120); });
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });
 }
 
@@ -297,7 +319,7 @@ function markFirstAnswer() {
   maybeInvite();
 }
 window.CC.firstAnswer = markFirstAnswer;
-window.CC.tour = { start, open: start, state: () => tour, onMode, onAnswer: markFirstAnswer };
+window.CC.tour = { start, startFull, open: start, state: () => tour, onMode, onAnswer: markFirstAnswer, simpleSteps: () => SIMPLE_STEPS.slice() };
 
 CC.register({
   id: "tour",

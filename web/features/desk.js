@@ -176,12 +176,31 @@ async function setTone(tone, container) {
   } catch (e) { toast(e.message, true); }
 }
 
+function answerProviderId() {
+  const live = S.live || {};
+  if (live.kind === "council") {
+    const c = live.council || {};
+    const key = c.winner || c.chair?.model;
+    const a = (key && c.answers?.[key]) || null;
+    return a?.provider || c.chair?.provider || "";
+  }
+  const run = live.mission || {};
+  return live.agents?.[live.primary]?.provider || run.provider || run.assembler?.provider || "";
+}
+function isPractice(id, name) {
+  if (String(id || "").startsWith("demo-")) return true;
+  const p = window.CC.P?.(id);
+  if (p?.demo) return true;
+  return /\(demo\)/i.test(String(name || ""));
+}
 function renderDeliverable(container, live) {
   if (!live?.id) { container.innerHTML = ""; return; }
   const id = live.id;
   const name = writerName();
+  const practice = isPractice(answerProviderId(), name);
   const review = (S.live.council || S.live.mission || {}).doubleCheck;
   container.innerHTML = `<div class="cc-desk-tools">
+    ${practice ? `<div class="panel" id="cc-practice" role="status"><p class="small" style="margin:0 0 8px">Practice answer from a pretend AI. Nothing was spent.</p><button type="button" class="btn sm" id="cc-practice-go">Get real answers</button></div>` : ""}
     ${name ? `<p class="small" style="margin:6px 0">Written by ${esc(name)}.</p>` : ""}
     ${review?.text ? `<div class="panel"><h3>Double-check</h3><p class="small">${esc(review.line || "")}</p><div class="md">${esc(review.text)}</div></div>` : ""}
     <div class="cc-desk-row">
@@ -189,6 +208,12 @@ function renderDeliverable(container, live) {
       <button type="button" class="btn sm" id="cc-check">Double-check this</button>
     </div>
   </div>`;
+  container.querySelector("#cc-practice-go")?.addEventListener("click", () => {
+    S.settingsMore = true;
+    S.navFocus = "#settings-keys";
+    S.view = "settings";
+    if (window.CC.render) window.CC.render();
+  });
   container.querySelector("#cc-again").addEventListener("click", async () => {
     try {
       const r = await api("/desk/repeat", { method: "POST", body: { id } });

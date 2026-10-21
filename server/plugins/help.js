@@ -2,7 +2,7 @@
 // articles with a connected text AI, or returns search hits when it cannot.
 // The question and any key are never written to the log.
 import { getStatus } from "../health.js";
-import { HELP_DIR, loadHelp, pickHelpProvider, searchReply, NO_AI, AI_DOWN } from "../help.js";
+import { HELP_DIR, loadHelp, pickHelpProvider, searchReply, searchArticles, NO_AI, AI_DOWN } from "../help.js";
 import { securityPdf } from "../security-pdf.js";
 
 export const id = "help";
@@ -35,6 +35,11 @@ export async function routes(req, res, url, body, h) {
 
   if (req.method === "GET" && (p === "" || p === "/")) {
     return h.json(res, 200, { lastUpdatedVersion: pack.catalog.lastUpdatedVersion, articles: pack.articles });
+  }
+  if (req.method === "GET" && (p === "search" || p === "/search")) {
+    const q = String(url.searchParams.get("q") || "");
+    const hits = searchArticles(pack.articles, q, 8).map((a) => ({ id: a.id, title: a.title, summary: a.summary }));
+    return h.json(res, 200, { q, hits });
   }
   if (req.method === "POST" && p === "ask") {
     const q = cleanQuestion(body?.question);

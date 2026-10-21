@@ -34,7 +34,7 @@ async function renderCommand(el) {
   el.innerHTML = `<div class="pf-drop" id="pf-drop"><div class="row small" style="gap:8px;flex-wrap:wrap"><b>Files in this project</b>
       <span class="dim">drop PDFs, Word, text or images here, then ask about them</span>
       <label class="btn sm" style="margin-left:auto">Pick files<input type="file" id="pf-pick" multiple hidden></label></div>
-    ${ov.files.length ? `<div class="pf-files">${ov.files.map((f) => `<span class="chip" title="${esc(f.title)} · ${f.chunks} passage${f.chunks === 1 ? "" : "s"}">${f.image ? `<img data-pf-img="${f.id}" alt="">` : ""}<span>${esc(f.title)}</span><button data-pf-del="${f.id}" title="Remove from this project">×</button></span>`).join("")}</div>
+    ${ov.files.length ? `<div class="pf-files">${ov.files.map((f) => `<span class="chip" title="${esc(f.title)} · ${f.chunks} passage${f.chunks === 1 ? "" : "s"}">${f.image ? `<img data-pf-img="${f.id}" alt="">` : ""}<span>${esc(f.title)}</span><button data-pf-del="${f.id}" title="Remove from this project">Remove</button></span>`).join("")}</div>
       <div class="dim small" style="margin-top:4px">Chats, councils and missions in this project read these and cite them as [L1], [L2].</div>` : ""}
     ${sg ? `<div class="route small" style="margin-top:8px">${sg.files.length + sg.images.length ? `Ready: ${[...sg.files.map((f) => esc(f.title)), ...sg.images.map((i) => `${esc(i.title)} (image)`)].join(", ")}.` : "Nothing new to add."}
       ${sg.skipped.length ? `<div class="dim">Skipped: ${sg.skipped.map((s) => `${esc(s.title)} (${esc(s.reason)})`).join("; ")}</div>` : ""}

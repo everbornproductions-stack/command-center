@@ -37,7 +37,7 @@ test("new installs are Simple until the question, existing installs stay Expert"
 test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pages stay listed as hidden", () => {
   const views = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "reports", "marketplace", "settings", "setup", "help"];
   const top = simpleTop(views);
-  assert.deepEqual(top.labels, ["Chat", "Projects", "Create", "Help", "Settings"]);
+  assert.deepEqual(top.labels, ["Chat", "Projects", "My day", "Create", "Help", "Settings"]);
   assert.deepEqual(top.create, CREATE_VIEWS);
   assert.deepEqual(top.settings, ["settings", "setup", "tour"]);
   for (const id of ["liveview", "marketplace", "credits", "pipelines", "agents"]) {
@@ -47,6 +47,11 @@ test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pag
   for (const id of ["command", "projects", "settings", "setup", "help", "prompts", "images", "media", "publish", "remix"]) {
     assert.equal(simpleAllows(id), true, id);
   }
+  const withDay = [...views, "everyday-inbox", "everyday-plan", "userchat"];
+  assert.deepEqual(simpleTop(withDay).day, ["everyday-inbox", "everyday-plan", "userchat"]);
+  for (const id of ["everyday-inbox", "everyday-plan", "userchat"]) assert.equal(simpleAllows(id), true, id);
+  assert.match(read("web", "nav.js"), /My day/);
+  assert.match(read("web", "nav.js"), /Work/);
 });
 
 test("the shell keeps the toggle, the simple chat, and the hotkeys", () => {

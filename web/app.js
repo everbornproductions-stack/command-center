@@ -1,7 +1,7 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { CREATE_VIEWS, DAY_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
@@ -827,7 +827,7 @@ function ensureFeatureTabs() {
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
-    if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
+    if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id) && !DAY_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
@@ -1324,7 +1324,7 @@ function renderOutput() {
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
@@ -1791,7 +1791,7 @@ function renderSubscriptions(v) {
     <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
     <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
-    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">✕</button></td>
+    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">Remove</button></td>
   </tr>`).join("") || `<tr><td colspan="8" class="dim">Nothing tracked yet. Click + Add, or use Setup to find the AI tools you already pay for.</td></tr>`}
   </tbody></table>
   <div class="dim small" style="margin-top:8px">Prices marked "?" are unknown; the grey "~" placeholder is the public list price, used only for the estimate. Credits left update automatically for services with a balance API (OpenRouter, DeepSeek, ElevenLabs) and from logged generations otherwise.</div></div>`;
@@ -1848,7 +1848,83 @@ function licenceCloudFields() {
     <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
     <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
 }
+function openSettingsMore(focus) {
+  S.settingsMore = true;
+  S.navFocus = focus || "";
+  S.view = "settings";
+  render();
+}
+function planWord() {
+  const tier = String(S.license?.tier || "free").toLowerCase();
+  if (tier === "extreme") return "Extreme";
+  if (tier === "pro") return "Pro";
+  return "Free";
+}
+function renderSimpleBasics(v) {
+  const keyed = (S.providers || []).filter((p) => p.keyed && !p.demo);
+  const aiLine = keyed.length ? `Connected: ${keyed.slice(0, 3).map((p) => p.name).join(", ")}.` : "No AI connected yet. You can try a practice answer until you add one.";
+  const on = !!S.settings?.privateMode;
+  v.innerHTML = `<div class="settings-basics">
+    <div class="panel basics-card" id="basics-ai"><h3>Your AI</h3>
+      <p class="small" style="margin:0 0 10px">${esc(aiLine)}</p>
+      <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
+    </div>
+    <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
+    <div class="panel basics-card" id="basics-privacy"><h3>Privacy</h3>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
+      <p class="dim small" id="basics-private-line" style="margin:6px 0">${on ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer."}</p>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-share"> Share anonymous track records</label>
+      <p class="dim small" style="margin:6px 0">This shares the task type, which AI, and the score. It never shares your words or keys.</p>
+      <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
+    </div>
+    <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
+      <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
+      <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
+    </div>
+    <div class="panel basics-card" id="basics-help"><h3>Get help</h3>
+      <div class="row" style="gap:8px">
+        <button type="button" class="btn sm" id="basics-help-go">Help</button>
+        <button type="button" class="btn sm" id="basics-tour">Take the tour</button>
+        <button type="button" class="btn sm" id="basics-upd">Check for updates</button>
+        <button type="button" class="btn sm" id="basics-more-tour">See what else</button>
+      </div>
+    </div>
+    <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
+  </div>`;
+  $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
+  $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
+  $("#basics-more").addEventListener("click", () => openSettingsMore(""));
+  renderFeature("settings", "a11y", "#basics-reading-body");
+  $("#basics-private").addEventListener("change", async (e) => {
+    const next = !!e.target.checked;
+    try {
+      const r = await api("/desk/private", { method: "POST", body: { on: next } });
+      S.settings.privateMode = !!r.privateMode;
+      const line = $("#basics-private-line");
+      if (line) line.textContent = r.line || (next ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer.");
+    } catch (err) { e.target.checked = !next; toast(err.message, true); }
+  });
+  api("/brain/settings").then((d) => {
+    const box = $("#basics-share");
+    if (box) box.checked = !!d?.settings?.shareOptIn;
+  }).catch(() => {});
+  $("#basics-share").addEventListener("change", async (e) => {
+    try { await api("/brain/settings", { method: "POST", body: { shareOptIn: !!e.target.checked } }); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
+  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
+  $("#basics-help-go").addEventListener("click", () => { S.view = "help"; render(); });
+  $("#basics-tour").addEventListener("click", () => { S.settingsMore = false; window.CC.tour?.start?.(); });
+  $("#basics-more-tour").addEventListener("click", () => { window.CC.tour?.startFull?.(); });
+  $("#basics-upd").addEventListener("click", async () => {
+    try {
+      S.update = await api("/update/check", { method: "POST" });
+      toast(S.update?.available ? `Update ready, restart: v${S.update.latest}` : S.update?.error ? "Couldn't check for updates" : "You are on the latest version", !!S.update?.error);
+    } catch (err) { toast(err.message, true); }
+  });
+}
 function renderSettings(v) {
+  if (S.uiMode === "simple" && S.settingsMore !== true) return renderSimpleBasics(v);
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
@@ -1888,7 +1964,9 @@ function renderSettings(v) {
       ${p.liveModels?.length ? `<div class="dim small" style="margin-top:6px">Your account can also see: ${p.liveModels.slice(0, 14).map(esc).join(", ")}${p.liveModels.length > 14 ? "…" : ""}</div>` : ""}
       ${p.custom ? `<div class="dim small" style="margin-top:6px">Matching tasks go to this app or AI${p.addedCapabilities?.length ? ` (${p.addedCapabilities.join(", ")})` : ""}. ${p.addedStrengths?.length ? `Scores have raised ${[...new Set(p.addedStrengths.map((s) => s.capability))].join(", ")}.` : "Scores from your jobs make the pick sharper."}</div>` : ""}</div>` : ""}
   </div>`;
+  const moreBar = S.uiMode === "simple" ? `<div class="panel" id="settings-more-bar"><div class="row" style="gap:8px"><button type="button" class="btn sm" id="settings-back">Back to basics</button><input type="search" id="settings-find" placeholder="Find a setting" aria-label="Find a setting" style="flex:1"></div></div>` : "";
   v.innerHTML = `
+  ${moreBar}
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
@@ -1917,7 +1995,7 @@ function renderSettings(v) {
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
       ${phonePanel()}
-      <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
+      <div class="panel" id="settings-plan"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
@@ -2036,6 +2114,14 @@ function renderSettings(v) {
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
   $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
+  $("#settings-back")?.addEventListener("click", () => { S.settingsMore = false; S.navFocus = ""; render(); });
+  $("#settings-find")?.addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    $$(".panel", v).forEach((p) => {
+      if (p.id === "settings-more-bar") return;
+      p.hidden = !!q && !p.textContent.toLowerCase().includes(q);
+    });
+  });
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
   if (S.navFocus) { const el = document.querySelector(S.navFocus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); S.navFocus = ""; }
 }
@@ -2060,6 +2146,7 @@ function openRouterStartCard() {
     <span class="chip green">Recommended</span>
     <div style="margin-top:6px"><b>One key to start: OpenRouter</b></div>
     <div class="dim small" style="margin-top:4px">One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available.</div>
+    ${S.uiMode === "simple" ? `<div class="row" style="margin-top:6px"><button type="button" class="ghost small" id="or-whats">What's this?</button></div><p class="hint" id="or-whats-note" hidden>One password that reaches several AIs. Meldmind does not charge extra for it.</p>` : ""}
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
       <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get an OpenRouter key</a>
       ${on ? `<span class="chip green">Connected</span>` : `<button type="button" class="btn sm primary" id="or-start-go">Add OpenRouter key</button>`}
@@ -2068,6 +2155,10 @@ function openRouterStartCard() {
 }
 function wireOpenRouterStart(root) {
   $("#or-start-go", root)?.addEventListener("click", () => window.CC.keysetup?.open?.("openrouter"));
+  $("#or-whats", root)?.addEventListener("click", () => {
+    const note = $("#or-whats-note", root);
+    if (note) note.hidden = !note.hidden;
+  });
 }
 function anyKeyHtml() {
   return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AQ. and AIza are Google Gemini, sk-ant- is Claude, sk- and sk-proj- are ChatGPT, xai- is Grok, sk-or- is OpenRouter, gsk_ is Groq).</div>
@@ -2349,7 +2440,7 @@ function renderModeStep(v, st) {
       <button type="button" class="route" id="su-mode-expert" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.expert)}</b><div class="dim small">${esc(MODE_STEP.expertLine)}</div></button>
     </div>
   </div></div>`;
-  $("#su-mode-simple").addEventListener("click", () => { st.phase = "simple"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
+  $("#su-mode-simple").addEventListener("click", () => { st.phase = "text"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
   $("#su-mode-expert").addEventListener("click", async () => {
     st.phase = "scan";
     st.afterScan = "expert";
@@ -2357,6 +2448,40 @@ function renderModeStep(v, st) {
     await saveExpert({ pendingScan: true, done: false, step: "ais", skipped: false });
     setUiMode("expert", { fromSetup: true, confirmed: true });
   });
+}
+function applyTextSize(id) {
+  let prev = {};
+  try { prev = JSON.parse(localStorage.getItem("cc.a11y") || "{}"); } catch {}
+  const next = { textSize: id, contrast: !!prev.contrast };
+  try { localStorage.setItem("cc.a11y", JSON.stringify(next)); } catch {}
+  window.__ccTextChosen = true;
+  document.documentElement.dataset.text = id;
+  window.CC.a11y?.apply?.(next, { user: true });
+  api("/a11y", { method: "POST", body: next }).catch(() => {});
+}
+function renderTextStep(v, st) {
+  const current = document.documentElement.dataset.text || "default";
+  const choices = [["default", "Default"], ["large", "Large"], ["xlarge", "Extra large"]];
+  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px">Bigger text?</h2>
+    <div class="muted">Pick a size. The sample below changes right away. You can change this later in Settings.</div>
+    <div class="row" id="su-text-sizes" style="margin-top:16px;gap:8px">${choices.map(([id, label]) => `<button type="button" class="btn ${current === id ? "primary" : ""}" data-text="${id}">${label}</button>`).join("")}</div>
+    <div id="su-text-preview" class="panel" style="margin-top:16px">
+      <p class="small" style="margin:0 0 8px">This is how text looks.</p>
+      <button type="button" class="btn sm">Sample button</button>
+      <span class="chip" style="margin-left:8px">Sample chip</span>
+    </div>
+    <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-text-skip">Skip</button><button class="btn primary" type="button" id="su-text-keep">Keep this size</button></div>
+  </div></div>`;
+  const goNext = () => { st.phase = "simple"; render(); };
+  $("#su-text-sizes").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-text]");
+    if (!b) return;
+    applyTextSize(b.dataset.text);
+    renderTextStep(v, st);
+  });
+  $("#su-text-skip").addEventListener("click", goNext);
+  $("#su-text-keep").addEventListener("click", goNext);
 }
 function renderSimpleStart(v) {
   v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
@@ -2425,6 +2550,7 @@ function renderSetup(v) {
   const st = setupState();
   if (st.desktop === undefined) st.desktop = false;
   if (st.phase === "mode") return renderModeStep(v, st);
+  if (st.phase === "text") return renderTextStep(v, st);
   if (st.phase === "simple") return renderSimpleStart(v);
   if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {
