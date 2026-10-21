@@ -117,7 +117,7 @@ Left on the list so they are not dropped. They are not next.
 5. Never deploy, never push (Chris pushes), never touch Square, real API keys, `data/`, `.env`, password files, or billing. Nothing posts, sends, emails or spends without an explicit user click; outbound integrations need user OAuth.
 6. Paid things (managed plan, trial credits, marketplace pricing) go behind a feature flag with PLACEHOLDER prices. Chris decides real pricing.
 7. At the end, append to `docs/BUILD-LOG.md`: date/time, features done, commits (hash + message), test counts (npm test pass/fail, smoke pass/fail), what is not verified, and a final line exactly `PHASE N DONE` or `PHASE N BLOCKED: <reason>`.
-8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once after each update.
+8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once on the first launch after an update, listing every bundled note since the version that was installed, newest first. Settings and Help can open it again. The notes ship in the app, so they work offline.
 
 ## Phases
 

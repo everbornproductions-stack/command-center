@@ -10,7 +10,7 @@ const STEPS = [
   { id: "ways", for: "both", view: "command", title: "Single, Council, Mission, Pipelines", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result. Second opinion asks two AIs and shows where they differ, in plain words. Both answers stay. It does not replace Council. Pipelines: a pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
   { id: "simple-welcome", for: "simple", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. You are in Simple. Type what you want in the chat box. The council picks the AI. This tour uses pretend AIs, so nothing is spent." },
   { id: "simple-nav", for: "simple", target: "#tabs", view: "command", title: "Chat, Projects, Create, and Settings", body: "Chat, Projects, Create, and Settings stay at the top, and Help sits with them. Chat is this box. Projects keeps one client or campaign together. Create holds prompts, images, media, and publishing. Settings is where a key goes. Everything else is one click away in Expert." },
-  { id: "help-tab", for: "both", target: "#help-search", view: "help", title: "Help", body: "Search the guides here. Ask Meldmind answers from these articles with a connected AI. If no AI is connected, you get the search only. Take the tour again, Check for updates, and Run setup again are on this page." },
+  { id: "help-tab", for: "both", target: "#help-search", view: "help", title: "Help", body: "Search the guides here. Ask Meldmind answers from these articles with a connected AI. If no AI is connected, you get the search only. Take the tour again, What's new, Check for updates, and Run setup again are on this page." },
   { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
   { id: "simple-answer", for: "simple", target: "#out-md", view: "command", title: "The answer", body: "The answer lands here. Copy it when you want. Switch to Expert any time to see the debate, the scores, and the live map." },
   { id: "simple-settings", for: "simple", target: "#settings-keys", view: "settings", title: "Add a key when you are ready", body: "Settings is where a real key goes. Until then, demo AIs can answer and nothing is spent. MCP, webhooks, and spend caps stay in Expert.", action: "keys" },
@@ -47,10 +47,12 @@ const css = `
 #cc-tour .dots i.done { background: var(--muted); }
 .cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
 #cc-whats-new { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
-#cc-whats-new .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+#cc-whats-new .card { width: 460px; max-width: calc(100vw - 32px); min-width: 0; box-sizing: border-box; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-whats-new h4 { margin: 0 0 6px; font-size: 18px; }
-#cc-whats-new ul { margin: 10px 0 0; padding-left: 18px; }
+#cc-whats-new h5 { margin: 14px 0 2px; font-size: 14px; font-weight: 650; text-transform: none; letter-spacing: 0; }
+#cc-whats-new ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li { margin: 6px 0; }
+#cc-whats-new .ver + .ver { border-top: 1px solid var(--line-2); margin-top: 10px; }
 @media (max-width: 760px) { #cc-tour .card { left: 12px !important; right: 12px; bottom: calc(var(--strip-h) + 64px); top: auto !important; width: auto; } .cc-tour-invite { left: 12px; right: 12px; bottom: calc(var(--strip-h) + 66px); } }
 `;
 const style = document.createElement("style"); style.id = "cc-tour-style"; style.textContent = css; document.head.appendChild(style);
@@ -95,22 +97,44 @@ function maybeInvite() {
   d.querySelector("#cc-tour-later").addEventListener("click", async () => { d.remove(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} });
 }
 // Views re-render into #view; re-check whether the invite should show (e.g. after leaving Setup).
-function showNews() {
-  const n = tour?.whatsNew;
-  if (!n || idx >= 0 || S.view === "setup") return;
+function newsMarkup(n) {
+  const versions = Array.isArray(n.versions) && n.versions.length ? n.versions : [{ version: n.version, title: n.title, bullets: n.bullets || [] }];
+  const many = versions.length > 1;
+  const title = many ? "What's new" : (n.title || "What's new");
+  const lead = many
+    ? `${n.from ? `Since ${esc(n.from)}, newest first. ` : "Newest first. "}These notes are saved in the app, so they work offline.`
+    : `Version ${esc(n.version)}. This note shows once for this version.`;
+  const body = many
+    ? versions.map((v) => `<section class="ver"><h5>${esc(v.title || "What's new")}</h5><div class="dim small">Version ${esc(v.version)}</div><ul>${(v.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul></section>`).join("")
+    : `<ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`;
+  return `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(title)}</h4><div class="dim small">${lead}</div>${body}<div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+}
+function showNews(n = tour?.whatsNew) {
+  if (!n || idx >= 0 || S.view === "setup") return false;
   document.querySelector(".cc-tour-invite")?.remove();
   let box = document.getElementById("cc-whats-new");
-  if (box) return;
+  if (box) return true;
   newsOpen = true;
   box = document.createElement("div");
   box.id = "cc-whats-new";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(n.title)}</h4><div class="dim small">Version ${esc(n.version)}. This note shows once for this version.</div><ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+  box.innerHTML = newsMarkup(n);
   document.body.appendChild(box);
   const onKey = (e) => { if (e.key === "Escape") dismissNews(false); };
   document.addEventListener("keydown", onKey);
   box._newsKey = onKey;
   box.querySelector("#cc-news-ok").addEventListener("click", () => dismissNews(false));
   box.querySelector("#cc-news-tour").addEventListener("click", () => dismissNews(true));
+  return true;
+}
+async function openNews() {
+  if (S.view === "setup" || idx >= 0) return;
+  let n = null;
+  try { n = (await api("/tour/whats-new")).whatsNew; }
+  catch (e) { toast(e.message, true); return; }
+  if (!n) { toast("No What's new notes for this version yet"); return; }
+  newsDismissed = true;
+  hideNews();
+  showNews(n);
 }
 async function dismissNews(thenTour) {
   newsDismissed = true;
@@ -216,14 +240,15 @@ async function runSample() {
 function renderPanel(el2) {
   const t = tour || {};
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${steps().length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${steps().length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
+  el2.querySelector("#cc-news-open").addEventListener("click", () => openNews());
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });
 }
 
 function onMode() { if (idx >= 0) { msg = ""; show(0); } }
-window.CC.tour = { start, open: start, state: () => tour, onMode };
+window.CC.tour = { start, open: start, openNews, state: () => tour, onMode };
 
 CC.register({
   id: "tour",
