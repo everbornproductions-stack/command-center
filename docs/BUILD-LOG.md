@@ -1582,3 +1582,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: research in the chat (web, Pro search, deep research)
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Live search stays in the router. DuckDuckGo is the free engine when no key is saved and demo mode is off. SearXNG is used when an address is saved. A saved Tavily, Brave, Serper, Exa, or Perplexity key still wins on Auto, and demo mode still uses the pretend engine. Gemini can ground a search inside the Gemini call. The same engines work for any model the router picks.
+- A question that needs current information is searched on its own. A pinned model uses the local hint. A routed chat trusts the classifier. Search can still be turned off for one run.
+- Free includes 20 live searches a day. Pro search (a few queries, one numbered source list) is Pro. Deep research reads pages, writes a cited report, and a second AI from another vendor cross-checks it. It runs in the background, raises a done alert, and can be exported as PDF or Word. Pro and Studio get 30 a month. Extreme and Owner have no monthly limit. The gate is server/feature-gate.js. Extreme is a licence tier here, not a Square checkout.
+- News and academic filters sit next to the search toggles. A finished deep research run can continue as a mission, which is where the browser helper and desktop steps take over.
+- Mac tests run on every pull request (`.github/workflows/mac-ci.yml`: npm test and smoke, no package, no secrets). Windows CI is unchanged. Mac packaging stays on the parked tag workflow.
+- Tests mock every provider. No real key and no public web call. Waits are real timers.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. No real key. data/ was not read. The chat screen was not clicked in a browser.

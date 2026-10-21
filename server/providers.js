@@ -154,12 +154,13 @@ function geminiContents(messages) {
   }
   return out;
 }
-async function* geminiStream({ provider, model, system, messages, maxTokens, signal, tools }) {
+async function* geminiStream({ provider, model, system, messages, maxTokens, signal, tools, webSearch }) {
   const key = requireKey(provider);
   const contents = geminiContents(messages);
   const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens } };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (tools?.length) body.tools = [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description || "", parameters: t.parameters || { type: "object", properties: {} } })) }];
+  if (webSearch) body.tools = [...(body.tools || []), { google_search: {} }];
   // Key in the header only. Never a query string, never Authorization: Bearer (that 400s an AQ. key).
   const headers = { "content-type": "application/json", "x-goog-api-key": key, ...loopbackClose(geminiBase(provider)) };
   const url = `${geminiBase(provider)}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
@@ -174,6 +175,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   const dec = new TextDecoder();
   let buf = "", outText = "", stop = null, usage = null, ended = false;
   const calls = [];
+  const citations = [];
   while (!ended) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -191,6 +193,10 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
       if (j.usageMetadata) usage = j.usageMetadata;
       const cand = j.candidates?.[0];
       if (cand?.finishReason) stop = cand.finishReason === "STOP" ? "stop" : cand.finishReason === "MAX_TOKENS" ? "length" : String(cand.finishReason).toLowerCase();
+      for (const chunk of cand?.groundingMetadata?.groundingChunks || []) {
+        const url = chunk?.web?.uri || chunk?.uri;
+        if (url) citations.push({ url, title: chunk?.web?.title || "" });
+      }
       for (const part of cand?.content?.parts || []) {
         if (part.text) { outText += part.text; yield { type: "delta", text: part.text }; }
         if (part.functionCall?.name) calls.push({ name: part.functionCall.name, args: part.functionCall.args && typeof part.functionCall.args === "object" ? part.functionCall.args : parseArgs(part.functionCall.args) });
@@ -204,6 +210,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
     type: "done",
     stop: toolCalls.length ? "tool_calls" : stop,
     toolCalls: toolCalls.length ? toolCalls : undefined,
+    citations: citations.length ? citations : undefined,
     usage: {
       input: usage?.promptTokenCount ?? approxTokens([system || "", ...messages.map((m) => textOf(m))].join("\n")),
       output: usage?.candidatesTokenCount ?? approxTokens(outText),

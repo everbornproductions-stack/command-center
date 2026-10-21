@@ -2,8 +2,9 @@
 // toggles in Command. The engine logic lives in server/search.js (core, used by chat, council and
 // mission). Keys go to the vault under "search-<engine>" after one test search; a refused key is
 // never kept and the previous key is put back. Keys are never logged or echoed (masked only).
-import { ENGINES, NATIVE, MODES, searchSettings, saveSearchSettings, secretId, engineKeyed, engineMasked, resolveEngine, runSearch, priceOf, capStopped } from "../search.js";
+import { ENGINES, FREE, NATIVE, MODES, FILTERS, searchSettings, saveSearchSettings, secretId, engineKeyed, engineMasked, resolveEngine, runSearch, priceOf, capStopped, searxngBase } from "../search.js";
 import { demoActive } from "../mock.js";
+import { researchSnapshot } from "../feature-gate.js";
 
 export const id = "search";
 
@@ -18,8 +19,9 @@ function view(h) {
     spendMonth: +(spendOf(secretId(e.id)).month || 0).toFixed(4), searches: spendOf(secretId(e.id)).searches || 0,
   }));
   const native = Object.entries(NATIVE).map(([pid, n]) => ({ provider: pid, providerName: h.PROVIDERS[pid]?.name || pid, name: n.name, unit: n.unit, note: n.note, listPrice: n.perSearch, perSearch: priceOf(pid), keyed: h.hasSecret(pid, h.PROVIDERS[pid]?.keyEnv), cap: s.caps[pid] || null }));
+  const free = Object.values(FREE).map((e) => ({ id: e.id, name: e.name, note: e.note, perSearch: 0, ready: e.id === "searxng" ? !!searxngBase() : true }));
   const active = resolveEngine({});
-  return { engine: s.engine, maxResults: s.maxResults, on: s.on, caps: s.caps, prices: s.prices, engines, native, active, demo: demoActive(), searchMonth: led.searchMonth || 0, searchesMonth: led.searches || 0, modes: MODES };
+  return { engine: s.engine, maxResults: s.maxResults, filter: s.filter, filters: FILTERS, searxngUrl: s.searxngUrl || "", on: s.on, caps: s.caps, prices: s.prices, engines, free, native, active, demo: demoActive(), searchMonth: led.searchMonth || 0, searchesMonth: led.searches || 0, modes: MODES, research: researchSnapshot() };
 }
 
 const bad = (res, h, msg) => h.json(res, 400, { error: msg, code: "search_invalid" });
@@ -75,10 +77,16 @@ export async function routes(req, res, url, body, h) {
   if (p === "/test") {
     const q = String(body.q || "").trim();
     if (!q) return bad(res, h, "Type something to search for.");
-    const pick = body.engine ? (ENGINES[body.engine] ? { engine: body.engine, name: ENGINES[body.engine].name } : { engine: null, reason: "unknown search engine" }) : resolveEngine({});
-    if (!pick.engine || pick.native) return h.json(res, 400, { error: pick.reason || "Pick Tavily, Brave or Serper for a test search." });
+    let pick;
+    if (body.engine && FREE[body.engine]) {
+      pick = body.engine === "searxng" && !searxngBase()
+        ? { engine: null, reason: "SearXNG needs an address. Paste it in Settings > Web search." }
+        : { engine: body.engine, name: FREE[body.engine].name };
+    } else if (body.engine) pick = ENGINES[body.engine] ? { engine: body.engine, name: ENGINES[body.engine].name } : { engine: null, reason: "unknown search engine" };
+    else pick = resolveEngine({});
+    if (!pick.engine || pick.native) return h.json(res, 400, { error: pick.reason || "Pick DuckDuckGo, Tavily, Brave, Serper, Exa or Perplexity for a test search." });
     try {
-      const r = await runSearch(q, { engine: pick.engine, role: "test" });
+      const r = await runSearch(q, { engine: pick.engine, role: "test", filter: body.filter });
       return h.json(res, 200, { ok: true, engine: r.engine, name: r.name, demo: r.demo, sources: r.sources, ms: r.ms, cost: r.cost });
     } catch (err) { return h.json(res, err.status === 402 ? 402 : 400, { error: err.message, engine: pick.engine }); }
   }

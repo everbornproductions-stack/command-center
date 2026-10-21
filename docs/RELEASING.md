@@ -84,6 +84,8 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 
 `.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
 
+`.github/workflows/mac-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. It does not package the app, it does not publish, and it does not read secrets. Mac packaging stays on the tag workflow parked at `docs/ci/mac-build.yml`.
+
 ## Mac (unsigned for now)
 
 - GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Meldmind-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.

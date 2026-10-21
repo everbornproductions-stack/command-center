@@ -15,6 +15,7 @@ import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
 import { costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
+import { searchCoversAnyModel } from "./search.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -88,7 +89,8 @@ export function availableModels() {
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
-  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  const covered = !!needWeb && searchCoversAnyModel();
+  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || covered || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
   // A real job never goes to Nova, Atlas or Sage while a real AI is connected, even if demo mode was turned back on.
   if (realAiConnected()) list = list.filter((m) => !PROVIDERS[m.provider]?.demo);
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available

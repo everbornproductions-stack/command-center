@@ -8,7 +8,8 @@ import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
 import { isDemoProvider, realAiConnected } from "./demo-visibility.js";
 import { ctx } from "./store.js";
-import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
+import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
 import { observe } from "./brain.js";
@@ -21,7 +22,7 @@ import { councilPlan, reviewMode } from "./modes.js";
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, searchMode, filter, tools, grokbot, browser, libraries }) {
   const id = "c-" + Date.now().toString(36);
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
@@ -100,7 +101,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   }
 
   // ---- live web search (Phase 15): one search, the same numbered sources for every member and the chair ----
-  const web = await webAugment({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  const web = await prepareWeb({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb: !!cls?.needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
   if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; emit("council.update", { council: pub(council) }); }
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
@@ -134,13 +135,17 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       noteCall(m.provider, true, ms);
       const e = recordCall({ provider: m.provider, model: m.model, usage, missionId: id, role: "answer", ms });
       council.cost += e.cost;
+      let own = [];
       if (nativeFor(m) && citations?.length) {
-        // a member that searched on its own: its pages join the shared list, numbered after the others
-        council.sources = [...council.sources, ...sourcesFromCitations(citations, council.sources.length)];
-        council.searchEngine = council.searchEngine || web.name;
+        // this member's own pages stay on its answer, numbered after the shared list
+        own = sourcesFromCitations(citations, council.sources.length);
+        council.searchEngine = council.searchEngine || web?.name;
         council.cost += recordNative(m.provider, citations, { missionId: id });
       }
-      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null };
+      const shared = council.sources || [];
+      const extra = own.filter((s) => !shared.some((x) => x.url === s.url));
+      const answerSources = extra.length ? [...shared, ...extra] : shared;
+      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null, sources: answerSources };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err);
