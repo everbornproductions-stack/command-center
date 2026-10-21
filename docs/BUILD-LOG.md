@@ -1606,3 +1606,23 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Remaining phases (58, 61, 62, Phase 33 item 1, decision 23)
+
+Version stays 0.4.8. No Square or billing change. data/ was not read. No real key was used. Phase 14 stays BLOCKED for any step that needs a real Mac.
+
+- Phase 58. Second opinion sits beside Single, Council, and Mission. Two AIs answer, differences are shown in plain words, and both answers stay. Demo uses the pretend AIs and records no spend. The learning router keeps the task type only.
+- Phase 61. Team spaces add shared recipes to a workspace for Studio, Owner, and a stored Extreme licence. Five people including the owner. Phase 8 invites are unchanged (shown once, not emailed). Keys stay in the vault. The price is a placeholder and nothing is charged.
+- Phase 62. Industry packs for real estate, insurance, and credit repair sit on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. SSNs, dates of birth, and account numbers are stripped. Credit repair and insurance keep SCF, CROA, and RESPA.
+- Phase 33 item 1. HighLevel contacts, invoices, and workflows. A separate sign-in from social posting, so the Phase 7 social scopes are unchanged. Reads can run. A send, a charge, or a change waits for a click. The token stays in the vault. Items 2 and 3 (MCP by URL, custom webhooks) stay in Phase 90.
+- Decision 23. Use your own Supabase is an optional Settings switch, off by default, and not part of setup. Project URL and publishable key. The service key stays on the server and is never returned. The licence server connection is unchanged. The spec was not rewritten.
+- Tiers go through server/feature-gate.js. Extreme is read from a stored active licence row because it is not in the live licence table. Free and Pro do not get team spaces.
+- Commits: 33818cc gate, 5f848fc second opinion, 3e1e12a industry packs, 955ee1b team spaces, 1af3104 HighLevel tools, c8c3fc6 own Supabase, plus this plan and log commit.
+- Tests here (Linux): npm test 438 tests, 437 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Headless Chrome clicked Second opinion (both answers stayed), filled a real-estate draft into Marching orders without sending, opened Team spaces, and opened the HighLevel and Use your own Supabase settings (the Supabase switch was off). No real HighLevel or Supabase project was contacted.
+- Not verified: a hosted hub where a member on another account sees only shared recipes; a real HighLevel location; a real Supabase project; Windows CI (this branch is pushed once for that). feature-gate.js is expected to conflict with other open pull requests.
+
+PHASE 58 DONE
+PHASE 61 DONE
+PHASE 62 DONE
+PHASE 33 ITEM 1 DONE
+DECISION 23 DONE
