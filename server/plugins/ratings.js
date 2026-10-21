@@ -1,8 +1,8 @@
 // Rate the result: a thumbs up/down on each deliverable teaches the router from real outcomes,
 // kept separate from what the council votes taught it (the skills matrix shows both sources apart).
-import { recordHuman, skillTable, learnedDeltas } from "../router.js";
+import { recordHuman, skillTable, learnedDeltas, clearHumanRatings } from "../router.js";
 import { CAPABILITIES } from "../registry.js";
-import { rate } from "../brain.js";
+import { rate, clearRatingMemory } from "../brain.js";
 export const id = "ratings";
 const KIND = "ratings.log";
 
@@ -22,6 +22,49 @@ export function saveRating(h, { missionId, kind, provider, model, capability, up
   rate({ runId: missionId, provider, model, capability: cap, up: item.up });
   h.emit("log", { text: `${up ? "👍" : "👎"} ${model} for ${cap}${note ? `: ${String(note).slice(0, 60)}` : ""}` });
   return item;
+}
+
+// What the thumbs changed, kept apart from council votes. A shift appears after 2 ratings
+// for that model and task type (the same bar the router uses). Fewer than that stays "early".
+export function learnedView(items) {
+  const byModel = {};
+  for (const r of items) {
+    const b = (byModel[r.model] ||= { provider: r.provider, up: 0, down: 0, byCap: {} });
+    if (r.up) b.up++; else b.down++;
+    const c = (b.byCap[r.capability] ||= { up: 0, down: 0 });
+    if (r.up) c.up++; else c.down++;
+  }
+  const lines = [];
+  const early = [];
+  for (const [model, b] of Object.entries(byModel)) {
+    const human = learnedDeltas(model).human || {};
+    for (const [cap, n] of Object.entries(b.byCap)) {
+      const total = n.up + n.down;
+      const delta = human[cap];
+      const row = { model, provider: b.provider, capability: cap, up: n.up, down: n.down, basedOn: total, delta: delta ?? null };
+      if (delta == null) {
+        early.push({ ...row, note: "Not enough ratings yet to move the pick." });
+        continue;
+      }
+      const lean = delta > 0 ? "favoured" : delta < 0 ? "used less" : "unchanged";
+      const signed = delta > 0 ? `+${delta}` : String(delta);
+      const note = delta === 0
+        ? `${model} is unchanged for ${cap} (${total} rating${total === 1 ? "" : "s"}).`
+        : `${model} is ${lean} for ${cap} (${signed} from ${total} rating${total === 1 ? "" : "s"}).`;
+      lines.push({ ...row, lean, note });
+    }
+  }
+  return { count: items.length, lines, early };
+}
+
+// Clears the rating log, the thumbs on the skills table, and the thumbs in the learning record.
+// Council wins, jobs, cost, and latency stay.
+export function resetLearned(h) {
+  h.putDoc(KIND, { items: [] });
+  clearHumanRatings();
+  clearRatingMemory();
+  h.emit("log", { text: "Ratings reset. What your thumbs taught has been cleared. Council scores stay." });
+  return learnedView([]);
 }
 
 // Per model: human thumbs and council rounds, side by side, plus the score shift each one causes.
@@ -45,6 +88,15 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, saveRating(h, body));
   }
   if (req.method === "GET" && p === "/summary") return h.json(res, 200, summary(h.doc(KIND, () => ({ items: [] })).items));
+  if (req.method === "GET" && p === "/learned") {
+    h.guard("learnedFromRatings");
+    return h.json(res, 200, learnedView(h.doc(KIND, () => ({ items: [] })).items));
+  }
+  if (req.method === "POST" && p === "/reset") {
+    h.guard("learnedFromRatings");
+    if (body?.confirm !== true) return h.json(res, 400, { error: "Send confirm: true to reset what your ratings taught." });
+    return h.json(res, 200, resetLearned(h));
+  }
   if (req.method === "GET" && p.startsWith("/mission/")) {
     const mid = p.slice("/mission/".length);
     return h.json(res, 200, h.doc(KIND, () => ({ items: [] })).items.filter((x) => x.missionId === mid));

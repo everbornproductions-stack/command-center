@@ -2,6 +2,9 @@
   "0.4.8": {
     "title": "What's new in Meldmind",
     "bullets": [
+      "Run in background is Pro. Leave this screen. You get an alert when the chat, council, or mission is done. Nothing is emailed.",
+      "Settings shows what your ratings taught. Thumbs up and thumbs down change who gets the next job of that kind. Reset clears only the thumbs. Council scores stay.",
+      "Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are.",
       "The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.",
       "Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.",
       "This note shows once after an update. Take the tour again any time from Settings."

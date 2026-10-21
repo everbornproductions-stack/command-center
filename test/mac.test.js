@@ -39,6 +39,29 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.doesNotMatch(wf, /—/, "no em-dashes");
 });
 
+test("Mac CI runs on every pull request and does not publish", () => {
+  const wf = read(".github/workflows/mac-ci.yml");
+  const win = read(".github/workflows/windows-ci.yml");
+  assert.match(wf, /runs-on: macos-latest/);
+  assert.match(wf, /pull_request:/);
+  assert.match(wf, /push:/);
+  assert.match(wf, /branches: \["main"\]/);
+  assert.match(win, /pull_request:/);
+  assert.match(wf, /run: npm ci/);
+  assert.match(wf, /run: npm test/);
+  assert.match(wf, /run: npm run smoke/);
+  assert.match(wf, /run: npm run dist:mac/);
+  assert.match(wf, /CC_PACK_UNPUBLISHED: "1"/);
+  assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);
+  assert.match(wf, /GH_TOKEN: ""/);
+  assert.doesNotMatch(wf, /secrets\./);
+  assert.doesNotMatch(wf, /gh release/);
+  assert.match(wf, /Meldmind-\$\{V\}-/);
+  assert.match(wf, /latest-mac\.yml/);
+  assert.doesNotMatch(wf, /—/);
+  assert.match(read("docs/ci/mac-build.yml"), /workflow_dispatch:/, "the parked release workflow stays put");
+});
+
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
   const y = read("electron-builder.yml");
   assert.match(y, /^appId: com\.everborn\.command/m);

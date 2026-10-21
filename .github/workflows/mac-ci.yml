@@ -1,0 +1,72 @@
+# Mac test and unsigned package on every pull request and every push to main.
+# This does not publish. It does not sign, and it does not read a release token.
+# CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
+# The dmg and zip from this job are not a release. Do not upload them.
+# The release workflow stays parked at docs/ci/mac-build.yml.
+name: Mac CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Package the unsigned Mac app
+        env:
+          CC_PACK_UNPUBLISHED: "1"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+        run: npm run dist:mac
+
+      - name: Check the Mac package files
+        run: |
+          set -euo pipefail
+          V=$(node -p "require('./package.json').version")
+          missing=0
+          for arch in x64 arm64; do
+            for ext in dmg zip; do
+              f="dist/Meldmind-${V}-${arch}.${ext}"
+              if [ ! -f "$f" ]; then
+                echo "Mac package stopped: the build did not produce ${f}."
+                missing=1
+              fi
+            done
+          done
+          if [ ! -f dist/latest-mac.yml ]; then
+            echo "Mac package stopped: the build did not produce dist/latest-mac.yml."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          if ! grep -q "${V}" dist/latest-mac.yml; then
+            echo "Mac package stopped: latest-mac.yml does not mention version ${V}."
+            exit 1
+          fi
+          echo "Mac package produced the dmg and zip files for x64 and arm64, and latest-mac.yml. Nothing was published."

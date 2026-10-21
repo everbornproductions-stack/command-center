@@ -45,4 +45,29 @@ async function render(el, run) {
   });
 }
 
-CC.register({ id: "ratings", deliverable: { order: 20, render } });
+function renderSettings(el) {
+  el.innerHTML = `<div class="panel"><h3>What your ratings taught</h3>
+    <div class="small">Thumbs up and thumbs down change who gets the next job of that kind. Council votes stay separate. Reset clears only the thumbs.</div>
+    <div id="rt-learned" class="small" style="margin-top:8px">Loading...</div>
+    <button class="btn sm" id="rt-reset" type="button" style="margin-top:8px">Reset ratings</button>
+  </div>`;
+  const box = el.querySelector("#rt-learned");
+  const paint = (view) => {
+    const lines = [...(view?.lines || []), ...(view?.early || [])];
+    box.innerHTML = lines.length ? lines.map((l) => `<div>${esc(l.note)}</div>`).join("") : `<div class="dim">No ratings yet.</div>`;
+  };
+  api("/ratings/learned").then(paint).catch((e) => { box.textContent = e.message; });
+  el.querySelector("#rt-reset").addEventListener("click", async () => {
+    if (!confirm("Clear what your ratings taught? Council scores stay. Runs and the ledger stay.")) return;
+    try {
+      paint(await api("/ratings/reset", { method: "POST", body: { confirm: true } }));
+      toast("Ratings reset. Council scores stay.");
+    } catch (e) { toast(e.message, true); }
+  });
+}
+
+CC.register({
+  id: "ratings",
+  deliverable: { order: 20, render },
+  settings: { order: 40, render: renderSettings },
+});

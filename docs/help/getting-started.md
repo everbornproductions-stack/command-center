@@ -55,6 +55,18 @@ The top bar shows You saved this month and all time. It is an estimate based on 
 
 Add a custom provider and tick Good at for the task types it should take. Matching tasks go to it. Scores from your jobs make the pick sharper. Leave none ticked and Meldmind learns from the name.
 
+## Run in background
+
+Run in background is Pro. Leave this screen. You get an alert when the chat, council, or mission is done. Nothing is emailed. The alert stays in the app until you open it or dismiss it.
+
+## What your ratings taught
+
+Settings shows what your ratings taught. Thumbs up and thumbs down change who gets the next job of that kind. Council votes stay separate. Reset clears only the thumbs. Council scores stay. Runs and the ledger stay.
+
+## Pause a mission
+
+Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are. A scheduled mission is cancelled with abort, not paused.
+
 ## Appearance
 
 Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.

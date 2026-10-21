@@ -13,14 +13,16 @@ import { HOSTED, ctx, doc, putDoc, allContexts, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
+import { assertGate, flagsFor } from "./feature-gate.js";
 
 const PRO = {
   missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
   connectedServices: Infinity, emailAccounts: 8,
   phone: true, historySearch: true, sharedLearning: true, scores: true,
+  ...flagsFor("pro"),
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...flagsFor("free"), label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },
@@ -226,6 +228,7 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
 //   guard("connectedService", { count }) | guard("emailAccounts", { count })
 //   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
+//   guard("backgroundRuns") | guard("missionPause") | guard("learnedFromRatings")
 export function guard(feature, info = {}) {
   const s = licenseState();
   const T = TIERS[s.tier];
@@ -257,6 +260,11 @@ export function guard(feature, info = {}) {
     case "historySearch": if (!T.historySearch) throw pro("Full history search"); return s;
     case "sharedLearning": if (!T.sharedLearning) throw pro("Shared learning"); return s;
     case "scores": if (!T.scores) throw pro("The scores dashboard"); return s;
+    case "backgroundRuns":
+    case "missionPause":
+    case "learnedFromRatings":
+      assertGate(s.tier, feature);
+      return s;
     default: if (!T[feature]) throw pro("This feature"); return s;
   }
 }

@@ -21,8 +21,8 @@ import { councilPlan, reviewMode } from "./modes.js";
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
-  const id = "c-" + Date.now().toString(36);
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries, id: givenId }) {
+  const id = givenId || ("c-" + Date.now().toString(36));
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;

@@ -36,7 +36,8 @@ import { normalizeMode } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
-import { runMission, abortMission, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
+import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
+import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, deleteProject, addLink, removeLink, hqSnapshot } from "./projects.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -282,9 +283,10 @@ function startCouncil(opts) {
 function startMission(opts) {
   guard("missions");
   if (opts.runAt === "offpeak") guard("scheduler");
-  const { runAt, ...rest } = opts;
+  const { runAt, background, ...rest } = opts;
   return runMission(rest);
 }
+const BACKGROUND_MIX = "A background run starts now. Off-peak stays on the schedule.";
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
 
 function vaultKeyIds() {
@@ -553,18 +555,26 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
     let promise;
-    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined }); }
+    let councilId;
+    try {
+      if (job.background) guard("backgroundRuns");
+      councilId = job.background ? ("c-" + Date.now().toString(36)) : undefined;
+      promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, ...(councilId ? { id: councilId } : {}) });
+      if (councilId) rememberBackground({ id: councilId, kind: "council", title: job.prompt });
+    }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
-    return json(res, 202, { ok: true });
+    return json(res, 202, councilId ? { ok: true, id: councilId, background: true } : { ok: true });
   }
   if (method === "POST" && p === "/mission") {
     let job = body;
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
-    try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
+    try { guard("missions"); if (job.background) guard("backgroundRuns"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
     const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
     if (job.runAt === "offpeak") {
@@ -572,24 +582,62 @@ async function api(req, res, url) {
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
       emit("log", { text: "A discount window is already open (or none is configured): running now." });
     }
+    const missionId = job.background ? ("m-" + Date.now().toString(36)) : undefined;
+    if (missionId) opts.id = missionId;
     const promise = startMission(opts);
+    if (missionId) rememberBackground({ id: missionId, kind: "mission", title: job.goal });
     promise.catch((e) => emit("log", { text: `Mission failed: ${e.message}`, level: "error" }));
-    return json(res, 202, { ok: true });
+    return json(res, 202, missionId ? { ok: true, id: missionId, background: true } : { ok: true });
   }
-  if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") return json(res, 200, { aborted: abortMission(seg[1]) });
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "pause") {
+    try { guard("missionPause"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    const paused = pauseMission(seg[1]);
+    if (!paused.ok && paused.reason === "scheduled") return json(res, 409, { error: "A scheduled mission is cancelled with abort, not paused." });
+    if (!paused.ok) return json(res, 404, { error: "Mission not found." });
+    return json(res, 202, paused);
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "edit") {
+    try { guard("missionPause"); return json(res, 200, await editPausedMission(seg[1], body)); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "resume") {
+    try { guard("missionPause"); return json(res, 202, await beginResume(seg[1])); }
+    catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+  if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") {
+    const id = seg[1];
+    if (abortMission(id)) return json(res, 200, { aborted: true });
+    const stored = await ctx().store.getMission(id);
+    if (stored?.kind === "mission" && stored.status === "paused") {
+      stored.status = "aborted";
+      stored.finishedAt = Date.now();
+      stored.error = "Mission aborted";
+      ctx().store.saveMission(stored, missionSummary(stored));
+      emit("mission.update", { mission: publicMission(stored) });
+      emit("log", { text: "Paused mission aborted.", missionId: id });
+      return json(res, 200, { aborted: true });
+    }
+    return json(res, 200, { aborted: false });
+  }
   if (method === "POST" && p === "/chat") {
     let job = body;
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
+    if (job.background) {
+      try { guard("backgroundRuns"); }
+      catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    }
     // The id is known before the chat runs, so a caller can wait for this run
     // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
     const runId = job.runId || ("s-" + Date.now().toString(36));
+    if (job.background) rememberBackground({ id: runId, kind: "single", title: job.prompt });
     runChat({ ...job, runId }).catch((e) => {
       netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
       emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
     });
-    return json(res, 202, { ok: true, runId });
+    return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
   }
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }

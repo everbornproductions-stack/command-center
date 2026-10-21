@@ -9,7 +9,7 @@ import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false, backgroundQuiet: new Set(),
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -351,10 +351,15 @@ function noteRunJob(entry) {
   if (entry.missionId && entry.missionId !== S.live.id) return;
   runJobs[entry.provider] = (Number(runJobs[entry.provider]) || 0) + 1;
 }
+function isQuiet(id) {
+  return !!(id && S.backgroundQuiet?.has(id) && S.live?.id !== id);
+}
 function ensureLive(id, kind) {
+  if (isQuiet(id)) return;
   if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
+  if (isQuiet(ev.missionId)) return;
   if (quietProvider(P(ev.provider))) return;
   ensureLive(ev.missionId);
   S.live.agents[ev.agent] = { ...ev, text: "", done: false };
@@ -391,6 +396,7 @@ function onAgentDelta(ev) {
   if (S.live.kind === "mission" && ev.taskId) { const t = $(`[data-task="${ev.taskId}"] .bar i`); if (t) { const cur = parseFloat(t.style.width) || 0; t.style.width = Math.max(cur, Math.min(96, 10 + a.text.length / 40)) + "%"; } }
 }
 function onAgentEnd(ev, err) {
+  if (isQuiet(ev.missionId)) return;
   const a = S.live.agents[ev.agent]; if (a) { a.done = true; a.error = ev.error; a.ms = ev.ms; a.cost = ev.cost; }
   S.activeByProvider[ev.provider] = Math.max(0, (S.activeByProvider[ev.provider] || 1) - 1);
   // A finished AI stays in this run's tally while someone else is still working, then the resting sizes return.
@@ -402,6 +408,7 @@ function onAgentEnd(ev, err) {
   if (S.view === "command" && ev.agent === S.live.primary) $("#out-md")?.classList.remove("cursor");
 }
 function onTask(ev) {
+  if (isQuiet(ev.missionId)) return;
   ensureLive(ev.missionId, "mission");
   S.live.tasks[ev.task.id] = ev.task;
   if (S.view === "command") renderTasks();
@@ -415,6 +422,12 @@ function replyTurns(run) {
 }
 function onMission(m) {
   if (m.kind === "council") return; // councils arrive through council.update
+  if (isQuiet(m.id)) {
+    const i = S.missions.findIndex((x) => x.id === m.id);
+    const summ = { id: m.id, kind: m.kind, title: m.title, projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt, cost: m.cost, tasks: (m.tasks || []).length, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
+    if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
+    return;
+  }
   const before = S.live.id === m.id ? replyTurns(S.live.mission) : 0;
   ensureLive(m.id, m.kind);
   S.live.mission = m; S.live.status = m.status;
@@ -426,6 +439,10 @@ function onMission(m) {
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
+  if (m.status === "paused" && S.live.pauseStamp !== m.pausedAt) {
+    S.live.pauseStamp = m.pausedAt;
+    toast("Mission paused. You can edit the steps that have not finished, then resume.");
+  }
   if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) {
     const stamp = `${m.id}|${m.status}|${m.finishedAt || 0}|${replyTurns(m)}`;
     if (S.live.finishStamp !== stamp) {
@@ -436,6 +453,7 @@ function onMission(m) {
   }
 }
 function onCouncil(c) {
+  if (isQuiet(c?.id)) return;
   const before = S.live.id === c.id ? replyTurns(S.live.council) : 0;
   ensureLive(c.id, "council");
   S.live.council = c; S.live.status = c.status;
@@ -959,7 +977,7 @@ function renderCommand(v) {
       </div>
     </div>
     <div class="panel ops">
-      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="abort" style="display:none;color:var(--red)">abort</button></h3>
+      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" style="display:none">Resume</button><button class="ghost small" id="abort" style="display:none;color:var(--red)">abort</button></h3>
       <div class="graph-wrap" id="graph"></div>
       <div id="tasks" class="tasks"></div>
       <div id="council"></div>
@@ -987,6 +1005,16 @@ function renderCommand(v) {
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
   $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
+  $("#ops-pause")?.addEventListener("click", async () => {
+    if (!S.live.id) return;
+    try { await api(`/mission/${S.live.id}/pause`, { method: "POST" }); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#ops-resume")?.addEventListener("click", async () => {
+    if (!S.live.id) return;
+    try { await api(`/mission/${S.live.id}/resume`, { method: "POST" }); toast("Mission resumed."); }
+    catch (e) { toast(e.message, true); }
+  });
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
@@ -1018,16 +1046,25 @@ function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } re
 function renderOpsHead() {
   const h = $("#ops-head"); if (!h) return;
   const l = S.live;
-  if (!l.id) { h.textContent = "idle"; $("#abort").style.display = "none"; return; }
+  const abort = $("#abort");
+  const pause = $("#ops-pause");
+  const resume = $("#ops-resume");
+  const show = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
+  if (!l.id) { h.textContent = "idle"; show(abort, false); show(pause, false); show(resume, false); return; }
   const cost = l.mission?.cost ?? l.council?.cost ?? 0;
   h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
-  $("#abort").style.display = l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status) ? "" : "none";
+  const mission = l.kind === "mission";
+  show(pause, mission && ["planning", "running", "assembling"].includes(l.status));
+  show(resume, mission && l.status === "paused");
+  show(abort, mission && ["scheduled", "planning", "running", "assembling", "paused"].includes(l.status));
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
   const tasks = Object.values(S.live.tasks);
   if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="dim small">It will start on its own; use abort to cancel.</span></div>`; return; }
   if (S.live.kind !== "mission" || !tasks.length) { box.innerHTML = S.live.kind === "mission" && S.live.status === "planning" ? `<div class="empty">Planning…</div>` : ""; return; }
+  const paused = S.live.status === "paused";
+  const editable = paused ? tasks.filter((t) => t.status !== "done" && t.status !== "waiting" && t.status !== "failed") : [];
   box.innerHTML = tasks.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
@@ -1045,7 +1082,23 @@ function renderTasks() {
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
       ${follow}
     </div>`;
-  }).join("");
+  }).join("") + (paused ? `<form id="pause-edit" style="margin-top:12px">
+      <div class="small">Done steps stay as they are. Edit the goal or a step that has not finished, then resume.</div>
+      <label class="lbl" for="pause-goal">Goal</label>
+      <textarea id="pause-goal" rows="2">${esc(S.live.mission?.prompt || "")}</textarea>
+      ${editable.map((t) => `<label class="lbl" for="pause-task-${esc(t.id)}">${esc(t.title || t.id)}</label><textarea id="pause-task-${esc(t.id)}" data-pause-task="${esc(t.id)}" rows="2">${esc(t.instructions || "")}</textarea>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="btn sm primary" type="submit">Save and resume</button></div>
+    </form>` : "");
+  box.querySelector("#pause-edit")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const goal = box.querySelector("#pause-goal")?.value || "";
+    const taskEdits = [...box.querySelectorAll("[data-pause-task]")].map((el) => ({ id: el.dataset.pauseTask, instructions: el.value }));
+    try {
+      await api(`/mission/${S.live.id}/edit`, { method: "POST", body: { goal, tasks: taskEdits } });
+      await api(`/mission/${S.live.id}/resume`, { method: "POST" });
+      toast("Saved. Mission resumed.");
+    } catch (err) { toast(err.message, true); }
+  });
 }
 function renderCouncil() {
   const box = $("#council"); if (!box) return;
@@ -1167,18 +1220,28 @@ async function sendOrders() {
   const pp = window.CC?.promptPack;
   if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
   $("#go").disabled = true;
+  const background = !!$("#bg-run")?.checked;
   try {
     const usePack = !!(pp?.templateId && !pp.removed);
     const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
+    let started;
     if (mode === "single") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
-      await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
+      started = await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody, background } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    else if (mode === "council") started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, background, ...packBody } });
+    else {
+      started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, background, ...packBody } });
+      if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
+    }
+    if (background && started && !started.scheduled) {
+      const rid = started.runId || started.id;
+      if (rid) S.backgroundQuiet.add(rid);
+      toast("Running in the background. You will get an alert when it is done.");
+    }
     S.live = newLive(); renderOps();
   } catch (e) {
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
@@ -1273,6 +1336,7 @@ function renderProjectDetail(v, p) {
 }
 async function openRun(id) {
   try {
+    S.backgroundQuiet?.delete(id);
     const m = await api(`/missions/${id}`);
     S.live = newLive(); S.live.id = m.id; S.live.kind = m.kind; S.live.status = m.status;
     if (m.kind === "council") { S.live.council = m; S.live.deliverable = m.verdict?.text || ""; }
@@ -1909,7 +1973,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
