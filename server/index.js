@@ -60,6 +60,8 @@ import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
+import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
+import { publicWebConfig } from "./web-config.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
@@ -392,7 +394,7 @@ function pairingView() {
 }
 
 // What the browser may know before signing in.
-const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", tagline: "an Everborn product", subtitle: "Take command of all your AIs.", supabase: HOSTED ? { url: CFG.url, anonKey: CFG.anonKey } : null, hub: HOSTED ? CFG.hubUrl : null, sso: ssoProviders() });
+const publicConfig = () => publicWebConfig({ hosted: HOSTED, version: VERSION, supabase: { url: CFG.url, anonKey: CFG.anonKey }, hub: CFG.hubUrl, sso: ssoProviders() });
 
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
@@ -770,6 +772,11 @@ async function handleHttp(req, res) {
     if (HOSTED) { cors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); } }
     // Hosted cron tick. The shared secret is the only check. Local mode answers 404 and keeps its own timer.
     if (url.pathname === TICK_PATH) return handleScheduleTick(req, res, json);
+    // Hosted worker queue. The worker token is the check. Local mode does not open keys.
+    if (isWorkerPath(url.pathname)) {
+      if (!HOSTED) return json(res, 404, { error: "not found" });
+      return handleWorkerRequest(req, res);
+    }
     if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method) && hasBody(req) && !isJson(req) && !isZipUpload(req, url)) return json(res, 415, { error: "content-type must be application/json", code: "content_type" });
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "command-ai", mode: MODE, version: VERSION, uptime: Math.round(process.uptime()), instance: process.env.CC_INSTANCE || null });
     if (url.pathname === "/api/config") return json(res, 200, publicConfig());

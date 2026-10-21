@@ -23,6 +23,9 @@ export const TIERS = {
   free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
+  // Extreme is the tier above Pro. Prices stay in Phase 91. This does not call Square.
+  // Hosted runs are not a Pro flag. server/feature-gate.js is the only gate for them.
+  extreme: { ...PRO, label: "Extreme" },
   owner:  { ...PRO, label: "Owner" },
 };
 

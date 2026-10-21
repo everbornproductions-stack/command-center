@@ -88,7 +88,7 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 - Phase 95. Phone apps.
 - Store listings (Apple App Store and Google Play).
 - Signed apps: Windows code signing, and Apple signing and notarization for the Mac build.
-- Phase 52. Hosted web version. Still needs Chris's OK before any hosting is paid for.
+- Phase 52. Hosted web version. The code and the deploy config are in the repo (not live). Still needs Chris's OK before any hosting is paid for. Extreme cloud runs (a schedule or mission keeps going while the PC is off) use the same gate.
 
 ### Not in a version yet
 
@@ -551,8 +551,12 @@ Publish the phone app on the Apple App Store and Google Play. Listings, screensh
 ### Signed apps (Later, not done)
 Windows code signing so SmartScreen stops warning on first run. Apple Developer ID signing and notarization for the Mac build (the rest of Phase 14). Certificate secrets go in repo secrets only. The unsigned Mac build is version 0.4.10, not this item.
 
-### Phase 52: Hosted online (web) version (effort: L) (Later, not done)
+### Phase 52: Hosted online (web) version (effort: L) (code ready, not live)
 A hosted web version of the app, so it can be used in a browser without installing. Needs paid hosting. Going live needs Chris's OK before paying for anything.
+
+Code and deploy config (not deployed, version stays 0.4.8):
+- The same UI is served with `CC_MODE=hosted` (`Dockerfile`, `fly.toml`, `render.yaml`). Sign-in reuses Supabase. The browser gets the publishable key only. The service key stays on the server. Desktop-only features are hidden on the web. The deploy guide, env var names, and the monthly cost estimate are in the README. About $2 a month on Fly.io if the machine stays on, or about $7 a month on Render.
+- Extreme, "run while this PC is off": a desktop schedule or mission can be handed to the Node worker (`server/worker-service.js`) after the person opts in. The only gate is `server/feature-gate.js` (Extreme, and owner). The worker has a job queue, per-user isolation, a budget cap check, and a client-sealed key vault that is opened only in the worker. Results sync back when the PC is on again. The header says "Running in the cloud". A watched folder stays on the PC. Prices and Square are unchanged (Phase 91). Hosting is not turned on.
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 

@@ -11,6 +11,7 @@
 // If eight menus would overflow the top bar, they merge back.
 
 import { CREATE_VIEWS } from "./mode.js";
+import { isDesktopOnly } from "./desktop-only.js";
 
 export const NAV_NORMAL = 1280;
 export const NAV_LAYOUT_WAIT_MS = 150;
@@ -348,13 +349,15 @@ export function groupFor(view) {
   return HOME[view] || "work";
 }
 
-export function menuModel(views, layout = "narrow") {
+export function menuModel(views, layout = "narrow", opts = {}) {
+  const web = opts.surface === "web";
   const split = splitLayout(layout);
   const order = split ? SPLIT_ORDER : GROUP_ORDER;
   const groups = split ? SPLIT_GROUPS : GROUPS;
   const buckets = Object.fromEntries(order.map((id) => [id, []]));
   const seen = new Set();
-  for (const view of views || []) {
+  const source = web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []);
+  for (const view of source) {
     if (!view || seen.has(view)) continue;
     seen.add(view);
     const gid = groupIdFor(view, layout);
@@ -364,17 +367,19 @@ export function menuModel(views, layout = "narrow") {
   // Start a project belongs with Projects, in Work. It is not a settings item.
   ensureStart(buckets.work);
   if (split) {
-    buckets.settings.push({ ...SETUP_AGAIN });
+    if (!web) buckets.settings.push({ ...SETUP_AGAIN });
     buckets.settings.push({ ...TOUR_ITEM });
-    buckets.settings.push({ ...UPDATES_ITEM });
+    if (!web) buckets.settings.push({ ...UPDATES_ITEM });
     if (!buckets.guides.some((i) => i.view === "help")) buckets.guides.unshift({ view: "help", label: "Help", home: true });
-    buckets.guides.push({ ...SETUP_AGAIN });
+    if (!web) buckets.guides.push({ ...SETUP_AGAIN });
     buckets.guides.push({ ...REPLAY_ITEM });
     buckets.guides.push({ ...EXAMPLES_ITEM });
-  } else {
+  } else if (!web) {
     buckets.help.push({ ...SETUP_AGAIN });
     buckets.help.push({ ...TOUR_ITEM });
     buckets.help.push({ ...UPDATES_ITEM });
+  } else {
+    buckets.help.push({ ...TOUR_ITEM });
   }
   return order.map((id) => ({ ...groups[id], items: buckets[id] }));
 }
@@ -482,17 +487,18 @@ function buttonFor(buttons, view, label) {
   return btn;
 }
 
-function helpMenu(buttons) {
+function helpMenu(buttons, surface) {
+  const web = surface === "web";
   const help = menuShell("guides", "Help");
   help.panel.appendChild(buttonFor(buttons, "help", "Help"));
-  help.panel.appendChild(itemButton(SETUP_AGAIN));
+  if (!web) help.panel.appendChild(itemButton(SETUP_AGAIN));
   help.panel.appendChild(itemButton(REPLAY_ITEM));
   help.panel.appendChild(itemButton(EXAMPLES_ITEM));
   return help.menu;
 }
 
-function mountExpert(root, views, buttons, layout) {
-  const model = menuModel(views, layout);
+function mountExpert(root, views, buttons, layout, surface) {
+  const model = menuModel(views, layout, { surface });
   for (const group of model) {
     const { menu, panel } = menuShell(group.id, group.label);
     for (const item of group.items) {
@@ -503,11 +509,12 @@ function mountExpert(root, views, buttons, layout) {
   }
   // Narrow keeps the compact menus and still mounts the walkthrough Help menu.
   // The wider row already includes that menu in the split model.
-  if (!model.some((g) => g.id === "guides")) root.appendChild(helpMenu(buttons));
+  if (!model.some((g) => g.id === "guides")) root.appendChild(helpMenu(buttons, surface));
 }
 
-function mountSimple(root, views, buttons) {
-  const have = new Set(views || []);
+function mountSimple(root, views, buttons, surface) {
+  const web = surface === "web";
+  const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
   const chat = buttonFor(buttons, "command", "Chat");
   chat.classList.add("nav-direct");
   chat.removeAttribute("role");
@@ -528,22 +535,23 @@ function mountSimple(root, views, buttons) {
     if (have.has(view)) create.panel.appendChild(buttonFor(buttons, view, LABELS[view]));
   }
   root.appendChild(create.menu);
-  root.appendChild(helpMenu(buttons));
+  root.appendChild(helpMenu(buttons, surface));
 
   const settings = menuShell("settings", "Settings");
   settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
-  if (have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
-  settings.panel.appendChild(itemButton(SETUP_AGAIN));
+  if (!web && have.has("setup")) settings.panel.appendChild(buttonFor(buttons, "setup", "Setup"));
+  if (!web) settings.panel.appendChild(itemButton(SETUP_AGAIN));
   settings.panel.appendChild(itemButton(TOUR_ITEM));
   root.appendChild(settings.menu);
 }
 
 // Rebuilds when the mode or the width layout changes. The same pair is left in place so a re-render does not drop focus.
-export function installNav(root, views, mode = "expert", layout = "narrow") {
+export function installNav(root, views, mode = "expert", layout = "narrow", surface = "") {
   if (!root) return root;
   mode = mode === "simple" ? "simple" : "expert";
   layout = layout === "normal" ? "normal" : "narrow";
-  if (root.dataset.nav === "1" && root.dataset.uiMode === mode && root.dataset.navLayout === layout) return root;
+  surface = surface === "web" ? "web" : "";
+  if (root.dataset.nav === "1" && root.dataset.uiMode === mode && root.dataset.navLayout === layout && (root.dataset.navSurface || "") === surface) return root;
   ensureNavStyle();
   const buttons = [...root.querySelectorAll("button[data-view]")].filter((b) => !b.dataset.focus && !b.dataset.action);
   for (const b of buttons) b.remove();
@@ -553,8 +561,9 @@ export function installNav(root, views, mode = "expert", layout = "narrow") {
   root.dataset.nav = "1";
   root.dataset.uiMode = mode;
   root.dataset.navLayout = layout;
-  if (mode === "simple") mountSimple(root, views, buttons);
-  else mountExpert(root, views, buttons, layout);
+  root.dataset.navSurface = surface;
+  if (mode === "simple") mountSimple(root, views, buttons, surface);
+  else mountExpert(root, views, buttons, layout, surface);
   if (!root.dataset.navKeys) {
     root.dataset.navKeys = "1";
     root.addEventListener("keydown", onNavKey);

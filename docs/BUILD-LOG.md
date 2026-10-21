@@ -1606,3 +1606,15 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Phase 52 hosted web app and Extreme cloud runs
+
+Code and deploy config only. Nothing was deployed. No cloud account or machine was created. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key.
+
+- Hosted web app: the same UI is served with CC_MODE=hosted. Sign-in is the existing Supabase magic link. The browser gets the publishable key only. The service key stays on the server. Desktop-only pages (setup, libraries, bookmarks, the quick launcher, files on this computer, the installer, the browser extension, and the in-app browser) are hidden on the web. A watched folder stays on the desktop app.
+- Extreme, run while this PC is off: after the person turns cloud runs on, a schedule or a mission can be handed to a Node worker. The only gate is server/feature-gate.js (Extreme, and owner). The worker has a job queue, per-user isolation, and a budget cap. Keys are sealed on the PC and opened only in the worker. Results sync back when the PC is on again. The header says "Running in the cloud" until they do. Prices stay with Phase 91.
+- Deploy files: Dockerfile, fly.toml, render.yaml. The README has the Fly.io and Render guide, env var names only, and the cost estimate (about $2 a month on Fly if the machine stays on, or about $7 a month on Render).
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local mock worker covered the handoff. Chrome clicked Turn on cloud runs, Hand to the cloud, and Bring results back on an owner desktop, and opened the hosted sign-in gate. The service key was not in the page.
+- Not verified: a paid Fly or Render machine, a real Supabase magic link on a public address, and a job that calls a live model. Those wait for Chris.
+
+PHASE 52 DONE
