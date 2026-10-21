@@ -1585,7 +1585,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 ## 2026-10-21: Welcome email
 
-Not a numbered phase. Decision 22's text is unchanged and still says it is not built in the run order. Decision 23 is unchanged. Square and billing were not edited. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. No real key.
+Not a numbered phase. Decision 22's text is unchanged and still says it is not built in the run order. Decision 23 is unchanged. Square and billing were not edited. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. The welcome email is part of 0.4.9. Package version stays 0.4.8, the hotfix, on this branch. No real key.
 
 - A branded welcome letter is emails/welcome.html and emails/welcome.txt. Placeholders are {{FIRST_NAME}} and {{INSTALL_URL}}. It names the person, says the account is ready, that chats and settings back up automatically on Everborn's Supabase, that each person sees only their own data (row level security), and how to add AI keys or connect via MCP from Settings. Nothing in the product is sent until they click. The download link is one page for Windows and Mac. No income or results claims.
 - It queues on a website download signup, an in-app account, and after a licence activates. A Pro licence is recorded as a Pro purchase. The same address is not mailed again on a later recheck. A mail failure does not fail the licence check.

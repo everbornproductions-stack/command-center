@@ -308,7 +308,7 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 - Explain their account, that chats and settings back up to the cloud automatically (hosted on Everborn's Supabase, each user sees only their own data via RLS), and how to add AI keys or connect via MCP.
 - No income or results claims.
 - Nothing sends until this is in the run order and the person has actually signed up or redeemed a license. Do not touch Square or billing.
-- On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This note does not add the item to the run order.
+- On 2026-10-21 Chris asked for the standard welcome email (website download signup, a Square Pro purchase as a Pro licence, and in-app account creation). The template and an off-by-default mail provider are in the repo. Nothing is sent until he configures the provider. This welcome email is part of 0.4.9. This note does not add the item to the run order.
 
 ### Use your own Supabase
 - Optional advanced setting named "Use your own Supabase", for power users and companies.
@@ -321,7 +321,7 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 These items cost money to distribute the app everywhere. They run after every other phase. Nothing is bought, paid for, or put live without Chris's OK first.
 
 ### Phase 14: Mac build
-Signing and notarization stay here. They need an Apple Developer account ($99 a year). The unsigned .dmg and the "new version ready, Download" notice are not part of 0.4.8. They are the next release after 0.4.8, in their own pull request. The run order line above still lists 14 under Do last.
+Signing and notarization stay here. They need an Apple Developer account ($99 a year). The unsigned .dmg and the "new version ready, Download" notice are 0.4.10, in their own pull request, after 0.4.9. 0.4.8 is the hotfix. The run order line above still lists 14 under Do last.
 
 ### Windows code-signing certificate (planned, not built)
 Buy a code-signing certificate and sign the Windows installer so SmartScreen stops warning on first run. Certificate secrets go in repo secrets only.
