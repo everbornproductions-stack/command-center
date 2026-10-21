@@ -174,5 +174,5 @@ test("app.js fits the real bar and Missions and Councils pick the run mode", () 
   assert.match(app, /if \(b\.dataset\.runMode\) S\.cmdMode = b\.dataset\.runMode;/);
   assert.match(app, /currentNavPromote\(mode, knownViews\(\)/, "a width change that changes the row rebuilds it");
   const nav = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
-  assert.equal(nav.includes("—"), false, "no em-dashes");
+  assert.equal(nav.includes("\u2014"), false, "no em-dashes");
 });
