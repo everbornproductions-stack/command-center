@@ -46,12 +46,13 @@ Chris's call on 2026-10-18: this is a subscription service. Grok's advice in the
 
 | Tier | Price | What you get | Notes |
 |---|---|---|---|
-| Free | $0 | Bring your own keys, 1 project, Single mode, status strip, 3 councils/month | Enough to feel the routing; converts through the Credits tab ("here is what you would have saved") |
-| Pro | **$15.99 / month** (Chris, 2026-10-18); **$159 / year**; lifetime founder $299 for the first 100, then $499, capped at 500 (Chris, 2026-10-20) | Everything: Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | Under the $20 anchor every chat subscription sits at; Grok suggested $19–39, research said $15–29 |
-| Studio / Agency | $49–79 / month | Shared projects, team view, client workspaces, white-label hub links | For people running work for clients the way Everborn does |
+| Free | $0 | Bring your own keys, 3 projects, Single mode, status strip, 5 councils/month | Enough to feel the routing; converts through the Credits tab ("here is what you would have saved") |
+| Pro | **$18.99 / month** (raised from $15.99 on 2026-10-21; people who already pay $15.99 stay on that price); **$189 / year**; lifetime founder $299 for the first 100, then $499, closed after 500. Lifetime is Pro for life. | Everything: Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support, Deep Research with a monthly limit | New checkouts are not the old Square link |
+| Extreme | **$29.99 / month** or **$299 / year** | Everything in Pro, plus more AIs per council, more runs at once, unlimited Deep Research, all industry packs, a compliance audit log, team spaces with 3 seats | Hosted background runs and schedules are gated until those screens exist |
+| Studio / Agency | $49 to $79 / month | Shared projects, team view, client workspaces, white-label hub links | For people running work for clients the way Everborn does |
 | Managed keys (later) | Pro + usage at cost + 10% | We hold the provider accounts for people who do not want API keys | Only with a live, itemised ledger; this is where the "hybrid" model lives |
 
-Recurring pay link (Square, live 2026-10-18): **https://square.link/u/dbU38mQC**. Details and the free-vs-Pro feature split are in docs/billing.md.
+The old Square pay link (live 2026-10-18) is **https://square.link/u/dbU38mQC** and still bills $15.99. New prices are in docs/billing.md. The app does not send the $18.99 button to that link.
 
 Positioning line (Grok's draft, kept): "One place to talk. It picks the right AI (ChatGPT, Claude, Grok…), routes for speed and cost, and coordinates them to actually finish the project." Sell the savings and the finished work, not "orchestration".
 

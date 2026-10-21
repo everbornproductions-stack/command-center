@@ -271,19 +271,30 @@ const subsView = () => (subscriptionsLocked() ? { subscriptions: [], subscriptio
 
 // Gated entry points. Routes and plugin helpers both start councils/missions through these, so
 // the Free limits (5 councils per UTC month, 3 projects, no missions, no scheduler) are enforced in one place.
+function runsInFlight() {
+  const c = ctx();
+  return (c.councilsInFlight || 0) + (c.missionsInFlight || 0);
+}
+function trackRun(kind, promise) {
+  const c = ctx();
+  const key = kind === "council" ? "councilsInFlight" : "missionsInFlight";
+  c[key] = (c[key] || 0) + 1;
+  const p = Promise.resolve(promise);
+  p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
+  return p;
+}
 function startCouncil(opts) {
   guard("council");
-  const c = ctx();
-  c.councilsInFlight = (c.councilsInFlight || 0) + 1;
-  const p = runCouncil(opts);
-  p.finally(() => { c.councilsInFlight = Math.max(0, (c.councilsInFlight || 1) - 1); }).catch(() => {});
-  return p;
+  guard("concurrentRuns", { running: runsInFlight() });
+  if (Array.isArray(opts.members) && opts.members.length) guard("aisPerCouncil", { count: opts.members.length });
+  return trackRun("council", runCouncil(opts));
 }
 function startMission(opts) {
   guard("missions");
   if (opts.runAt === "offpeak") guard("scheduler");
+  guard("concurrentRuns", { running: runsInFlight() });
   const { runAt, ...rest } = opts;
-  return runMission(rest);
+  return trackRun("mission", runMission(rest));
 }
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
 

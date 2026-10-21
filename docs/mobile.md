@@ -14,7 +14,7 @@ The orchestration (router, council, missions, ledger) runs on the PC today and t
 | Works when the PC is off | No | Yes |
 | Cost to us | Nothing | Hosting per user (small: the hub is idle most of the time) |
 | Privacy pitch | Strongest ("your keys never leave your PC") | Standard SaaS; needs a clear policy |
-| Fits a $15.99 subscription | Yes for power users | Yes, and it is what most buyers expect from a subscription |
+| Fits an $18.99 subscription | Yes for power users | Yes, and it is what most buyers expect from a subscription |
 | Build effort | Days: an address field in the app, a QR pairing screen, the tunnel instructions | Weeks: multi-tenant server, accounts, encrypted vault, billing-linked provisioning |
 
 Recommendation: ship **A first** (it needs only a settings screen and a pairing QR code), and build **B** as the subscription matures, because B is also what solves licensing, updates and "works anywhere". The phone app is the same build either way; only the hub address changes.

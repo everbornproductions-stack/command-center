@@ -1,5 +1,7 @@
 // Growth (Phase 9): free trial counter and upgrade prompt, the "No keys needed" managed plan, referral rewards.
 // All behind flags set by the host; with every flag off this feature shows nothing. Every amount is a placeholder.
+import { planCompareHtml } from "/plan-compare.js";
+
 const { S, api, toast, esc, money, ago, go, refresh } = window.CC;
 let cache = null;
 
@@ -13,7 +15,10 @@ const PH = `<span class="chip amber" title="Chris decides real pricing">placehol
 
 function upgradeBox(g) {
   if (!g.upgrade?.show) return "";
-  return `<div class="route" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div><div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
+  const table = planCompareHtml(g.upgrade.compare);
+  const spots = g.upgrade.spotsLine ? `<div class="dim small" data-founder-spots>${esc(g.upgrade.spotsLine)}</div>` : "";
+  const note = g.upgrade.grandfatherNote ? `<div class="dim small" data-grandfather>${esc(g.upgrade.grandfatherNote)}</div>` : "";
+  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}${note}<div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
 }
 
 function trialLine(g) {

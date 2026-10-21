@@ -347,9 +347,25 @@ body.hosted #tab-setup { display: none; }
 .mobile-more button i { font-style: normal; font-size: 18px; }
 .mobile-more button.active { border-color: var(--accent); color: var(--accent-2); }
 
+/* Free, Pro, Extreme. Three columns at desktop and at 390px. Do not stack. */
+.plan-compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; text-align: left; }
+.plan-compare .plan-col { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: rgba(0,0,0,.15); }
+.plan-compare .plan-col h4 { margin: 0 0 2px; font-size: 14px; overflow-wrap: anywhere; }
+.plan-compare .plan-price { font-size: 12px; color: var(--muted); margin-bottom: 6px; overflow-wrap: anywhere; }
+.plan-compare .plan-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 11px; padding: 3px 0; border-top: 1px solid var(--line); }
+.plan-compare .plan-row span { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.plan-compare .plan-row b { flex: none; text-align: right; }
+.upgrade-dialog { margin-top: 12px; }
+
 /* Meldmind branding: tagline next to the name, and on the onboarding tour card */
 .brand-tag { margin-left: 8px; letter-spacing: .02em; white-space: nowrap; }
-@media (max-width: 760px) { .brand-tag { display: none; } }
+@media (max-width: 760px) {
+  .brand-tag { display: none; }
+  .plan-compare { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .plan-compare .plan-col { padding: 6px; }
+  .plan-compare .plan-col h4 { font-size: 12px; }
+  .plan-compare .plan-price, .plan-compare .plan-row { font-size: 10px; line-height: 1.25; }
+}
 #cc-tour .card::after { content: "Meldmind, an Everborn product. Take command of all your AIs."; display: block; margin-top: 10px; font-size: 11px; color: var(--dim, #7b8798); text-align: right; }
 #pair-url { word-break: break-all; overflow-wrap: anywhere; margin-top: 8px; }
 #pair-copy { margin-top: 8px; }
