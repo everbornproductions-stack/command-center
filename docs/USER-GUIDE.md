@@ -42,6 +42,10 @@ Keys are never shown again after saving and never written to a log.
 
 1. Type what you want in **Marching orders**. One line is enough. Press **Send orders** (or Ctrl+Enter).
 
+**Upload** adds a file, a screenshot, or a document to the box. **Voice** writes what you say into the box. Edit the words, then send. Nothing is sent until that click. In Simple, the same buttons sit under the chat box. Tap to talk is separate: its auto-send box can still send when you turn that on.
+
+**Suggest a connection or idea** is in Settings. Upload and Voice work there too. You read the exact note, then click Send. After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those later changes stay on this computer.
+
 ### Simple and Expert
 
 New installs open in Simple. The first time, Meldmind asks "Keep it simple or show me everything?"

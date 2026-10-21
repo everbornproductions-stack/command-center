@@ -1,4 +1,12 @@
 {
+  "0.4.8": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Upload a file, a screenshot, or a document with an idea. Voice turns speech into text you can edit before Send.",
+      "You can edit, delete, and re-prioritize an idea, add a comment, and set a status: new, planned, building, or shipped.",
+      "Marching orders has the same Upload and Voice buttons. Nothing is sent until you click Send."
+    ]
+  },
   "0.4.6": {
     "title": "What's new in Meldmind",
     "bullets": [

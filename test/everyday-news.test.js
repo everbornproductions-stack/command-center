@@ -6,9 +6,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { startServer, ROOT } from "./helpers.js";
 import {
-  DAY, THANKS, TRY_INBOX, TRY_SUGGEST, MANIFEST_ID,
+  DAY, THANKS, TRY_INBOX, TRY_SUGGEST, MANIFEST_ID, IDEA_STATUSES,
   buildSuggestion, loopbackUrl, nextSnooze, shouldPrompt, settleStatus,
 } from "../server/everyday-news.js";
+import { classifyFile } from "../server/box-files.js";
 
 const EM = "\u2014";
 const T0 = Date.UTC(2026, 9, 20, 15, 0, 0);
@@ -36,8 +37,14 @@ test("snooze is 3 days then 7 days, and a suggestion is an exact note", () => {
   assert.equal(payload.os, "test-os");
   assert.equal("email" in payload, false);
   assert.throws(() => buildSuggestion({ text: "my password is hunter2" }), /password/);
-  const files = ["server/everyday-news.js", "server/plugins/everyday-news.js", "web/features/everyday-news.js", "docs/help/everyday-whats-new.md", "docs/help/everyday-suggest.md"];
+  const files = ["server/everyday-news.js", "server/plugins/everyday-news.js", "server/box-files.js", "server/dictate.js", "server/local-whisper.js", "server/plugins/orders-box.js", "web/features/everyday-news.js", "web/features/orders-input.js", "web/features/capture-input.js", "docs/help/everyday-whats-new.md", "docs/help/everyday-suggest.md", "docs/help/idea-box.md"];
   for (const file of files) assert.equal(fs.readFileSync(path.join(ROOT, file), "utf8").includes(EM), false, file);
+  assert.throws(() => classifyFile("virus.exe", Buffer.from("MZ")), /not allowed/);
+  assert.throws(() => classifyFile("page.html", Buffer.from("<html></html>")), /not allowed/);
+  assert.deepEqual(IDEA_STATUSES, ["new", "planned", "building", "shipped"]);
+  assert.match(fs.readFileSync(path.join(ROOT, "docs/help/idea-box.md"), "utf8"), /edit before Send/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web/features/orders-input.js"), "utf8"), /Nothing is sent until that click/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web/features/tour.js"), "utf8"), /Voice writes what you say/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/help/everyday-whats-new.md"), "utf8"), /Try saying: What needs me today/);
   assert.match(fs.readFileSync(path.join(ROOT, "web/features/tour.js"), "utf8"), /everydaySteps/);
   assert.match(fs.readFileSync(path.join(ROOT, "web/features/connect-setup.js"), "utf8"), /everydaySuggest/);
@@ -154,4 +161,125 @@ test("without a loopback stub the suggestion stays on this computer", async () =
     assert.equal(sent.json.thanks, THANKS);
     assert.equal((await s.api("/everyday-news")).json.waiting, 1);
   } finally { if (s) await s.stop(); }
+});
+
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+function walk(dir, out = []) {
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (fs.statSync(full).isDirectory()) walk(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+test("an idea can carry a file, change status, and keep later edits on this computer", async () => {
+  const m = await sink();
+  let s;
+  const secret = "hunter2-file-secret";
+  const pngB64 = PNG.toString("base64");
+  try {
+    s = await startServer({ env: { ...BLANK, CC_EVERYDAY_FEEDBACK_URL: `${m.base}/send`, CC_EVERYDAY_OS: "test-os", CC_WHISPER_BIN: "off" } });
+    assert.ok((await s.api("/state")).json.plugins.includes("orders-box"));
+    const refused = await s.api("/everyday-news/suggestions/files", { method: "POST", body: { name: "secret.txt", mime: "text/plain", data: Buffer.from(`my password is ${secret}`).toString("base64") } });
+    assert.equal(refused.status, 400);
+    const exe = await s.api("/everyday-news/suggestions/files", { method: "POST", body: { name: "run.exe", mime: "application/octet-stream", data: pngB64 } });
+    assert.equal(exe.status, 400);
+    const shot = await s.api("/everyday-news/suggestions/files", { method: "POST", body: { name: "shot.png", mime: "image/png", data: pngB64 } });
+    assert.equal(shot.status, 200, shot.text);
+    assert.equal(shot.json.name, "shot.png");
+    const preview = await s.api("/everyday-news/suggestions/preview", { method: "POST", body: { text: "A shot of the idea", category: "other", includeMeta: false, fileIds: [shot.json.id] } });
+    assert.equal(preview.status, 200, preview.text);
+    assert.deepEqual(preview.json.payload.files, [{ name: "shot.png" }]);
+    assert.equal(JSON.stringify(preview.json.payload).includes(pngB64), false);
+    const sent = await s.api("/everyday-news/suggestions/send", { method: "POST", body: { confirm: true, text: "A shot of the idea", category: "other", includeMeta: false, fileIds: [shot.json.id], payload: preview.json.payload } });
+    assert.equal(sent.status, 200, sent.text);
+    assert.equal(sent.json.idea.status, "new");
+    assert.equal(m.sent.length, 1);
+    assert.equal(JSON.stringify(m.sent[0]).includes(pngB64), false);
+    assert.deepEqual(m.sent[0].files, [{ name: "shot.png" }]);
+    const got = await s.api(`/everyday-news/files/${sent.json.id}/${shot.json.id}`);
+    assert.equal(got.status, 200, got.text);
+    assert.match(String(got.headers["content-disposition"]), /attachment/);
+    assert.match(String(got.headers["content-type"]), /^image\/png/);
+    assert.equal(got.headers["x-content-type-options"], "nosniff");
+    const stored = walk(s.dir).find((f) => f.endsWith(`${shot.json.id}.bin`));
+    assert.ok(stored);
+    assert.equal(fs.readFileSync(stored).equals(PNG), true);
+    const jsonDump = walk(s.dir).filter((f) => f.endsWith(".json")).map((f) => fs.readFileSync(f, "utf8")).join("\n");
+    assert.equal(jsonDump.includes(pngB64), false);
+    assert.equal(jsonDump.includes(secret), false);
+
+    const edited = await s.api(`/everyday-news/suggestions/${sent.json.id}`, { method: "POST", body: { text: "A clearer shot of the idea", status: "planned" } });
+    assert.equal(edited.status, 200, edited.text);
+    assert.equal(edited.json.resent, false);
+    assert.match(edited.json.message, /not sent/);
+    assert.equal(edited.json.idea.status, "planned");
+    assert.equal(m.sent.length, 1);
+    const noted = await s.api(`/everyday-news/suggestions/${sent.json.id}/comments`, { method: "POST", body: { text: "Chris, this is the one to build" } });
+    assert.equal(noted.status, 200, noted.text);
+    assert.match(noted.json.message, /not sent/);
+    assert.equal(m.sent.length, 1);
+    const leak = await s.api(`/everyday-news/suggestions/${sent.json.id}/comments`, { method: "POST", body: { text: `password ${secret}` } });
+    assert.equal(leak.status, 400);
+    const bad = await s.api(`/everyday-news/suggestions/${sent.json.id}`, { method: "POST", body: { status: "later" } });
+    assert.equal(bad.status, 400);
+
+    const secondPreview = await s.api("/everyday-news/suggestions/preview", { method: "POST", body: { text: "Second idea", category: "action", includeMeta: false } });
+    const second = await s.api("/everyday-news/suggestions/send", { method: "POST", body: { confirm: true, text: "Second idea", category: "action", includeMeta: false, payload: secondPreview.json.payload } });
+    assert.equal(second.status, 200, second.text);
+    const moved = await s.api(`/everyday-news/suggestions/${second.json.id}/move`, { method: "POST", body: { direction: "up" } });
+    assert.equal(moved.json.ideas[0].id, second.json.id);
+    assert.equal(moved.json.ideas[0].text, "Second idea");
+    const shipped = await s.api(`/everyday-news/suggestions/${second.json.id}`, { method: "POST", body: { status: "shipped" } });
+    assert.equal(shipped.json.idea.status, "shipped");
+    const building = await s.api(`/everyday-news/suggestions/${sent.json.id}`, { method: "POST", body: { status: "building" } });
+    assert.equal(building.json.idea.status, "building");
+    assert.equal(m.sent.length, 2);
+
+    const order = await s.api("/orders-box/files", { method: "POST", body: { name: "notes.txt", mime: "text/plain", data: Buffer.from("Add a notes connection").toString("base64") } });
+    assert.equal(order.status, 200, order.text);
+    assert.equal(order.json.sends, false);
+    assert.match(order.json.note, /Add a notes connection/);
+    assert.match(order.json.note, /stays on this computer|From notes.txt/);
+    const orderFile = await s.api(`/orders-box/files/${order.json.id}`);
+    assert.match(String(orderFile.headers["content-disposition"]), /attachment/);
+    const orderSecret = await s.api("/orders-box/files", { method: "POST", body: { name: "secret.txt", mime: "text/plain", data: Buffer.from(`my password is ${secret}`).toString("base64") } });
+    assert.equal(orderSecret.status, 400);
+    const dumped = walk(s.dir).map((f) => fs.readFileSync(f)).join("\n");
+    assert.equal(dumped.includes(secret), false);
+
+    const gone = await s.api(`/everyday-news/suggestions/${sent.json.id}/delete`, { method: "POST", body: {} });
+    assert.equal(gone.json.deleted, true);
+    assert.equal(gone.json.ideas.some((idea) => idea.id === sent.json.id), false);
+    assert.equal((await s.api(`/everyday-news/files/${sent.json.id}/${shot.json.id}`)).status, 404);
+    assert.equal(m.sent.length, 2);
+  } finally {
+    if (s) await s.stop();
+    await m.close();
+  }
+});
+
+test("voice uses local Whisper and does not submit the idea", async () => {
+  const whisper = path.join(ROOT, "test", "fixtures", "fake-whisper.mjs");
+  const audio = Buffer.from("not-real-audio").toString("base64");
+  let ok;
+  let fail;
+  try {
+    ok = await startServer({ env: { ...BLANK, CC_WHISPER_BIN: whisper } });
+    const heard = await ok.api("/voice/dictate", { method: "POST", body: { mime: "audio/webm", audio } });
+    assert.equal(heard.status, 200, heard.text);
+    assert.equal(heard.json.provider, "whisper");
+    assert.match(heard.json.text, /calendar/);
+    assert.equal((await ok.api("/everyday-news")).json.ideas.length, 0);
+    assert.equal((await ok.api("/everyday-news")).json.waiting, 0);
+  } finally { if (ok) await ok.stop(); }
+  try {
+    fail = await startServer({ env: { ...BLANK, CC_WHISPER_BIN: whisper, FAKE_WHISPER_FAIL: "1" } });
+    const missed = await fail.api("/voice/dictate", { method: "POST", body: { mime: "audio/webm", audio } });
+    assert.equal(missed.status, 409, missed.text);
+    assert.match(missed.json.error, /speech-to-text key/);
+    assert.equal((await fail.api("/everyday-news")).json.ideas.length, 0);
+  } finally { if (fail) await fail.stop(); }
 });

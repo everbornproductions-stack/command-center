@@ -180,6 +180,7 @@ Effort: S = days, M = 1 to 2 weeks, L = 3+ weeks. Tier: Free or Pro (suggestion)
 - Fields: suggestion text, optional category (connection, action, bug, other), optional email for reply, checkbox "include app version and OS" (default on, no personal data, no chat content).
 - Sending: posts to a feedback endpoint (for example the Grok Bot webhook or a small form backend) that forwards to Chris. Shows exactly what will be sent and needs a Send click.
 - Works offline by queuing and sending later. Shows "Thanks, Chris reads these" confirmation.
+- 0.4.8 additions, kept on this computer: Upload (images, screenshots, PDF, text, Word; up to 4 files, about 4 MB; names only in the note), Voice (local Whisper or a connected AI, edit before Send), then edit, delete, re-prioritize, comment, and a status of new, planned, building, or shipped. Later edits are not sent again. Marching orders has the same Upload and Voice buttons.
 - Optional later: upvote list of popular suggestions.
 - Effort: S. Tier: Free.
 

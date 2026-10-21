@@ -5,8 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
-import { scrubText } from "./prompts/safety.js";
 import { ROOT } from "./paths.js";
+import { addIdeaUpload, assertNoSecret, claimPending, dropPending, pendingMeta, removeIdeaFiles, savePending } from "./box-files.js";
 
 export const DOC = "everyday.news";
 export const MANIFEST_ID = "everyday-2026-10-20";
@@ -45,8 +45,11 @@ const SAMPLES = {
 
 export const HOWTO = [
   { id: "news", title: "What's new", say: TRY_INBOX, steps: ["After an update, read each new connection and action.", "Try it runs a sample and does not send.", "Skip hides that item for good.", "Remind me later waits 3 days, then 7 days, then the item moves to Settings and stops asking.", "Skip all clears the card. Sign-in still starts only from the checklist."] },
-  { id: "suggest", title: "Suggest a connection or idea", say: TRY_SUGGEST, steps: ["Open Settings, the What's new card, or the connections page when nothing is connected.", "Write the idea. Pick a category if you want. An email is optional.", "Leave the version and OS box on, or turn it off. Chat is not included.", "Read the exact note, then click Send."] },
+  { id: "suggest", title: "Suggest a connection or idea", say: TRY_SUGGEST, steps: ["Open Settings, the What's new card, or the connections page when nothing is connected.", "Write the idea, or use Voice and edit the words. Upload a file, a screenshot, or a document if you want. Up to 4 files, about 4 MB each. They stay on this computer.", "Pick a category if you want. An email is optional.", "Leave the version and OS box on, or turn it off. Chat is not included.", "Read the exact note, then click Send.", "After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again."] },
 ];
+
+export const IDEA_STATUSES = ["new", "planned", "building", "shipped"];
+const IDEA_STATUS = new Set(IDEA_STATUSES);
 
 const CATS = new Set(["connection", "action", "bug", "other"]);
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
@@ -157,6 +160,7 @@ export function view(now = Date.now()) {
     thanks: THANKS,
     trySaying: { news: TRY_INBOX, suggest: TRY_SUGGEST },
     howto: HOWTO,
+    ideas: ideaList(d.queue).map(publicIdea),
     safety: "Nothing connects, sends, posts, or deletes from this card. Sign-in starts only from the checklist.",
   };
 }
@@ -213,34 +217,47 @@ export function connectItem(id) {
   };
 }
 
-export function buildSuggestion({ text, category = "other", email = "", includeMeta = true } = {}, env = process.env) {
-  const clean = clip(text, 2000);
+function fileNames(fileIds) {
+  if (!fileIds) return [];
+  if (!Array.isArray(fileIds)) throw fail(400, "Files were not listed correctly.");
+  if (fileIds.length > 4) throw fail(400, "Up to 4 files can go with one idea.");
+  const seen = new Set();
+  return fileIds.map((id) => {
+    if (seen.has(id)) throw fail(400, "That file is already attached.");
+    seen.add(id);
+    return { name: pendingMeta(id).name };
+  });
+}
+
+export function buildSuggestion({ text, category = "other", email = "", includeMeta = true, fileIds } = {}, env = process.env) {
+  const clean = assertNoSecret(clip(text, 2000));
   if (!clean) throw fail(400, "Write a suggestion first.");
-  if (/password|passphrase|social security|\bssn\b|api[_ -]?key|secret key|bearer /i.test(clean)) {
-    throw fail(400, "Do not include a password, an SSN, or a key.");
-  }
-  const scrubbed = scrubText(clean);
-  if (scrubbed.redacted.length) throw fail(400, "Do not include a password, an SSN, or an account number.");
   const cat = String(category || "other");
   if (!CATS.has(cat)) throw fail(400, "Pick connection, action, bug, or other.");
   const mail = clip(email, 120);
   if (mail && !EMAIL.test(mail)) throw fail(400, "That email address does not look right.");
-  const payload = { text: scrubbed.text, category: cat };
+  const payload = { text: clean, category: cat };
   if (mail) payload.email = mail;
   if (includeMeta !== false) {
     payload.version = VERSION;
     payload.os = env.CC_EVERYDAY_OS || process.platform;
   }
+  const names = fileNames(fileIds);
+  if (names.length) payload.files = names;
   return payload;
 }
 
+function canon(value) {
+  if (Array.isArray(value)) return value.map(canon);
+  if (!value || typeof value !== "object") return value;
+  const out = {};
+  for (const key of Object.keys(value).sort()) out[key] = canon(value[key]);
+  return out;
+}
+
 function samePayload(a, b) {
-  const keys = (o) => Object.keys(o || {}).sort();
   if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
-  const ka = keys(a);
-  const kb = keys(b);
-  if (ka.join("|") !== kb.join("|")) return false;
-  return ka.every((k) => a[k] === b[k]);
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 }
 
 async function postLoopback(payload) {
@@ -263,10 +280,24 @@ export async function sendSuggestion(body) {
     throw fail(400, "The note on the page does not match what would be sent. Read it again.");
   }
   const d = state();
-  const row = { id: nid("sg"), payload: expected, createdAt: Date.now(), delivered: false };
+  const id = nid("sg");
+  const files = claimPending(id, body?.fileIds || []);
+  const row = {
+    id,
+    payload: expected,
+    createdAt: Date.now(),
+    delivered: false,
+    status: "new",
+    rank: nextRank(d.queue),
+    comments: [],
+    files,
+  };
   try { row.delivered = await postLoopback(expected); } catch { row.delivered = false; }
   d.queue.push(row);
-  if (d.queue.length > 100) d.queue.splice(0, d.queue.length - 100);
+  if (d.queue.length > 100) {
+    const dropped = d.queue.splice(0, d.queue.length - 100);
+    for (const old of dropped) removeIdeaFiles(old.id);
+  }
   save(d);
   return {
     thanks: THANKS,
@@ -274,7 +305,119 @@ export async function sendSuggestion(body) {
     queued: !row.delivered,
     payload: expected,
     id: row.id,
+    idea: publicIdea(row),
+    resent: false,
   };
+}
+
+function nextRank(queue) {
+  return queue.reduce((max, row) => Math.max(max, row.rank || 0), 0) + 1;
+}
+
+function ideaList(queue) {
+  return [...queue].sort((a, b) => (a.rank || 0) - (b.rank || 0) || (a.createdAt || 0) - (b.createdAt || 0));
+}
+
+function publicIdea(row) {
+  const payload = row.payload || {};
+  return {
+    id: row.id,
+    text: payload.text || "",
+    category: payload.category || "other",
+    status: IDEA_STATUS.has(row.status) ? row.status : "new",
+    rank: row.rank || 0,
+    createdAt: row.createdAt || 0,
+    delivered: !!row.delivered,
+    files: (row.files || []).map(({ id, name, mime, bytes }) => ({ id, name, mime, bytes })),
+    comments: (row.comments || []).map(({ id, text, createdAt }) => ({ id, text, createdAt })),
+  };
+}
+
+function findIdea(d, id) {
+  const row = d.queue.find((item) => item.id === id);
+  if (!row) throw fail(404, "That idea is not on this computer.");
+  return row;
+}
+
+const keptLocal = "Saved on this computer. This edit was not sent.";
+
+export function updateIdea(id, body = {}) {
+  const d = state();
+  const row = findIdea(d, id);
+  if (body.text != null || body.category != null) {
+    const next = buildSuggestion({
+      text: body.text != null ? body.text : row.payload?.text,
+      category: body.category || row.payload?.category || "other",
+      email: row.payload?.email || "",
+      includeMeta: false,
+    });
+    row.payload = { ...row.payload, text: next.text, category: next.category };
+  }
+  if (body.status != null) {
+    const status = String(body.status);
+    if (!IDEA_STATUS.has(status)) throw fail(400, "Status is new, planned, building, or shipped.");
+    row.status = status;
+  }
+  row.comments ||= [];
+  row.files ||= [];
+  save(d);
+  return { idea: publicIdea(row), ideas: ideaList(d.queue).map(publicIdea), resent: false, message: keptLocal };
+}
+
+export function addIdeaComment(id, text) {
+  const clean = assertNoSecret(clip(text, 1000));
+  if (!clean) throw fail(400, "Write a comment first.");
+  const d = state();
+  const row = findIdea(d, id);
+  row.comments ||= [];
+  row.comments.push({ id: nid("cm"), text: clean, createdAt: Date.now() });
+  save(d);
+  return { idea: publicIdea(row), resent: false, message: "Saved on this computer. The comment was not sent." };
+}
+
+export function moveIdea(id, direction) {
+  if (direction !== "up" && direction !== "down") throw fail(400, "Move an idea up or down.");
+  const d = state();
+  const list = ideaList(d.queue);
+  list.forEach((row, index) => { row.rank = index + 1; });
+  const index = list.findIndex((row) => row.id === id);
+  if (index < 0) throw fail(404, "That idea is not on this computer.");
+  const next = direction === "up" ? index - 1 : index + 1;
+  if (next >= 0 && next < list.length) {
+    const rank = list[index].rank;
+    list[index].rank = list[next].rank;
+    list[next].rank = rank;
+  }
+  save(d);
+  return { idea: publicIdea(list[index]), ideas: ideaList(d.queue).map(publicIdea), resent: false };
+}
+
+export function deleteIdea(id) {
+  const d = state();
+  const index = d.queue.findIndex((row) => row.id === id);
+  if (index < 0) throw fail(404, "That idea is not on this computer.");
+  const [row] = d.queue.splice(index, 1);
+  removeIdeaFiles(row.id);
+  save(d);
+  return { deleted: true, id: row.id, ideas: ideaList(d.queue).map(publicIdea) };
+}
+
+export function attachPending(body) {
+  return savePending(body || {});
+}
+
+export function forgetPending(id) {
+  return dropPending(id);
+}
+
+export function attachToIdea(id, body) {
+  const d = state();
+  const row = findIdea(d, id);
+  row.files ||= [];
+  const file = addIdeaUpload(id, body || {}, row.files.length);
+  row.files.push(file);
+  save(d);
+  return { file, idea: publicIdea(row), resent: false, message: "Saved on this computer. This file was not sent." };
 }
 
 export function previewSuggestion(body) {
