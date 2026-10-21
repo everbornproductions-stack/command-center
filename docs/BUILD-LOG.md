@@ -1726,3 +1726,5 @@ Not a numbered phase. No product behavior changed. Square and billing were not t
 
 - Windows CI on the graduate notice and the everyday integration timed out on "openrouter retry" after that run had already finished. The same clock step that hid the MCP tool run: the server stamps startedAt a tick before the test's Date.now(), so startedAt > t0 never matches.
 - Chat waits in the fallback, learning, search, priority, growth, handoff, and MCP tests now use the run id from /chat. Council and mission still do not return an id, so those waits ignore runs that already existed before the post. The browser helper and Grok Bot tests do the same.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app behavior was changed.
+- Mac CI is a pull request check that runs the tests and the smoke check on macos-latest. It does not build the unsigned disk image and does not publish. Phase 14 stays blocked for a real Mac.
