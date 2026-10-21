@@ -1582,3 +1582,16 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: Graduate notice
+
+Not a numbered phase. No locked decision was changed. Decision 15 stays: Grok Bot's handoff is still the webhook. Decision 21 stays: an xAI key is Grok the model, and it does not put Grok Bot on a direct route. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8.
+
+- When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" Add it includes that AI. Not now dismisses the ask. The banner sits at the top of the chat box in Simple and of Marching orders in Expert, so it stays with the box rather than the answers.
+- Grok Bot counts as handoff while it is on the webhook or the built-in mock. A direct route is its own API flag (or a vault id grokbot-direct) or an MCP server whose name is Grok Bot. Approve turns the existing councils and missions switch on. Dispatch stays the webhook.
+- Suno and Google Flow are handoff until they have a key, a linked MCP server, or a recorded api or mcp route. Claude, ChatGPT, Grok, and Gemini cannot be recorded as a graduate route.
+- The first look at a handoff-only setup is a baseline and does not ask. A later gain asks. Already both on the first look asks. Direct-only, with no handoff behind it, does not ask. Approved and dismissed stay quiet.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). The MCP file is 8 pass. The other files are 420 tests, 419 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. The saved webhook was http://127.0.0.1:9/hook and was not called. data/ was not read.
+- Checked in a browser on this machine: Simple at 1400 and 700, and Expert, show the ask inside the orders panel and not in the answers. Add it turns Grok Bot's councils and missions switch on and the handoff stays a webhook. Not now clears the ask and leaves that switch off.
+
+GRADUATE NOTICE (built by Cursor cloud agent)

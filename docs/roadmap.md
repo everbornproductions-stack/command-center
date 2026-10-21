@@ -31,3 +31,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## 0.4.8 Graduate notice
+
+When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" One click (Add it) includes it. Not now dismisses the ask. Grok Bot's webhook stays the handoff for signed-in tasks. An xAI key is Grok the model and does not raise this ask. Suno and Google Flow count when they gain a key or an MCP route.

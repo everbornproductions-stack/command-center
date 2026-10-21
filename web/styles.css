@@ -232,6 +232,8 @@ table.tbl tr:hover td { background: #0f172299; }
 .reply-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; min-width: 0; }
 .reply-turn, .reply-part, .task-answer, .reply-live { min-width: 0; overflow-wrap: anywhere; }
 .grok-wait { color: var(--amber); font-size: 13px; padding: 6px 0; }
+.graduate-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid var(--line); border-left: 3px solid var(--violet); background: var(--panel-solid); border-radius: 10px; padding: 10px 12px; }
+.graduate-banner p { margin: 0; flex: 1 1 180px; }
 .reply-you, .reply-ai { border-left: 2px solid var(--line-2); padding-left: 8px; }
 .reply-ai { border-left-color: var(--accent); }
 .task-follow { grid-column: 1 / -1; min-width: 0; }
