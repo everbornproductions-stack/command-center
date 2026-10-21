@@ -33,7 +33,7 @@ Not done. In this order:
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
 3. Phase 68. Safety, sharing, and plain words.
-4. Phases 45 to 51. Desktop control, with Antigravity first. Fixture doors for app cards, scores, MCP, websites, a signed-in profile, Windows UI Automation, and the $1 screenshot cap are in the smarter control workstream. Pull request 62 stays separate.
+4. Phases 45 to 51. Desktop control, with Antigravity first. The smarter control workstream has the doors, and the real app control workstream wires Edge through Playwright, the signed-in profile (opt-in only), Windows UI Automation, and the screenshot path. Pull request 62 stays separate.
 5. Phase 69. The program scan.
 6. Phases 53, 54, and 56. Everyday actions and Calendar.
 7. Phase 70. Save in place.
@@ -374,28 +374,28 @@ Share a running mission into a room so others can watch it live, and let them co
 ### Phase 44: AI group chat with personas (effort: M) (Later, not done)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, fixture doors in smarter control)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The smarter control workstream landed fixture drivers for these doors. Real Edge, Playwright, UI Automation, and computer-use calls are not wired. Open pull requests 62 and 65 stay separate and are not done.
+### Phases 45 to 51: No-API app control (version 0.4.9, real drivers wired on the fixture doors)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The smarter control workstream landed the doors. Real Edge, Playwright, a signed-in profile only after an explicit opt-in, UI Automation, and computer-use calls are wired. Tests still use stand-in drivers and never a real key. The mission planner assigns an app step through suggestApp. Open pull requests 62 and 65 stay separate and are not done.
 
 ### Phase 45: App cards (effort: M) (version 0.4.9, built in smarter control, fixture only)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, built in smarter control, fixture only)
-Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
+### Phase 46: Score and missions (effort: M) (version 0.4.9, planner assigns through suggestApp)
+Apps get starting scores from `added-caps.js` and record outcomes through the brain. The mission planner assigns a step to an allowed app through suggestApp when the task type matches. Writing steps still go to text models. Grok Bot and the browser helper keep their tags.
 
 ### Phase 47: MCP as an app (effort: M) (version 0.4.9, built in smarter control, fixture only)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, built in smarter control, fixture only)
+### Phase 48: Websites (effort: L) (version 0.4.9, Playwright Edge wired)
 Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, built in smarter control, fixture only)
-Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, opt-in only)
+Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms. The real profile is used only when the person ticks that choice.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, built in smarter control, fixture only)
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, UI Automation wired)
 UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, built in smarter control, fixture only)
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, computer-use path wired)
 Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
 
 ### Phase 57: Recipes (effort: L) (built in smarter control, fixture only)

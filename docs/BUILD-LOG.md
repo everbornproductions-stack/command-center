@@ -1634,3 +1634,17 @@ PHASE 51 DONE
 PHASE 57 DONE
 PHASE 59 DONE
 PHASE 60 DONE
+
+## 2026-10-21: Real app drivers for phases 45 to 51
+
+No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key was used or printed. Pull request 62 was not edited. This sits on the fixture doors. The PHASE lines above stay as they were.
+
+- A website step opens Edge or Chromium through Playwright (playwright-core). The profile Meldmind owns lives under the data folder in app-profiles. A signed-in Edge or Chrome profile is used only when the person ticks that box and picks Edge or Chrome. If that browser is already open, the step stops and asks them to close it. Tests do not launch a browser. CC_APP_DRIVERS=fake and stand-in hooks refuse with driver_off.
+- A Windows step reads the focused window with UI Automation. Focus loss stops the next input. A password field is refused and the value is not logged.
+- Screenshot control calls the computer-use tool (Anthropic computer_toolset_20260801, or the OpenAI computer tool). The estimate is shown before a grab or a model call. Older pictures are dropped. The spend stops at $1. The key stays in the request header and is not written into the ledger, the log, or an error.
+- Passwords, Square, and billing screens are still refused. The banner still says Meldmind is using that app. Stop still halts the next step. Send, buy, and delete still wait for a yes.
+- The mission planner calls suggestApp when the task is not writing, an agent, or media. A matching allowed app runs through the live driver. Writing stays with a text model.
+- Tests here (Linux): npm test 439 tests, 438 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome on Linux: the signed-in box starts off, the browser picker follows the tick, an app can be allowed, the banner names the app, and Stop clears it. Desktop and a 390px wide view. A real Edge profile, Windows UI Automation, and a live computer-use call were not used.
+
+REAL APP DRIVERS WIRED (phases 45 to 51, on top of the fixture doors)
