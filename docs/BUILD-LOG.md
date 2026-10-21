@@ -1582,3 +1582,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-20: Everyday actions, inbox summary and reminders (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 (calendar agenda and create or move) stays with Phases 53 and 54. Phases 35 and 55 were not touched. No locked decision text was rewritten. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version was not bumped.
+
+- Inbox and tasks: a summary across connected Google mailboxes, sample mailboxes when you click Try this example, and a reply draft that uses How to talk to me and My voice. Send is a separate click and posts the To, subject, and body on screen. Without send access the draft stays. Reminders and to-dos are plain text on this computer. More than 10 lines asks for a count and a sample first.
+- Each of those has a try saying line on the welcome tour, a How to section on the page, and a Help article.
+- The run-order checks now follow the order already merged on main. docs/DECISIONS.md was not edited.
+- Tests: `test/everyday-inbox.test.js`. npm test 402 tests, 401 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY INBOX AND REMINDERS (built by Cursor cloud agent)

@@ -76,7 +76,8 @@ function hideNews() {
 }
 function steps() {
   const mode = window.CC.uiMode?.() || "expert";
-  return STEPS.filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
+  const extra = Array.isArray(window.CC.everydaySteps) ? window.CC.everydaySteps : [];
+  return [...STEPS, ...extra].filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
 }
 function maybeInvite() {
   if (idx >= 0) return;
