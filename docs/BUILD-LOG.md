@@ -1601,3 +1601,15 @@ Not a numbered phase. No locked decision was changed. Package was not bumped. Sq
 - Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
 - Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
 - Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.
+
+## 2026-10-21: plan docs regrouped by version
+
+Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
+
+- docs/BUILD-PLAN.md now groups the work that is not done: 0.4.9, 0.4.10, 0.4.11, then research, Zapier and Make (MCP by URL and webhooks moved earlier), then the three tiers, then Later (AI group chat, user chat, live builds, newsletter, Spanish, phone apps, store listings, signed apps).
+- Phases with PHASE N DONE in this log are marked DONE in the plan. Also marked DONE from merged pull requests: 36 (0.4.4 limits), 37 (pull request 40), 38 (pull request 25), 39 (pull requests 13 and 18), 41 (pull request 11). Phase 14 stays BLOCKED for a real Mac. The unsigned build is 0.4.10. Signing is Later.
+- The welcome email (decision 22, spec unchanged) is Phase 71 in version 0.4.9. Use your own Supabase stays out of the run order.
+- docs/billing.md keeps the live $15.99 Square link and the Phase 35 prices the app shows. The plan prices are Pro $18.99/month or $189/year, Extreme $29.99/month or $299/year, a monthly rise to $24.99 and $39.99 in about 6 months, and lifetime founders at $299 for the first 100 then $499 for the next 400, closed at 500, counter hidden under 40 buyers.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PLAN DOCS REGROUPED (no phase built)
