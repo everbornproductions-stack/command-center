@@ -15,6 +15,7 @@
       "Find the Q3 proposal and summarize it. The search reads Google Drive and Notion when they are connected, and docs on this computer otherwise. Saving a copy stays on this computer.",
       "Prep me for my 2pm. A transcript summary lists action items. Adding those to-dos is a separate click. This build does not record calls.",
       "When a new HighLevel lead comes in, draft a text and email. Send is one click for one channel. Twilio was not contacted and no price was looked up.",
+      "Saving a project from the command bar stays on that page. Saved appears briefly, with Open if you want the project.",
       "This note shows once after an update. Take the tour again any time from Settings."
     ]
   },

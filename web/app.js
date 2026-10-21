@@ -135,8 +135,17 @@ async function apiBlobUrl(path) {
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
-function toast(msg, err = false) {
-  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : ""); t.textContent = msg;
+function toast(msg, err = false, link = null) {
+  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
+  t.append(document.createTextNode(msg));
+  if (link?.label && typeof link.onClick === "function") {
+    const a = document.createElement("a");
+    a.href = "#";
+    a.className = "toast-link";
+    a.textContent = link.label;
+    a.addEventListener("click", (ev) => { ev.preventDefault(); link.onClick(); t.remove(); });
+    t.append(a);
+  }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
 }
@@ -769,6 +778,17 @@ function projectField() {
       <div class="small" id="proj-err" role="alert" style="color:var(--red)"></div>
     </form>`;
 }
+// Open is a click on the Saved note. Saving itself stays on the command bar.
+function openSavedProject(id) {
+  if (!id) return;
+  S.openProject = id;
+  S.view = "projects";
+  render();
+}
+function toastSaved(id) {
+  const link = id ? { label: "Open", onClick: () => openSavedProject(id) } : null;
+  toast("Saved", false, link);
+}
 function wireProjectPicker() {
   const sel = $("#proj");
   const form = $("#proj-form");
@@ -811,16 +831,17 @@ function wireProjectPicker() {
     const problem = projectNameError(name, S.projects, exceptId);
     if (problem) { err.textContent = problem; input.focus(); return; }
     saveBtn.disabled = true;
+    let savedId = "";
     try {
       if (mode === "rename") {
         await api("/projects", { method: "POST", body: { id: S.project, name } });
-        toast("Project renamed");
+        savedId = S.project;
       } else {
         const created = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
-        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); }
-        toast("Project created");
+        if (created?.id) { S.project = created.id; localStorage.setItem("cc.project", S.project); savedId = created.id; }
       }
       await refresh();
+      toastSaved(savedId);
     } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
   });
 }

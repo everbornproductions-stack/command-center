@@ -1688,3 +1688,10 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The check still runs on launch and every hour. It also runs when the shortcut focuses the open app. If electron-updater does not report a newer build, the app reads the public latest.yml itself. A newer file shows Update ready, restart. Nothing downloads until that click. If the file cannot be read, the app shows Couldn't check for updates with Download, which opens the releases page. Help, the Help page, and Settings all have Check for updates.
 - The Update ready, restart button sits in the right side of the top bar. The menu row watches that cluster, so the button does not cover Settings or Help. Eight menus stay when they still fit. Otherwise the row goes back to the compact menus, still on one line.
 - Tests here (Linux): npm test 428 tests, 426 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.
+
+## 2026-10-21: saving a project from the command bar stays put
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). package.json stays 0.4.8. The help catalog stays 0.4.8. The note is under 0.4.9. Square and billing were not touched. data/ was not read.
+
+- Create and rename on the command bar save in place. The page stays on the command view. A toast says Saved. Open is a link on that toast and is the only way to the project. The Projects page does not open by itself.
+- Test: `test/project-picker.test.js`. npm test 441 tests, 440 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Checked in the browser: Chat, new project Spring Sale, toast Saved with Open, still on Chat. Rename to Spring, toast Saved, still on Chat. Open then shows the project.
