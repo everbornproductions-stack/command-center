@@ -89,7 +89,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Schedules | Run an agent, chat or mission on a timer, from a webhook or when a file arrives |
 | Media | Video, image and voice through Kling, ElevenLabs, Runway and fal.ai, estimate first |
 | Pipelines | Saved missions with the steps already decided (Instagram week, music video, site launch) |
-| Remix | Rebuild an app or game you can see, from scratch, with your own characters and ideas. A Pro mission. Extreme has no monthly cap. |
+| Remix | Say what you want to make, pick a starting point, then preview, Build, Test, and Publish. It rebuilds from scratch. A Pro mission. Extreme has no monthly cap. |
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |

@@ -56,3 +56,49 @@ export function assertRemix({ tier, used } = {}) {
   if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
   return g;
 }
+
+// Remix 2 choices. Pro includes Studio. Extreme includes Owner. Free includes none.
+// Publish to a website is Pro. A phone build is Extreme. A two-idea blend is Extreme.
+export const REMIX_PART_TIER = {
+  "screenshot-ui": "pro",
+  "recording-prototype": "extreme",
+  "penpot-design": "pro",
+  "godot-kenney": "pro",
+  "phaser-create": "pro",
+  "bevy-starter": "extreme",
+  "cc0-art": "pro",
+  "level-maker": "extreme",
+  "voices": "extreme",
+  "smoke-test": "pro",
+  "access-report": "pro",
+  "publish-web": "pro",
+  "publish-phone": "extreme",
+  installer: "extreme",
+  multiplayer: "extreme",
+  "style-only": "pro",
+  blend: "extreme",
+  forks: "pro",
+};
+
+const PART_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 2 };
+
+export function remixAbilityAllowed(tier, ability) {
+  const need = REMIX_PART_TIER[ability];
+  if (!need) return false;
+  const have = PART_RANK[String(tier || "free").toLowerCase()] ?? 0;
+  const want = need === "extreme" ? 2 : 1;
+  return have >= want;
+}
+
+export function remixAbilityGate({ tier = "free", ability } = {}) {
+  const id = String(ability || "");
+  const need = REMIX_PART_TIER[id];
+  if (!need) return { ok: false, status: 400, code: "ability", ability: id, message: "That choice is not available." };
+  if (!remixAbilityAllowed(tier, id)) {
+    return {
+      ok: false, status: 402, code: "ability_tier", ability: id, need, tier: String(tier || "free").toLowerCase(),
+      message: need === "extreme" ? "That choice is on Extreme." : "That choice is on Pro.",
+    };
+  }
+  return { ok: true, status: 200, code: null, ability: id, need, message: "" };
+}
