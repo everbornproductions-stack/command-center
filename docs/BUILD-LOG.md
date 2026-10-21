@@ -1606,3 +1606,43 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Remaining phases (58, 61, 62, Phase 33 item 1, decision 23)
+
+Version stays 0.4.8. No Square or billing change. data/ was not read. No real key was used. Phase 14 stays BLOCKED for any step that needs a real Mac.
+
+- Phase 58. Second opinion sits beside Single, Council, and Mission. Two AIs answer, differences are shown in plain words, and both answers stay. Demo uses the pretend AIs and records no spend. The learning router keeps the task type only.
+- Phase 61. Team spaces add shared recipes to a workspace for Studio, Owner, and a stored Extreme licence. Five people including the owner. Phase 8 invites are unchanged (shown once, not emailed). Keys stay in the vault. The price is a placeholder and nothing is charged.
+- Phase 62. Industry packs for real estate, insurance, and credit repair sit on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. SSNs, dates of birth, and account numbers are stripped. Credit repair and insurance keep SCF, CROA, and RESPA.
+- Phase 33 item 1. HighLevel contacts, invoices, and workflows. A separate sign-in from social posting, so the Phase 7 social scopes are unchanged. Reads can run. A send, a charge, or a change waits for a click. The token stays in the vault. Items 2 and 3 (MCP by URL, custom webhooks) stay in Phase 90.
+- Decision 23. Use your own Supabase is an optional Settings switch, off by default, and not part of setup. Project URL and publishable key. The service key stays on the server and is never returned. The licence server connection is unchanged. The spec was not rewritten.
+- Tiers go through server/feature-gate.js. Extreme is read from a stored active licence row because it is not in the live licence table. Free and Pro do not get team spaces.
+- Commits: 33818cc gate, 5f848fc second opinion, 3e1e12a industry packs, 955ee1b team spaces, 1af3104 HighLevel tools, c8c3fc6 own Supabase, e00007f plan and README. This log entry is the commit after those.
+- Tests here (Linux): npm test 438 tests, 437 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Headless Chrome clicked Second opinion (both answers stayed), filled a real-estate draft into Marching orders without sending, opened Team spaces, and opened the HighLevel and Use your own Supabase settings (the Supabase switch was off). No real HighLevel or Supabase project was contacted.
+- Not verified: a hosted hub where a member on another account sees only shared recipes; a real HighLevel location; a real Supabase project; Windows CI (this branch is pushed once for that). feature-gate.js is expected to conflict with other open pull requests.
+
+PHASE 58 DONE
+PHASE 61 DONE
+PHASE 62 DONE
+PHASE 33 ITEM 1 DONE
+DECISION 23 DONE
+
+## 2026-10-21: What's new lists every version since the one that was installed
+
+Not a numbered phase. Version stays 0.4.8. No Square or billing change. data/ was not read. No real key.
+
+What was already there:
+
+- `docs/WHATS-NEW.json` is the bundled note list. The installer keeps that file (and `docs/help/`) and leaves out the rest of `docs/`. The tour showed one entry, the current `package.json` version, once. The seen version is `whatsnew.state.json` in the data folder. A first launch and an update both showed only the current version. Resetting the tour does not show the note again. First-run setup hides it.
+- `electron/updater.cjs` reads electron-updater `releaseNotes` (a string, or a list of note fields), strips HTML, and keeps 600 characters on the pre-install update prompt. Download and install still wait for a click. Those notes are the single target release from the update feed. They need a network check, they are not shown after restart, and they do not list versions that were skipped. That prompt is unchanged.
+
+What this adds:
+
+- After an update, the first launch lists every bundled note newer than the version last marked seen, through this version, newest first. A note with no bullets is skipped. A first launch with nothing seen still shows only this version, so a new install does not dump the whole history.
+- Got it stores the seen version and the version it replaced. Settings, Onboarding tour, and Help each have What's new, which opens that same list again. Opening it does not mark the note unseen. Closing it again keeps the same span.
+- A copy that already marked this version seen before this change has no stored previous version, so What's new again shows this version only.
+- The notes stay in `docs/WHATS-NEW.json`. There is no second changelog file.
+
+Tests here (Linux): npm test 440 tests, 439 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local copy with the seen version set to 0.4.5 opened on 0.4.8 and showed 0.4.8, then 0.4.7, then 0.4.6. Got it closed it. Settings and Help each opened the same list. No packaged installer and no real auto-update were run.
+
+WHATS NEW SPAN DONE

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { startServer } from "./helpers.js";
-import { sampleDecision, SAMPLE_GOAL, DEFAULTS, whatsNewFor, readChangelog } from "../server/plugins/tour.js";
+import { sampleDecision, SAMPLE_GOAL, DEFAULTS, whatsNewFor, whatsNewSince, compareVersions, readChangelog } from "../server/plugins/tour.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,11 +99,70 @@ test("what's new is returned once per version and a tour reset does not show it 
     assert.equal(seen.status, 200);
     assert.equal(seen.json.whatsNew, null);
     const file = path.join(s.dir, "whatsnew.state.json");
-    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).seen, pkg.version);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(saved.seen, pkg.version);
+    assert.equal(saved.from, null, "a first launch has no earlier version to remember");
+    const again = await s.api("/tour/whats-new");
+    assert.equal(again.json.whatsNew.version, pkg.version);
+    assert.deepEqual(again.json.whatsNew.versions.map((v) => v.version), [pkg.version]);
+    assert.equal((await s.api("/tour")).json.whatsNew, null, "opening the note again does not mark it unseen");
     const reset = await s.api("/tour/reset", { method: "POST" });
     assert.equal(reset.json.completed, false);
     assert.equal(reset.json.whatsNew, null, "resetting the tour does not show What's new again");
     assert.equal((await s.api("/tour")).json.whatsNew, null);
+  } finally { await s.stop(); }
+});
+
+test("what's new lists every version since the one that was installed, newest first", () => {
+  const log = {
+    "0.4.7": { title: "Seven", bullets: ["old"] },
+    "0.4.8": { title: "Eight", bullets: ["a"] },
+    "0.4.9": { title: "Nine", bullets: ["b"] },
+    "0.4.10": { title: "Ten", bullets: ["c"] },
+    "0.4.10.1": { title: "Gap", bullets: [] },
+    "0.4.11": { title: "Eleven", bullets: ["d"] },
+    "0.4.12": { title: "Twelve", bullets: ["e"] },
+    "0.5.0": { title: "Later", bullets: ["nope"] },
+  };
+  const span = whatsNewSince("0.4.8", "0.4.12", log);
+  assert.deepEqual(span.versions.map((v) => v.version), ["0.4.12", "0.4.11", "0.4.10", "0.4.9"]);
+  assert.equal(span.version, "0.4.12");
+  assert.deepEqual(span.bullets, ["e"]);
+  assert.equal(span.from, "0.4.8");
+  assert.equal(span.versions.some((v) => v.version === "0.4.8"), false);
+  assert.deepEqual(whatsNewSince(null, "0.4.12", log).versions.map((v) => v.version), ["0.4.12"]);
+  assert.equal(whatsNewSince("0.4.12", "0.4.12", log), null);
+  assert.equal(compareVersions("0.4.10", "0.4.9"), 1);
+  assert.equal(compareVersions("0.4.9", "0.4.10"), -1);
+  assert.doesNotMatch(JSON.stringify(span), /\u2014/);
+});
+
+test("an update lists every bundled note since the installed version, and it can be opened again", async () => {
+  const s = await startServer({
+    seed: (dir) => fs.writeFileSync(path.join(dir, "whatsnew.state.json"), JSON.stringify({ seen: "0.4.5" })),
+  });
+  try {
+    const g = await s.api("/tour");
+    assert.deepEqual(g.json.whatsNew.versions.map((v) => v.version), ["0.4.8", "0.4.7", "0.4.6"]);
+    assert.equal(g.json.whatsNew.version, "0.4.8");
+    assert.equal(g.json.whatsNew.from, "0.4.5");
+    assert.ok(g.json.whatsNew.bullets.length > 0);
+    assert.equal(g.json.whatsNew.versions.some((v) => v.version === "0.4.5" || v.version === "0.4.4"), false);
+    assert.doesNotMatch(JSON.stringify(g.json.whatsNew), /\u2014/);
+    const seen = await s.api("/tour/whats-new/seen", { method: "POST" });
+    assert.equal(seen.json.whatsNew, null);
+    const file = path.join(s.dir, "whatsnew.state.json");
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(saved.seen, "0.4.8");
+    assert.equal(saved.from, "0.4.5");
+    const again = await s.api("/tour/whats-new");
+    assert.deepEqual(again.json.whatsNew.versions.map((v) => v.version), ["0.4.8", "0.4.7", "0.4.6"]);
+    assert.equal((await s.api("/tour")).json.whatsNew, null, "reopening does not mark the note unseen");
+    const kept = await s.api("/tour/whats-new/seen", { method: "POST" });
+    assert.equal(kept.json.whatsNew, null);
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).from, "0.4.5", "closing it again keeps the same span");
+    const reset = await s.api("/tour/reset", { method: "POST" });
+    assert.equal(reset.json.whatsNew, null, "resetting the tour does not show the update notes again");
   } finally { await s.stop(); }
 });
 
@@ -128,6 +187,13 @@ test("tour steps cover the current app and What's new shows before the invite", 
   assert.doesNotMatch(src, /\u2014/);
   assert.doesNotMatch(steps, /Nine stops/);
   assert.match(src, /whatsNew/);
+  assert.match(src, /n\.versions/);
+  assert.match(src, /openNews/);
+  assert.match(src, /id="cc-news-open">What's new</);
+  assert.match(src, /These notes are saved in the app, so they work offline/);
+  const help = fs.readFileSync(new URL("../web/features/help.js", import.meta.url), "utf8");
+  assert.match(help, /id="help-news">What's new</);
+  assert.match(help, /openNews/);
   assert.match(src, /S\.view === "setup"\) \{ hideNews\(\)/, "first-run setup is not covered by What's new");
   const invite = src.slice(src.indexOf("function maybeInvite"), src.indexOf("function showNews"));
   const offer = invite.indexOf("showNews()");

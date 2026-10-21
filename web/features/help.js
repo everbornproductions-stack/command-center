@@ -20,6 +20,7 @@ function renderTab(view) {
         <button class="btn sm primary" type="button" id="help-ask">Ask Meldmind</button>
         <button class="btn sm" type="button" id="help-start">Start a project</button>
         <button class="btn sm" type="button" id="help-replay">Replay the tour</button>
+        <button class="btn sm" type="button" id="help-news">What's new</button>
         <button class="btn sm" type="button" id="help-examples">Watch example projects</button>
         <button class="btn sm" type="button" id="help-upd">Check for updates</button>
         <button class="btn sm" type="button" id="help-setup">Run setup again</button>
@@ -70,6 +71,7 @@ function renderTab(view) {
   });
   view.querySelector("#help-start").addEventListener("click", () => { (window.CC.startProject?.open || window.CC.go)?.("start"); });
   view.querySelector("#help-replay").addEventListener("click", () => { window.CC.tour?.start?.(); });
+  view.querySelector("#help-news").addEventListener("click", () => { window.CC.tour?.openNews?.(); });
   view.querySelector("#help-examples").addEventListener("click", () => { (window.CC.startProject?.examples || window.CC.startProject?.open || window.CC.go)?.(); });
   view.querySelector("#help-setup").addEventListener("click", () => { window.CC.connectSetup?.open?.(); });
   view.querySelector("#help-upd").addEventListener("click", async () => {

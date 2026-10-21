@@ -26,6 +26,14 @@ Marked DONE from `PHASE N DONE` in docs/BUILD-LOG.md, or from a merged pull requ
 
 Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done. The unsigned build moves to version 0.4.10 below. Signing moves to Later.
 
+### Remaining phases (built 2026-10-21)
+
+These numbers are the earlier roadmap names. Version stays 0.4.8. They are not the regrouped 0.4.10 phase numbers.
+
+- Phase 58. Second opinion. Two AIs answer the same orders. Differences show in plain words. Both answers stay. It sits beside Single, Council, and Mission. Demo uses pretend AIs and spends nothing.
+- Phase 61. Team spaces. Shared recipes on a workspace for Studio, Owner, and a stored Extreme licence. Five people including the owner. Phase 8 workspaces are unchanged. Invite links are still shown once. Keys stay in the vault. The price is a placeholder and nothing is charged.
+- Phase 62. Industry starter packs for real estate, insurance, and credit repair, on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. Credit repair and insurance keep SCF, CROA, and RESPA.
+
 ### Version 0.4.9 (next)
 
 Not done. In this order:
@@ -95,11 +103,11 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 Left on the list so they are not dropped. They are not next.
 
 - Phase 32. Model-version alerts.
-- Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
+- Phase 33. HighLevel contacts, invoices, and workflows are built (item 1). MCP by URL and webhooks stay in Phase 90. HighLevel posting already shipped in Phase 7.
 - Phase 34. Hide hosted plumbing.
 - Phase 42. Newsfeed and alerts.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
-- Use your own Supabase (decision 23). Still not in the run order.
+- Use your own Supabase (decision 23). The spec in Planned, not in the run order is unchanged. The optional setting is built and off by default.
 
 ## Rules for every phase (non-negotiable)
 1. Read `README.md`, `docs/roadmap.md`, this file and the end of `docs/BUILD-LOG.md` first.
@@ -109,7 +117,7 @@ Left on the list so they are not dropped. They are not next.
 5. Never deploy, never push (Chris pushes), never touch Square, real API keys, `data/`, `.env`, password files, or billing. Nothing posts, sends, emails or spends without an explicit user click; outbound integrations need user OAuth.
 6. Paid things (managed plan, trial credits, marketplace pricing) go behind a feature flag with PLACEHOLDER prices. Chris decides real pricing.
 7. At the end, append to `docs/BUILD-LOG.md`: date/time, features done, commits (hash + message), test counts (npm test pass/fail, smoke pass/fail), what is not verified, and a final line exactly `PHASE N DONE` or `PHASE N BLOCKED: <reason>`.
-8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once after each update.
+8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once on the first launch after an update, listing every bundled note since the version that was installed, newest first. Settings and Help can open it again. The notes ship in the app, so they work offline.
 
 ## Phases
 
@@ -311,12 +319,11 @@ Before a council or a chat, match the orders to a Pro prompt.
 ### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
 Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
 
-### Phase 33: Bring your own apps (MCP by URL and webhooks moved to Phase 90; HighLevel tools not in 0.4.9 to 0.4.11)
-HighLevel contacts, invoices, and workflows as council tools stay here. They are not in 0.4.9 to 0.4.11. HighLevel posting already shipped in Phase 7.
-1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools.
+### Phase 33: Bring your own apps (item 1 built; MCP by URL and webhooks stay in Phase 90)
+HighLevel contacts, invoices, and workflows as council tools are built. They are not a new version. HighLevel posting already shipped in Phase 7 and its social scopes are unchanged.
+1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools. Built. A send, a charge, or a change waits for a click. Keys stay in the vault and are never written to logs.
 2. MCP by URL moved to Phase 90 (version after 0.4.11). Do not build it here.
 3. Custom webhook / API tools moved to Phase 90. Do not build them here.
-Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
 
 ### Phase 34: Hide hosted plumbing (not in 0.4.9 to 0.4.11, not built)
 Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
@@ -556,7 +563,7 @@ A hosted web version of the app, so it can be used in a browser without installi
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 
-Use your own Supabase (decision 23) stays here. Do not start them until Chris adds them to the run order above. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
+Use your own Supabase (decision 23) stays written here so the spec is not rewritten. Do not start them until Chris adds them to the run order above. Chris added this setting to the remaining-phases work on 2026-10-21, and the optional switch is now in Settings. It is off by default. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
 
 ### Use your own Supabase
 - Optional advanced setting named "Use your own Supabase", for power users and companies.

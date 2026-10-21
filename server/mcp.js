@@ -20,6 +20,7 @@ import { PROVIDERS } from "./registry.js";
 import { streamChat } from "./providers.js";
 import { localFetch } from "./loopback-fetch.js";
 import { networkCause } from "./health.js";
+import { highlevelToolEntries, runHighlevelAction } from "./highlevel-tools.js";
 
 export const SERVERS_DOC = "mcp.servers";
 export const SETTINGS_DOC = "mcp.settings";
@@ -300,6 +301,14 @@ export async function executeTool(entry, args, { missionId = null, taskId = null
   }
   try {
     mcpTrace(`execute ${t.name} call`);
+    if (entry.local === "highlevel") {
+      const r = await runHighlevelAction(t.name, args || {}, { confirmed: true });
+      const ms = Date.now() - t0;
+      logCall({ ts: Date.now(), ...base, ok: !r.isError, denied: !!r.denied, ms });
+      emit("mcp.call", { ...base, ok: !r.isError, denied: !!r.denied, ms });
+      emit("log", { text: `Tool "${t.name}" on ${s.name} ${r.isError ? "did not run" : "ran"} in ${(ms / 1000).toFixed(1)} s.`, missionId });
+      return { text: r.text, isError: !!r.isError, denied: !!r.denied, ms };
+    }
     const sess = await connectServer(s.id);
     const r = await sess.client.callTool(t.name, args);
     mcpTrace(`execute ${t.name} back ok=${!r.isError} ms=${Date.now() - t0}`);
@@ -330,6 +339,12 @@ export function chatWithTools(opts, run = {}) {
   // run.allow (custom agents, Phase 19): only these "serverId/tool" entries, and only if switched on as well
   const allow = Array.isArray(run.allow) ? new Set(run.allow) : null;
   const tools = want && supportsTools(pid) ? enabledTools().filter((t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`)) : [];
+  if (want) {
+    for (const extra of highlevelToolEntries()) {
+      if (allow && !allow.has(`highlevel/${extra.tool.name}`)) continue;
+      tools.push(extra);
+    }
+  }
   if (!tools.length) return streamChat(opts);
   return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
 }

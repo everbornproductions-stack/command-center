@@ -16,6 +16,7 @@ To replay the tour later:
 1. Open the **Settings** menu and click **Take the tour again**.
 2. Or open the Settings page and click **Take the tour again** there.
 3. After an update, the What's new note also has **Take the tour**. **Got it** closes the note without starting the tour.
+4. Open **What's new** from the Settings page, or from Help, to read those notes again. That does not restart the tour.
 
 The sample run uses three pretend AIs (Nova, Atlas, and Sage). They plan a one-week Instagram launch for a coffee roaster. It runs only while no real AI is connected, so demo mode is not turned on over a key you already saved. No keys are needed and nothing is spent. You can move with Next, or leave the tour. Your chats, projects, and keys stay put.
 

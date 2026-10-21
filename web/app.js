@@ -431,7 +431,8 @@ function onMission(m) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
+      const kindLabel = m.kind === "single" ? "Answer" : m.kind === "opinion" ? "Second opinion" : "Mission";
+      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${kindLabel} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
     }
   }
 }
@@ -934,6 +935,7 @@ function renderCommand(v) {
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
         <label class="lbl">Priority</label>
         <div class="seg" id="cost-mode" role="group" aria-label="Priority">
@@ -1089,7 +1091,7 @@ function renderOutput() {
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); return; }
   h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); return; }
   o.innerHTML = text ? md(text) : "";
@@ -1178,6 +1180,10 @@ async function sendOrders() {
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
     else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
+    else if (mode === "opinion") {
+      await api("/opinion", { method: "POST", body: { prompt, projectId, ...packBody } });
+      toast("Second opinion started. Both answers stay.");
+    }
     else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) {
