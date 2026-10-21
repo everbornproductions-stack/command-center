@@ -138,4 +138,6 @@ When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Ins
 
 ## 13. Privacy in one paragraph
 
+When a job, the browser helper, or a connection asks you to sign in, a small tip appears. You can dismiss it. Tip: keep your passwords in a password manager like 1Password (or Bitwarden, free). Meldmind never stores your passwords. 1Password is at https://1password.com and Bitwarden is at https://bitwarden.com.
+
 Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. A report back from another AI reaches only the person who handed off that job. The hub deletes it when your app picks it up, or after 7 days, and it keeps no list of those summaries for anyone else. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.

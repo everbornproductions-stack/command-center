@@ -119,7 +119,7 @@ const live = new Map(); // jobId -> { c, stopped, ctl, decide: { id, resolve } |
 
 export function publicJob(j) {
   if (!j) return null;
-  return { id: j.id, agent: AGENT_ID, task: j.task, workspace: j.workspace, source: j.source, needs: j.needs || [], status: j.status, statusLabel: STATUS_LABEL[j.status], via: j.via, driver: j.via, createdAt: j.createdAt, sentAt: j.startedAt || null, startedAt: j.startedAt || null, updatedAt: j.updatedAt, text: j.text || "", artifacts: j.artifacts || [], error: j.error || null, by: j.by || null, history: j.history || [], log: (j.log || []).slice(-60), approval: j.approval || null, steps: j.steps || 0, cost: j.cost || 0, model: j.model || null, late: !!j.late, accountId: j.accountId || null, accountLabel: j.accountLabel || null, getDone: bannerFor(j.source?.runId || j.id) };
+  return { id: j.id, agent: AGENT_ID, task: j.task, workspace: j.workspace, source: j.source, needs: j.needs || [], status: j.status, statusLabel: STATUS_LABEL[j.status], via: j.via, driver: j.via, createdAt: j.createdAt, sentAt: j.startedAt || null, startedAt: j.startedAt || null, updatedAt: j.updatedAt, text: j.text || "", artifacts: j.artifacts || [], error: j.error || null, by: j.by || null, history: j.history || [], log: (j.log || []).slice(-60), approval: j.approval || null, steps: j.steps || 0, cost: j.cost || 0, model: j.model || null, late: !!j.late, accountId: j.accountId || null, accountLabel: j.accountLabel || null, getDone: bannerFor(j.source?.runId || j.id), passwordTip: passwordTipOn(j) };
 }
 export const listJobs = (n = 50) => jobs().slice(0, n).map(publicJob);
 export const runJobs = (runId) => jobs().filter((j) => j.source?.runId === runId).map(publicJob);
@@ -148,7 +148,8 @@ function announce(j, note) {
   statusChanged();
   try { const d = live.get(j.id) && windowDriver(); if (d && j.via === "window") d.update?.(barState(j)); } catch {}
 }
-const barState = (j) => ({ job: { id: j.id, task: oneLine(j.task, 200), status: j.status, statusLabel: STATUS_LABEL[j.status], steps: j.steps || 0, cost: j.cost || 0 }, log: (j.log || []).slice(-30), approval: j.approval || null, text: j.status === "done" ? oneLine(j.text, 400) : "", error: j.error || null, getDone: bannerFor(j.source?.runId || j.id) });
+const passwordTipOn = (j) => !!(j && (j.approval?.login || (j.loginSeen && !TERMINAL.has(j.status))));
+const barState = (j) => ({ job: { id: j.id, task: oneLine(j.task, 200), status: j.status, statusLabel: STATUS_LABEL[j.status], steps: j.steps || 0, cost: j.cost || 0 }, log: (j.log || []).slice(-30), approval: j.approval || null, text: j.status === "done" ? oneLine(j.text, 400) : "", error: j.error || null, getDone: bannerFor(j.source?.runId || j.id), passwordTip: passwordTipOn(j) });
 
 function setStatus(id, status, note, extra = {}) {
   const j = update(id, (x) => { x.status = status; Object.assign(x, extra); x.history.push({ status, ts: Date.now(), note: clip(note || "", 160) }); });
@@ -272,8 +273,29 @@ function urlProblem(raw) {
 }
 const isPayField = (el) => !!el?.payment;
 
+function pageIsLogin(a, snap) {
+  const els = snap?.elements || [];
+  const el = a?.ref ? els.find((e) => e.ref === a.ref) : null;
+  const formRef = el?.form || (a?.action === "submit" ? a.ref : "");
+  const form = (snap?.forms || []).find((f) => f.ref === formRef);
+  const formPw = !!formRef && (els.some((e) => e.password && e.form === formRef) || (form?.fields || []).some((f) => f.type === "password"));
+  const words = /\b(sign[\s-]?in|log[\s-]?in|log[\s-]?on|password)\b/i;
+  if (a?.action === "type") return !!el?.password;
+  if (a?.action === "ask") return words.test(`${a?.text || ""}`) || els.some((e) => e.password);
+  if (a?.action === "click" || a?.action === "submit") return !!(el?.password || formPw || words.test(el?.label || ""));
+  return false;
+}
+function markLogin(result, a, snap) {
+  if (!result || !pageIsLogin(a, snap)) return result;
+  if (result.ask) result.ask.login = true;
+  else if (result.refuse) result.login = true;
+  return result;
+}
 // Returns { refuse } or { ask: { kind, title, lines } } or {}.
 export function assess(a, snap, accountId) {
+  return markLogin(assessCore(a, snap, accountId), a, snap);
+}
+function assessCore(a, snap, accountId) {
   const els = snap?.elements || [];
   const el = a.ref ? els.find((e) => e.ref === a.ref) : null;
   const page = snap?.url || "";
@@ -487,6 +509,7 @@ async function run(id) {
 
       const risk = assess(a, snap, j.accountId || undefined);
       if (risk.refuse) {
+        if (risk.login) update(id, (x) => { x.loginSeen = true; });
         logLine(id, "refused", `${what}: refused (${risk.refuse})`);
         hist.push(`${step}. ${what} -> REFUSED: ${risk.refuse}`);
         lastResult = "";
@@ -494,9 +517,9 @@ async function run(id) {
       }
       if (risk.ask) {
         const runKey = j.source?.runId || id;
-        const decision = maySkipAsk({ runId: runKey, kind: risk.ask.kind });
+        const decision = maySkipAsk({ runId: runKey, kind: risk.ask.login ? "your turn" : risk.ask.kind });
         if (!decision.skip) {
-          const approval = { id: "ok-" + crypto.randomBytes(6).toString("base64url"), kind: risk.ask.kind, kindLabel: KIND_LABEL[risk.ask.kind] || risk.ask.kind, title: risk.ask.title, lines: risk.ask.lines.slice(0, 60), action: what, at: Date.now() };
+          const approval = { id: "ok-" + crypto.randomBytes(6).toString("base64url"), kind: risk.ask.kind, kindLabel: KIND_LABEL[risk.ask.kind] || risk.ask.kind, title: risk.ask.title, lines: risk.ask.lines.slice(0, 60), action: what, at: Date.now(), ...(risk.ask.login ? { login: true } : {}) };
           logLine(id, "ask", `waiting for your OK: ${approval.title}`);
           const waiting = waitDecision(id, approval);
           setStatus(id, "needs_approval", `needs your OK: ${approval.title}`, { approval });

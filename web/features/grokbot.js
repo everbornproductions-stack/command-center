@@ -4,6 +4,7 @@
 // Deliverable: the Grok Bot jobs of this run, their results and links, paste a result in by hand, cancel.
 // Settings > Integrations > Grok Bot: webhook URL and sender key (vault; never shown again), header name,
 //   where results come back, the built-in mock, wait times, and a test job.
+import { looksLikeLogin } from "/sign-in-tip.js";
 const { S, api, toast, esc, md, ago } = window.CC;
 
 const css = `
@@ -74,6 +75,7 @@ function jobHtml(j) {
   return `<div class="cc-gb-job" data-job="${esc(j.id)}">
     <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Grok Bot</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.by === "you" ? `<span class="chip">pasted by you</span>` : j.via === "mock" ? `<span class="chip">mock</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}<span class="dim" style="margin-left:auto">${j.sentAt ? `sent ${ago(j.sentAt)} ago` : ""}</span></div>
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 200))}</div>
+    ${j.status === "needs_approval" && looksLikeLogin([j.task, j.text, j.error].filter(Boolean).join(" ")) ? (window.CC.passwordTipHtml?.() || "") : ""}
     ${j.text ? `<div class="md small" style="margin-top:6px">${md(j.text)}</div>` : ""}
     ${arts ? `<div class="small" style="margin-top:4px">${arts}</div>` : ""}
     ${j.error && j.status === "failed" ? `<div class="small" style="color:var(--red);margin-top:4px">${esc(j.error)}</div>` : ""}

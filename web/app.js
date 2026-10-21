@@ -5,6 +5,7 @@ import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, res
 import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
+import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 
 // ---------------- state ----------------
 const S = {
@@ -1864,6 +1865,7 @@ function renderGate(message = "") {
   g.innerHTML = `<div class="gate-card">
     <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind</span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
+    ${tipHtml(localStorage)}
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
@@ -1909,7 +1911,8 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, passwordTipHtml: () => tipHtml(localStorage) };
+installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 

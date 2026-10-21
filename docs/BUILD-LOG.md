@@ -1632,3 +1632,14 @@ Not a numbered phase. No locked decision was changed. Decision 15 is unchanged. 
 - Checked in a browser on this machine: What's new shows Get it done, the checkbox starts with sending off, the phrase ticks the box, Settings can save and revoke Always for this kind of job, the handoff prompt includes the permission line, the Stop banner shows and Stop clears it, Help opens the article, and the tour reaches the step.
 
 GET IT DONE (no phase built)
+
+## 2026-10-21: password manager tip
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- When a job, a browser helper step, or a connection hits a sign-in, a small tip appears. Dismiss hides it. The words point at https://1password.com and https://bitwarden.com. Meldmind still never types or stores a password. A sign-in still waits for the person, including when Get it done is on.
+- Help and the guide data say the same thing.
+- Tests here (Linux): npm test 442 tests, 440 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: the Google connection in Settings shows the tip with both links, Dismiss removes it and a later Connect click does not bring it back, and Help opens the article.
+
+PASSWORD TIP (no phase built)

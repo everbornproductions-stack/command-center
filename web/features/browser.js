@@ -36,6 +36,7 @@ function askHtml(j) {
     <b>${a.kind === "your turn" ? "Your turn:" : "OK to do this?"}</b> ${esc(a.title)}
     <pre>${esc((a.lines || []).join("\n"))}</pre>
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn sm primary" data-ok>OK, do it</button><button class="btn sm" data-no>No</button><span class="dim small" style="margin-left:auto">Nothing happens until you click.</span></div>
+    ${a.login ? (window.CC.passwordTipHtml?.() || "") : ""}
   </div>`;
 }
 function jobHtml(j, { full = false } = {}) {
@@ -45,6 +46,7 @@ function jobHtml(j, { full = false } = {}) {
     <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
       <span class="dim" style="margin-left:auto">${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}${j.model ? ` · ${esc(j.model.name || j.model.model)}` : ""}</span>${OPEN(j) ? `<button class="ghost small" data-stop>Stop</button>` : ""}</div>
     ${j.getDone?.on ? `<div class="small" style="margin-top:6px">Get it done is on for this job. Stop is still here.</div>` : ""}
+    ${j.passwordTip && !j.approval?.login ? (window.CC.passwordTipHtml?.() || "") : ""}
     <div class="small dim" style="margin-top:4px">${esc(j.task.slice(0, 240))}</div>
     ${askHtml(j)}
     ${j.text ? `<div class="md small" style="margin-top:6px">${md(j.text)}</div>` : ""}
@@ -155,6 +157,7 @@ async function renderSettings(el) {
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm primary" id="bh-save">Save</button><button class="btn sm" id="bh-demo" ${c.ready ? "" : "disabled"} title="A pretend bakery page that ships with the app: watch it read the page, fill in the contact form and ask for your OK">Try it on the demo page</button></div>
 
     <div class="cat-h" style="margin-top:14px">Google: Gmail and Drive ${g.connected ? `<span class="chip green">connected</span>` : g.needsSignIn ? `<span class="chip amber">sign in again</span>` : ""}</div>
+    ${window.CC.passwordTipHtml?.() || ""}
     <div class="dim small">Uses your own Google sign-in and the least access that works: read Gmail and read Drive, unless you tick sending. Even then every email waits for your OK. ${esc(g.setup)} <a href="${esc(g.consoleUrl)}" target="_blank" rel="noopener">Open the Google Cloud console</a>. The client secret and tokens stay in the vault and are never shown again.</div>
     ${g.connected ? `<div class="small" style="margin-top:4px">Allowed: ${g.scopes.map((x) => esc(x.label)).join(", ")}${g.connectedAt ? ` · since ${ago(g.connectedAt)} ago` : ""}</div>` : ""}
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -166,7 +169,7 @@ async function renderSettings(el) {
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-drive" checked> Read Google Drive</label>
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-send"> Send email (asks you every time)</label>
     </div>
-    <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
+    <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect" data-pw-login="1">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
     <div id="bh-accounts" style="margin-top:10px">
       ${(g.accounts || []).map((a) => `<div class="row small" data-bh-acct="${esc(a.id)}" style="gap:8px;flex-wrap:wrap;margin-top:6px">
         <input type="text" data-bh-label value="${esc(a.label)}" aria-label="Account label" style="width:160px;padding:4px 6px">
@@ -174,7 +177,7 @@ async function renderSettings(el) {
         <span class="chip ${a.connected ? (a.needsSignIn ? "amber" : "green") : ""}">${a.connected ? (a.needsSignIn ? "sign in again" : "connected") : "not connected"}</span>
         <button class="ghost small" data-bh-remove>Remove</button>
       </div>`).join("")}
-      <div class="row small" style="gap:8px;margin-top:8px"><input type="text" id="bh-new-label" placeholder="Label, e.g. Work" aria-label="Label for another Google account" style="width:160px;padding:4px 6px"><button class="btn sm" id="bh-add-account">Add another account</button></div>
+      <div class="row small" style="gap:8px;margin-top:8px"><input type="text" id="bh-new-label" placeholder="Label, e.g. Work" aria-label="Label for another Google account" style="width:160px;padding:4px 6px"><button class="btn sm" id="bh-add-account" data-pw-login="1">Add another account</button></div>
     </div>
     ${data.jobs.length ? `<div class="cat-h" style="margin-top:14px">Recent jobs</div><div id="bh-jobs">${data.jobs.slice(0, 5).map((j) => jobHtml(j)).join("")}</div>` : ""}
   </div>`;

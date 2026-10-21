@@ -18,3 +18,11 @@ A report back reaches only the person who handed off the job. Someone else's acc
 Get it done lets one job run its steps without asking. Turn it on for that job, or say get it done, don't ask me. It ends when the job ends. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on.
 
 Always for this kind of job is in Settings. You can revoke it any time. The prompt for a handoff tells the other AI the permission level, so ordinary steps do not wait for another question. Spending money, a permanent delete, and sending a message still stop for one tap unless sending is turned on for that job.
+
+## Passwords
+
+When a job, a step in the browser helper, or a connection asks you to sign in, a small tip appears. You can dismiss it.
+
+Tip: keep your passwords in a password manager like [1Password](https://1password.com) (or [Bitwarden](https://bitwarden.com), free). Meldmind never stores your passwords.
+
+The helper never types a password. You sign in yourself in its window.

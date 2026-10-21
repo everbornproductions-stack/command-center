@@ -48,7 +48,7 @@ function flowHtml() {
 }
 
 function buttons(targets) {
-  return (targets || []).map((t) => `<button type="button" class="btn sm" data-continue="${esc(t.id)}">Continue in ${esc(t.name)}</button>`).join("");
+  return (targets || []).map((t) => `<button type="button" class="btn sm" data-continue="${esc(t.id)}" data-pw-login="1">Continue in ${esc(t.name)}</button>`).join("");
 }
 
 async function onContinue(id) {
@@ -124,7 +124,7 @@ async function renderSettings(el) {
       <input type="text" data-note="${esc(t.id)}" value="${esc(t.note || "")}" placeholder="Note (optional)" aria-label="Note" style="width:180px">
       <button type="button" class="btn sm" data-save="${esc(t.id)}">Save</button>
       <button type="button" class="ghost small" data-del="${esc(t.id)}">Remove</button>
-      <button type="button" class="btn sm" data-continue="${esc(t.id)}">Continue in ${esc(t.name)}</button>
+      <button type="button" class="btn sm" data-continue="${esc(t.id)}" data-pw-login="1">Continue in ${esc(t.name)}</button>
       ${t.suggest ? `<span class="chip">${esc(t.reason || "manual handoff")}</span>` : ""}
     </div>`).join("");
   el.innerHTML = `<div class="panel" id="cc-ho-settings"><h3>Manual handoff</h3>
