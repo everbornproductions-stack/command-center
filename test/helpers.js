@@ -8,7 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
-const PROVIDER_KEY_ENV = /^(?:[A-Z0-9]+_)*(?:API_KEY|API_TOKEN|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN)$|^FAL_KEY$/;
+// Any key, token, service key or password on the machine running the tests (Square, Supabase service,
+// GHL, Fly, Cloudflare) is kept out of the app too.
+const PROVIDER_KEY_ENV = /^(?:[A-Z0-9]+_)*(?:API_KEY|API_TOKEN|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN|ACCESS_TOKEN|SERVICE_KEY|TOKEN|PASSWORD)$|^FAL_KEY$/;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
