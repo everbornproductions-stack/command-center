@@ -69,8 +69,12 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .help-item { display: grid; gap: 2px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .help-item:hover, .help-item:focus-visible { border-color: var(--line-2); }
 .help-page textarea, .help-page input[type="search"] { width: 100%; }
-.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: auto minmax(0, 1fr); justify-content: center; }
-.cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow-y: auto; max-height: 16rem; }
+/* Simple: the chat box and its options stay put. On a wide window they sit in a
+   fixed panel beside the answers. The answers are the only part that scrolls. */
+.cmd.simple-chat { grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); justify-content: stretch; width: 100%; max-width: none; height: 100%; max-height: 100%; }
+.cmd.simple-chat .orders { grid-column: 1; grid-row: 1; align-self: stretch; overflow-y: auto; max-height: none; min-height: 0; }
+.cmd.simple-chat .output { grid-column: 2; grid-row: 1; min-height: 0; overflow-y: auto; }
+body[data-ui="simple"] .view:has(> .cmd.simple-chat) { overflow: hidden; }
 #cc-mode-ask { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card { width: 460px; max-width: 100%; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-mode-ask h4 { margin: 0 0 8px; font-size: 18px; }
@@ -277,7 +281,13 @@ table.tbl tr:hover td { background: #0f172299; }
 .sig.ok { background: #0f2f26; color: var(--green); }
 .sig.low, .sig.attention { background: #3a1a1a; color: var(--red); }
 .sig.renewing { background: #3b2d10; color: var(--amber); }
-@media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd .ops, .cmd .output, .cmd.simple-chat .orders { overflow: visible; max-height: none; } }
+@media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd .ops, .cmd .output { overflow: visible; max-height: none; } }
+@media (max-width: 900px) {
+  body[data-ui="simple"] .view:has(> .cmd.simple-chat) { overflow: hidden; display: flex; flex-direction: column; }
+  .cmd.simple-chat { display: flex; flex-direction: column; grid-template-columns: 1fr; height: 100%; min-height: 0; max-height: 100%; }
+  .cmd.simple-chat .output { order: 1; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .cmd.simple-chat .orders { order: 2; flex: 0 0 auto; max-height: min(42vh, 280px); overflow-y: auto; position: sticky; bottom: 0; z-index: 3; background: var(--panel-solid); }
+}
 
 /* ---- phone layout ---- */
 @media (max-width: 760px) {

@@ -1573,3 +1573,12 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
 - Version is 0.4.7.
 - Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
+
+## 2026-10-21: Simple chat stays on screen
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.7. data/ was not read.
+
+- Simple mode no longer lets the chat box scroll away with the answers. On a wide window the chat and its options sit in a fixed panel on the left, and the answers scroll on the right. On a narrow window (900px and under) the chat box is pinned to the bottom.
+- Expert marching orders are unchanged.
+- Roadmap: docs/roadmap.md, section "0.4.8 Simple chat layout".
+- Checked in headless Chrome with the real stylesheet: at 1400px the chat panel and the answers sit side by side, the page does not scroll, and the answers do. At 700px the chat box is pinned to the bottom, the page does not scroll, and the answers scroll above it.

@@ -31,3 +31,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## 0.4.8 Simple chat layout
+
+On a wide window, Simple keeps the chat box and its options in a fixed panel on the left. Answers scroll on the right and do not carry the box away. On a narrow window, the chat box stays pinned at the bottom while the answers scroll above it.

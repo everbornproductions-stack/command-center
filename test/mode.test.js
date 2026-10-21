@@ -70,6 +70,12 @@ test("the shell keeps the toggle, the simple chat, and the hotkeys", () => {
   assert.match(hotkey, /Alt\+Space/);
   assert.doesNotMatch(hotkey, /uiMode/);
   for (const t of [app, html, read("web", "mode.js"), read("web", "features", "tour.js")]) assert.equal(t.includes(EM), false);
+  const css = read("web", "styles.css");
+  assert.match(css, /\.cmd\.simple-chat \{ grid-template-columns: minmax\(280px, 400px\) minmax\(0, 1fr\)/);
+  assert.match(css, /body\[data-ui="simple"\] \.view:has\(> \.cmd\.simple-chat\) \{ overflow: hidden/);
+  assert.match(css, /@media \(max-width: 900px\)/);
+  assert.match(css, /\.cmd\.simple-chat \.orders \{ order: 2; flex: 0 0 auto; max-height: min\(42vh, 280px\); overflow-y: auto; position: sticky; bottom: 0/);
+  assert.equal(css.includes(EM), false);
 });
 
 test("the choice is saved and does not close first-run setup", async () => {
