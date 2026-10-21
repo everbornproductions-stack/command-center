@@ -35,3 +35,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 ## 0.4.8 Simple chat layout
 
 On a wide window, Simple keeps the chat box and its options in a fixed panel on the left. Answers scroll on the right and do not carry the box away. On a narrow window, the chat box stays pinned at the bottom while the answers scroll above it.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 does not include the Mac build. The unsigned Mac .dmg and the "new version ready, Download" notice are the next release after 0.4.8. Signing and notarization stay later.
