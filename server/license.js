@@ -24,6 +24,9 @@ export const TIERS = {
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },
+  // A licence may already say extreme. This does not add a price or a Square link.
+  // Phase 91 still owns the public prices. Refocus checks the name in server/feature-gate.js.
+  extreme: { ...PRO, label: "Extreme" },
 };
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the

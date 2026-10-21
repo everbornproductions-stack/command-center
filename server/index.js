@@ -31,6 +31,7 @@ import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { whoWillRead } from "./readers.js";
 import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
@@ -516,7 +517,7 @@ async function api(req, res, url) {
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = normalizeMode(url.searchParams.get("mode") || settings().defaultMode) || "balanced";
     const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
+    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), whoWillRead: whoWillRead({ prompt, mode, classification: cls }) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 

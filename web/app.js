@@ -672,7 +672,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "refocus", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -1152,7 +1152,8 @@ async function previewRoute() {
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
       ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
-      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>`;
+      <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>
+      ${r.whoWillRead ? `<div class="small" style="margin-top:6px"><b>${esc(r.whoWillRead.heading || "Who will read this")}</b>: ${r.whoWillRead.readers?.length ? `${r.whoWillRead.readers.map((x) => esc(x.name)).join(", ")}. ` : ""}${esc(r.whoWillRead.note || "Nothing is sent until you click.")}</div>` : ""}`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
   } catch (e) { box.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
 }

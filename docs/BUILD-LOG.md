@@ -1606,3 +1606,16 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Phase 97 Refocus, finish what you started
+
+Chris asked for 0.4.12 ahead of the unfinished 0.4.9 to 0.4.11 work. Those phases were not built. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched. The package version stays 0.4.8.
+
+- Refocus is in the Work menu. Type a topic and Meldmind lists related saved chats, imported chats, project files, saved outputs, and connected Drive files from oldest to newest. Each row has a source, a date, a finished, partial, or abandoned label, and a short summary.
+- The complete version plan lists what was kept, what was improved, and what is still missing. Find is read only. Rebuild it starts a mission only after that click, then the app opens Command.
+- Find, the timeline, and the status labels are Pro. The rebuild is Extreme, with no cap, through server/feature-gate.js. Free sees an upgrade note and does not search. Studio can find and cannot rebuild. Owner can do both. Extreme is accepted as a licence name only. No price and no Square link were added. Phase 91 still owns the public prices.
+- Who will read this is one shared list for council, mission, and Refocus. It names the AIs and services that would receive the words. Nothing is sent until the click. Private chats are left out.
+- A finished rebuild records which source kinds and which AI ids worked, not the chat text and not keys. The next Refocus ranks those higher in Kept and in the reader list. The timeline stays in date order.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Headless Chrome: Free shows the upgrade note, Pro Find lists the timeline and leaves Rebuild it off, Extreme Rebuild it starts a mission. Windows CI is the pull request check.
+
+PHASE 97 DONE

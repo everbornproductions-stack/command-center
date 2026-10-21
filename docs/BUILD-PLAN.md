@@ -69,6 +69,10 @@ Not done, except the three rows already marked done above (share links, accessib
 2. Phase 40. Learned from ratings.
 3. Phase 88. Mission pause.
 
+### Version 0.4.12
+
+1. Phase 97. Refocus, finish what you started. The full note is in the Version 0.4.12 section further down. The package version stays 0.4.8.
+
 ### New phases after 0.4.11
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
@@ -483,6 +487,12 @@ Export an answer or a project deliverable as PDF or DOCX. The file downloads on 
 
 ### Phase 84: Industry packs (version 0.4.10, not done)
 Prompt and starter packs grouped by industry. Picking one fills the orders and stays editable. Nothing runs until Send.
+
+### Version 0.4.12
+
+Chris asked for this on 2026-10-21, ahead of the unfinished 0.4.9 to 0.4.11 work. Those versions stay as written. The package version stays 0.4.8 until Chris releases.
+
+1. Phase 97. Refocus, finish what you started. Type a topic and Meldmind lists related saved chats, imported chats, project files, saved outputs, and connected Drive files from oldest to newest, with source, date, a finished, partial, or abandoned status, and a short summary. It merges the best parts into one complete version plan (kept, improved, still missing). Rebuild it starts a mission only after that click. The page shows who will read it, the same list as council and mission. Find, the timeline, and the status labels are Pro. The rebuild is Extreme, unlimited, through server/feature-gate.js. Free sees an upgrade note. Private chats are left out. A finished rebuild records which sources and AIs worked so the next Refocus ranks them higher. Read only until the click.
 
 ## Version 0.4.11 phases (not done)
 
