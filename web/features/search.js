@@ -62,9 +62,13 @@ function linkify(root, sources) {
     node.parentNode.replaceChild(frag, node);
   }
 }
-function renderDeliverable(el) {
+function renderDeliverable(el, run) {
   const sources = sourcesOfLive();
-  if (!sources.length) { el.innerHTML = ""; return; }
+  if (!sources.length) {
+    const searched = run?.kind === "council" ? run.council?.searched : run?.mission?.searched;
+    el.innerHTML = searched === false ? `<p class="hint" id="cc-no-search" role="note">Did not search the web</p>` : "";
+    return;
+  }
   const l = S.live;
   const name = l.kind === "council" ? l.council?.searchEngine : l.mission?.searchEngine;
   el.innerHTML = `<div class="cc-src"><span class="small muted" style="width:100%">Sources${name ? ` · ${esc(name)}` : ""} · click a number to open the page</span>

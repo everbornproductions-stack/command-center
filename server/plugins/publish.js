@@ -105,7 +105,7 @@ function channelList(h) {
     { id: "instagram", name: "Instagram", ready: readyFor(h, "instagram"), connector: "meta", needs: how("instagram", "Connect Instagram, or paste a Page token + IG user id") },
     { id: "ghl", name: "HighLevel social planner", ready: readyFor(h, "ghl"), connector: "ghl", needs: how("ghl", "Connect HighLevel, or paste a private integration token + location id") },
     { id: "slack", name: "Slack", ready: readyFor(h, "slack"), connector: "slack", needs: how("slack", "Connect Slack (or paste a bot token)") },
-    { id: "drive", name: "Google Drive", ready: readyFor(h, "drive"), connector: "google", needs: con.google.connected ? `Connected: uploads to the "Command AI" folder` : h.HOSTED ? "Connect Google Drive" : "Connect Google Drive, or choose a Drive-synced folder", folder: pr.driveFolder || "" },
+    { id: "drive", name: "Google Drive", ready: readyFor(h, "drive"), connector: "google", needs: con.google.connected ? `Connected: uploads to the "Meldmind" folder` : h.HOSTED ? "Connect Google Drive" : "Connect Google Drive, or choose a Drive-synced folder", folder: pr.driveFolder || "" },
   ];
 }
 

@@ -1582,3 +1582,18 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: v0.4.9 workstream B (share, schedules, safety copy, help)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version is 0.4.9. Onboarding, Simple mode, and desktop control were left to the other workstreams.
+
+- A share link built from this PC (loopback or a private address, because the server binds 127.0.0.1) says "This link only works on this PC" and offers Copy the text or Export. A public origin still says "Share link copied".
+- Schedules use day buttons, a time, and presets (Weekdays at 5 pm, Fridays at 4 pm). A cron that is not a simple week pattern is kept until those controls are used. A slot missed while the app was closed shows "Last run missed (app was closed)" with Run now. That click catches up. Missed slots are not replayed on their own.
+- Never-say phrases, and credit-repair words such as guarantee when SCF mode is on, are confirmed before copy or send. The person can continue. The line under the box names SSNs and account numbers.
+- Help has Security and your data, and a one-page security summary PDF downloaded with the session token.
+- MCP, OAuth, webhook, sender key, Handoff, and SCF mode use plain words. Each Handoff row says the prompt is copied and the page opens, and that Meldmind does not type or send.
+- The user guide and the current README say Meldmind. The installer name in the guide is Meldmind-Setup. The data folder name Everborn Command and the repo folder command-center stay. New Google Drive uploads use a folder named Meldmind. Existing Drive folders are not renamed.
+- The later Contrarian hooks template (contrarian-view-hooks) is removed. The original 12-hook template stays. Hint text is 13px with stronger contrast. Real estate and mortgage modes are coming, under the credit repair safety setting. Marketplace stays capitalized.
+- Stop replaces the abort label. The API path is still abort. Send is disabled and reads Still working while a run is going. Search off shows Did not search the web. After 5 ratings, Meldmind says which AI it now prefers. A finished run can notify when the window is in the background. Help says you can type in any language. A failed run that cost $0 says Nothing was charged.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Chrome on 127.0.0.1: the mask line, a Single answer with Did not search the web, the local-only share note, Help (Security and your data, PDF download), schedule day buttons and the two presets, Marketplace, and the credit repair note. The Stop control is the mission button; a Single demo run does not show it.
+

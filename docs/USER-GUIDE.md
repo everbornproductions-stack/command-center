@@ -1,14 +1,14 @@
-# Command AI user guide
+# Meldmind user guide
 
-*Command AI, an Everborn product by Everborn Productions.*
+*Meldmind, an Everborn product by Everborn Productions.*
 
-Command AI is one window for every AI you pay for. You type what you want once; it picks the right AI for each part, lets them check each other's work, shows who is working in real time, and keeps track of what everything costs. Your keys stay on your computer and you pay the AI companies directly.
+Meldmind is one window for every AI you pay for. You type what you want once; it picks the right AI for each part, lets them check each other's work, shows who is working in real time, and keeps track of what everything costs. Your keys stay on your computer and you pay the AI companies directly.
 
 This guide is for people using the app. Developers: see README.md and docs/plugin-api.md.
 
 ## 1. Install and first start
 
-1. Run **Command-AI-Setup-<version>.exe**. Windows SmartScreen may warn once because the build is not code-signed yet: choose "More info", then "Run anyway".
+1. Run **Meldmind-Setup-<version>.exe**. Windows SmartScreen may warn once because the build is not code-signed yet: choose "More info", then "Run anyway".
 2. The app opens in its own window and keeps running in the tray when you close the window. Quit from the tray icon.
 3. On the very first start the app shows **Setup**. The first choice is **I am willing to share anonymous track records**. A new setup checks it. Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone. What we share is only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys. You can change this any time in Settings. If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share. Then every other step is optional and runs on your computer only:
    - look through your browser history for the AI tools you already use,
@@ -103,14 +103,14 @@ Nothing posts, sends, emails or spends without a click from you.
 
 ## 9. Updates
 
-When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
+When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
 
 ## 10. When something goes wrong
 
 | What you see | What it means and what to do |
 |---|---|
-| A red message "Could not reach Command AI's engine" | The local engine stopped. Use **Restart engine** in the panel that appears, or Restart app in the tray. Your settings, keys and history are kept. |
-| "Command AI's engine is not responding" panel | Shown after about 15 seconds without an answer. Restart engine, Check for updates, or Keep waiting. |
+| A red message "Could not reach Meldmind's engine" | The local engine stopped. Use **Restart engine** in the panel that appears, or Restart app in the tray. Your settings, keys and history are kept. |
+| "Meldmind's engine is not responding" panel | Shown after about 15 seconds without an answer. Restart engine, Check for updates, or Keep waiting. |
 | "Key rejected (401)" | The provider refused the key. Make a new key on the provider's site and paste it again. |
 | "Could not reach <provider>: <reason>" | A network or provider problem. Smart fallback moves the work to another AI meanwhile. |
 | "Request failed (HTTP 500)" or a tab says it "could not open" | Something broke inside the app. Click **Try again**; if it repeats, restart the app and tell Everborn what you clicked. |

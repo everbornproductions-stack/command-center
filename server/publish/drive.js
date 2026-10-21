@@ -1,6 +1,6 @@
 // "Save to Drive": two ways, picked in this order.
 //  1. Google Drive connected (Settings > Publishing > Connect, scope drive.file only): the deliverable is
-//     uploaded as a Markdown file, plus any media job files, into a "Command AI" folder this app creates.
+//     uploaded as a Markdown file, plus any media job files, into a "Meldmind" folder this app creates.
 //     drive.file means the app can only see and change files it made itself.
 //  2. Otherwise (local mode): the deliverable is written into a folder you choose, typically your Google
 //     Drive desktop-synced folder, so it syncs without OAuth.
@@ -22,7 +22,7 @@ export function preview({ title, files }, prefs, secret, hosted) {
   const extra = files?.length ? ` + ${files.length} file${files.length === 1 ? "" : "s"}` : "";
   if (viaApi(secret)) {
     for (const f of files || []) { try { if (fs.statSync(f).size > MAX_FILE) problems.push(`${path.basename(f)} is over 200 MB`); } catch { problems.push(`${path.basename(f)} is missing`); } }
-    return { channel: id, summary: `Upload "${title}" as Markdown${extra} to your Google Drive, folder "Command AI"`, problems };
+    return { channel: id, summary: `Upload "${title}" as Markdown${extra} to your Google Drive, folder "Meldmind"`, problems };
   }
   if (hosted) problems.push("Connect Google Drive in Settings > Publishing");
   else if (!prefs?.driveFolder) problems.push("Connect Google Drive, or choose a Drive-synced folder, in Settings > Publishing");
@@ -39,7 +39,7 @@ async function driveFetch(url, opts, token) {
 async function jsonOf(r, what) { const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(`Drive ${what}: ${j.error?.message || `HTTP ${r.status}`}`), { status: r.status }); return j; }
 
 async function makeFolder(token) {
-  const r = await driveFetch(`${API.google()}/drive/v3/files?fields=id`, { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ name: "Command AI", mimeType: FOLDER }) }, token);
+  const r = await driveFetch(`${API.google()}/drive/v3/files?fields=id`, { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ name: "Meldmind", mimeType: FOLDER }) }, token);
   return (await jsonOf(r, "folder")).id;
 }
 

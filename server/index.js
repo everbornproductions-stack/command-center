@@ -187,7 +187,7 @@ function providerView() {
 
 function finishPausedChat({ id, prompt, projectId, customAgent, message, billing, provider }) {
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
-  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "failed", startedAt: Date.now(), finishedAt: Date.now(), provider: provider || null, model: null, cost: 0, deliverable: message, error: message, sources: [], toolCalls: [], fallbacks: [], notice: { kind: "paused", provider: provider || null, billing: billing || null, text: message }, ...(customAgent ? { customAgent } : {}) };
+  const m = { id, kind: "single", prompt, projectId: projectId || null, status: "failed", startedAt: Date.now(), finishedAt: Date.now(), provider: provider || null, model: null, cost: 0, deliverable: message, error: message, sources: [], searched: false, toolCalls: [], fallbacks: [], notice: { kind: "paused", provider: provider || null, billing: billing || null, text: message }, ...(customAgent ? { customAgent } : {}) };
   ctx().store.saveMission(m, missionSummary({ ...m, title }));
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
@@ -430,6 +430,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
   const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  m.searched = web != null;
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
   // knowledge libraries (Phase 18): the chat's, the active workspace's, or the ones the request names; excerpts cited as [L1], [L2]
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
@@ -1009,7 +1010,7 @@ async function initContext() {
   // and then trusts only its own instance id (decision 6), so it never mistakes another server for this one.
   // ws re-emits the HTTP server's errors on wss; that copy is handled here, so it is ignored there.
   server.on("error", (e) => {
-    console.error(e.code === "EADDRINUSE" ? `Command AI could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Command AI server error: ${e.message}`);
+    console.error(e.code === "EADDRINUSE" ? `Meldmind could not start: port ${PORT} in use (EADDRINUSE). Another copy may be running; close it or set CC_PORT.` : `Meldmind server error: ${e.message}`);
     process.exit(1);
   });
   server.listen(PORT, HOSTED ? "0.0.0.0" : "127.0.0.1", async () => {

@@ -328,7 +328,8 @@ function handoffHtml(list) {
     const open = h.link?.url ? `<a class="btn sm" href="${esc(h.link.url)}" target="_blank" rel="noopener">Open</a>` : "";
     const result = h.status === "reported" && h.result ? `<span class="lv-result">${esc(h.result)}</span>` : "";
     const when = h.sentLabel ? `<span class="dim">Sent ${esc(h.sentLabel)}</span>` : "";
-    return `<div class="lv-hand"><span class="chip ${h.status === "working" ? "green" : ""}">${esc(h.name || "")}</span><span class="chip">${esc(h.statusLabel || "")}</span><span class="lv-job">${esc(h.task || "")}</span>${when}${result}${open}</div>`;
+    const note = h.status === "reported" ? "This agent reported back. The result is the text it sent." : h.status === "working" ? "This agent is working. Meldmind is waiting for it to report back." : "Meldmind sent this job. Nothing else is sent until that agent reports back.";
+    return `<div class="lv-hand"><span class="chip ${h.status === "working" ? "green" : ""}">${esc(h.name || "")}</span><span class="chip">${esc(h.statusLabel || "")}</span><span class="lv-job">${esc(h.task || "")}</span>${when}${result}${open}<div class="hint" role="note">${esc(note)}</div></div>`;
   }).join("");
   return `<div class="panel lv-hands"><h3>Outside agents</h3><p class="dim small" style="margin:0 0 6px">Sent, working, or reported back. Results can take a few minutes. This page only watches.</p>${rows}</div>`;
 }

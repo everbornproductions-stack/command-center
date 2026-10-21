@@ -88,8 +88,8 @@ function signWith(secret, signer, fields) {
 }
 
 export function verifyFile(file) {
-  if (!file || typeof file !== "object" || file.format !== FORMAT) throw err(400, "That is not a Command AI template file.");
-  if (Number(file.version) > FORMAT_VERSION) throw err(400, "That file comes from a newer Command AI. Update the app, then import it.");
+  if (!file || typeof file !== "object" || file.format !== FORMAT) throw err(400, "That is not a Meldmind template file.");
+  if (Number(file.version) > FORMAT_VERSION) throw err(400, "That file comes from a newer Meldmind. Update the app, then import it.");
   const sig = file.sig;
   if (typeof sig !== "string" || !/^[0-9a-f]{64}$/.test(sig)) throw err(400, "This file's signature does not match.");
   const body = { ...file };
@@ -97,7 +97,7 @@ export function verifyFile(file) {
   let secret = null;
   if (file.signer === "demo") secret = DEMO_KEY;
   else if (file.signer === "local") secret = localSecret();
-  if (!secret || file.keyFingerprint !== fingerprint(secret)) throw err(400, "This file was signed by a different Command AI install, so this computer cannot check it.");
+  if (!secret || file.keyFingerprint !== fingerprint(secret)) throw err(400, "This file was signed by a different Meldmind install, so this computer cannot check it.");
   if (!safeEqual(hmac(secret, body), sig)) throw err(400, "This file's signature does not match.");
   return body;
 }

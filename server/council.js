@@ -101,7 +101,9 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
 
   // ---- live web search (Phase 15): one search, the same numbered sources for every member and the chair ----
   const web = await webAugment({ prompt, kind: "council", missionId: id, explicit: typeof search === "boolean" ? search : undefined });
-  if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; emit("council.update", { council: pub(council) }); }
+  council.searched = web != null;
+  if (web?.sources?.length) { council.sources = web.sources; council.searchEngine = web.name; council.cost += web.cost || 0; }
+  emit("council.update", { council: pub(council) });
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }

@@ -1,5 +1,6 @@
 // Pro prompts: browse by category, fill from the Business Profile, and halt when a fact is missing.
 import { marketplacePacks, mountPromptBoard } from "./prompt-board.js";
+import { plainExplain, plainLabel } from "../plain.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -18,7 +19,8 @@ function fieldHtml(field, value) {
   const v = value == null ? "" : String(value);
   const speak = voiceReady() ? `<button type="button" class="btn sm" data-speak="${esc(field.key)}">Speak</button>` : "";
   if (field.kind === "bool" || field.key === "scf") {
-    return `<label class="row small" style="gap:8px;margin-top:8px"><input type="checkbox" data-k="${esc(field.key)}" ${v === "true" || v === true ? "checked" : ""}> ${esc(field.label)}</label>`;
+    const scf = field.key === "scf";
+    return `<label class="row small" style="gap:8px;margin-top:8px"><input type="checkbox" data-k="${esc(field.key)}" aria-label="${esc(scf ? plainLabel("scf") : field.label)}" ${v === "true" || v === true ? "checked" : ""}> ${esc(scf ? plainLabel("scf") : field.label)}</label>${scf ? `<div class="hint" role="note">${esc(plainExplain("scf"))} Real estate and mortgage modes are coming.</div>` : ""}`;
   }
   if (field.multiline) return `<label class="small" style="display:block;margin-top:8px">${esc(field.label)}${field.required === false ? "" : " *"} ${speak}<textarea data-k="${esc(field.key)}" rows="3" style="width:100%">${esc(v)}</textarea></label>`;
   return `<label class="small" style="display:block;margin-top:8px">${esc(field.label)}${field.required === false ? "" : " *"} ${speak}<input data-k="${esc(field.key)}" value="${esc(v)}" style="width:100%"></label>`;

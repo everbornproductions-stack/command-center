@@ -1,5 +1,6 @@
 // Publishing: buttons under the deliverable (Instagram, HighLevel, Slack, Google Drive), each with a
 // preview + confirm; Connect (OAuth), pasted tokens and the Drive folder in Settings; history in a Publish tab.
+import { plainExplain, plainLabel } from "../plain.js";
 const { S, api, toast, esc } = window.CC;
 
 function stripMd(t) { return (t || "").replace(/```[\s\S]*?```/g, "").replace(/[#*>`_]/g, "").replace(/\n{3,}/g, "\n\n").trim(); }
@@ -64,7 +65,7 @@ async function renderSettings(el) {
   let chans = [], cons = []; try { [chans, cons] = await Promise.all([api("/publish/channels"), api("/publish/connect")]); } catch {}
   const dr = chans.find((c) => c.id === "drive");
   el.innerHTML = `<div class="panel"><h3>Publishing <span class="right">every post needs a preview and a click</span></h3>
-    <div class="dim small">Connect each service with your own app's sign-in. The token stays in the vault on this computer and is never shown again. Connecting posts nothing.</div>
+    <div class="hint">Connect each service with ${esc(plainLabel("oauth"))}. ${esc(plainExplain("oauth"))} The token stays in the vault on this computer and is never shown again. Connecting posts nothing.</div>
     ${cons.map(connectorRow).join("")}
     <details style="margin-top:8px"><summary class="small" style="cursor:pointer">Paste a token instead</summary>
     <div class="row" style="margin-top:6px"><span style="width:110px">Instagram</span><input type="password" id="pb-ig-tok" placeholder="Page access token (long-lived)" style="flex:1"><input type="text" id="pb-ig-id" placeholder="IG user id" style="width:160px"><button class="btn sm" id="pb-ig-save">Save</button></div>

@@ -60,6 +60,25 @@ test("a fake clock fires a cron job once per slot", async () => {
   S.deleteSchedule(schedule.id);
 });
 
+test("a weekday slot missed while the app was closed is reported, and catch-up Run now clears it", async () => {
+  now = new Date(2026, 10, 2, 16, 50, 0).getTime(); // Monday 16:50
+  const { schedule } = S.createSchedule(chat({ name: "Weekday five", trigger: { type: "cron", cron: "0 17 * * 1-5" } }));
+  assert.equal(S.view(S.getSchedule(schedule.id)).missedLabel, null);
+  now = new Date(2026, 10, 2, 17, 10, 0).getTime(); // Monday 17:10, past the lookback
+  assert.equal(S.tick(now).length, 0, "a closed-app slot is not replayed");
+  const missed = S.view(S.getSchedule(schedule.id));
+  assert.equal(missed.missedLabel, "Last run missed (app was closed)");
+  assert.equal(new Date(missed.missedAt).getHours(), 17);
+  assert.equal(new Date(missed.missedAt).getMinutes(), 0);
+  S.trigger(schedule.id, { source: "manual" });
+  await S.idle();
+  assert.equal(S.view(S.getSchedule(schedule.id)).missedLabel, "Last run missed (app was closed)");
+  S.trigger(schedule.id, { source: "manual", catchUp: true });
+  await S.idle();
+  assert.equal(S.view(S.getSchedule(schedule.id)).missedLabel, null);
+  S.deleteSchedule(schedule.id);
+});
+
 test("pausing skips the cron; resuming does not replay missed slots", async () => {
   const { schedule } = S.createSchedule(chat({ name: "Paused" }));
   S.setEnabled(schedule.id, false);

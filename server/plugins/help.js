@@ -3,6 +3,7 @@
 // The question and any key are never written to the log.
 import { getStatus } from "../health.js";
 import { HELP_DIR, loadHelp, pickHelpProvider, searchReply, NO_AI, AI_DOWN } from "../help.js";
+import { securityPdf } from "../security-pdf.js";
 
 export const id = "help";
 
@@ -17,6 +18,17 @@ function cleanQuestion(value) {
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/help\/?/, "");
+  if (req.method === "GET" && (p === "security.pdf" || p === "/security.pdf")) {
+    const buf = securityPdf();
+    res.writeHead(200, {
+      "content-type": "application/pdf",
+      "content-disposition": 'attachment; filename="meldmind-security.pdf"',
+      "content-length": buf.length,
+      "cache-control": "no-store",
+    });
+    res.end(buf);
+    return true;
+  }
   let pack;
   try { pack = loadHelp(HELP_DIR); }
   catch (e) { return h.json(res, 500, { error: e.message }); }

@@ -4,6 +4,7 @@
 // Deliverable: the Grok Bot jobs of this run, their results and links, paste a result in by hand, cancel.
 // Settings > Integrations > Grok Bot: webhook URL and sender key (vault; never shown again), header name,
 //   where results come back, the built-in mock, wait times, and a test job.
+import { plainExplain, plainLabel } from "../plain.js";
 const { S, api, toast, esc, md, ago } = window.CC;
 
 const css = `
@@ -115,8 +116,8 @@ async function renderSettings(el) {
   el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Integrations: Grok Bot <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
     <div class="small muted">Grok Bot is your own assistant with its own computer, signed-in browser, Gmail, Drive, Calendar and teammate bots. When a council or mission needs one of those (${c.tags.map((t) => esc(t.label)).join(", ")}), Meldmind hands Grok Bot that part as a job. It is never picked for plain text work another AI does as well. Nothing is sent without your orders or a click.</div>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
-      <div><label class="lbl">Webhook URL ${c.urlSaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-url" placeholder="${c.urlSaved ? "saved in the vault (type to replace)" : "https://..."}" autocomplete="off"></div>
-      <div><label class="lbl">Sender key ${c.keySaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-key" placeholder="${c.keySaved ? "saved in the vault (type to replace)" : "the key Grok Bot expects"}" autocomplete="off"></div>
+      <div><label class="lbl" for="gb-url">${esc(plainLabel("webhook"))} ${c.urlSaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-url" aria-label="${esc(plainLabel("webhook"))}" placeholder="${c.urlSaved ? "saved in the vault (type to replace)" : "https://..."}" autocomplete="off"><div class="hint">${esc(plainExplain("webhook"))}</div></div>
+      <div><label class="lbl" for="gb-key">${esc(plainLabel("senderKey"))} ${c.keySaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-key" aria-label="${esc(plainLabel("senderKey"))}" placeholder="${c.keySaved ? "saved in the vault (type to replace)" : "the key Grok Bot expects"}" autocomplete="off"><div class="hint">${esc(plainExplain("senderKey"))}</div></div>
       <div><label class="lbl">Header name (optional)</label><input type="text" id="gb-header" value="${esc(c.header)}" placeholder="Authorization" style="font-family:var(--mono)"><div class="dim small">Sent as <span class="mono">${esc(c.header)}: ${esc(c.headerValue)}</span></div></div>
       <div><label class="lbl">Where results come back (optional)</label><input type="text" id="gb-public" value="${esc(c.publicUrl)}" placeholder="https://your-hub or tunnel address" style="font-family:var(--mono)"></div>
     </div>

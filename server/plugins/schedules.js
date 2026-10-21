@@ -81,7 +81,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "GET" && seg.length === 1) return h.json(res, 200, { schedule: S.view(s), runs: S.listRuns({ scheduleId: s.id }).map(S.publicRun) });
     if (m === "POST" && seg.length === 1) return h.json(res, 200, S.updateSchedule(s.id, body || {}, createOpts(h, body)));
     if (m === "DELETE" && seg.length === 1) return h.json(res, 200, S.deleteSchedule(s.id));
-    if (m === "POST" && seg[1] === "run") { if (s.target.kind === "mission") h.guard("missions"); return h.json(res, 202, S.trigger(s.id, { source: "manual" })); }
+    if (m === "POST" && seg[1] === "run") { if (s.target.kind === "mission") h.guard("missions"); return h.json(res, 202, S.trigger(s.id, { source: "manual", catchUp: body?.catchUp === true })); }
     if (m === "POST" && seg[1] === "pause") return h.json(res, 200, S.setEnabled(s.id, false));
     if (m === "POST" && seg[1] === "resume") return h.json(res, 200, S.setEnabled(s.id, true));
     if (m === "POST" && seg[1] === "token") return h.json(res, 200, S.rotateToken(s.id));

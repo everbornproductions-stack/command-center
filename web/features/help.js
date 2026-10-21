@@ -7,6 +7,8 @@ function renderTab(view) {
     <div class="panel">
       <h3>Help</h3>
       <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
+      <p class="hint" role="note">You can type in any language.</p>
+      <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
       <label class="lbl" for="help-search">Search</label>
       <input id="help-search" type="search" placeholder="Search help" autocomplete="off">
       <div id="help-list" class="help-list"></div>
@@ -72,6 +74,12 @@ function renderTab(view) {
   view.querySelector("#help-replay").addEventListener("click", () => { window.CC.tour?.start?.(); });
   view.querySelector("#help-examples").addEventListener("click", () => { (window.CC.startProject?.examples || window.CC.startProject?.open || window.CC.go)?.(); });
   view.querySelector("#help-setup").addEventListener("click", () => { window.CC.connectSetup?.open?.(); });
+  view.querySelector("#help-pdf").addEventListener("click", async () => {
+    try {
+      const url = await window.CC.apiBlobUrl("/help/security.pdf");
+      window.CC.downloadBlob(url, "meldmind-security.pdf");
+    } catch (e) { toast(e.message, true); }
+  });
   view.querySelector("#help-upd").addEventListener("click", async () => {
     try {
       const S = window.CC.S;

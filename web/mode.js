@@ -17,7 +17,7 @@ export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
 
 export const ASK = {
   title: "Keep it simple or show me everything?",
-  body: "Simple is one chat box. You say what you want, and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. You can switch any time from the top bar. Nothing you already did is lost.",
+  body: "Simple is one chat box. You say what you want, and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, Marketplace, MCP (a plug-in connection), webhooks (a web address that receives a message), and every menu. You can switch any time from the top bar. Nothing you already did is lost.",
   simple: "Keep it simple",
   expert: "Show me everything",
 };
