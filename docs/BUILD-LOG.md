@@ -1594,3 +1594,11 @@ Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed.
 - Mac tests run on every pull request (`.github/workflows/mac-ci.yml`: npm test and smoke, no package, no secrets). Windows CI is unchanged. Mac packaging stays on the parked tag workflow.
 - Tests mock every provider. No real key and no public web call. Waits are real timers.
 - Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. No real key. data/ was not read. The chat screen was not clicked in a browser.
+
+## 2026-10-21: Stop a deep research run
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Stop ends a deep research run that is still going. The server aborts the search, the page reads, and the writer. The row is marked aborted, the unfinished report cannot be exported, and the alert is a plain "Deep research stopped" line rather than a failure alarm. Chat shows a Stop button while the run is going. Expert live ops uses Stop on the same control that aborts a mission. A later run can still finish.
+- Search depth (Auto, Pro, Deep) and the source filters are on the Chat screen, with the sources panel under the answer.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. The abort check holds the writer on a local mock and waits with a real timer. No real key. data/ was not read. The chat click-through is the next check on this change.

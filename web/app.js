@@ -431,7 +431,9 @@ function onMission(m) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`, m.status === "failed");
+      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission";
+      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
+      toast(replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${noun} ${stateWord} · ${money(m.cost, 4)}`, m.status === "failed");
     }
   }
 }
@@ -899,6 +901,7 @@ function renderSimpleChat(v) {
         ${projectField()}
         <div id="cmd-extras"></div>
         <div class="row" style="padding-top:4px">
+          <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto">Send</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -915,6 +918,7 @@ function renderSimpleChat(v) {
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
   renderOutput();
   renderExtras("command", "#cmd-extras");
@@ -986,7 +990,7 @@ function renderCommand(v) {
   $("#go").addEventListener("click", sendOrders);
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
-  $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
+  $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
@@ -1015,13 +1019,33 @@ function renderComposerAis() {
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
-function renderOpsHead() {
-  const h = $("#ops-head"); if (!h) return;
+function stopResearch() {
+  if (!S.live.id || S.live.kind !== "research") return;
+  api(`/research/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true));
+}
+function syncResearchStop() {
   const l = S.live;
-  if (!l.id) { h.textContent = "idle"; $("#abort").style.display = "none"; return; }
-  const cost = l.mission?.cost ?? l.council?.cost ?? 0;
-  h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
-  $("#abort").style.display = l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status) ? "" : "none";
+  const researchLive = !!(l.id && l.kind === "research" && l.status === "running");
+  const stop = $("#stop-research");
+  if (stop) stop.style.display = researchLive ? "" : "none";
+  const abort = $("#abort");
+  if (!abort) return;
+  const missionLive = !!(l.id && l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status));
+  abort.style.display = researchLive || missionLive ? "" : "none";
+  abort.textContent = researchLive ? "Stop" : "abort";
+  abort.title = researchLive ? "Stop this deep research run" : "";
+}
+function renderOpsHead() {
+  const h = $("#ops-head");
+  const l = S.live;
+  if (h) {
+    if (!l.id) h.textContent = "idle";
+    else {
+      const cost = l.mission?.cost ?? l.council?.cost ?? 0;
+      h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
+    }
+  }
+  syncResearchStop();
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
@@ -1084,6 +1108,7 @@ function renderCouncil() {
 }
 function renderOutput() {
   const o = $("#out-md"), h = $("#out-head"); if (!o) return;
+  syncResearchStop();
   const follow = $("#out-follow");
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
@@ -1091,7 +1116,14 @@ function renderOutput() {
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); return; }
   h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
-  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); return; }
+  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
+    if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
+    else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
+    else if (l.kind === "research" && l.status === "running") o.innerHTML = `<div class="empty">Deep research is running. Stop ends it. You can keep using the chat.</div>`;
+    else o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`;
+    paintFollow("");
+    return;
+  }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
   paintFollow(outputFollowHtml());
@@ -1173,7 +1205,14 @@ async function sendOrders() {
     const usePack = !!(pp?.templateId && !pp.removed);
     const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
     if (ask.searchMode === "deep") {
-      await api("/research/deep", { method: "POST", body: { prompt, projectId, filter: ask.filter } });
+      const started = await api("/research/deep", { method: "POST", body: { prompt, projectId, filter: ask.filter } });
+      if (S.live.id !== started.id) {
+        S.live = newLive();
+        S.live.id = started.id;
+        S.live.kind = "research";
+        S.live.status = "running";
+      }
+      renderOps();
       toast("Deep research started. You will get an alert when the report is ready.");
     }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
@@ -1181,11 +1220,11 @@ async function sendOrders() {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
       await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody, ...ask } });
+      S.live = newLive(); renderOps();
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
-    S.live = newLive(); renderOps();
+    else if (mode === "council") { await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); S.live = newLive(); renderOps(); }
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody, ...ask } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); S.live = newLive(); renderOps(); }
   } catch (e) {
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
     else toast(e.message, true);

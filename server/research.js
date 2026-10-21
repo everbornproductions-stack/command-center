@@ -19,6 +19,23 @@ import {
 
 export { reportPdf, reportDocx };
 
+const running = new Map(); // id -> AbortController
+
+class ResearchStopped extends Error {
+  constructor() { super("Stopped."); this.code = "aborted"; this.name = "ResearchStopped"; }
+}
+
+function throwIfStopped(signal) {
+  if (signal?.aborted) throw new ResearchStopped();
+}
+
+export function abortResearch(id) {
+  const ctl = running.get(String(id || ""));
+  if (!ctl || ctl.signal.aborted) return false;
+  ctl.abort();
+  return true;
+}
+
 const clean = (t, n = 300) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
 
 export function followQueries(prompt, sources, filter = "web") {
@@ -50,7 +67,7 @@ export async function prepareWeb(opts = {}) {
   return augment(opts);
 }
 
-export async function proSearch({ prompt, provider, model, missionId = null, taskId = null, filter, offset = 0 } = {}) {
+export async function proSearch({ prompt, provider, model, missionId = null, taskId = null, filter, offset = 0, signal } = {}) {
   const useFilter = normalizeFilter(filter);
   const pickEngine = resolveEngine({ provider, model });
   if (pickEngine.native) return { native: true, provider: pickEngine.engine, name: pickEngine.name, sources: [], block: "", prompt, pro: true };
@@ -64,6 +81,7 @@ export async function proSearch({ prompt, provider, model, missionId = null, tas
   let name = pickEngine.name;
   let demo = !!pickEngine.demo;
   for (let i = 0; i < 3; i++) {
+    throwIfStopped(signal);
     const q = steps[i];
     if (!q) break;
     try {
@@ -75,6 +93,7 @@ export async function proSearch({ prompt, provider, model, missionId = null, tas
       if (i === 0) steps.push(...followQueries(prompt, rows, useFilter));
       if (rows.length >= 8) break;
     } catch (err) {
+      if (signal?.aborted || err?.code === "aborted") throw err?.code === "aborted" ? err : new ResearchStopped();
       if (i === 0) {
         emit("log", { text: `Pro search skipped: ${err.message}`, level: "error", missionId });
         return { skipped: true, reason: err.message, sources: [], block: "", prompt, pro: true };
@@ -89,25 +108,35 @@ export async function proSearch({ prompt, provider, model, missionId = null, tas
   return { engine: pickEngine.engine, name, demo, sources, block, prompt: block ? `${prompt}\n\n${block}` : prompt, cost, pro: true, filter: useFilter, steps: steps.filter(Boolean) };
 }
 
-async function fetchText(url) {
+async function fetchText(url, signal) {
   if (!/^https?:\/\//i.test(String(url || ""))) return "";
   if (!mayCallLive(url)) return "";
+  throwIfStopped(signal);
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 8000);
+  const onAbort = () => ctl.abort();
+  signal?.addEventListener("abort", onAbort);
   try {
     const res = await localFetch(url, { headers: { accept: "text/html, text/plain;q=0.9" }, signal: ctl.signal });
+    if (signal?.aborted) throw new ResearchStopped();
     if (!res.ok) return "";
     const txt = await res.text();
+    if (signal?.aborted) throw new ResearchStopped();
     return htmlToText(txt).slice(0, 3500);
-  } catch {
+  } catch (err) {
+    if (signal?.aborted || err?.code === "aborted") throw err?.code === "aborted" ? err : new ResearchStopped();
     return "";
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
 
-export async function readSources(sources, limit = 4) {
+export async function readSources(sources, limit = 4, signal) {
   const reads = [];
   for (const s of (sources || []).slice(0, limit)) {
-    const text = await fetchText(s.url);
+    throwIfStopped(signal);
+    const text = await fetchText(s.url, signal);
     if (text) reads.push({ n: s.n, url: s.url, title: s.title, chars: text.length, excerpt: text.slice(0, 500), text });
   }
   return reads;
@@ -153,14 +182,16 @@ function setTask(m, id, patch) {
   if (t) Object.assign(t, patch);
 }
 
-async function ask(m, who, { role, system, content, capability, difficulty }) {
+async function ask(m, who, { role, system, content, capability, difficulty, signal }) {
+  throwIfStopped(signal);
   const agent = `${m.id}:${role}`;
   emit("agent.start", { agent, provider: who.provider, model: who.model, role, missionId: m.id, label: `${PROVIDERS[who.provider]?.name || who.provider}: ${role}` });
   const t0 = Date.now();
   const r = await completeFallback({
-    provider: who.provider, model: who.model, maxTokens: role === "check" ? 900 : 2200,
+    provider: who.provider, model: who.model, maxTokens: role === "check" ? 900 : 2200, signal,
     system, messages: [{ role: "user", content }],
   }, { missionId: m.id, role, tools: false, cls: { capability, difficulty }, mode: "quality" });
+  throwIfStopped(signal);
   const ms = Date.now() - t0;
   const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: m.id, role, ms });
   m.cost = +(m.cost + (e.cost || 0)).toFixed(6);
@@ -173,9 +204,11 @@ function readingBlock(reads) {
   return reads.map((r) => `[${r.n}] ${r.title}\n${r.url}\n${r.text}`).join("\n\n");
 }
 
-async function work(m) {
+async function work(m, signal) {
   try {
-    const web = await proSearch({ prompt: m.prompt, missionId: m.id, filter: m.filter });
+    throwIfStopped(signal);
+    const web = await proSearch({ prompt: m.prompt, missionId: m.id, filter: m.filter, signal });
+    throwIfStopped(signal);
     if (web?.sources?.length) {
       m.sources = web.sources;
       m.searchEngine = web.name;
@@ -186,7 +219,8 @@ async function work(m) {
     setTask(m, "read", { status: "running" });
     publish(m);
 
-    const reads = m.sources?.length ? await readSources(m.sources, 4) : [];
+    const reads = m.sources?.length ? await readSources(m.sources, 4, signal) : [];
+    throwIfStopped(signal);
     m.reads = reads;
     setTask(m, "read", { status: "done" });
     setTask(m, "write", { status: "running" });
@@ -197,7 +231,7 @@ async function work(m) {
     const block = sourcesBlock(m.sources, m.searchEngine);
     const pages = readingBlock(reads);
     const draft = await ask(m, writer, {
-      role: "write", capability: "research", difficulty: 3,
+      role: "write", capability: "research", difficulty: 3, signal,
       system: "You write a cited research report from the sources below. Cite facts with the source number in square brackets, like [1]. Only cite those numbers. Never invent a source. Markdown. Put a short title on the first line. No preamble.",
       content: `QUESTION:\n${m.prompt}\n\n${block || "No live pages were fetched."}${pages ? `\n\nPAGE TEXT:\n${pages}` : ""}`,
     });
@@ -215,7 +249,7 @@ async function work(m) {
       setTask(m, "check", { status: "done" });
     } else {
       const check = await ask(m, checker, {
-        role: "check", capability: "analysis", difficulty: 2,
+        role: "check", capability: "analysis", difficulty: 2, signal,
         system: "You are a second AI from a different company. Cross-check the report against the sources. Reply in Markdown with what holds up and what is thin or missing. Keep the [n] numbers. Do not invent a source.",
         content: `QUESTION:\n${m.prompt}\n\nREPORT:\n${report}\n\n${block}${pages ? `\n\nPAGE TEXT:\n${pages}` : ""}`,
       });
@@ -235,6 +269,17 @@ async function work(m) {
     const cross = m.crossCheck?.checked ? `Cross-checked by ${PROVIDERS[m.crossCheck.provider]?.name || "a second AI"}.` : "No second vendor was connected to cross-check it.";
     emit("research.done", { id: m.id, ok: true, title: "Deep research is done", body: `${m.title}. ${cross} Open it in Meldmind.` });
   } catch (err) {
+    if (signal?.aborted || err?.code === "aborted") {
+      m.status = "aborted";
+      m.error = "Stopped.";
+      m.finishedAt = Date.now();
+      for (const t of m.tasks) if (t.status === "running" || t.status === "pending") t.status = "aborted";
+      persist(m);
+      publish(m);
+      emit("log", { text: "Deep research stopped.", missionId: m.id });
+      emit("research.done", { id: m.id, ok: false, aborted: true, title: "Deep research stopped", body: `${m.title}. The run was stopped before the report was finished.` });
+      return;
+    }
     m.status = "failed";
     m.error = err.message || "Deep research failed";
     m.finishedAt = Date.now();
@@ -244,6 +289,8 @@ async function work(m) {
     publish(m);
     emit("log", { text: `Deep research failed: ${m.error}`, level: "error", missionId: m.id });
     emit("research.done", { id: m.id, ok: false, title: "Deep research failed", body: m.error });
+  } finally {
+    running.delete(m.id);
   }
 }
 
@@ -255,7 +302,9 @@ export function beginDeep({ prompt, filter, projectId } = {}) {
   const m = blank(q, filter, projectId);
   persist(m);
   publish(m);
-  work(m).catch(() => {});
+  const ctl = new AbortController();
+  running.set(m.id, ctl);
+  work(m, ctl.signal).catch(() => {});
   return { id: m.id };
 }
 

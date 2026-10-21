@@ -1,6 +1,6 @@
 // Deep Research routes: start a background run, export the report, continue it as a mission.
 // Continuing as a mission is a click. Nothing is sent or posted from here.
-import { beginDeep, loadResearch, exportReport } from "../research.js";
+import { abortResearch, beginDeep, loadResearch, exportReport } from "../research.js";
 import { safeFileName } from "../research-export.js";
 import { researchSnapshot } from "../feature-gate.js";
 import { normalizeFilter } from "../search.js";
@@ -16,6 +16,14 @@ export async function routes(req, res, url, body, h) {
       const job = beginDeep({ prompt: body.prompt || body.goal, filter: body.filter, projectId: body.projectId });
       return h.json(res, 202, { ok: true, id: job.id, runId: job.id });
     } catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+
+  const stop = p.match(/^\/(r-[a-z0-9]+)\/abort$/);
+  if (req.method === "POST" && stop) {
+    const m = await loadResearch(stop[1]);
+    if (!m || m.kind !== "research") return h.json(res, 404, { error: "not found" });
+    if (!abortResearch(m.id)) return h.json(res, 409, { error: "That research run is not running.", status: m.status });
+    return h.json(res, 200, { ok: true, aborted: true, id: m.id });
   }
 
   const exp = p.match(/^\/(r-[a-z0-9]+)\/export$/);

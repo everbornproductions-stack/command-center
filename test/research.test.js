@@ -83,9 +83,16 @@ test("research plans: free daily, pro monthly, extreme unlimited, no em dashes",
     assert.match(docxText(docx), /Capacity grew/);
     assert.match(docxText(docx), /Cross-check holds/);
 
-    for (const f of ["server/feature-gate.js", "server/research.js", "server/research-export.js", "server/plugins/research.js", "web/features/search.js", ".github/workflows/mac-ci.yml"]) {
+    for (const f of ["server/feature-gate.js", "server/research.js", "server/research-export.js", "server/plugins/research.js", "server/plugins/alerts.js", "web/features/search.js", "web/app.js", "web/mode.js", ".github/workflows/mac-ci.yml"]) {
       assert.doesNotMatch(read(f), /—/, `${f} has an em dash`);
     }
+    assert.match(read("server/research.js"), /export function abortResearch/);
+    assert.match(read("server/plugins/research.js"), /\/abort/);
+    assert.match(read("server/plugins/alerts.js"), /ev\.aborted/);
+    assert.match(read("web/app.js"), /id="stop-research"/);
+    assert.match(read("web/app.js"), /\/research\/\$\{S\.live\.id\}\/abort/);
+    assert.match(read("web/app.js"), /Deep research stopped/);
+    assert.doesNotMatch(read("web/mode.js"), /"search"/);
   } finally {
     for (const [k, v] of [["CC_RESEARCH_TIER", prev.tier], ["CC_RESEARCH_FREE_DAILY", prev.daily], ["CC_RESEARCH_DEEP_MONTHLY", prev.deep], ["CC_PACKAGED", prev.pack]]) {
       if (v == null || v === "") delete process.env[k];
@@ -117,7 +124,10 @@ function sse(res, chunks) {
   res.write("data: [DONE]\n\n");
   res.end();
 }
-async function mocks() {
+async function mocks(opts = {}) {
+  const holdWriter = !!opts.holdWriter;
+  const hold = { holding: false, release: () => {} };
+  let writers = 0;
   const seen = { ddg: [], llm: [], gemini: [] };
   let port = 0;
   const srv = http.createServer(async (req, res) => {
@@ -155,7 +165,20 @@ async function mocks() {
       const sys = j.messages?.[0]?.content || "";
       let text = "Solar grew [1] and the second source agrees [2].";
       if (/JSON only/i.test(sys)) text = `{"capability":"research","difficulty":2,"needWeb":false,"summary":"research note","title":"Continue the brief","tasks":[{"id":"t1","title":"Write the brief","capability":"writing","difficulty":1,"needWeb":false,"deps":[],"instructions":"Write the brief.","deliverable":"A short brief"}],"assembly":"Use the task output."}`;
-      else if (/cited research report/i.test(sys)) text = "Solar report\n\nCapacity grew [1]. Prices moved [2].";
+      else if (/cited research report/i.test(sys)) {
+        writers += 1;
+        if (holdWriter && writers === 1) {
+          hold.holding = true;
+          const why = await new Promise((resolve) => {
+            hold.release = () => resolve("go");
+            req.on("aborted", () => resolve("aborted"));
+            res.on("close", () => { if (!res.writableEnded) resolve("close"); });
+          });
+          hold.holding = false;
+          if (why !== "go" || res.writableEnded || req.destroyed) return;
+        }
+        text = "Solar report\n\nCapacity grew [1]. Prices moved [2].";
+      }
       else if (/second AI/i.test(sys)) text = "Holds up [1]. The limit section is thin.";
       return sse(res, [{ model: j.model, choices: [{ delta: { content: text } }] }, { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 20, completion_tokens: 12 } }]);
     }
@@ -164,7 +187,7 @@ async function mocks() {
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   port = srv.address().port;
   const base = `http://127.0.0.1:${port}`;
-  return { base, seen, close: () => new Promise((r) => srv.close(r)) };
+  return { base, seen, hold, close: () => new Promise((r) => srv.close(r)) };
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitRun(s, pred, label, ms = 120000) {
@@ -329,6 +352,64 @@ test("server: any model, citations, pro search, filters, deep research, free dai
   } finally {
     await pro?.stop();
     await free?.stop();
+    await m.close();
+  }
+});
+
+async function waitResearch(s, id, pred, label, ms = 90000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const row = (await s.api(`/research/${id}`)).json;
+    if (row && pred(row)) return row;
+    await sleep(200);
+  }
+  throw new Error(`timed out waiting for ${label}`);
+}
+
+test("server: Stop aborts a deep research run before the report is written", async () => {
+  const m = await mocks({ holdWriter: true });
+  let s;
+  try {
+    s = await startServer({ env: {
+      CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "pro", CC_RESEARCH_DEEP_MONTHLY: "4",
+      CC_SEARCH_URL_DUCKDUCKGO: `${m.base}/ddg`,
+      CC_BASE_URL_GROQ: `${m.base}/groq/v1`, CC_BASE_URL_XAI: `${m.base}/xai/v1`,
+      GROQ_API_KEY: "", XAI_API_KEY: "",
+    } });
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "groq", key: KEYS.groq } })).json.status.status, "green");
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "xai", key: KEYS.xai } })).json.status.status, "green");
+    assert.equal((await s.api("/research/r-missing/abort", { method: "POST", body: {} })).status, 404);
+
+    const started = await s.api("/research/deep", { method: "POST", body: { prompt: "How did solar capacity change?" } });
+    assert.equal(started.status, 202);
+    const id = started.json.id;
+    const tHold = Date.now();
+    while (!m.hold.holding && Date.now() - tHold < 60000) await sleep(100);
+    assert.equal(m.hold.holding, true, "the writer call is held");
+    assert.equal((await s.api(`/research/${id}`)).json.status, "running");
+    const stop = await s.api(`/research/${id}/abort`, { method: "POST", body: {} });
+    assert.equal(stop.status, 200);
+    assert.equal(stop.json.aborted, true);
+    const stopped = await waitResearch(s, id, (row) => ["aborted", "done", "failed"].includes(row.status), "abort");
+    assert.equal(stopped.status, "aborted", stopped.error || stopped.deliverable || stopped.status);
+    assert.equal(stopped.deliverable || "", "");
+    assert.equal((await getBuf(s, `/api/research/${id}/export?format=pdf`)).status, 409);
+    assert.equal((await s.api(`/research/${id}/abort`, { method: "POST", body: {} })).status, 409);
+    const logs = (await s.api("/state")).json.recent.filter((e) => e.type === "log" && /Deep research stopped/.test(e.text || ""));
+    assert.ok(logs.length >= 1, "a stopped line is logged");
+    assert.ok(logs.every((e) => !String(e.text).includes("⛔")), "stopping is not a failure alarm");
+
+    const second = await s.api("/research/deep", { method: "POST", body: { prompt: "A finished deep run after stop" } });
+    assert.equal(second.status, 202);
+    const done = await waitResearch(s, second.json.id, (row) => ["done", "failed", "aborted"].includes(row.status), "second deep", 120000);
+    assert.equal(done.status, "done", done.error || done.deliverable || "");
+    assert.match(done.deliverable, /Cross-check/);
+    assert.equal((await getBuf(s, `/api/research/${second.json.id}/export?format=pdf`)).status, 200);
+    const dumped = JSON.stringify(await s.api("/state")) + s.log;
+    for (const k of Object.values(KEYS)) assert.ok(!dumped.includes(k), "key never in a response or the log");
+  } finally {
+    try { m.hold.release(); } catch {}
+    await s?.stop();
     await m.close();
   }
 });

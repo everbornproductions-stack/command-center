@@ -49,8 +49,8 @@ async function notify(h, key, title, body, level = "amber") {
   const st = h.doc(STATE, () => ({ month: monthKey(), perProvider: {}, stop: [], fired: {} }));
   if (st.fired[key] && Date.now() - st.fired[key] < 12 * 3600 * 1000) return; // once per 12 h per alert
   st.fired[key] = Date.now(); h.putDoc(STATE, st);
-  const mark = level === "stop" ? "⛔" : level === "done" ? "Done." : "⚠";
-  h.emit("log", { text: `${mark} ${title}: ${body}`, level: level === "stop" ? "error" : undefined });
+  const mark = level === "stop" ? "⛔" : level === "done" ? "Done." : level === "note" ? "" : "⚠";
+  h.emit("log", { text: `${mark ? mark + " " : ""}${title}: ${body}`, level: level === "stop" ? "error" : undefined });
   const prefs = prefsOf(h);
   if (prefs.emailOn && prefs.email) await sendEmail(h, prefs.email, title, body).catch((e) => h.emit("log", { text: `Alert email failed: ${e.message}`, level: "error" }));
   if (prefs.pushOn) await pushAll(h, { title, body, level }).catch(() => {});
@@ -169,7 +169,11 @@ function jobDone(h, m) {
 }
 
 export function onEvent(ev, h) {
-  if (ev.type === "research.done") notify(h, `research:${ev.id}:${ev.ok ? "done" : "failed"}`, ev.title || "Deep research is done", ev.body || "Open it in Meldmind.", ev.ok ? "done" : "stop");
+  if (ev.type === "research.done") {
+    const level = ev.ok ? "done" : ev.aborted ? "note" : "stop";
+    const key = `research:${ev.id}:${ev.ok ? "done" : ev.aborted ? "stopped" : "failed"}`;
+    notify(h, key, ev.title || (ev.aborted ? "Deep research stopped" : "Deep research is done"), ev.body || "Open it in Meldmind.", level);
+  }
   if (ev.type === "mission.update") jobDone(h, ev.mission);
   if (ev.type === "ledger.entry" && (ev.entry?.kind === "call" || ev.entry?.kind === "search" || ev.entry?.kind === "image")) alertChanges(h, recompute(h).changes);
   if (ev.type === "provider.status" && ev.status === "red") {
