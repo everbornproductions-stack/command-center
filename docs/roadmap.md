@@ -25,9 +25,17 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 | 11 | Shared workspaces (Studio) | hosted-hub session: `server/hosted.js`, `server/store.js`, `supabase/workspaces.sql`, `web/features/workspaces.js` | Owner invites members by email; members see only shared projects; owner sees members' usage; tier gate on Studio |
 | 12 | Pipeline marketplace | `server/plugins/marketplace.js`, `web/features/marketplace.js`, `docs/marketplace.md` | Local and demo catalog, signed template file, install, moderation, placeholder revenue share. Payments are not built |
 
+## Uploads that start a media job
+
+A picture or a video on the idea box or on Marching orders can start a media job. The router picks a connected AI that can see, edit an image, or trim video on this computer. You see the plan, then a preview, and you can download or save the result. The upload itself does not spend or send. This sits on the media actions above. It does not replace them.
+
 ## Rules for every session
 
 - New files only, except the one-line mounts in the hooks above. If a change to a shared file is unavoidable, message the main session with the exact diff.
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.

@@ -7,7 +7,14 @@
 // POST /api/everyday-news/items/:id/connect
 // POST /api/everyday-news/suggestions/preview
 // POST /api/everyday-news/suggestions/send
+// POST /api/everyday-news/suggestions/files
+// POST /api/everyday-news/suggestions/:id  (edit, status)
+// POST /api/everyday-news/suggestions/:id/comments
+// POST /api/everyday-news/suggestions/:id/move
+// POST /api/everyday-news/suggestions/:id/delete
+// GET  /api/everyday-news/files/:ideaId/:fileId
 import * as N from "../everyday-news.js";
+import { readIdeaFile, readPending, writeAttachment } from "../box-files.js";
 
 export const id = "everyday-news";
 
@@ -33,6 +40,25 @@ export async function routes(req, res, url, body, h) {
       h.emit("log", { text: out.delivered ? "Suggestion delivered to the local stub." : "Suggestion saved on this computer." });
       return h.json(res, 200, out);
     }
+    if (m === "POST" && seg[0] === "suggestions" && seg[1] === "files" && !seg[2]) return h.json(res, 200, N.attachPending(body || {}));
+    if (m === "DELETE" && seg[0] === "suggestions" && seg[1] === "files" && seg[2]) return h.json(res, 200, N.forgetPending(seg[2]));
+    if (m === "GET" && seg[0] === "suggestions" && seg[1] === "files" && seg[2]) {
+      const file = readPending(seg[2]);
+      if (!file) return h.json(res, 404, { error: "That file is not on this computer." });
+      writeAttachment(res, file);
+      return true;
+    }
+    if (m === "GET" && seg[0] === "files" && seg[1] && seg[2]) {
+      const file = readIdeaFile(seg[1], seg[2]);
+      if (!file) return h.json(res, 404, { error: "That file is not on this computer." });
+      writeAttachment(res, file);
+      return true;
+    }
+    if (m === "POST" && seg[0] === "suggestions" && seg[2] === "files") return h.json(res, 200, N.attachToIdea(seg[1], body || {}));
+    if (m === "POST" && seg[0] === "suggestions" && seg[2] === "comments") return h.json(res, 200, N.addIdeaComment(seg[1], body?.text));
+    if (m === "POST" && seg[0] === "suggestions" && seg[2] === "move") return h.json(res, 200, N.moveIdea(seg[1], body?.direction));
+    if (m === "POST" && seg[0] === "suggestions" && seg[2] === "delete") return h.json(res, 200, N.deleteIdea(seg[1]));
+    if (m === "POST" && seg[0] === "suggestions" && seg[1] && !seg[2]) return h.json(res, 200, N.updateIdea(seg[1], body || {}));
   } catch (e) {
     return h.json(res, e.status || 500, { error: e.message, code: e.code });
   }
