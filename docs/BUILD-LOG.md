@@ -1606,3 +1606,14 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Phase 96 (Remix any app), built
+
+- Remix is a Create page. The person describes an app or a game they can see: a web address, screenshots, a short screen recording, or an app on this computer. The address is not opened. Screenshot and recording files are not uploaded. Installed files are not read. A note on the page says Remix rebuilds from scratch.
+- The plan uses the person's own name, characters, art, and ideas. Free engines (Godot, Phaser), a blank template, and the Kenney art pack are named from a catalog on this computer. Each item is license-checked. Missing, non-free, and mixed licenses are dropped. Required credits are written to CREDITS.md in the new project. Official mod tools are listed for Minecraft, Roblox, Godot, and Unity.
+- Preview names the AIs and services before anything runs. Rebuild from scratch is the click that saves the project. A closeness warning blocks that save until the person confirms. Ratings stay on this computer and feed the next remix and the existing learning router. Anonymous totals are not sent.
+- Gate: `server/feature-gate.js`. Free is blocked. Pro and Studio are capped at 8 Remix missions per UTC month (a placeholder, not a price). Extreme and Owner have no monthly cap. `server/license.js` recognizes the Extreme tier name so that gate can read it. Square, prices, and billing are unchanged. Version stays 0.4.8.
+- Not in this build: nothing is downloaded from the internet. Godot, Phaser, and art packs are named and credited, not fetched. Turning the person's art into sprites, models, or voices still waits for a Media approve click. Remix does not call those providers.
+- Tests: `test/remix.test.js` covers the license check, credits, the no-copy guard, and the gates. npm test: mcp 8/8, then 426 tests, 425 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. The Remix page was clicked through in demo mode (preview, rebuild, rating, and a phone-width layout). No real key. data/ was not read.
+
+PHASE 96 DONE

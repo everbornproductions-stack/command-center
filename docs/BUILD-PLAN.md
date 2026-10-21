@@ -73,7 +73,7 @@ Not done, except the three rows already marked done above (share links, accessib
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
-3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
+3. Phase 96. Remix any app. Built. A Pro mission, 8 a month on Pro (a placeholder, not a price), no monthly cap on Extreme. The gate is server/feature-gate.js. It runs right after Phase 90 and before Phase 91.
 4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
 
 ### Later
@@ -511,10 +511,13 @@ Runs after 0.4.11 and before Later. Moved earlier from Phase 33.
 - Custom webhooks: a URL, an auth header, and an input schema.
 - Anything that sends, charges, or modifies data waits for a confirm click. Keys stay in the vault and are never logged.
 
-### Phase 96: Remix any app (after Phase 90, before Phase 91, not done)
-A Pro mission. Extreme has no cap on Remix missions. The Pro cap is set when this phase is built. It does not change the live Square checkout, and it does not rebuild Phase 36 or Phase 91.
-The person shows an app or a game they saw online or on their desktop: screenshots, a recording, or desktop control (Phases 45 to 51, and only after Allow). The AIs write down how it behaves, then rebuild it from scratch with the person's own characters, name, and look.
-- Free open-source code, engines (Godot, Phaser), templates, and free art may be pulled from the internet. Each item keeps its license check and its credits. If the license is missing or is not free to use, it is not used.
+### Phase 96: Remix any app (after Phase 90, before Phase 91, built)
+A Pro mission. Extreme has no cap on Remix missions. The Pro cap is 8 Remix missions per UTC month. That number is a placeholder set in this phase, not a price. Studio uses the same cap. Owner has no cap. Free is blocked. The check is `server/feature-gate.js`. It does not change the live Square checkout, and it does not rebuild Phase 36 or Phase 91. Phase 91 still sets the Extreme price.
+The person shows an app or a game: a URL, screenshots, a short screen recording, or an app on the desktop. Desktop apps are observed only through what is visible on screen. The address is not opened. Screenshot and recording files are not uploaded. The AIs write how it looks, plays, and works from those words, then rebuild it from scratch with the person's own characters, name, and look.
+
+- Free open-source code, engines (Godot, Phaser), templates, and free art are named from a catalog on this computer. Nothing is downloaded in tests or in this build. Each item keeps its license check and its credits in a CREDITS file. If the license is missing or is not free to use, it is not used.
+- A preview lists the AIs and services that would receive data. Nothing runs until Rebuild from scratch.
+- A visible note says Remix rebuilds from scratch.
 - Official mods are supported for Minecraft, Roblox, Godot, and Unity, through those products' own mod tools.
 - The person's own art can be turned into sprites, models, and voices.
 - Before the result is saved, Meldmind warns when the name, look, layout, or characters are too close to the original. Saving still needs a click.
