@@ -134,11 +134,12 @@ test("mock checkout records the published pay links and does not charge", () => 
 
   const early = mockSquareCheckout("lifetime", { sold: 4, client: mock });
   assert.equal(early.amount, 349);
-  assert.equal(early.url, null);
-  assert.equal(LIFETIME_PAY_LINK, null);
+  assert.equal(early.url, LIFETIME_PAY_LINK);
+  assert.equal(LIFETIME_PAY_LINK, "https://square.link/u/nKrsGaj2");
   assert.equal(early.charged, false);
   const later = mockSquareCheckout("founder-lifetime", { sold: 100 });
   assert.equal(later.amount, 499);
+  assert.equal(later.url, null);
   assert.equal(later.charged, false);
   const closed = mockSquareCheckout("lifetime", { sold: 500 });
   assert.equal(closed.open, false);
@@ -160,8 +161,8 @@ test("mock checkout records the published pay links and does not charge", () => 
   assert.equal(catalog.extremeMonthly.payLink, EXTREME_MONTHLY_PAY_LINK);
   assert.equal(catalog.extremeYearly.amount, 299);
   assert.equal(catalog.extremeYearly.payLink, EXTREME_YEARLY_PAY_LINK);
-  assert.equal(catalog.lifetime.payLink, null);
-  assert.equal(catalog.lifetime.pendingLink, true);
+  assert.equal(catalog.lifetime.payLink, LIFETIME_PAY_LINK);
+  assert.equal(catalog.lifetime.pendingLink, false);
   assert.equal(catalog.lifetime.spotsLine, "Limited to the first 100 founders");
   assert.equal(catalog.lifetime.button, "Lifetime founder, $349 then $499");
   assert.equal(catalog.grandfather.checkout, false);
@@ -198,7 +199,8 @@ test("live copy sells the new prices and keeps $15.99 as the grandfather note", 
   assert.match(prices, /https:\/\/square\.link\/u\/8JlyJzxb/);
   assert.match(prices, /https:\/\/square\.link\/u\/u5FdCONv/);
   assert.match(prices, /https:\/\/square\.link\/u\/LxwtyrCy/);
-  assert.match(prices, /LIFETIME_PAY_LINK = null/);
+  assert.match(prices, /LIFETIME_PAY_LINK = "https:\/\/square\.link\/u\/nKrsGaj2"/);
+  assert.doesNotMatch(prices, /0TdXbn2B/);
   assert.equal(prices.includes(EM), false);
   assert.equal(prices.includes(EN), false);
   for (const text of [app, compare, growthUi, growth, license, gate]) {
@@ -225,6 +227,8 @@ test("live copy sells the new prices and keeps $15.99 as the grandfather note", 
   assert.match(doc, /5 seats/);
   assert.match(doc, /early access/);
   assert.match(doc, /Max quality/);
+  assert.match(doc, /https:\/\/square\.link\/u\/nKrsGaj2/);
+  assert.doesNotMatch(doc, /0TdXbn2B/);
   assert.match(doc, /founder-lifetime/);
   assert.match(doc, /Limited to the first 100 founders/);
   assert.match(doc, /FOUNDER_SPOTS_HIDDEN_UNTIL/);
@@ -236,8 +240,8 @@ test("live copy sells the new prices and keeps $15.99 as the grandfather note", 
   assert.match(help, /early access/);
   assert.match(help, /Max quality/);
   assert.match(help, /five team seats/);
-  assert.match(help, /pay links are published/);
-  assert.match(help, /lifetime link is still waiting/);
+  assert.match(help, /lifetime pay links are published/);
+  assert.doesNotMatch(help, /0TdXbn2B/);
   assert.match(help, /Limited to the first 100 founders/);
   assert.match(help, /\$15\.99 a month, that price stays/);
   assert.match(brief, /\$18\.99/);
@@ -258,7 +262,7 @@ test("the plans route hides the counter under 40 and never calls Square", async 
     assert.equal(r.json.extremeMonthly.amount, 29.99);
     assert.equal(r.json.extremeYearly.payLink, EXTREME_YEARLY_PAY_LINK);
     assert.equal(r.json.extremeYearly.amount, 299);
-    assert.equal(r.json.lifetime.payLink, null);
+    assert.equal(r.json.lifetime.payLink, LIFETIME_PAY_LINK);
     assert.equal(r.json.lifetime.stage, "unknown");
     assert.equal(r.json.lifetime.price, null);
     assert.equal(r.json.lifetime.showSpots, false);
@@ -285,6 +289,7 @@ test("the plans route hides the counter under 40 and never calls Square", async 
     assert.equal(r.json.lifetime.earlyRemaining, 88);
     assert.equal(r.json.lifetime.showSpots, false);
     assert.equal(r.json.lifetime.spotsLine, "Limited to the first 100 founders");
+    assert.equal(r.json.lifetime.payLink, LIFETIME_PAY_LINK);
     assert.equal(r.json.charged, false);
   } finally {
     await early.stop();
@@ -311,6 +316,7 @@ test("the plans route hides the counter under 40 and never calls Square", async 
     assert.equal(r.json.lifetime.price, 499);
     assert.equal(r.json.lifetime.stage, "standard");
     assert.equal(r.json.lifetime.spotsLine, "400 spots left");
+    assert.equal(r.json.lifetime.payLink, null);
     assert.equal(r.json.monthly.payLink, PRO_MONTHLY_PAY_LINK);
     assert.equal(r.json.monthly.amount, 18.99);
   } finally {
@@ -323,6 +329,7 @@ test("the plans route hides the counter under 40 and never calls Square", async 
   try {
     const r = await closed.api("/billing-plans");
     assert.equal(r.json.lifetime.open, false);
+    assert.equal(r.json.lifetime.payLink, null);
     assert.equal(r.json.lifetime.price, null);
     assert.equal(r.json.lifetime.spotsLine, "Sold out");
     assert.equal(r.json.charged, false);

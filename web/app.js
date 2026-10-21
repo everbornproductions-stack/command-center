@@ -1372,7 +1372,7 @@ function upgradeBlock(primary) {
       <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" id="sub-lic">I have a licence key</button></div>
       ${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}
       ${extremeExtrasHtml()}
-      <div class="dim small" style="margin-top:8px">Pro and Extreme buttons open their Square pay page. Lifetime stays on this page until its link is published, and nothing is charged from that button.</div></div>`;
+      <div class="dim small" style="margin-top:8px">Pro, Extreme, and the $349 lifetime button open their Square pay page. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
 }
 
 function renderSubscriptions(v) {

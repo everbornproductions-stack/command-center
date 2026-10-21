@@ -40,12 +40,12 @@ export const GRANDFATHER_PLAN_ID = "pro-monthly-1599";
 export const GRANDFATHER_PAY_LINK = "https://square.link/u/dbU38mQC";
 
 // Published Square pay pages. The app does not call Square. A click opens the page.
-// The founder link is being reissued at $349, so this stays a placeholder.
+// Lifetime is the $349 page. It is not used for the later $499 price.
 export const PRO_MONTHLY_PAY_LINK = "https://square.link/u/UrcjlAqi";
 export const PRO_YEARLY_PAY_LINK = "https://square.link/u/8JlyJzxb";
 export const EXTREME_MONTHLY_PAY_LINK = "https://square.link/u/u5FdCONv";
 export const EXTREME_YEARLY_PAY_LINK = "https://square.link/u/LxwtyrCy";
-export const LIFETIME_PAY_LINK = null;
+export const LIFETIME_PAY_LINK = "https://square.link/u/nKrsGaj2";
 
 export function moneyPlain(amount) {
   const n = Number(amount);

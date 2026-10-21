@@ -57,7 +57,7 @@ Lifetime is Pro for life. It is not Extreme.
 | Later price | $499 for the next 400 |
 | Cap | Closed after 500 total |
 | Spots left | Hidden until 40 founders have bought (`FOUNDER_SPOTS_HIDDEN_UNTIL`, default 40). Before that the app says "Limited to the first 100 founders". After that it shows the spots left. |
-| Checkout | Placeholder. The founder link is being reissued at $349, so the button stays on the page and nothing is charged from that button. |
+| Checkout | https://square.link/u/nKrsGaj2 for the $349 price. A click opens that Square pay page. This app does not call Square. The later $499 price does not use this link, so that button stays on the page. |
 
 ## Tiers
 
@@ -76,7 +76,7 @@ The app checks a licence key. With no active key the copy stays on Free. A 14-da
 
 ## Still to do (Chris, in Square, not in this repo)
 
-- Leave the live $15.99 plan and https://square.link/u/dbU38mQC alone. The four new pay links above are published. Reissue the founder lifetime link at $349. The app keeps a placeholder until that link exists.
+- Leave the live $15.99 plan and https://square.link/u/dbU38mQC alone. The $349 lifetime page is https://square.link/u/nKrsGaj2. Do not point founder lifetime at any older link.
 - A landing page with the pay link and the download (everbornproductions.com/command-center).
 - Licence key issue on successful Square payment (Square webhook, generate key, email), and the check in the app. Store `plan` on the licence when the key is issued (`pro-monthly-1599` for the old price, `founder-lifetime` for lifetime, `pro-monthly-1899` or `extreme-monthly-2999` for the new plans).
 - Run `supabase/migrations/20261021_extreme_tier.sql` in the SQL editor before issuing an Extreme key. The app does not run it.

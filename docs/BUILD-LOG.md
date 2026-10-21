@@ -1606,3 +1606,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Extreme also includes early access (flag `CC_EARLY_ACCESS`, off only when it is `0`), Max quality (best model each connected AI offers, more reasoning and a longer context, inside the existing spend caps), and team spaces with 5 seats. Team spaces stay a gate with no new screen. Max quality is in the command bar and in Settings. Free, Pro, and a trial get a 402 for that mode.
 - Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
 - Checked in a browser on this machine: Subscriptions and Settings show $349, three columns at 390px, team seats 5, early access, and Max quality. Lifetime toasts that nothing was charged. Pro and Extreme yearly show a Square pay page on hover and were not opened. An owner copy can save Max quality. No Square page opened.
+
+## 2026-10-21: Founder lifetime pay page
+
+Not a numbered phase. No locked decision was changed. Square was not called. The $349 founder page is https://square.link/u/nKrsGaj2. The later $499 price does not use that page, so that button stays on the page. Extreme yearly stays $299. The old $15.99 link is unchanged.

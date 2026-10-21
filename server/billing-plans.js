@@ -118,8 +118,14 @@ function lifetimeButton(life) {
   return `Lifetime founder, $${LIFETIME_EARLY_PRICE} then $${LIFETIME_LATER_PRICE}`;
 }
 
+function lifetimePayLink(life) {
+  if (life.open === false || life.stage === "standard") return null;
+  return LIFETIME_PAY_LINK;
+}
+
 export function proPlanCatalog(sold = null) {
   const life = founderQuote(sold);
+  const lifeLink = lifetimePayLink(life);
   return {
     monthly: { ...MONTHLY_PLAN },
     yearly: { ...YEARLY_PLAN },
@@ -129,10 +135,10 @@ export function proPlanCatalog(sold = null) {
       id: LIFETIME_PLAN_ID,
       name: "Lifetime founder",
       kind: "one_time",
-      payLink: LIFETIME_PAY_LINK,
-      pendingLink: !LIFETIME_PAY_LINK && life.open !== false,
       button: lifetimeButton(life),
       ...life,
+      payLink: lifeLink,
+      pendingLink: !lifeLink && life.open !== false,
     },
     grandfather: { ...GRANDFATHER_PLAN },
     compare: publicCompare(),

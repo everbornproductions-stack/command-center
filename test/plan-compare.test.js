@@ -53,8 +53,12 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
   assert.match(free, /href="https:\/\/square\.link\/u\/8JlyJzxb"/);
   assert.match(free, /href="https:\/\/square\.link\/u\/u5FdCONv"/);
   assert.match(free, /href="https:\/\/square\.link\/u\/LxwtyrCy"/);
-  assert.match(free, /<button[^>]*data-pro-plan="founder-lifetime"/);
-  assert.doesNotMatch(free, /href="[^"]*founder-lifetime/);
+  assert.match(free, /href="https:\/\/square\.link\/u\/nKrsGaj2"/);
+  assert.doesNotMatch(free, /0TdXbn2B/);
+  const later = upgradeButtonsHtml({ plans: proPlanCatalog(100), tier: "free" });
+  assert.match(later, /Lifetime founder, \$499/);
+  assert.match(later, /<button[^>]*data-pro-plan="founder-lifetime"/);
+  assert.doesNotMatch(later, /nKrsGaj2/);
   assert.doesNotMatch(free, /15\.99/);
   assert.doesNotMatch(free, /dbU38mQC/);
   assert.doesNotMatch(free, /\$159/);
