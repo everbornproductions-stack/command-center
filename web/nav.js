@@ -342,6 +342,7 @@ export const CONNECT_LINKS = [
   { id: "mcp", label: "Tools (MCP)", view: "settings", focus: "[data-feature='mcp']" },
   { id: "integrations", label: "Integrations", view: "settings", focus: "[data-feature='grokbot']" },
   { id: "extension", label: "Browser extension", view: "settings", focus: "[data-feature='extension']" },
+  { id: "highlevel", label: "HighLevel", view: "settings", focus: "[data-feature='highlevel']" },
 ];
 
 export function groupFor(view) {
