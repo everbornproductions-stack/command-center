@@ -27,7 +27,7 @@ async function openPreview(el, channel, run) {
     <label class="lbl">Attach a media job</label><select id="pb-job"><option value="">${jobs.length ? "none" : "no finished media jobs yet (Media tab)"}</option>${jobs.map((j) => `<option value="${esc(j.id)}">${esc(jobLabel(j))}</option>`).join("")}</select>
     ${channel === "ghl" ? `<label class="lbl">Accounts</label><div>${accounts.length ? accounts.map((a) => `<label class="row small" style="gap:6px"><input type="checkbox" data-acc="${esc(a.id)}" checked> ${esc(a.name)} <span class="dim">${esc(a.platform || "")}</span></label>`).join("") : `<span class="dim small">No connected accounts found (or HighLevel is not connected yet).</span>`}</div><label class="lbl">When (blank = now)</label><input type="datetime-local" id="pb-when">` : ""}
     ${channel === "slack" ? `<label class="lbl">Channel</label>${rooms.length ? `<select id="pb-room">${rooms.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}">#${esc(c.name)}${c.member ? "" : " (invite the app first)"}</option>`).join("")}</select>` : `<span class="dim small">No channels found (or Slack is not connected yet).</span>`}` : ""}
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="pb-prev">Preview</button><span class="small" id="pb-out">Preview first. The confirm button ${VERB[channel]}s exactly what the preview shows.</span><button class="btn sm primary" id="pb-go" style="margin-left:auto" disabled title="Preview first">Confirm &amp; ${VERB[channel]}</button></div></div>`;
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="pb-prev">Preview</button>${channel === "drive" ? "" : `<button class="btn sm" id="pb-personas" title="See how real people would react to this post, then fix it in one click">Test with personas</button>`}<span class="small" id="pb-out">Preview first. The confirm button ${VERB[channel]}s exactly what the preview shows.</span><button class="btn sm primary" id="pb-go" style="margin-left:auto" disabled title="Preview first">Confirm &amp; ${VERB[channel]}</button></div></div>`;
   let previewId = null;
   const go = box.querySelector("#pb-go"), out = box.querySelector("#pb-out");
   const room = () => box.querySelector("#pb-room");
@@ -36,6 +36,11 @@ async function openPreview(el, channel, run) {
   const stale = () => { if (!previewId) return; previewId = null; go.disabled = true; out.innerHTML = `<span class="dim">Changed since the preview. Preview again.</span>`; };
   box.querySelectorAll("input, textarea, select").forEach((i) => { i.addEventListener("input", stale); i.addEventListener("change", stale); });
   box.querySelector("#pb-close").addEventListener("click", () => { box.innerHTML = ""; });
+  // Test with personas: a revised caption goes back in the box (and the preview has to run again)
+  box.querySelector("#pb-personas")?.addEventListener("click", () => {
+    const t = box.querySelector("#pb-text");
+    window.CC.testWithPersonas?.({ text: t?.value || text, kind: "post", onUse: (next) => { if (!t) return; t.value = next; t.dispatchEvent(new Event("input")); } });
+  });
   box.querySelector("#pb-prev").addEventListener("click", async () => {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });

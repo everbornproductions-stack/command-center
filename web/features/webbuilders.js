@@ -45,6 +45,15 @@ if (!document.getElementById("bd-style")) {
   document.head.appendChild(style);
 }
 
+// The words of a built page (or ad copy) for Test with personas: tags, styles and scripts left out.
+function pageText(artifact) {
+  if (!artifact) return "";
+  const html = artifact.html || (artifact.pages || []).map((p) => p.html || "").join("\n\n");
+  const plain = String(html || "").replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+  if (plain) return plain.slice(0, 20000);
+  return Object.values(artifact).filter((v) => typeof v === "string").join("\n\n").slice(0, 20000);
+}
+
 function tierName(tier) {
   return TIER[tier] || tier || "";
 }
@@ -218,7 +227,11 @@ function boot(view, openId) {
       <div class="lbl">Tools</div><ul class="small">${services}</ul>
       ${scoreLine}
       ${fixes}
-      ${publishNote ? `<p class="small">${esc(publishNote)}</p>` : ""}`;
+      ${publishNote ? `<p class="small">${esc(publishNote)}</p>` : ""}
+      ${draft?.artifact ? `<div class="row small" id="bd-personas" style="margin-top:8px"></div>` : ""}`;
+    // Test with personas: the panel reads the page's words and suggests fixes
+    const pt = box.querySelector("#bd-personas");
+    if (pt && window.CC.personaButton) pt.appendChild(window.CC.personaButton({ getText: () => pageText(draft?.artifact), kind: current?.builder?.id === "ad-copy" ? "post" : "page" }));
     box.querySelectorAll("[data-fix]").forEach((btn) => btn.addEventListener("click", () => onFix(btn.dataset.fix)));
   }
 
