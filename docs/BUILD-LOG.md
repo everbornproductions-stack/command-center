@@ -1594,12 +1594,25 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 ANTIGRAVITY CLI (built by Cursor cloud agent)
 
+## 2026-10-20: Meldmind MCP bridge and desktop control guides
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and 0.4.9 is the desktop release). Phases 45 to 51 are not marked done. UI Automation and the screenshot fallback are still to build.
+
+- The demo MCP server now lists agents, queues a job, and reads a stored result. It talks to this PC only, with a bridge token that stays in the data folder. Add to Antigravity writes `~/.gemini/config/mcp_config.json` after a confirm click and keeps other servers in that file. The token is not copied into the config and is not placed on a command line. A queued task does not send, buy, or delete.
+- The first setup screen has Let Meldmind use your desktop, with Allow Antigravity and Install and connect. After an update to 0.4.9, the first launch shows New: let Meldmind use your desktop. Not now reminds once. Never hides it. The card stays hidden on 0.4.6, 0.4.7, and the 0.4.8 hotfix.
+- User-facing guides: docs/help/desktop-apps.md, the tour stop Apps on your desktop, USER-GUIDE.md, What's new for 0.4.9, docs/product-brief.md, docs/marketing.md, and the market-research positioning note. The headline is: Meldmind can use the apps on your desktop, safely.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and a fake agy only. No real key. data/ was not read. Windows CI is the pull request check.
+- Checked in the browser on this machine: the setup panel, Allow Antigravity (toast, nothing installed), the Settings card, Add to Antigravity cancelled before a write, and Help, Apps on your desktop. Not verified: a packaged installer, a real agy binary, or the 0.4.9 card on an updated install (it stays hidden until that version).
+
+MELDMIND MCP AND DESKTOP GUIDES (built by Cursor cloud agent)
+
 ## 2026-10-21: Desktop control is Pro
 
 Not a numbered phase. No locked decision was changed. Package was not bumped. Square and billing were not touched. data/ was not read.
 
 - Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
 - Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
+- Writing the Antigravity MCP config and queueing a bridge job use the same `desktop` gate. A confirm preview does not write the file.
 - Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.
 - Windows CI timed out waiting for the denied tool run even though that run had already finished. The MCP chat tests now wait on the run id from the chat response. A Windows clock can stamp the run a tick before the test's Date.now(), so a startedAt comparison never sees it.
 

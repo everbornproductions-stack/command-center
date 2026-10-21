@@ -101,6 +101,8 @@ Left on the list so they are not dropped. They are not next.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
+Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the quick patch (adaptive menu for laptops and wide screens, Start a project out of Settings, hide demo bots when real AIs are connected). 0.4.8 is a hotfix (the top bar uses the width it has, and demo AIs stay hidden). 0.4.9 is desktop and app control, phases 45 to 51, with Google Antigravity as the first app, plus Calendar, everyday actions, What's new, and the idea box, and routing to whichever AI already has the login or the prior work. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay in Do last. Windows code signing (Azure) is pending Microsoft verification and stays in Do last. The user-facing page is docs/marketing.md.
+
 ## Rules for every phase (non-negotiable)
 1. Read `README.md`, `docs/roadmap.md`, this file and the end of `docs/BUILD-LOG.md` first.
 2. One commit per feature (`git add <your files>` only, never `git add -A`). Do NOT commit files you did not write in this phase. Other sessions may have uncommitted work here (e.g. workspaces files); leave it alone.

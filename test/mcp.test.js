@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { startServer, tmpDir, ROOT, raw, waitBudget, newKindPred } from "./helpers.js";
 
@@ -63,7 +64,7 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
     const init = await c.connect();
     assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
     const tools = await c.listTools();
-    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]);
+    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]);
     assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
     const wc = await c.callTool("word_count", { text: "one two three. four!" });
     assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
@@ -71,6 +72,11 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
     assert.match((await c.callTool("save_note", { title: "T", body: "B" })).text, /Saved note "T"/);
     assert.match((await c.callTool("list_notes", {})).text, /1\. T: B/);
     assert.equal((await c.callTool("word_count", { text: "" })).isError, true);
+    assert.match((await c.callTool("list_agents", {})).text, /Google Antigravity/);
+    assert.equal((await c.callTool("get_result", {})).isError, true);
+    assert.match((await c.callTool("get_result", { job_id: "missing" })).text, /not running/);
+    assert.match((await c.callTool("submit_job", { task: "say hello" })).text, /not running/);
+    assert.equal((await c.callTool("submit_job", {})).isError, true);
     await assert.rejects(c.callTool("nope", {}), (e) => e instanceof McpError && e.code === -32602);
     assert.equal(c.alive, true);
     await c.close();
@@ -296,7 +302,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     let r = await s.api("/tools/servers", { method: "POST", body: { name: "Demo tools", transport: "stdio", command: process.execPath, args: [DEMO], env: `DEMO_SECRET=${SECRET}\nOTHER=1` } });
     assert.equal(r.status, 200); assert.equal(r.json.ok, true, r.json.error);
     const srv = r.json.server; const sid = srv.id;
-    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
+    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
     assert.equal(srv.tools[0].readOnlyHint, true); assert.equal(srv.tools[0].needsApproval, true, "read-only asks until the server allows it"); assert.equal(srv.tools[3].readOnly, false, "no hint: treated as a write");
     assert.equal(srv.enabledCount, 0, "nothing enabled by default");
     assert.ok(!JSON.stringify(r.json).includes(SECRET), "env value never in a response");
@@ -318,7 +324,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.equal(v.workspace.key, ws.id); assert.equal(v.workspace.name, "Studio A"); assert.equal(v.enabledCount, 0, "the other workspace has nothing enabled yet");
     assert.deepEqual((await s.api("/tools/enabled")).json.tools, []);
     r = await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { all: true } });
-    assert.equal(r.json.server.enabledCount, 4);
+    assert.equal(r.json.server.enabledCount, 7);
     await s.api("/workspaces/active", { method: "POST", body: { id: null } });
     assert.equal((await s.api("/tools")).json.enabledCount, 1, "Personal keeps its own list");
 
@@ -481,7 +487,7 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
     let r = await s.api("/tools/demo", { method: "POST" });
-    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 4); assert.equal(r.json.server.autoReadOnly, true);
+    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 7); assert.equal(r.json.server.autoReadOnly, true);
     assert.equal(r.json.server.tools.find((t) => t.name === "clock").needsApproval, false); assert.equal(r.json.server.tools.find((t) => t.name === "save_note").needsApproval, true);
     assert.equal((await s.api("/tools/demo", { method: "POST" })).json.view.servers.length, 1, "added once");
     let posted = await s.api("/chat", { method: "POST", body: { prompt: "What time is it right now?", provider: "demo-nova", model: "nova-lite" } });
@@ -505,4 +511,118 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
     assert.ok(full.tasks.some((t) => t.toolCalls >= 1));
     assert.deepEqual((await s.api("/tools")).json.pending, [], "read-only tools never asked");
   } finally { await s.stop(); }
+});
+
+test("Add to Antigravity writes the MCP config only after confirm, and the bridge token stays out of that file", async () => {
+  process.env.CC_DEV_OWNER = "1";
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(process.env.CC_DATA_DIR)));
+  const bridge = await import("../server/meldmind-bridge.js");
+  const home = path.join(process.env.CC_DATA_DIR, "home-mcp");
+  const file = bridge.mcpConfigPath(home);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ mcpServers: { other: { command: "npx", args: ["keep-me"] } }, note: "stay" }));
+  const preview = bridge.previewMcpAdd({ home, port: 4747, script: bridge.scriptPath() });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.needsConfirm, true);
+  assert.equal(fs.readFileSync(file, "utf8").includes("meldmind"), false);
+  const held = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: false });
+  assert.equal(held.needsConfirm, true);
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).mcpServers.meldmind, undefined);
+  const wrote = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: true });
+  assert.equal(wrote.ok, true);
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(saved.note, "stay");
+  assert.deepEqual(saved.mcpServers.other.args, ["keep-me"]);
+  assert.equal(saved.mcpServers.meldmind.env.MELDMIND_PORT, "4747");
+  assert.equal(saved.mcpServers.meldmind.env.MELDMIND_TOKEN_FILE, bridge.tokenPath());
+  const token = fs.readFileSync(bridge.tokenPath(), "utf8").trim();
+  assert.ok(token.length >= 32);
+  assert.equal(JSON.stringify(saved).includes(token), false);
+  assert.equal(JSON.stringify(saved).includes("sk-"), false);
+  fs.writeFileSync(file, "{");
+  const refused = bridge.writeMcpConfig({ home, confirm: true, port: 1, script: "node" });
+  assert.equal(refused.ok, false);
+  assert.equal(fs.readFileSync(file, "utf8"), "{");
+});
+
+test("bridge: a confirm click adds Meldmind, and only the bridge token can queue a job", async () => {
+  const home = path.join(tmpDir("cc-mcp-home-"), "h");
+  const s = await startServer({ env: { CC_MCP_HOME: home, CC_DEV_OWNER: "1" } });
+  const client = McpClient.for(
+    { transport: "stdio", command: process.execPath, args: [DEMO] },
+    { env: { MELDMIND_PORT: String(s.port), MELDMIND_TOKEN_FILE: path.join(s.dir, "bridge.token") } },
+  );
+  try {
+    const file = path.join(home, ".gemini", "config", "mcp_config.json");
+    const preview = await s.api("/bridge/mcp");
+    assert.equal(preview.status, 200);
+    assert.equal(preview.json.needsConfirm, true);
+    assert.equal(fs.existsSync(file), false);
+    const held = await s.api("/bridge/mcp", { method: "POST", body: {} });
+    assert.equal(held.status, 200);
+    assert.equal(held.json.needsConfirm, true);
+    assert.equal(fs.existsSync(file), false);
+    const wrote = await s.api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+    assert.equal(wrote.status, 200, wrote.json?.error || s.log);
+    assert.equal(wrote.json.ok, true);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    const token = fs.readFileSync(path.join(s.dir, "bridge.token"), "utf8").trim();
+    assert.equal(JSON.stringify(saved).includes(token), false);
+    assert.equal((await s.api("/bridge/jobs", { method: "POST", body: { task: "hello" } })).status, 401);
+    assert.equal((await s.api("/bridge/agents", { noToken: true })).status, 401);
+    assert.equal((await s.api("/bridge/agents", { noToken: true, headers: { "x-meldmind-bridge": "not-the-token" } })).status, 401);
+    const secret = "sk-" + "a".repeat(24);
+    const queued = await s.api("/bridge/jobs", {
+      method: "POST",
+      noToken: true,
+      headers: { "x-meldmind-bridge": token },
+      body: { task: `remember ${secret} please`, agent: "antigravity" },
+    });
+    assert.equal(queued.status, 200, queued.json?.error || s.log);
+    assert.match(queued.json.job.text, /Nothing was sent|Waiting in Meldmind/);
+    assert.equal(JSON.stringify(queued.json).includes(secret), false);
+    const got = await s.api(`/bridge/jobs/${encodeURIComponent(queued.json.job.id)}`, { noToken: true, headers: { "x-meldmind-bridge": token } });
+    assert.equal(got.status, 200);
+    assert.equal(JSON.stringify(got.json).includes(secret), false);
+    await client.connect();
+    assert.match((await client.callTool("list_agents", {})).text, /Antigravity/);
+    const submitted = await client.callTool("submit_job", { task: "queue this local task", agent: "antigravity" });
+    assert.match(submitted.text, /Job id:/);
+    assert.equal(submitted.isError, false);
+    const read = await client.callTool("get_result", { job_id: submitted.structured.job.id });
+    assert.equal(read.isError, false);
+    assert.match(read.text, /Nothing was sent|Waiting|queue/i);
+  } finally {
+    try { await client.close(); } catch {}
+    await s.stop();
+  }
+});
+
+test("Free cannot write the Antigravity config or queue a bridge job", async () => {
+  const prev = process.env.CC_DEV_OWNER;
+  delete process.env.CC_DEV_OWNER;
+  const dir = tmpDir("cc-mcp-free-ctx-");
+  const store = await import("../server/store.js");
+  store.setDefaultContext(store.newContext("local", new store.FileStore(dir)));
+  const bridge = await import("../server/meldmind-bridge.js");
+  const home = path.join(tmpDir("cc-mcp-free-"), "h");
+  try {
+    const preview = bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: false });
+    assert.equal(preview.needsConfirm, true);
+    let denied = null;
+    try { bridge.writeMcpConfig({ home, port: 4747, script: bridge.scriptPath(), confirm: true }); }
+    catch (err) { denied = err; }
+    assert.equal(denied?.status, 402);
+    assert.match(denied.message, /Desktop control is part of Pro/);
+    const s = await startServer({ env: { CC_DEV_OWNER: "", CC_MCP_HOME: home } });
+    try {
+      const held = await s.api("/bridge/mcp", { method: "POST", body: {} });
+      assert.equal(held.status, 200);
+      assert.equal(held.json.needsConfirm, true);
+      const wrote = await s.api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+      assert.equal(wrote.status, 402);
+      assert.match(wrote.json.error, /Desktop control is part of Pro/);
+    } finally { await s.stop(); }
+  } finally { if (prev) process.env.CC_DEV_OWNER = prev; }
 });

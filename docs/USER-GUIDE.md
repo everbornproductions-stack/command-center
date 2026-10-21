@@ -16,6 +16,7 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
    After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
+   The same first screen includes **Let Meldmind use your desktop**. It explains that you allow each app, that a send, a buy, or a delete waits for a second click, that a banner says Meldmind is using that app and has Stop, and that passwords are not stored. **Allow Antigravity** and **Install and connect** are on that screen. Install and connect runs Google's installer, then opens sign-in in your browser. You can skip it and change it later in Settings.
 
 Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and survive updates and reinstalls.
 
@@ -92,6 +93,23 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
+
+## 7a. Apps on your desktop
+
+Meldmind can use an app on this PC that has no API, after you allow that app.
+
+**Settings > Google Antigravity** is the first one.
+
+- Tick **Allow Meldmind to hand coding tasks to Antigravity**. Clear it any time. The manual handoff stays available.
+- **Install and connect** runs Google's installer, then opens sign-in in your browser. You sign in once. Meldmind does not see the password.
+- **Check** sends one short test task. **Send task** hands over the words you typed. **Stop** ends the task that is running.
+- **Add to Antigravity** writes the Meldmind server into Antigravity's MCP config on this PC, and only after you confirm. Other servers in that file stay. The bridge token stays in Meldmind's data folder. It is not copied into the config.
+
+You confirm before a send, a buy, or a delete. While an app is in use, a banner says Meldmind is using that app, and Stop ends it. Passwords are not stored. If a control in an app moves, Meldmind tries the other ways it knows to find it, then stops and offers the manual handoff.
+
+After you update to 0.4.9, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
+
+Help has the same steps under Apps on your desktop. Take the tour again includes that stop.
 
 ## 8. Sending things out: always your click
 

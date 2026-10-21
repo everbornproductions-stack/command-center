@@ -30,6 +30,7 @@ const STEPS = [
   { id: "publish", target: "#pub-tour", view: "publish", title: "Publishing preview", body: "Publishing always shows a preview first. Nothing posts, schedules, or saves until you click Confirm. If credentials are not saved yet, the preview says it will record a dry run. Connect Google Drive, Instagram, HighLevel and Slack with your own sign-in in Settings, Publishing." },
   { id: "marketplace", view: "marketplace", title: "Marketplace", body: "Browse and install templates other people shared. Every template is signed and checked before it installs, and nothing runs until you start it. You can share one of your own pipelines here too." },
   { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again. A custom provider can be marked Good at the task types it should take.", action: "keys" },
+  { id: "desktop", for: "both", target: "#prov-antigravity", view: "settings", title: "Apps on your desktop", body: "Meldmind can use apps on this PC that have no API, after you allow each one. Google Antigravity is the first. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Add to Antigravity writes the local MCP config only after you confirm. You can change this later in Settings." },
   { id: "phone", for: "both", target: "#phone-pair", view: "settings", title: "Phone pairing", body: "Settings, Phone and other devices, turns on a link for a phone on the same Wi-Fi. The QR code and the address under it include the pairing code. It stays off until you turn it on. Copy works if the camera cannot scan." },
 ];
 
@@ -46,11 +47,11 @@ const css = `
 #cc-tour .dots i.on { background: var(--accent); }
 #cc-tour .dots i.done { background: var(--muted); }
 .cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
-#cc-whats-new { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
-#cc-whats-new .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
-#cc-whats-new h4 { margin: 0 0 6px; font-size: 18px; }
-#cc-whats-new ul { margin: 10px 0 0; padding-left: 18px; }
-#cc-whats-new li { margin: 6px 0; }
+#cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 18px; }
+#cc-whats-new ul, #cc-desktop-prompt ul { margin: 10px 0 0; padding-left: 18px; }
+#cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
 @media (max-width: 760px) { #cc-tour .card { left: 12px !important; right: 12px; bottom: calc(var(--strip-h) + 64px); top: auto !important; width: auto; } .cc-tour-invite { left: 12px; right: 12px; bottom: calc(var(--strip-h) + 66px); } }
 `;
 const style = document.createElement("style"); style.id = "cc-tour-style"; style.textContent = css; document.head.appendChild(style);
@@ -64,6 +65,8 @@ let msg = "";         // message under the current step (sample result etc.)
 let busy = false;
 let newsOpen = false;
 let newsDismissed = false;
+let desktopOpen = false;
+let desktopDismissed = false;
 
 async function sync() { try { tour = await api("/tour"); synced = true; } catch {} maybeInvite(); }
 
@@ -80,10 +83,12 @@ function steps() {
 }
 function maybeInvite() {
   if (idx >= 0) return;
-  if (window.CC.askingMode?.()) { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
-  if (S.view === "setup") { hideNews(); document.querySelector(".cc-tour-invite")?.remove(); return; }
+  if (window.CC.askingMode?.()) { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
+  if (S.view === "setup") { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
   if (newsOpen) return;
+  if (!desktopDismissed && tour?.desktopPrompt) { showDesktop(); return; }
+  if (desktopOpen) return;
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
   if (!show) { existing?.remove(); return; }
@@ -121,6 +126,52 @@ async function dismissNews(thenTour) {
   try { tour = await api("/tour/whats-new/seen", { method: "POST" }); } catch {}
   if (thenTour) start();
   else maybeInvite();
+}
+function hideDesktop() {
+  const box = document.getElementById("cc-desktop-prompt");
+  if (box?._deskKey) document.removeEventListener("keydown", box._deskKey);
+  box?.remove();
+  desktopOpen = false;
+}
+function showDesktop() {
+  const p = tour?.desktopPrompt;
+  if (!p || idx >= 0 || S.view === "setup") return;
+  document.querySelector(".cc-tour-invite")?.remove();
+  if (document.getElementById("cc-desktop-prompt")) return;
+  desktopOpen = true;
+  const box = document.createElement("div");
+  box.id = "cc-desktop-prompt";
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-desktop-title"><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
+  document.body.appendChild(box);
+  const onKey = (e) => { if (e.key === "Escape") dismissDesktop("later"); };
+  document.addEventListener("keydown", onKey);
+  box._deskKey = onKey;
+  box.querySelector("#cc-desktop-later").addEventListener("click", () => dismissDesktop("later"));
+  box.querySelector("#cc-desktop-never").addEventListener("click", () => dismissDesktop("never"));
+  box.querySelector("#cc-desktop-allow").addEventListener("click", () => allowDesktop(false));
+  box.querySelector("#cc-desktop-install").addEventListener("click", () => allowDesktop(true));
+}
+async function dismissDesktop(action) {
+  desktopDismissed = true;
+  hideDesktop();
+  try { tour = await api("/tour/desktop", { method: "POST", body: { action } }); } catch {}
+  maybeInvite();
+}
+async function allowDesktop(install) {
+  try {
+    await api("/antigravity/allow", { method: "POST", body: { allow: true } });
+    if (install) {
+      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+      toast(r.message || "Installer finished", !r.ok);
+      if (r.ok) {
+        const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+        toast(s.message || "Sign-in opened", !s.ok);
+      }
+    } else toast("Antigravity is allowed");
+  } catch (err) { toast(err.message, true); return; }
+  await dismissDesktop("done");
+  go("settings");
 }
 
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });

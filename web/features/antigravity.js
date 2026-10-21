@@ -34,6 +34,7 @@ async function renderSettings(el) {
         <button class="btn sm primary" id="agy-install" type="button">Install and connect</button>
         <button class="btn sm" id="agy-signin" type="button">Sign in</button>
         <button class="btn sm" id="agy-check" type="button">Check</button>
+        <button class="btn sm" id="agy-mcp" type="button">Add to Antigravity</button>
         <button class="btn sm" id="agy-handoff" type="button">Manual handoff</button>
       </div>
       <div class="dim small" style="margin-top:6px">Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Check sends one short test task.</div>
@@ -64,6 +65,15 @@ async function renderSettings(el) {
   });
   el.querySelector("#agy-signin").addEventListener("click", async () => {
     try { const r = await api("/antigravity/signin", { method: "POST", body: { confirm: true } }); toast(r.message || "Sign-in opened", r.ok === false); } catch (err) { toast(err.message, true); }
+  });
+  el.querySelector("#agy-mcp").addEventListener("click", async () => {
+    try {
+      const preview = await api("/bridge/mcp");
+      if (!preview.ok) return toast(preview.message || "Could not prepare that", true);
+      if (!window.confirm(preview.message || "Add Meldmind to Antigravity?")) return toast("Nothing was written");
+      const wrote = await api("/bridge/mcp", { method: "POST", body: { confirm: true } });
+      toast(wrote.message || "Added", wrote.ok === false);
+    } catch (err) { toast(err.message, true); }
   });
   el.querySelector("#agy-check").addEventListener("click", async () => {
     try { const r = await api("/antigravity/verify", { method: "POST", body: { confirm: true } }); toast(r.message || "Check started", r.ok === false); again(); } catch (err) { toast(err.message, true); }

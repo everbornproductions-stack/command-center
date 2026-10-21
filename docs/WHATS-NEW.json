@@ -1,4 +1,14 @@
 {
+  "0.4.9": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "New: let Meldmind use your desktop. It can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored.",
+      "Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Add to Antigravity writes the local connection only after you confirm.",
+      "The first setup screen has the same choice. After this update, the first launch shows the card. Not now reminds you once. Never hides it. You can change it later in Settings.",
+      "If a control in an app moves, Meldmind tries the other ways it knows to find it, then offers the manual handoff.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
   "0.4.8": {
     "title": "What's new in Meldmind",
     "bullets": [
