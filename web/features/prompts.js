@@ -421,6 +421,7 @@ async function openTemplate(data, id) {
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn sm primary" type="button" id="pp-run">Run</button>
       <button class="btn sm" type="button" id="pp-orders">Put in orders</button>
+      <button class="btn sm" type="button" id="pp-chat">Share in chat</button>
       ${t.id === "agent-team" ? `<button class="btn sm" type="button" id="pp-make-team">Create the linked agents</button>` : ""}
       ${t.id === "ai-leverage" ? `<button class="btn sm" type="button" id="pp-make-lev">Create the two pipelines</button>` : ""}
       ${t.id === "brain-dump-brief" ? `<button class="btn sm" type="button" id="pp-make-pipe">Convert to a pipeline</button>` : ""}
@@ -450,6 +451,9 @@ async function openTemplate(data, id) {
   };
   box.querySelector("#pp-run").addEventListener("click", () => run(true));
   box.querySelector("#pp-orders").addEventListener("click", () => run(false));
+  box.querySelector("#pp-chat").addEventListener("click", () => {
+    window.CC.shareInChat?.({ kind: "prompt", id: t.id, title: t.name, text: String(t.description || "").slice(0, 280) });
+  });
   box.querySelector("#pp-make-team")?.addEventListener("click", async () => { try { await api("/prompts/team", { method: "POST", body: {} }); toast("Three agents and a pipeline are ready."); } catch (e) { toast(e.message, true); } });
   box.querySelector("#pp-make-lev")?.addEventListener("click", async () => { try { await api("/prompts/pipelines", { method: "POST", body: { id: "ai-leverage" } }); toast("Two pipelines created."); } catch (e) { toast(e.message, true); } });
   box.querySelector("#pp-make-pipe")?.addEventListener("click", async () => { try { await api("/prompts/pipelines", { method: "POST", body: { id: "brain-dump-brief", inputs: inputs() } }); toast("Pipeline created from the brief."); } catch (e) { toast(e.message, true); } });

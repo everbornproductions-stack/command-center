@@ -105,6 +105,7 @@ export const FEATURES = [
   { id: "smarter-control", home: true, settings: true },
   { id: "modelwatch", settings: true },
   { id: "userchat", views: ["userchat"] },
+  { id: "community", views: ["community"], settings: true, deliverable: true, listen: true },
   { id: "industries", views: ["prompts"] },
   { id: "teamrecipes", views: ["workspaces"] },
   { id: "highlevel", settings: true },

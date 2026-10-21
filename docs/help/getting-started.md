@@ -21,6 +21,8 @@ Nova, Atlas and Sage hide from every list and from the hub once a real AI is con
 
 Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour again and Check for updates are both on the Help page. This note shows once after an update. Take the tour again any time from Help or from Settings.
 
+Community is in the Business menu, and under Help in Simple. AI News sits next to the chat channels. See Community and AI News.
+
 Until you add a key, Demo can answer in the chat and nothing is spent. Demo does not answer Ask Meldmind.
 
 On a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon.
