@@ -97,6 +97,12 @@ test("agents and prompts on demo models: create, edit, run, tools, libraries, va
     await s.api(`/tools/servers/${sid}/options`, { method: "POST", body: { autoReadOnly: true } });
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", enabled: true } });
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "word_count", enabled: true } });
+    // A saved tools server is a real connection, so the demo AIs retire (decision 11, 0.4.13).
+    // Demo mode turned back on in Settings stays on, and with no real AI to answer, the demo still runs the job.
+    await sleep(300);
+    assert.equal((await s.api("/state")).json.realAi, true, "a tools server counts as a real connection");
+    assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
+    assert.equal((await s.api("/state")).json.settings.demoKeep, true);
     ov = (await s.api("/agents")).json;
     assert.deepEqual(ov.tools[0].tools.filter((t) => t.switchedOn).map((t) => t.key), [`${sid}/clock`, `${sid}/word_count`]);
     const ask = "What does the clock say? Use a tool.";

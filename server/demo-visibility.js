@@ -252,10 +252,17 @@ export function visibleRows(list, { hidden = demosHidden() } = {}) {
   return rows.filter((r) => !(r && (r.demo === true || r.seller?.demo === true || String(r.id || "").startsWith("demo-"))));
 }
 
+// True when a real text AI the router can call is connected. An app, an MCP
+// tools server, a CLI or a sign-in hides the demos from lists, but none of them
+// can answer a job, so the demos must not be skipped for those alone.
+export function realAiCanAnswer() {
+  return connectedRealAi({ providers: providerFacts() });
+}
+
 // A real job never calls Nova, Atlas, Sage, or the demo image model while a real
 // AI is connected. Turning demo back on only puts them back in the lists.
 export function realJobSkipsDemo(provider) {
-  if (!realAiConnected()) return false;
+  if (!realAiCanAnswer()) return false;
   const id = typeof provider === "string" ? provider : provider?.id;
   const p = (id && PROVIDERS[id]) || (provider && typeof provider === "object" ? provider : null);
   return isDemoProvider(p || { id: id || "" });
