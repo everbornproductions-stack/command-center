@@ -1,4 +1,4 @@
-# Windows test and package on every pull request and every push to main.
+# Windows test and package on every pull request.
 # This does not publish, and it does not read a signing certificate or the releases token.
 # CC_PACK_UNPUBLISHED lets the package step run with no publishable key.
 # The installer from this job is not a release. Do not upload it.
@@ -6,8 +6,6 @@ name: Windows CI
 
 on:
   pull_request:
-  push:
-    branches: ["main"]
 
 permissions:
   contents: read

@@ -58,3 +58,7 @@ Add a custom provider and tick Good at for the task types it should take. Matchi
 ## Appearance
 
 Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.
+
+## Prompts you can vote on
+
+Under marching orders, popular prompts are suggested first. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. Weekly packs include a Builders category. Snap my receipt and log it opens Receipt Snap when that builder is installed. If it is not installed yet, the words go in the chat. Inspired by names the source. Nothing is sent until you click Send.

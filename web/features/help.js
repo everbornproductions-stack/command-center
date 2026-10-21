@@ -7,6 +7,8 @@ function renderTab(view) {
     <div class="panel">
       <h3>Help</h3>
       <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
+      <h3 id="help-can-do" style="margin-top:14px">What can Meldmind do?</h3>
+      <ul id="help-can-list" class="small" style="margin:8px 0 0;padding-left:18px"></ul>
       <label class="lbl" for="help-search">Search</label>
       <input id="help-search" type="search" placeholder="Search help" autocomplete="off">
       <div id="help-list" class="help-list"></div>
@@ -85,6 +87,8 @@ function renderTab(view) {
   list.innerHTML = `<div class="dim small">Loading...</div>`;
   api("/help").then((d) => {
     articles = d.articles || [];
+    const can = view.querySelector("#help-can-list");
+    if (can) can.innerHTML = (d.canDo || []).map((line) => `<li>${esc(line)}</li>`).join("");
     showList(view.querySelector("#help-search")?.value || "");
     const focus = window.CC.S?.helpArticle;
     if (focus && articles.some((a) => a.id === focus)) {

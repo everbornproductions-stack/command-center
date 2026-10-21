@@ -7,6 +7,16 @@ import { ROOT } from "./paths.js";
 
 export const HELP_DIR = path.join(ROOT, "docs", "help");
 
+export const CAN_DO = [
+  "Chat, a council, or a mission from one box. Nothing starts until you click Send.",
+  "Pro prompts you can thumbs up or thumbs down. You can change your vote. A simple score shows on each prompt.",
+  "Weekly prompt packs for writing, email, marketing and ads, and the other categories. New this week shows for 7 days.",
+  "A Builders category: one prompt for each guided builder, such as Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder when it is installed. If it is not installed yet, the words go in the chat.",
+  "Inspired by names the source, and the name is a link when there is a page.",
+  "Popular prompts are suggested first when you fill marching orders.",
+  "Publishing, posting, and sending wait for your click.",
+];
+
 const STOP = new Set("a an the and or of to in on for with your you it is are was be as at by if so not from that this after any its into than then also just more most out up do does can when what who how all one them they their our we but about over per via nor yet".split(" "));
 const SHORT_OK = new Set(["aq", "ai", "mcp"]);
 

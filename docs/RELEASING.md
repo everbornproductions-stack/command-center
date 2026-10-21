@@ -82,7 +82,7 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 - `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: the Supabase publishable key (`sb_publishable_...`). Never the service key. Set either name as a secret or as a repository variable. Without one of them the workflow stops, because an empty key would leave every installed copy on the Free tier.
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
 
-`.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+`.github/workflows/windows-ci.yml` runs on every pull request. It runs `npm ci`, `npm test`, `npm run smoke`, and `npm run dist` on a Windows runner. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
 
 ## Mac (unsigned for now)
 

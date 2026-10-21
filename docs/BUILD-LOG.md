@@ -1606,3 +1606,17 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: prompt votes, weekly packs, and a Builders category
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Square and billing were not touched. The Supabase file is a migration only and was not run.
+
+- Thumbs up or thumbs down on a prompt. A later vote replaces the earlier one. One vote per person per prompt. The vote is stored on this computer, and a signed-in hosted user can also store it in Supabase (`supabase/prompt-packs.sql`, row level security on, no write policy for packs). If the hub is offline, the local vote remains. A simple score uses a Wilson lower bound. A prompt with no votes is not buried, and one vote does not look perfect. New this week lasts 7 days from the Monday of `added_week`.
+- Weekly packs are JSON in `server/prompts/packs` plus the `prompt_packs` table when it answers. The same id, or a near-duplicate title, is kept once. A newer week wins. Categories include writing, email, marketing and ads, and the rest of the requested list, plus builders.
+- The Builders category has one prompt for each guided builder from the registry in pull request 102 (Receipt Snap, the accounting builders, Review Responder, and the others) and for Remix from pull request 100. Wording is plain, for example "Snap my receipt and log it". The source credit is Inspired by Meldmind. Use this opens that builder with the text filled in when the feature is installed. If it is not installed yet, the words go in the chat. Nothing is sent.
+- Popular prompts are suggested first under marching orders. The tour, Help, the "What can Meldmind do?" list, the user guide, and the handoff note say the same thing. `docs/WHATS-NEW.json` has the 0.4.9 bullets for the next version. The help catalog stays 0.4.8, matching this version. The guide PDF pipeline is not on main (it is open in pull request 101), so no PDF tool was added. `docs/help/what-can-meldmind-do.md` is the plain source a later PDF can read.
+- Windows CI (`.github/workflows/windows-ci.yml`) now runs on pull requests only. A push to main does not start it.
+- Tests here (Linux): npm test 431 tests, 429 pass, 0 fail, 2 skipped (Pyodide is not installed, and Electron is not installed in this environment). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome: dismissed What's new, opened Prompts, chose Builders (16 prompts), clicked thumbs down on Receipt Snap, clicked Use this, and the marching orders box read "Snap my receipt and log it". No chat or publish request was sent. Help showed "What can Meldmind do?" including Receipt Snap, Review Responder, and Remix.
+
+PROMPT VOTES AND BUILDERS (not a numbered phase)

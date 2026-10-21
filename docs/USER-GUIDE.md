@@ -65,6 +65,14 @@ The Simple / Expert switch is in the top bar on every screen. One click changes 
 
 While it runs, **Live ops** shows each AI as it works, and the **Live feed** on the right lists every step. Under the finished deliverable you can copy it, rate each AI (thumbs up or down, which teaches the router), see the savings receipt, open it in the Artifacts panel, share a read-only link, or send it on (see section 8).
 
+### Prompts, votes, and builders
+
+Popular prompts are suggested under the marching orders box, with the ones people like first. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. A prompt with no votes is not buried, and one vote does not make it look perfect. New this week shows for 7 days.
+
+Weekly packs cover writing, email, marketing and ads, and the other categories on the Prompts page. Inspired by names the source, and the name is a link when there is a page. The source for builder prompts is Meldmind.
+
+The Builders category has one ready prompt for each guided builder, including Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder with the text filled in when it is installed. If the builder is not installed yet, the words go in the chat. Putting the words in the box does not send them.
+
 ## 5. Projects
 
 Projects group links, runs, files and memory for one client or campaign. Pick a project in Command and everything you run is filed under it.

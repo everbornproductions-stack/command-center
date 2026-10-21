@@ -51,11 +51,12 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.doesNotMatch(releasing, /—/);
 });
 
-test("Windows CI workflow: test and package on pull requests and main, never publish", () => {
+test("Windows CI workflow: test and package on pull requests, never publish", () => {
   const wf = read(".github/workflows/windows-ci.yml");
   assert.match(wf, /runs-on: windows-latest/);
   assert.match(wf, /pull_request:/);
-  assert.match(wf, /branches: \["main"\]/);
+  assert.doesNotMatch(wf, /\n\s*push:/);
+  assert.doesNotMatch(wf, /branches: \["main"\]/);
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: npm run smoke/);

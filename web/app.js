@@ -896,6 +896,7 @@ function renderSimpleChat(v) {
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" placeholder="Say what you want. The council picks the AI.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <div id="pp-popular"></div>
         ${projectField()}
         <div id="cmd-extras"></div>
         <div class="row" style="padding-top:4px">
@@ -929,6 +930,7 @@ function renderCommand(v) {
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>

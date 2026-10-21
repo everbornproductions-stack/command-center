@@ -173,6 +173,19 @@ export function writeOpen(storage, open) {
   try { storage.setItem(OPEN_KEY, JSON.stringify(slim)); } catch { /* private mode */ }
 }
 
+export function voteBar(item, esc = escapeText) {
+  const upOn = item?.mine === "up";
+  const downOn = item?.mine === "down";
+  const fresh = item?.fresh ? `<span class="chip">New this week</span>` : "";
+  const credit = item?.credit ? `<span class="small dim">${esc(item.credit)}</span>` : "";
+  return `<div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">
+    <button type="button" class="btn sm" data-vote="up" data-id="${esc(item?.id || "")}" aria-pressed="${upOn ? "true" : "false"}" aria-label="Thumbs up">Thumbs up</button>
+    <button type="button" class="btn sm" data-vote="down" data-id="${esc(item?.id || "")}" aria-pressed="${downOn ? "true" : "false"}" aria-label="Thumbs down">Thumbs down</button>
+    <span class="small dim">${esc(item?.scoreLabel || "No votes yet")}</span>
+    ${fresh}${credit}
+  </div>`;
+}
+
 function escapeText(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -185,7 +198,7 @@ export function renderBoard(groups, { open = {}, searching = false, esc = escape
     const items = g.items.map((item) => {
       const move = item.movable ? `<label class="small dim" style="display:block;margin-top:4px">Move to <select data-move="${esc(item.id)}" aria-label="Move ${esc(item.name)}">${moves.map((s) => `<option value="${esc(s.id)}"${s.id === item.shelf ? " selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>` : "";
       const attr = item.source === "custom" ? "data-custom" : item.source === "marketplace" ? "data-pack" : "data-open";
-      return `<div style="margin-top:8px"><button class="btn" type="button" ${attr}="${esc(item.id)}" style="text-align:left;width:100%"><b>${esc(item.name)}</b><div class="small dim">${esc(item.description)}</div></button>${move}</div>`;
+      return `<div style="margin-top:8px"><button class="btn" type="button" ${attr}="${esc(item.id)}" style="text-align:left;width:100%"><b>${esc(item.name)}</b><div class="small dim">${esc(item.description)}</div></button>${voteBar(item, esc)}${move}</div>`;
     }).join("");
     const empty = g.items.length ? "" : `<div class="small dim" style="margin-top:8px">${g.id === "custom" ? "Prompts you save show up here. Nothing is sent." : "Prompt packs from the Marketplace show up here."}</div>`;
     return `<details class="panel" data-shelf="${esc(g.id)}"${shown ? " open" : ""}><summary><b>${esc(g.label)}</b> <span class="dim small">${g.items.length}</span></summary><div class="small dim">${esc(g.blurb)}</div>${items}${empty}</details>`;
@@ -247,6 +260,7 @@ export function mountPromptBoard(view, model, actions = {}) {
       open[d.dataset.shelf] = !d.open;
       writeOpen(memory(), open);
     }));
+    list.querySelectorAll("[data-vote]").forEach((b) => b.addEventListener("click", () => actions.onVote?.(b.dataset.id, b.dataset.vote)));
     list.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => actions.onOpen?.(b.dataset.open)));
     list.querySelectorAll("[data-custom]").forEach((b) => b.addEventListener("click", () => {
       const item = (model.custom || []).find((row) => row.id === b.dataset.custom);
