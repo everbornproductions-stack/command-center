@@ -43,6 +43,12 @@ Keys are never shown again after saving and never written to a log.
 
 1. Type what you want in **Marching orders**. One line is enough. Press **Send orders** (or Ctrl+Enter).
 
+**Upload** adds a file, a screenshot, or a document to the box. **Voice** writes what you say into the box. Edit the words, then send. Nothing is sent until that click. In Simple, the same buttons sit under the chat box. Tap to talk is separate: its auto-send box can still send when you turn that on.
+
+A picture or a video can go further. Choose Retouch, Variation, Describe, Trim, or Caption. Those only fill the box. **Show the plan** names the connected AI and the price, or says "Demo, nothing spent." **Run** is a second click. You can preview the result, download it, or save it in a project. Nothing is posted. Pictures can be 8 MB, videos 12 MB, and other files 4 MB. A picture over 3.5 MB can stay attached, and the page says it is too big to retouch.
+
+**Suggest a connection or idea** is in Settings. Upload and Voice work there too. You read the exact note, then click Send. After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those later changes stay on this computer.
+
 ### Simple and Expert
 
 New installs open in Simple. The first time, Meldmind asks "Keep it simple or show me everything?"
@@ -128,6 +134,14 @@ Nothing posts, sends, emails or spends without a click from you.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
+
+## Plain requests
+
+On Chat, the box titled Try saying... takes a sentence such as "email this client and put it on my calendar". A cheap fast AI drafts the email and the event. The cost is shown, usually a fraction of a cent. Click Approve once and Meldmind sends the email through connected Gmail and creates the event on connected Google Calendar. Nothing is sent before that click. The drafting AI does not touch those accounts. Grok Bot's calendar handoff is unchanged.
+
+## Google Calendar
+
+Settings, Google Calendar, lists events after you connect with your own Google sign-in. Create event and Update run only when you click. Free includes 1 connected service. Pro includes every connected service. Grok Bot can still take calendar work. That handoff is unchanged.
 
 ## 9. Updates
 

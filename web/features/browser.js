@@ -152,8 +152,8 @@ async function renderSettings(el) {
     <div class="row small" style="gap:8px;margin-top:8px"><span>Driven by</span><select id="bh-model"><option value="">the cheapest capable AI${c.modelNow && !c.modelNow.picked ? ` (now ${esc(c.modelNow.name)})` : ""}</option>${models.map((x) => `<option value="${esc(x.id)}" ${c.model === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></div>
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm primary" id="bh-save">Save</button><button class="btn sm" id="bh-demo" ${c.ready ? "" : "disabled"} title="A pretend bakery page that ships with the app: watch it read the page, fill in the contact form and ask for your OK">Try it on the demo page</button></div>
 
-    <div class="cat-h" style="margin-top:14px">Google: Gmail and Drive ${g.connected ? `<span class="chip green">connected</span>` : g.needsSignIn ? `<span class="chip amber">sign in again</span>` : ""}</div>
-    <div class="dim small">Uses your own Google sign-in and the least access that works: read Gmail and read Drive, unless you tick sending. Even then every email waits for your OK. ${esc(g.setup)} <a href="${esc(g.consoleUrl)}" target="_blank" rel="noopener">Open the Google Cloud console</a>. The client secret and tokens stay in the vault and are never shown again.</div>
+    <div class="cat-h" style="margin-top:14px">Google: Gmail, Drive, and Calendar ${g.connected ? `<span class="chip green">connected</span>` : g.needsSignIn ? `<span class="chip amber">sign in again</span>` : ""}</div>
+    <div class="dim small">Uses your own Google sign-in and the least access that works: read Gmail and read Drive, unless you tick sending or Calendar. Even then every email waits for your OK, and a calendar change waits for a click. Grok Bot can still take calendar work. ${esc(g.setup)} <a href="${esc(g.consoleUrl)}" target="_blank" rel="noopener">Open the Google Cloud console</a>. The client secret and tokens stay in the vault and are never shown again.</div>
     ${g.connected ? `<div class="small" style="margin-top:4px">Allowed: ${g.scopes.map((x) => esc(x.label)).join(", ")}${g.connectedAt ? ` · since ${ago(g.connectedAt)} ago` : ""}</div>` : ""}
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
       <div><label class="lbl">OAuth client ID</label><input type="text" id="bh-cid" value="${esc(g.clientId || "")}" placeholder="${g.clientIdFromEnv ? "set by CC_GOOGLE_CLIENT_ID" : "1234...apps.googleusercontent.com"}" style="font-family:var(--mono)"></div>
@@ -163,6 +163,7 @@ async function renderSettings(el) {
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-gmail" checked> Read Gmail</label>
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-drive" checked> Read Google Drive</label>
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-send"> Send email (asks you every time)</label>
+      <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-cal" ${g.scopes?.some((x) => x.id === "calendar") ? "checked" : ""}> Google Calendar</label>
     </div>
     <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
     <div id="bh-accounts" style="margin-top:10px">
@@ -189,7 +190,7 @@ async function renderSettings(el) {
   el.querySelector("#bh-g-connect").addEventListener("click", async () => {
     try {
       await saveClient();
-      const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: on("#bh-g-gmail"), drive: on("#bh-g-drive"), send: on("#bh-g-send") } });
+      const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: on("#bh-g-gmail"), drive: on("#bh-g-drive"), send: on("#bh-g-send"), calendar: on("#bh-g-cal") } });
       window.open(r.url, "_blank", "noopener");
       toast("Sign in to Google and allow the access you ticked; this page finishes the link when you come back.");
     } catch (e) { toast(e.message, true); }
@@ -202,7 +203,7 @@ async function renderSettings(el) {
     try {
       await saveClient();
       created = await api("/mail-accounts", { method: "POST", body: { provider: "google", label } });
-      const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: on("#bh-g-gmail"), drive: on("#bh-g-drive"), send: on("#bh-g-send"), accountId: created.account.id } });
+      const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: on("#bh-g-gmail"), drive: on("#bh-g-drive"), send: on("#bh-g-send"), calendar: on("#bh-g-cal"), accountId: created.account.id } });
       window.open(r.url, "_blank", "noopener");
       toast("Sign in to Google for this account. This page finishes the link when you come back.");
     } catch (e) { toast(e.message, true); }

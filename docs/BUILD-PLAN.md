@@ -141,6 +141,7 @@ Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the qu
 ### Phase 6: Work with files and media (DONE)
 - Chat with files: drop PDFs, docs or images into a project and ask questions; chunks stored per project; works in demo mode with the mock provider.
 - Media actions (R2): mission steps for video, image and voice through provider adapters, credit estimate first, ledger logging, outputs saved to the project. Stubbed in demo mode.
+- A picture or video uploaded on the idea box or Marching orders can start one of those jobs (vision, image edit, or a local video trim). Plan first, then a separate Run. Preview, download, or save. This does not replace the gallery or the Media tab.
 
 ### Phase 7: Integrations (OAuth, post only on click) (DONE)
 - Connectors for Google Drive, Instagram (Meta Graph), HighLevel and Slack (R3): user OAuth flow scaffolding, tokens kept in the vault, "Save to Drive", "Post to Instagram", "Schedule in HighLevel" and "Send to Slack" buttons, each needing an explicit click. Mock adapters for tests; no real calls in tests.
@@ -333,11 +334,18 @@ Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already
 ### Phase 55: Update prompts (effort: S) (DONE)
 Show an update pop-up at startup with "Update now", and check hourly while the app runs, offering "Restart and update" or "Later" (Later installs on quit). Already exists (checked 2026-10-20): `electron/main.cjs` and `electron/updater.cjs` show a launch prompt ("Install now" / "Later") and check every 30 minutes with a prompt; downloads and installs happen only on click (`autoInstallOnAppQuit` is false). Left to do: the hourly interval, the "Restart and update" / "Later" wording on the running prompt, and install on quit after Later. Done: the launch prompt stays Install now / Later, the background check is hourly, the running prompt says Restart and update / Later, and Later on that prompt installs on quit. Version stays 0.4.5.
 
-### Phase 53: Google Calendar connection (effort: M) (version 0.4.9, not done)
-OAuth connect to Google Calendar, create and update events, and show it in the setup checklist. Free and Pro limits follow the connected-service rules (Free 1 connected service, Pro all). Already exists (checked 2026-10-20): `server/connect-setup.js` lists Google Calendar in the checklist, but today Calendar work is handed to Grok Bot (`server/grokbot.js` calendar tag). There is no direct Calendar OAuth yet. Grok Bot's Calendar handoff stays as it is (decision 15).
+### Phase 53: Google Calendar connection (effort: M) (built, package stays 0.4.8)
+OAuth connect to Google Calendar. List, create, and update events. Show it in the setup checklist. Free includes 1 connected service. Pro includes every connected service. Grok Bot's calendar handoff stays as it is (decision 15): tags, webhook, and routing are unchanged.
+- Specified on the docs/new-phases plan, which runs this after Phase 55.
+- Checklist connect asks for Calendar and keeps Gmail or Drive access already granted. The Browser helper checkboxes stay explicit.
+- Settings, Google Calendar, lists upcoming events. Create and Update run only on a click. Events are not deleted.
+- A second fresh connected service on Free is refused before the token is saved.
 
-### Phase 54: Plain-request actions (effort: M) (version 0.4.9, not done)
-The person types a plain request, for example "email this client and put it on my calendar". The router uses a cheap fast AI to draft the email and the event details. Meldmind itself sends and schedules through the connected Gmail and Calendar, only after one approval click (integrations act only on click). No outside AI touches the accounts. The cost is shown (usually a fraction of a cent).
+### Phase 54: Plain-request actions (effort: M) (built, package stays 0.4.8)
+A plain request, for example "email this client and put it on my calendar", is parsed by a cheap fast AI into an email draft plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. No outside AI touches the accounts. The cost is shown, usually a fraction of a cent.
+- Specified on the docs/new-phases plan, which runs this after Phase 53.
+- The model never receives a token. A second click on a finished request does not send again.
+- Guided tour stop "Try saying..." and How-to articles for plain requests and Google Calendar.
 
 ### Phase 56: Everyday actions (effort: L) (version 0.4.9, not done)
 Plain-request everyday actions built on the Phase 53 and 54 connections. Full plan, evidence and catalog: [docs/plans/everyday-actions.md](plans/everyday-actions.md).
@@ -345,7 +353,7 @@ Plain-request everyday actions built on the Phase 53 and 54 connections. Full pl
 - Safety rules for every action: read and draft freely, but any send, post, buy, book, delete, pay, share or invite needs one approval click showing the exact content and recipient. No stored passwords (OAuth or the person's own keys in the vault). No money moved without confirming amount, payee and source; the AI never fills payment fields. Scheduled routines only read and prepare; outgoing actions wait in an Approval queue. Every action is logged in Live Ops with undo where the API allows. Bulk actions (more than 10 items) show a count and a sample first. Grok Bot handoffs and MCP tool calls follow the same rules.
 - Onboarding, tour, how-to and help: each new action gets a line in the welcome tour, a short how-to with an example plain request, and a help entry. (The plan file does not have its own section for this yet; add the detail when the phase starts.)
 - "What's new" prompt: on the first launch after an update that adds connections or actions, show a short card list with Connect or Try it, Skip, and Remind me later (snooze 3 days, then once at 7 days, then it moves to Settings, What's new). "Skip all" is offered. Nothing connects without a click, and skipped items never come back as prompts.
-- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline.
+- "Suggest a connection or idea" box: in Settings, the What's new card, and the empty connections page. Suggestion text, optional category and email, and an "include app version and OS" checkbox (no personal data, no chat content). Shows exactly what will be sent and needs a Send click; queues offline. For 0.4.9 the same box also takes an upload (files, screenshots, images, documents, kept on this computer) and voice (local Whisper or a connected AI, edited before Send). After Send, the person can edit, delete, re-prioritize, comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer. Marching orders has the same Upload and Voice buttons. Nothing is sent until a click. A picture or video on either box can also start a media job (retouch, variation, trim, caption, or describe) after a plan and a separate Run. That reuses image generation and media jobs. It does not replace them.
 
 ### Phase 36: Free and Pro limits (effort: S) (DONE)
 Free gets 1 connected service, Pro gets all. Free gets 1 email account per provider, Pro up to 8. The learning router stays free; shared learning and the scores dashboard are Pro. Free gets 3 projects and 5 councils a month. Phone pairing and full history search are Pro. A 14-day Pro trial. docs/billing.md matches.

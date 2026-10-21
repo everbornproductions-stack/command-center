@@ -178,10 +178,10 @@ function integrationRows(deps) {
     }),
     row({
       id: "calendar", name: "Google Calendar",
-      blurb: "Calendar work is handed to Grok Bot.",
-      detail: "Grok Bot does Calendar. The webhook and sender key stay in Settings, and only in Expert.",
-      status: statusOf({ handoff: gbReady }),
-      flow: { type: "settings", focus: "[data-feature='grokbot']", expertOnly: true },
+      blurb: "List, create, and update events with your Google sign-in. Grok Bot can still take calendar work.",
+      detail: "Uses the browser helper Google sign-in. The client secret stays in the vault. Grok Bot's calendar handoff is unchanged.",
+      status: statusOf({ connected: googleOn && scopes.has("calendar") }),
+      flow: { type: "browser-google", want: { calendar: true }, keep: true, clientReady: googleClient, focus: "[data-feature='browser']" },
     }),
     row({
       id: "ghl", name: "HighLevel",

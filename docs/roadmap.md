@@ -35,6 +35,10 @@ Build order for the twelve was by payoff and by what could run in parallel witho
 | 11 | Shared workspaces (Studio) | hosted-hub session: `server/hosted.js`, `server/store.js`, `supabase/workspaces.sql`, `web/features/workspaces.js` | Owner invites members by email; members see only shared projects; owner sees members' usage; tier gate on Studio |
 | 12 | Pipeline marketplace | `server/plugins/marketplace.js`, `web/features/marketplace.js`, `docs/marketplace.md` | Local and demo catalog, signed template file, install, moderation, placeholder revenue share. Payments are not built |
 
+## Uploads that start a media job
+
+A picture or a video on the idea box or on Marching orders can start a media job. The router picks a connected AI that can see, edit an image, or trim video on this computer. You see the plan, then a preview, and you can download or save the result. The upload itself does not spend or send. This sits on the media actions above. It does not replace them.
+
 ## Rules for every session
 
 - New files only, except the one-line mounts in the hooks above. If a change to a shared file is unavoidable, message the main session with the exact diff.

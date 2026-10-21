@@ -77,7 +77,7 @@ function renderTab(view) {
       const S = window.CC.S;
       S.update = await api("/update/check", { method: "POST" });
       const failed = !!S.update?.error;
-      toast(S.update?.available ? `v${S.update.latest} is available` : failed ? `Check failed: ${S.update.error}` : "You are on the latest version", failed);
+      toast(S.update?.available ? `Update ready, restart: v${S.update.latest}` : failed ? "Couldn't check for updates" : "You are on the latest version", failed);
       window.CC.render?.();
     } catch (e) { toast(e.message, true); }
   });

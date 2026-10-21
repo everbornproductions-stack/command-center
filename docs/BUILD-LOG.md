@@ -1660,6 +1660,118 @@ Not a numbered phase. Decision 22's text is unchanged and still says it is not b
 - Checked in a browser on this machine: a rendered letter for Ada shows the account copy, the Supabase sentence, and the Windows and Mac link. There is no in-app screen for this. Nothing was sent.
 
 WELCOME EMAIL (built by Cursor cloud agent)
+## 2026-10-20: Everyday actions, inbox summary and reminders (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 (calendar agenda and create or move) stays with Phases 53 and 54. Phases 35 and 55 were not touched. No locked decision text was rewritten. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version was not bumped.
+
+- Inbox and tasks: a summary across connected Google mailboxes, sample mailboxes when you click Try this example, and a reply draft that uses How to talk to me and My voice. Send is a separate click and posts the To, subject, and body on screen. Without send access the draft stays. Reminders and to-dos are plain text on this computer. More than 10 lines asks for a count and a sample first.
+- Each of those has a try saying line on the welcome tour, a How to section on the page, and a Help article.
+- The run-order checks now follow the order already merged on main. docs/DECISIONS.md was not edited.
+- Tests: `test/everyday-inbox.test.js`. npm test 402 tests, 401 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY INBOX AND REMINDERS (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, day plan (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. This page does not connect Google Calendar and does not write events there. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped.
+
+- Morning briefing: one free weekday routine prepares agenda, inbox note, tasks, a weather line, and a news line. Weather and news are not fetched. A second routine is Pro. Nothing is sent.
+- Email to a task or a calendar hold: preview first, then Save writes both on this computer. A password or an SSN is refused. More than 10 emails shows a count and a sample first.
+- Find a time: open weekday slots, skipping local busy blocks and local holds, drafted as an email. Send is a separate click with the exact text.
+- Each has a try saying line, a How to section, and a Help article.
+- The help catalog matches package 0.4.6, which was already on main. The version note lists these three actions.
+- Tests: `test/everyday-plan.test.js`. After merging main: npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DAY PLAN (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, What's new and suggestions (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- What's new is a card of new connections and actions. Try it is a sample and does not send. Skip never returns. Remind me later waits 3 days, then 7 days, then the item moves to Settings and stops asking. Skip all clears the card.
+- Google Calendar on that card does not start sign-in. The checklist row still does.
+- Suggest a connection or idea sits in Settings, on the card, and on the connections page when nothing is connected. The page shows the exact note. Send is a separate click. A loopback stub can take it. Otherwise it stays on this computer. The confirmation is: Thanks, Chris reads these.
+- Each has a try saying line, a How to section, and a Help article. The version note for 0.4.6 was missing, so those two behaviors are listed there too. The updater prompt was not changed.
+- Tests: `test/everyday-news.test.js`. npm test 417 tests, 416 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (409 tests, 408 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY WHATS NEW (built by Cursor cloud agent)
+
+## 2026-10-20: Idea box uploads, voice, and status (Cursor cloud agent)
+
+Not Phase 56 done. This sits on the suggestion box. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. A new help article is stamped 0.4.9 so it is ready for that release note. No locked decision text was rewritten. data/ was not read. Square was not called.
+
+- Upload takes an image, a screenshot, a PDF, a text file, or a Word document with an idea. Up to 4 files, about 4 MB each. The bytes stay on this computer. The note that can be sent lists the file name only. A download is an attachment.
+- Voice records, then transcribes with local Whisper when that program is installed, otherwise with a connected OpenAI, Groq, ElevenLabs, or Gemini key. The words land in the box. The person edits them. Nothing is sent until Send.
+- After Send, an idea can be edited, deleted, moved higher or lower, commented on, and given a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again.
+- Marching orders, and the Simple chat box, have the same Upload and Voice buttons. Tap to talk is still there. The new Voice button does not auto-send.
+- Help, the tour, the user guide, and the 0.4.9 What's new bullets describe it.
+- Tests: `test/everyday-news.test.js` with a fake whisper. npm test 419 tests, 418 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (411 tests, 410 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders and the Simple chat box show Upload and Voice. Settings sends an idea after the exact note, then Save on status planned says the edit was not sent.
+
+IDEA BOX UPGRADES (built by Cursor cloud agent)
+
+## 2026-10-21: Uploads can start a media job (Cursor cloud agent)
+
+Not Phase 56 done. This extends the idea box and Marching orders uploads. It reuses image generation and the project media folder. It does not replace the gallery or the Media tab. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. No locked decision text was rewritten. data/ was not read. Square was not called. Nothing is posted.
+
+- A picture (up to 8 MB) or a video (up to 12 MB) can be attached on the idea box and on Marching orders. Documents stay at 4 MB. The page says so when a file is too big. A picture over 3.5 MB can stay attached, and retouch says it is too big.
+- Retouch, Variation, Describe, Trim, and Caption only fill the ask. Show the plan picks a connected AI for that kind (image edit, vision, or ffmpeg on this computer). Run is a second click and must repeat the price. Demo mode spends nothing. The result can be previewed, downloaded, or saved in a project.
+- The suggestion Send click is unchanged. It still posts names only. A media job does not send the idea.
+- Help, the user guide, the tour, the roadmap, and the 0.4.9 What's new note describe it.
+- Tests: `test/media-modify.test.js`. npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (414 tests, 413 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders upload, Retouch, Show the plan ("Demo, nothing spent"), then Run, preview, Download, and Save to project. Simple still shows Upload and Voice. Settings idea box says the Run click is separate from Send. No error toast.
+
+MEDIA JOBS FROM UPLOADS (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, docs, meetings, and lead drafts (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- Find and summarize reads a local doc, and Google Drive and Notion when those libraries are already connected. The summary keeps the first three sentences. Save a copy writes on this computer. Drive and Notion are not written.
+- Meeting prep reads notes and related docs on this computer. A transcript summary lists action items. Adding those to-dos is a click. This build does not record calls.
+- A new lead follow-up is Pro. It drafts an email and a text on this computer. HighLevel is not called. Send is one click for one channel and lands in a local outbox, or a loopback stub. Twilio is not contacted and no price is looked up.
+- Each has a try saying line, a How to section, and a Help article. The Work menu label is Docs and follow-up.
+- Tests: `test/everyday-work.test.js`. npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. After the menu label, `test/nav.test.js` passed (5). Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY DOCS MEETINGS LEADS (built by Cursor cloud agent)
+
+## 2026-10-20 22:45 UTC: Phases 53 and 54 (Cursor cloud agent)
+
+Phases 35 and 55 are still planned. The docs/new-phases plan runs 53 after 55. This work was requested directly, so 53 and 54 were built now. No locked decision was changed. Decision 15 stays: Grok Bot's calendar tags, webhook, and routing are unchanged. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version stays 0.4.5. data/ was not read. No key was printed.
+
+- Phase 53 commit f8ffec2: Google Calendar OAuth (`calendar.events`). The setup checklist connects Calendar and keeps Gmail or Drive access already granted. List, create, and update run on the primary calendar. Nothing is deleted. Free still allows 1 connected service. Pro allows all. A second fresh service on Free is refused before the token is saved. The Calendar row is a Google sign-in, not a Grok Bot handoff. Grok Bot's own row stays Handoff.
+- Phase 54 commit e46ad2b: a sentence such as "email this client and put it on my calendar" is drafted by a cheap fast model into an email plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. The model never receives a token. A second click does not send again. The cost is shown, usually a fraction of a cent. The guided tour has a Try saying... stop. Help has Plain requests and Google Calendar.
+- Tests: `test/calendar.test.js`, `test/actions.test.js`. npm test 411 tests, 410 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only (127.0.0.1). No real Google host and no real model.
+- Checked in the browser on the local app: Settings, Google Calendar, says it is not connected and does not list or create events. Browser helper has a Google Calendar checkbox. Chat, Try saying..., drafts the example in demo mode, shows a cost that is a fraction of a cent, and Approve refuses with "Nothing was sent" until Gmail sending is connected. The tour stop Try saying... is present. Help lists both articles. The connected send path was checked against a local Google mock in `test/actions.test.js`, not against a real account.
+- Not verified here: a real Google account, a real model provider, the packaged Electron app, and the Windows pull request check.
+
+PHASE 53 DONE
+PHASE 54 DONE
+
+## 2026-10-21: Everyday actions and idea box on the 0.4.8 hotfix
+
+Not a new phase. This brings the open everyday and idea-box work onto current main. package.json stays 0.4.8. The help catalog stays 0.4.8. The 0.4.8 What's new note stays the hotfix (top bar width, Nova, Atlas, and Sage). The everyday, idea box, and calendar notes are listed under 0.4.9. Phases 35 and 55 were not reworked. Decision 22 and 23 stay "Not built yet". Phase 14 stays BLOCKED. Square and billing were not touched. data/ was not read.
+
+- Merged: inbox and reminders, the day plan, What's new and suggestions, the idea box (upload, voice, status, media jobs), docs and meetings and lead drafts, Google Calendar, and plain-request actions.
+- The run order line is unchanged, including "Do last: 14,". Welcome email and Use your own Supabase stay out of that line.
+- The licence table registers `missions`, `desktop` (desktop control, including Antigravity), and `appScan` (program scan) as Pro. Free is false. Pro, Studio, and Owner are true. `guard` and `isProFeature` read that table. The scan and the Antigravity bridge enforce it on their own branches.
+
+## 2026-10-21: installed 0.4.7 never offered 0.4.8
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Brought onto this branch from the updater fix (pull request 73). That fix is on the hide-demos branch, not on main yet, so it was cherry-picked here. main stays the base.
+
+- The public feed was already right. v0.4.8 is the latest release, not a draft, and latest.yml says version 0.4.8 and path Meldmind-Setup-0.4.8.exe. productName is Meldmind. The install folder Command AI\Meldmind is the old shortcut location. It is not what the version compare uses. app.setName stays Everborn Command so the data folder does not move. The feed is the public repo, channel latest, private false, no token.
+- A failed check was only written to the log. The launch window opens only when a newer version is found, and the launch promise drops the error. Opening the app from the shortcut while it is still in the tray does not check again. On a wide window, Check for updates was under Settings, not Help.
+- The check still runs on launch and every hour. It also runs when the shortcut focuses the open app. If electron-updater does not report a newer build, the app reads the public latest.yml itself. A newer file shows Update ready, restart. Nothing downloads until that click. If the file cannot be read, the app shows Couldn't check for updates with Download, which opens the releases page. Help, the Help page, and Settings all have Check for updates.
+- The Update ready, restart button sits in the right side of the top bar. The menu row watches that cluster, so the button does not cover Settings or Help. Eight menus stay when they still fit. Otherwise the row goes back to the compact menus, still on one line.
+- Tests here (Linux): npm test 428 tests, 426 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. The installed Windows app was not run here.
+
+## 2026-10-21: saving a project from the command bar stays put
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). package.json stays 0.4.8. The help catalog stays 0.4.8. The note is under 0.4.9. Square and billing were not touched. data/ was not read.
+
+- Create and rename on the command bar save in place. The page stays on the command view. A toast says Saved. Open is a link on that toast and is the only way to the project. The Projects page does not open by itself.
+- Test: `test/project-picker.test.js`. npm test 441 tests, 440 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Checked in the browser: Chat, new project Spring Sale, toast Saved with Open, still on Chat. Rename to Spring, toast Saved, still on Chat. Open then shows the project.
 
 ## 2026-10-21: plan docs regrouped by version
 

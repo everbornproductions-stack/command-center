@@ -1,9 +1,9 @@
 # Releasing a new version of Meldmind (so the in-app update button finds it)
 
-The Windows app checks for updates when it starts and every 30 minutes. People can also press
-**Help > Check for updates** (the top-bar menu that also has Settings and Take the tour again).
-When a newer version is out, the top bar shows **Update available**. After it has downloaded, the
-same button says **Restart to update**. A banner still offers **Update and restart**. Nothing downloads until they click it.
+The Windows app checks for updates when it starts, when it is opened again from the shortcut, and every hour. People can also press
+**Help > Check for updates** (the top-bar Help menu, and the Help page).
+When a newer version is out, the app shows **Update ready, restart**. Nothing downloads until they click it.
+If the check cannot read the public `latest.yml`, it shows **Couldn't check for updates** with **Download**, which opens the releases page.
 
 Since v0.3.2 the updater runs in the Electron main process (electron/updater.cjs), not in the local server. On launch the app shows a "Meldmind vX.Y.Z is ready" window (Install now / Later), and the tray menu has Check for updates, Install update and Restart app. This works even when the engine or the window fails, so a broken build can still update itself.
 
@@ -54,8 +54,9 @@ not in the install folder, so updating or reinstalling keeps it.
    upload the missing file again with
    `gh release upload vX.Y.Z <file> --repo everbornproductions-stack/command-center-releases --clobber`.
    You can also drag the files onto the release page on github.com.
-6. **Check.** Open the installed app, Settings, **Check for updates**. It should say
-   "Update available: vX.Y.Z". Click **Update and restart**.
+6. **Check.** Open the installed app and choose **Help > Check for updates**. It should say
+   **Update ready, restart** for vX.Y.Z. Nothing downloads until that click. If the check
+   cannot read the release, it says **Couldn't check for updates** and **Download** opens the releases page.
 
 ## Good to know
 

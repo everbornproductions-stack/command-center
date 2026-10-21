@@ -171,7 +171,8 @@ table.tbl tr:hover td { background: #0f172299; }
 .right { text-align: right; }
 .empty { color: var(--dim); padding: 24px; text-align: center; border: 1px dashed var(--line-2); border-radius: 12px; }
 .toasts { position: fixed; right: 360px; bottom: 110px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
-.toast { background: #111827; border: 1px solid var(--line-2); padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px #0008; animation: fadein .2s; max-width: 420px; }
+.toast { background: #111827; border: 1px solid var(--line-2); padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px #0008; animation: fadein .2s; max-width: 420px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.toast-link { color: var(--accent-2); }
 .toast.err { border-color: #5a2a2a; color: #fca5a5; }
 /* Accessibility (Phase 11): a visible ring for keyboard focus only, a skip link, and a quieter shell when the
    system asks for reduced motion. The live flow map keeps its own approved reduced-motion fallback. */

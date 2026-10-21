@@ -96,7 +96,15 @@ function setupUpdater() {
         rebuildTrayMenu();
       },
       prompt: () => showUpdateWindow(),
-      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Could not check for updates", detail: st.error }); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
+      failed: (st) => {
+        const page = (st && st.downloadUrl) || `${RELEASES_PAGE}/latest`;
+        dialog.showMessageBox({
+          type: "warning", title: "Meldmind", message: "Couldn't check for updates",
+          detail: (st && st.detail) || "The releases page did not answer. You can download the installer yourself.",
+          buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true,
+        }).then(({ response }) => { if (response === 0) shell.openExternal(page); }).catch(() => {});
+      },
+      result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Couldn't check for updates", detail: st.detail || st.error, buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true }).then(({ response }) => { if (response === 0) shell.openExternal((st && st.downloadUrl) || `${RELEASES_PAGE}/latest`); }).catch(() => {}); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
       beforeQuit: () => { quittingForUpdate = true; },
     },
   });
@@ -382,7 +390,13 @@ function allowMicrophone() {
   });
 }
 
-app.on("second-instance", () => { log("second launch: focusing the open window"); focusWindow(); });
+app.on("second-instance", () => {
+  log("second launch: focusing the open window");
+  focusWindow();
+  // Closing the window leaves the app in the tray, so opening it again is not a new process.
+  // Check here too, or a restart from the shortcut never looks for an update.
+  if (updater) updater.check({ prompt: true }).catch((e) => log("second launch update check failed:", e && e.message));
+});
 // Running prompt: Later downloads the update, and quit installs it. The launch prompt's Later does not.
 let holdingQuitForUpdate = false;
 app.on("before-quit", (event) => {

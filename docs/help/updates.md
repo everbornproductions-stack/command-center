@@ -9,9 +9,11 @@ lastUpdatedVersion: 0.4.6
 
 This note shows once after an update. Take the tour again any time from Help, and from the Settings menu.
 
-Check for updates is on the Help page and in Settings. The tray menu has it too. When a newer version is ready, the app says Update available. On the desktop, Install now at startup (or Update and restart) downloads it. Nothing downloads until you click.
+Check for updates is in the Help menu, on the Help page, and in Settings. The tray menu has it too. When a newer version is ready, the app says Update ready, restart. On the desktop, Install now at startup (or Update ready, restart) downloads it. Nothing downloads until you click.
 
-The startup prompt says Install now and Later. Later at startup waits until the next time you open the app. While the app is open it checks again every hour. That prompt says Restart and update and Later. Restart and update downloads and restarts now. Later downloads the update and installs it when you quit.
+If the check cannot reach the releases page, the app says Couldn't check for updates and offers Download. Download opens the releases page so you can get the installer yourself. Nothing is downloaded until you click.
+
+The startup prompt says Install now and Later. Later at startup waits until the next time you open the app. The app checks on launch and again every hour, including when you open it from the shortcut while it is still in the tray. That prompt says Restart and update and Later. Restart and update downloads and restarts now. Later downloads the update and installs it when you quit.
 
 Your settings, keys, and projects stay in place across an update. The portable build does not update itself. Use Check for updates in the installed app.
 

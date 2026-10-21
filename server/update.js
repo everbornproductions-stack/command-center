@@ -1,7 +1,8 @@
 // Update notifier and in-app updater.
 // Desktop app (Electron installer): electron/main.cjs hands this module a bridge to electron-updater
 // (globalThis.__ccUpdater) before the server starts. The app checks GitHub Releases on launch and every
-// hour; nothing downloads until the person clicks "Update available" or "Restart to update".
+// hour; nothing downloads until the person clicks "Update ready, restart". A failed check stays
+// visible as "Couldn't check for updates" with a Download link.
 // Web / hosted / dev: there is no installer to replace, so the app asks a small JSON feed what the latest
 // version is (once at start, then every 6 hours) and the banner links to the download page.
 // User data lives in the per-user app-data folder (CC_DATA_DIR), never in the install folder, so updates keep it.
@@ -14,7 +15,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"))
 export const VERSION = pkg.version;
 export const FEED_URL = process.env.CC_UPDATE_FEED || "https://everbornproductions.com/command-center/latest.json";
 
-let state = { current: VERSION, latest: null, notes: null, url: null, available: false, checkedAt: 0, error: null, desktop: false, phase: "idle", progress: null };
+let state = { current: VERSION, latest: null, notes: null, url: null, downloadUrl: null, available: false, checkedAt: 0, error: null, desktop: false, phase: "idle", progress: null };
 const bridge = () => globalThis.__ccUpdater || null;
 export const updateState = () => ({ ...state, desktop: !!bridge() });
 
@@ -48,7 +49,7 @@ export async function checkForUpdate() {
     try {
       const r = await b.check(); // { version, notes } of the newest release, or null
       const available = !!(r && r.version && newer(r.version, VERSION));
-      return set({ available, latest: r?.version || VERSION, notes: r?.notes || "", url: null, checkedAt: Date.now(), error: r?.error || null, phase: available ? (state.phase === "downloading" ? "downloading" : "available") : "idle" });
+      return set({ available, latest: r?.version || VERSION, notes: r?.notes || "", url: null, downloadUrl: r?.downloadUrl || null, checkedAt: Date.now(), error: r?.error || null, phase: available ? (state.phase === "downloading" ? "downloading" : "available") : "idle" });
     } catch (e) { return set({ checkedAt: Date.now(), error: e.message }); }
   }
   try {

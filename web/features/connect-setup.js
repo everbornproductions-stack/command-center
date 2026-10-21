@@ -78,7 +78,7 @@ async function runFlow(item, accountId) {
   }
   if (f.type === "browser-google") {
     if (!f.clientReady) return focusSettings(f.focus, "Add the Google sign-in client in Settings, then connect. The secret stays in the vault.");
-    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, ...(accountId ? { accountId } : {}) } });
+    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, calendar: !!f.want?.calendar, keep: !!f.keep, ...(accountId ? { accountId } : {}) } });
     window.open(r.url, "_blank", "noopener");
     toast("Sign in with Google. This page finishes the link when you come back.");
     return;
@@ -149,6 +149,12 @@ function renderInto(v) {
       </div>
     </div>
   </div>`;
+  if (!items.some((it) => it.status === "Connected") && window.CC.everydaySuggest?.mount) {
+    const slot = document.createElement("div");
+    slot.id = "ea-suggest-slot";
+    v.querySelector(".cs-wrap")?.appendChild(slot);
+    try { window.CC.everydaySuggest.mount(slot); } catch { /* the checklist still works */ }
+  }
   v.querySelectorAll("[data-connect]").forEach((b) => b.addEventListener("click", async () => {
     const item = items.find((x) => x.id === b.dataset.connect);
     if (!item || busy) return;
