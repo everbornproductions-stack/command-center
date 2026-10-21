@@ -1629,3 +1629,19 @@ PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, D
 - 0.4.9 feature work had not merged. This branch keeps its own feature gate for private mode, backup, double-check, and Do this again. If a later gate table lands, keep those rows and do not drop the other rows.
 
 WORKSTREAM C (unsigned Mac job is in the release workflow; on-Mac check still blocked)
+
+## 2026-10-21: 0.4.10 workstream C leftovers (readers, receipt file, tone, balance)
+
+Same branch and pull request #81. Version stays 0.4.8. No locked decision was changed. Square and billing were not touched. data/ was not read. Nothing was merged. PDF and DOCX export (Phase 85) and industry packs (Phase 84) stay with workstream D.
+
+- Phase 74: before Send, the dialog lists each AI, the tools that are on, and the connected services that will receive this prompt. Remove drops that AI. The last AI stays. Send passes those provider ids. The council does not refill the seat. A mission does not assign, retry, or review with that AI, and a fallback cannot hand them the prompt. Cancel still does not send.
+- Phase 78: after the confirm click, the receipt is saved as meldmind-receipt.txt. The ask still comes first. Nothing is deleted without the click. AI keys were not touched.
+- Phase 80: Shorter, Warmer, More direct, and Plain words set the tone of the next answer only. The same button again clears it. The click does not start a run. The next chat, council, or mission uses that instruction once, then the setting is cleared.
+- Phase 81: AI credits shows what is left for each connected AI from the health balance already collected. A missing balance is said in words. No number is invented. The spend line stays. Subscriptions and the receipt scanner were not rebuilt.
+
+PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, Dock, and data folder were not started on macOS. Signing and notarization still need an Apple Developer account.
+
+- Not in this change: PDF and DOCX export (Phase 85) and industry packs (Phase 84).
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux removed readers until one remained, checked the tools and services lines, saved the receipt file after confirm, set Shorter without starting a run, and read the remaining-balance line. Windows CI and Mac CI run on the pull request after this push.
+
+WORKSTREAM C LEFTOVERS (readers, receipt file, next-answer tone, remaining balance)

@@ -9,7 +9,7 @@ import { complete, extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
 import { emit } from "./events.js";
-import { classify, pick, rank } from "./router.js";
+import { classify, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
@@ -19,6 +19,7 @@ import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
+import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
@@ -80,8 +81,13 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries, private: isPrivate = false }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
   mode = normalizeMode(mode) || "balanced";
+  const skipped = cleanSkip(skip);
+  const skipSet = new Set(skipped);
+  const held = skipAvoid(skipped);
+  const openRank = (opts) => rank(opts).filter((m) => m && !skipSet.has(m.provider));
+  const openPick = (opts) => openRank(opts)[0] || null;
   const planning = planMode(mode);
   const looking = reviewMode(mode);
   const id = "m-" + Date.now().toString(36);
@@ -95,7 +101,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const memBlock = contextFor(projectId);
   context = withMemory(context, projectId);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
-  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER) };
+  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER), ...(toneId ? { tone: toneId } : {}) };
   live.set(id, mission);
   const user = ctx();
   user.missionsInFlight = (user.missionsInFlight || 0) + 1;
@@ -131,7 +137,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
       : `\nA step that must act on a website (signed-in pages, forms), in the person's Gmail or in their Google Drive gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; the built-in ${MA.name} does those steps in its own browser window (every send, post or form submit waits for the person's OK). Never use "agent" for plain writing, research or analysis.`;
 
     // ---- 1. Plan ----
-    const planner = pick({ capability: "reasoning", difficulty: 3, mode: planning });
+    const planner = openPick({ capability: "reasoning", difficulty: 3, mode: planning });
     if (!planner) throw new Error("No AI is available to plan. Add an API key in Settings.");
     mission.planner = { provider: planner.provider, model: planner.model };
     const pAgent = `${id}:planner`;
@@ -186,7 +192,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       if (t.capability === "media") t.capability = "creative"; // not a kind a media provider makes: a text AI writes the brief
       if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
-      const ranked = rank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) });
+      const ranked = openRank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) });
       // spread the load: prefer a provider not already carrying 2 tasks when scores are close
       let choice = ranked[0];
       for (const c of ranked.slice(0, 4)) {
@@ -207,7 +213,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
         if (t.agent || t.media) continue;
-        const e = pick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
+        const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
     }
@@ -316,9 +322,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // its key is replaced (same model via OpenRouter first, then the next-best model) and the task says so.
           for await (const ev of fallbackChat({
             provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal,
-            system: `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`,
+            system: toneAdd(`You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone),
             messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }],
-          }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) } })) {
+          }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
             else if (ev.type === "fallback") {
               text = ""; stoodIn(ev, agent, "work", t.id);
@@ -344,14 +350,14 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // learning router (Phase 28): a model that failed the job itself is marked; account trouble is not held against it
           if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: t.provider, model: t.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
           // one retry on a different provider
-          const alt = rank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
+            const alt = openRank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
           if (alt && !ctl.signal.aborted) {
             log(`${PROVIDERS[t.provider].name} failed "${t.title}" (${err.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
             emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `re-assign "${t.title}"` });
             t.provider = alt.provider; t.model = alt.model; t.agentName = `${alt.providerName} · ${t.capability}`; t.retried = true;
             const s2 = Date.now();
             try {
-              const r = await complete({ provider: alt.provider, model: alt.model, maxTokens: 2500, signal: ctl.signal, system: `You are a specialist (${t.capability}). Goal: ${goal}. Do only your task; output the deliverable in Markdown.`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}` }] }, (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }));
+              const r = await complete({ provider: alt.provider, model: alt.model, maxTokens: 2500, signal: ctl.signal, system: toneAdd(`You are a specialist (${t.capability}). Goal: ${goal}. Do only your task; output the deliverable in Markdown.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}` }] }, (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }));
               noteCall(alt.provider, true, Date.now() - s2);
               const e = recordCall({ provider: alt.provider, model: alt.model, usage: r.usage, missionId: id, taskId: t.id, role: "work", ms: Date.now() - s2 });
               spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
@@ -369,7 +375,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // ---- QA by a different AI ----
         if (t.status === "review") {
           // QA is a small job: free tiers first (Phase 26)
-          const reviewer = rank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || rank({ capability: "analysis", mode: looking, small: true })[0];
+          const reviewer = openRank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || openRank({ capability: "analysis", mode: looking, small: true })[0];
           if (reviewer) {
             const ragent = `${id}:${t.id}:qa`;
             emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
@@ -377,7 +383,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             const s3 = Date.now();
             try {
               const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: ctl.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${t.output.slice(0, 12000)}` }] },
-                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
+                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
               const ms = Date.now() - s3;
               noteCall(r.provider, true, ms);
               const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
@@ -389,8 +395,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
                 emit("agent.msg", { from: r.provider, to: t.provider, missionId: id, text: `revise: ${t.review.fix.slice(0, 60)}` });
                 const s4 = Date.now();
                 try {
-                  const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal, system: `Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${t.review.fix}\nISSUES: ${(t.review.issues || []).join("; ")}` }] },
-                    { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
+                  const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${t.review.fix}\nISSUES: ${(t.review.issues || []).join("; ")}` }] },
+                    { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
                   noteCall(r2.provider, true, Date.now() - s4);
                   const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
                   spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
@@ -450,7 +456,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
   async function assemble(plan, planner) {
     const finished = mission.tasks.filter((t) => t.output && !t.media);
     mission.status = "assembling"; update();
-    const asm = { ...(pick({ capability: "writing", difficulty: 3, mode: planning }) || planner) };
+    const asm = { ...(openPick({ capability: "writing", difficulty: 3, mode: planning }) || planner) };
     mission.assembler = { provider: asm.provider, model: asm.model };
     const aAgent = `${id}:assembler`;
     emit("agent.start", { agent: aAgent, provider: asm.provider, model: asm.model, role: "assemble", missionId: id, label: `${asm.providerName} assembling the deliverable` });
@@ -460,9 +466,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     try {
       for await (const ev of fallbackChat({
         provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
-        system: `You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}`,
+        system: toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}`, tone),
         messages: [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }],
-      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning })) {
+      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
         else if (ev.type === "done") {
@@ -487,7 +493,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
 }
 function save(m) {
   saveDoc(m);

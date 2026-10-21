@@ -1170,9 +1170,11 @@ async function sendOrders() {
   $("#go").disabled = true;
   try {
     const priv = !!S.settings?.privateMode;
+    let skip = [];
     if (!simple && (mode === "council" || mode === "mission") && window.CC?.desk?.beforeSend) {
       const allowed = await window.CC.desk.beforeSend({ mode, prompt });
-      if (!allowed) return;
+      if (!allowed || allowed.ok === false) return;
+      if (Array.isArray(allowed.skip)) skip = allowed.skip;
     }
     const usePack = !!(pp?.templateId && !pp.removed);
     const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
@@ -1183,8 +1185,8 @@ async function sendOrders() {
       await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, ...packBody } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); renderOps();
   } catch (e) {
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
@@ -1280,6 +1282,15 @@ function renderProjectDetail(v, p) {
     if (!confirm(`${lines}\n\nDelete this project?`)) return;
     try {
       const done = await api(`/projects/${p.id}`, { method: "DELETE" });
+      const file = done.receipt?.file;
+      if (file?.text) {
+        const blob = new Blob([file.text], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = file.name || "meldmind-receipt.txt";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      }
       toast((done.receipt?.lines || ["Project deleted."]).join(" "));
       S.openProject = null;
       await refresh();

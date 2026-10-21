@@ -98,6 +98,23 @@ test("readers, receipt, repeat, tone, and the first council use plain words", ()
   const readers = desk.readersFor({ mode: "council", names: ["Claude", "Gemini", "Claude"] });
   assert.match(readers.line, /These AIs will read your prompt: Claude, Gemini/);
   assert.equal(readers.readers.length, 2);
+  assert.match(readers.toolsLine, /No tools are on/);
+  assert.match(readers.servicesLine, /No connected service will receive this prompt/);
+  const withTools = desk.readersFor({
+    mode: "council",
+    readers: [{ id: "anthropic", name: "Claude" }, { id: "google", name: "Gemini" }],
+    tools: [{ name: "search_docs", server: "Docs" }],
+    services: [{ id: "search", name: "Web search" }],
+  });
+  assert.equal(withTools.readers[0].id, "anthropic");
+  assert.match(withTools.toolsLine, /search_docs \(Docs\)/);
+  assert.match(withTools.servicesLine, /Web search/);
+  const seated = desk.takeMembers(
+    [{ provider: "a", model: "a1" }, { provider: "b", model: "b1" }, { provider: "c", model: "c1" }, { provider: "d", model: "d1" }, { provider: "e", model: "e1" }],
+    { limit: 4, skip: ["b"] },
+  );
+  assert.deepEqual(seated.map((m) => m.provider), ["a", "c", "d"]);
+  assert.deepEqual(desk.cleanSkip(["anthropic", "not-a-provider", "anthropic"]), ["anthropic"]);
   const mission = desk.readersFor({ mode: "mission", names: ["Nova", "Atlas"], planner: "Nova" });
   assert.match(mission.line, /Nova will read the full prompt/);
   assert.match(mission.line, /Atlas/);
@@ -109,10 +126,36 @@ test("readers, receipt, repeat, tone, and the first council use plain words", ()
   assert.equal(desk.repeatBody(null).status, 404);
   const tone = desk.toneRequest({ id: "s-1", kind: "single", model: "nova-lite" }, "shorter");
   assert.match(tone.text, /shorter/);
+  assert.match(tone.text, /next answer/);
   assert.equal(desk.toneRequest({ id: "s-1", kind: "single", model: "nova-lite" }, "nope").status, 400);
+  const armed = desk.armTone(null, "shorter");
+  assert.equal(armed.nextTone, "shorter");
+  assert.match(armed.line, /does not send/);
+  assert.equal(desk.armTone("shorter", "shorter").nextTone, null);
+  assert.equal(desk.consumeTone({ nextTone: "plain", name: "Ada" }).settings.nextTone, null);
+  assert.match(desk.toneAdd("Be brief.", "Write the next answer so it is shorter."), /shorter/);
   const credits = desk.plainCredits({ month: 0.2, today: 0.004, byProvider: { anthropic: { month: 0.2, calls: 2 } }, names: { anthropic: "Claude" } });
   assert.match(credits.line, /This month your AIs used about \$0\.20/);
   assert.match(credits.rows[0].line, /Claude used about \$0\.20/);
+  assert.deepEqual(credits.left, []);
+  const left = desk.plainCredits({
+    names: { anthropic: "Claude", elevenlabs: "ElevenLabs", "demo-nova": "Nova (demo)" },
+    balances: {
+      anthropic: { left: 1.2, unit: "USD" },
+      elevenlabs: { used: 0, limit: 10000, unit: "characters" },
+      "demo-nova": null,
+    },
+  });
+  assert.match(left.left.find((r) => r.id === "anthropic").line, /Claude has about \$1\.20 left/);
+  assert.match(left.left.find((r) => r.id === "elevenlabs").line, /ElevenLabs has 10,000 characters left/);
+  assert.match(left.left.find((r) => r.id === "demo-nova").line, /No remaining balance is reported for Nova \(demo\)/);
+  const viewed = desk.creditsView({
+    ledger: { month: 0, today: 0, byProvider: {} },
+    statuses: { anthropic: { status: "green", balance: { left: 3, unit: "USD" } }, openai: { status: "grey", balance: null } },
+    providers: { anthropic: { name: "Claude" }, openai: { name: "ChatGPT" } },
+  });
+  assert.equal(viewed.left.length, 1);
+  assert.match(viewed.left[0].line, /Claude has about \$3\.00 left/);
   const home = desk.homeCard({ missions: [{ id: "s-1", kind: "single", title: "Hi", startedAt: 5 }], projects: [{ id: "p", name: "Site" }], onboarded: true, keyed: true });
   assert.equal(home.show, true);
   assert.equal(home.title, "Welcome back");
@@ -130,6 +173,10 @@ test("readers, receipt, repeat, tone, and the first council use plain words", ()
   assert.match(receipt.lines.join("\n"), /stay in My chats/);
   assert.match(receipt.lines.join("\n"), /AI keys were not touched/);
   assert.equal(receipt.removed, true);
+  const saved = desk.receiptFile(receipt);
+  assert.equal(saved.name, "meldmind-receipt.txt");
+  assert.match(saved.text, /AI keys were not touched/);
+  assert.equal(read("web/app.js").includes("meldmind-receipt.txt"), true);
   for (const file of ["server/desk.js", "server/feature-gate.js", "server/plugins/desk.js", "web/features/desk.js", "web/app.js", "docs/help/getting-started.md", "docs/help/updates.md"]) {
     assert.equal(read(file).includes(EM), false, file);
   }
@@ -154,6 +201,9 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     assert.equal(readers.status, 200);
     assert.match(readers.json.line, /will read your prompt/);
     assert.ok(readers.json.readers.length >= 1);
+    assert.ok(readers.json.readers[0].id);
+    assert.match(readers.json.toolsLine, /No tools are on|These tools can be used/);
+    assert.match(readers.json.servicesLine, /No connected service will receive this prompt|These connected services will receive the prompt/);
     assert.match(readers.json.explain, /several AIs at once/);
     await s.api("/settings", { method: "POST", body: { councilIntro: true, privateMode: true } });
     const again = await s.api("/desk/readers", { method: "POST", body: { mode: "council", prompt: "Plan a week of posts for a bakery" } });
@@ -173,6 +223,8 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     assert.equal(deleted.status, 200);
     assert.equal(deleted.json.receipt.removed, true);
     assert.match(deleted.json.receipt.lines.join("\n"), /stay in My chats/);
+    assert.equal(deleted.json.receipt.file.name, "meldmind-receipt.txt");
+    assert.match(deleted.json.receipt.file.text, /AI keys were not touched/);
     const gone = await s.api(`/desk/project-receipt?id=${encodeURIComponent(made.json.id)}`);
     assert.equal(gone.status, 404);
 
@@ -201,6 +253,9 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     const credits = await s.api("/desk/credits");
     assert.equal(credits.status, 200);
     assert.match(credits.json.line, /This month your AIs used about/);
+    assert.ok(Array.isArray(credits.json.left));
+    assert.ok(credits.json.left.length >= 1);
+    assert.match(credits.json.left.map((row) => row.line).join("\n"), /No remaining balance is reported/);
 
     const review = await s.api("/desk/review", { method: "POST", body: { id: "s-seed" } });
     assert.equal(review.status, 200, review.text);
@@ -209,14 +264,32 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     assert.ok(review.json.review.text.length > 0);
     assert.notEqual(review.json.review.provider, "demo-nova");
 
-    const tone = await s.api("/desk/tone", { method: "POST", body: { id: "s-seed", tone: "shorter" } });
-    assert.equal(tone.status, 202);
-    const turned = await until(async () => {
-      const row = await s.api("/missions/s-seed");
-      const thread = row.json?.answerThread || [];
-      return thread.some((t) => t.role === "assistant" && t.text) ? row.json : null;
+    const tone = await s.api("/desk/tone", { method: "POST", body: { tone: "shorter" } });
+    assert.equal(tone.status, 200);
+    assert.equal(tone.json.tone, "shorter");
+    assert.match(tone.json.line, /does not send/);
+    const seed = await s.api("/missions/s-seed");
+    assert.equal((seed.json.answerThread || []).some((t) => t.role === "assistant" && t.text), false);
+    const armedNow = await s.api("/state");
+    assert.equal(armedNow.json.settings.nextTone, "shorter");
+    const cleared = await s.api("/desk/tone", { method: "POST", body: { tone: "shorter" } });
+    assert.equal(cleared.json.tone, null);
+    await s.api("/desk/tone", { method: "POST", body: { tone: "plain" } });
+    const sent = await s.api("/chat", { method: "POST", body: { prompt: "Say hello in five words." } });
+    assert.equal(sent.status, 202);
+    const styled = await until(async () => {
+      const row = await s.api(`/missions/${sent.json.runId}`);
+      return row.json?.status && row.json.status !== "running" ? row.json : null;
     }, 25000);
-    assert.ok(turned, "the tone rewrite did not come back");
+    assert.equal(styled.tone, "plain");
+    const after = await s.api("/state");
+    assert.equal(after.json.settings.nextTone == null || after.json.settings.nextTone === "", true);
+    const sent2 = await s.api("/chat", { method: "POST", body: { prompt: "Say goodbye in five words." } });
+    const plain = await until(async () => {
+      const row = await s.api(`/missions/${sent2.json.runId}`);
+      return row.json?.status && row.json.status !== "running" ? row.json : null;
+    }, 25000);
+    assert.equal(plain.tone || null, null);
   } finally { await s.stop(); }
 });
 

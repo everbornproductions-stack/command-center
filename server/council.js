@@ -17,16 +17,20 @@ import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { councilPlan, reviewMode } from "./modes.js";
+import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries, private: isPrivate = false }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
   const id = "c-" + Date.now().toString(36);
   if (isPrivate) markPrivateRun(id);
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;
+  const skipped = cleanSkip(skip);
+  const skipSet = new Set(skipped);
+  const held = skipAvoid(skipped);
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
   // Grok Bot (Phase 12) and the browser helper (Phase 27) are agents, not text models: one of them is picked
   // by what the job needs (signed-in browsing, Gmail, Drive, Calendar, teammate bots), never for plain text
@@ -37,26 +41,22 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   if (realAiConnected()) members = (members || []).filter((m) => m && !isDemoProvider(PROVIDERS[m.provider] || { id: m.provider }));
   const agentPick = pickAgent({ prompt, grokbot, browser });
   const A = agentPick.agent;
-  if (!members?.length) {
-    const ranked = rank({ ...cls, mode });
-    const seen = new Set();
-    members = [];
-    for (const m of ranked) {
-      if (seen.has(m.provider)) continue;
-      seen.add(m.provider);
-      members.push({ provider: m.provider, model: m.model });
-      if (members.length >= plan.members) break;
-    }
-  }
+  // A named seat list (Do this again) keeps those seats. A removed reader is dropped and not replaced.
+  const hadNamed = Array.isArray(members) && members.length > 0;
+  if (hadNamed && skipSet.size) members = members.filter((m) => m && !skipSet.has(m.provider));
+  if (!hadNamed) members = takeMembers(rank({ ...cls, mode }), { limit: plan.members, skip: skipped });
   if (!members.length) throw new Error("No AI is available. Add at least one API key in Settings.");
   if (chair && realAiConnected() && isDemoProvider(PROVIDERS[chair.provider] || { id: chair.provider })) chair = null;
-  chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model)) || members[0];
+  if (chair && skipSet.has(chair.provider)) chair = null;
+  chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model) && !skipSet.has(m.provider)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
   const memBlock = contextFor(projectId);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
-  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
+  const answerSystem = toneAdd("Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", tone);
+  const chairSystem = toneAdd("You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.", tone);
+  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -119,7 +119,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     try {
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: members.filter((x) => x !== m) })) {
+      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held] })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -227,9 +227,9 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       let text = "";
       for await (const ev of fallbackChat({
         provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
-        system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
+        system: chairSystem,
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
-      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));

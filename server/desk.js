@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { ctx } from "./store.js";
 import { listProjects, deleteProject } from "./projects.js";
 import { filesDir } from "./project-files.js";
+import { PROVIDERS } from "./registry.js";
 
 export const BACKUP_FORMAT = "meldmind-backup";
 export const BACKUP_VERSION = 1;
@@ -15,11 +16,13 @@ export const FIRST_COUNCIL = "A council sends your words to several AIs at once.
 export const PRIVATE_LINE = "Private mode is on. This stays on this computer. It is not used to teach the router, and it is left out of sync.";
 
 export const TONES = [
-  { id: "shorter", label: "Shorter", instruction: "Rewrite your last answer so it is shorter. Keep the facts. Do not add new claims." },
-  { id: "warmer", label: "Warmer", instruction: "Rewrite your last answer in a warmer tone. Keep the facts. Do not add new claims." },
-  { id: "direct", label: "More direct", instruction: "Rewrite your last answer so it is more direct. Keep the facts. Do not add new claims." },
-  { id: "plain", label: "Plain words", instruction: "Rewrite your last answer in plain words. Keep the facts. Do not add new claims." },
+  { id: "shorter", label: "Shorter", instruction: "Write the next answer so it is shorter. Keep the facts. Do not add new claims. Do not send, post, or buy anything." },
+  { id: "warmer", label: "Warmer", instruction: "Write the next answer in a warmer tone. Keep the facts. Do not add new claims. Do not send, post, or buy anything." },
+  { id: "direct", label: "More direct", instruction: "Write the next answer so it is more direct. Keep the facts. Do not add new claims. Do not send, post, or buy anything." },
+  { id: "plain", label: "Plain words", instruction: "Write the next answer in plain words. Keep the facts. Do not add new claims. Do not send, post, or buy anything." },
 ];
+
+export const RECEIPT_FILE = "meldmind-receipt.txt";
 
 const KEYISH = /sk-ant-|sk-proj-|sk-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{10,}|xai-[A-Za-z0-9]|gsk_[A-Za-z0-9]|ghp_[A-Za-z0-9]|github_pat_[A-Za-z0-9]|sb_secret|sb_publishable|eyJ[A-Za-z0-9_-]{10,}/;
 
@@ -36,17 +39,58 @@ export function plainMoney(n) {
   return `$${v.toFixed(2)}`;
 }
 
-export function plainCredits({ month = 0, today = 0, byProvider = {}, names = {} } = {}) {
+function groupDigits(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// A balance Phase 25 already stored. Empty string means nothing was reported. Never invent a number.
+export function balanceWords(balance) {
+  if (!balance || typeof balance !== "object") return "";
+  if (balance.unit === "characters" && balance.limit != null && balance.used != null) {
+    const left = Number(balance.limit) - Number(balance.used);
+    if (!Number.isFinite(left)) return "";
+    return `${groupDigits(Math.max(0, Math.round(left)))} characters left`;
+  }
+  if (balance.left == null || balance.left === "") return "";
+  const n = Number(balance.left);
+  if (!Number.isFinite(n)) return "";
+  if (!balance.unit || balance.unit === "USD") return `about ${plainMoney(n)} left`;
+  return `about ${n} ${balance.unit} left`;
+}
+
+export function plainCredits({ month = 0, today = 0, byProvider = {}, names = {}, balances = null } = {}) {
   const rows = Object.entries(byProvider)
     .filter(([, b]) => (Number(b?.month) || 0) > 0 || (Number(b?.calls) || 0) > 0)
     .map(([id, b]) => {
       const name = names[id] || id;
       return { id, name, line: `${name} used about ${plainMoney(b.month)} this month.` };
     });
+  const left = balances && typeof balances === "object"
+    ? Object.entries(balances).map(([id, balance]) => {
+      const name = names[id] || id;
+      const words = balanceWords(balance);
+      return { id, name, line: words ? `${name} has ${words}.` : `No remaining balance is reported for ${name}.` };
+    })
+    : [];
   return {
     line: `This month your AIs used about ${plainMoney(month)}. Today is about ${plainMoney(today)}.`,
     rows,
+    left,
   };
+}
+
+// Connected AIs only (a grey light is no key). Balances come from health, including a null balance.
+export function creditsView({ ledger = {}, statuses = {}, providers = {} } = {}) {
+  const names = {};
+  const balances = {};
+  for (const [id, p] of Object.entries(providers || {})) {
+    if (!p) continue;
+    names[id] = p.name || id;
+    const st = statuses[id];
+    if (!st || st.status === "grey") continue;
+    balances[id] = st.balance ?? null;
+  }
+  return plainCredits({ month: ledger.month, today: ledger.today, byProvider: ledger.byProvider, names, balances });
 }
 
 export function chatRows(missions) {
@@ -81,21 +125,102 @@ export function homeCard({ missions, projects, onboarded, keyed } = {}) {
   };
 }
 
-export function readersFor({ mode, names = [], planner = "" } = {}) {
-  const who = [...names].map((n) => String(n || "").trim()).filter(Boolean);
-  const unique = [...new Set(who)];
+function seatFrom(names, readers) {
+  if (Array.isArray(readers) && readers.length) {
+    const seen = new Set();
+    const out = [];
+    for (const r of readers) {
+      const name = String(r?.name || "").trim();
+      const id = String(r?.id || "").trim();
+      const key = id || name;
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ id, name });
+    }
+    return out;
+  }
+  const unique = [...new Set((names || []).map((n) => String(n || "").trim()).filter(Boolean))];
+  return unique.map((name) => ({ id: "", name }));
+}
+
+function namedRows(items, pick) {
+  return (items || []).map(pick).filter((row) => row && row.name);
+}
+
+// The first `limit` seats, then drop anyone the person removed. The next AI is not pulled in.
+export function takeMembers(ranked, { limit = 4, skip = [] } = {}) {
+  const gone = new Set((Array.isArray(skip) ? skip : []).map((s) => String(s || "").trim()).filter(Boolean));
+  const seen = new Set();
+  const offered = [];
+  const cap = Math.max(0, Number(limit) || 0);
+  for (const m of ranked || []) {
+    if (!m?.provider || seen.has(m.provider)) continue;
+    seen.add(m.provider);
+    offered.push(m);
+    if (offered.length >= cap) break;
+  }
+  return offered.filter((m) => !gone.has(m.provider)).map((m) => ({ provider: m.provider, model: m.model }));
+}
+
+// Only real provider ids. A client cannot name a model to force a seat.
+export function cleanSkip(skip) {
+  const known = new Set(Object.keys(PROVIDERS));
+  const out = [];
+  for (const raw of Array.isArray(skip) ? skip : []) {
+    const id = String(raw || "").trim();
+    if (!known.has(id) || out.includes(id)) continue;
+    out.push(id);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+// Every model of a removed provider, so a fallback cannot hand them the prompt.
+export function skipAvoid(skip) {
+  const out = [];
+  for (const id of Array.isArray(skip) ? skip : []) {
+    const p = PROVIDERS[id];
+    if (!p) continue;
+    const models = p.models || [];
+    if (!models.length) out.push({ provider: id, model: id });
+    for (const m of models) if (m?.id) out.push({ provider: id, model: m.id });
+  }
+  return out;
+}
+
+export function readersFor({ mode, names = [], planner = "", readers, tools, services } = {}) {
+  const seats = seatFrom(names, readers);
+  const toolRows = namedRows(tools, (t) => {
+    const name = String(t?.name || t?.tool?.name || "").trim();
+    if (!name) return null;
+    const server = String(t?.server?.name || (typeof t?.server === "string" ? t.server : "") || "").trim();
+    return { name, server };
+  });
+  const serviceRows = namedRows(services, (s) => {
+    const name = String(s?.name || "").trim();
+    if (!name) return null;
+    return { id: String(s?.id || ""), name };
+  });
+  const toolsLine = toolRows.length
+    ? `These tools can be used: ${toolRows.map((t) => (t.server ? `${t.name} (${t.server})` : t.name)).join(", ")}.`
+    : "No tools are on.";
+  const servicesLine = serviceRows.length
+    ? `These connected services will receive the prompt: ${serviceRows.map((s) => s.name).join(", ")}.`
+    : "No connected service will receive this prompt.";
+  const extra = { tools: toolRows, toolsLine, services: serviceRows, servicesLine };
   if (mode === "mission") {
-    const lead = planner || unique[0] || "";
-    const rest = unique.filter((n) => n !== lead);
+    const lead = planner || seats[0]?.name || "";
+    const rest = seats.map((s) => s.name).filter((n) => n !== lead);
     const line = lead
       ? `${lead} will read the full prompt and write the plan.${rest.length ? ` These AIs may each read a step: ${rest.join(", ")}.` : ""}`
       : "No AI is connected yet. Add a key in Settings.";
-    return { title: "Who will read this", line, readers: unique.map((name) => ({ name, role: name === lead ? "plan" : "step" })) };
+    return { title: "Who will read this", line, readers: seats.map((s) => ({ ...s, role: s.name === lead ? "plan" : "step" })), ...extra };
   }
+  const unique = seats.map((s) => s.name);
   const line = unique.length
     ? `These AIs will read your prompt: ${unique.join(", ")}.`
     : "No AI is connected yet. Add a key in Settings.";
-  return { title: "Who will read this", line, readers: unique.map((name) => ({ name, role: "answer" })) };
+  return { title: "Who will read this", line, readers: seats.map((s) => ({ ...s, role: "answer" })), ...extra };
 }
 
 export function repeatBody(run) {
@@ -121,19 +246,35 @@ export function repeatBody(run) {
 }
 
 export function toneRequest(run, toneId) {
+  const id = typeof run === "string" ? run : toneId;
+  const tone = TONES.find((t) => t.id === id);
+  if (!tone) return { error: "Pick a tone.", status: 400 };
+  return { text: tone.instruction, label: tone.label, tone: tone.id };
+}
+
+// A click sets the next answer only. The same tone again, or an empty tone, clears it. Nothing is sent.
+export function armTone(current, toneId) {
+  if (toneId == null || toneId === "" || toneId === false) {
+    return { nextTone: null, label: "", line: "The next answer will use the usual tone." };
+  }
   const tone = TONES.find((t) => t.id === toneId);
   if (!tone) return { error: "Pick a tone.", status: 400 };
-  if (!run) return { error: "That chat was not found.", status: 404 };
-  if (run.kind === "single" && run.model) return { runId: run.id, text: tone.instruction, scope: "answer", target: run.model, label: tone.label };
-  if (run.kind === "council") {
-    const target = run.winner || run.chair?.model || run.members?.[0]?.model;
-    if (target) return { runId: run.id, text: tone.instruction, scope: "answer", target, label: tone.label };
+  if (current === tone.id) {
+    return { nextTone: null, label: tone.label, cleared: true, line: `${tone.label} is off. The next answer will use the usual tone.` };
   }
-  if (run.kind === "mission") {
-    const task = (run.tasks || []).find((t) => t && t.output && t.id);
-    if (task) return { runId: run.id, text: tone.instruction, scope: "answer", target: task.id, label: tone.label };
-  }
-  return { error: "There is no answer to restyle yet.", status: 400 };
+  return { nextTone: tone.id, label: tone.label, line: `Next answer: ${tone.label}. This does not send anything.` };
+}
+
+export function consumeTone(settings) {
+  const tone = TONES.find((t) => t.id === settings?.nextTone) || null;
+  if (!tone) return { tone: null, settings };
+  return { tone, settings: { ...settings, nextTone: null } };
+}
+
+export function toneAdd(system, instruction) {
+  const extra = String(instruction || "").trim();
+  if (!extra) return system || "";
+  return `${system || ""}\n\n${extra}`.trim();
 }
 
 export function writerOf(run) {
@@ -270,6 +411,11 @@ export function projectReceipt({ project, runs = [], files = [], removed = false
   };
 }
 
+export function receiptFile(receipt) {
+  const lines = Array.isArray(receipt?.lines) ? receipt.lines : [];
+  return { name: RECEIPT_FILE, text: `${lines.join("\n")}${lines.length ? "\n" : ""}` };
+}
+
 function projectFiles(id) {
   try {
     const dir = filesDir(id);
@@ -311,5 +457,6 @@ export function projectRemoval(id, { remove = false } = {}) {
   deleteProject(id);
   receipt.removed = true;
   receipt.lines = projectReceipt({ project, runs, files, removed: true }).lines;
+  receipt.file = receiptFile(receipt);
   return receipt;
 }

@@ -11,6 +11,8 @@ const css = `
 #cc-readers .card { width: min(520px, 100%); background: var(--panel-solid, #0e1522); color: var(--text, #e5e7eb); border: 1px solid var(--line, #1f2937); border-radius: 14px; padding: 16px 18px; }
 #cc-readers p { margin: 8px 0; line-height: 1.45; }
 .cc-desk-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#cc-readers .cc-reader { justify-content: space-between; gap: 8px; }
+#cc-tones button.on { outline: 2px solid var(--accent, #22d3ee); }
 `;
 if (!document.getElementById("cc-desk-style")) {
   const style = document.createElement("style");
@@ -70,29 +72,46 @@ async function openChat(id) {
   } catch (e) { toast(e.message, true); }
 }
 
+const TONE_BUTTONS = [["shorter", "Shorter"], ["warmer", "Warmer"], ["direct", "More direct"], ["plain", "Plain words"]];
+
 function beforeSend({ mode, prompt }) {
   return new Promise((resolve) => {
     api("/desk/readers", { method: "POST", body: { mode, prompt } }).then((info) => {
       const old = document.getElementById("cc-readers");
       old?.remove();
+      const readers = (info.readers || []).map((r) => ({ id: r.id || "", name: r.name || "", on: true }));
       const wrap = document.createElement("div");
       wrap.id = "cc-readers";
-      wrap.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-readers-title">
-        <h3 id="cc-readers-title">${esc(info.title || "Who will read this")}</h3>
-        <p>${esc(info.line || "")}</p>
-        ${info.explain ? `<p>${esc(info.explain)}</p>` : ""}
-        ${info.private ? `<p>${esc(info.private)}</p>` : ""}
-        <label class="row small" style="gap:6px"><input type="checkbox" id="cc-readers-private" ${info.privateOn ? "checked" : ""}> Private mode</label>
-        <div class="cc-desk-row">
-          <button type="button" class="btn sm" id="cc-readers-cancel">Cancel</button>
-          <button type="button" class="btn sm primary" id="cc-readers-go">Send</button>
-        </div>
-      </div>`;
-      document.body.appendChild(wrap);
-      const finish = (ok) => { wrap.remove(); resolve(ok); };
-      wrap.querySelector("#cc-readers-cancel").addEventListener("click", () => finish(false));
-      wrap.querySelector("#cc-readers-go").addEventListener("click", async () => {
-        const on = !!wrap.querySelector("#cc-readers-private").checked;
+      const paint = () => {
+        const keepPrivate = wrap.querySelector("#cc-readers-private");
+        const privateOn = keepPrivate ? keepPrivate.checked : !!info.privateOn;
+        const rows = readers.map((r, i) => `<div class="row cc-reader" data-id="${esc(r.id)}"><span>${esc(r.name)}</span>${r.on ? `<button type="button" class="btn sm" data-remove="${i}">Remove</button>` : `<span class="dim small">Removed</span>`}</div>`).join("");
+        wrap.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-readers-title">
+          <h3 id="cc-readers-title">${esc(info.title || "Who will read this")}</h3>
+          <p>${esc(info.line || "")}</p>
+          <div id="cc-reader-list">${rows || `<p class="dim">No AI is connected yet. Add a key in Settings.</p>`}</div>
+          <p>${esc(info.toolsLine || "No tools are on.")}</p>
+          <p>${esc(info.servicesLine || "No connected service will receive this prompt.")}</p>
+          ${info.explain ? `<p>${esc(info.explain)}</p>` : ""}
+          ${info.private ? `<p>${esc(info.private)}</p>` : ""}
+          <label class="row small" style="gap:6px"><input type="checkbox" id="cc-readers-private" ${privateOn ? "checked" : ""}> Private mode</label>
+          <div class="cc-desk-row">
+            <button type="button" class="btn sm" id="cc-readers-cancel">Cancel</button>
+            <button type="button" class="btn sm primary" id="cc-readers-go">Send</button>
+          </div>
+        </div>`;
+        wrap.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => {
+          const still = readers.filter((r) => r.on);
+          if (still.length <= 1) { toast("Keep at least one AI."); return; }
+          readers[Number(b.dataset.remove)].on = false;
+          paint();
+        }));
+        wrap.querySelector("#cc-readers-cancel").addEventListener("click", () => finish(false));
+        wrap.querySelector("#cc-readers-go").addEventListener("click", send);
+      };
+      const finish = (value) => { wrap.remove(); resolve(value); };
+      const send = async () => {
+        const on = !!wrap.querySelector("#cc-readers-private")?.checked;
         try {
           if (!!S.settings.privateMode !== on) {
             await api("/settings", { method: "POST", body: { privateMode: on } });
@@ -103,18 +122,28 @@ function beforeSend({ mode, prompt }) {
             S.settings.councilIntro = true;
           }
         } catch (e) { toast(e.message, true); }
-        finish(true);
-      });
+        const skip = readers.filter((r) => !r.on && r.id).map((r) => r.id);
+        finish({ ok: true, skip });
+      };
+      document.body.appendChild(wrap);
+      paint();
     }).catch((e) => { toast(e.message, true); resolve(false); });
   });
 }
 
 window.CC.desk = { beforeSend };
 
+function toneLabel(id) {
+  return (TONE_BUTTONS.find((t) => t[0] === id) || [])[1] || "";
+}
+
 function renderCommand(container) {
   paintHome(container);
   const on = !!S.settings?.privateMode;
-  container.innerHTML = `<label class="row small" style="gap:6px"><input type="checkbox" id="cc-private" ${on ? "checked" : ""}> Private mode</label><p class="dim small" id="cc-private-line" style="margin:4px 0 0">${on ? "Private mode is on. This stays on this computer. It is not used to teach the router, and it is left out of sync." : "A council or mission lists who will read the prompt before it is sent."}</p><div class="cc-desk-row"><button type="button" class="btn sm" id="cc-my-chats">My chats</button></div><div id="cc-chat-list"></div>`;
+  const armed = S.settings?.nextTone || "";
+  const tones = TONE_BUTTONS.map(([id, label]) => `<button type="button" class="btn sm ${armed === id ? "on" : ""}" data-tone="${id}">${label}</button>`).join("");
+  const toneLine = armed ? `Next answer: ${toneLabel(armed)}. This does not send.` : "These set the tone of the next answer only. They do not send.";
+  container.innerHTML = `<label class="row small" style="gap:6px"><input type="checkbox" id="cc-private" ${on ? "checked" : ""}> Private mode</label><p class="dim small" id="cc-private-line" style="margin:4px 0 0">${on ? "Private mode is on. This stays on this computer. It is not used to teach the router, and it is left out of sync." : "A council or mission lists who will read the prompt before it is sent. You can remove one reader."}</p><div class="cc-desk-row" id="cc-tones">${tones}</div><p class="dim small" id="cc-tone-line">${esc(toneLine)}</p><div class="cc-desk-row"><button type="button" class="btn sm" id="cc-my-chats">My chats</button></div><div id="cc-chat-list"></div>`;
   container.querySelector("#cc-private").addEventListener("change", async (e) => {
     const next = !!e.target.checked;
     try {
@@ -133,6 +162,18 @@ function renderCommand(container) {
       box.querySelectorAll("[data-chat]").forEach((b) => b.addEventListener("click", () => openChat(b.dataset.chat)));
     } catch (err) { toast(err.message, true); }
   });
+  container.querySelectorAll("#cc-tones [data-tone]").forEach((b) => b.addEventListener("click", () => setTone(b.dataset.tone, container)));
+}
+
+async function setTone(tone, container) {
+  try {
+    const r = await api("/desk/tone", { method: "POST", body: { tone } });
+    S.settings.nextTone = r.tone || null;
+    container.querySelectorAll("#cc-tones [data-tone]").forEach((b) => b.classList.toggle("on", b.dataset.tone === (r.tone || "")));
+    const line = container.querySelector("#cc-tone-line");
+    if (line) line.textContent = r.line || "";
+    toast(r.line || "Tone saved.");
+  } catch (e) { toast(e.message, true); }
 }
 
 function renderDeliverable(container, live) {
@@ -146,10 +187,6 @@ function renderDeliverable(container, live) {
     <div class="cc-desk-row">
       <button type="button" class="btn sm" id="cc-again">Do this again</button>
       <button type="button" class="btn sm" id="cc-check">Double-check this</button>
-      <button type="button" class="btn sm" data-tone="shorter">Shorter</button>
-      <button type="button" class="btn sm" data-tone="warmer">Warmer</button>
-      <button type="button" class="btn sm" data-tone="direct">More direct</button>
-      <button type="button" class="btn sm" data-tone="plain">Plain words</button>
     </div>
   </div>`;
   container.querySelector("#cc-again").addEventListener("click", async () => {
@@ -167,18 +204,16 @@ function renderDeliverable(container, live) {
       if (window.CC.render) window.CC.render();
     } catch (e) { toast(e.message, true); }
   });
-  container.querySelectorAll("[data-tone]").forEach((b) => b.addEventListener("click", async () => {
-    try {
-      const r = await api("/desk/tone", { method: "POST", body: { id, tone: b.dataset.tone } });
-      toast(r.tone ? `${r.tone} is on the way.` : "Asked for a rewrite.");
-    } catch (e) { toast(e.message, true); }
-  }));
 }
 
 function renderCredits(container) {
   api("/desk/credits").then((r) => {
     const rows = (r.rows || []).map((row) => `<div class="small">${esc(row.line)}</div>`).join("");
-    container.innerHTML = `<div class="panel"><h3>In plain words</h3><p>${esc(r.line || "")}</p>${rows}</div>`;
+    const leftRows = r.left || [];
+    const left = leftRows.length
+      ? leftRows.map((row) => `<div class="small">${esc(row.line)}</div>`).join("")
+      : `<div class="small">No remaining balance is reported yet.</div>`;
+    container.innerHTML = `<div class="panel"><h3>AI credits</h3><p>${esc(r.line || "")}</p>${rows}${left}</div>`;
   }).catch(() => {});
 }
 
@@ -192,7 +227,7 @@ function renderSettings(container) {
       <label class="btn sm">Restore<input id="cc-restore" type="file" accept="application/json,.json" hidden></label>
     </div>
     <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="cc-set-private" ${on ? "checked" : ""}> Private mode</label>
-    <p class="dim small">Do this again is part of Pro. Double-check this is free. A council or mission lists who will read the prompt before it is sent. The first council is explained in plain words.</p>
+    <p class="dim small">Do this again is part of Pro. Double-check this is free. A council or mission lists who will read the prompt before it is sent. You can remove one reader. Tone buttons set the next answer only and do not send. AI credits shows what is left for each AI.</p>
   </div>`;
   container.querySelector("#cc-backup").addEventListener("click", async () => {
     try {

@@ -25,7 +25,7 @@ Until you add a key, Demo can answer in the chat and nothing is spent. Demo does
 
 On a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon.
 
-When you come back, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer. Tone buttons ask for a shorter, warmer, more direct, or plainer rewrite. Each answer says which AI wrote it. The first council explains itself in plain words, and a council or mission lists who will read the prompt before it is sent.
+When you come back, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer. Tone buttons set the next answer only (shorter, warmer, more direct, or plain words) and do not send by themselves. AI credits shows what is left for each AI. Each answer says which AI wrote it. The first council explains itself in plain words. A council or mission lists who will read the prompt before it is sent, including tools and connected services. You can remove one reader. Nothing is sent until Send. After you delete a project, the receipt can be saved as its own file.
 
 ## Learning from each job
 
