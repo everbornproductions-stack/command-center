@@ -74,7 +74,8 @@ Not done, except the three rows already marked done above (share links, accessib
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
 3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
-4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
+4. Phase 97. Guided builders A: Websites and Marketing. Built. A Builders page suggests a builder only when it detects a website, a post, a reel, an ad, a site project, or a connected site or social account. Show all opens the rest. Each builder is Describe, Preview the AIs, Build, Test, then Publish. The registry is server/builders/registry.js so workstream B can plug in. Gates are server/feature-gate.js. Square, billing, and the version are unchanged.
+5. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
 
 ### Later
 
@@ -521,6 +522,30 @@ The person shows an app or a game they saw online or on their desktop: screensho
 - It learns as it goes. The router records which AIs, which engines, and which kinds of open-source sources worked best for that app type. It learns from the person's ratings and from the fixes they ask for. It keeps a library on this computer of working patterns and components from their own remixes, so the next one starts further along.
 - That learning uses the router and the shared-learning opt-in that already exist (decision 18, Phase 28). The record is the app type, the AI, the engine, the kind of source, the rating, and whether a fix was needed. It does not store the prompt, the screenshots, the original name, the characters, or any key. Nothing is shared unless the person has opted in. What would be shared is the same kind of anonymous totals as Who's best, and this phase does not send them on its own.
 - Guardrails: never decompile, unpack, or reuse another app's code, assets, logos, or brand. The pattern library is the person's own remix, not files taken from the app they showed. Nothing is posted or sent without a click. Tests use fixtures only. No real download, no real game, and no real key.
+
+### Phase 97: Guided builders A, websites and marketing (built)
+A Builders page under Create. It is for someone who does not write code. Plain words, smart defaults, one main button, and the rest under More options. The steps match Remix: Describe, Preview the AIs, Build, Test, Publish. Nothing is sent until Publish is clicked. Tokens stay in the vault and are never shown again.
+
+The page opens on Suggested for you. A builder is suggested only when Meldmind detects the need: the person talks about a website, has a site project, or connects Netlify or Vercel; or they mention posts, reels, or ads, or connect a social account. Show all lists the rest. Detection lives in `server/builders/registry.js`. Workstream B adds a builder with `registerBuilder`, or by dropping a module in `server/builders/extras` that exports `register({ registerBuilder })`.
+
+Web, each with the license it keeps:
+- Site Builder uses GrapesJS (BSD-3). Pro.
+- Client Page Editor uses Puck (MIT). Pro.
+- Static export uses Astro (MIT). Free. The pages are written on this computer. Astro is not downloaded.
+- Site Health Check uses Lighthouse (Apache-2.0). Free. Fix it updates the page on this computer. Lighthouse is not started.
+- Publish to Netlify or Vercel is Pro. It waits for the click. With no token it records a dry run and sends nothing.
+
+Marketing:
+- Social Calendar uses Postiz (AGPL-3.0). Pro. Postiz stays a separate service and is not bundled.
+- Reel Maker uses WhisperX (BSD-2) and auto-editor (Unlicense). Extreme. Neither program is started in this build. Remotion is optional, off by default, and needs a paid license.
+- Email Sequences uses listmonk or Mautic as a separate service, or the HighLevel API. Pro. Every email gets a postal address and an unsubscribe line.
+- Ad Copy Studio uses Meldmind routing and a character limit per network. Free. The routed AI is named. The words are prepared here and are not sent.
+- SEO Fixer uses the Lighthouse check plus a prepared title and description. Free.
+- Credit repair and insurance ads show compliance checkboxes. Meldmind does not give advice for those ads.
+
+Gates are `server/feature-gate.js`. Free, Pro, and Extreme are the tool tiers. Studio counts as Pro. Owner can use every builder. This does not change Square, billing, or the version.
+
+Tests mock every network and every heavy tool. No GrapesJS, Puck, Astro, Lighthouse, Postiz, WhisperX, auto-editor, or Remotion package is installed.
 
 ### Phase 91: Three tiers and the lifetime founder counter (not done)
 The plan prices are in docs/billing.md. The app still shows the Phase 35 prices ($15.99 a month, $159 a year, lifetime $299 then $499) until this phase. Do not change the live Square link until Chris publishes new Square plans. Do not call Square from the app.
