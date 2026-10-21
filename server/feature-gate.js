@@ -4,7 +4,7 @@
 import {
   extremeMonthlyLabel, extremeYearlyLabel, proMonthlyLabel, proYearlyLabel,
 } from "./price-config.js";
-import { ctx } from "./store.js";
+import { ctx, doc } from "./store.js";
 
 export const PRO_AIS = 4;
 export const EXTREME_AIS = 8;
@@ -657,9 +657,73 @@ export function assertRefocusRebuild(state = readLicense()) {
   return gate;
 }
 
-// Phone pairing, bring-your-own MCP, and custom webhooks. Trial is already Pro
-// on the licence state. This does not import license.js.
+const TIER_GRACE_MS = 7 * 24 * 3600 * 1000;
+
+// Reads the stored licence without importing license.js. A bound licence state wins when it
+// already names a paid tier. A unit test can write the licence doc before that module loads.
+export function currentTier(now = Date.now()) {
+  const live = readLicense();
+  const named = String(live.tier || "").toLowerCase();
+  if (named === "owner" || named === "studio" || named === "extreme" || named === "pro") return named;
+  let stored = {};
+  try { stored = doc("license", () => ({})) || {}; } catch { stored = {}; }
+  const raw = String(stored.tier || "").toLowerCase();
+  const seen = Number(stored.lastOkAt || stored.checkedAt || 0);
+  const fresh = stored.status === "active" && seen > 0 && now <= seen + TIER_GRACE_MS;
+  if (fresh && (raw === "extreme" || raw === "owner" || raw === "pro" || raw === "studio")) return raw;
+  if (live.reason === "trial") return "pro";
+  return "free";
+}
+
+export function limitsFor(tier = currentTier()) {
+  const band = tier === "extreme" || tier === "owner" ? "extreme" : (tier === "pro" || tier === "studio" ? "pro" : "free");
+  const row = LIMITS[tier] || LIMITS[band] || LIMITS.free;
+  return {
+    tier,
+    band,
+    learnTune: true,
+    desktop: !!row.desktop,
+    desktopApps: row.desktopApps,
+    recipes: row.recipes,
+    budgetIncluded: !!row.budgetCap,
+    phone: !!row.phone,
+  };
+}
+
+function paidFail(message, code) {
+  const err = new Error(message);
+  err.status = 402;
+  err.code = code;
+  return err;
+}
+
+// Phone pairing, bring-your-own MCP, custom webhooks, desktop apps, recipes, and the budget cap.
+// Trial is already Pro on the licence state. This does not import license.js.
 export function gate(feature, info = {}) {
+  if (feature === "learnTune" || feature === "phoneApprovals") return limitsFor();
+  if (feature === "desktop" || feature === "desktopApps") {
+    const limits = limitsFor();
+    if (!limits.desktop) throw paidFail(`Desktop control is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`, "pro_required");
+    const n = Number(info.count ?? 0);
+    if (Number.isFinite(limits.desktopApps) && n >= limits.desktopApps) {
+      throw paidFail(`Pro includes ${PRO_DESKTOP_APPS} desktop control apps. Unlimited desktop control apps are part of Extreme.`, "extreme_required");
+    }
+    return limits;
+  }
+  if (feature === "recipes") {
+    const limits = limitsFor();
+    if (!limits.recipes) throw paidFail(`Recipes are part of Pro (${proMonthlyLabel}), with a limit. Unlimited recipes are part of Extreme.`, "pro_required");
+    const n = Number(info.count ?? 0);
+    if (Number.isFinite(limits.recipes) && n >= limits.recipes) {
+      throw paidFail(`Pro includes ${PRO_RECIPES} recipes. Unlimited recipes are part of Extreme.`, "extreme_required");
+    }
+    return limits;
+  }
+  if (feature === "budgetCap") {
+    const limits = limitsFor();
+    if (limits.budgetIncluded || info.optedIn) return limits;
+    throw paidFail("A monthly budget cap is part of Extreme. Anyone else can turn it on in Settings.", "extreme_required");
+  }
   const s = readLicense();
   const T = LIMITS[s.tier] || LIMITS.free;
   const spec = { ...info };

@@ -15,7 +15,8 @@
 //    (Google AI Studio, OpenRouter's free route, Groq's free tier) and never go past the daily or
 //    per-minute allowance the app knows about; those calls are recorded at $0 and flagged free.
 //  - Spend caps (alerts plugin) are respected: a provider at 100% of its cap is never a stand-in.
-import { PROVIDERS, findModel } from "./registry.js";
+import { PROVIDERS, findModel, estimateCostAt } from "./registry.js";
+import { assertSpendAllowed } from "./cost-guard.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, getContext, runAs } from "./store.js";
 import { noteCall } from "./health.js";
@@ -233,6 +234,8 @@ export async function* fallbackChat(opts, run = {}) {
   const lastUser = [...(opts.messages || [])].reverse().find((m) => m.role === "user");
   const cls = run.cls || heuristicClassify(typeof lastUser?.content === "string" ? lastUser.content : "");
   const mode = run.mode || "balanced";
+  const freeTier = !!PROVIDERS[provider]?.demo || freeNow(provider, model);
+  assertSpendAllowed({ provider, estimate: freeTier ? 0 : estimateCostAt(model, 1500, 800), free: freeTier });
   // run.avoid: models already busy on this job (other council members), never picked as a stand-in
   const tried = (run.avoid || []).filter((a) => a?.provider && a?.model).map((a) => ({ provider: a.provider, model: a.model, avoid: true }));
   const chain = [];

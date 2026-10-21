@@ -27,6 +27,7 @@ import * as ghl from "../publish/ghl.js";
 import * as drive from "../publish/drive.js";
 import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
+import { holdOutbound } from "../phone-approvals.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -127,7 +128,13 @@ export async function routes(req, res, url, body, h) {
   }
   if (req.method === "POST" && p === "/post") {
     if (!CH[body.channel] && body.channel !== undefined) return h.json(res, 400, { error: "unknown channel" });
-    if (body.confirmed !== true) return h.json(res, 400, { error: "preview and confirm first", code: "confirm_required" });
+    let phoneOk = false;
+    try {
+      phoneOk = !!holdOutbound({ kind: "send", action: `Post to ${body.channel || "a channel"}`, amount: null, approvalId: body.approvalId, confirmed: body.confirmed === true });
+    } catch (e) {
+      return h.json(res, e.status || 409, { error: e.message, code: e.code, approvalId: e.approvalId });
+    }
+    if (body.confirmed !== true && !phoneOk) return h.json(res, 400, { error: "preview and confirm first", code: "confirm_required" });
     sweep();
     const pv = previews.get(String(body.previewId || ""));
     if (!pv || pv.userId !== userOf(h)) return h.json(res, 409, { error: "Preview first (or the preview expired); nothing was sent", code: "preview_required" });

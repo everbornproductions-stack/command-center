@@ -37,7 +37,7 @@ Not done until those three are in. The order stays:
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
 3. Phase 68. Safety, sharing, and plain words.
-4. Phases 45 to 51. Desktop control, with Antigravity first.
+4. Phases 45 to 51. Desktop control, with Antigravity first. Fixture doors for app cards, scores, MCP, websites, a signed-in profile, Windows UI Automation, and the $1 screenshot cap are in the smarter control workstream. Pull request 62 stays separate.
 5. Phase 69. The program scan.
 6. Phases 53, 54, and 56. Everyday actions and Calendar.
 7. Phase 70. Save in place.
@@ -70,7 +70,7 @@ Not done, except the three rows already marked done above (share links, accessib
 ### Version 0.4.11
 
 1. Phase 87. Background runs.
-2. Phase 40. Learned from ratings.
+2. Phase 40. Learned from ratings. Built in the smarter control workstream: routing leans from thumbs and priority changes, and the person can undo it. Not a version bump.
 3. Phase 88. Mission pause.
 
 ### Version 0.4.12
@@ -378,8 +378,8 @@ Shipped in pull request 25 (release 0.4.3): Get everything connected, each row s
 ### Phase 39: Guided "Start a project" tutorials (effort: L) (DONE)
 Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild. The connections workstream adds Start a project tutorials on the live map. Watch on the map is an example. Start this project opens the existing walk. Version stays 0.4.8.
 
-### Phase 40: Learned from ratings (effort: M) (version 0.4.11, not done)
-Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them.
+### Phase 40: Learned from ratings (effort: M) (version 0.4.11, built in smarter control, not released)
+Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them. The smarter control workstream added the nudge and the undo. It did not change the version.
 
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
 Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild. The connections workstream prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if a self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Version stays 0.4.8.
@@ -429,7 +429,16 @@ Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to st
 UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused. This branch uses a fixture control tree. UI Automation is not called.
 
 ### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, fixture drivers in)
-Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. This branch keeps the previous picture out of the next step and stops at the cap. No picture is sent to a model.
+Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused. This branch keeps the previous picture out of the next step and stops at the cap. No picture is sent to a model. The smarter control screen is the settings list for these doors. Real Edge, Playwright, UI Automation, and computer-use calls are not wired.
+
+### Phase 57: Recipes (effort: L) (built in smarter control, fixture only)
+Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that ran. Replay uses the same rules as phases 45 to 51. A scheduled replay that would send, buy, or delete waits for that second yes. If the layout changed, say so and stop for the person to finish. Unlimited on Extreme. Pro includes 5. This does not replace saved pipelines or the existing schedules.
+
+### Phase 59: Cost guard (effort: M) (built in smarter control)
+A monthly budget cap for Extreme, and for anyone else who turns it on. At 80% the note is amber. At 100% a new paid run waits until the cap is raised or the month turns. Free, demo, and local runs still go through. The top bar You saved estimate stays. Per-AI spend caps and the ledger stay (decision 16). Do not change Square.
+
+### Phase 60: Phone approvals (effort: M) (built in smarter control)
+A send or a buy asks first. When a phone is paired, approving there is the yes. Declining sends nothing. Phone pairing stays off until the person turns it on. If no phone is paired, the approval stays on the PC. The phone payload is the action and the amount, not a key and not the prompt.
 
 ## Version 0.4.9 phases (not done)
 
