@@ -8,12 +8,13 @@ import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
+import { maskNotice, riskyHits } from "./copy-guard.js";
 
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
   view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false,
-  navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null,
+  navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null, awaitingRun: false,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
 const PRIORITY = [["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
@@ -128,7 +129,7 @@ async function apiFetch(url, opts) {
   catch (e) {
     if (e?.name === "AbortError") throw e;
     if (phoneSide()) throw new Error(PHONE_FETCH);
-    throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Command AI's engine. Check that the app is still running, then try again.");
+    throw new Error(HUB ? `Could not reach the hub at ${HUB}. Check the connection and try again.` : "Could not reach Meldmind's engine. Check that the app is still running, then try again.");
   }
 }
 function httpError(r, j) { return j?.error || (r.status === 404 ? "Not found (404)" : `Request failed (HTTP ${r.status}${r.statusText ? " " + r.statusText : ""})`); }
@@ -214,7 +215,7 @@ function md(src) {
   s = s.replace(/^(?:[-*] .*(?:\n|$))+/gm, (m) => `<ul>${m.trim().split("\n").map((l) => `<li>${l.replace(/^[-*] /, "")}</li>`).join("")}</ul>\n`);
   s = s.replace(/^(?:\d+\. .*(?:\n|$))+/gm, (m) => `<ol>${m.trim().split("\n").map((l) => `<li>${l.replace(/^\d+\. /, "")}</li>`).join("")}</ol>\n`);
   s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>").replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   s = s.split(/\n{2,}/).map((p) => (/^<(h\d|ul|ol|pre|table|blockquote)/.test(p.trim()) ? p : `<p>${p.replace(/\n/g, "<br>")}</p>`)).join("\n");
   s = s.replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[i]);
   return s;
@@ -459,6 +460,8 @@ function onMission(m) {
   const i = S.missions.findIndex((x) => x.id === m.id);
   const summ = { id: m.id, kind: m.kind, title: m.title, projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt, cost: m.cost, tasks: (m.tasks || []).length, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
   if (i >= 0) S.missions[i] = summ; else S.missions.unshift(summ);
+  if (m.status) S.awaitingRun = false;
+  syncSendButton();
   if (S.view === "command") { renderTasks(); renderOutput(); renderOpsHead(); }
   if (m.status === "cancelled") toast("Scheduled mission cancelled");
   if (["done", "done-with-errors", "failed", "aborted"].includes(m.status)) {
@@ -468,6 +471,7 @@ function onMission(m) {
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
       const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      const cost = Number(m.cost) || 0;
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
         if (S.view === "command") renderOutput();
@@ -476,6 +480,7 @@ function onMission(m) {
         const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`;
         toast(failed && m.error ? m.error : base, failed);
       }
+      maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")}`);
     }
   }
 }
@@ -485,6 +490,8 @@ function onCouncil(c) {
   S.live.council = c; S.live.status = c.status;
   if (c.verdict?.text) S.live.deliverable = c.verdict.text;
   if (replyTurns(c) > before) S.live.replying = null;
+  if (c.status) S.awaitingRun = false;
+  syncSendButton();
   if (S.view === "command") { renderCouncil(); renderOpsHead(); if (c.verdict || replyTurns(c) > 0) renderOutput(); }
   if (c.status === "done") {
     const i = S.missions.findIndex((x) => x.id === c.id);
@@ -495,6 +502,7 @@ function onCouncil(c) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       toast(replyTurns(c) > 0 ? `Reply in · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+      maybeNotifyFinish("Meldmind finished a run", "Council done");
     }
   }
 }
@@ -953,7 +961,8 @@ function renderSimpleChat(v) {
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
         <h3>Chat</h3>
-        <textarea id="orders" aria-label="What do you want?" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
@@ -961,7 +970,7 @@ function renderSimpleChat(v) {
         <div class="row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
-          <button class="btn primary" id="go" style="margin-left:auto">Send</button>
+          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
@@ -975,7 +984,7 @@ function renderSimpleChat(v) {
     </div>
   </div>`;
   wireProjectPicker();
-  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
@@ -984,6 +993,8 @@ function renderSimpleChat(v) {
     box.value = item.text;
     S.lastOrders = item.text;
     paintStarters();
+    const note = $("#mask-line");
+    if (note) note.textContent = maskNotice(item.text);
     box.focus();
   }));
   $("#cc-show-ais")?.addEventListener("click", async () => {
@@ -996,7 +1007,7 @@ function renderSimpleChat(v) {
     catch (e) { toast(e.message, true); }
   });
   $("#go").addEventListener("click", sendOrders);
-  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
+  $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
   renderOutput();
   renderExtras("command", "#cmd-extras");
@@ -1015,7 +1026,8 @@ function renderCommand(v) {
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
-        <textarea id="orders" aria-label="Marching orders" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
+        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
@@ -1040,13 +1052,13 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
-          <button class="btn primary" id="go" style="margin-left:auto">Send orders ⏎</button>
+          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
     <div class="panel ops">
-      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="abort" style="display:none;color:var(--red)">abort</button></h3>
+      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
       <div class="graph-wrap" id="graph"></div>
       <div id="tasks" class="tasks"></div>
       <div id="council"></div>
@@ -1068,11 +1080,11 @@ function renderCommand(v) {
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
   wireProjectPicker();
-  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; });
+  $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
   $("#preview").addEventListener("click", previewRoute);
-  $("#copy").addEventListener("click", () => { const t = S.live.deliverable || $("#out-md").innerText; if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true); navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Could not copy: select the text and press Ctrl+C", true)); });
+  $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
   renderOps();
   renderExtras("command", "#cmd-extras");
@@ -1113,7 +1125,7 @@ function renderOpsHead() {
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
   const tasks = Object.values(S.live.tasks);
-  if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="dim small">It will start on its own; use abort to cancel.</span></div>`; return; }
+  if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="hint">Click Stop to cancel.</span></div>`; return; }
   if (S.live.kind !== "mission" || !tasks.length) { box.innerHTML = S.live.kind === "mission" && S.live.status === "planning" ? `<div class="empty">Planning…</div>` : ""; return; }
   box.innerHTML = tasks.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
@@ -1181,7 +1193,7 @@ function renderOutput() {
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); paintFailure(); return; }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
-  paintFollow(outputFollowHtml());
+  paintFollow(`${outputFollowHtml()}${chargeNote(l)}`);
   paintFailure();
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
@@ -1257,8 +1269,66 @@ async function previewRoute() {
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
   } catch (e) { box.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
 }
+const BUSY_STATUS = new Set(["running", "planning", "assembling"]);
+function runBusy() {
+  if (S.awaitingRun) return true;
+  const st = S.live?.status;
+  return !!(S.live?.id && BUSY_STATUS.has(st));
+}
+function syncSendButton() {
+  const g = $("#go");
+  if (!g) return;
+  const busy = runBusy();
+  g.disabled = busy;
+  g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
+  g.setAttribute("aria-busy", busy ? "true" : "false");
+}
+async function confirmRisky(text) {
+  const projectId = $("#proj")?.value || S.project || null;
+  let neverSay = "";
+  let scf = false;
+  try {
+    const profile = await api("/prompts/profile");
+    neverSay = String(profile.profile?.neverSay || "");
+    scf = profile.profile?.scf === true || profile.profile?.scf === "true";
+  } catch { /* a missing profile still lets the copy go through */ }
+  if (projectId) {
+    try {
+      const mem = await api(`/memory/project/${encodeURIComponent(projectId)}`);
+      if (mem?.never) neverSay = [neverSay, mem.never].filter(Boolean).join("\n");
+    } catch { /* project memory is optional */ }
+  }
+  const hits = riskyHits(text, { neverSay, scf });
+  if (!hits.length) return true;
+  return confirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`);
+}
+async function copyDeliverable() {
+  const t = S.live.deliverable || $("#out-md")?.innerText || "";
+  if (!S.live.id || !t.trim()) return toast("Nothing to copy yet", true);
+  if (!(await confirmRisky(t))) return;
+  try { await navigator.clipboard.writeText(t); toast("Copied"); }
+  catch { toast("Could not copy: select the text and press Ctrl+C", true); }
+}
+function chargeNote(l) {
+  if (!l || (l.status !== "failed" && l.status !== "done-with-errors")) return "";
+  const cost = Number(l.mission?.cost ?? l.council?.cost ?? 0);
+  if (cost > 0) return "";
+  return `<p class="hint" id="cc-no-charge" role="status">Nothing was charged</p>`;
+}
+function maybeNotifyFinish(title, body) {
+  if (typeof Notification === "undefined") return;
+  if (!document.hidden && document.hasFocus()) return;
+  if (Notification.permission !== "granted") return;
+  try { new Notification(title, { body, tag: "meldmind-run" }); } catch { /* the in-app toast already said it */ }
+}
+function askNotify() {
+  if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+  try { Notification.requestPermission(); } catch { /* desktop alerts stay off */ }
+}
 async function sendOrders() {
+  if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  if (!(await confirmRisky(prompt))) return;
   const simple = S.uiMode === "simple";
   const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
@@ -1267,7 +1337,9 @@ async function sendOrders() {
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
-  $("#go").disabled = true;
+  askNotify();
+  S.awaitingRun = true;
+  syncSendButton();
   try {
     const packBody = attached ? { promptPack: attached } : (pp?.removed ? { promptPack: { removed: true } } : {});
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
@@ -1283,12 +1355,13 @@ async function sendOrders() {
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
     else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
     else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
-    S.live = newLive(); renderOps();
+    S.live = newLive(); S.live.status = "running"; renderOps();
   } catch (e) {
+    S.awaitingRun = false;
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);
     else toast(e.message, true);
   }
-  finally { setTimeout(() => { const g = $("#go"); if (g) g.disabled = false; }, 800); }
+  finally { syncSendButton(); }
 }
 
 // ----- Projects -----
@@ -2025,7 +2098,7 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
+window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 

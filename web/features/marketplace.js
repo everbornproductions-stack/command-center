@@ -13,7 +13,7 @@ function priceLabel(price, paidEnabled) {
 }
 
 async function renderTab(view) {
-  view.innerHTML = `<div class="empty">Loading marketplace…</div>`;
+  view.innerHTML = `<div class="empty">Loading Marketplace…</div>`;
   let data, pipes;
   try {
     [data, pipes] = await Promise.all([api("/marketplace"), api("/pipelines")]);

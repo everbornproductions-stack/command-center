@@ -17,7 +17,7 @@ export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
 
 export const ASK = {
   title: "Which mode do you want to start in?",
-  body: "You can change this later.",
+  body: "You can change this later. Simple is one chat box. Expert shows every menu, including MCP (a plug-in connection) and webhooks (a web address that receives a message).",
   simple: "Simple",
   expert: "Expert",
 };

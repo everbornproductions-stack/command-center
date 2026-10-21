@@ -6,7 +6,7 @@ export const MODE_STEP = {
   simple: "Simple",
   expert: "Expert",
   simpleLine: "One chat box. Meldmind picks the AI.",
-  expertLine: "Every menu, councils, missions, and settings.",
+  expertLine: "Every menu, councils, missions, and settings, including MCP (a plug-in connection) and webhooks (a web address that receives a message).",
 };
 
 export const PLACEHOLDER = "Ask anything. Meldmind picks the best AI for you.";

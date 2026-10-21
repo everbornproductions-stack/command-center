@@ -30,7 +30,7 @@ test("page shell: accessibility, error states and empty states", () => {
   assert.match(app, /class="pcard"[^`]*role="button" tabindex="0"/);
   assert.match(app, /getAttribute\("role"\) !== "button"/);
   // error states: no bare "Failed to fetch", no empty message, no silent failure, a broken tab can retry
-  assert.match(app, /Could not reach Command AI's engine/);
+  assert.match(app, /Could not reach Meldmind's engine/);
   assert.match(app, /Request failed \(HTTP \$\{r\.status\}/);
   assert.match(app, /addEventListener\("unhandledrejection"/);
   assert.match(app, /could not open: \$\{esc\(e\.message\)\}<br><button class="btn sm" id="tab-retry"/);

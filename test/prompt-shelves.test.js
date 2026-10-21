@@ -20,7 +20,6 @@ const EXPECT = {
   "win-back-lead": "sales",
   "pricing-tiers": "sales",
   "contrarian-hooks": "marketing",
-  "contrarian-view-hooks": "marketing",
   "thought-leadership-outline": "marketing",
   "ad-funnel": "marketing",
   "coaching-sbi": "leadership",

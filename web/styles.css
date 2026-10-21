@@ -63,7 +63,7 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .composer-ais { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .composer-ai { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #0a0f18; color: var(--text); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .composer-ai:hover { border-color: var(--line-2); }
-.composer-ai .composer-model { color: var(--dim); font-size: 11px; }
+.composer-ai .composer-model { color: #c5cedd; font-size: 13px; }
 .composer-ai.demo { color: var(--muted); }
 .composer-empty { padding: 2px 0; }
 .help-page { max-width: 820px; margin: 0 auto; display: grid; gap: 12px; }
@@ -169,8 +169,10 @@ table.tbl td { padding: 8px 8px; border-bottom: 1px solid #141c2a; vertical-alig
 table.tbl tr:hover td { background: #0f172299; }
 .mono { font-family: var(--mono); }
 .muted { color: var(--muted); }
-.dim { color: var(--dim); }
-.small { font-size: 12px; }
+.dim { color: #a8b3c7; }
+.small { font-size: 13px; }
+.hint { font-size: 13px; color: #d2d8e4; line-height: 1.45; margin: 4px 0 0; }
+input::placeholder, textarea::placeholder { color: #d2d8e4; opacity: 1; font-size: 15px; }
 .right { text-align: right; }
 .empty { color: var(--dim); padding: 24px; text-align: center; border: 1px dashed var(--line-2); border-radius: 12px; }
 .toasts { position: fixed; right: 360px; bottom: 110px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }

@@ -1,5 +1,6 @@
 // Manual handoff. Continue in copies a prompt and opens the provider's own page.
 // Grab reply is the only clipboard read. Confirm saves the reply. No page is automated.
+import { handoffRowNote, plainExplain, plainLabel } from "../plain.js";
 const { S, api, toast, esc } = window.CC;
 
 const GEMINI_DATA_NOTICE = "Gemini free tier: Google says unpaid Gemini API and Google AI Studio use may use what you submit and the replies to improve Google products, and human reviewers may read them. Do not paste sensitive, confidential, or personal information. Paid Gemini API use follows different terms. This is a manual handoff. Meldmind does not send the text for you.";
@@ -92,7 +93,7 @@ function bind(el, rerender) {
 function paint(el) {
   const auto = (data?.targets || []).filter((t) => t.suggest);
   if (!auto.length && !flow) { el.innerHTML = ""; return; }
-  el.innerHTML = `<div class="cc-ho route"><span class="small muted">Manual handoff. Continue in a chat you already use. Meldmind does not type into that page or read it.</span><div class="btns">${buttons(auto)}</div>${flowHtml()}</div>`;
+  el.innerHTML = `<div class="cc-ho route"><span class="small muted">${esc(plainLabel("handoff"))}. ${esc(plainExplain("handoff"))}</span><div class="btns">${buttons(auto)}</div>${flowHtml()}</div>`;
   bind(el, () => paint(el));
 }
 
@@ -116,9 +117,10 @@ async function renderSettings(el) {
       <button type="button" class="ghost small" data-del="${esc(t.id)}">Remove</button>
       <button type="button" class="btn sm" data-continue="${esc(t.id)}">Continue in ${esc(t.name)}</button>
       ${t.suggest ? `<span class="chip">${esc(t.reason || "manual handoff")}</span>` : ""}
+      <div class="hint" style="width:100%" role="note">${esc(handoffRowNote(t.name))}</div>
     </div>`).join("");
-  el.innerHTML = `<div class="panel" id="cc-ho-settings"><h3>Manual handoff</h3>
-    <div class="small muted">Each target is a name, the provider's own page, and an optional note. Continue in copies a short prompt and opens that page in your browser. Grab reply reads the clipboard only when you click it, shows a preview, and saves the reply when you confirm. The reply is tagged manual (for example "via ChatGPT web, manual") and the ledger line is $0. This is a manual handoff. Meldmind does not sign in, type, or read the page.</div>
+  el.innerHTML = `<div class="panel" id="cc-ho-settings"><h3>${esc(plainLabel("handoff"))}</h3>
+    <div class="hint">${esc(plainExplain("handoff"))} Each target is a name, the provider's own page, and an optional note. Grab reply reads the clipboard only when you click it, shows a preview, and saves the reply when you confirm. The reply is tagged manual (for example "via ChatGPT web, manual") and the ledger line is $0.</div>
     <div class="small" style="margin-top:8px">${esc(data.geminiNotice || GEMINI_DATA_NOTICE)} <a href="${esc(data.geminiTerms || "https://ai.google.dev/gemini-api/terms")}" target="_blank" rel="noopener noreferrer">Google's terms</a></div>
     <div class="cat-h" style="margin-top:12px">Targets</div>
     ${rows || `<div class="dim small">No targets yet.</div>`}

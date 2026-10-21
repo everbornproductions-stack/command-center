@@ -88,6 +88,21 @@ export function cronDue(c, lastSlot, now) {
   for (let t = end; t >= start; t -= 60000) if (cronMatches(c, t)) return t;
   return null;
 }
+// The latest cron slot after lastSlot that is already too old for the lookback window.
+// The app was closed, so the slot was not run. The person can catch up with Run now.
+export function missedSlot(s, now = io.now()) {
+  if (!s?.enabled || s.trigger?.type !== "cron" || !s.trigger.cron) return null;
+  let c;
+  try { c = parseCron(s.trigger.cron); } catch { return null; }
+  const cutoff = slotOf(now) - LIMITS.lookbackMin * 60000;
+  const after = s.lastSlot || 0;
+  if (cutoff <= after) return null;
+  const floor = Math.max(after + 60000, cutoff - 14 * 86400000);
+  for (let t = cutoff; t >= floor; t -= 60000) {
+    if (cronMatches(c, t)) return { at: t, label: "Last run missed (app was closed)" };
+  }
+  return null;
+}
 export function nextRun(c, from = Date.now()) {
   let t = slotOf(from) + 60000;
   const limit = from + 400 * 86400000;
@@ -141,7 +156,8 @@ export function view(s, now = io.now()) {
   const { hookHash, ...rest } = s;
   let next = null;
   if (s.trigger.type === "cron" && s.enabled) { try { next = nextRun(parseCron(s.trigger.cron), now); } catch {} }
-  return { ...rest, hasToken: !!hookHash, nextRun: next, spent: spentThisMonth(s.id, now), hookPath: s.trigger.type === "webhook" ? `/api/schedules/hook/${s.id}` : null };
+  const missed = missedSlot(s, now);
+  return { ...rest, hasToken: !!hookHash, nextRun: next, missedAt: missed?.at || null, missedLabel: missed?.label || null, spent: spentThisMonth(s.id, now), hookPath: s.trigger.type === "webhook" ? `/api/schedules/hook/${s.id}` : null };
 }
 export const listSchedules = () => all().list.map((s) => view(s));
 export function listRuns({ scheduleId, limit = 100 } = {}) {
@@ -267,7 +283,7 @@ function capAlert(s, spent) {
 }
 
 // Queue one run. source: cron | webhook | folder | manual. Throws 409 when the schedule is paused or over its cap.
-export function trigger(id, { source = "manual", context = "", note = "", file = null, slot = null } = {}) {
+export function trigger(id, { source = "manual", context = "", note = "", file = null, slot = null, catchUp = false } = {}) {
   const s = getSchedule(id);
   if (!s) throw err(404, "No such schedule.");
   if (!s.enabled && source !== "manual") throw err(409, s.pausedReason === "cap" ? "This schedule is paused: it reached its spend cap." : "This schedule is paused.");
@@ -281,6 +297,11 @@ export function trigger(id, { source = "manual", context = "", note = "", file =
   const q = queues.get(id) || { busy: false, items: [] };
   if (q.items.length >= LIMITS.queue) throw err(429, "Too many runs waiting for this schedule. Try again when they finish.");
   const r = putRun({ ...base, context: str(context, LIMITS.text) });
+  if (catchUp && s.trigger.type === "cron") {
+    const d = all();
+    const cur = d.list.find((x) => x.id === id);
+    if (cur) { cur.lastSlot = slotOf(io.now()); cur.updatedAt = io.now(); save(d); }
+  }
   q.items.push(r.id); queues.set(id, q);
   drain(id);
   return publicRun(r);

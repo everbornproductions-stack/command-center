@@ -107,6 +107,7 @@ function card(r, title) {
     </div>
     <div class="small" style="margin-top:8px">${rows.map(([m, b]) => `<span class="chip" style="margin:2px"><span class="dot" style="background:${pcolor(b.provider)}"></span>${esc(m)} ${money(b.cost, 4)}${b.manual ? " manual" : ""}${b.free ? " free" : ""}</span>`).join(" ")}</div>
     <div class="cc-ms-label">${esc(LABEL)}</div>
+    ${r.nothingCharged ? `<p class="hint" id="cc-receipt-charge" role="status">Nothing was charged</p>` : ""}
   </div>`;
 }
 
@@ -213,7 +214,8 @@ CC.register({
     if (!run?.id) { el.innerHTML = ""; return; }
     try {
       const r = await api(`/receipt/${run.id}`);
-      el.innerHTML = card(r, run.kind);
+      const failed = run.status === "failed" || run.status === "done-with-errors" || run.mission?.status === "failed" || run.council?.status === "failed";
+      el.innerHTML = card({ ...r, nothingCharged: failed && !(Number(r.actual) > 0) }, run.kind);
       el.querySelector("#rcpt-png").addEventListener("click", () => toPng(r));
     } catch { el.innerHTML = ""; }
   } },

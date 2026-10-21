@@ -28,16 +28,6 @@ const PACK = [
     need: ["Week 1", "Week 2", "Week 3", "Week 4", "I do", "we do", "you do", "screen-recording", "30%", "quality audit", "sign-off", "KPI"],
   },
   {
-    id: "contrarian-view-hooks",
-    name: "Contrarian hooks",
-    category: "Content",
-    fields: ["topic", "mainstream", "view"],
-    role: "social copywriter and growth marketer",
-    phrase: "Draft a money or time trap hook",
-    need: ["money or time trap", "before/after", "unpopular truth", "checklist", "today"],
-    sales: true,
-  },
-  {
     id: "dm-booked-call",
     name: "DM sequence to booked call",
     category: "Sales/clients",
@@ -99,7 +89,6 @@ const PACK = [
 const FILLED = {
   "coaching-sbi": { situation: "Strong technical work, late to stand-up, dashboards stale.", values: "Ownership, clarity, respect." },
   "delegation-handoff": { task: "Weekly invoice export", process: "90 minutes in Sheets, then email.", delegatee: "Operations coordinator" },
-  "contrarian-view-hooks": { topic: "Posting every day", mainstream: "More posts means more leads.", view: "One useful post beats seven empty ones." },
   "dm-booked-call": { platform: "Instagram", trigger: "Comment KEYWORD", offer: "A pipeline review" },
   "weekly-time-audit": { hourlyValue: "80 dollars", highValue: "Sales calls and product design", taskLog: "Inbox, proposal, status meeting" },
   "prelaunch-risk-audit": { company: "North", project: "Checkout relaunch", launchDate: "June 2", tools: "Stripe, the app, email" },
@@ -112,8 +101,8 @@ function body(row) {
   return `${row.role}\n${row.command}\n${row.format}\n${row.output}`;
 }
 
-test("the nine added templates load with their required fields", () => {
-  assert.equal(PACK.length, 9);
+test("the added templates load with their required fields", () => {
+  assert.equal(PACK.length, 8);
   const ids = TEMPLATES.map((row) => row.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const spec of PACK) {

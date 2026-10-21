@@ -1,9 +1,26 @@
-// "Share live link" under the deliverable: creates an expiring read-only link (with your brand kit) and
-// copies it. The links already made for this run are listed with Revoke.
+// "Share live link" under the deliverable: creates an expiring read-only link (with your brand kit).
+// A link built from this PC only works on this PC. Say so, and offer the text as a copy or a file.
 const { api, toast, esc } = window.CC;
+import { localOnlyHost } from "../copy-guard.js";
 
-// the deliverable area redraws while a run streams, so the list is fetched at most every 20 s per run
 const cache = new Map(); // missionId -> { ts, items }
+
+function deliverableText() {
+  const live = window.CC.S.live || {};
+  return String(live.deliverable || document.getElementById("out-md")?.innerText || "").trim();
+}
+
+function downloadText(name, text) {
+  const a = document.createElement("a");
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function listLinks(el, id, fresh = false) {
   const box = el.querySelector("#sh-list"); if (!box) return;
   let c = cache.get(id);
@@ -19,19 +36,49 @@ async function listLinks(el, id, fresh = false) {
   }));
 }
 
+function fallbackBox(url) {
+  return `<div class="hint" id="sh-local" role="note">This link only works on this PC. Copy the text or export a file if someone else needs it.</div>
+    <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap">
+      <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>
+      <button class="btn sm" type="button" id="sh-copy-text">Copy the text</button>
+      <button class="btn sm" type="button" id="sh-export">Export</button>
+    </div>`;
+}
+
 CC.register({
   id: "share",
   deliverable: { order: 5, render(el, run) {
     if (window.CC.uiMode?.() === "simple") { el.innerHTML = ""; return; }
     const live = window.CC.S.live; const id = live?.id;
     if (!id) { el.innerHTML = ""; return; }
-    el.innerHTML = `<div class="row small" style="margin-top:10px;gap:8px"><button class="btn sm" id="sh-make">Share live link</button><select id="sh-ttl" style="width:auto"><option value="60">1 hour</option><option value="1440" selected>24 hours</option><option value="10080">7 days</option></select><label class="row small" style="gap:4px"><input type="checkbox" id="sh-costs"> show costs</label><span class="dim" id="sh-out"></span></div><div class="dim small">Read-only, with your brand kit. Keys are never shown; costs only if you tick the box.</div><div id="sh-list"></div>`;
+    el.innerHTML = `<div class="row small" style="margin-top:10px;gap:8px;flex-wrap:wrap"><button class="btn sm" id="sh-make" type="button">Share live link</button><select id="sh-ttl" aria-label="How long the link lasts" style="width:auto"><option value="60">1 hour</option><option value="1440" selected>24 hours</option><option value="10080">7 days</option></select><label class="row small" style="gap:4px"><input type="checkbox" id="sh-costs"> show costs</label><span class="dim" id="sh-out"></span></div><div class="dim small">Read-only, with your brand kit. Keys are never shown; costs only if you tick the box.</div><div id="sh-list"></div>`;
     el.querySelector("#sh-make").addEventListener("click", async () => {
       try {
         const r = await api("/share/create", { method: "POST", body: { missionId: id, ttlMinutes: Number(el.querySelector("#sh-ttl").value), showCosts: el.querySelector("#sh-costs").checked } });
         const url = location.origin + r.url;
-        try { await navigator.clipboard.writeText(url); toast("Share link copied"); } catch { toast("Share link ready"); }
-        el.querySelector("#sh-out").innerHTML = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+        const local = localOnlyHost(location.hostname);
+        const out = el.querySelector("#sh-out");
+        if (local) {
+          out.innerHTML = fallbackBox(url);
+          toast("This link only works on this PC");
+          out.querySelector("#sh-copy-text").addEventListener("click", async () => {
+            const text = deliverableText();
+            if (!text) return toast("Nothing to copy yet", true);
+            if (window.CC.confirmRisky && !(await window.CC.confirmRisky(text))) return;
+            try { await navigator.clipboard.writeText(text); toast("Text copied"); }
+            catch { toast("Could not copy: select the answer and press Ctrl+C", true); }
+          });
+          out.querySelector("#sh-export").addEventListener("click", async () => {
+            const text = deliverableText();
+            if (!text) return toast("Nothing to export yet", true);
+            if (window.CC.confirmRisky && !(await window.CC.confirmRisky(text))) return;
+            downloadText("meldmind-share.md", text);
+            toast("Exported");
+          });
+        } else {
+          try { await navigator.clipboard.writeText(url); toast("Share link copied"); } catch { toast("Share link ready"); }
+          out.innerHTML = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+        }
         listLinks(el, id, true);
       } catch (e) { toast(e.message, true); }
     });
