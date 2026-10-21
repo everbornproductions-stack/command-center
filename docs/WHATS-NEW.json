@@ -1,4 +1,14 @@
 {
+  "0.4.9": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Desktop control lists programs on this PC. On Windows it reads the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read.",
+      "Each program is matched to a capability list you can update. Allow each app. Allowed apps are scored and join the router's choices, the same as a tool you add.",
+      "While you plan a mission or client work, a card suggests a program with a short reason, Free or Paid, and the official link. Dismiss hides that card. Nothing is installed or bought.",
+      "Turn suggestions off in Settings.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
   "0.4.8": {
     "title": "What's new in Meldmind",
     "bullets": [

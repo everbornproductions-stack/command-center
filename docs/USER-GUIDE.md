@@ -93,6 +93,14 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
 
+## Programs on this PC
+
+Turn on desktop control in Setup or in Settings. Meldmind lists installed programs. On Windows that list comes from the uninstall list and the Start menu, plus command-line tools on PATH. It reads names only. File contents are not read.
+
+Allow the apps you want. Allowed apps are scored and join the router's choices, the same as a tool you add. They do not replace the AIs that write.
+
+While you plan a mission or client work, a card may suggest a program that would speed the job up. It shows a short reason, Free or Paid, and the official link. Dismiss hides that card. Meldmind will not install or buy anything. Turn suggestions off under Settings, Programs on this PC.
+
 ## 8. Sending things out: always your click
 
 Nothing posts, sends, emails or spends without a click from you.

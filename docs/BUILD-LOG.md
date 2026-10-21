@@ -1582,3 +1582,15 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
 - Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
 - Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+## 2026-10-21: app discovery and suggestions (0.4.9 slice)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not called. Package version stays 0.4.8, the hotfix. This slice is part of 0.4.9. 0.4.10 is the unsigned Mac build. Signing stays later. Phases 45 to 51 stay planned, not built.
+
+- Desktop control is off until the person opts in, in Setup or in Settings. The scan lists names only. On Windows that is the uninstall registry keys and Start menu shortcut names, plus command-line tools on PATH. Other computers get the PATH list. File contents are not read.
+- A curated catalog maps a name to task types, Free or Paid, a short reason, and an official https link. Update the app list fetches an https address only after a click. It refuses http, redirects, and any installer or purchase field.
+- The person allows each app. Allowed apps are scored with the same formula as a user-added tool and join the router's choices. Text jobs, pick(), and missions stay on text models.
+- While a mission or client job is planned, a dismissible card can suggest a program. It shows a short reason, Free or Paid, and the official link. Nothing is installed or bought. A setting turns suggestions off.
+- Setup, the tour, Help, What's new (0.4.9), the user guide, and the roadmap mention it. The help article is stamped 0.4.9. The catalog stays 0.4.8 so the current release gate still checks the hotfix notes.
+- Tests here (Linux): npm test is the mcp file (8 pass) then 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine: Setup lists FFmpeg with Allow, Free, and the official link, and says nothing is installed or bought. Typing a video job shows a dismissible card with the reason, Free, and the official link. Dismiss hides that program. Turning suggestions off hides the card. Expert Preview route shows Allowed programs: FFmpeg with a score. The same Programs on this PC panel is in Settings. No install control.

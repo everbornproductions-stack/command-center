@@ -31,3 +31,11 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## 0.4.9 App discovery and suggestions
+
+0.4.8 is the hotfix. This app discovery slice is part of 0.4.9. 0.4.10 is the unsigned Mac .dmg and the new-version Download notice. Signing and notarization stay later.
+
+When the person opts into desktop control, Meldmind lists installed programs. On Windows that is the uninstall registry keys and the Start menu, plus command-line tools on PATH. File contents are not read. Each name is matched to a curated capability list that can be updated from an https address when the person clicks Update the app list. The person allows each app. Allowed apps are scored and join the router's choices, the same as a tool you add. While planning a mission or client work, a dismissible card suggests a program with a short reason, Free or Paid, and the official link. Nothing is installed or bought. Suggestions can be turned off in Settings.
+
+Phases 45 to 51 stay planned, not built. This slice does not drive apps. It does not add UI Automation, Playwright, screenshot computer use, hub cards, or registerExternalAgent.
