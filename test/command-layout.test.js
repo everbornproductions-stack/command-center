@@ -15,7 +15,7 @@ const block = (re) => {
   return m[1];
 };
 
-test("the orders panel, Live Ops, and the live feed each scroll on a wide window", () => {
+test("the orders panel, the right column, and the live feed each scroll on a wide window", () => {
   const orders = block(/\.cmd \.orders \{([^}]+)\}/);
   assert.match(orders, /min-height:\s*0/);
   assert.match(orders, /overflow-y:\s*auto/);
@@ -25,8 +25,10 @@ test("the orders panel, Live Ops, and the live feed each scroll on a wide window
   assert.match(cmd, /minmax\(0,\s*1fr\)/);
   assert.match(cmd, /min-height:\s*0/);
   assert.match(cmd, /height:\s*100%/);
-  assert.match(block(/\.cmd \.ops \{([^}]+)\}/), /overflow-y:\s*auto/);
-  assert.match(block(/\.cmd \.ops \{([^}]+)\}/), /min-height:\s*0/);
+  // Live ops has no inner scrollbar; the right column scrolls as a whole.
+  assert.doesNotMatch(block(/\.cmd \.ops \{([^}]+)\}/), /overflow-y:\s*auto/);
+  assert.match(block(/\.cmd-side \{([^}]+)\}/), /overflow-y:\s*auto/);
+  assert.match(block(/\.cmd-side \{([^}]+)\}/), /min-height:\s*0/);
   assert.match(block(/\.cmd \.output \{([^}]+)\}/), /overflow-y:\s*auto/);
   assert.match(block(/\.cmd \.output \{([^}]+)\}/), /min-height:\s*0/);
   const feed = block(/\.feed-list \{([^}]+)\}/);

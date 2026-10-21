@@ -12,6 +12,7 @@ import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
+import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
 
 // ---------------- state ----------------
 const S = {
@@ -389,6 +390,7 @@ function handle(ev) {
 
 // ---------------- live run handling ----------------
 let graph = null;
+let taskTouchN = 0;
 // Drafts for the reply boxes. A live update redraws Live Ops, and the text the person is typing stays.
 const replyDrafts = {};
 // Jobs logged for the mission on screen. Kept until that mission ends, so a finished AI stays large while the run is still going.
@@ -441,7 +443,7 @@ function onAgentDelta(ev) {
   const a = S.live.agents[ev.agent]; if (!a) return;
   a.text += ev.text;
   if (S.view !== "command") return;
-  if (ev.agent === S.live.primary) { const o = $("#out-md"); if (o) { o.innerHTML = md(a.text); o.classList.add("cursor"); o.scrollTop = o.scrollHeight; } }
+  if (ev.agent === S.live.primary) { const o = $("#out-md"); const dp = $("#deliv-panel"); if (dp && a.text) dp.hidden = false; if (o) { o.innerHTML = md(a.text); o.classList.add("cursor"); o.scrollTop = o.scrollHeight; } }
   if (S.live.kind === "council" && a.role === "answer") { const c = $(`[data-ans="${CSS.escape(a.model)}"] .body`); if (c) { c.innerHTML = md(a.text); c.scrollTop = c.scrollHeight; } }
   if (S.live.kind === "mission" && ev.taskId) { const t = $(`[data-task="${ev.taskId}"] .bar i`); if (t) { const cur = parseFloat(t.style.width) || 0; t.style.width = Math.max(cur, Math.min(96, 10 + a.text.length / 40)) + "%"; } }
 }
@@ -461,7 +463,8 @@ function onTask(ev) {
   if (isQuiet(ev.missionId)) return;
   ensureLive(ev.missionId, "mission");
   S.live.tasks[ev.task.id] = ev.task;
-  if (S.view === "command") renderTasks();
+  (S.live.touched ||= {})[ev.task.id] = ++taskTouchN;
+  if (S.view === "command") { renderTasks(); syncOpsPanel(); }
 }
 function replyTurns(run) {
   if (!run) return 0;
@@ -1105,7 +1108,7 @@ function renderCommand(v) {
   v.innerHTML = `
   <div class="cmd">
     <div class="orders">
-      <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
+      <div class="panel orders-panel">
         <div id="graduate-slot"></div>
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
@@ -1141,17 +1144,19 @@ function renderCommand(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div class="panel ops">
-      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
-      <div class="graph-wrap" id="graph"></div>
-      <div id="tasks" class="tasks"></div>
-      <div id="council"></div>
-    </div>
-    <div class="panel output">
-      <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
-      <div class="md" id="out-md"></div>
-      <div id="out-follow"></div>
-      <div id="deliv-extras"></div>
+    <div class="cmd-side">
+      <div class="panel output" id="deliv-panel" hidden>
+        <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
+        <div class="md" id="out-md"></div>
+        <div id="out-follow"></div>
+        <div id="deliv-extras"></div>
+      </div>
+      <div class="panel ops" id="ops-panel">
+        <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
+        <div class="graph-wrap" id="graph"></div>
+        <div id="tasks" class="tasks"></div>
+        <div id="council"></div>
+      </div>
     </div>
   </div>`;
   graph = new AgentGraph($("#graph"));
@@ -1208,6 +1213,14 @@ function renderComposerAis() {
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
+// Idle Live ops is one line. The graph shows only while a run is going.
+function syncOpsPanel() {
+  const panel = $("#ops-panel"); if (!panel) return;
+  const idle = opsState(S.live) === "idle";
+  panel.classList.toggle("idle", idle);
+  const g = $("#graph");
+  if (g) g.hidden = idle || ["done", "done-with-errors", "failed", "aborted"].includes(S.live.status);
+}
 function stopResearch() {
   if (!S.live.id || S.live.kind !== "research") return;
   api(`/research/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true));
@@ -1235,13 +1248,14 @@ function renderOpsHead() {
   const h = $("#ops-head");
   const l = S.live;
   if (h) {
-    if (!l.id) h.textContent = "idle";
+    if (opsState(l) === "idle") h.textContent = IDLE_LINE;
     else {
       const cost = l.mission?.cost ?? l.council?.cost ?? 0;
       h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
     }
   }
   syncResearchStop();
+  syncOpsPanel();
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
@@ -1250,7 +1264,11 @@ function renderTasks() {
   if ((S.live.kind !== "mission" && S.live.kind !== "research") || !tasks.length) { box.innerHTML = (S.live.kind === "mission" || S.live.kind === "research") && (S.live.status === "planning" || S.live.status === "running") && !tasks.length ? `<div class="empty">${S.live.kind === "research" ? "Researching…" : "Planning…"}</div>` : ""; return; }
   const paused = S.live.status === "paused";
   const editable = paused ? tasks.filter((t) => t.status !== "done" && t.status !== "waiting" && t.status !== "failed") : [];
-  box.innerHTML = tasks.map((t) => {
+  // Live ops has no inner scrollbar: the newest few steps, then See all.
+  const showAll = S.opsAllFor === S.live.id;
+  const { shown, total } = newestTasks(S.live.tasks, S.live.touched, showAll ? 0 : OPS_SHOWN);
+  const more = total > OPS_SHOWN ? `<button type="button" class="ghost small ops-more" id="ops-more" aria-expanded="${showAll}">${showAll ? "Show newest only" : `See all (${total})`}</button>` : "";
+  box.innerHTML = shown.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
     const isGrok = isGrokId(t);
@@ -1267,13 +1285,14 @@ function renderTasks() {
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
       ${follow}
     </div>`;
-  }).join("") + (paused ? `<form id="pause-edit" style="margin-top:12px">
+  }).join("") + more + (paused ? `<form id="pause-edit" style="margin-top:12px">
       <div class="small">Done steps stay as they are. Edit the goal or a step that has not finished, then resume.</div>
       <label class="lbl" for="pause-goal">Goal</label>
       <textarea id="pause-goal" rows="2">${esc(S.live.mission?.prompt || "")}</textarea>
       ${editable.map((t) => `<label class="lbl" for="pause-task-${esc(t.id)}">${esc(t.title || t.id)}</label><textarea id="pause-task-${esc(t.id)}" data-pause-task="${esc(t.id)}" rows="2">${esc(t.instructions || "")}</textarea>`).join("")}
       <div class="row" style="margin-top:8px"><button class="btn sm primary" type="submit">Save and resume</button></div>
     </form>` : "");
+  box.querySelector("#ops-more")?.addEventListener("click", () => { S.opsAllFor = showAll ? null : S.live.id; renderTasks(); });
   box.querySelector("#pause-edit")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const goal = box.querySelector("#pause-goal")?.value || "";
@@ -1327,6 +1346,8 @@ function renderOutput() {
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
+  const panel = $("#deliv-panel");
+  if (panel) panel.hidden = !showDeliverable(l, text);
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";

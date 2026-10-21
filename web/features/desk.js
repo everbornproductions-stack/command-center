@@ -7,6 +7,13 @@ const css = `
 #cc-home h3 { margin: 0 0 4px; }
 #cc-home .cc-home-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 #cc-home button.row, #cc-desk-chats button.row { width: 100%; text-align: left; }
+/* Home list rows (chats, councils, missions) follow the theme. A bare button paints the browser's white over light theme text. */
+#cc-home .cc-home-list button.row { background: var(--bg-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; cursor: pointer; font-size: 0.875rem; }
+#cc-home .cc-home-list button.row:hover { border-color: var(--accent); }
+#cc-home .cc-home-list button.row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#cc-home .cc-home-list .chip { background: var(--panel-solid); border-color: var(--line-2); color: var(--text); }
+#cc-home .cc-home-list .lbl { font-size: 0.6875rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+#cc-home .dim { color: var(--muted); }
 #cc-readers { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-readers .card { width: min(520px, 100%); background: var(--panel-solid, #0e1522); color: var(--text, #e5e7eb); border: 1px solid var(--line, #1f2937); border-radius: 14px; padding: 16px 18px; }
 #cc-readers p { margin: 8px 0; line-height: 1.45; }
@@ -47,7 +54,9 @@ function paintHome(host) {
       el = document.createElement("div");
       el.id = "cc-home";
       el.className = "panel";
-      cmd.prepend(el);
+      // Expert: under Live ops in the right column, so any Live ops strip sits above Welcome back.
+      const ops = cmd.querySelector("#ops-panel");
+      if (ops) ops.after(el); else cmd.prepend(el);
     }
     const chats = (card.chats || []).map((c) => `<button type="button" class="row" data-chat="${esc(c.id)}"><span class="chip">${esc(c.kind)}</span>${c.private ? `<span class="chip">Private</span>` : ""}<span style="flex:1">${esc(c.title)}</span></button>`).join("");
     const projects = (card.projects || []).map((p) => `<button type="button" class="btn sm" data-proj="${esc(p.id)}">${esc(p.name)}</button>`).join("");
