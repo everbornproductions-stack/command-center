@@ -35,3 +35,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 ## 0.4.8 Graduate notice
 
 When a handoff-only AI gains its own API or MCP route, the chat asks once: "X can now run directly. Add it to councils and missions?" One click (Add it) includes it. Not now dismisses the ask. Grok Bot's webhook stays the handoff for signed-in tasks. An xAI key is Grok the model and does not raise this ask. Suno and Google Flow count when they gain a key or an MCP route.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 does not include the Mac build. The unsigned Mac .dmg and the "new version ready, Download" notice are the next release after 0.4.8. Signing and notarization stay later.

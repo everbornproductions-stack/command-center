@@ -320,7 +320,7 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 These items cost money to distribute the app everywhere. They run after every other phase. Nothing is bought, paid for, or put live without Chris's OK first.
 
 ### Phase 14: Mac build
-As written in Phase 14 above. Needs an Apple Developer account ($99 a year) for signing and notarization.
+Signing and notarization stay here. They need an Apple Developer account ($99 a year). The unsigned .dmg and the "new version ready, Download" notice are not part of 0.4.8. They are the next release after 0.4.8, in their own pull request. The run order line above still lists 14 under Do last.
 
 ### Windows code-signing certificate (planned, not built)
 Buy a code-signing certificate and sign the Windows installer so SmartScreen stops warning on first run. Certificate secrets go in repo secrets only.
