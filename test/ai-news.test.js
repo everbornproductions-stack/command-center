@@ -62,12 +62,16 @@ test("owner publishes AI News, and the licence key stays out of the log", async 
     const home = await s.api("/community?channel=general");
     assert.equal(home.json.owner, true);
     assert.ok(home.json.messages.some((m) => m.id === "remote-1"));
-    assert.ok(home.json.messages.some((m) => m.id === "m-other" && m.email === "other@example.com"));
+    const other = home.json.messages.find((m) => m.id === "m-other");
+    assert.equal(other.displayName, "Other");
+    assert.equal(other.email, undefined);
+    assert.equal(JSON.stringify(home.json).includes("other@example.com"), false);
+    assert.equal(JSON.stringify(home.json).includes("ada@example.com"), false);
     assert.equal(JSON.stringify(home.json).includes(KEY), false);
 
     const removed = await s.api("/community/messages/m-other", { method: "DELETE" });
     assert.equal(removed.status, 200);
-    const muted = await s.api("/community/mute", { method: "POST", body: { email: "other@example.com", minutes: 10 } });
+    const muted = await s.api("/community/mute", { method: "POST", body: { username: "Other", minutes: 10 } });
     assert.equal(muted.status, 200);
 
     const sources = [{

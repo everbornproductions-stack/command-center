@@ -21,6 +21,12 @@ export const BURST_MAX = 5;
 export const BURST_MS = 8000;
 export const HOUR_MAX = 40;
 export const HOUR_MS = 60 * 60 * 1000;
+export const USERNAME_COOLDOWN_MS = HOUR_MS;
+export const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+
+const NAME_LEFT = ["Bright", "Calm", "Kind", "Quick", "Sunny", "Gentle", "Brave", "Happy"];
+const NAME_RIGHT = ["Otter", "Robin", "Maple", "Cedar", "River", "Pebble", "Willow", "Finch"];
+const RESERVED_NAME = /meldmind|admin|everborn/i;
 
 export const CONDUCT = [
   "Be kind and stay on the topic of the channel.",
@@ -89,23 +95,59 @@ export function findProfanity(text) {
   return PROFANITY.test(String(text || ""));
 }
 
-export function checkName(value) {
-  const name = String(value || "").trim().replace(/\s+/g, " ");
-  if (name.length < 2 || name.length > 24) return fail(400, "Pick a display name, 2 to 24 characters.");
-  if (!/^[A-Za-z0-9][A-Za-z0-9 .'-]*$/.test(name)) return fail(400, "Use letters, numbers, spaces, and . ' - in the display name.");
-  if (name.includes("@") || findSecret(name)) return fail(400, "That display name cannot be used.");
-  return { ok: true, name };
+export function checkUsername(value) {
+  const username = String(value || "").trim();
+  if (!USERNAME_RE.test(username)) return fail(400, "Use 3 to 20 characters: letters, numbers, and underscore.");
+  const words = username.replace(/_/g, " ");
+  if (RESERVED_NAME.test(username) || findProfanity(words) || findSecret(username)) {
+    return fail(400, "That username is not allowed. Pick another.");
+  }
+  return { ok: true, username };
 }
 
-export function checkJoin({ email, displayName, licenceEmail }) {
-  const typed = cleanEmail(email);
-  if (!validEmail(typed)) return fail(400, "Enter the email on your licence.");
-  const lic = cleanEmail(licenceEmail);
-  if (!lic) return fail(400, "Add a licence first. Community chat uses the email on your licence.");
-  if (typed !== lic) return fail(403, "Use the email on your licence.");
-  const name = checkName(displayName);
-  if (!name.ok) return name;
-  return { ok: true, email: typed, displayName: name.name };
+function nameTaken(taken, username) {
+  const key = String(username || "").toLowerCase();
+  if (!taken || !key) return false;
+  if (typeof taken === "function") return !!taken(key);
+  if (taken instanceof Set) return taken.has(key);
+  return Object.prototype.hasOwnProperty.call(taken, key);
+}
+
+export function suggestUsername(taken, now = Date.now()) {
+  const seed = Math.abs(Number(now) || 0);
+  for (let i = 0; i < 80; i++) {
+    const left = NAME_LEFT[(seed + i) % NAME_LEFT.length];
+    const right = NAME_RIGHT[(seed + i * 3) % NAME_RIGHT.length];
+    const candidate = i < NAME_LEFT.length ? `${left}_${right}` : `${left}_${right}${(seed + i) % 90 + 10}`;
+    if (!USERNAME_RE.test(candidate) || nameTaken(taken, candidate)) continue;
+    if (checkUsername(candidate).ok) return candidate;
+  }
+  return `Kind_Robin${(seed % 90) + 10}`;
+}
+
+export function claimUsername({ username, email, names, current = "", changedAt = 0, now = Date.now(), localOk = false } = {}) {
+  const lic = cleanEmail(email);
+  const identity = validEmail(lic) ? lic : (localOk ? "local" : "");
+  if (!identity) return fail(400, "Add a licence first. Community chat uses the email on your licence.");
+  const checked = checkUsername(username);
+  if (!checked.ok) return checked;
+  const key = checked.username.toLowerCase();
+  const map = {};
+  if (names && typeof names === "object" && !(names instanceof Set)) {
+    for (const [rawKey, rawEmail] of Object.entries(names)) map[String(rawKey).toLowerCase()] = cleanEmail(rawEmail);
+  }
+  const holder = map[key];
+  if (holder && holder !== identity) return fail(409, "That username is taken. Pick another.");
+  const currentKey = String(current || "").trim().toLowerCase();
+  if (currentKey && currentKey === key) {
+    const until = changedAt ? Number(changedAt) + USERNAME_COOLDOWN_MS : 0;
+    return { ok: true, username: checked.username, same: true, cooldownUntil: until };
+  }
+  if (currentKey && changedAt && now - Number(changedAt) < USERNAME_COOLDOWN_MS) {
+    const until = Number(changedAt) + USERNAME_COOLDOWN_MS;
+    return { ok: false, status: 429, error: "Wait 1 hour before you change your username again.", cooldownUntil: until };
+  }
+  return { ok: true, username: checked.username, same: false, cooldownUntil: now + USERNAME_COOLDOWN_MS };
 }
 
 function newId() {
@@ -163,7 +205,9 @@ export function muteUntil(room, email, now) {
 
 export function postMessage(room, actor, input, now = Date.now()) {
   const next = normalizeRoom(room);
-  if (!actor?.email || !validEmail(actor.email)) return fail(401, "Sign in with the email on your licence first.");
+  if (!actor?.email || !validEmail(actor.email)) return fail(401, "Pick a username first.");
+  const username = String(actor.username || actor.displayName || "").trim();
+  if (!username) return fail(401, "Pick a username first.");
   const until = muteUntil(next, actor.email, now);
   if (until) return fail(403, `You are muted until ${new Date(until).toLocaleString()}.`);
   let share = null;
@@ -193,7 +237,8 @@ export function postMessage(room, actor, input, now = Date.now()) {
     id: newId(),
     channel,
     email: actor.email,
-    displayName: actor.displayName || "Member",
+    displayName: username,
+    username,
     body,
     kind: share?.kind || "text",
     share,
@@ -209,16 +254,22 @@ export function postMessage(room, actor, input, now = Date.now()) {
 export function promptCounts(room, promptId, email = "") {
   const rows = normalizeRoom(room).votes.filter((item) => item.promptId === promptId);
   const mine = rows.find((item) => item.email === email)?.vote || null;
+  const voters = [];
+  for (const item of rows) {
+    const name = String(item.username || "").trim();
+    if (name && !voters.includes(name)) voters.push(name);
+  }
   return {
     up: rows.filter((item) => item.vote === "up").length,
     down: rows.filter((item) => item.vote === "down").length,
     mine,
+    voters,
   };
 }
 
 export function castPromptVote(room, actor, messageId, vote, now = Date.now()) {
   const next = normalizeRoom(room);
-  if (!actor?.email) return fail(401, "Sign in with the email on your licence first.");
+  if (!actor?.email) return fail(401, "Pick a username first.");
   const message = next.messages.find((item) => item.id === messageId && !item.deleted);
   if (!message) return fail(404, "That message is gone.");
   if (message.share?.kind !== "prompt" && message.kind !== "prompt") return fail(400, "Only a shared prompt can be voted on.");
@@ -226,18 +277,19 @@ export function castPromptVote(room, actor, messageId, vote, now = Date.now()) {
   if (choice !== "" && choice !== "up" && choice !== "down") return fail(400, "Choose thumbs up or thumbs down.");
   const promptId = String(message.share?.id || message.id).slice(0, 80);
   next.votes = next.votes.filter((item) => !(item.email === actor.email && item.promptId === promptId));
-  if (choice) next.votes.push({ email: actor.email, promptId, messageId, vote: choice, at: now });
+  if (choice) next.votes.push({ email: actor.email, username: String(actor.username || actor.displayName || "").trim(), promptId, messageId, vote: choice, at: now });
   return { ok: true, promptId, counts: promptCounts(next, promptId, actor.email), room: next };
 }
 
 export function publicMessage(message, room, actor) {
   const counts = message.share?.kind === "prompt" || message.kind === "prompt"
     ? promptCounts(room, message.share?.id || message.id, actor?.email || "")
-    : { up: 0, down: 0, mine: null };
+    : { up: 0, down: 0, mine: null, voters: [] };
   const row = {
     id: message.id,
     channel: message.channel,
     displayName: message.displayName,
+    username: message.username || message.displayName,
     body: message.body,
     kind: message.kind,
     share: message.share || null,
@@ -246,8 +298,8 @@ export function publicMessage(message, room, actor) {
     up: counts.up,
     down: counts.down,
     voted: counts.mine,
+    voters: counts.voters || [],
   };
-  if (actor?.owner) row.email = message.email;
   return row;
 }
 
@@ -273,7 +325,7 @@ export function deleteMessage(room, actor, id, now = Date.now()) {
 
 export function reportMessage(room, actor, id, reason, now = Date.now()) {
   const next = normalizeRoom(room);
-  if (!actor?.email) return fail(401, "Sign in with the email on your licence first.");
+  if (!actor?.email) return fail(401, "Pick a username first.");
   const message = next.messages.find((item) => item.id === id && !item.deleted);
   if (!message) return fail(404, "That message is gone.");
   const why = String(reason || "").trim();
@@ -284,11 +336,19 @@ export function reportMessage(room, actor, id, reason, now = Date.now()) {
   return { ok: true, room: next };
 }
 
-export function mutePerson(room, actor, email, minutes, now = Date.now()) {
+export function mutePerson(room, actor, username, minutes, now = Date.now(), names = {}) {
   const next = normalizeRoom(room);
   if (!actor?.owner) return fail(403, "Only the owner can mute someone.");
-  const target = cleanEmail(email);
-  if (!validEmail(target)) return fail(400, "Enter the email to mute.");
+  const checked = checkUsername(username);
+  if (!checked.ok) return fail(400, "Enter the username to mute.");
+  const key = checked.username.toLowerCase();
+  let target = "";
+  if (names && typeof names === "object") target = cleanEmail(names[key]);
+  if (!target) {
+    const hit = next.messages.find((item) => String(item.displayName || item.username || "").trim().toLowerCase() === key && item.email);
+    target = cleanEmail(hit?.email);
+  }
+  if (!target || !validEmail(target)) return fail(404, "No one is using that username.");
   const mins = Math.round(Number(minutes));
   if (!Number.isFinite(mins) || mins < 1 || mins > 60 * 24 * 30) return fail(400, "Pick how many minutes, up to 30 days.");
   const until = now + mins * 60 * 1000;
@@ -312,7 +372,7 @@ export function topPromptRows(room) {
   }
   return [...byId.values()].map((row) => {
     const counts = promptCounts(next, row.id);
-    return { ...row, up: counts.up, down: counts.down };
+    return { ...row, up: counts.up, down: counts.down, voters: counts.voters };
   });
 }
 

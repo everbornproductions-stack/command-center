@@ -1,5 +1,7 @@
 // Weekly AI News. A draft is built from source text, What's new, prompt votes, and chat highlights.
 // Publishing is a separate step. This module does not fetch pages and does not send email.
+import crypto from "node:crypto";
+import { findProfanity, findSecret } from "./community-chat.js";
 
 export const ADDRESS_PLACEHOLDER = "Everborn Productions\n[postal address placeholder]";
 export const UNSUBSCRIBE_BASE = "https://everbornproductions.com/command-center/unsubscribe";
@@ -189,6 +191,26 @@ export function emptyNews() {
   return { draft: null, published: null, seen: null, reactions: [] };
 }
 
+function newsShell(news) {
+  return {
+    draft: news?.draft || null,
+    published: news?.published || null,
+    seen: news?.seen || null,
+    reactions: Array.isArray(news?.reactions) ? news.reactions.slice() : [],
+    comments: Array.isArray(news?.comments) ? news.comments.slice() : [],
+  };
+}
+
+function namesFor(rows, reaction) {
+  const out = [];
+  for (const item of rows) {
+    if (item.reaction !== reaction) continue;
+    const name = String(item.username || "").trim();
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
 export function reactionCounts(news, issueId, itemId, email = "") {
   const rows = (news?.reactions || []).filter((item) => item.issueId === issueId && item.itemId === itemId);
   const mine = rows.find((item) => item.email === email)?.reaction || null;
@@ -196,7 +218,22 @@ export function reactionCounts(news, issueId, itemId, email = "") {
     up: rows.filter((item) => item.reaction === "up").length,
     down: rows.filter((item) => item.reaction === "down").length,
     mine,
+    upNames: namesFor(rows, "up"),
+    downNames: namesFor(rows, "down"),
   };
+}
+
+export function publicComments(news, issueId, itemId, actor) {
+  return (news?.comments || [])
+    .filter((item) => item.issueId === issueId && item.itemId === itemId)
+    .slice(-20)
+    .map((item) => ({
+      id: item.id,
+      username: item.username || "Member",
+      body: item.body,
+      at: item.at,
+      mine: !!actor?.email && item.email === actor.email,
+    }));
 }
 
 export function findIssueItem(issue, itemId) {
@@ -216,13 +253,8 @@ export function isUnread(news) {
 }
 
 export function reactToItem(news, actor, { issueId, itemId, reaction }, now = Date.now()) {
-  const next = {
-    draft: news?.draft || null,
-    published: news?.published || null,
-    seen: news?.seen || null,
-    reactions: Array.isArray(news?.reactions) ? news.reactions.slice() : [],
-  };
-  if (!actor?.email) return { ok: false, status: 401, error: "Sign in with the email on your licence first." };
+  const next = newsShell(news);
+  if (!actor?.email || !actor?.username) return { ok: false, status: 401, error: "Pick a username first." };
   if (!next.published || next.published.id !== issueId || next.published.status !== "published") {
     return { ok: false, status: 404, error: "That issue is not published." };
   }
@@ -230,8 +262,32 @@ export function reactToItem(news, actor, { issueId, itemId, reaction }, now = Da
   const choice = reaction === "clear" ? "" : reaction;
   if (choice !== "" && choice !== "up" && choice !== "down") return { ok: false, status: 400, error: "Choose a reaction." };
   next.reactions = next.reactions.filter((item) => !(item.email === actor.email && item.issueId === issueId && item.itemId === itemId));
-  if (choice) next.reactions.push({ email: actor.email, issueId, itemId, reaction: choice, at: now });
+  if (choice) next.reactions.push({ email: actor.email, username: actor.username, issueId, itemId, reaction: choice, at: now });
   return { ok: true, counts: reactionCounts(next, issueId, itemId, actor.email), news: next };
+}
+
+export function addComment(news, actor, { issueId, itemId, body }, now = Date.now()) {
+  const next = newsShell(news);
+  if (!actor?.email || !actor?.username) return { ok: false, status: 401, error: "Pick a username first." };
+  if (!next.published || next.published.id !== issueId || next.published.status !== "published") {
+    return { ok: false, status: 404, error: "That issue is not published." };
+  }
+  if (!findIssueItem(next.published, itemId)) return { ok: false, status: 404, error: "That item is not in this issue." };
+  const text = String(body || "").trim();
+  if (text.length < 2 || text.length > 300) return { ok: false, status: 400, error: "Write a short comment first." };
+  if (findSecret(text) || findProfanity(text)) return { ok: false, status: 400, error: "That comment cannot be posted." };
+  const comment = {
+    id: `n-${crypto.randomBytes(4).toString("hex")}`,
+    email: actor.email,
+    username: actor.username,
+    issueId,
+    itemId,
+    body: text,
+    at: now,
+  };
+  next.comments.push(comment);
+  if (next.comments.length > 200) next.comments = next.comments.slice(-200);
+  return { ok: true, comment: { id: comment.id, username: comment.username, body: comment.body, at: comment.at, mine: true }, news: next };
 }
 
 function esc(value) {

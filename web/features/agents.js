@@ -163,7 +163,7 @@ const promptCard = (p) => `<div class="row small" style="gap:6px;padding:6px 0;b
   <div style="flex:1;min-width:160px"><b>${esc(p.name)}</b>${p.agentName ? ` <span class="chip">${esc(p.agentName)}</span>` : ""}<div class="dim mono" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px">${esc(p.text)}</div></div>
   <button class="btn sm primary" data-puse="${esc(p.id)}">Use</button><button class="btn sm" data-pedit="${esc(p.id)}">Edit</button><button class="btn sm" data-pshare="${esc(p.id)}">Share</button><button class="btn sm" data-pchat="${esc(p.id)}">Share in chat</button><button class="btn sm" data-plist="${esc(p.id)}">List</button><button class="btn sm" data-pdel="${esc(p.id)}" title="Delete">✕</button></div>`;
 const sharedCard = (x) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
-  <div style="flex:1;min-width:160px"><b>${esc(x.name)}</b> <span class="chip">${x.kind}</span> <span class="dim">${esc(x.workspaceName || "workspace")} · shared by ${esc(x.mine ? "you" : x.sharedBy || "someone")} · you are ${esc(x.role)}</span>
+  <div style="flex:1;min-width:160px"><b>${esc(x.name)}</b> <span class="chip">${x.kind}</span> <span class="dim">${esc(x.workspaceName || "workspace")} · shared by ${esc(x.sharedBy || "someone")} · you are ${esc(x.role)}</span>
     ${x.permissions.use ? "" : `<div class="dim">Read-only for your role.</div>`}</div>
   <button class="btn sm" data-sview="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">View</button>
   ${x.permissions.use ? `<button class="btn sm primary" data-srun="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">${x.kind === "agent" ? "Run" : "Use"}</button><button class="btn sm" data-scopy="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">Copy to mine</button>` : ""}
@@ -181,7 +181,9 @@ async function renderTab(view) {
         <div class="small muted">An agent is a model with your instructions, the tools and libraries it may use, and a few starter prompts. Runs use your own keys and show in the Command view.</div>
         ${d.agents.length ? d.agents.map(agentCard).join("") : `<div class="dim small" style="margin-top:8px">No agents yet.</div>`}
         <div class="row" style="gap:8px;margin-top:10px"><button class="btn sm" id="ag-export">Export all</button><button class="btn sm" id="ag-import">Import a file</button></div></div>
-      <div class="panel"><h3>Shared with my workspaces</h3>${d.sharedError ? `<div class="small dim">${esc(d.sharedError)}</div>` : ""}
+      <div class="panel"><h3>Builders gallery</h3>
+        <div class="small muted">Agents and prompts shared from accounts. Each one shows a public username. Email stays private.</div>
+        ${d.sharedError ? `<div class="small dim">${esc(d.sharedError)}</div>` : ""}
         ${d.shared.length ? d.shared.map(sharedCard).join("") : `<div class="dim small">Nothing shared yet.</div>`}</div>
     </div>
     <div class="grid" style="align-content:start">
@@ -190,7 +192,7 @@ async function renderTab(view) {
         <div class="small muted">Saved prompts with {{variables}}: a small form asks for each value before sending.</div>
         ${d.prompts.length ? d.prompts.map(promptCard).join("") : `<div class="dim small" style="margin-top:8px">No saved prompts yet.</div>`}</div>
       <div class="panel"><h3>Marketplace drafts</h3>
-        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">✕</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
+        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}${l.author ? ` · by ${esc(l.author)}` : ""}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">✕</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
         <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>
     </div></div>`;
   const $v = (s) => view.querySelector(s);
