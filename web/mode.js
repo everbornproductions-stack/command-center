@@ -4,7 +4,10 @@
 
 export const CREATE_VIEWS = ["prompts", "images", "media", "publish", "remix", "builders", "webbuilders"];
 
-export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", "community", ...CREATE_VIEWS]);
+// Inbox, day plan, and People. Simple reaches them from My day. Expert menus are unchanged.
+export const DAY_VIEWS = ["everyday-inbox", "everyday-plan", "userchat"];
+
+export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", "community", ...CREATE_VIEWS, ...DAY_VIEWS]);
 
 // Command widgets and settings panels that Simple does not draw. The modules stay loaded,
 // so a hotkey or a switch back to Expert still reaches them.
@@ -55,8 +58,9 @@ export function simpleAllows(view) {
 export function simpleTop(views) {
   const have = new Set(views || []);
   return {
-    labels: ["Chat", "Projects", "Create", "Help", "Settings"],
+    labels: ["Chat", "Projects", "My day", "Create", "Help", "Settings"],
     create: CREATE_VIEWS.filter((id) => have.has(id)),
+    day: DAY_VIEWS.filter((id) => have.has(id)),
     settings: ["settings", ...(have.has("setup") ? ["setup"] : []), "tour"],
     hidden: [...have].filter((id) => !SIMPLE_VIEWS.has(id)),
   };

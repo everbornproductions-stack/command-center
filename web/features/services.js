@@ -94,7 +94,7 @@ function subsPanel(v) {
     <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" max="60" step="1" data-f="remindDays" value="${s.remindDays}" style="width:56px"><span class="dim small">days</span></span>${s.origin?.remindDays ? tag("user") : `<span class="sv-tag">default</span>`}</div></td>
     <td><div class="sv-cell"><span class="row" style="gap:4px"><input type="number" min="0" data-f="credits" value="${s.credits ?? ""}" style="width:72px" ${s.creditsFrom === "api" ? "disabled" : ""}><span class="dim">/</span><input type="number" min="0" data-f="creditsTotal" value="${s.creditsTotal ?? ""}" style="width:72px" ${s.creditsFrom === "api" ? "disabled" : ""}></span>${s.credits == null ? tag("none") : s.creditsFrom === "api" ? tag("api") : s.creditsFrom === "ledger" ? tag("ledger") : fieldTag(s, "credits")}</div></td>
     <td><span class="sig ${esc(s.signal)}">${esc(s.signal)}</span><div class="dim small">${esc(s.why || "")}</div></td>
-    <td class="right nowrap"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" title="Remove from the tracker">✕</button></td>
+    <td class="right nowrap"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" title="Remove from the tracker">Remove</button></td>
   </tr>`).join("")}
   </tbody></table>
   <div class="row small" style="gap:8px;margin-top:10px;flex-wrap:wrap" id="sv-add">

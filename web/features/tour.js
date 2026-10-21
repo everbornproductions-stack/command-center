@@ -4,20 +4,29 @@ import { liveProbe, rememberWalks, tourSteps } from "./guide.js";
 
 const { S, api, toast, esc, go } = window.CC;
 
+// Short Simple tour. Each body stays at 30 words or fewer, with no expert jargon.
+export const SIMPLE_STEPS = [
+  { id: "s-type", for: "simple", target: "#orders", view: "command", title: "Type your question here", body: "Type what you want in the box. Then tap Send. Meldmind picks an AI for you." },
+  { id: "s-example", for: "simple", target: "#cc-starters", view: "command", title: "Or tap an example", body: "Or tap an example under the box. It fills the words. You can change them before you send." },
+  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Your answer shows here. Tap Read aloud to hear it." },
+  { id: "s-help", for: "simple", target: "#help-search", view: "help", title: "Help is here, any time", body: "Help is here, any time. Type a question in your own words." },
+  { id: "s-text", for: "simple", target: "#basics-reading", view: "settings", title: "Make text bigger", body: "Make text bigger in Settings. Open Text and reading, then pick Large or Extra large." },
+];
+
 const css = `
 #cc-tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
 #cc-tour .spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(3,6,12,.58), 0 0 0 2px var(--accent); transition: all .25s ease; }
 #cc-tour .spot.none { box-shadow: 0 0 0 9999px rgba(3,6,12,.58); width: 0; height: 0; left: 50%; top: 50%; }
-#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 13.5px; line-height: 1.5; }
-#cc-tour .card h4 { margin: 0 0 6px; font-size: 16px; }
-#cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 11px; margin-left: auto; }
+#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
+#cc-tour .card h4 { margin: 0 0 6px; font-size: 1rem; }
+#cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 0.6875rem; margin-left: auto; }
 #cc-tour .plan { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; }
 #cc-tour .card .note { margin-top: 6px; }
-.cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
+.cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 0.8125rem; }
 #cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: calc(100vw - 32px); min-width: 0; box-sizing: border-box; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
-#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 18px; }
-#cc-whats-new h5 { margin: 14px 0 2px; font-size: 14px; font-weight: 650; text-transform: none; letter-spacing: 0; }
+#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 1.125rem; }
+#cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
 #cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
 #cc-whats-new .ver + .ver { border-top: 1px solid var(--line-2); margin-top: 10px; }
@@ -31,6 +40,7 @@ let idx = -1;
 let el = null;
 let timer = null;
 let pinned = null;
+let fullTour = false;
 let newsOpen = false;
 let newsDismissed = false;
 let desktopOpen = false;
@@ -57,8 +67,15 @@ function extraSteps() {
     .filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"))
     .map((s) => ({ ...s, open: s.open || (s.view ? { view: s.view, focus: s.target || "" } : null) }));
 }
+function fullSteps() {
+  return [...tourSteps(liveProbe()), ...extraSteps()];
+}
+// Simple gets the five short steps. See what else it can do opens the full tour.
 function steps() {
-  return pinned || [...tourSteps(liveProbe()), ...extraSteps()];
+  if (pinned) return pinned;
+  const mode = window.CC.uiMode?.() || "expert";
+  if (mode === "simple" && !fullTour) return SIMPLE_STEPS;
+  return fullSteps();
 }
 function answeredOnce() {
   try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch { /* storage can be off */ }
@@ -196,10 +213,12 @@ async function allowDesktop(install) {
 
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
 
-export async function start(at = 0) {
+export async function start(at = 0, opts = {}) {
+  fullTour = !!opts.full;
   document.querySelector(".cc-tour-invite")?.remove();
   await rememberWalks(api);
-  pinned = tourSteps(liveProbe());
+  pinned = null;
+  pinned = steps();
   if (!pinned.length) {
     pinned = null;
     toast("The tour is empty because those pages are not in this app yet.");
@@ -213,6 +232,7 @@ export async function start(at = 0) {
   }
   show(at);
 }
+export function startFull() { start(0, { full: true }); }
 function close() {
   pinned = null;
   if (!el) return;
@@ -240,8 +260,11 @@ function show(i) {
   if (!list.length) return close();
   if (i >= list.length) i = list.length - 1;
   idx = i; const st = list[i];
+  if (st.target === "#basics-reading") S.settingsMore = false;
   if (st.view && S.view !== st.view) go(st.view);
+  else if (st.target === "#basics-reading" && S.view === "settings") go("settings");
   const last = i === list.length - 1;
+  const simpleShort = (window.CC.uiMode?.() || "expert") === "simple" && !fullTour;
   const price = !st.tier ? "" : st.tier === "free" ? "Free" : `${esc(st.tierLabel)}, ${esc(st.price)}`;
   const card = el.querySelector(".card");
   card.innerHTML = `<div class="row" style="gap:8px"><h4>${esc(st.title)}</h4><span class="step">${i + 1} / ${list.length}</span></div>
@@ -249,8 +272,9 @@ function show(i) {
     <div class="muted">${esc(st.body)}</div>
     ${st.priceNote ? `<div class="note dim small">${esc(st.priceNote)}</div>` : ""}
     ${st.open ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-try" type="button">Try it</button></div>` : ""}
-    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next"}</button></div>`;
+    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${simpleShort && last ? `<button class="btn sm" id="cc-tour-more" type="button">See what else it can do</button>` : ""}${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next"}</button></div>`;
   card.querySelector("#cc-tour-skip").addEventListener("click", skip);
+  card.querySelector("#cc-tour-more")?.addEventListener("click", () => { fullTour = true; pinned = fullSteps(); show(0); });
   card.querySelector("#cc-tour-back")?.addEventListener("click", back);
   card.querySelector("#cc-tour-next").addEventListener("click", next);
   card.querySelector("#cc-tour-try")?.addEventListener("click", () => { follow(st.open); requestAnimationFrame(position); });
@@ -282,21 +306,22 @@ function renderPanel(el2) {
   const t = tour || {};
   const n = steps().length;
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${n} steps in this app. Each one has a Try it button. Skip any time, and replay from Help.</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><button class="btn sm" id="cc-tour-full" type="button">See what else it can do</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${n} steps in this app. Each one has a Try it button. Skip any time, and replay from Help.</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
   el2.querySelector("#cc-news-open").addEventListener("click", () => openNews());
+  el2.querySelector("#cc-tour-full").addEventListener("click", () => { go("command"); setTimeout(() => startFull(), 120); });
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });
   if (!Array.isArray(window.CC.guideWalks)) rememberWalks(api).then(() => { if (el2.isConnected) renderPanel(el2); });
 }
 
-function onMode() { if (idx >= 0) show(0); }
+function onMode() { if (idx >= 0) { pinned = null; pinned = steps(); show(0); } }
 function markFirstAnswer() {
   try { localStorage.setItem("cc.firstAnswer", "1"); } catch { /* storage can be off */ }
   maybeInvite();
 }
 window.CC.firstAnswer = markFirstAnswer;
-window.CC.tour = { start, open: start, openNews, state: () => tour, onMode, onAnswer: markFirstAnswer };
+window.CC.tour = { start, startFull, open: start, openNews, state: () => tour, onMode, onAnswer: markFirstAnswer, simpleSteps: () => SIMPLE_STEPS.slice() };
 
 CC.register({
   id: "tour",

@@ -29,7 +29,7 @@ async function renderTab(view) {
           <label class="dim small"><input type="checkbox" data-pick="${esc(s.id)}" value="${esc(m.email)}" aria-label="Add ${esc(m.email)} to a group"> Group</label>
         </div>`).join("") || `<div class="dim small">No one else is in this team space yet.</div>`}
         ${s.role === "viewer" ? `<div class="dim small">You can read this team space. A viewer cannot send.</div>` : `<button class="btn sm" type="button" data-group="${esc(s.id)}" style="margin-top:6px">Start group chat</button>`}
-      `).join("") : `<div class="empty">No team space yet. Invite people from Teams. Messages stay on this computer.</div>`}
+      `).join("") : `<div class="empty">Chat with people you invite. This is part of Extreme. <button type="button" class="btn sm" id="uc-plans">See plans</button><div class="dim small" style="margin-top:8px">Nothing is sent until you click Send.</div></div>`}
       ${(d.blocks || []).length ? `<div class="cat-h" style="margin-top:12px">Blocked</div>` + d.blocks.map((b) => `<div class="row small" style="gap:6px"><span style="flex:1">${esc(b.key)}</span><button class="ghost small" type="button" data-unblock="${esc(b.key)}">Unblock</button></div>`).join("") : ""}
     </div>
     <div class="panel"><h3>${thread ? esc(thread.title || "Chat") : "Chat"}</h3>
@@ -49,6 +49,11 @@ async function renderTab(view) {
       ${(d.reports || []).length ? `<div class="dim small" style="margin-top:8px">${d.reports.length} report${d.reports.length === 1 ? "" : "s"} saved on this computer. Nothing was sent.</div>` : ""}
     </div>
   </div>`;
+  view.querySelector("#uc-plans")?.addEventListener("click", () => {
+    const S = window.CC.S;
+    if (S) { S.settingsMore = true; S.navFocus = "#settings-plan"; }
+    window.CC.go?.("settings");
+  });
   const box = view.querySelector("#uc-text");
   if (box) box.addEventListener("input", () => { draft = box.value; });
   view.querySelectorAll("[data-dm]").forEach((b) => b.addEventListener("click", async () => {

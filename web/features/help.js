@@ -2,12 +2,13 @@
 // Ask sends only when the button is clicked. With no connected AI the server returns search hits.
 // What can Meldmind do? is the same guide as the tour. A row hides when its page is missing.
 import { liveProbe, matchesQuery, rememberWalks, visibleGuide } from "./guide.js";
+import { helpOrder, searchArticles, tryThese } from "../help-rank.js";
 
 const { api, toast, esc, md, go } = window.CC;
 
 const css = `
 .can-do-row { display: grid; gap: 4px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-.can-do-row h4 { margin: 0; font-size: 15px; }
+.can-do-row h4 { margin: 0; font-size: 0.9375rem; }
 .can-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 `;
 if (!document.getElementById("cc-can-do-style")) {
@@ -29,6 +30,7 @@ function follow(open) {
 
 function renderTab(view) {
   view.innerHTML = `<div class="help-page">
+    <div class="panel" id="help-article" hidden></div>
     <div class="panel" id="can-do">
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
         <h3 style="margin:0">What can Meldmind do?</h3>
@@ -39,17 +41,16 @@ function renderTab(view) {
       <input id="can-do-search" type="search" placeholder="Try councils, remix, or phone" autocomplete="off">
       <div id="can-do-list" class="help-list"></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="help-list-panel">
       <h3>Help</h3>
       <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
       <p class="hint" role="note">You can type in any language.</p>
-      <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
       <label class="lbl" for="help-search">Search</label>
-      <input id="help-search" type="search" placeholder="Search help" autocomplete="off">
+      <input id="help-search" type="search" placeholder="Try: how do I ask a question" autocomplete="off">
+      <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
       <div id="help-list" class="help-list"></div>
     </div>
-    <div class="panel" id="help-article" hidden></div>
-    <div class="panel">
+    <div class="panel" id="help-ask-panel">
       <h3>Ask Meldmind</h3>
       <label class="lbl" for="help-q">Question</label>
       <textarea id="help-q" rows="3" placeholder="Ask about keys, Simple mode, or approvals"></textarea>
@@ -59,10 +60,11 @@ function renderTab(view) {
         <button class="btn sm" type="button" id="help-replay">Replay the tour</button>
         <button class="btn sm" type="button" id="help-news">What's new</button>
         <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="text-decoration:none">Download the guide (PDF)</a>
+        <button class="btn sm" type="button" id="help-more-tour">See what else it can do</button>
         <button class="btn sm" type="button" id="help-examples">Watch example projects</button>
         <button class="btn sm" type="button" id="help-upd">Check for updates</button>
         <button class="btn sm" type="button" id="help-setup">Run setup again</button>
-        <p class="dim small" style="margin:8px 0 0">Take the tour again any time. Watch example projects replays a labeled sample. No AI is called for an example.</p>
+        <p class="dim small" style="margin:8px 0 0">Take the tour again any time. See what else it can do opens the longer tour. Watch example projects replays a labeled sample. No AI is called for an example.</p>
       </div>
       <div id="help-answer" class="help-answer"></div>
     </div>
@@ -71,6 +73,7 @@ function renderTab(view) {
   let articles = [];
   let guideRows = [];
   const list = view.querySelector("#help-list");
+  const listPanel = view.querySelector("#help-list-panel");
   const article = view.querySelector("#help-article");
   const canList = view.querySelector("#can-do-list");
 
@@ -104,16 +107,38 @@ function renderTab(view) {
   }
 
   function showList(q) {
-    const query = String(q || "").trim().toLowerCase();
-    const rows = articles.filter((a) => !query || `${a.title} ${a.summary} ${a.body}`.toLowerCase().includes(query));
-    list.innerHTML = rows.map((a) => `<button type="button" class="help-item" data-id="${esc(a.id)}"><b>${esc(a.title)}</b><span class="dim small">${esc(a.summary)}</span></button>`).join("")
-      || `<div class="dim small">No matching article.</div>`;
+    const query = String(q || "").trim();
+    const rows = query ? searchArticles(articles, query, 12) : helpOrder(articles);
+    if (!rows.length) {
+      const picks = tryThese(articles);
+      list.innerHTML = `<div class="small">No article used those words. Try these:</div>`
+        + picks.map((a) => `<button type="button" class="help-item" data-id="${esc(a.id)}"><b>${esc(a.title)}</b><span class="dim small">${esc(a.summary)}</span></button>`).join("")
+        + `<p style="margin-top:8px"><button type="button" class="btn sm primary" id="help-empty-ask">Ask Meldmind</button></p>`;
+      list.querySelector("#help-empty-ask")?.addEventListener("click", () => {
+        const box = view.querySelector("#help-q");
+        if (box) { box.value = query; box.focus(); }
+        view.querySelector("#help-ask-panel")?.scrollIntoView({ block: "start" });
+      });
+      return;
+    }
+    list.innerHTML = rows.map((a) => `<button type="button" class="help-item" data-id="${esc(a.id)}"><b>${esc(a.title)}</b><span class="dim small">${esc(a.summary)}</span></button>`).join("");
   }
   function openArticle(id) {
     const a = articles.find((x) => x.id === id);
     if (!a) return;
+    listPanel.hidden = true;
     article.hidden = false;
-    article.innerHTML = `<h3>${esc(a.title)}</h3><div class="md">${md(a.body)}</div>`;
+    article.innerHTML = `<p><button type="button" class="btn sm" id="help-back">Back to all help</button></p><h3 id="help-article-title">${esc(a.title)}</h3><div class="md">${md(a.body)}</div>`;
+    article.querySelector("#help-back").addEventListener("click", () => {
+      article.hidden = true;
+      article.innerHTML = "";
+      listPanel.hidden = false;
+      const scroller = document.getElementById("view");
+      if (scroller) scroller.scrollTop = 0;
+    });
+    const scroller = document.getElementById("view");
+    if (scroller) scroller.scrollTop = 0;
+    article.querySelector("#help-article-title")?.focus?.();
   }
 
   view.addEventListener("click", (e) => {
@@ -133,7 +158,7 @@ function renderTab(view) {
       return;
     }
     const b = e.target.closest("[data-id]");
-    if (b) openArticle(b.dataset.id);
+    if (b && view.contains(b)) openArticle(b.dataset.id);
   });
   view.querySelector("#help-search").addEventListener("input", (e) => showList(e.target.value));
   view.querySelector("#can-do-search").addEventListener("input", (e) => showCanDo(e.target.value));
@@ -157,6 +182,7 @@ function renderTab(view) {
   view.querySelector("#help-start").addEventListener("click", () => { (window.CC.startProject?.open || window.CC.go)?.("start"); });
   view.querySelector("#help-replay").addEventListener("click", () => { window.CC.tour?.start?.(); });
   view.querySelector("#help-news").addEventListener("click", () => { window.CC.tour?.openNews?.(); });
+  view.querySelector("#help-more-tour").addEventListener("click", () => { (window.CC.tour?.startFull || window.CC.tour?.start)?.(); });
   view.querySelector("#help-examples").addEventListener("click", () => { (window.CC.startProject?.examples || window.CC.startProject?.open || window.CC.go)?.(); });
   view.querySelector("#help-setup").addEventListener("click", () => { window.CC.connectSetup?.open?.(); });
   view.querySelector("#help-pdf").addEventListener("click", async () => {

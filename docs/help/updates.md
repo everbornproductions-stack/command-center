@@ -25,4 +25,4 @@ A packaged install includes what the engine needs to start. If the app did not o
 
 ## Mac
 
-The Mac build is unsigned. The first time you open it, right-click the app, then Open. Automatic updates for Mac are coming soon. Until then, Install now opens the download page. Drag the app to Applications and choose Replace. Your settings, keys, and projects stay in `~/Library/Application Support/Everborn Command`.
+The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway. Automatic updates for Mac are coming soon. Until then, Install now opens the download page. Drag the app to Applications and choose Replace. Your settings, keys, and projects stay in `~/Library/Application Support/Everborn Command`.

@@ -25,7 +25,7 @@ Community is in the Business menu, and under Help in Simple. AI News sits next t
 
 Until you add a key, Demo can answer in the chat and nothing is spent. Demo does not answer Ask Meldmind.
 
-On a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon.
+On a Mac, the app is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway. Automatic updates for Mac are coming soon.
 
 When you come back, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer. Tone buttons set the next answer only (shorter, warmer, more direct, or plain words) and do not send by themselves. AI credits shows what is left for each AI. Each answer says which AI wrote it. The first council explains itself in plain words. A council or mission lists who will read the prompt before it is sent, including tools and connected services. You can remove one reader. Nothing is sent until Send. After you delete a project, the receipt can be saved as its own file.
 
@@ -77,7 +77,7 @@ Settings shows what your ratings taught. Thumbs up and thumbs down change who ge
 
 ## Pause a mission
 
-Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are. A scheduled mission is cancelled with abort, not paused.
+Pro can pause a mission, edit the steps that have not finished, and resume. Done steps stay as they are. Click Stop to cancel a scheduled mission. It is not paused.
 
 ## Appearance
 
@@ -89,3 +89,23 @@ The first setup screen includes Let Meldmind use your desktop. You can skip it. 
 ## Prompts you can vote on
 
 Under marching orders, popular prompts are suggested first. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. Weekly packs include a Builders category. Snap my receipt and log it opens Receipt Snap when that builder is installed. If it is not installed yet, the words go in the chat. Inspired by names the source. Nothing is sent until you click Send.
+
+## Easier to use
+
+Help search answers a plain question. Start here stays pinned. Back to all help returns to the list.
+
+Large and Extra large text grow buttons, labels, headings, and chips. Simple setup asks Bigger text with a live preview. Nothing in Simple is drawn smaller than 14 pixels at the default size, and buttons are at least 16.
+
+Simple Settings starts with five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens every other panel. Expert settings stay the full page.
+
+Reply, forward, share, and similar actions wait for a second click before they run.
+
+The Simple tour has five short steps. See what else it can do opens the full tour.
+
+My day in Simple opens Inbox and tasks, Day plan, and People. Nothing is sent until you click Send.
+
+Remove, Good, and Not good are written on those buttons.
+
+A practice answer says it is from a pretend AI. Nothing was spent. Get real answers sits on that note.
+
+On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.

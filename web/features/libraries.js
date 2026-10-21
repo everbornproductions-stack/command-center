@@ -117,7 +117,7 @@ function bodyHtml(l) {
       <details style="margin-top:6px" ${st.notion.pages ? "open" : ""} data-notion-box><summary class="small" style="cursor:pointer">Notion</summary><div data-notion>${notionHtml()}</div></details>
       ${st.stage?.libraryId === l.id ? stageHtml(st.stage) : ""}
       <div class="cat-h" style="margin-top:12px">In this library</div>
-      ${det ? (det.documents.length ? `<div class="lib-list">${det.documents.map((d) => `<div class="row small" style="gap:6px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.ref)}">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</span><span class="dim">${esc(SRC_LABEL[d.source] || d.source)} · ${d.chunks}</span><button class="ghost small" data-rmdoc="${d.id}" title="Remove from the library">✕</button></div>`).join("")}</div>` : `<div class="small dim">Empty. Add files above.</div>`) : `<div class="small dim">Loading…</div>`}
+      ${det ? (det.documents.length ? `<div class="lib-list">${det.documents.map((d) => `<div class="row small" style="gap:6px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.ref)}">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</span><span class="dim">${esc(SRC_LABEL[d.source] || d.source)} · ${d.chunks}</span><button class="ghost small" data-rmdoc="${d.id}" title="Remove from the library">Remove</button></div>`).join("")}</div>` : `<div class="small dim">Empty. Add files above.</div>`) : `<div class="small dim">Loading…</div>`}
     </div>
     <div>
       <div class="cat-h">Use it</div>

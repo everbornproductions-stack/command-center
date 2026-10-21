@@ -64,4 +64,4 @@ Send, buy, and delete wait for a second click. A banner says Meldmind is using t
 
 A signed-in Edge or Chrome profile stays off until you opt in, and it does not start while that browser is open. The screenshot fallback stays off until you turn it on for that app, and it stops at its spend cap.
 
-This build practices those doors with stand-in pages and stand-in windows. It does not open Edge, read a browser profile, or call UI Automation.
+A website step can open Edge. A signed-in browser profile stays off until you opt in, and it does not start while that browser is already open. Windows UI Automation is used on this PC when you allow the app. Tests use stand-in drivers and do not launch a browser.

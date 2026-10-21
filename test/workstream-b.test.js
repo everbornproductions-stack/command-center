@@ -118,8 +118,8 @@ test("the screens say the workstream B lines, with no em dash", () => {
   assert.doesNotMatch(files.help, /href="\/api\/help\/security\.pdf"/);
   assert.match(files.prompts, /Real estate and mortgage modes are coming/);
   assert.match(files.market, /Loading Marketplace/);
-  assert.match(files.css, /\.hint \{ font-size: 13px/);
-  assert.match(files.css, /\.small \{ font-size: 13px/);
+  assert.match(files.css, /\.hint \{ font-size: 0\.8125rem/);
+  assert.match(files.css, /\.small \{ font-size: 0\.8125rem/);
   assert.match(files.guide, /^# Meldmind user guide/);
   assert.match(files.guide, /Meldmind-Setup-/);
   assert.doesNotMatch(files.guide, /Command AI/);

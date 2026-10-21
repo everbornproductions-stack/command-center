@@ -2387,3 +2387,15 @@ The username is no longer only for chat. No locked decision was changed. Phase 9
 - One public username is stored on the account. First-run setup asks for it. Skip keeps the suggested name. Start saves the typed name, or the suggestion if the field is empty. The name is 3 to 20 characters, letters, numbers, and underscore, and it is unique without regard to case. Names that include meldmind, admin, or everborn are refused. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. Email stays off those public screens. The owner's own licence screen still shows the account email.
 - The name can be changed in Settings. The first choice is immediate. The next change waits 1 hour. Saving the same name again does nothing. A comment is a click. Nothing is posted until Send.
 - Tests here (Linux): npm test passed. The mcp file passed 8/8, then 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. Windows is the pull request check. A fresh install was clicked through in a browser: the suggested name was Sunny_River, the field was changed to Sunny_Finch, Skip kept Sunny_River, Settings showed that name and the one hour wait, chat posted as Sunny_River, an AI News comment used that name, and the Builders gallery heading was on the Agents screen. Those public screens did not show an email.
+## 2026-10-21: Ease of use from the v0.4.9 tester panel
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.10. No release tag was moved. Square and billing were not touched. data/ was not read.
+
+- Help search ranks ordinary questions. Start here is pinned. An open article sits at the top with Back to all help. An empty search offers three articles and Ask Meldmind, which does not send by itself.
+- Large and Extra large set the size on the html element so buttons, labels, headings, and chips grow. Simple keeps buttons at 16px and other small text at 14px. First-run Simple setup asks Bigger text? with a live preview. The top bar stays on one row from 1024px wide.
+- Simple Settings opens five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens the existing page and a search box. Expert is still the full page.
+- Reply, forward, share, invite, submit, transfer, refund, cancel, remove, archive, move, unsubscribe, order, checkout, sign, approve, update, edit, write, create, schedule, and book wait for a second click. A tool is read-only only when its name starts with a read word and the name has no risky word. The demo clock stays read-only.
+- The Simple tour is five short steps. See what else it can do opens the full tour.
+- My day in Simple opens Inbox and tasks, Day plan, and People. Icon buttons say Remove, Delete, Close, Good, or Not good. A practice answer says it is from a pretend AI. Help dropped the stale Mac and abort lines. The data folder name stays Everborn Command (decision 2).
+
+EASE OF USE (panel items, not a new version)
