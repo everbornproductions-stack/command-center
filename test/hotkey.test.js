@@ -108,7 +108,9 @@ test("server: the route works without a desktop (saved, validated), quick.html g
     assert.equal(r.desktop, false); assert.equal(r.enabled, true); assert.equal(r.accelerator, "Alt+Space"); assert.equal(r.registered, false);
     assert.match(r.reason, /desktop app/);
     assert.equal((await s.api("/hotkey", { method: "POST", body: { accelerator: "K" } })).status, 400);
-    assert.equal((await s.api("/hotkey", { method: "POST", body: { accelerator: "Ctrl+Alt+Delete" } })).status, 400);
+    // Ctrl+Alt+Delete is reserved on Windows and Linux. Spotlight (Command+Space) is the Mac one.
+    const osShortcut = process.platform === "darwin" ? "Command+Space" : "Ctrl+Alt+Delete";
+    assert.equal((await s.api("/hotkey", { method: "POST", body: { accelerator: osShortcut } })).status, 400);
     r = await s.api("/hotkey", { method: "POST", body: { accelerator: "ctrl+shift+k", enabled: false } });
     assert.equal(r.status, 200); assert.equal(r.json.accelerator, "Ctrl+Shift+K"); assert.equal(r.json.enabled, false);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(s.dir, "hotkey.json"), "utf8")), { enabled: false, accelerator: "Ctrl+Shift+K" });

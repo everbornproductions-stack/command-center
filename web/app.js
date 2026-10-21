@@ -334,7 +334,8 @@ function handle(ev) {
       applyState(ev.state);
       S.feed = (ev.state.recent || []).filter((e) => ["log", "agent.msg", "agent.error", "agent.start", "agent.done", "provider.status", "ledger.entry"].includes(e.type)).slice(-60);
       const run = ev.state.lastRun;
-      if (run && !S.live.id) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
+      const runFinished = run && ["done", "done-with-errors", "failed", "aborted", "cancelled"].includes(run.status);
+      if (run && !S.live.id && !runFinished) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
       if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
       else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
@@ -1207,7 +1208,7 @@ function renderCouncil() {
     const waiting = isGrok && !text && !a.error;
     const followWait = isGrok && !!text && (stored?.followPending || partsFor(a.model).some((p) => p.pending));
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
-      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
+      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
       <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span></div>
       <div class="body md">${waiting ? grokWaitHtml() : md(text)}</div>
       ${followWait ? grokWaitHtml() : ""}
@@ -1225,8 +1226,8 @@ function renderOutput() {
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">The answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
-  h.textContent = prim ? `${pname(prim.provider)} · ${prim.model}` : "";
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
+  h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); paintFailure(); return; }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
@@ -1264,7 +1265,7 @@ function outputFollowHtml() {
     blocks.push((c.members || []).map((m) => {
       const a = c.answers?.[m.model];
       if (!a?.text) return "";
-      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
+      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
     }).join(""));
     blocks.push((c.agents || []).filter((g) => g.id === "grokbot").map(() => {
       const a = c.answers?.grokbot || {};
@@ -1379,6 +1380,13 @@ async function sendOrders() {
   S.awaitingRun = true;
   syncSendButton();
   try {
+    const priv = !!S.settings?.privateMode;
+    let skip = [];
+    if (!simple && (mode === "council" || mode === "mission") && window.CC?.desk?.beforeSend) {
+      const allowed = await window.CC.desk.beforeSend({ mode, prompt });
+      if (!allowed || allowed.ok === false) { S.awaitingRun = false; return; }
+      if (Array.isArray(allowed.skip)) skip = allowed.skip;
+    }
     const packBody = attached ? { promptPack: attached } : (pp?.removed ? { promptPack: { removed: true } } : {});
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
     if (mode === "single") {
@@ -1388,11 +1396,11 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
-      await api("/chat", { method: "POST", body: { prompt, projectId, ...picked, ...packBody } });
+      await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody } });
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
+    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } });
+    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
     S.live = newLive(); S.live.status = "running"; renderOps();
   } catch (e) {
     S.awaitingRun = false;
@@ -1480,7 +1488,29 @@ function renderProjectDetail(v, p) {
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
-  $("#del").addEventListener("click", async () => { if (!confirm(`Delete project "${p.name}"? Links only; nothing external is touched.`)) return; await api(`/projects/${p.id}`, { method: "DELETE" }); S.openProject = null; await refresh(); });
+  $("#del").addEventListener("click", async () => {
+    let lines = `Delete project "${p.name}"? Links on this card go away. Chats stay in My chats. AI keys are not touched.`;
+    try {
+      const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
+      if (preview?.lines?.length) lines = preview.lines.join("\n");
+    } catch { /* the short line above is enough to confirm */ }
+    if (!confirm(`${lines}\n\nDelete this project?`)) return;
+    try {
+      const done = await api(`/projects/${p.id}`, { method: "DELETE" });
+      const file = done.receipt?.file;
+      if (file?.text) {
+        const blob = new Blob([file.text], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = file.name || "meldmind-receipt.txt";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      }
+      toast((done.receipt?.lines || ["Project deleted."]).join(" "));
+      S.openProject = null;
+      await refresh();
+    } catch (e) { toast(e.message, true); }
+  });
   $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = prompt("Link URL"); if (!url) return; const name = prompt("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
   $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });

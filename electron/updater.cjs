@@ -114,7 +114,7 @@ function applyUpdateFeed(autoUpdater, which = "github") {
 
 function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false, readLatest = readPublicLatest }) {
   const listeners = [];
-  let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: 0, offer: "launch", installOnQuit: false };
+  let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: 0, offer: "launch", installOnQuit: false, manual: !!manualInstall };
   let dismissed = null;    // version the person said "Later" to (this launch only)
   let failureNoted = false; // the "Couldn't check" dialog is once per failure, until a check works
   let providerReady = false; // electron-updater has updateInfo, so download can start without another check
@@ -289,7 +289,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     return state;
   }
 
-  const MANUAL_NOTE = "This Mac build cannot replace itself yet (it is not signed). Download the new version from the page that just opened.";
+  const MANUAL_NOTE = "Automatic updates for Mac are coming soon. This Mac build cannot replace itself yet (it is not signed). Download the new version from the page that just opened. Install with a right-click, then Open.";
   function openDownload() {
     log(`update v${state.version}: opening the download page (manual install)`);
     try { ui.openDownload && ui.openDownload(state.version); } catch (e) { log("could not open the download page:", e && e.message); }

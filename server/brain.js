@@ -62,6 +62,15 @@ export function saveBrainSettings(patch = {}) {
 // ---------- cleaning: only known shapes are ever stored ----------
 const cleanId = (s, max = 120) => String(s || "").replace(/[^A-Za-z0-9._:/@+-]/g, "").slice(0, max);
 const cleanRun = (s) => String(s || "").replace(/[^a-z0-9-]/gi, "").slice(0, 40);
+// Private mode: the run stays on this computer and does not teach the router.
+const privateRuns = new Set();
+export function markPrivateRun(id) {
+  const clean = cleanRun(id);
+  if (clean) privateRuns.add(clean);
+}
+export function isPrivateRun(id) {
+  return privateRuns.has(cleanRun(id));
+}
 export const cleanCap = (c) => (TASK_CAPS.includes(c) ? c : "reasoning");
 export const cleanDiff = (d) => Math.min(3, Math.max(1, Math.round(Number(d) || 2)));
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -83,6 +92,7 @@ function rememberRun(b, runId, model, cap, diff) {
 // One job by one model. score / qa are 1-10, won is true / false / null (no council round), cost in USD,
 // ms the wall time of the call. free calls (Phase 26 free tiers) do not count toward cost per job.
 export function observe({ provider, model, capability, difficulty, runId, ok = true, score = null, qa = null, won = null, cost = null, ms = null, free = false } = {}) {
+  if (privateRuns.has(cleanRun(runId))) return null;
   if (!learningOn()) return null;
   const mid = cleanId(model);
   if (!mid) return null;

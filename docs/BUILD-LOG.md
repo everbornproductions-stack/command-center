@@ -1860,3 +1860,42 @@ No product code. Phase 14 stays BLOCKED (needs a Mac). Square and billing were n
 - A pull request starts Windows CI only. That job runs `npm ci`, `npm test`, and `npm run smoke`. It does not package. A push to main still packages, and that installer is not published.
 - Mac CI runs on a `v*` tag or when someone starts the workflow. It does not run on a pull request or on a push to main.
 - Windows CI and Mac CI cancel the older run of the same ref when a new one starts. The Windows release workflow still retries `npm test` once, and it does not cancel a release that is already running.
+## 2026-10-21: 0.4.10 workstream C (unsigned Mac, private mode, backup, home)
+
+Rebased onto main after the plan docs regroup (7eda74e) and the Phase 96 plan note (21bf063). No locked decision was changed. Version stays 0.4.8. Square and billing were not touched. data/ was not read. Nothing was merged.
+
+- Unsigned Mac: the Windows release workflow job `mac-release` builds a dmg and zip with electron-builder, identity null, no Apple signing. A missing release is created as a draft. The job does not upload latest.yml and does not publish. `.github/workflows/mac-ci.yml` runs npm test and npm run smoke on macos-latest for every pull request and every push to main. Windows CI is unchanged and still runs on every pull request. Help, About, and the update window say the first open is a right-click, then Open, and that automatic updates for Mac are coming soon. Install now on an unsigned Mac opens the release page and does not download or quit.
+- Private mode is off until a click. A private run stays on this computer, is not used to teach the router, and is left out of sync. The one-file backup includes it and keeps it marked private. Keys are not in that file.
+- Before a council or mission Send, a dialog lists the AIs that will read the prompt. Nothing is sent until Send. Cancel does not mark the first council as seen. The first council explains, in plain words, that several AIs answer, score each other, and one writes the final answer.
+- Backup and restore is one file (projects, chats, settings). Restore refuses a file that says it includes keys or that contains a key-shaped string. The vault is not touched.
+- Do this again is Pro, gated in server/feature-gate.js. Free gets 402. A missing chat on a Pro or owner copy is 404.
+- Home (Welcome back) shows for a returning user instead of opening a finished last run. A run that is still going still opens. My chats lists chats. Opening one does not start a new job.
+- Delete project asks first and shows a receipt: links, chats that stay in My chats, project files, and a line that AI keys were not touched.
+- Double-check this is free. A second AI reviews the answer. The review is labeled as a check and does not replace the answer.
+- Tone buttons (Shorter, Warmer, More direct, Plain words) rewrite the current answer after a click. Plain credits say what the AIs used this month. Answers say which AI wrote them.
+- Mac fixes in this change: a running Mac browser is asked to quit instead of taskkill, folder open uses `open` on macOS, and the builder stays unsigned even if a cert is present.
+
+PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, Dock, and data folder were not started on macOS. Signing and notarization still need an Apple Developer account. Automatic updates for Mac are coming soon because an unsigned build cannot replace itself.
+
+- Not in this change: removing one reader before Send, listing tools and connected services in that dialog (Phase 74), saving the delete receipt as its own file (Phase 78), tone as a setting for the next answer only (Phase 80), remaining balance per AI (Phase 81), PDF and DOCX export (Phase 85), and industry packs (Phase 84).
+- Tests here (Linux), before this log line, on the same code: npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux clicked Home, private mode, My chats, Written by, tone, Double-check, the first-council dialog, Cancel, the delete receipt, backup, and plain credits. Windows CI and Mac CI were not run on this machine.
+- 0.4.9 feature work had not merged. This branch keeps its own feature gate for private mode, backup, double-check, and Do this again. If a later gate table lands, keep those rows and do not drop the other rows.
+
+WORKSTREAM C (unsigned Mac job is in the release workflow; on-Mac check still blocked)
+
+## 2026-10-21: 0.4.10 workstream C leftovers (readers, receipt file, tone, balance)
+
+Same branch and pull request #81. Version stays 0.4.8. No locked decision was changed. Square and billing were not touched. data/ was not read. Nothing was merged. PDF and DOCX export (Phase 85) and industry packs (Phase 84) stay with workstream D.
+
+- Phase 74: before Send, the dialog lists each AI, the tools that are on, and the connected services that will receive this prompt. Remove drops that AI. The last AI stays. Send passes those provider ids. The council does not refill the seat. A mission does not assign, retry, or review with that AI, and a fallback cannot hand them the prompt. Cancel still does not send.
+- Phase 78: after the confirm click, the receipt is saved as meldmind-receipt.txt. The ask still comes first. Nothing is deleted without the click. AI keys were not touched.
+- Phase 80: Shorter, Warmer, More direct, and Plain words set the tone of the next answer only. The same button again clears it. The click does not start a run. The next chat, council, or mission uses that instruction once, then the setting is cleared.
+- Phase 81: AI credits shows what is left for each connected AI from the health balance already collected. A missing balance is said in words. No number is invented. The spend line stays. Subscriptions and the receipt scanner were not rebuilt.
+
+PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, Dock, and data folder were not started on macOS. Signing and notarization still need an Apple Developer account.
+
+- Not in this change: PDF and DOCX export (Phase 85) and industry packs (Phase 84).
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux removed readers until one remained, checked the tools and services lines, saved the receipt file after confirm, set Shorter without starting a run, and read the remaining-balance line. Windows CI and Mac CI run on the pull request after this push.
+- CI fix: Mac refused `Ctrl+Alt+Delete` only on Windows and Linux, so the hotkey route test now uses `Command+Space` on macOS. Windows test requests use the doubled wait, because a stdio tool server can take longer than 20s to finish initialize.
+
+WORKSTREAM C LEFTOVERS (readers, receipt file, next-answer tone, remaining balance)

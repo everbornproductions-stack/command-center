@@ -6,6 +6,7 @@ export const COMPARE_ROWS = [
   ["Simple mode", "Yes", "Yes"],
   ["Learning router", "Yes", "Yes"],
   ["Safety checks", "Yes", "Yes"],
+  ["Private mode", "Yes", "Yes"],
   ["Backup and restore", "Yes", "Yes"],
   ["Double-check this", "Yes", "Yes"],
   ["Connected services", "1", "Unlimited"],

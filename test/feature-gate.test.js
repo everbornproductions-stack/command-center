@@ -20,7 +20,7 @@ test("the feature map matches the Free vs Pro table", () => {
   assert.equal(featureById("zzGate"), null);
   assert.deepEqual(compareRows(), COMPARE_ROWS);
   assert.equal(featureById("shareLinks").landed, true);
-  assert.equal(featureById("desktop").landed, false);
+  assert.equal(featureById("desktop").landed, true);
   assert.equal(featureById("scheduler").tier, "pro");
   assert.equal(featureById("tryItNow").tier, "free");
   assert.equal(featureById("safety").tier, "free");

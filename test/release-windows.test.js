@@ -35,8 +35,10 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.match(wf, /Meldmind-Setup-\$\{V\}\.exe\.blockmap/);
   assert.match(wf, /dist\/latest\.yml/);
   assert.match(wf, /gh release create "\$TAG" --repo "\$R" --title "Meldmind v\$\{V\}" --latest --notes-file release-notes.txt "\$EXE" "\$MAP" "\$YML"/);
-  assert.match(wf, /--draft=false/, "an existing draft is published, not left as a draft");
-  assert.doesNotMatch(wf, /--draft(?!=false)/);
+  const win = wf.slice(0, wf.indexOf("\n  mac-release:"));
+  assert.ok(win.includes("runs-on: windows-latest"), "the Windows job is the part that publishes");
+  assert.match(win, /--draft=false/, "an existing draft is published, not left as a draft");
+  assert.doesNotMatch(win, /--draft(?!=false)/, "the Windows job never leaves a release as a draft");
   assert.doesNotMatch(wf, /--prerelease/);
   const secrets = [...wf.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(secrets)].sort(), ["CC_SUPABASE_ANON_KEY", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);

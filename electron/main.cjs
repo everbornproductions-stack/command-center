@@ -324,7 +324,7 @@ function trayTemplate() {
 function macMenuTemplate() {
   return [
     { label: "Meldmind", submenu: [
-      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs." }) },
+      { label: "About Meldmind", click: () => dialog.showMessageBox({ type: "info", title: "Meldmind", message: `Meldmind v${app.getVersion()}`, detail: "an Everborn product\nTake command of all your AIs.\nOn a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon." }) },
       { label: "Check for updates", click: () => updater ? updater.check({ manual: true }) : dialog.showMessageBox({ type: "info", title: "Meldmind", message: "Updates work in the installed app." }) },
       { type: "separator" }, { role: "hide", label: "Hide Meldmind" }, { role: "hideOthers" }, { role: "unhide" },
       { type: "separator" }, { label: "Quit Meldmind", accelerator: "Command+Q", click: () => app.quit() },

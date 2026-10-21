@@ -71,7 +71,10 @@ export const tmpDir = (prefix = "cc-test-") => fs.mkdtempSync(path.join(os.tmpdi
 
 // Raw HTTP request (lets a test set Host / Origin / content-type exactly). Returns { status, headers, text, json }.
 // One socket per call, and the call gives up after a real pause so a wait loop can poll again.
-export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body, timeout = 20000 }) {
+// The socket wait uses the same Windows budget as the polls. A stdio tool server
+// can take longer than 20s to finish initialize on a busy runner, and the server
+// itself allows 30s for that handshake.
+export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", headers = {}, body, timeout = waitBudget(20000) }) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : typeof body === "string" ? body : JSON.stringify(body);
     const h = { connection: "close", ...headers };

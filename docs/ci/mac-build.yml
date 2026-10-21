@@ -1,57 +1,6 @@
-# Mac build for Meldmind: unsigned .dmg and .zip, uploaded to the public releases repo.
-# Runs on manual dispatch (Actions tab > Mac build > Run workflow) or when a v* tag is pushed.
-# Needs repo secrets:
-#   RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
-#     on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
-#     never built into the app.
-#   CC_SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY = the Supabase publishable key (sb_publishable_...).
-#     The release build writes it into server/cloud-defaults.json and then clears it. Never the service key.
-#     Without it, npm run dist:mac stops and every installed copy would stay on the Free tier.
-# TODO (needs an Apple Developer account, $99/year): code signing and notarization. Until then macOS
-# Gatekeeper blocks the first open (right-click > Open), and in-app updates do not work on Mac
-# (Squirrel.Mac only installs signed builds). See docs/RELEASING.md.
-name: Mac build
-on:
-  workflow_dispatch:
-  push:
-    tags: ["v*"]
-permissions:
-  contents: read
-jobs:
-  mac:
-    runs-on: macos-latest
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"   # unsigned until the Apple account exists
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run smoke
-      - name: Build unsigned dmg and zip
-        env:
-          CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: npm run dist:mac
-      - name: Upload to the releases repo
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then echo "RELEASES_TOKEN secret is not set; skipping upload. Files are in the workflow artifacts."; exit 0; fi
-          V=$(node -p "require('./package.json').version")
-          R=everbornproductions-stack/command-center-releases
-          # Never publish from here: if the Windows release is not up yet, a published Mac-only release would
-          # have no latest.yml and every Windows copy would report an update error. A missing release is
-          # created as a DRAFT; Chris adds the Windows files and publishes it (docs/RELEASING.md).
-          gh release view "v$V" --repo "$R" >/dev/null 2>&1 || gh release create "v$V" --repo "$R" --draft --title "Meldmind v$V" --notes "Mac build (unsigned)."
-          gh release upload "v$V" --repo "$R" --clobber dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: meldmind-mac
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/latest-mac.yml
+# The unsigned Mac build now runs as the mac-release job in
+# .github/workflows/release-windows.yml (dmg and zip, no Apple signing).
+# Pull requests run tests on macOS in .github/workflows/mac-ci.yml.
+# This file is only a pointer. It is not a workflow.
+# First open: right-click the app, then Open.
+# Automatic updates for Mac are coming soon.
