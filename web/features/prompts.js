@@ -217,6 +217,7 @@ async function renderTab(view) {
       <div id="pp-tools" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px" hidden></div>
     </div>
     <div id="pp-list"></div>
+    <div id="industry-packs"></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
       <button class="btn sm" type="button" id="pp-sched">Add Friday and daily schedules</button>
       <button class="btn sm" type="button" id="pp-team">Create the 3-agent team</button>
@@ -225,6 +226,7 @@ async function renderTab(view) {
     <div id="pp-form"></div>
     <div id="pp-interview"></div>
   </div>`;
+  window.CC.mountIndustryPacks?.(view.querySelector("#industry-packs"));
   mountPromptBoard(view, model, {
     esc,
     toast,

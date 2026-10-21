@@ -61,6 +61,15 @@ export const CONNECTORS = {
     setup: "api.slack.com/apps: create an app, add the bot scopes chat:write and channels:read, add this app's address as a redirect URL, and paste its client ID and secret here. Invite the app to a channel (/invite) before sending to it.",
     consoleUrl: "https://api.slack.com/apps",
   },
+  ghlcrm: {
+    name: "HighLevel contacts", vault: "ghl-crm", pkce: false, sep: " ",
+    scopes: ["contacts.readonly", "contacts.write", "invoices.readonly", "invoices.write", "workflows.readonly", "conversations.write"],
+    scopeLabel: "read and update contacts and invoices, and list workflows. A send, a charge, or a change still waits for your click",
+    authUrl: () => `${env("CC_GHL_AUTH_URL", "https://marketplace.gohighlevel.com")}/oauth/chooselocation`,
+    tokenUrl: () => `${API.ghl()}/oauth/token`,
+    setup: "HighLevel Marketplace: the same private app can add contact, invoice, workflow, and conversation scopes. A send, an invoice, or a workflow still waits for a click in Meldmind.",
+    consoleUrl: "https://marketplace.gohighlevel.com/",
+  },
 };
 const HARMLESS = new Set(["openid", "email", "profile", "public_profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]);
 
@@ -104,6 +113,10 @@ function client(k) {
   if (k === "google" && !own) {
     const hid = doc("browser.google", () => undefined)?.clientId || null;
     return { clientId: hid || envId, clientSecret: sec || getSecret("google-helper")?.clientSecret || null, shared: !!hid };
+  }
+  if (k === "ghlcrm" && !own) {
+    const hid = entry("ghl").clientId || null;
+    return { clientId: hid || envId, clientSecret: sec || ownClientSecret("ghl"), shared: !!hid };
   }
   return { clientId: own || envId, clientSecret: sec, shared: false };
 }
@@ -210,7 +223,7 @@ async function settle(k, tok, p) {
     const ig = page.instagram_business_account;
     return { secret: { key: page.access_token, igUserId: String(ig.id) }, account: `${ig.username ? "@" + ig.username : "Instagram " + ig.id} via ${page.name}` };
   }
-  if (k === "ghl") {
+  if (k === "ghl" || k === "ghlcrm") {
     if (!tok.locationId) throw fail(400, "HighLevel did not say which sub-account was picked. Install the app on one sub-account (location), then connect again.", { code: "no_location" });
     return { secret: { key: tok.access_token, refresh: tok.refresh_token || null, expiresAt: expires(tok), locationId: String(tok.locationId) }, account: `location ${tok.locationId}` };
   }
@@ -225,13 +238,13 @@ export async function finish({ code, state } = {}) {
   pending.delete(state);
   if (!code) throw fail(400, "No code came back from the sign-in.");
   const k = p.k, c = CONNECTORS[k];
-  const tok = await tokenSwap(k, { grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, ...(p.verifier ? { code_verifier: p.verifier } : {}), ...(k === "ghl" ? { user_type: "Location" } : {}) });
+  const tok = await tokenSwap(k, { grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, ...(p.verifier ? { code_verifier: p.verifier } : {}), ...(k === "ghl" || k === "ghlcrm" ? { user_type: "Location" } : {}) });
   const got = String(tok.scope || "").split(/[\s,]+/).filter(Boolean);
   const extra = got.filter((x) => !c.scopes.includes(x) && !HARMLESS.has(x));
   if (extra.length) throw fail(400, `The sign-in granted more than this app asked for (${extra.slice(0, 3).join(", ")}). Nothing was saved; check the app's scopes at ${c.name}.`, { code: "scope" });
   const out = await settle(k, tok, p);
   const { assertServiceSlots } = await import("../service-limit.js");
-  const catalog = { ghl: "ghl", meta: "instagram", slack: "slack", google: "publish-google" };
+  const catalog = { ghl: "ghl", ghlcrm: "ghl", meta: "instagram", slack: "slack", google: "publish-google" };
   await assertServiceSlots([catalog[k] || k]);
   await setSecret(c.vault, { ...out.secret, oauth: true });
   saveEntry(k, { ...entry(k), connectedAt: Date.now(), account: out.account, scopes: got.length ? got : c.scopes, needsSignIn: false });
@@ -254,7 +267,7 @@ export async function fresh(k) {
   if (!s?.key || !s.oauth || !s.expiresAt || s.expiresAt - Date.now() > 60000) return s;
   if (!s.refresh) { saveEntry(k, { ...entry(k), needsSignIn: true }); throw fail(409, `The ${c.name} sign-in expired. Connect it again in Settings > Publishing.`, { code: "sign_in" }); }
   try {
-    const tok = await tokenSwap(k, { grant_type: "refresh_token", refresh_token: s.refresh, ...(k === "ghl" ? { user_type: "Location" } : {}) });
+    const tok = await tokenSwap(k, { grant_type: "refresh_token", refresh_token: s.refresh, ...(k === "ghl" || k === "ghlcrm" ? { user_type: "Location" } : {}) });
     const next = { ...s, key: tok.access_token, refresh: tok.refresh_token || s.refresh, expiresAt: expires(tok) };
     await setSecret(c.vault, next);
     return next;

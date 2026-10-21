@@ -28,6 +28,14 @@ Marked DONE from `PHASE N DONE` in docs/BUILD-LOG.md, or from a merged pull requ
 
 Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done. The unsigned build moves to version 0.4.10 below. Signing moves to Later.
 
+### Remaining phases (built 2026-10-21)
+
+These numbers are the earlier roadmap names. Version stays 0.4.8. They are not the regrouped 0.4.10 phase numbers.
+
+- Phase 58. Second opinion. Two AIs answer the same orders. Differences show in plain words. Both answers stay. It sits beside Single, Council, and Mission. Demo uses pretend AIs and spends nothing.
+- Phase 61 add-on. Shared team recipes on a workspace for Extreme and Owner (Studio is Pro). Five people including the owner. Phase 8 workspaces are unchanged. Invite links are still shown once. Keys stay in the vault. Nothing is charged.
+- Phase 62. Industry starter packs for real estate, insurance, and credit repair, on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. Credit repair and insurance keep SCF, CROA, and RESPA.
+
 ### Version 0.4.9 (next)
 
 On this branch: phases 45 to 51 with Antigravity first (live drivers are wired, and the tests use stand-ins), the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
@@ -104,11 +112,11 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 Left on the list so they are not dropped. They are not next.
 
 - Phase 32. Model-version alerts. Built in the Watch and talk workstream. The version stayed 0.4.8. Notes go to the Together news list, which is installed.
-- Phase 33. HighLevel contacts, invoices, and workflows as council tools stay with the posting that shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90. The package version stayed 0.4.8.
+- Phase 33. HighLevel contacts, invoices, and workflows are built as council tools under Connect (item 1). HighLevel posting already shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90.
 - Phase 34. Hide hosted plumbing. The simple licence copy hides the setup form. The package version stayed 0.4.8.
 - Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is built. The news list stores those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
-- Use your own Supabase (decision 23). Still not in the run order.
+- Use your own Supabase (decision 23). The spec in Planned, not in the run order is unchanged. The optional setting is built and off by default.
 
 Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the quick patch (adaptive menu for laptops and wide screens, Start a project out of Settings, hide demo bots when real AIs are connected). 0.4.8 is a hotfix (the top bar uses the width it has, and demo AIs stay hidden). 0.4.9 is desktop and app control, phases 45 to 51, with Google Antigravity as the first app, plus Calendar, everyday actions, What's new, and the idea box, and routing to whichever AI already has the login or the prior work. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay in Do last. Windows code signing (Azure) is pending Microsoft verification and stays in Do last. The user-facing page is docs/marketing.md.
 
@@ -120,7 +128,7 @@ Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the qu
 5. Never deploy, never push (Chris pushes), never touch Square, real API keys, `data/`, `.env`, password files, or billing. Nothing posts, sends, emails or spends without an explicit user click; outbound integrations need user OAuth.
 6. Paid things (managed plan, trial credits, marketplace pricing) go behind a feature flag with PLACEHOLDER prices. Chris decides real pricing.
 7. At the end, append to `docs/BUILD-LOG.md`: date/time, features done, commits (hash + message), test counts (npm test pass/fail, smoke pass/fail), what is not verified, and a final line exactly `PHASE N DONE` or `PHASE N BLOCKED: <reason>`.
-8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once after each update.
+8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once on the first launch after an update, listing every bundled note since the version that was installed, newest first. Settings and Help can open it again. The notes ship in the app, so they work offline.
 
 ## Phases
 
@@ -611,7 +619,7 @@ Code and deploy config (not deployed, version stays 0.4.8):
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 
-Use your own Supabase (decision 23) stays here. Do not start them until Chris adds them to the run order above. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
+Use your own Supabase (decision 23) stays written here so the spec is not rewritten. Do not start them until Chris adds them to the run order above. Chris added this setting to the remaining-phases work on 2026-10-21, and the optional switch is now in Settings. It is off by default. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
 
 ### Use your own Supabase
 - Optional advanced setting named "Use your own Supabase", for power users and companies.

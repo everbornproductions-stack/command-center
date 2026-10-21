@@ -396,3 +396,43 @@ test("Max quality is Extreme only, including a trial and a Pro licence", async (
     assert.equal(chat.json.code, "extreme_required");
   } finally { await trial.stop(); }
 });
+
+test("phase gates: second opinion, HighLevel, own Supabase are open; packs are Pro; team recipes are Extreme", async () => {
+  const { decide, PHASE_GATES, PRO_PRICE, TEAM_SEATS } = await import("../server/feature-gate.js");
+  const tiers = ["free", "pro", "studio", "owner", "extreme"];
+  assert.equal(PRO_PRICE, "$18.99/month");
+  assert.equal(TEAM_SEATS, 5);
+  assert.equal(PHASE_GATES.industryPacks.tier, "pro");
+  assert.equal(PHASE_GATES.teamSpaces.tier, "extreme");
+  for (const feature of ["secondOpinion", "highlevelTools", "ownSupabase"]) {
+    for (const tier of tiers) assert.equal(decide(tier, feature).ok, true, `${tier} ${feature}`);
+  }
+  assert.equal(decide("free", "industryPacks").code, "pro_required");
+  for (const tier of ["pro", "studio", "owner", "extreme"]) assert.equal(decide(tier, "industryPacks").ok, true);
+  for (const tier of ["free", "pro", "studio"]) {
+    assert.equal(decide(tier, "teamSpaces").code, "extreme_required");
+    assert.match(decide(tier, "teamSpaces").message, /\$29\.99/);
+  }
+  for (const tier of ["owner", "extreme"]) {
+    assert.equal(decide(tier, "teamSpaces").ok, true);
+    assert.equal(decide(tier, "teamSeats", { count: 5 }).ok, true);
+    assert.equal(decide(tier, "teamSeats", { count: 6 }).code, "seat_cap");
+  }
+  assert.equal(decide("free", "not-a-feature").code, "pro_required");
+});
+
+test("a stored Extreme licence opens the phase gates", async () => {
+  const s = await startServer({
+    seed: (dir) => {
+      fs.writeFileSync(path.join(dir, "license.json"), JSON.stringify({
+        tier: "extreme", status: "active", lastOkAt: Date.now(), checkedAt: Date.now(),
+      }));
+    },
+  });
+  try {
+    const row = await s.api("/opinion");
+    assert.equal(row.status, 200);
+    assert.equal(row.json.tier, "extreme");
+    assert.equal(row.json.open, true);
+  } finally { await s.stop(); }
+});

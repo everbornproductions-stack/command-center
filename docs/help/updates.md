@@ -9,6 +9,8 @@ lastUpdatedVersion: 0.4.10
 
 This note shows once after an update. Take the tour again any time from Help, and from the Settings menu.
 
+After an update, the first launch shows What's new. It lists every version between the one you had and this one, newest first. The notes are saved in the app, so they work with no internet. Open What's new again from this Help page, or from Settings, Onboarding tour. Got it closes it. Take the tour starts the tour.
+
 Check for updates is in the Help menu, on the Help page, and in Settings. The tray menu has it too. When a newer version is ready, the app says Update ready, restart. On the desktop, Install now at startup (or Update ready, restart) downloads it. Nothing downloads until you click.
 
 If the check cannot reach the releases page, the app says Couldn't check for updates and offers Download. Download opens the releases page so you can get the installer yourself. Nothing is downloaded until you click.

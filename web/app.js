@@ -502,7 +502,7 @@ function onMission(m) {
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
       const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
       const cost = Number(m.cost) || 0;
-      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission";
+      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
@@ -1113,6 +1113,7 @@ function renderCommand(v) {
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
         <label class="lbl">Priority</label>
         <div class="seg" id="cost-mode" role="group" aria-label="Priority">
@@ -1324,7 +1325,7 @@ function renderOutput() {
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
@@ -1537,6 +1538,14 @@ async function sendOrders() {
     else if (mode === "council") {
       const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
       noteBackground(started);
+    }
+    else if (mode === "opinion") {
+      const started = await api("/opinion", { method: "POST", body: { prompt, projectId, ...packBody } });
+      toast("Second opinion started. Both answers stay.");
+      S.live = newLive();
+      if (started?.id) S.live.id = started.id;
+      S.live.status = "running";
+      renderOps();
     }
     else {
       const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });

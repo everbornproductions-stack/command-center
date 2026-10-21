@@ -101,6 +101,10 @@ export const FEATURES = [
   { id: "smarter-control", home: true, settings: true },
   { id: "modelwatch", settings: true },
   { id: "userchat", views: ["userchat"] },
+  { id: "industries", views: ["prompts"] },
+  { id: "teamrecipes", views: ["workspaces"] },
+  { id: "highlevel", settings: true },
+  { id: "own-supabase", settings: true },
 ];
 
 // Server plugins that stay out of startup. file is the name in server/plugins.
