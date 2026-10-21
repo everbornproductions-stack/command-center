@@ -14,7 +14,7 @@ import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
-import { observe } from "./brain.js";
+import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
@@ -28,7 +28,7 @@ const saveDoc = (m) => ctx().store.saveMission(m, missionSummary(m));
 
 // Compact row for lists (the same shape index.js used to build from the files).
 export function missionSummary(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), projectId: m.projectId, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, tasks: m.tasks?.length || 0, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), projectId: m.projectId, private: !!m.private, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, tasks: m.tasks?.length || 0, providers: [...new Set((m.tasks || []).map((t) => t.provider))].concat(m.provider ? [m.provider] : []) };
 }
 
 export function abortMission(id) {
@@ -80,11 +80,12 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries, private: isPrivate = false }) {
   mode = normalizeMode(mode) || "balanced";
   const planning = planMode(mode);
   const looking = reviewMode(mode);
   const id = "m-" + Date.now().toString(36);
+  if (isPrivate) markPrivateRun(id);
   const ctl = new AbortController();
   running.set(id, ctl);
   lateWhileRunning.set(id, []);
@@ -94,7 +95,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const memBlock = contextFor(projectId);
   context = withMemory(context, projectId);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
-  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER) };
+  const mission = { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER) };
   live.set(id, mission);
   const user = ctx();
   user.missionsInFlight = (user.missionsInFlight || 0) + 1;
@@ -486,7 +487,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: m.tasks.map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory };
 }
 function save(m) {
   saveDoc(m);

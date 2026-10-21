@@ -2,7 +2,7 @@
 id: updates
 title: Updates
 summary: Check for updates from Help or Settings. Nothing downloads until you click.
-lastUpdatedVersion: 0.4.6
+lastUpdatedVersion: 0.4.8
 ---
 
 # Updates
@@ -16,3 +16,7 @@ The startup prompt says Install now and Later. Later at startup waits until the 
 Your settings, keys, and projects stay in place across an update. The portable build does not update itself. Use Check for updates in the installed app.
 
 A packaged install includes what the engine needs to start. If the app did not open, install this update.
+
+## Mac
+
+The Mac build is unsigned. The first time you open it, right-click the app, then Open. Automatic updates for Mac are coming soon. Until then, Install now opens the download page. Drag the app to Applications and choose Replace. Your settings, keys, and projects stay in `~/Library/Application Support/Everborn Command`.

@@ -23,6 +23,10 @@ Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind.
 
 Until you add a key, Demo can answer in the chat and nothing is spent. Demo does not answer Ask Meldmind.
 
+On a Mac, the first open is a right-click, then Open. Automatic updates for Mac are coming soon.
+
+When you come back, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer. Tone buttons ask for a shorter, warmer, more direct, or plainer rewrite. Each answer says which AI wrote it. The first council explains itself in plain words, and a council or mission lists who will read the prompt before it is sent.
+
 ## Learning from each job
 
 Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.

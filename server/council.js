@@ -11,7 +11,7 @@ import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
-import { observe } from "./brain.js";
+import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
@@ -21,8 +21,9 @@ import { councilPlan, reviewMode } from "./modes.js";
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
 
-export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries }) {
+export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, tools, grokbot, browser, libraries, private: isPrivate = false }) {
   const id = "c-" + Date.now().toString(36);
+  if (isPrivate) markPrivateRun(id);
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;
@@ -55,7 +56,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
   const memBlock = contextFor(projectId);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
-  const council = { id, kind: "council", prompt, projectId: projectId || null, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [] };
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -277,7 +278,7 @@ function finish(c) {
   return c;
 }
 export function summaryOf(c) {
-  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
+  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, private: !!c.private, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
 }
 
 // ---- an agent's answer (Grok Bot or the browser helper) that came back after the council moved on ----

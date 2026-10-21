@@ -123,13 +123,13 @@ export async function syncNow({ listSummaries, getMission } = {}) {
   const res = { pushed: 0, pulled: 0, skipped: 0, tooBig: 0 };
   try {
     // push
-    const summaries = (listSummaries ? listSummaries() : store.listMissions((m) => m)).filter((m) => m && KINDS.has(m.kind) && ["done", "failed"].includes(m.status) && !m.synced);
+    const summaries = (listSummaries ? listSummaries() : store.listMissions((m) => m)).filter((m) => m && KINDS.has(m.kind) && ["done", "failed"].includes(m.status) && !m.synced && !m.private);
     const batch = [];
     for (const sm of summaries) {
       const u = updatedOf(sm);
       if (pushed[sm.id] && pushed[sm.id] >= u) continue;
       const m = getMission ? await getMission(sm.id) : await store.getMission(sm.id);
-      if (!m || m.synced) continue;
+      if (!m || m.synced || m.private) { if (m?.private) res.skipped++; continue; }
       const item = await K.itemId(k, m.id);
       const blob = await K.seal(k, payloadOf(m, s.deviceId), item);
       if (blob.length > MAX_ITEM_BYTES) { res.tooBig++; continue; }

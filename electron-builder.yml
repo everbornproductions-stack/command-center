@@ -52,6 +52,9 @@ nsis:
   artifactName: "Meldmind-Setup-${version}.${ext}"
 mac:
   # unsigned until there is an Apple Developer account (see docs/RELEASING.md); zip is what Mac updates use
+  # identity null keeps the build unsigned even when a cert is on the Mac
+  identity: null
+  gatekeeperAssess: false
   target: [dmg, zip]
   category: public.app-category.productivity
   icon: web/icons/icon-512.png

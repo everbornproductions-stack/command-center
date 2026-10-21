@@ -19,14 +19,16 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const tick = () => new Promise((r) => setImmediate(r));
 
 test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, never publishes a release", () => {
-  const wf = read("docs/ci/mac-build.yml");
+  const release = read(".github/workflows/release-windows.yml");
+  const wf = release.slice(release.indexOf("  mac-release:"));
+  assert.ok(wf.startsWith("  mac-release:"), "unsigned dmg and zip live in the release workflow");
   assert.match(wf, /runs-on: macos-latest/);
-  assert.match(wf, /workflow_dispatch:/); assert.match(wf, /tags: \["v\*"\]/);
+  assert.match(release, /workflow_dispatch:/); assert.match(release, /tags: \["v\*"\]/);
   assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/, "unsigned until the Apple account exists");
   assert.match(wf, /run: npm test/); assert.match(wf, /run: npm run smoke/);
   assert.match(wf, /run: npm run dist:mac/);
-  assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY \}\}/);
-  assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY \}\}/);
+  assert.match(wf, /CC_SUPABASE_ANON_KEY: \$\{\{ secrets\.CC_SUPABASE_ANON_KEY/);
+  assert.match(wf, /SUPABASE_PUBLISHABLE_KEY: \$\{\{ secrets\.SUPABASE_PUBLISHABLE_KEY/);
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.scripts["dist:mac"], "node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never");
   assert.equal(pkg.scripts.dist, "node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never");
@@ -34,9 +36,16 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.deepEqual([...new Set(secrets)].sort(), ["CC_SUPABASE_ANON_KEY", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);
   assert.equal(secrets.some((s) => /SERVICE|SECRET_KEY|SB_SECRET/.test(s)), false);
   assert.match(wf, /gh release create "v\$V" --repo "\$R" --draft /, "a missing release is created as a draft");
-  assert.doesNotMatch(wf, /--draft=false|--latest|gh release edit/, "never publishes");
+  assert.doesNotMatch(wf, /--draft=false|--latest|gh release edit/, "the Mac job never publishes");
   assert.match(wf, /dist\/latest-mac\.yml/, "uploads the Mac update feed");
   assert.doesNotMatch(wf, /—/, "no em-dashes");
+  const ci = read(".github/workflows/mac-ci.yml");
+  assert.match(ci, /runs-on: macos-latest/);
+  assert.match(ci, /pull_request:/);
+  assert.match(ci, /run: npm test/);
+  assert.match(ci, /run: npm run smoke/);
+  assert.doesNotMatch(ci, /dist:mac|RELEASES_TOKEN/);
+  assert.match(read("docs/ci/mac-build.yml"), /mac-release/);
 });
 
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
@@ -44,6 +53,7 @@ test("builder config: Mac targets and names, same appId and public releases feed
   assert.match(y, /^appId: com\.everborn\.command/m);
   const mac = y.slice(y.indexOf("\nmac:"), y.indexOf("\ndmg:"));
   assert.match(mac, /target: \[dmg, zip\]/, "zip is what Mac updates use");
+  assert.match(mac, /identity: null/, "no Apple signing");
   assert.match(mac, /artifactName: "Meldmind-\$\{version\}-\$\{arch\}\.\$\{ext\}"/, "x64 and arm64 files do not overwrite each other");
   assert.match(y, /artifactName: "Meldmind-Setup-\$\{version\}\.\$\{ext\}"/, "Windows installer is Meldmind-Setup");
   assert.match(y, /repo: command-center-releases/);
@@ -63,6 +73,8 @@ test("main process on macOS: app menu with Edit (copy / paste), tray size, data 
   assert.match(m, /const MAC_SELF_UPDATE = false;/);
   assert.match(m, /manualInstall: IS_MAC && !MAC_SELF_UPDATE/);
   assert.match(m, /openDownload: \(version\) => shell\.openExternal\(`\$\{RELEASES_PAGE\}\/tag\/v\$\{version\}`\)/);
+  assert.match(m, /right-click, then Open/);
+  assert.match(m, /Automatic updates for Mac are coming soon/);
   assert.match(m, /RELEASES_PAGE = "https:\/\/github\.com\/everbornproductions-stack\/command-center-releases\/releases"/);
   assert.match(m, /app\.on\("activate", \(\) => \{ if \(!win\) createWindow\(\); \}\)/, "Dock click reopens the window");
   // the Windows-style import produced a broken URL for Mac paths; the new one is a valid file URL everywhere
@@ -85,7 +97,10 @@ test("unsigned Mac: Install now opens the release page and never downloads or qu
   const s = await c.install(); await tick();
   assert.deepEqual(opened, ["9.9.9"]);
   assert.equal(s.phase, "available");
-  assert.match(s.error, /not signed\)\. Download the new version from the page that just opened/);
+  assert.match(s.error, /Automatic updates for Mac are coming soon/);
+  assert.match(s.error, /right-click, then Open/);
+  assert.match(s.error, /not signed/);
+  assert.equal(s.manual, true);
   // Settings path (server/update.js: download, then install)
   await assert.rejects(c.bridge.download(), (e) => e.code === "manual_install");
   c.bridge.install(); await tick();
