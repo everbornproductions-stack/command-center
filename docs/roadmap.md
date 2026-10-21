@@ -35,3 +35,7 @@ A picture or a video on the idea box or on Marching orders can start a media job
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## Release order (Chris, 2026-10-21)
+
+0.4.8 does not include the Mac build. The unsigned Mac .dmg and the "new version ready, Download" notice are the next release after 0.4.8. Signing and notarization stay later.
