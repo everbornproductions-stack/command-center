@@ -9,6 +9,9 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 - **One name per action.** "Replay the tour", "Take the tour again", and "Take the tour" were one action with three names. It is now **Take the tour** in menus, the Help page, the tour invite, the skip toast, and the help articles. The Help view item is **Search help**. The Teams page tab now says Teams, matching the menu (it said Workspaces).
 - **Duplicates removed.** Narrow Expert used to show Run setup again, Take the tour, and Check for updates in both Settings and Help. The Settings page "Get help" card had Take the tour, Check for updates, and See what else. Those are gone; the card now points to the Help menu. Version and Check for updates moved from the Settings page to Help > About Meldmind. The second "Download the guide (PDF)" button on the Help page is gone.
 - **Simple reaches every page.** Simple adds a **More** menu with every page not on its row (Compare, Pipelines, Agents, Live, Schedules, Libraries, Artifacts, History, Docs and follow-up, Refocus, Who's best, Marketplace, Subscriptions, Credits, Teams, Together, Reports, Community, Setup). Community moved from Help to More. Start a project now always shows in Simple, not only after its module loads. The Simple Settings dropdown was never openable (the trigger jumped straight to the Settings page), so its three items were dead; Settings is now a plain button.
+- **Simple chat page is chat first.** Chat is the first item in the Simple row and the top of the page. Under the chat box the page shows only My day (Inbox and tasks, Day plan, People), three starters (Reply to a customer, Fix my email, Write a post), and recent chats, then the answer. Other Command widgets (Zapier card, popular prompts, the Start a project bar, private mode and tones, uploads, app suggestions, and the rest) are Expert only. `SIMPLE_COMMAND` in web/mode.js lists the two that still draw: voice (the Mic button) and desk (recent chats). Start a project stays in the top row.
+- **Connectors moved to More > Connections in Simple.** The Connect Zapier card left the chat page. Simple More now ends with a Connections section: Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel. Each opens Settings past the basics, scrolled to that panel. In Simple the Zapier and Make panel shows Zapier and Make. MCP servers, webhook tools, and the Meldmind webhook stay in Expert, so Simple does not link Tools (MCP) or Integrations. A page that loads later is added above Connections.
+- **Start a project sits right before Projects** in Simple and in every Expert layout. Checked by `test/menu-audit.test.js`.
 - **Orphan page fixed.** Marketplace had no menu item (reachable only from a Pro prompts button). It is now Create > Marketplace.
 - **Panels that never loaded on Settings.** "What your ratings taught" (`ratings`) and the public share link base URL (`share`) register Settings panels, but the registry did not load them with Settings. They now do.
 - **Pro-locked items show a lock note.** Pipelines, Schedules, History, and Subscriptions (Pro) and Teams (Extreme) get a lock label and a tooltip when the licence does not include them. The item still opens the page, which explains the plan. Nothing is charged.
@@ -163,6 +166,11 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | More | Reports | page `reports` | OK |
 | More | Community | page `community` | OK |
 | More | Setup | page `setup` | OK |
+| More > Connections | Zapier and Make | page `settings`, scrolled to `[data-feature='zapier']` | OK |
+| More > Connections | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |
+| More > Connections | Your apps | page `settings`, scrolled to `[data-feature='byo']` | OK |
+| More > Connections | Browser extension | page `settings`, scrolled to `[data-feature='extension']` | OK |
+| More > Connections | HighLevel | page `settings`, scrolled to `[data-feature='highlevel']` | OK |
 | Help | Search help | page `help` | OK |
 | Help | Take the tour | action `tour` (window.CC.tour.start (web/app.js menu click)) | OK |
 | Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
@@ -188,6 +196,7 @@ Web app (hosted) hides these desktop-only items: Libraries, Setup, Run setup aga
 | Settings page | Search help (Get help card), What leaves this PC | page `help`, article `security` | OK |
 | Settings page | Run setup again (`#s-setup`) | first-run setup page | Locked by decision 20, see above |
 | Connect menu | Keys and providers, Your apps, Tools (MCP), Integrations, Browser extension, HighLevel | Settings scrolled to `#settings-keys` or `[data-feature=...]` | OK |
+| Simple More > Connections | Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel | Settings (past the basics) scrolled to `#settings-keys` or `[data-feature=...]` | OK |
 | Tour | every step `view:` | command, help, settings, builders, community | OK, all pages exist |
 | In-app `go()` calls | builders, command, community, help, images, liveview, marketplace, media, pipelines, remix, settings, start, webbuilders | all exist | OK |
 | guide.js | `research` view | guarded by `has(p.views, "research")`, so it is skipped | OK, no dead link shown |
@@ -202,7 +211,7 @@ Web app (hosted) hides these desktop-only items: Libraries, Setup, Run setup aga
 | 0.4.9, 0.4.11 | What your ratings taught, Reset | Settings panel that did not load on Settings | Fixed: loads with Settings |
 | 0.4.9 | Public share link base URL | Settings panel that did not load on Settings | Fixed: loads with Settings |
 | 0.4.9 | Use a named imported chat (hint on Command) | `history` module loads only on the History page | Open: the hint shows on History only. Adding it to Command changes the Command load budget (PERFORMANCE.md). |
-| 0.4.9 to 0.4.13 | Command widgets and answer sections (Home, Get it done, Zapier card, app suggestions, background runs, export, share, read aloud, Do this again) | Command page | Light mode skips them by design (registry rule). Normal mode reaches them. |
+| 0.4.9 to 0.4.13 | Command widgets and answer sections (Home, Get it done, Zapier card, app suggestions, background runs, export, share, read aloud, Do this again) | Command page (Expert) | Light mode skips them by design (registry rule). Expert reaches them. Simple draws only recent chats; Zapier and Make are in More > Connections. |
 | 0.4.9 to 0.4.13 | Settings-only panels: Antigravity, Programs on this PC, Zapier and Make, idea box, backup, usage counts, Use your own Supabase, cloud runs, plan prices, Get it done settings | Settings page (Simple: More options) | Reachable from Settings. Not separate pages. The idea box also has a link from Help > Contact and feedback. |
 | 0.4.9 | Desktop control prompt, password manager tip | Launch card, runtime tip | Popups, no page needed |
 

@@ -55,8 +55,10 @@ function paintHome(host) {
       el.id = "cc-home";
       el.className = "panel";
       // Expert: under Live ops in the right column, so any Live ops strip sits above Welcome back.
+      // Simple: under the chat box and My day, so Chat stays at the top.
       const ops = cmd.querySelector("#ops-panel");
-      if (ops) ops.after(el); else cmd.prepend(el);
+      const recent = cmd.querySelector("#simple-recent");
+      if (ops) ops.after(el); else if (recent) recent.appendChild(el); else cmd.prepend(el);
     }
     const chats = (card.chats || []).map((c) => `<button type="button" class="row" data-chat="${esc(c.id)}"><span class="chip">${esc(c.kind)}</span>${c.private ? `<span class="chip">Private</span>` : ""}<span style="flex:1">${esc(c.title)}</span></button>`).join("");
     const projects = (card.projects || []).map((p) => `<button type="button" class="btn sm" data-proj="${esc(p.id)}">${esc(p.name)}</button>`).join("");
@@ -148,6 +150,8 @@ function toneLabel(id) {
 
 function renderCommand(container) {
   paintHome(container);
+  // Simple shows recent chats only. Private mode and tones stay in Expert and Settings.
+  if (S.uiMode === "simple") { container.innerHTML = ""; return; }
   const on = !!S.settings?.privateMode;
   const armed = S.settings?.nextTone || "";
   const tones = TONE_BUTTONS.map(([id, label]) => `<button type="button" class="btn sm ${armed === id ? "on" : ""}" data-tone="${id}">${label}</button>`).join("");

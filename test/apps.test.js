@@ -361,12 +361,10 @@ test("Meldmind webhook template and the setup copy have no token and no em-dash"
   assert.doesNotMatch(raw, /gsk_|sk-|Bearer [A-Za-z0-9_-]{20,}/);
   const help = read("docs/help/zapier-make.md");
   const ui = read("web/features/apps.js");
-  assert.match(help, /Connect Zapier from the Simple chat card/);
+  assert.match(help, /More > Connections > Zapier and Make/);
   assert.match(ui, /Connect Zapier/);
-  assert.match(ui, /id="cc-zapier-go"/);
-  assert.match(ui, /cc-zapier-slot/);
-  assert.match(read("web/app.js"), /id="cc-zapier-slot"/);
-  assert.match(read("web/styles.css"), /#cc-zapier-slot:empty \{ display: none; \}/);
+  assert.match(ui, /Connect Make/);
+  assert.doesNotMatch(read("web/app.js"), /cc-zapier-slot/);
   assert.match(ui, /Create the Meldmind webhook/);
   assert.match(read("docs/USER-GUIDE.md"), /Zapier and Make/);
   assert.match(read("README.md"), /Zapier and Make/);

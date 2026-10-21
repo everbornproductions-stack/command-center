@@ -9,12 +9,15 @@ export const DAY_VIEWS = ["everyday-inbox", "everyday-plan", "userchat"];
 
 export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", "community", ...CREATE_VIEWS, ...DAY_VIEWS]);
 
-// Command widgets and settings panels that Simple does not draw. The modules stay loaded,
+// Settings panels that Simple does not draw. The modules stay loaded,
 // so a hotkey or a switch back to Expert still reaches them.
-export const EXPERT_COMMAND = new Set([
-  "pipelines", "agents", "liveview", "mcp", "fallback", "grokbot", "browser",
-  "libraries", "alerts", "growth", "receipt", "images",
-]);
+// The Simple chat page shows only the chat box, My day, a few starters, and recent
+// chats. These are the only Command widgets it draws: voice wires the Mic button and
+// desk lists recent chats. Every other widget is Expert only.
+export const SIMPLE_COMMAND = new Set(["voice", "desk"]);
+
+// Starter buttons shown under the Simple chat box.
+export const SIMPLE_STARTER_COUNT = 3;
 
 export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
 

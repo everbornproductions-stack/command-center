@@ -1,5 +1,6 @@
 // Grouped main menu. Every existing view stays reachable in Expert and in Simple.
 // Simple shows Chat, Start a project, Projects, My day, Create, More, Help, and Settings.
+// Zapier, Make, and the other connectors are under More > Connections in Simple.
 // Settings holds settings only. Help holds the tour, setup, updates, What's new,
 // the user guide, contact, and About. Each action has one name everywhere.
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
@@ -431,6 +432,13 @@ export const CONNECT_LINKS = [
   { id: "highlevel", label: "HighLevel", view: "settings", focus: "[data-feature='highlevel']" },
 ];
 
+// Simple: More > Connections. Same Settings panels, opened past the basics.
+// MCP and Integrations stay in Expert (their panels are Expert only).
+export const SIMPLE_CONNECT_LINKS = [
+  { id: "zapier", label: "Zapier and Make", view: "settings", focus: "[data-feature='zapier']" },
+  ...CONNECT_LINKS.filter((l) => l.id !== "mcp" && l.id !== "integrations"),
+].map((l) => ({ ...l, section: "Connections" }));
+
 export function groupFor(view) {
   return HOME[view] || "work";
 }
@@ -505,6 +513,7 @@ const CSS = `
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }
 .nav-panel button.active { color: var(--accent-2); }
+.nav-section { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 2px; border-top: 1px solid var(--line-2); margin-top: 4px; }
 .nav-lock { color: var(--amber, #f59e0b); font-size: 12px; margin-left: 4px; }
 .nav-menu:nth-last-child(-n+3) .nav-panel { left: auto; right: 0; }
 @media (max-width: ${NAV_TRIM_AT}px) { .brand-tag, .clock { display: none; } }
@@ -584,6 +593,7 @@ export function simpleModel(views, surface = "") {
     if (SIMPLE_TOP.has(view)) continue;
     more.push({ view, label: LABELS[view] || view, home: true });
   }
+  for (const link of SIMPLE_CONNECT_LINKS) more.push({ ...link, home: false });
   return [
     { id: "chat", label: "Chat", direct: true, items: [{ view: "command", label: "Chat", home: true }] },
     { id: "start", label: "Start a project", direct: true, items: [{ view: "start", label: "Start a project", home: true }] },
@@ -597,7 +607,16 @@ export function simpleModel(views, surface = "") {
 }
 
 function mountItems(panel, buttons, items) {
+  let section = "";
   for (const item of items) {
+    if (item.section && item.section !== section) {
+      section = item.section;
+      const head = document.createElement("div");
+      head.className = "nav-section";
+      head.setAttribute("role", "presentation");
+      head.textContent = section;
+      panel.appendChild(head);
+    }
     if (item.home && item.view && !item.focus) panel.appendChild(buttonFor(buttons, item.view, item.label));
     else panel.appendChild(itemButton(item));
   }
@@ -823,7 +842,11 @@ export function placeNavItem(root, view, label) {
       else root.appendChild(shell.menu);
       panel = shell.panel;
     }
-    panel.appendChild(tuneItem(root, itemButton({ view, label: LABELS[view] || label || view, home: true })));
+    // A page that loads later goes above More > Connections.
+    const btn = tuneItem(root, itemButton({ view, label: LABELS[view] || label || view, home: true }));
+    const section = panel.querySelector(".nav-section");
+    if (section) panel.insertBefore(btn, section);
+    else panel.appendChild(btn);
     return;
   }
   const group = groupIdFor(view, root.dataset.navLayout || "narrow");

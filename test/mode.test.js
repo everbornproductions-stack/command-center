@@ -98,3 +98,30 @@ test("the choice is saved and does not close first-run setup", async () => {
     assert.equal(back.json.uiModeChosen, true, "a later save does not clear the choice");
   } finally { await s.stop(); }
 });
+
+test("the Simple chat page is Chat on top, then My day, a few starters, and recent chats", async () => {
+  const { SIMPLE_COMMAND, SIMPLE_STARTER_COUNT } = await import("../web/mode.js");
+  const app = read("web", "app.js");
+  const simple = app.slice(app.indexOf("function renderSimpleChat"), app.indexOf("function paintStarters"));
+  // Chat box first, then My day and recent chats, then the answer.
+  const order = ['<h3>Chat</h3>', 'id="cc-starters"', 'id="simple-home"', "simpleDayHtml()", 'id="simple-recent"', 'class="panel output"'];
+  let at = -1;
+  for (const bit of order) {
+    const next = simple.indexOf(bit);
+    assert.ok(next > at, `${bit} is in order`);
+    at = next;
+  }
+  assert.match(simple, /STARTERS\.slice\(0, SIMPLE_STARTER_COUNT\)/);
+  assert.equal(SIMPLE_STARTER_COUNT, 3);
+  for (const gone of ["cc-zapier-slot", "pp-popular", "graduate-slot"]) assert.equal(simple.includes(gone), false, gone);
+  // Only voice (the Mic button) and desk (recent chats) draw on the Simple chat page.
+  assert.deepEqual([...SIMPLE_COMMAND].sort(), ["desk", "voice"]);
+  assert.match(app, /if \(simple && kind === "command" && !SIMPLE_COMMAND\.has\(f\.id\)\) continue;/);
+  assert.match(app, /function simpleDayHtml/);
+  assert.match(app, /data-day=/);
+  const desk = read("web", "features", "desk.js");
+  assert.match(desk, /recent\.appendChild\(el\)/);
+  assert.match(desk, /if \(S\.uiMode === "simple"\) \{ container\.innerHTML = ""; return; \}/);
+  assert.match(read("web", "features", "walkthrough.js"), /if \(cc\.S\.uiMode === "simple"\) return;/);
+  for (const t of [app, desk, read("web", "mode.js")]) assert.equal(t.includes(EM), false);
+});

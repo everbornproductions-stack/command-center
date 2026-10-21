@@ -78,6 +78,8 @@ function renderHome(el) {
 function ensureHome() {
   const cc = window.CC;
   if (!cc?.S || cc.S.view !== "command") return;
+  // Simple has Start a project in the top row. Its chat page stays chat only.
+  if (cc.S.uiMode === "simple") return;
   if (document.getElementById("sp-home")) return;
   const view = document.getElementById("view");
   if (!view) return;

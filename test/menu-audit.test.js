@@ -46,6 +46,13 @@ function sourceFor(view) {
   return f ? read("web", "features", `${f.file || f.id}.js`) : "";
 }
 
+// A Settings panel is a feature file of that name, or a file that registers that id.
+function registers(feature) {
+  if (fs.existsSync(path.join(ROOT, "web", "features", `${feature}.js`))) return true;
+  const dir = path.join(ROOT, "web", "features");
+  return fs.readdirSync(dir).filter((n) => n.endsWith(".js")).some((n) => fs.readFileSync(path.join(dir, n), "utf8").includes(`id: "${feature}"`));
+}
+
 test("every menu item maps to a handler", () => {
   const rend = renderable();
   const updates = read("web", "features", "updates.js");
@@ -63,7 +70,7 @@ test("every menu item maps to a handler", () => {
         const id = item.focus.match(/^#([\w-]+)$/)?.[1];
         const feature = item.focus.match(/data-feature='([\w-]+)'/)?.[1];
         if (id) assert.match(sourceFor(item.view), new RegExp(`id="${id}"`), `${where}: ${item.focus} is not on ${item.view}`);
-        if (feature) assert.ok(fs.existsSync(path.join(ROOT, "web", "features", `${feature}.js`)), `${where}: ${feature}`);
+        if (feature) assert.ok(registers(feature), `${where}: ${feature}`);
       }
     }
   }
@@ -162,4 +169,36 @@ test("docs/menu-audit-0.4.13.md lists every menu item", () => {
   for (const opts of LAYOUTS) for (const i of allMenuItems(VIEWS(), opts)) assert.ok(doc.includes(i.label), i.label);
   assert.match(doc, /Features with no page/);
   assert.equal(doc.includes("\u2014"), false);
+});
+
+test("Simple More ends with Connections: Zapier, Make, and the other connectors", () => {
+  const more = simpleModel(VIEWS()).find((g) => g.label === "More").items;
+  const at = more.findIndex((i) => i.section === "Connections");
+  assert.ok(at > 0, "Connections is in More, after the pages");
+  const links = more.slice(at);
+  assert.ok(links.every((i) => i.section === "Connections" && i.view === "settings" && i.focus), "nothing but connectors after the heading");
+  assert.deepEqual(links.map((i) => i.label), ["Zapier and Make", "Keys and providers", "Your apps", "Browser extension", "HighLevel"]);
+  assert.equal(links[0].focus, "[data-feature='zapier']");
+  // MCP and Integrations panels are Expert only, so Simple does not link to them.
+  assert.equal(links.some((i) => /MCP|Integrations/.test(i.label)), false);
+  const nav = read("web", "nav.js");
+  assert.match(nav, /head\.className = "nav-section"/);
+  assert.match(nav, /panel\.insertBefore\(btn, section\)/, "a page that loads later stays above Connections");
+  // A connector link opens Settings past the Simple basics.
+  assert.match(app, /if \(b\.dataset\.view === "settings" && S\.navFocus\) S\.settingsMore = true;/);
+  // Zapier and Make are set up in Settings, not on the chat page.
+  const apps = read("web", "features", "apps.js");
+  assert.equal(apps.includes("cc-zapier-slot"), false);
+  assert.equal(app.includes("cc-zapier-slot"), false);
+  assert.match(apps, /<h3>\$\{simple \? "Zapier and Make"/);
+});
+
+test("Start a project sits right before Projects in every Simple and Expert menu", () => {
+  for (const opts of LAYOUTS) {
+    const items = allMenuItems(VIEWS(), opts).filter((i) => i.view === "start" || i.view === "projects");
+    assert.deepEqual(items.map((i) => i.view), ["start", "projects"], `${opts.mode}/${opts.layout}`);
+  }
+  const simple = simpleModel(VIEWS()).map((g) => g.label);
+  assert.equal(simple[0], "Chat", "Chat is the first Simple item");
+  assert.equal(simple.indexOf("Start a project") + 1, simple.indexOf("Projects"));
 });

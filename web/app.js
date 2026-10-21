@@ -1,7 +1,7 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
@@ -873,7 +873,7 @@ function renderExtras(kind, sel, ...args) {
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
-    if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;
+    if (simple && kind === "command" && !SIMPLE_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
     const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
   }
@@ -1048,12 +1048,10 @@ function renderSimpleChat(v) {
   <div class="cmd simple-chat">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
-        <div id="graduate-slot"></div>
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-        <div id="pp-popular"></div>
-        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
@@ -1066,7 +1064,7 @@ function renderSimpleChat(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div id="cc-zapier-slot"></div>
+    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
     <div class="panel output">
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
@@ -1078,6 +1076,7 @@ function renderSimpleChat(v) {
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "myday"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
     if (!item) return;
@@ -1105,6 +1104,14 @@ function renderSimpleChat(v) {
   renderOutput();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+}
+// My day on the Simple chat page: the same pages as the My day menu.
+function simpleDayHtml() {
+  const have = new Set(knownViews());
+  const labels = { "everyday-inbox": "Inbox and tasks", "everyday-plan": "Day plan", userchat: "People" };
+  const items = DAY_VIEWS.filter((view) => have.has(view));
+  if (!items.length) return "";
+  return `<div class="panel" id="simple-day"><h3>My day</h3><div class="row" style="flex-wrap:wrap;gap:6px">${items.map((view) => `<button type="button" class="btn sm" data-day="${esc(view)}">${esc(labels[view])}</button>`).join("")}</div></div>`;
 }
 function paintStarters() {
   const box = $("#cc-starters");
@@ -2277,6 +2284,8 @@ $("#tabs").addEventListener("click", (e) => {
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
+  // A Connect or Connections link opens Settings past the Simple basics, at that panel.
+  if (b.dataset.view === "settings" && S.navFocus) S.settingsMore = true;
   S.navMenu = b.closest(".nav-menu")?.dataset.menu || groupFor(b.dataset.view);
   closeNav(root);
   render();

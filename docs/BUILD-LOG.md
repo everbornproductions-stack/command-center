@@ -2419,3 +2419,7 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 Settings menu holds settings only. Help menu is Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, About Meldmind, in Simple and Expert. Simple adds More so every page is reachable. Marketplace has a menu item. Lock notes on Pro and Extreme pages. Report: docs/menu-audit-0.4.13.md. Test: test/menu-audit.test.js.
 
 MENU AUDIT BLOCKED (one item): "Run setup again" names two actions. Decision 20 keeps it on the Settings page for the first-run setup page; the tray, Help, and the Get everything connected card use it for the connections checklist. Renaming either touches decision 20 or the tray. Chris to decide which keeps the name.
+
+## 2026-10-21 Simple chat first, connectors under More > Connections (0.4.13)
+
+Simple: Chat is the first nav item and the top of the page. The chat page shows only the chat box, My day, three starters, and recent chats. Other Command widgets are Expert only (`SIMPLE_COMMAND` in web/mode.js). The Connect Zapier card left the chat page; Simple More ends with Connections (Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel), each opening Settings at that panel. Start a project sits right before Projects in Simple and Expert. docs/menu-audit-0.4.13.md and test/menu-audit.test.js updated.

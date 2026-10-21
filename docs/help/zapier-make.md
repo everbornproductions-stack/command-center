@@ -7,11 +7,11 @@ lastUpdatedVersion: 0.4.9
 
 # Connect Zapier and Make
 
-Connect Zapier from the Simple chat card, or connect Zapier and Make in Expert. Their actions can run in a chat or a mission after you click Allow. A Meldmind webhook can start a chat, a council, or a mission and return the result.
+Connect Zapier and Make from More > Connections > Zapier and Make in Simple, or from Settings in Expert. Their actions can run in a chat or a mission after you click Allow. A Meldmind webhook can start a chat, a council, or a mission and return the result.
 
 ## Simple
 
-On the chat page, the Connect Zapier card has the usual Zapier address filled in. Paste a token if Zapier gave you one, then click Connect Zapier. Meldmind lists the actions you turned on. Switch to Expert for Make, any MCP server, webhook tools, and the Meldmind webhook.
+In Simple, open More > Connections > Zapier and Make. The usual Zapier address is filled in. Paste a token if Zapier gave you one, then click Connect Zapier. Make works the same way. Meldmind lists the actions you turned on. Switch to Expert for any MCP server, webhook tools, and the Meldmind webhook.
 
 ## Expert
 
