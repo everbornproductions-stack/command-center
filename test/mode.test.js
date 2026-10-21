@@ -35,7 +35,7 @@ test("new installs are Simple until the question, existing installs stay Expert"
 });
 
 test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pages stay listed as hidden", () => {
-  const views = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "marketplace", "settings", "setup", "help"];
+  const views = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "builders", "subscriptions", "credits", "workspaces", "reports", "marketplace", "settings", "setup", "help"];
   const top = simpleTop(views);
   assert.deepEqual(top.labels, ["Chat", "Projects", "Create", "Help", "Settings"]);
   assert.deepEqual(top.create, CREATE_VIEWS);
