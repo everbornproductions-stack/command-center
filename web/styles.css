@@ -224,15 +224,20 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .cmd { display: grid; grid-template-columns: 360px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; height: 100%; min-height: 0; max-height: 100%; align-content: stretch; }
 /* Expert Command: Marching orders runs full height on the left and its box takes the spare room. */
 .cmd .orders { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; align-self: stretch; }
-.cmd .orders-panel { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 0; }
-.cmd .orders-panel #orders { flex: 1 1 auto; min-height: 160px; resize: none; }
+/* The panel never shrinks below its content, so the column scrolls with the panel border around it. */
+.cmd .orders-panel { display: flex; flex-direction: column; gap: 6px; flex: 1 0 auto; }
+.cmd .orders-panel #orders { flex: 1 1 auto; min-height: clamp(12rem, 38vh, 26rem); resize: none; }
 /* Right column: Deliverable on top (hidden until there is a result), Live ops below at its natural height. */
 .cmd-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; min-width: 0; overflow-y: auto; }
 .cmd-side > [hidden], .cmd .ops [hidden] { display: none !important; }
 .cmd .output { min-height: 0; overflow-y: auto; }
-.cmd-side .output { flex: 1 1 auto; min-height: 12rem; }
+.cmd-side .output { flex: 1 0 auto; min-height: 12rem; }
 .cmd .ops { display: flex; flex-direction: column; flex: none; overflow: visible; }
-.cmd .ops .task-answer .md { max-height: none; overflow: visible; }
+.cmd .ops .task-answer .md, .cmd .ops .ans .body { max-height: none; overflow: visible; }
+.cmd .ops .council-cols { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); overflow: visible; }
+/* Until there is a result, Deliverable is one short line. */
+.cmd .deliv-wait { padding-top: 10px; padding-bottom: 10px; }
+.cmd .deliv-wait h3 { margin: 0; }
 /* Idle Live ops is one line; Open live view stays at its right end (decision 24). */
 .cmd .ops.idle { flex-direction: row; align-items: center; gap: 10px; padding-top: 10px; padding-bottom: 10px; }
 .cmd .ops.idle h3 { margin: 0; flex: 1; }
