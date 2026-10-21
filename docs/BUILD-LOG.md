@@ -1606,3 +1606,18 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Per-person licences
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. Version stays 0.4.8. The migration was not applied to the live project. data/ was not read. No real key was used.
+
+- A licence is one person. `licenses.max_devices` defaults to 2 (a PC and a laptop). Rows still on the old default of 3 are set to 2 when Chris applies the migration. Any other number is left alone. An Extreme team seat is its own licence, so computers are not pooled across the team.
+- `verify_license` refuses a new computer past that cap and does not store it. Computers already on the key keep working until they are removed. The refusal is: "This key is already on 2 computers. Remove one in Settings > Devices."
+- Settings > Devices lists the computers on the key stored on this install. Remove asks for a confirm click. Removing this computer also drops the key here so the next check does not take the spot again.
+- `promo_codes.email`, when set, redeems only for that email. Empty still means any email, including EVERBORN-OWNER.
+- `scripts/make-tester-code.mjs` is owner-only (`CC_DEV_OWNER=1`, unpackaged, service role key). It stores one single-use code locked to the given email, then prints that code once. A publishable key is refused. The service key is not printed.
+- A licence used from 4 or more different computers, or 4 or more different IP addresses, in 24 hours is written to `license_reviews` for the owner. The person is not blocked. Customers cannot read that table.
+- Migration file only: `supabase/migrations/20261021_per_person_licences.sql`. Chris reviews it and runs it in the SQL editor. Steps are in docs/database.md under "Per-person licences (not applied)".
+- Tests here (Linux): npm test 436 tests, 435 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The Settings > Devices panel was opened in a browser against a local licence stub: the list showed HOME-PC and Laptop, cancel left Laptop in place, and accepting Remove took Laptop off and left HOME-PC. The live Supabase project was not contacted. Windows is the pull request check.
+
+PER-PERSON LICENCES DONE (migration not applied)

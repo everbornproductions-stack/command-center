@@ -45,7 +45,7 @@ import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
 import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
-import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
+import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier, listDevices, removeDevice } from "./license.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
@@ -681,6 +681,8 @@ async function api(req, res, url) {
   if (method === "GET" && p === "/update") return json(res, 200, updateState());
   if (method === "POST" && p === "/update/install") { try { return json(res, 202, await installUpdate()); } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, update: updateState() }); } }
   if (method === "POST" && p === "/license") { try { return json(res, 200, body.code ? await redeemPromo(body.code, body.email) : await activateLicense(body.key)); } catch (e) { return json(res, 400, { error: e.message }); } }
+  if (method === "GET" && p === "/license/devices") { try { return json(res, 200, await listDevices()); } catch (e) { return json(res, e.status || 400, { error: e.message }); } }
+  if (method === "POST" && p === "/license/devices/remove") { try { return json(res, 200, await removeDevice(body.deviceId)); } catch (e) { return json(res, e.status || 400, { error: e.message }); } }
   if (method === "POST" && p === "/license/recheck") return json(res, 200, await recheckLicense());
   if (method === "POST" && p === "/cloud") {
     let v;
