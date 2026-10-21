@@ -2,6 +2,8 @@
 
 Date: Oct 20, 2026. Author: Grok Bot research pass for Chris.
 
+Status, 2026-10-21: this catalog is Phases 53, 54, and 56 in docs/BUILD-PLAN.md. It sits in version 0.4.9 and is not done. Open pull requests are not done. Calendar still goes to Grok Bot until Phase 53 ships. Grok Bot's calendar handoff (decision 15) stays.
+
 ## 1. What people actually use AI assistants for (evidence)
 
 - OpenAI "How People Use ChatGPT" (NBER w34255, 2025): about 80% of use is Practical Guidance (~29%), Seeking Information (~24%) and Writing (~24%). Writing is 40% of work use, and two thirds of writing is editing the user's own text. Over 70% of messages are non-work.

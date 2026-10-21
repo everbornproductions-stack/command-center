@@ -144,7 +144,7 @@ The optional HQ adapter reads `<CC_HQ_DIR>/hq/state.json` (task board, decisions
 
 ## Not yet built (see docs/product-brief.md)
 
-A code-signed Windows build, the Mac build (Phase 14, needs a Mac), real pricing and payments for the trial, managed plan and marketplace (placeholders behind flags), and the licence-server functions for referrals. Watched-folder schedules stay on the desktop. Hub cron schedules are documented in docs/schedules.md.
+The current version plan is in docs/BUILD-PLAN.md. Version 0.4.10 is the unsigned Mac build (right-click Open). Signed apps, store listings, and phone apps are Later. Phase 14 still needs a Mac to verify, and any step that needs one stays blocked. Real charges for the trial, the managed plan, and the marketplace stay behind flags. Watched-folder schedules stay on the desktop. Hub cron schedules are documented in docs/schedules.md.
 
 ## Hosted hub (phone, PC off)
 
