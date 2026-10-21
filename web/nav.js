@@ -181,8 +181,13 @@ export function isSettingsItem(item) {
   return false;
 }
 
+// Start a project sits right before Projects, in Simple and Expert.
 function ensureStart(bucket) {
-  if (!bucket.some((i) => i.view === "start")) bucket.push({ ...START_ITEM });
+  const at = bucket.findIndex((i) => i.view === "start");
+  const start = at >= 0 ? bucket.splice(at, 1)[0] : { ...START_ITEM };
+  const projects = bucket.findIndex((i) => i.view === "projects");
+  if (projects >= 0) bucket.splice(projects, 0, start);
+  else bucket.push(start);
 }
 
 // Button text for one dropdown, matching the trigger labels in the bar.
@@ -554,6 +559,12 @@ function mountSimple(root, views, buttons, surface) {
   chat.classList.add("nav-direct");
   chat.removeAttribute("role");
   root.appendChild(chat);
+  if (have.has("start")) {
+    const start = buttonFor(buttons, "start", "Start a project");
+    start.classList.add("nav-direct");
+    start.removeAttribute("role");
+    root.appendChild(start);
+  }
   const projects = buttonFor(buttons, "projects", "Projects");
   projects.classList.add("nav-direct");
   projects.removeAttribute("role");
@@ -571,13 +582,6 @@ function mountSimple(root, views, buttons, surface) {
     if (have.has(view)) day.panel.appendChild(buttonFor(buttons, view, label));
   }
   root.appendChild(day.menu);
-
-  if (have.has("start")) {
-    const start = buttonFor(buttons, "start", "Start a project");
-    start.classList.add("nav-direct");
-    start.removeAttribute("role");
-    root.appendChild(start);
-  }
 
   const create = menuShell("create", "Create");
   for (const view of CREATE_VIEWS) {
@@ -773,7 +777,7 @@ export function placeNavItem(root, view, label) {
       btn.classList.add("nav-direct");
       btn.removeAttribute("role");
       const projects = root.querySelector('button[data-view="projects"]');
-      if (projects) projects.insertAdjacentElement("afterend", btn);
+      if (projects) projects.insertAdjacentElement("beforebegin", btn);
       else root.appendChild(btn);
       return;
     }

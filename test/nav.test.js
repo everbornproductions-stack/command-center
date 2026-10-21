@@ -172,10 +172,25 @@ test("Settings holds only settings items, and Start a project is in Work", () =>
     }
     const work = model.find((g) => g.id === "work");
     assert.equal(work.items.filter((i) => i.view === "start").length, 1, layout);
+    const order = work.items.map((i) => i.view);
+    assert.equal(order.indexOf("start"), order.indexOf("projects") - 1, `${layout}: Start a project comes right before Projects`);
   }
   assert.equal(groupFor("start"), "work");
   assert.equal(groupIdFor("start", "narrow"), "work");
   assert.equal(groupIdFor("start", "normal"), "work");
+});
+
+test("Start a project comes right before Projects in Simple and Expert", () => {
+  for (const layout of ["narrow", "normal"]) {
+    for (const views of [["command", "projects", "settings"], ["command", "projects", "settings", "start"], ["start", "command", "projects"]]) {
+      const order = menuModel(views, layout).find((g) => g.id === "work").items.map((i) => i.label);
+      assert.equal(order.indexOf("Start a project") + 1, order.indexOf("Projects"), `${layout}: ${order.join(", ")}`);
+    }
+  }
+  const src = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
+  const simple = src.slice(src.indexOf("function mountSimple"), src.indexOf("export function installNav"));
+  assert.ok(simple.indexOf('"start", "Start a project"') < simple.indexOf('"projects", "Projects"'), "Simple mounts Start a project before Projects");
+  assert.match(src, /projects\.insertAdjacentElement\("beforebegin", btn\)/);
 });
 
 test("layout follows the window from wide to normal to small and back", async () => {

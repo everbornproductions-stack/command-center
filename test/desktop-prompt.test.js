@@ -62,3 +62,47 @@ test("the setup wizard, tour, help, and marketing pages describe desktop control
   assert.match(bullets, /Not now/);
   assert.match(bullets, /Never/);
 });
+
+test("every desktop card button closes the card, and Open settings goes to Settings without bringing it back", async () => {
+  const { desktopClick, desktopPromptBlocked, markSessionClosed, sessionClosed, DESKTOP_SETTINGS_FOCUS } = await import("../web/desktop-prompt-flow.js");
+  for (const button of ["allow", "install", "settings", "later", "close", "never"]) {
+    const step = desktopClick(button);
+    assert.equal(step.close, true, button);
+    assert.equal(step.dismiss, true, button);
+  }
+  assert.equal(desktopClick("allow").server, "done");
+  assert.equal(desktopClick("install").server, "done");
+  assert.equal(desktopClick("install").run, "install");
+  assert.equal(desktopClick("never").server, "never");
+  assert.equal(desktopClick("close").server, "later");
+  const open = desktopClick("settings");
+  assert.equal(open.view, "settings");
+  assert.equal(open.focus, DESKTOP_SETTINGS_FOCUS);
+  assert.equal(open.run, null);
+
+  // Regression for the loop: Install and connect, then Open settings, must not reopen the card.
+  assert.equal(desktopPromptBlocked({ view: "command" }), false);
+  assert.equal(desktopPromptBlocked({ busy: true, view: "command" }), true, "never while an install runs");
+  assert.equal(desktopPromptBlocked({ view: "settings" }), true, "never on Settings");
+  assert.equal(desktopPromptBlocked({ view: "setup" }), true);
+  assert.equal(desktopPromptBlocked({ dismissed: true, view: "command" }), true, "never again this session");
+  const mem = new Map();
+  const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)) };
+  assert.equal(sessionClosed(store), false);
+  markSessionClosed(store);
+  assert.equal(sessionClosed(store), true, "a reload in the same session keeps it closed");
+  assert.equal(sessionClosed(null), false);
+
+  const ui = read("web/features/tour.js");
+  for (const id of ["x", "allow", "install", "settings", "later", "never"]) assert.match(ui, new RegExp(`cc-desktop-\\$\\{id\\}|id="cc-desktop-${id}"`), id);
+  assert.match(ui, /id="cc-desktop-x" aria-label="Close"/);
+  assert.match(ui, /id="cc-desktop-settings">Open settings/);
+  assert.match(ui, /e\.key === "Escape"\) desktopChoice\("close"\)/);
+  assert.match(ui, /e\.target === box\) desktopChoice\("close"\)/);
+  // The card is closed before the install or the confirm runs, and progress shows as a toast.
+  const choice = ui.slice(ui.indexOf("async function desktopChoice"));
+  assert.ok(choice.indexOf("hideDesktop()") < choice.indexOf("runDesktop("), "close first");
+  assert.match(ui, /Installing Antigravity/);
+  assert.equal(/alwaysOnTop|setAlwaysOnTop/.test(ui), false, "never always on top");
+  assert.match(read("web/app.js"), /openSettings: \(focus\) =>/);
+});

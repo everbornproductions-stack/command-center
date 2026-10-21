@@ -2411,3 +2411,5 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - What's new keeps the first-install skip and lists every version since the last one seen (94).
 - Text size also scales answer text, headings, dialog titles, and the tour card. The usage ping and its migration accept the Extreme tier.
 - Version 0.4.13. What's new, the release notes, the help catalog, and the guide PDF say 0.4.13.
+- Desktop card fix (Chris, Windows 0.4.12): Allow Antigravity, Install and connect, Open settings, Not now, Never, Close, Escape, and a click outside all close the card first. Install progress shows as toasts. The card stays closed for the app session, while an install runs, and on Settings or Setup, so Open settings (Settings, Antigravity under connections) cannot bring it back. It is an in-page card, never an always-on-top window. Logic in web/desktop-prompt-flow.js, regression test in test/desktop-prompt.test.js.
+- Start a project now comes right before Projects in Simple and Expert menus (test/nav.test.js).

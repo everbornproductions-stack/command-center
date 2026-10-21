@@ -1,6 +1,7 @@
 // Short tour: one idea per step, a Try it button, skip any time, replay from Help.
 // Steps come from web/features/guide.js and hide when their page is not in this app.
 import { liveProbe, rememberWalks, tourSteps } from "./guide.js";
+import { desktopClick, desktopPromptBlocked, markSessionClosed, sessionClosed } from "../desktop-prompt-flow.js";
 
 const { S, api, toast, esc, go } = window.CC;
 
@@ -26,6 +27,10 @@ const css = `
 #cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: calc(100vw - 32px); min-width: 0; box-sizing: border-box; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 1.125rem; }
+#cc-desktop-prompt .card { position: relative; }
+#cc-desktop-prompt h4 { padding-right: 72px; }
+#cc-desktop-prompt .x { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.8125rem; line-height: 1.2; cursor: pointer; }
+#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: #1a2436; color: var(--text); }
 #cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
 #cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
@@ -45,6 +50,9 @@ let newsOpen = false;
 let newsDismissed = false;
 let desktopOpen = false;
 let desktopDismissed = false;
+let desktopBusy = false;
+const session = () => { try { return window.sessionStorage; } catch { return null; } };
+const desktopBlocked = () => desktopPromptBlocked({ dismissed: desktopDismissed || sessionClosed(session()), busy: desktopBusy, view: S.view });
 
 // Stops for controls the guide does not list. Each shows only in its own mode.
 const APP_STEPS = [
@@ -101,7 +109,7 @@ function maybeInvite() {
   if (S.view === "setup") { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
   if (newsOpen) return;
-  if (!desktopDismissed && tour?.desktopPrompt) { showDesktop(); return; }
+  if (!desktopBlocked() && tour?.desktopPrompt) { showDesktop(); return; }
   if (desktopOpen) return;
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
@@ -172,43 +180,56 @@ function hideDesktop() {
 }
 function showDesktop() {
   const p = tour?.desktopPrompt;
-  if (!p || idx >= 0 || S.view === "setup") return;
+  if (!p || idx >= 0 || desktopBlocked()) return;
   document.querySelector(".cc-tour-invite")?.remove();
   if (document.getElementById("cc-desktop-prompt")) return;
   desktopOpen = true;
   const box = document.createElement("div");
   box.id = "cc-desktop-prompt";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-desktop-title"><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-modal="true" aria-labelledby="cc-desktop-title"><button type="button" class="x" id="cc-desktop-x" aria-label="Close"><span aria-hidden="true">×</span> Close</button><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-settings">Open settings</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
   document.body.appendChild(box);
-  const onKey = (e) => { if (e.key === "Escape") dismissDesktop("later"); };
+  const onKey = (e) => { if (e.key === "Escape") desktopChoice("close"); };
   document.addEventListener("keydown", onKey);
   box._deskKey = onKey;
-  box.querySelector("#cc-desktop-later").addEventListener("click", () => dismissDesktop("later"));
-  box.querySelector("#cc-desktop-never").addEventListener("click", () => dismissDesktop("never"));
-  box.querySelector("#cc-desktop-allow").addEventListener("click", () => allowDesktop(false));
-  box.querySelector("#cc-desktop-install").addEventListener("click", () => allowDesktop(true));
+  box.addEventListener("click", (e) => { if (e.target === box) desktopChoice("close"); });
+  for (const id of ["x", "allow", "install", "settings", "later", "never"]) {
+    box.querySelector(`#cc-desktop-${id}`).addEventListener("click", () => desktopChoice(id === "x" ? "close" : id));
+  }
+  box.querySelector("#cc-desktop-allow").focus();
 }
-async function dismissDesktop(action) {
+// Every choice closes the card before anything slow runs, and it stays closed for this session.
+async function desktopChoice(button) {
+  const step = desktopClick(button);
   desktopDismissed = true;
+  markSessionClosed(session());
   hideDesktop();
-  try { tour = await api("/tour/desktop", { method: "POST", body: { action } }); } catch {}
+  if (step.view) {
+    if (window.CC.openSettings) window.CC.openSettings(step.focus);
+    else go(step.view);
+  }
+  try { tour = await api("/tour/desktop", { method: "POST", body: { action: step.server } }); } catch { /* the card is already closed for this session */ }
+  if (step.run) await runDesktop(step.run === "install");
   maybeInvite();
 }
-async function allowDesktop(install) {
+async function runDesktop(install) {
+  const openSettings = { label: "Open settings", onClick: () => (window.CC.openSettings ? window.CC.openSettings("[data-feature='antigravity']") : go("settings")) };
+  desktopBusy = true;
   try {
     await api("/antigravity/allow", { method: "POST", body: { allow: true } });
-    if (install) {
-      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
-      const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
-      toast(r.message || "Installer finished", !r.ok);
-      if (r.ok) {
-        const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
-        toast(s.message || "Sign-in opened", !s.ok);
-      }
-    } else toast("Antigravity is allowed");
-  } catch (err) { toast(err.message, true); return; }
-  await dismissDesktop("done");
-  go("settings");
+    if (!install) { toast("Antigravity is allowed. Change this any time in Settings.", false, openSettings); return; }
+    if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) {
+      toast("Nothing was installed. Install and connect is in Settings.", false, openSettings);
+      return;
+    }
+    toast("Installing Antigravity. This can take a minute. You can keep working.");
+    const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+    toast(r.message || "Installer finished", !r.ok, r.ok ? null : openSettings);
+    if (r.ok) {
+      const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+      toast(s.message || "Sign-in opened", !s.ok);
+    }
+  } catch (err) { toast(err.message, true, openSettings); }
+  finally { desktopBusy = false; }
 }
 
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
