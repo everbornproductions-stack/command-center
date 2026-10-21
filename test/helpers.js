@@ -226,6 +226,10 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
     CC_NET_TRACE: "1",
+    // Model watch must not call providers during the suite. A test opts in with CC_MODEL_WATCH=on.
+    CC_MODEL_WATCH: env.CC_MODEL_WATCH || "off",
+    // People chat must not inherit a hub address from the machine running the tests.
+    CC_USERCHAT_HUB: env.CC_USERCHAT_HUB || "",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];

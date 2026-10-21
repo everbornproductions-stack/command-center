@@ -89,7 +89,7 @@ Not done, except the three rows already marked done above (share links, accessib
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
 - Phase 44. AI group chat. Built in the Together workstream. The version stayed 0.4.8.
-- Phase 92. User chat.
+- Phase 92. User chat. Built in the Watch and talk workstream. The version stayed 0.4.8. Messages stay on this computer until a hub address is set. The hub was not deployed.
 - Phase 43. Live builds. Built in the Together workstream as local rooms. The hub was not deployed. The version stayed 0.4.8.
 - Phase 61. Team spaces. Built in the Together workstream: Extreme, 5 seats counting the owner, shared projects and roles. Phase 8 workspaces were not rebuilt. The version stayed 0.4.8.
 - Phase 93. A newsletter and a monthly savings email.
@@ -103,10 +103,10 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 
 Left on the list so they are not dropped. They are not next.
 
-- Phase 32. Model-version alerts.
+- Phase 32. Model-version alerts. Built in the Watch and talk workstream. The version stayed 0.4.8. Notes go to the Together news list, which is installed.
 - Phase 33. HighLevel contacts, invoices, and workflows as council tools stay with the posting that shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90. The package version stayed 0.4.8.
 - Phase 34. Hide hosted plumbing. The simple licence copy hides the setup form. The package version stayed 0.4.8.
-- Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is still not built. The news list has a place for those notes.
+- Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is built. The news list stores those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
@@ -320,8 +320,8 @@ Before a council or a chat, match the orders to a Pro prompt.
 - If the heuristic is unsure, one cheap classify call through the existing router may pick a template id. An unknown id is ignored.
 - The learning router records the template id and a count (suggested, applied, removed, halted). No prompt text, no inputs, no secrets.
 
-### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
-Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
+### Phase 32: Model-version alerts (built, version unchanged)
+Watch connected AI providers for a new model and for a price change. The check uses each provider's public model list with the key saved for that provider. It is read only and runs at most once a day. A plain note is posted to the news list when that list is installed (Together, pull request 86). Until then the note stays in Model watch. A suggested switch can be accepted or undone. Nothing is switched on its own. The version stayed 0.4.8. Providers with no public model list (for example Kling) are not called.
 
 ### Phase 33: Bring your own apps (built, version stays 0.4.8)
 HighLevel posting already shipped in Phase 7. Contacts, invoices, and workflows are council tools. Reads run on click. Writes wait for a confirm click.
@@ -584,8 +584,8 @@ The plan prices are in docs/billing.md and in the comparison table in the app. T
 
 These wait until after Phase 91. Store listings, signed apps, and paid hosting need Chris's OK before any money is spent.
 
-### Phase 92: User chat (Later, not done)
-People chat with each other inside the app. This is not the AI group chat (Phase 44). Nothing is sent until the person clicks send. No keys are shared.
+### Phase 92: User chat (built, version unchanged)
+People chat with each other inside the app. This is not the AI group chat (Phase 44). Direct messages and small groups are limited to people in the same team space. When team spaces from the Together work are not installed yet, a Phase 8 workspace is used so this computer still works. Report and block stay on this computer. Messages stay on this computer until a people-chat hub address is set (`CC_USERCHAT_HUB`, https, or a loopback address in tests). Nothing is sent until Send. Keys and private-mode content are not shared. The version stayed 0.4.8. The hub was not deployed.
 
 ### Phase 93: Newsletter and monthly savings email (Later, not done)
 An opt-in newsletter, and a monthly email of what was saved. Phase 4's weekly report stays in the app and is still a draft until a click. This email does not send until the person opts in. No income or results claims. Do not touch Square.
