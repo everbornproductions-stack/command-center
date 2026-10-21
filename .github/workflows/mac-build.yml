@@ -1,24 +1,45 @@
 # Mac build for Meldmind: unsigned .dmg and .zip, uploaded to the public releases repo.
-# Runs on manual dispatch (Actions tab > Mac build > Run workflow) or when a v* tag is pushed.
+# Pull requests and pushes to main run the Mac tests on macos-latest (test on every target OS).
+# Those runs do not build a disk image and do not read RELEASES_TOKEN.
+# A v* tag, or Run workflow from the Actions tab, builds an unsigned .dmg and .zip
+# (x64 and arm64) and uploads them with RELEASES_TOKEN, the same secret the Windows release uses.
 # Needs repo secrets:
 #   RELEASES_TOKEN = a fine-grained GitHub token with "Contents: read and write"
 #     on everbornproductions-stack/command-center-releases only. It is used by this workflow only and is
-#     never built into the app.
+#     never built into the app. The Windows release workflow uses this same secret.
 #   CC_SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY = the Supabase publishable key (sb_publishable_...).
 #     The release build writes it into server/cloud-defaults.json and then clears it. Never the service key.
 #     Without it, npm run dist:mac stops and every installed copy would stay on the Free tier.
 # TODO (needs an Apple Developer account, $99/year): code signing and notarization. Until then macOS
-# Gatekeeper blocks the first open (right-click > Open), and in-app updates do not work on Mac
-# (Squirrel.Mac only installs signed builds). See docs/RELEASING.md.
+# Gatekeeper blocks the first open (right-click > Open), and an unsigned Mac app cannot replace itself
+# (Squirrel.Mac only installs signed builds). The app shows a download notice instead. See docs/RELEASING.md.
 name: Mac build
 on:
   workflow_dispatch:
+  pull_request:
   push:
+    branches: ["main"]
     tags: ["v*"]
 permissions:
   contents: read
+concurrency:
+  group: mac-build-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  mac:
+  test:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run smoke
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"   # unsigned until the Apple account exists
@@ -42,6 +63,10 @@ jobs:
         run: |
           if [ -z "$GH_TOKEN" ]; then echo "RELEASES_TOKEN secret is not set; skipping upload. Files are in the workflow artifacts."; exit 0; fi
           V=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${V}" ]; then
+            echo "Mac upload stopped: tag ${GITHUB_REF_NAME} does not match package.json version v${V}."
+            exit 1
+          fi
           R=everbornproductions-stack/command-center-releases
           # Never publish from here: if the Windows release is not up yet, a published Mac-only release would
           # have no latest.yml and every Windows copy would report an update error. A missing release is

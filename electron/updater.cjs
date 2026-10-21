@@ -7,8 +7,12 @@
 // check says "Restart and update" / "Later". Later on that prompt downloads (the click) and
 // installs when the app quits. Pure logic with injected autoUpdater and UI hooks, so tests
 // can drive it with fakes.
-// manualInstall (unsigned Mac builds, Phase 14): Apple only lets signed apps replace themselves, so
-// "Install now" opens the release page for the new .dmg (ui.openDownload) and never downloads or quits.
+// manualInstall (unsigned Mac builds, Phase 14): Apple only lets signed apps replace themselves.
+// The same launch and hourly checks run, and a newer version shows
+// "Meldmind X is ready. Download and install it to update; your data stays."
+// Download fetches the .dmg for this CPU (arm64 or x64) and opens it, or opens that file in the browser.
+// Remind me later does not download. electron-updater never downloads and the app never quits.
+// Automatic updates for Mac are coming soon (once the build is signed).
 //
 // The installed app checks on launch and every CHECK_EVERY_MS (one hour). The feed is the PUBLIC repo
 // everbornproductions-stack/command-center-releases, channel latest (latest.yml). private stays
@@ -42,9 +46,33 @@ function cleanError(e) {
     .slice(0, 300);
 }
 
+const MAC_SOON = "Automatic updates for Mac are coming soon.";
+const MAC_HOWTO = "Drag Meldmind to Applications and choose Replace. Your data stays in ~/Library/Application Support/Everborn Command.";
+
+function macArch(arch) {
+  return arch === "arm64" ? "arm64" : "x64";
+}
+
+function macDmgName(version, arch) {
+  const v = String(version || "").replace(/^v/, "");
+  return `Meldmind-${v}-${macArch(arch)}.dmg`;
+}
+
+function macDmgUrl(version, arch) {
+  const v = String(version || "").replace(/^v/, "");
+  return `https://github.com/everbornproductions-stack/command-center-releases/releases/download/v${v}/${macDmgName(v, arch)}`;
+}
+
+function macReadyLine(version) {
+  const v = String(version || "").replace(/^v/, "");
+  return `Meldmind ${v} is ready. Download and install it to update; your data stays.`;
+}
+
 // Top-bar label. Null means no button (no update to offer).
 // Launch keeps "Install now". A check while the app is already running says "Restart and update".
+// An unsigned Mac build says "Download" / "Remind me later" instead of installing in place.
 function promptButtons(state) {
+  if (state && state.manualInstall) return { primary: "Download", secondary: "Remind me later" };
   if (state && state.offer === "running") return { primary: "Restart and update", secondary: "Later" };
   return { primary: "Install now", secondary: "Later" };
 }
@@ -80,9 +108,15 @@ function applyUpdateFeed(autoUpdater, which = "github") {
   return which;
 }
 
-function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false }) {
+function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false, platform = process.platform, arch = process.arch }) {
   const listeners = [];
-  let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, checkedAt: 0, offer: "launch", installOnQuit: false };
+  const cpu = macArch(arch);
+  let state = {
+    phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, checkedAt: 0, offer: "launch", installOnQuit: false,
+    manualInstall: !!manualInstall, platform, arch: cpu,
+    readyLine: "", howto: manualInstall ? MAC_HOWTO : "", soon: manualInstall ? MAC_SOON : "",
+    downloadUrl: null, downloadName: null, opened: null,
+  };
   let dismissed = null;    // version the person said "Later" to (this launch only)
   let pending = null;      // in-flight check
   let installing = false;
@@ -166,7 +200,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     const s = await pending;
     if (s.phase === "available" && (manual || (prompt && dismissed !== s.version))) {
       const offer = (running || manual) && !manualInstall ? "running" : "launch";
-      const next = setState({ offer });
+      const next = setState(manualInstall ? { offer, readyLine: macReadyLine(s.version), howto: MAC_HOWTO, soon: MAC_SOON } : { offer });
       try { ui.prompt && ui.prompt(next); } catch (e) { log("update prompt failed:", e && e.message); }
       return next;
     }
@@ -218,11 +252,30 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     return state;
   }
 
-  const MANUAL_NOTE = "This Mac build cannot replace itself yet (it is not signed). Download the new version from the page that just opened.";
-  function openDownload() {
-    log(`update v${state.version}: opening the download page (manual install)`);
-    try { ui.openDownload && ui.openDownload(state.version); } catch (e) { log("could not open the download page:", e && e.message); }
-    return setState({ phase: "available", error: MANUAL_NOTE });
+  const MANUAL_NOTE = "This Mac build cannot replace itself yet (it is not signed). Drag Meldmind to Applications and choose Replace. Automatic updates for Mac are coming soon.";
+  async function openDownload() {
+    const version = state.version;
+    const name = macDmgName(version, cpu);
+    const url = macDmgUrl(version, cpu);
+    const patch = { phase: "available", error: null, downloadUrl: url, downloadName: name, readyLine: macReadyLine(version), howto: MAC_HOWTO, soon: MAC_SOON };
+    log(`update v${version}: download ${name}`);
+    if (typeof ui.fetchDmg === "function") {
+      try {
+        const file = await ui.fetchDmg({ version, arch: cpu, url, name });
+        if (file) {
+          let openErr = "";
+          if (typeof ui.openFile === "function") openErr = await ui.openFile(file) || "";
+          if (!openErr) return setState({ ...patch, opened: "file" });
+          log("could not open the disk image:", openErr);
+        }
+      } catch (e) { log("could not fetch the Mac download:", cleanError(e)); }
+    }
+    try { if (ui.openDownload) await ui.openDownload({ version, arch: cpu, url, name }); }
+    catch (e) {
+      log("could not open the download:", e && e.message);
+      return setState({ ...patch, opened: null, error: "Could not open the download. Try again." });
+    }
+    return setState({ ...patch, opened: "browser" });
   }
 
   // download with progress, then quit and run the installer, which relaunches the app
@@ -250,7 +303,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
       const found = !!(s.version && newer(s.version, currentVersion));
       return found ? { version: s.version, notes: s.notes || "", error: s.error || null } : { version: currentVersion, notes: "", error: s.error || null };
     },
-    download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); openDownload(); return Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" })); },
+    download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); return Promise.resolve(openDownload()).then(() => Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" }))); },
     install() {
       if (manualInstall) return; installing = true; try { ui.beforeQuit && ui.beforeQuit(); } catch {} log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
   };
@@ -258,4 +311,4 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   return { check, later, install, installDownloaded, whenQuitInstallReady, bridge, manualInstall, onEvent: (f) => listeners.push(f), get state() { return state; } };
 }
 
-module.exports = { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, applyUpdateFeed, buttonLabel, promptButtons, quitInstallAction, cleanError };
+module.exports = { createUpdateController, CHECK_EVERY_MS, GITHUB_FEED, GENERIC_FEED, applyUpdateFeed, buttonLabel, promptButtons, quitInstallAction, cleanError, MAC_SOON, MAC_HOWTO, macArch, macDmgName, macDmgUrl, macReadyLine };

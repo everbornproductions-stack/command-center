@@ -11,6 +11,12 @@ A new install starts in Simple. The first time you open Meldmind it asks: Keep i
 
 Simple is one chat box. You say what you want, and the council picks the AI. Expert is the full console. The Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
 
+## First open on a Mac
+
+macOS Gatekeeper may block the first open because this build is not signed yet. If it says the app cannot be opened, use right-click > Open, then choose Open again. After that, a double-click opens it.
+
+Settings, keys, and projects stay in ~/Library/Application Support/Everborn Command. Replacing the app in Applications keeps that folder.
+
 ## Top bar on a laptop
 
 The top bar is one row of dropdown menus. A wider window splits them into more menus, and a narrower window merges them back. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away. A 1024, 1366, 1920, or 2560 pixel wide window stays on that one row.

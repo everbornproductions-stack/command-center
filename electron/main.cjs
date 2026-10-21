@@ -8,7 +8,7 @@ const fs = require("node:fs");
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
 const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
-const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, quitInstallAction, macDmgName } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const { createHotkey } = require("./hotkey.cjs");
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
@@ -18,8 +18,8 @@ process.env.CC_INSTANCE = INSTANCE;
 const isPackaged = app.isPackaged;
 const IS_MAC = process.platform === "darwin";
 // Mac builds are unsigned until there is an Apple Developer account (docs/RELEASING.md). Apple only lets
-// signed apps replace themselves, so until then "Install now" on a Mac opens the release page for the
-// new .dmg instead of downloading. Set to true once Developer ID signing and notarization are on.
+// signed apps replace themselves, so an unsigned Mac build shows a download notice for the .dmg
+// (the file for this CPU) instead of installing in place. Set to true once Developer ID signing and notarization are on.
 const MAC_SELF_UPDATE = false;
 const RELEASES_PAGE = "https://github.com/everbornproductions-stack/command-center-releases/releases";
 const ROOT = path.join(__dirname, "..");
@@ -76,8 +76,11 @@ function exposeSafeStorage() {
 // before the engine starts and shows "Meldmind vX.Y.Z is ready" (Install now / Later). Install now
 // downloads with a progress bar, then the installer runs silently and relaunches. While the app
 // is open, the same check runs every hour and the prompt says "Restart and update" / "Later".
-// Later on that prompt downloads the update and installs it when you quit. App data in
-// %APPDATA%\Everborn Command is outside the install folder, so updates and reinstalls keep it.
+// Later on that prompt downloads the update and installs it when you quit. On an unsigned Mac
+// build those same checks show "Meldmind X is ready. Download and install it to update; your data stays."
+// Download fetches the .dmg for this CPU and opens it. Remind me later does not download.
+// App data stays outside the install folder, so updates and reinstalls keep it:
+// %APPDATA%\Everborn Command on Windows, ~/Library/Application Support/Everborn Command on Mac.
 let quittingForUpdate = false, updater = null, updateWin = null;
 const sendAll = (channel, payload) => { for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send(channel, payload); } catch {} } };
 function setupUpdater() {
@@ -88,8 +91,12 @@ function setupUpdater() {
   updater = createUpdateController({
     autoUpdater, log, currentVersion: app.getVersion(),
     manualInstall: IS_MAC && !MAC_SELF_UPDATE,
+    platform: process.platform,
+    arch: process.arch,
     ui: {
-      openDownload: (version) => shell.openExternal(`${RELEASES_PAGE}/tag/v${version}`),
+      fetchDmg: (info) => saveMacDmg(info),
+      openFile: (file) => shell.openPath(file),
+      openDownload: (info) => openMacDownload(info),
       state: (st) => {
         sendAll("upd:state", st);
         if (win) { try { win.setProgressBar(st.phase === "downloading" ? (st.percent || 0) / 100 : -1); } catch {} }
@@ -103,10 +110,34 @@ function setupUpdater() {
   globalThis.__ccUpdater = updater.bridge; // Settings > Check for updates keeps working through the server
   setInterval(() => updater.check({ prompt: true, running: true }).catch((e) => log("periodic update check failed:", e && e.message)), CHECK_EVERY_MS).unref();
 }
+function macCpuArch() { return process.arch === "arm64" ? "arm64" : "x64"; }
+async function saveMacDmg(info) {
+  const name = path.basename(String(info && info.name || ""));
+  const url = String(info && info.url || "");
+  if (!/^Meldmind-\d+\.\d+\.\d+-(arm64|x64)\.dmg$/.test(name)) throw new Error("unexpected Mac download name");
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error("unexpected Mac download address"); }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com" || !parsed.pathname.endsWith("/" + name)) throw new Error("unexpected Mac download address");
+  const dir = path.join(userData, "updates");
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, name);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`the Mac download answered HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(dest, buf);
+  return dest;
+}
+function openMacDownload(info) {
+  const version = info && typeof info === "object" ? info.version : info;
+  const arch = info && info.arch ? info.arch : macCpuArch();
+  const url = info && info.url ? info.url : `${RELEASES_PAGE}/download/v${version}/${macDmgName(version, arch)}`;
+  return shell.openExternal(url);
+}
 function showUpdateWindow() {
   if (updateWin && !updateWin.isDestroyed()) { updateWin.show(); updateWin.focus(); return; }
+  const macNotice = IS_MAC && !MAC_SELF_UPDATE;
   updateWin = new BrowserWindow({
-    width: 480, height: 300, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+    width: 520, height: macNotice ? 420 : 300, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     parent: win && !win.isDestroyed() ? win : undefined, modal: false, show: false, autoHideMenuBar: true,
     title: "Meldmind update", backgroundColor: "#090d14", icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },

@@ -1573,3 +1573,19 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
 - Version is 0.4.7.
 - Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
+
+## 2026-10-21: Phase 14 unsigned Mac build moved up for 0.4.8
+
+No locked decision was changed. Version stays 0.4.7 (this ships with 0.4.8; the version was not bumped here). Nothing was published. data/ was not read. Square was not touched. No Apple signing secrets were added.
+
+- `.github/workflows/mac-build.yml` is the Mac workflow (moved out of `docs/ci/`). A pull request and a push to main run `npm test` and `npm run smoke` on macos-latest. They do not build a disk image and they do not read `RELEASES_TOKEN`.
+- A `v*` tag, or Run workflow, builds an unsigned `.dmg` and `.zip` (x64 and arm64) with `npm run dist:mac` and uploads them to `everbornproductions-stack/command-center-releases`. The upload uses `RELEASES_TOKEN`, the same secret the Windows release uses. A missing release is still created as a draft. This workflow does not publish, so a Mac-only release cannot replace `latest.yml`.
+- An unsigned Mac app already checks on startup and every hour. When a newer version exists, the notice says "Meldmind X is ready. Download and install it to update; your data stays." Download fetches `Meldmind-<version>-<arch>.dmg` (arm64 or x64) from the public releases repo and opens it, or opens that file in the browser if the fetch fails. The notice includes the drag-to-Applications replace steps, "Remind me later" (no download), and "Automatic updates for Mac are coming soon." Windows Install now / Later / Restart and update is unchanged. Data stays in `~/Library/Application Support/Everborn Command` because `app.setName("Everborn Command")` is unchanged.
+- Help, first open on a Mac: right-click > Open. The same tip is in the updates article and the user guide.
+- Tests use a mocked darwin platform (`test/fixtures/as-darwin.cjs`) and an injected CPU (arm64 and x64). No real GitHub release was called.
+- Tests here (Linux): npm test 420 tests, 419 pass, 0 fail, 1 skipped (Pyodide is not installed). The stdio file was 8 pass. The other files were 412 tests, 411 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Not verified on a Mac: the packaged app was not started here (server start, Keychain prompt, tray, window, Dock, or the real data folder). The dmg and zip were not built (that needs the macOS runner). Gatekeeper was not clicked. Signing and notarization stay TODO until Chris buys the Apple Developer account.
+
+PHASE 14 BLOCKED: the unsigned Mac workflow, the download notice, and the Gatekeeper help tip are in the repo and covered by mocked-platform tests, but "check that the app runs on a Mac" (server start, Keychain vault, tray, window, Dock, data folder) still needs a real Mac, which this environment does not have. Signing and notarization still need the Apple Developer account.
+
+MAC UNSIGNED BUILD AND UPDATE NOTICE (built by Cursor cloud agent)
