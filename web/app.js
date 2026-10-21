@@ -1195,6 +1195,7 @@ function renderCommand(v) {
       </div>
     </div>
     <div class="cmd-side">
+      <div class="panel deliv-wait" id="deliv-wait"><h3>Deliverable <span class="right">Shows here when there is a result</span></h3></div>
       <div class="panel output" id="deliv-panel" hidden>
         <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
         <div class="md" id="out-md"></div>
@@ -1398,6 +1399,8 @@ function renderOutput() {
   const text = l.deliverable || prim?.text || "";
   const panel = $("#deliv-panel");
   if (panel) panel.hidden = !showDeliverable(l, text);
+  const wait = $("#deliv-wait");
+  if (wait && panel) wait.hidden = !panel.hidden;
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";

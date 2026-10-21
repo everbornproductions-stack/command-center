@@ -2450,3 +2450,14 @@ Not a numbered phase. No locked decision was changed. Nothing was merged into ma
 - Credits left, live balances: already built on this branch (server/provider-balance.js). Not rebuilt.
 - Tracked credits (server/credit-tracker.js): for an AI with no live balance, Update balance takes the credits and the day. Meldmind subtracts each ledger call after that and shows "tracked since <date>". Each row says where that AI shows usage history. Agents report use outside Meldmind with the new report_usage tool on the Meldmind MCP server (POST /api/bridge/usage, bridge token only) or a usage list in a report back. Show agent setup gives the standing instruction and a Claude Code command (no token in it). Balance, top-up, and usage emails from the AI's own domain update it on their own with "updated from email <date>", a history line, and Undo. No "balance is old" nudge. "Possibly off" shows only on a mismatch: live spend above what was tracked, or a usage email with no amount. Help article docs/help/credits-left.md. Test: test/credit-tracker.test.js.
 - Tests here (Linux, Node 22, no real key): every helper-process file run one at a time in the Windows order, then the rest. Results are in the pull request comment. The Subscriptions page was clicked through in a browser: Update balance, tracked since, history, Undo, and Show agent setup.
+
+## 2026-10-21 Expert Command layout, second pass (0.4.13)
+
+Not a numbered phase. No locked decision was changed. Nothing was merged, tagged, or released. Square and billing were not touched. data/ was not read.
+
+The layout from the first pass (Marching orders full height on the left, Deliverable over Live ops on the right, 3 newest steps and See all (N), one line "Nothing running" when idle, Welcome back under Live ops on Home, stacked on narrow windows) was already on this branch. A browser check found four gaps, now fixed:
+- The orders box stayed at 160px because the controls under it filled the panel. It now starts at clamp(12rem, 38vh, 26rem) and still grows into spare room. The panel no longer shrinks below its content, so the left column scrolls with the panel border around everything.
+- While Deliverable is hidden, a one-line "Deliverable: Shows here when there is a result" sits in its place.
+- Council answers inside Live ops had a 320px inner scroll box and a sideways scroll row. They now show at full height and wrap to new rows.
+- Live ops squeezed a finished Deliverable down to about 190px with its own scrollbar. Deliverable now keeps its full height and the right column scrolls.
+Simple mode is unchanged. Test: test/live-ops-layout.test.js.

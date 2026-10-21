@@ -40,6 +40,15 @@ test("Deliverable stays hidden until there is a result", () => {
   assert.equal(showDeliverable({ id: "r1", kind: "single", status: "running" }, "Hi"), true);
   assert.equal(showDeliverable({ id: "r1", kind: "research", status: "failed" }, ""), true);
   assert.match(app, /id="deliv-panel" hidden/);
+  const side = app.slice(app.indexOf('<div class="cmd-side">'));
+  assert.ok(side.indexOf('id="deliv-wait"') < side.indexOf('id="deliv-panel"'), "the short line sits where Deliverable goes");
+  assert.match(app, /wait\.hidden = !panel\.hidden/, "the line shows only while Deliverable is hidden");
+  assert.match(css, /\.cmd-side \.output \{[^}]*flex:\s*1 0 auto/, "Deliverable is not squeezed by Live ops");
+});
+
+test("Live ops has no inner scrollbar, council answers included", () => {
+  assert.match(css, /\.cmd \.ops \.task-answer \.md, \.cmd \.ops \.ans \.body \{ max-height: none; overflow: visible; \}/);
+  assert.match(css, /\.cmd \.ops \.council-cols \{[^}]*grid-auto-flow:\s*row[^}]*overflow:\s*visible/);
 });
 
 test("the right column puts Deliverable above Live ops, and the orders box fills the left", () => {
