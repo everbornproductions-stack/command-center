@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import crypto from "node:crypto";
 import path from "node:path";
-import { startServer, tmpDir, ROOT, raw, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, ROOT, raw, waitBudget, newKindPred } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-mcp-");
 const { McpClient, McpError, spawnSpec, normalizeResult, PROTOCOL_VERSION } = await import("../server/mcp-client.js");
@@ -254,7 +254,6 @@ async function waitRun(s, pred, label, ms = 60000) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${trace ? `\n${trace}` : ""}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
 // Follow the id the chat returns. A Windows clock can stamp the run a tick before Date.now() in this process, so startedAt > t0 never matches a run that already finished.
 async function postSingle(s, body) {
@@ -405,9 +404,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.ok(model.seen.slice(n2).every((j) => !j.tools), "tools: false on the request wins");
 
     // council: members with tools; the council records who used what
-    const t0 = Date.now();
-    assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false } })).status, 202);
-    run = await waitRun(s, finished("council", t0 - 1), "council with tools", 90000);
+    run = await waitRun(s, await newKindPred(s.api, "/council", { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false }, "council"), "council with tools", 90000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].by, "groq"); assert.equal(full.toolCalls[0].tool, "clock");
 
@@ -501,9 +498,7 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
     assert.equal(full.status, "done", full.error || "");
     assert.deepEqual(full.toolCalls, []);
     // a mission: specialists get the tools; the goal mentions the time, so the pretend AIs use the clock
-    const t0 = Date.now();
-    assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 } })).status, 202);
-    run = await waitRun(s, finished("mission", t0 - 1), "demo mission", 180000);
+    run = await waitRun(s, await newKindPred(s.api, "/mission", { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 }, "mission"), "demo mission", 180000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(["done", "done-with-errors"].includes(full.status), `mission ${full.status}: ${full.error || ""}`);
     assert.ok(full.toolCalls.length >= 1, "at least one task used a tool"); assert.ok(full.toolCalls.every((c) => c.tool === "clock" && c.ok && c.taskId));

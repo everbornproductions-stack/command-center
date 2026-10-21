@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, waitBudget, newKindPred } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-browser-");
 const R = await import("../server/browser-reader.js");
@@ -183,7 +183,7 @@ async function waitFor(fn, label, ms = 30000, s) {
 }
 const refOf = (u, re) => { for (const l of u.split("\n")) { const m = l.match(/^\[(e\d+)\] (.*)$/); if (m && re.test(m[2])) return m[1]; } throw new Error(`no element matching ${re} in:\n${u.slice(-1500)}`); };
 const formOf = (u) => (u.match(/\(form (f\d+) /) || [])[1];
-const finished = (kind, after) => (st) => st.missions.find((x) => x.kind === kind && x.startedAt > after && ["done", "done-with-errors", "failed"].includes(x.status));
+const settledState = async (s, pred) => pred((await s.api("/state")).json);
 
 test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google read and send, council and mission seats, hub card, ledger, no secrets leaked", async () => {
   const m = await mocks();
@@ -385,9 +385,8 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
     route = (await s.api(`/route?prompt=${encodeURIComponent("Write a tagline for a bakery.")}`)).json;
     assert.equal(route.browserHelper.fits, false);
     m.script.push({ action: "open", url: `${m.base}/site/` }, { action: "done", answer: "Today's special at Acme: blue widgets at $12." });
-    let t0 = Date.now();
-    assert.equal((await s.api("/council", { method: "POST", body: { prompt: `Log in to the supplier portal at ${m.base}/site/ and tell me today's special` } })).status, 202);
-    let run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council", 60000, s);
+    let pred = await newKindPred(s.api, "/council", { prompt: `Log in to the supplier portal at ${m.base}/site/ and tell me today's special` }, "council");
+    let run = await waitFor(async () => settledState(s, pred), "council", 60000, s);
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.agents.length, 1); assert.equal(full.agents[0].id, "browser-helper"); assert.equal(full.agents[0].status, "done");
     assert.equal(full.answers["browser-helper"].text, "Today's special at Acme: blue widgets at $12."); assert.equal(full.answers["browser-helper"].letter, "B");
@@ -397,9 +396,8 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
     assert.ok(st.ledger && (await s.api("/state")).json.ledger.recent.some((e) => e.role === "browse" && e.missionId === run.id), "its AI calls are booked to the council");
     assert.ok(fs.readFileSync(path.join(s.dir, "brain.json"), "utf8").includes("browser-helper"), "credited in the track record");
     // plain text work and "never" leave it out
-    t0 = Date.now();
-    await s.api("/council", { method: "POST", body: { prompt: `Log in to the supplier portal at ${m.base}/site/ and tell me today's special`, browser: false } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council without", 60000, s);
+    pred = await newKindPred(s.api, "/council", { prompt: `Log in to the supplier portal at ${m.base}/site/ and tell me today's special`, browser: false }, "council");
+    run = await waitFor(async () => settledState(s, pred), "council without", 60000, s);
     assert.deepEqual((await s.api(`/missions/${run.id}`)).json.agents, []);
 
     // ---- mission: the planner hands the browsing step to the helper; the next step uses its result ----
@@ -407,9 +405,8 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
       (u) => { assert.match(u, /TASK: Read the supplier portal\nLog in to the supplier portal/); assert.match(u, /Mission goal: Check today's special/); return { action: "open", url: `${m.base}/site/` }; },
       { action: "done", answer: "Special: blue widgets, $12." },
     );
-    t0 = Date.now();
-    assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Check today's special at our supplier and write me a summary", qa: false } })).status, 202);
-    run = await waitFor(async () => finished("mission", t0 - 1)((await s.api("/state")).json), "mission", 60000, s);
+    pred = await newKindPred(s.api, "/mission", { goal: "Check today's special at our supplier and write me a summary", qa: false }, "mission");
+    run = await waitFor(async () => settledState(s, pred), "mission", 60000, s);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error);
     const t1 = full.tasks.find((t) => t.id === "t1");
@@ -418,9 +415,8 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
 
     // ---- once Grok Bot is set up, it takes these jobs; the helper only joins when asked ----
     await s.api("/grokbot/config", { method: "POST", body: { mock: true } });
-    t0 = Date.now();
-    await s.api("/council", { method: "POST", body: { prompt: "Check my Gmail inbox for the Acme invoice" } });
-    run = await waitFor(async () => finished("council", t0 - 1)((await s.api("/state")).json), "council with Grok Bot", 60000, s);
+    pred = await newKindPred(s.api, "/council", { prompt: "Check my Gmail inbox for the Acme invoice" }, "council");
+    run = await waitFor(async () => settledState(s, pred), "council with Grok Bot", 60000, s);
     assert.deepEqual((await s.api(`/missions/${run.id}`)).json.agents.map((x) => x.id), ["grokbot"]);
     await s.api("/grokbot/config", { method: "POST", body: { mock: false } });
 
