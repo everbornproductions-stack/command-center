@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, ROOT } from "./helpers.js";
+import { startServer, tmpDir, ROOT, chatRunId } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-handoff-");
 const H = await import("../server/handoff.js");
@@ -249,13 +249,12 @@ test("server: registry CRUD, prompt, Grab reply ledger, no key, no secrets", { t
     const gpt = view.targets.find((t) => t.id === "chatgpt");
     assert.equal(gpt.access.key, true);
     assert.equal(gpt.suggest, false, "a saved key hides Continue in");
-    const t0 = Date.now();
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Say hi in four words.", provider: "openai", model: "gpt-test" } })).status, 202);
+    const runId = await chatRunId(s.api, { prompt: "Say hi in four words.", provider: "openai", model: "gpt-test" });
     const deadline = Date.now() + 30000;
     let run = null;
     while (Date.now() < deadline) {
       const st = (await s.api("/state")).json;
-      run = st.missions.find((m) => m.kind === "single" && m.startedAt > t0 - 1 && m.status !== "running");
+      run = st.missions.find((m) => m.id === runId && m.status !== "running");
       if (run) break;
       await new Promise((r) => setTimeout(r, 200));
     }
