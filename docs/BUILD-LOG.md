@@ -1618,6 +1618,7 @@ No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing wa
 - Phase 60. A send or a buy asks first. When a phone is paired, the phone can give that yes, and the payload is the action and the amount only. Declining sends nothing. Pairing stays off until it is turned on. With no phone, the yes stays on this PC, and publish and image routes behave as they did.
 - Tiers go through server/feature-gate.js. Free is blocked from desktop apps and recipes. Pro is 3 apps and 5 recipes. Extreme is unlimited. The live licence table was not edited, so Extreme is read from a stored active licence row.
 - Settings shows Routing, Apps, Recipes, Monthly budget, and Phone approvals. Help article docs/help/smarter-control.md is stamped 0.4.8. The plan notes these phases. The version was not bumped.
+- Commit: 93a7b9d.
 - Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
 - Checked in Chrome: Settings shows the routing sentence, an Invoices app can be allowed and revoked, the monthly cap saves, and the phone panel says pairing is off. Desktop and a 390px wide view. A real phone, a real browser profile, and Windows UI Automation were not used.
 - Not in this change: the mission planner does not assign an app step by itself (POST /api/control-apps/run and suggestApp are the door). Pull request 62 remains a separate desktop-doors stack.
