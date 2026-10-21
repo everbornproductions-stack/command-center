@@ -3,6 +3,7 @@
 // Never calls Square and never charges.
 import { ctx } from "../store.js";
 import { proPlanCatalog } from "../billing-plans.js";
+import { featureBuilt } from "../feature-gate.js";
 
 export const id = "billing-plans";
 
@@ -22,11 +23,22 @@ export function currentPlans() {
   return proPlanCatalog(founderSold());
 }
 
-export async function routes(req, res, url, _body, h) {
+export async function routes(req, res, url, body, h) {
   const seg = url.pathname.replace(/^\/api\/billing-plans\/?/, "").split("/").filter(Boolean);
   if (req.method === "GET" && seg.length === 0) {
     h.json(res, 200, currentPlans());
     return true;
+  }
+  // Gate check only. No screen, no Square call, no charge.
+  if (req.method === "POST" && seg[0] === "check") {
+    const feature = body?.feature;
+    if (!feature) return h.json(res, 400, { error: "feature required" });
+    try {
+      h.guard(feature, body || {});
+      return h.json(res, 200, { ok: true, feature, built: featureBuilt(feature) });
+    } catch (e) {
+      return h.json(res, e.status || 402, { error: e.message, code: e.code, built: e.built });
+    }
   }
   return false;
 }

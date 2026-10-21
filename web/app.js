@@ -9,6 +9,7 @@ import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-pic
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
+import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
 
 // ---------------- state ----------------
 const S = {
@@ -17,7 +18,7 @@ const S = {
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null, awaitingRun: false,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
-const PRIORITY = [["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
+const PRIORITY = [["max", "Max quality"], ["quality", "Quality"], ["balanced", "Balanced"], ["savings", "Max savings"], ["speed", "Speed"]];
 function priorityNow() {
   const raw = S.costMode || S.settings?.defaultMode || "balanced";
   return raw === "economy" ? "savings" : raw;
@@ -1589,12 +1590,6 @@ function renderCredits(v) {
 }
 
 // ----- Subscriptions -----
-function lifetimeChoiceLabel() {
-  const L = S.proPlans && S.proPlans.lifetime;
-  if (L && L.open === false) return "Lifetime founder is sold out";
-  if (L && L.price) return "Lifetime founder, $" + L.price;
-  return "Lifetime founder, $299 then $499";
-}
 function openPayLink(url) {
   try {
     const u = new URL(url);
@@ -1605,30 +1600,33 @@ function openPayLink(url) {
 }
 function chooseProPlan(which) {
   const plans = S.proPlans || {};
-  if (which === "yearly") {
-    if (plans.yearly && plans.yearly.payLink && openPayLink(plans.yearly.payLink)) return;
-    toast("Pro yearly is $159 a year. The Square checkout link is not published yet. Nothing was charged.");
-    return;
-  }
-  const L = plans.lifetime || {};
-  if (L.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
-  if (L.payLink && openPayLink(L.payLink)) return;
-  const price = L.price ? "$" + L.price : "$299 for the first 100, then $499";
-  toast("Lifetime founder is " + price + ", capped at 500. The Square checkout link is not published yet. Nothing was charged.");
+  const all = [plans.monthly, plans.yearly, plans.extremeMonthly, plans.extremeYearly, plans.lifetime].filter(Boolean);
+  const plan = all.find((p) => p.id === which) || (which === "yearly" ? plans.yearly : which === "lifetime" ? plans.lifetime : null);
+  if (!plan) { toast("That plan is not available. Nothing was charged."); return; }
+  if (plan.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
+  if (plan.payLink && plan.checkout !== false && openPayLink(plan.payLink)) return;
+  const name = plan.button || plan.label || "This plan";
+  toast(name + ". The Square checkout link is not published yet. Nothing was charged.");
 }
 function bindProPlans(root) {
   $$("[data-pro-plan]", root).forEach((b) => b.addEventListener("click", () => chooseProPlan(b.dataset.proPlan)));
 }
-const PRO_PLAN_NOTE = "Lifetime founder is $299 for the first 100, then $499, capped at 500. Yearly and lifetime do not open Square until those links are published. Nothing is charged from here.";
+function upgradeBlock(primary) {
+  const tier = S.license?.tier || "free";
+  return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" id="sub-lic">I have a licence key</button></div>
+      ${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}
+      ${extremeExtrasHtml()}
+      <div class="dim small" style="margin-top:8px">Pro, Extreme, and the $349 lifetime button open their Square pay page. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
+}
 
 function renderSubscriptions(v) {
   if (S.subscriptionsLocked) {
     v.innerHTML = `<div class="panel" style="max-width:720px;margin:24px auto;text-align:center;padding:36px 28px">
       <div style="font-size:28px;margin-bottom:8px">🔒</div>
       <h2 style="margin:0 0 8px;font-size:20px">The Subscriptions tracker is part of Pro</h2>
-      <div class="muted">What you pay for every AI subscription, when it renews, credits left, burn per day, runway, and a plain keep / watch / cancel signal. Pro also unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler.</div>
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap"><a class="btn primary" href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a><button type="button" class="btn" data-pro-plan="yearly">Pro yearly, $159/year</button><button type="button" class="btn" data-pro-plan="lifetime">${esc(lifetimeChoiceLabel())}</button><button class="btn" id="sub-lic">I have a licence key</button></div>
-      <div class="dim small" style="margin-top:8px">${PRO_PLAN_NOTE}</div>
+      <div class="muted">What you pay for every AI subscription, when it renews, credits left, burn per day, runway, and a plain keep / watch / cancel signal. Pro also unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler. Extreme adds more AIs per council, more runs at once, and the rows in the table.</div>
+      ${upgradeBlock(true)}
     </div>`;
     $("#sub-lic").addEventListener("click", () => { S.view = "settings"; render(); });
     bindProPlans(v);
@@ -1770,9 +1768,8 @@ function renderSettings(v) {
       ${phonePanel()}
       <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
         <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
-        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service. <a href="https://square.link/u/dbU38mQC" target="_blank" rel="noopener">Go Pro, $15.99/month</a>` : ""}</div>
-        <div style="margin-top:10px">${compareTable(esc)}</div>
-        ${(S.license?.tier || "free") === "free" ? `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-pro-plan="yearly">Pro yearly, $159/year</button><button type="button" class="btn sm" data-pro-plan="lifetime">${esc(lifetimeChoiceLabel())}</button></div><div class="dim small" style="margin-top:6px">${PRO_PLAN_NOTE}</div>` : ""}
+        <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
+        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
         ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
         ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
@@ -1845,8 +1842,10 @@ function renderSettings(v) {
       defaultMode: $("#s-mode") ? $("#s-mode").value : S.settings.defaultMode,
       missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
     };
-    S.settings = await api("/settings", { method: "POST", body });
-    renderBudget(); toast("Saved");
+    try {
+      S.settings = await api("/settings", { method: "POST", body });
+      renderBudget(); toast("Saved");
+    } catch (e) { toast(e.message, true); }
   });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.phase = "scan"; S.view = "setup"; render(); });
@@ -1876,6 +1875,7 @@ function renderSettings(v) {
   });
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
+  $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
   $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
   $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
   $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });

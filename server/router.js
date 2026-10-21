@@ -13,7 +13,7 @@ import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
 import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
-import { costWeight, normalizeMode, speedBoost } from "./modes.js";
+import { bestModelEach, costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
 import { extraRouteModels } from "./route-extras.js";
 
@@ -86,7 +86,7 @@ export function availableModels() {
   return out;
 }
 
-// mode: quality | balanced | savings (alias: economy) | speed
+// mode: max | quality | balanced | savings (alias: economy) | speed
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
@@ -110,6 +110,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
+  // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
+  // Prefer-free is skipped so a cheaper model does not replace that flagship.
+  if (mode === "max") list = bestModelEach(list, capability);
   const scoreOf = (m) => {
     const est = estimateCostAt(m.model, estIn, estOut, when);
     // learning router (Phase 28): the person's own track record for this task type, when there is one,
@@ -138,7 +141,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   };
   const scored = list.map(scoreOf);
-  const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), readPreferFree()), mode);
+  const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode);
   if (!includeApps) return ordered;
   const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
   if (!appRows.length) return ordered;

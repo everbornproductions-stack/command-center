@@ -12,7 +12,7 @@ Free tier: Postgres, Auth, Row Level Security, Edge Functions, 500 MB, no card. 
 
 | Table / function | Purpose |
 |---|---|
-| `licenses` | key, email, tier (free/pro/studio/owner), status, Square customer + subscription ids, period end, max devices |
+| `licenses` | key, email, tier (free/pro/extreme/studio/owner), status, Square customer + subscription ids, period end, max devices |
 | `devices` | each PC/phone that activated a key (device id, name, platform, app version, last seen) |
 | `releases` | the update feed the app polls (version, notes, URL, published) |
 | `user_sync` | optional phone ↔ desktop sync of projects/subscriptions/settings per signed-in user |

@@ -1,15 +1,323 @@
-import { licenseState, TIERS } from "./license.js";
+// Free, Pro, and Extreme limits. One place for the comparison table and the server gates.
+// A Studio licence uses Pro limits. Owner uses Extreme limits. Nothing here calls Square.
+// Features marked built: false have a gate and no screen yet.
+import {
+  extremeMonthlyLabel, extremeYearlyLabel, proMonthlyLabel, proYearlyLabel,
+} from "./price-config.js";
 
-// One map for Free, Pro, Extreme, and Owner.
-// Pro is $18.99/month. A Studio licence is treated as Pro. Extreme is $29.99/month.
-// Owner is issued by hand. Caps that already exist stay on TIERS in server/license.js.
-// A later feature calls registerFeature and then guardFeature(id, tier).
-// landed: false means the screen is not in the app yet. The tier is still recorded.
+export const PRO_AIS = 4;
+export const EXTREME_AIS = 8;
+export const FREE_AIS = 4;
+export const FREE_CONCURRENT = 1;
+export const PRO_CONCURRENT = 3;
+export const EXTREME_CONCURRENT = 8;
+export const PRO_DEEP_RESEARCH_PER_MONTH = 8;
+export const PRO_INDUSTRY_PACKS = 1;
+// 5 people total, counting the owner (the owner plus 4 invited). The gate count is the headcount before an invite.
+export const EXTREME_TEAM_SEATS = 5;
+export const PRO_DESKTOP_APPS = 3;
+export const PRO_RECIPES = 5;
 
-const PRO_PRICE = "$18.99/month";
+const TAIL = " Add a licence key in Settings.";
+const PRO_PRICE = proMonthlyLabel;
+
+export const FEATURES = {
+  missions: { kind: "bool", built: true },
+  scheduler: { kind: "bool", built: true },
+  councilsPerMonth: { kind: "cap", built: true },
+  projects: { kind: "cap", built: true },
+  subscriptionsTab: { kind: "bool", built: true },
+  connectedServices: { kind: "cap", built: true },
+  emailAccounts: { kind: "cap", built: true },
+  phone: { kind: "bool", built: true },
+  historySearch: { kind: "bool", built: true },
+  sharedLearning: { kind: "bool", built: true },
+  scores: { kind: "bool", built: true },
+  aisPerCouncil: { kind: "cap", built: true },
+  concurrentRuns: { kind: "cap", built: true },
+  hostedBackground: { kind: "bool", built: false },
+  hostedSchedules: { kind: "bool", built: false },
+  teamSeats: { kind: "cap", built: false },
+  desktopApps: { kind: "cap", built: false },
+  recipes: { kind: "cap", built: false },
+  industryPacks: { kind: "cap", built: true },
+  auditLog: { kind: "bool", built: false },
+  budgetCap: { kind: "bool", built: false },
+  prioritySupport: { kind: "bool", built: true },
+  deepResearchPerMonth: { kind: "cap", built: false },
+  earlyAccess: { kind: "bool", built: true },
+  maxQuality: { kind: "bool", built: true },
+};
+
+// New features reach Extreme first. Unset means on. "0" turns the flag off.
+export function earlyAccessEnabled(env = process.env) {
+  const v = env?.CC_EARLY_ACCESS;
+  if (v == null || String(v).trim() === "") return true;
+  return String(v).trim() !== "0";
+}
+
+const ALIAS = {
+  subscriptions: "subscriptionsTab",
+  council: "councilsPerMonth",
+  connectedService: "connectedServices",
+  deepResearch: "deepResearchPerMonth",
+  concurrent: "concurrentRuns",
+};
+
+// Flags the older routes still read by name. Caps stay numeric on the objects above.
+const FREE_FLAGS = {
+  shareLinks: false, desktop: false, programScan: false, appScan: false, repeats: false,
+  exportDocs: false, backgroundRuns: false, pauseMissions: false,
+  publicShare: false, documentExport: false,
+  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
+  learningRouter: true, privateMode: true,
+};
+const PRO_FLAGS = {
+  shareLinks: true, desktop: true, programScan: true, appScan: true, repeats: true,
+  exportDocs: true, backgroundRuns: true, pauseMissions: true,
+  publicShare: true, documentExport: true,
+  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
+  learningRouter: true, privateMode: true,
+};
+
+const FREE = {
+  missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false,
+  connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false,
+  aisPerCouncil: FREE_AIS, concurrentRuns: FREE_CONCURRENT,
+  hostedBackground: false, hostedSchedules: false, teamSeats: 0,
+  desktopApps: 0, recipes: 0, industryPacks: 0, auditLog: false, budgetCap: false, prioritySupport: false,
+  deepResearchPerMonth: 0,
+  earlyAccess: false, maxQuality: false,
+  ...FREE_FLAGS,
+  label: "Free",
+};
+
+const PRO = {
+  missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
+  connectedServices: Infinity, emailAccounts: 8, phone: true, historySearch: true, sharedLearning: true, scores: true,
+  aisPerCouncil: PRO_AIS, concurrentRuns: PRO_CONCURRENT,
+  hostedBackground: false, hostedSchedules: false, teamSeats: 0,
+  desktopApps: PRO_DESKTOP_APPS, recipes: PRO_RECIPES, industryPacks: PRO_INDUSTRY_PACKS,
+  auditLog: false, budgetCap: false, prioritySupport: true,
+  deepResearchPerMonth: PRO_DEEP_RESEARCH_PER_MONTH,
+  earlyAccess: false, maxQuality: false,
+  ...PRO_FLAGS,
+  label: "Pro",
+};
+
+const EXTREME = {
+  ...PRO,
+  aisPerCouncil: EXTREME_AIS,
+  concurrentRuns: EXTREME_CONCURRENT,
+  hostedBackground: true,
+  hostedSchedules: true,
+  teamSeats: EXTREME_TEAM_SEATS,
+  desktopApps: Infinity,
+  recipes: Infinity,
+  industryPacks: Infinity,
+  auditLog: true,
+  budgetCap: true,
+  prioritySupport: true,
+  deepResearchPerMonth: Infinity,
+  earlyAccess: true,
+  maxQuality: true,
+  label: "Extreme",
+};
+
+export const LIMITS = {
+  free: FREE,
+  pro: PRO,
+  extreme: EXTREME,
+  // A Studio licence is Pro. It is not a fourth public price and it is not Extreme.
+  studio: { ...PRO, label: "Studio" },
+  owner: { ...EXTREME, label: "Owner" },
+};
+
+export const featureKey = (feature) => ALIAS[feature] || feature;
+export const featureBuilt = (feature) => FEATURES[featureKey(feature)]?.built !== false;
+
+function isHigher(a, b) {
+  if (a === true && b !== true) return true;
+  if (a === Infinity && b !== Infinity) return true;
+  if (typeof a === "number" && typeof b === "number" && a > b) return true;
+  return false;
+}
+
+export function sellingTier(limits, key) {
+  if (isHigher(LIMITS.pro[key], limits[key])) return "pro";
+  if (isHigher(LIMITS.extreme[key], limits[key])) return "extreme";
+  return "pro";
+}
+
+function usedCount(key, info) {
+  if (key === "concurrentRuns") return Number(info.running ?? 0);
+  if (key === "councilsPerMonth" || key === "deepResearchPerMonth") return Number(info.used ?? info.count ?? 0);
+  return Number(info.count ?? info.used ?? info.seats ?? 0);
+}
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function messageFor(limits, key, info, sell) {
+  const price = sell === "extreme" ? extremeMonthlyLabel : proMonthlyLabel;
+  const who = sell === "extreme" ? "Extreme" : "Pro";
+  const n = usedCount(key, info);
+  const limit = limits[key];
+  const part = (what) => `${what} is part of ${who} (${price}).${TAIL}`;
+
+  if (key === "councilsPerMonth") {
+    return `You have used ${n} of ${limit} councils this month on ${limits.label}. Unlimited councils is part of Pro (${proMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "projects") {
+    return `${limits.label} includes ${plural(limit, "project")}. Unlimited projects is part of Pro (${proMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "connectedServices") {
+    return `${limits.label} includes ${plural(limit, "connected service")}. Every connected service is part of Pro (${proMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "emailAccounts") {
+    return `${limits.label} includes ${plural(limit, "email account")} per provider. More email accounts is part of Pro (${proMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "missions") return part("Mission mode");
+  if (key === "scheduler") return part("The off-peak scheduler");
+  if (key === "subscriptionsTab") return part("The Subscriptions tracker");
+  if (key === "phone") return part("Phone pairing");
+  if (key === "historySearch") return part("Full history search");
+  if (key === "sharedLearning") return part("Shared learning");
+  if (key === "scores") return part("The scores dashboard");
+  if (key === "prioritySupport") return part("Priority support");
+  if (key === "desktop") return part("Desktop control");
+  if (key === "appScan" || key === "programScan") return part("Program scan");
+  if (key === "publicShare" || key === "shareLinks") return part("Public share links");
+  if (key === "documentExport" || key === "exportDocs") return part("PDF and Word export");
+  if (key === "repeats") return part("Do this again");
+  if (key === "backgroundRuns") return part("Background runs");
+  if (key === "pauseMissions") return part("Pause missions");
+  if (key === "deepResearchPerMonth") {
+    if (!limit) return `Deep Research is part of Pro (${proMonthlyLabel}). Unlimited Deep Research is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+    return `You have used ${n} of ${limit} Deep Research runs this month on ${limits.label}. Unlimited Deep Research is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "industryPacks") {
+    if (!limit) return `An industry pack is part of Pro (${proMonthlyLabel}). All industry packs are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+    return `${limits.label} includes ${plural(limit, "industry pack")}. All industry packs are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "aisPerCouncil") {
+    return `${limits.label} includes ${plural(limit, "AI")} per council. More AIs per council is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "concurrentRuns") {
+    return `${limits.label} includes ${plural(limit, "run")} at once. More runs at once is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "teamSeats") return `Team spaces are part of Extreme (${extremeMonthlyLabel}). Extreme includes ${EXTREME_TEAM_SEATS} people total, counting the owner. That is the owner plus 4 invited.${TAIL}`;
+  if (key === "earlyAccess") return `Early access is part of Extreme (${extremeMonthlyLabel}). New features reach Extreme first, behind a flag.${TAIL}`;
+  if (key === "maxQuality") return `Max quality is part of Extreme (${extremeMonthlyLabel}). It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap.${TAIL}`;
+  if (key === "desktopApps") {
+    if (!limit) return `Desktop control apps are part of Pro (${proMonthlyLabel}), with a limit. Unlimited desktop control apps are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+    return `${limits.label} includes ${plural(limit, "desktop control app")}. Unlimited desktop control apps are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "recipes") {
+    if (!limit) return `Recipes are part of Pro (${proMonthlyLabel}), with a limit. Unlimited recipes are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+    return `${limits.label} includes ${plural(limit, "recipe")}. Unlimited recipes are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
+  }
+  if (key === "hostedBackground") return part("Hosted background runs");
+  if (key === "hostedSchedules") return part("Hosted schedules");
+  if (key === "auditLog") return part("The compliance audit log");
+  if (key === "budgetCap") return part("A monthly budget cap");
+  return part("This feature");
+}
+
+export function evaluateGate(limits, feature, info = {}) {
+  const key = featureKey(feature);
+  const meta = FEATURES[key];
+  const built = meta ? meta.built !== false : true;
+  const current = limits || FREE;
+  if (!meta) {
+    if (current[key]) return { ok: true, feature: key, built };
+    const sell = "pro";
+    return { ok: false, feature: key, built, code: "pro_required", message: messageFor(current, key, info, sell) };
+  }
+  const value = current[key];
+  if (meta.kind === "bool") {
+    if (value && key === "earlyAccess" && !earlyAccessEnabled(info.env)) {
+      return { ok: false, feature: key, built, code: "early_access_off", message: "Early access is off. New features reach Extreme first when the flag is on." };
+    }
+    if (value) return { ok: true, feature: key, built };
+    const sell = sellingTier(current, key);
+    return { ok: false, feature: key, built, code: sell === "extreme" ? "extreme_required" : "pro_required", message: messageFor(current, key, info, sell) };
+  }
+  const n = usedCount(key, info);
+  if (n < value) return { ok: true, feature: key, built, limit: value === Infinity ? null : value };
+  const sell = sellingTier(current, key);
+  return {
+    ok: false, feature: key, built,
+    code: sell === "extreme" ? "extreme_required" : "pro_required",
+    message: messageFor(current, key, info, sell),
+  };
+}
+
+function cellCap(value, monthly) {
+  if (value === Infinity) return "Unlimited";
+  if (!value) return "No";
+  return monthly ? `${value} a month` : String(value);
+}
+
+function cellBool(value) {
+  return value ? "Yes" : "No";
+}
+
+const PUBLIC_ROWS = [
+  { id: "councils", label: "Councils", key: "councilsPerMonth", monthly: true },
+  { id: "ais", label: "AIs per council", key: "aisPerCouncil" },
+  { id: "runs", label: "Runs at once", key: "concurrentRuns" },
+  { id: "missions", label: "Missions", key: "missions", bool: true },
+  { id: "deep", label: "Deep Research", key: "deepResearchPerMonth", monthly: true },
+  { id: "packs", label: "Industry packs", key: "industryPacks", packs: true },
+  { id: "audit", label: "Compliance audit log", key: "auditLog", bool: true },
+  { id: "team", label: "Team", key: "teamSeats" },
+  { id: "apps", label: "Desktop control apps", key: "desktopApps" },
+  { id: "recipes", label: "Recipes", key: "recipes" },
+  { id: "hostedRuns", label: "Hosted background runs", key: "hostedBackground", bool: true },
+  { id: "hostedSchedules", label: "Hosted schedules", key: "hostedSchedules", bool: true },
+  { id: "budget", label: "Monthly budget cap", key: "budgetCap", bool: true },
+  { id: "support", label: "Priority support", key: "prioritySupport", bool: true },
+  { id: "early", label: "Early access", key: "earlyAccess", bool: true },
+  { id: "max", label: "Max quality", key: "maxQuality", bool: true },
+];
+
+function compareCell(tier, row, env) {
+  const value = LIMITS[tier][row.key];
+  if (row.key === "earlyAccess") {
+    if (!value) return "No";
+    return earlyAccessEnabled(env) ? "Yes" : "Flag off";
+  }
+  if (row.key === "maxQuality") return value ? "Yes, inside the budget cap" : "No";
+  if (row.packs) {
+    if (value === Infinity) return "All packs";
+    if (!value) return "No";
+    return value === 1 ? "1 pack" : `${value} packs`;
+  }
+  if (row.bool) return cellBool(value);
+  if (row.key === "teamSeats") return value ? `${value} people total` : "No";
+  if ((row.key === "desktopApps" || row.key === "recipes") && value === Infinity) return "Unlimited";
+  return cellCap(value, row.monthly);
+}
+
+export function publicCompare(env = process.env) {
+  const columns = [
+    { id: "free", name: "Free", price: "$0" },
+    { id: "pro", name: "Pro", price: `${proMonthlyLabel} or ${proYearlyLabel}` },
+    { id: "extreme", name: "Extreme", price: `${extremeMonthlyLabel} or ${extremeYearlyLabel}` },
+  ];
+  const rows = PUBLIC_ROWS.map((row) => ({
+    id: row.id,
+    label: row.label,
+    cells: columns.map((col) => compareCell(col.id, row, env)),
+  }));
+  return { columns, rows, minWidth: 390 };
+}
+
+// Older Free vs Pro rows. The words match web/compare.js.
 const PAID = new Set(["pro", "studio", "extreme", "owner"]);
-
-const rows = [];
+const registry = [];
 
 export function registerFeature(spec) {
   const id = String(spec?.id || "").trim();
@@ -25,38 +333,34 @@ export function registerFeature(spec) {
     landed: spec.landed !== false,
     cap: spec.cap || null,
   };
-  const at = rows.findIndex((r) => r.id === id);
-  if (at >= 0) rows[at] = row;
-  else rows.push(row);
+  const at = registry.findIndex((r) => r.id === id);
+  if (at >= 0) registry[at] = row;
+  else registry.push(row);
   return { ...row };
 }
 
 export function unregisterFeature(id) {
-  const at = rows.findIndex((r) => r.id === id);
-  if (at >= 0) rows.splice(at, 1);
+  const at = registry.findIndex((r) => r.id === id);
+  if (at >= 0) registry.splice(at, 1);
 }
 
 export function featureById(id) {
-  const row = rows.find((r) => r.id === id);
+  const row = registry.find((r) => r.id === id);
   return row ? { ...row } : null;
 }
 
 export function features() {
-  return rows.map((r) => ({ ...r }));
+  return registry.map((r) => ({ ...r }));
 }
 
-// Rows for the Free vs Pro table. Not-yet-built items stay in the list so the
-// promise matches the gate. Order is the order they were registered.
 export function compareRows() {
-  return rows.map((r) => [r.label, r.free, r.pro]);
+  return registry.map((r) => [r.label, r.free, r.pro]);
 }
 
 export function tierPaid(tier) {
   return PAID.has(String(tier || "free").toLowerCase());
 }
 
-// Pro rows throw 402 on the Free tier. Free rows always pass.
-// Studio is Pro. Extreme and Owner pass a Pro row. An Extreme-only row needs Extreme or Owner.
 export function guardFeature(id, tier = "free") {
   const row = featureById(id);
   if (!row) {
@@ -69,7 +373,7 @@ export function guardFeature(id, tier = "free") {
   if (row.tier === "free") return row;
   if (row.tier === "extreme") {
     if (name === "extreme" || name === "owner") return row;
-    const e = new Error(`${row.label} is part of Extreme ($29.99/month).`);
+    const e = new Error(`${row.label} is part of Extreme (${extremeMonthlyLabel}).`);
     e.status = 402;
     e.code = "extreme_required";
     throw e;
@@ -112,33 +416,37 @@ add({ id: "phone", tier: "pro", label: "Phone pairing", cap: "phone" });
 add({ id: "historySearch", tier: "pro", label: "Full history search", cap: "historySearch" });
 add({ id: "subscriptions", tier: "pro", label: "Subscriptions tracker", cap: "subscriptionsTab" });
 
-// Names used by the public-share, export, and industry-pack routes.
-export const FEATURES = {
+const ROUTE_LABELS = {
   publicShare: "Public share links",
   documentExport: "PDF and Word export",
   industryPacks: "Industry packs",
 };
-
 const FEATURE_FLAG = {
   publicShare: "publicShare",
   documentExport: "documentExport",
   industryPacks: "industryPacks",
 };
 
+// license.js registers licenseState after both modules finish loading.
+let readLicense = () => ({ tier: "free" });
+export function bindLicenseState(fn) {
+  if (typeof fn === "function") readLicense = fn;
+}
+
 export function featureOpen(id) {
-  const label = FEATURES[id] || featureById(id)?.label || "This feature";
-  const s = licenseState();
-  const T = TIERS[s.tier] || TIERS.free;
+  const label = ROUTE_LABELS[id] || featureById(id)?.label || "This feature";
+  const s = readLicense();
+  const T = LIMITS[s.tier] || LIMITS.free;
   const flag = FEATURE_FLAG[id];
-  const ok = flag ? !!T[flag] : (featureById(id)?.tier !== "pro" && featureById(id)?.tier !== "extreme") || tierPaid(s.tier);
+  const row = featureById(id);
+  const ok = flag ? !!T[flag] : ((row?.tier !== "pro" && row?.tier !== "extreme") || tierPaid(s.tier));
   return { ok: !!ok, tier: s.tier, feature: id, label, code: ok ? "open" : "pro_required" };
 }
 
 export function requirePro(id) {
   const r = featureOpen(id);
   if (r.ok) return r;
-  const price = id === "publicShare" || id === "documentExport" || id === "industryPacks" ? "$18.99/month" : "$18.99/month";
-  const err = new Error(`${r.label} is part of Pro (${price}). Add a licence key in Settings.`);
+  const err = new Error(`${r.label} is part of Pro (${PRO_PRICE}). Add a licence key in Settings.`);
   err.status = 402;
   err.code = "pro_required";
   err.feature = id;

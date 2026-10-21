@@ -13,33 +13,11 @@ import { HOSTED, ctx, doc, putDoc, allContexts, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
-import { compareRows, featureById } from "./feature-gate.js";
+import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
+import { GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY, LIFETIME_PLAN_ID, moneyPlain } from "./price-config.js";
 
-// Flags that are true on Pro and false on Free. Caps stay numeric.
-const PRO_EXTRA = {
-  shareLinks: true, desktop: true, programScan: true, repeats: true, industryPacks: true,
-  exportDocs: true, backgroundRuns: true, pauseMissions: true,
-  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true, learningRouter: true,
-};
-const FREE_EXTRA = {
-  shareLinks: false, desktop: false, programScan: false, repeats: false, industryPacks: false,
-  exportDocs: false, backgroundRuns: false, pauseMissions: false,
-  tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true, learningRouter: true,
-};
-const PRO = {
-  missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
-  connectedServices: Infinity, emailAccounts: 8,
-  phone: true, historySearch: true, sharedLearning: true, scores: true,
-  ...PRO_EXTRA,
-  desktop: true, appScan: true, programScan: true,
-  publicShare: true, documentExport: true,
-};
-export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, ...FREE_EXTRA, desktop: false, appScan: false, programScan: false, publicShare: false, documentExport: false, label: "Free" },
-  pro:    { ...PRO, label: "Pro" },
-  studio: { ...PRO, label: "Studio" },
-  owner:  { ...PRO, label: "Owner" },
-};
+// One table. Studio is Pro. Owner is Extreme. See server/feature-gate.js.
+export const TIERS = LIMITS;
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the
 // last successful check, whichever is sooner. After that the copy drops to Free.
@@ -88,10 +66,18 @@ export function resolveTier({ lic: l, now = Date.now(), ownerEmail = false, devO
     let graceUntil = lastOk + GRACE_MS;
     // offline: the paid period is the other bound (a successful check is authoritative on its own)
     if (l.lastError && l.periodEnd) { const pe = new Date(l.periodEnd).getTime(); if (!Number.isNaN(pe)) graceUntil = Math.min(graceUntil, pe); }
-    if (now <= graceUntil) return { tier: l.tier, reason: l.lastError ? "grace" : "active", graceUntil };
+    if (now <= graceUntil) return applyLifetime(l, { tier: l.tier, reason: l.lastError ? "grace" : "active", graceUntil });
     return { tier: "free", reason: "grace_expired", graceUntil };
   }
   return { tier: "free", reason: l?.status ? `licence_${l.status}` : "no_licence" };
+}
+
+// A lifetime founder licence is Pro for life, including when the row was tagged Extreme by mistake.
+function applyLifetime(l, result) {
+  if (!result || result.tier === "free" || result.tier === "owner") return result;
+  if (l?.plan !== LIFETIME_PLAN_ID) return result;
+  if (result.tier !== "pro" && result.tier !== "extreme") return result;
+  return { ...result, tier: "pro", lifetime: true };
 }
 
 // Free trial (Phase 9, server/growth.js, behind CC_TRIAL): asked only when the licence says Free.
@@ -115,6 +101,8 @@ export function licenseState() {
   else if (r.reason === "dev_override") message = "Developer override (CC_DEV_OWNER=1, unpackaged run)";
   else if (r.reason === "trial") message = `Free trial: Pro for ${r.daysLeft} more day${r.daysLeft === 1 ? "" : "s"}. Nothing is charged.`;
   else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
+  else if (r.lifetime && r.reason === "active") message = "Lifetime founder: Pro for life.";
+  else if (l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro" && r.reason === "active") message = `Pro, grandfathered at $${moneyPlain(GRANDFATHER_PRO_MONTHLY)}/month. That price stays.`;
   else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
   else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
   return {
@@ -130,6 +118,9 @@ export function licenseState() {
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
     message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
     compare: compareRows(),
+    plan: l.plan || null,
+    grandfathered: l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro",
+    lifetime: !!r.lifetime,
   };
 }
 
@@ -159,7 +150,9 @@ export async function activate(key) {
   const r = await rpc("verify_license", { p_key: k, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
   const now = Date.now();
   if (r?.ok) {
-    saveLic({ key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" });
+    const patch = { key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" };
+    if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
+    saveLic(patch);
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
     try {
       const { queueWelcome } = await import("./welcome-mail.js");
@@ -231,8 +224,6 @@ export function resetVerifiedTier(reason = "cloud settings changed") {
 }
 
 // ---------- tier gates (one place; routes and plugin helpers both go through guard) ----------
-const PRO_PRICE = "$15.99/month";
-const pro = (what, detail = "") => Object.assign(new Error(`${detail}${what} is part of Pro (${PRO_PRICE}). Add a licence key in Settings.`), { status: 402, code: "pro_required" });
 
 // Councils are counted per UTC calendar month from the mission store (kind === "council"),
 // plus the councils of this user that are still running (they are only written when they finish).
@@ -257,45 +248,20 @@ export function isProFeature(feature) {
 }
 export function guard(feature, info = {}) {
   const s = licenseState();
-  const T = TIERS[s.tier];
-  switch (feature) {
-    case "missions": if (!T.missions) throw pro("Mission mode"); return s;
-    case "scheduler": if (!T.scheduler) throw pro("Schedules"); return s;
-    case "desktop": if (!T.desktop) throw pro("Desktop control"); return s;
-    case "appScan": if (!T.appScan) throw pro("Program scan"); return s;
-    case "programScan": if (!T.programScan) throw pro("Program scan"); return s;
-    case "subscriptions": case "subscriptionsTab": if (!T.subscriptionsTab) throw pro("The Subscriptions tracker"); return s;
-    case "council": {
-      const used = councilsThisMonth();
-      if (used >= T.councilsPerMonth) throw pro("Unlimited councils", `You have used ${used} of ${T.councilsPerMonth} councils this month on ${T.label}. `);
-      return s;
-    }
-    case "projects": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.projects) throw pro("Unlimited projects", `${T.label} includes ${T.projects} project${T.projects === 1 ? "" : "s"}. `);
-      return s;
-    }
-    case "connectedService": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.connectedServices) throw pro("Every connected service", `${T.label} includes ${T.connectedServices} connected service${T.connectedServices === 1 ? "" : "s"}. `);
-      return s;
-    }
-    case "emailAccounts": {
-      const n = Number(info.count ?? 0);
-      if (n >= T.emailAccounts) throw pro("More email accounts", `${T.label} includes ${T.emailAccounts} email account${T.emailAccounts === 1 ? "" : "s"} per provider. `);
-      return s;
-    }
-    case "phone": if (!T.phone) throw pro("Phone pairing"); return s;
-    case "historySearch": if (!T.historySearch) throw pro("Full history search"); return s;
-    case "sharedLearning": if (!T.sharedLearning) throw pro("Shared learning"); return s;
-    case "scores": if (!T.scores) throw pro("The scores dashboard"); return s;
-    default: {
-      const spec = featureById(feature);
-      if (spec?.tier === "free" || T[feature] === true) return s;
-      if (T[feature] === false || spec?.tier === "pro") throw pro(spec?.label || "This feature");
-      throw pro("This feature");
-    }
+  const T = TIERS[s.tier] || TIERS.free;
+  const spec = { ...info };
+  delete spec.env;
+  if ((feature === "council" || feature === "councilsPerMonth") && spec.used == null && spec.count == null) spec.used = councilsThisMonth();
+  const result = evaluateGate(T, feature, spec);
+  if (!result.ok) {
+    const err = new Error(result.message);
+    err.status = 402;
+    err.code = result.code;
+    err.built = result.built;
+    throw err;
   }
+  return s;
 }
+bindLicenseState(licenseState);
 // Older name, kept for plugins.
 export const requireFeature = (feature) => guard(feature);

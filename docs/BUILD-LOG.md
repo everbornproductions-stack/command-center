@@ -1915,3 +1915,37 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Phase
 
 PHASE 14 BLOCKED: a signed Mac build needs a Mac and an Apple Developer account. Mac CI runs tests and smoke only.
 WORKSTREAM D DONE
+
+## 2026-10-21: Pro $18.99, Extreme $29.99, lifetime spots hidden until 40
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called and nothing was charged. Studio workspaces were not rebuilt.
+
+- Pro monthly is $18.99. Extreme is a third tier at $29.99 a month. Pro yearly is $189 (the unpublished $159 figure is retired). Extreme yearly is $299. Lifetime is Pro for life: $299 for the first 100, then $499, closed after 500. Prices live in server/price-config.js. Changing PRICE_SET from current to next is the later monthly raise (Pro $24.99, Extreme $39.99) and does not change yearly or lifetime.
+- The spots-left counter stays hidden until 40 founders have bought (FOUNDER_SPOTS_HIDDEN_UNTIL, default 40). Before that the line is "Limited to the first 100 founders". The price rule still shows.
+- People already on the live Square plan stay at $15.99. Plan id pro-monthly-1599. The pay link https://square.link/u/dbU38mQC is not edited and is not the new buy button. New checkouts have no pay link until Chris publishes them.
+- Extreme gates (no new screens): more AIs per council (8), more runs at once (8), hosted background runs and schedules, team spaces with 3 seats, unlimited desktop apps and recipes, all industry packs, a compliance audit log, a monthly budget cap, unlimited Deep Research. Pro Deep Research is 8 a month. Free is unchanged. The existing Settings monthly API budget stays the local cap and is not gated. Email accounts stay at 8 on Pro, Extreme, and owner.
+- The comparison table is three columns at desktop and at 390px. It does not use the stacking grid.
+- Chris creates these Square plan ids by hand: pro-monthly-1899, pro-yearly-189, extreme-monthly-2999, extreme-yearly-299, founder-lifetime. Leave pro-monthly-1599 alone. Run supabase/migrations/20261021_extreme_tier.sql before issuing an Extreme key. The app does not run it.
+- Mac CI is .github/workflows/mac-ci.yml. It runs npm test and npm run smoke. It does not package or publish. Windows CI is unchanged.
+- Tests here (Linux): npm test 435 tests, 434 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+- Checked in a browser on this machine: the Subscriptions lock and Settings show Free, Pro at $18.99, and Extreme at $29.99 in three columns, including a 390px wide window. With 12 founders sold the line is "Limited to the first 100 founders" and there is no spots-left number. Pro yearly shows a toast that nothing was charged. No Square page opened.
+
+## 2026-10-21: Founder lifetime $349, published pay links, Extreme extras
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called and nothing was charged. Studio workspaces were not rebuilt. Extreme yearly stays $299.
+
+- Lifetime for the first 100 founders is $349. The next 400 stay at $499. The deal still closes at 500. The spots-left counter still stays hidden until 40 sales.
+- Published pay pages, stored next to the grandfather link and not fetched by the app: Pro monthly https://square.link/u/UrcjlAqi, Pro yearly https://square.link/u/8JlyJzxb, Extreme monthly https://square.link/u/u5FdCONv, Extreme yearly https://square.link/u/LxwtyrCy. The founder link is a placeholder (`LIFETIME_PAY_LINK` is null) until it is reissued at $349. The old $15.99 link is still not a new-plan button.
+- Extreme also includes early access (flag `CC_EARLY_ACCESS`, off only when it is `0`), Max quality (best model each connected AI offers, more reasoning and a longer context, inside the existing spend caps), and team spaces with 5 seats. Team spaces stay a gate with no new screen. Max quality is in the command bar and in Settings. Free, Pro, and a trial get a 402 for that mode.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+- Checked in a browser on this machine: Subscriptions and Settings show $349, three columns at 390px, team seats 5, early access, and Max quality. Lifetime toasts that nothing was charged. Pro and Extreme yearly show a Square pay page on hover and were not opened. An owner copy can save Max quality. No Square page opened.
+
+## 2026-10-21: Founder lifetime pay page
+
+Not a numbered phase. No locked decision was changed. Square was not called. The $349 founder page is https://square.link/u/nKrsGaj2. The later $499 price does not use that page, so that button stays on the page. Extreme yearly stays $299. The old $15.99 link is unchanged.
+
+## 2026-10-21: Extreme team is 5 people total
+
+Not a numbered phase. No locked decision was changed. Square was not called. Studio workspaces were not rebuilt. The Extreme team cap stays 5. The count is the headcount before an invite, so 4 people (the owner plus 3 invited) can still invite one more, and 5 people total (the owner plus 4 invited) refuses the next person. The table, the Settings line, and the gate message say 5 people total, counting the owner.
+
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
