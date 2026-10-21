@@ -13,6 +13,7 @@ const PRESETS = [
 ];
 const STATUS_CLS = { queued: "", running: "amber", needs_approval: "amber", done: "green", failed: "red", stopped: "red", rejected: "" };
 const TRIG = { cron: "Schedule", webhook: plainLabel("webhook"), folder: "Watched folder" };
+const triggers = () => (S().mode === "hosted" ? { cron: TRIG.cron, webhook: TRIG.webhook } : TRIG);
 
 function pad(n) { return String(n).padStart(2, "0"); }
 function compactDays(days) {
@@ -104,12 +105,13 @@ function form(s) {
     </div>
     <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do each time? (for an agent this is optional)">${esc(e.target.text || "")}</textarea>
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
-      <label class="small">Trigger <select id="sf-trig">${Object.entries(TRIG).map(([k, v]) => `<option value="${k}" ${e.trigger.type === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="small">Trigger <select id="sf-trig">${Object.entries(triggers()).map(([k, v]) => `<option value="${k}" ${e.trigger.type === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5")}</span>
       <span id="sf-folder-wrap"><label class="small">Folder <input type="text" id="sf-folder" value="${esc(e.trigger.folder || "")}" placeholder="C:\\Users\\you\\Drop" style="width:240px"></label>
         <label class="small">Files <input type="text" id="sf-pattern" value="${esc(e.trigger.pattern || "")}" placeholder="*.txt, *.csv" style="width:110px"></label></span>
     </div>
     <div class="hint" id="sf-hook-note" style="margin-top:6px" role="note">${esc(plainLabel("webhook"))}. ${esc(plainExplain("webhook"))} The token is shown once when you save. Keep it in the sending service, not in a shared document.</div>
+    ${S().mode === "hosted" ? `<div class="small dim" style="margin-top:6px">Watched folders stay on the desktop app.</div>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Monthly spend cap ($) <input type="number" id="sf-cap" min="0.01" step="0.01" value="${esc(e.capUsd)}" style="width:90px"></label>
       <label class="small">After the run <select id="sf-after"><option value="none" ${e.after.action === "none" ? "selected" : ""}>Keep the result here</option><option value="webhook" ${e.after.action === "webhook" ? "selected" : ""}>Send it to a web address (asks you first)</option></select></label>

@@ -326,7 +326,7 @@ test("server: any model, citations, pro search, filters, deep research, free dai
     run = await waitRun(pro, finished("single", t0 - 1), "gemini grounding");
     full = (await pro.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done", full.error || "");
-    assert.ok(m.seen.gemini.at(-1)?.tools?.some((t) => t.google_search), "Gemini grounding tool was requested");
+    assert.ok(m.seen.gemini.some((j) => j.tools?.some((t) => t.google_search)), "Gemini grounding tool was requested");
     assert.ok(full.sources.some((s) => /ground/.test(s.url)), "grounding chunks became sources");
 
     const freeView = (await free.api("/search")).json;

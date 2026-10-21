@@ -16,7 +16,8 @@ import { emit } from "./events.js";
 import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
 import { GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY, LIFETIME_PLAN_ID, moneyPlain } from "./price-config.js";
 
-// One table. Studio is Pro. Owner is Extreme. See server/feature-gate.js.
+// One table. Studio is Pro. Owner is Extreme. Hosted runs are Extreme and Owner only.
+// See server/feature-gate.js. This does not call Square.
 export const TIERS = LIMITS;
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the

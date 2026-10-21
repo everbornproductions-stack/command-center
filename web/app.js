@@ -10,6 +10,7 @@ import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { isDesktopOnly } from "./desktop-only.js";
 
 // ---------------- state ----------------
 const S = {
@@ -755,6 +756,7 @@ function toggleSimpleCreate() {
   sheet.classList.add("open");
 }
 function render() {
+  if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   syncChrome();
   renderAsk();
   markTabs();
@@ -779,8 +781,9 @@ function knownViews() {
   const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
   for (const f of window.CC?.byKind?.("tab") || []) have.add(f.id);
-  const ordered = NAV_ORDER.filter((id) => have.has(id));
+  let ordered = NAV_ORDER.filter((id) => have.has(id));
   for (const id of have) if (!ordered.includes(id)) ordered.push(id);
+  if (S.mode === "hosted") ordered = ordered.filter((id) => !isDesktopOnly(id));
   return ordered;
 }
 function ensureMobileMore() {
@@ -803,14 +806,16 @@ function ensureFeatureTabs() {
   let layout = currentNavLayout();
   if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
-  if (root) installNav(root, knownViews(), mode, layout);
+  const surface = S.mode === "hosted" ? "web" : "";
+  if (root) installNav(root, knownViews(), mode, layout, surface);
   // Eight menus that still overflow this window merge back to the compact row.
   // A zero clientWidth means the bar has not been laid out yet, so it must not lock the compact row.
   if (mode === "expert" && root && root.dataset.navLayout === "normal" && root.clientWidth > 0 && rowOverflows(root)) {
     root.dataset.nav = "";
-    installNav(root, knownViews(), mode, "narrow");
+    installNav(root, knownViews(), mode, "narrow", surface);
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
+    if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
@@ -842,6 +847,7 @@ function renderExtras(kind, sel, ...args) {
   box.innerHTML = "";
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
+    if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
     const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }

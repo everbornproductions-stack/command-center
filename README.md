@@ -159,3 +159,48 @@ The same server runs as a hub in the cloud so the console works from a phone or 
 Deployment target: Cloudflare Containers at hub.meldmind.ai (Workers Paid, $5/month). The Worker is named meldmind-hub (`worker/index.js` + `wrangler.jsonc`). Fly.io config is the fallback and uses the same hub address. The appId, the updater feed (`command-center-releases`, `latest.yml`) and the installer names stay as they are.
 
 Pairing: Settings → *Phone & other devices* shows the hub address and a QR code; scanning it opens the hub on the phone, where it installs as an app. The web app also accepts `?hub=https://your-hub` to point at a different hub and remembers it.
+
+## Hosted web app and Extreme cloud runs
+
+Phase 52 is the same UI in a browser, plus Extreme "run while this PC is off". The code and the deploy files are in the repo. Nothing here is deployed, and no account or machine is created by the app. Going live needs Chris's OK before any hosting is paid for.
+
+What the desktop does: on Extreme (or an owner account), Settings has **Turn on cloud runs**. After that, a schedule or a mission can be handed to the hosted worker with **Hand to the cloud**. Both clicks are required. A watched folder stays on the PC. The header shows **Running in the cloud** until the result is synced back. Keys are sealed on the PC (AES-256-GCM, wrapped to the worker public key) and opened only inside the worker. The browser never sees a raw key.
+
+The web app is the same server with `CC_MODE=hosted`. Sign-in is the existing Supabase magic link. The browser receives the publishable key only (`CC_SUPABASE_ANON_KEY`). `CC_SUPABASE_SERVICE_KEY` stays on the server. Desktop-only pages (setup, libraries, bookmarks, the quick launcher, files on this computer, the installer, the browser extension, and the in-app browser) are hidden. `Dockerfile` builds that image. `fly.toml` is the Fly.io shape. `render.yaml` is the Render shape. `node server/worker-service.js` is the same UI and the job queue if you split them; the image command stays `node server/index.js`, which loads the worker routes.
+
+### Environment variable names
+
+Set the secret ones in the host dashboard (`fly secrets set`, or Render env vars). Do not commit values.
+
+| Name | Where |
+|---|---|
+| `CC_MODE` | `hosted` |
+| `PORT` | `8080` on Fly and Render |
+| `CC_SUPABASE_URL` | existing Supabase project URL |
+| `CC_SUPABASE_ANON_KEY` | publishable key, also sent to the browser |
+| `CC_SUPABASE_SERVICE_KEY` | server only |
+| `CC_MASTER_KEY` | server only, base64 of 32 bytes |
+| `CC_WORKER_TOKEN` | shared by the desktop server and the worker, never the browser |
+| `CC_HUB_URL` | public https address |
+| `CC_OWNER_EMAILS` | optional |
+| `CC_TICK_SECRET` | schedule tick, server only |
+| `CC_WORKER_URL` | desktop only, the worker's https address |
+
+### Estimated monthly cost (October 2026)
+
+These are list prices, not a quote. Supabase is the project you already use. This guide does not add a database.
+
+| Host | Shape | About |
+|---|---|---|
+| Fly.io | one shared-cpu-1x, 256 MB, always on so a job keeps running | **about $2 a month** |
+| Render | Starter web service, always on | **about $7 a month** |
+
+A machine that sleeps cannot finish a job while the PC is off. On Fly, set `min_machines_running = 1` (the file ships with `0`). On Render, use the paid Starter plan, not the free instance. Expected total is **about $2 a month on Fly, or about $7 a month on Render**, plus whatever Supabase plan is already in use ($0 extra if the current project has room).
+
+### What Chris must approve before this goes live
+
+1. Paying for Fly.io (about $2 a month, machine left on) or Render (about $7 a month).
+2. Putting the secret env vars above on that host. The values stay out of git.
+3. The public web address, and the Supabase redirect URL for magic-link sign-in (`https://<that-address>/**`).
+4. Selling Extreme (Phase 91 prices and the live Square link) if customers should pass the gate. Owner can try it before that. This build does not change Square.
+5. This pull request does not deploy, does not create the host, and must not be merged until that OK.
