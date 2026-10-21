@@ -233,11 +233,18 @@ Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already
 ### Phase 55: Update prompts (effort: S) (DONE)
 Show an update pop-up at startup with "Update now", and check hourly while the app runs, offering "Restart and update" or "Later" (Later installs on quit). Already exists (checked 2026-10-20): `electron/main.cjs` and `electron/updater.cjs` show a launch prompt ("Install now" / "Later") and check every 30 minutes with a prompt; downloads and installs happen only on click (`autoInstallOnAppQuit` is false). Left to do: the hourly interval, the "Restart and update" / "Later" wording on the running prompt, and install on quit after Later. Done: the launch prompt stays Install now / Later, the background check is hourly, the running prompt says Restart and update / Later, and Later on that prompt installs on quit. Version stays 0.4.5.
 
-### Phase 53: Google Calendar connection (effort: M) (in progress for 0.4.6, runs after 55)
-OAuth connect to Google Calendar, create and update events, and show it in the setup checklist. Free and Pro limits follow the connected-service rules (Free 1 connected service, Pro all). Already exists (checked 2026-10-20): `server/connect-setup.js` lists Google Calendar in the checklist, but today Calendar work is handed to Grok Bot (`server/grokbot.js` calendar tag). There is no direct Calendar OAuth yet. Grok Bot's Calendar handoff stays as it is (decision 15).
+### Phase 53: Google Calendar connection (effort: M) (built, package stays 0.4.8)
+OAuth connect to Google Calendar. List, create, and update events. Show it in the setup checklist. Free includes 1 connected service. Pro includes every connected service. Grok Bot's calendar handoff stays as it is (decision 15): tags, webhook, and routing are unchanged.
+- Specified on the docs/new-phases plan, which runs this after Phase 55.
+- Checklist connect asks for Calendar and keeps Gmail or Drive access already granted. The Browser helper checkboxes stay explicit.
+- Settings, Google Calendar, lists upcoming events. Create and Update run only on a click. Events are not deleted.
+- A second fresh connected service on Free is refused before the token is saved.
 
-### Phase 54: Plain-request actions (effort: M) (in progress for 0.4.6, runs after 53)
-The person types a plain request, for example "email this client and put it on my calendar". The router uses a cheap fast AI to draft the email and the event details. Meldmind itself sends and schedules through the connected Gmail and Calendar, only after one approval click (integrations act only on click). No outside AI touches the accounts. The cost is shown (usually a fraction of a cent).
+### Phase 54: Plain-request actions (effort: M) (built, package stays 0.4.8)
+A plain request, for example "email this client and put it on my calendar", is parsed by a cheap fast AI into an email draft plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. No outside AI touches the accounts. The cost is shown, usually a fraction of a cent.
+- Specified on the docs/new-phases plan, which runs this after Phase 53.
+- The model never receives a token. A second click on a finished request does not send again.
+- Guided tour stop "Try saying..." and How-to articles for plain requests and Google Calendar.
 
 ### Phase 56: Everyday actions (effort: L) (in progress for 0.4.6, runs after 54)
 Plain-request everyday actions built on the Phase 53 and 54 connections. Full plan, evidence and catalog: [docs/plans/everyday-actions.md](plans/everyday-actions.md).

@@ -78,7 +78,7 @@ async function runFlow(item, accountId) {
   }
   if (f.type === "browser-google") {
     if (!f.clientReady) return focusSettings(f.focus, "Add the Google sign-in client in Settings, then connect. The secret stays in the vault.");
-    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, ...(accountId ? { accountId } : {}) } });
+    const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, calendar: !!f.want?.calendar, keep: !!f.keep, ...(accountId ? { accountId } : {}) } });
     window.open(r.url, "_blank", "noopener");
     toast("Sign in with Google. This page finishes the link when you come back.");
     return;

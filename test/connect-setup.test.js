@@ -62,6 +62,9 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(items.find((it) => it.id === "outlook").flow.type, "mail");
   assert.equal(items.find((it) => it.id === "drive").status, "Not connected");
   assert.equal(items.find((it) => it.id === "calendar").status, "Not connected");
+  assert.equal(items.find((it) => it.id === "calendar").flow.type, "browser-google");
+  assert.equal(items.find((it) => it.id === "calendar").flow.want.calendar, true);
+  assert.match(items.find((it) => it.id === "calendar").blurb, /Grok Bot can still take calendar work/);
   assert.equal(items.find((it) => it.id === "ghl").flow.type, "publish");
   assert.equal(items.find((it) => it.id === "kling").flow.type, "keysetup");
   assert.equal(items.find((it) => it.id === "capcut").flow.type, "mcp");

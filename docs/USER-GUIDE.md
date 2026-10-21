@@ -107,6 +107,14 @@ Nothing posts, sends, emails or spends without a click from you.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
 
+## Plain requests
+
+On Chat, the box titled Try saying... takes a sentence such as "email this client and put it on my calendar". A cheap fast AI drafts the email and the event. The cost is shown, usually a fraction of a cent. Click Approve once and Meldmind sends the email through connected Gmail and creates the event on connected Google Calendar. Nothing is sent before that click. The drafting AI does not touch those accounts. Grok Bot's calendar handoff is unchanged.
+
+## Google Calendar
+
+Settings, Google Calendar, lists events after you connect with your own Google sign-in. Create event and Update run only when you click. Free includes 1 connected service. Pro includes every connected service. Grok Bot can still take calendar work. That handoff is unchanged.
+
 ## 9. Updates
 
 When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.

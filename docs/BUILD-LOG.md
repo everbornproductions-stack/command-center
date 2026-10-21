@@ -1657,3 +1657,23 @@ Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not
 - Tests: `test/everyday-work.test.js`. npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. After the menu label, `test/nav.test.js` passed (5). Temp data dirs and local mocks only. No real key. data/ was not read.
 
 EVERYDAY DOCS MEETINGS LEADS (built by Cursor cloud agent)
+
+## 2026-10-20 22:45 UTC: Phases 53 and 54 (Cursor cloud agent)
+
+Phases 35 and 55 are still planned. The docs/new-phases plan runs 53 after 55. This work was requested directly, so 53 and 54 were built now. No locked decision was changed. Decision 15 stays: Grok Bot's calendar tags, webhook, and routing are unchanged. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. Version stays 0.4.5. data/ was not read. No key was printed.
+
+- Phase 53 commit f8ffec2: Google Calendar OAuth (`calendar.events`). The setup checklist connects Calendar and keeps Gmail or Drive access already granted. List, create, and update run on the primary calendar. Nothing is deleted. Free still allows 1 connected service. Pro allows all. A second fresh service on Free is refused before the token is saved. The Calendar row is a Google sign-in, not a Grok Bot handoff. Grok Bot's own row stays Handoff.
+- Phase 54 commit e46ad2b: a sentence such as "email this client and put it on my calendar" is drafted by a cheap fast model into an email plus an event. Meldmind sends the email through connected Gmail and creates the event only after one Approve click. The model never receives a token. A second click does not send again. The cost is shown, usually a fraction of a cent. The guided tour has a Try saying... stop. Help has Plain requests and Google Calendar.
+- Tests: `test/calendar.test.js`, `test/actions.test.js`. npm test 411 tests, 410 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Temp data dirs and local mocks only (127.0.0.1). No real Google host and no real model.
+- Checked in the browser on the local app: Settings, Google Calendar, says it is not connected and does not list or create events. Browser helper has a Google Calendar checkbox. Chat, Try saying..., drafts the example in demo mode, shows a cost that is a fraction of a cent, and Approve refuses with "Nothing was sent" until Gmail sending is connected. The tour stop Try saying... is present. Help lists both articles. The connected send path was checked against a local Google mock in `test/actions.test.js`, not against a real account.
+- Not verified here: a real Google account, a real model provider, the packaged Electron app, and the Windows pull request check.
+
+PHASE 53 DONE
+PHASE 54 DONE
+
+## 2026-10-21: Everyday actions and idea box on the 0.4.8 hotfix
+
+Not a new phase. This brings the open everyday and idea-box work onto current main. package.json stays 0.4.8. The help catalog stays 0.4.8. The 0.4.8 What's new note stays the hotfix (top bar width, Nova, Atlas, and Sage). The everyday, idea box, and calendar notes are listed under 0.4.9. Phases 35 and 55 were not reworked. Decision 22 and 23 stay "Not built yet". Phase 14 stays BLOCKED. Square and billing were not touched. data/ was not read.
+
+- Merged: inbox and reminders, the day plan, What's new and suggestions, the idea box (upload, voice, status, media jobs), docs and meetings and lead drafts, Google Calendar, and plain-request actions.
+- The run order line is unchanged, including "Do last: 14,". Welcome email and Use your own Supabase stay out of that line.
