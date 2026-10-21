@@ -1606,3 +1606,42 @@ Not Phase 56 done. Item 2 stays with Phases 53 and 54. This page does not connec
 - Tests: `test/everyday-plan.test.js`. After merging main: npm test 416 tests, 415 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (408 tests, 407 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
 
 EVERYDAY DAY PLAN (built by Cursor cloud agent)
+
+## 2026-10-20: Everyday actions, What's new and suggestions (Cursor cloud agent)
+
+Not Phase 56 done. Item 2 stays with Phases 53 and 54. Phases 35 and 55 were not reworked. No locked decision text was rewritten. package.json was not bumped. It was already 0.4.6. The help catalog now matches that version. data/ was not read.
+
+- What's new is a card of new connections and actions. Try it is a sample and does not send. Skip never returns. Remind me later waits 3 days, then 7 days, then the item moves to Settings and stops asking. Skip all clears the card.
+- Google Calendar on that card does not start sign-in. The checklist row still does.
+- Suggest a connection or idea sits in Settings, on the card, and on the connections page when nothing is connected. The page shows the exact note. Send is a separate click. A loopback stub can take it. Otherwise it stays on this computer. The confirmation is: Thanks, Chris reads these.
+- Each has a try saying line, a How to section, and a Help article. The version note for 0.4.6 was missing, so those two behaviors are listed there too. The updater prompt was not changed.
+- Tests: `test/everyday-news.test.js`. npm test 417 tests, 416 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (409 tests, 408 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+
+EVERYDAY WHATS NEW (built by Cursor cloud agent)
+
+## 2026-10-20: Idea box uploads, voice, and status (Cursor cloud agent)
+
+Not Phase 56 done. This sits on the suggestion box. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. A new help article is stamped 0.4.9 so it is ready for that release note. No locked decision text was rewritten. data/ was not read. Square was not called.
+
+- Upload takes an image, a screenshot, a PDF, a text file, or a Word document with an idea. Up to 4 files, about 4 MB each. The bytes stay on this computer. The note that can be sent lists the file name only. A download is an attachment.
+- Voice records, then transcribes with local Whisper when that program is installed, otherwise with a connected OpenAI, Groq, ElevenLabs, or Gemini key. The words land in the box. The person edits them. Nothing is sent until Send.
+- After Send, an idea can be edited, deleted, moved higher or lower, commented on, and given a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again.
+- Marching orders, and the Simple chat box, have the same Upload and Voice buttons. Tap to talk is still there. The new Voice button does not auto-send.
+- Help, the tour, the user guide, and the 0.4.9 What's new bullets describe it.
+- Tests: `test/everyday-news.test.js` with a fake whisper. npm test 419 tests, 418 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (411 tests, 410 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders and the Simple chat box show Upload and Voice. Settings sends an idea after the exact note, then Save on status planned says the edit was not sent.
+
+IDEA BOX UPGRADES (built by Cursor cloud agent)
+
+## 2026-10-21: Uploads can start a media job (Cursor cloud agent)
+
+Not Phase 56 done. This extends the idea box and Marching orders uploads. It reuses image generation and the project media folder. It does not replace the gallery or the Media tab. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. No locked decision text was rewritten. data/ was not read. Square was not called. Nothing is posted.
+
+- A picture (up to 8 MB) or a video (up to 12 MB) can be attached on the idea box and on Marching orders. Documents stay at 4 MB. The page says so when a file is too big. A picture over 3.5 MB can stay attached, and retouch says it is too big.
+- Retouch, Variation, Describe, Trim, and Caption only fill the ask. Show the plan picks a connected AI for that kind (image edit, vision, or ffmpeg on this computer). Run is a second click and must repeat the price. Demo mode spends nothing. The result can be previewed, downloaded, or saved in a project.
+- The suggestion Send click is unchanged. It still posts names only. A media job does not send the idea.
+- Help, the user guide, the tour, the roadmap, and the 0.4.9 What's new note describe it.
+- Tests: `test/media-modify.test.js`. npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (414 tests, 413 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders upload, Retouch, Show the plan ("Demo, nothing spent"), then Run, preview, Download, and Save to project. Simple still shows Upload and Voice. Settings idea box says the Run click is separate from Send. No error toast.
+
+MEDIA JOBS FROM UPLOADS (built by Cursor cloud agent)

@@ -149,6 +149,12 @@ function renderInto(v) {
       </div>
     </div>
   </div>`;
+  if (!items.some((it) => it.status === "Connected") && window.CC.everydaySuggest?.mount) {
+    const slot = document.createElement("div");
+    slot.id = "ea-suggest-slot";
+    v.querySelector(".cs-wrap")?.appendChild(slot);
+    try { window.CC.everydaySuggest.mount(slot); } catch { /* the checklist still works */ }
+  }
   v.querySelectorAll("[data-connect]").forEach((b) => b.addEventListener("click", async () => {
     const item = items.find((x) => x.id === b.dataset.connect);
     if (!item || busy) return;
