@@ -66,7 +66,11 @@ const BUILDERS = [
   { id: "assistant", name: "a chat assistant", walks: ["chat-assistant"], views: ["chat-assistant", "assistant"], features: ["chat-assistant", "assistant", "builder-assistant"] },
 ];
 
+// The Builders page (guided builders B) covers these kinds of work.
+const ON_BUILDERS_PAGE = new Set(["highlevel", "accounting", "booking", "meetings", "contracts", "assistant"]);
+
 function builderOpen(probe, spec) {
+  if (ON_BUILDERS_PAGE.has(spec.id) && has(probe.views, "builders")) return { view: "builders", focus: "#builders-root" };
   for (const id of spec.views) {
     const page = viewOpen(probe, id);
     if (page) return page;

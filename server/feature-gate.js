@@ -940,3 +940,48 @@ export function remixAbilityGate({ tier = "free", ability } = {}) {
   }
   return { ok: true, status: 200, code: null, ability: id, need, message: "" };
 }
+
+// Guided builders use Free, Pro, and Extreme. Studio follows Pro. Owner follows Extreme.
+// This does not set a price and does not import license.js.
+const BUILDER_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
+
+export function normalizeBuilderTier(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(BUILDER_RANK, t) ? t : "free";
+}
+
+export function builderTierRank(tier) {
+  return BUILDER_RANK[normalizeBuilderTier(tier)] ?? 0;
+}
+
+function builderNeedRank(need) {
+  const name = normalizeBuilderTier(need);
+  if (name === "extreme" || name === "owner") return BUILDER_RANK.extreme;
+  if (name === "pro" || name === "studio") return BUILDER_RANK.pro;
+  return BUILDER_RANK.free;
+}
+
+export function builderGate({ tier = "free", need = "free" } = {}) {
+  const haveName = normalizeBuilderTier(tier);
+  const needName = normalizeBuilderTier(need);
+  const have = builderTierRank(haveName);
+  const want = builderNeedRank(needName);
+  const haveLabel = LIMITS[haveName]?.label || "Free";
+  const asked = want >= BUILDER_RANK.extreme ? "extreme" : want >= BUILDER_RANK.pro ? "pro" : "free";
+  if (have >= want) {
+    return {
+      ok: true, tier: haveName, need: asked, status: 200, code: null,
+      message: asked === "free" ? "This builder is included." : `This builder is included on ${haveLabel}.`,
+    };
+  }
+  if (asked === "extreme") {
+    return { ok: false, tier: haveName, need: "extreme", status: 402, code: "extreme_required", message: "This builder is part of Extreme." };
+  }
+  return { ok: false, tier: haveName, need: "pro", status: 402, code: "pro_required", message: "This builder is part of Pro." };
+}
+
+export function assertBuilder(opts = {}) {
+  const g = builderGate({ ...opts, tier: opts.tier ?? currentTier() });
+  if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
+  return g;
+}

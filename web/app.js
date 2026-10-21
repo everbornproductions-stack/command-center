@@ -787,7 +787,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "builders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);

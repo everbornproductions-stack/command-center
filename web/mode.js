@@ -2,7 +2,7 @@
 // saved choice stays on Expert, so an update does not hide the console they already use.
 // The choice itself is not "history": answering it must not skip first-run setup.
 
-export const CREATE_VIEWS = ["prompts", "images", "media", "publish", "remix"];
+export const CREATE_VIEWS = ["prompts", "images", "media", "publish", "remix", "builders"];
 
 export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", ...CREATE_VIEWS]);
 

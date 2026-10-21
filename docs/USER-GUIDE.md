@@ -99,6 +99,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Media | Video, image and voice through Kling, ElevenLabs, Runway and fal.ai, estimate first |
 | Pipelines | Saved missions with the steps already decided (Instagram week, music video, site launch) |
 | Remix | Say what you want to make, pick a starting point, then preview, Build, Test, and Publish. It rebuilds from scratch. A Pro mission. Extreme has no monthly cap. |
+| Builders | Guided setup for HighLevel, receipts, invoices, a website chat, a booking page, meeting notes, a contract, or a review reply. A builder shows up only when that need is detected. Nothing is sent until you click Publish. |
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
