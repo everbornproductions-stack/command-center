@@ -2194,3 +2194,259 @@ Same tree as 0.4.11, with the package version set to 0.4.12. Not held for later 
 - The tag v0.4.12 waits until Windows CI on this branch is green, after v0.4.11 is queued.
 
 RELEASE CUT 0.4.12 (not tagged yet)
+## 2026-10-21: Remaining phases (58, 61, 62, Phase 33 item 1, decision 23)
+
+Version stays 0.4.8. No Square or billing change. data/ was not read. No real key was used. Phase 14 stays BLOCKED for any step that needs a real Mac.
+
+- Phase 58. Second opinion sits beside Single, Council, and Mission. Two AIs answer, differences are shown in plain words, and both answers stay. Demo uses the pretend AIs and records no spend. The learning router keeps the task type only.
+- Phase 61. Team spaces add shared recipes to a workspace for Studio, Owner, and a stored Extreme licence. Five people including the owner. Phase 8 invites are unchanged (shown once, not emailed). Keys stay in the vault. The price is a placeholder and nothing is charged.
+- Phase 62. Industry packs for real estate, insurance, and credit repair sit on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. SSNs, dates of birth, and account numbers are stripped. Credit repair and insurance keep SCF, CROA, and RESPA.
+- Phase 33 item 1. HighLevel contacts, invoices, and workflows. A separate sign-in from social posting, so the Phase 7 social scopes are unchanged. Reads can run. A send, a charge, or a change waits for a click. The token stays in the vault. Items 2 and 3 (MCP by URL, custom webhooks) stay in Phase 90.
+- Decision 23. Use your own Supabase is an optional Settings switch, off by default, and not part of setup. Project URL and publishable key. The service key stays on the server and is never returned. The licence server connection is unchanged. The spec was not rewritten.
+- Tiers go through server/feature-gate.js. Extreme is read from a stored active licence row because it is not in the live licence table. Free and Pro do not get team spaces.
+- Commits: 33818cc gate, 5f848fc second opinion, 3e1e12a industry packs, 955ee1b team spaces, 1af3104 HighLevel tools, c8c3fc6 own Supabase, e00007f plan and README. This log entry is the commit after those.
+- Tests here (Linux): npm test 438 tests, 437 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Headless Chrome clicked Second opinion (both answers stayed), filled a real-estate draft into Marching orders without sending, opened Team spaces, and opened the HighLevel and Use your own Supabase settings (the Supabase switch was off). No real HighLevel or Supabase project was contacted.
+- Not verified: a hosted hub where a member on another account sees only shared recipes; a real HighLevel location; a real Supabase project; Windows CI (this branch is pushed once for that). feature-gate.js is expected to conflict with other open pull requests.
+
+PHASE 58 DONE
+PHASE 61 DONE
+PHASE 62 DONE
+PHASE 33 ITEM 1 DONE
+DECISION 23 DONE
+
+## 2026-10-21: What's new lists every version since the one that was installed
+
+Not a numbered phase. Version stays 0.4.8. No Square or billing change. data/ was not read. No real key.
+
+What was already there:
+
+- `docs/WHATS-NEW.json` is the bundled note list. The installer keeps that file (and `docs/help/`) and leaves out the rest of `docs/`. The tour showed one entry, the current `package.json` version, once. The seen version is `whatsnew.state.json` in the data folder. A first launch and an update both showed only the current version. Resetting the tour does not show the note again. First-run setup hides it.
+- `electron/updater.cjs` reads electron-updater `releaseNotes` (a string, or a list of note fields), strips HTML, and keeps 600 characters on the pre-install update prompt. Download and install still wait for a click. Those notes are the single target release from the update feed. They need a network check, they are not shown after restart, and they do not list versions that were skipped. That prompt is unchanged.
+
+What this adds:
+
+- After an update, the first launch lists every bundled note newer than the version last marked seen, through this version, newest first. A note with no bullets is skipped. A first launch with nothing seen still shows only this version, so a new install does not dump the whole history.
+- Got it stores the seen version and the version it replaced. Settings, Onboarding tour, and Help each have What's new, which opens that same list again. Opening it does not mark the note unseen. Closing it again keeps the same span.
+- A copy that already marked this version seen before this change has no stored previous version, so What's new again shows this version only.
+- The notes stay in `docs/WHATS-NEW.json`. There is no second changelog file.
+
+Tests here (Linux): npm test 440 tests, 439 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. A local copy with the seen version set to 0.4.5 opened on 0.4.8 and showed 0.4.8, then 0.4.7, then 0.4.6. Got it closed it. Settings and Help each opened the same list. No packaged installer and no real auto-update were run.
+
+WHATS NEW SPAN DONE
+## 2026-10-21: Remix 2 (Phase 96 continued)
+
+- The Remix page is one path: What do you want to make, a starting point, Preview, Build, Test, Publish. Extra choices sit under More options. One main button on each step. A short tip on each step. The same plain words are used in the help page.
+- Fifteen abilities, gated in `server/feature-gate.js`. Pro: a screenshot becomes a new layout, a design file, Godot and Kenney starters, Phaser create-game (npx, license unconfirmed, not started), CC0 art clearance, a smoke test, an accessibility report, website and itch.io publish, colors and type only, and a saved version. Extreme: a recording becomes a clickable preview, a Bevy starter, new levels, voices, a phone build, an installer, online play, and a blend of two ideas. Free still hits the Remix gate first.
+- Licenses checked 2026-10-21. screenshot-to-code is MIT and is not copied. Penpot is MPL-2.0 and is not bundled. Godot demos and Kenney kits are MIT and are named, not copied. The Phaser engine is MIT. `@phaserjs/create-game` stays unconfirmed and is never launched. Bevy is Apache-2.0 OR MIT. Kenney and OpenGameArt art is CC0 only. The wave function collapse project by Maxim Gumin is MIT. This build uses original level code and does not copy that project. Piper is GPL and runs only as its own program. Coqui is MPL-2.0 and also runs as its own program. The FSFE reuse tool is GPL and runs only as its own program. Playwright is Apache-2.0. axe-core is MPL-2.0. pa11y is LGPL and stays a separate program. The Vercel CLI is Apache-2.0. butler is MIT. Tauri is Apache-2.0 OR MIT. Electron Forge is MIT. Colyseus is MIT. Style Dictionary is Apache-2.0. isomorphic-git 1.44.3 is MIT and is the dependency used for saved versions.
+- Art and voices wait for an approve click. Nothing is downloaded. Publish waits for a click. Tokens go in the vault and are not printed. GPL tools are not imported. Version stays 0.4.8. Square and billing were not touched.
+- Not in this build: real downloads, real npx, and real launches of Playwright, axe-core, pa11y, Vercel, butler, Expo, Piper, Coqui, or the reuse tool. Tests mock those tools. Screenshot and recording files are still not uploaded. Turning the person's own art into sprites, models, or voices still waits on the existing Media approve path.
+- Tests here (Linux): npm test mcp 8/8, then 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data\ was not read. The simple flow was clicked through in the browser (Make, Start, Preview, Build, Test, Publish to this computer). Windows is the pull request check.
+
+REMIX 2 DONE
+## 2026-10-21: Help and Tour refresh
+
+Not a numbered phase. The chain is unchanged because this entry has no PHASE line. Version stays 0.4.8. Square and the Subscriptions prices are unchanged.
+
+- The short tour is data-driven (`web/features/guide.js`). Each step is one idea with a Try it button. Skip closes it. Replay is on Help, and Take the tour again stays in Settings. A step is hidden when its page is not registered, so Remix, Refocus, Zapier, People, hosted runs, and builders that are only in open pull requests do not appear until those pages exist.
+- On this app the tour is eight steps: one hub, missions and councils, guided builders, research, connect, staying in control, Teams, and What's new. Plan marks are Free, Pro at $18.99 a month, and Extreme at $29.99 a month. The Teams row says the Teams page still asks for a Studio licence.
+- Help opens with a searchable What can Meldmind do list using the same guide. New articles are in docs/help for each area.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. No real key. data/ was not read.
+
+## 2026-10-21: What Meldmind can do guide PDF
+
+Not a numbered phase. Version stays 0.4.8. Square and the Subscriptions prices are unchanged.
+
+- Help has Download the guide (PDF) on the What can Meldmind do list and again on the Help page. The file is `web/what-meldmind-can-do.pdf`, served as a PDF, and it is included with the app because `web/**` is already in the installer.
+- `npm run build:guide` rebuilds that file from `web/features/guide.js`, the same list as the tour. A page is left out when its feature is not in this build. `npm run dist` and `npm run dist:mac` run the script before the installer, and the release job uses `npm run dist`, so a package gets a fresh PDF. The script does not use the network. The PDF shows version 0.4.8 and the build date, with a cover, a one-page overview, and one section per area (steps, Free / Pro / Extreme, and how to start). It says an Everborn product.
+- On this app the PDF lists the eight areas that are here. Remix, Zapier, Refocus, HighLevel, People, and hosted runs stay out until those pages exist.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. No real key. data/ was not read.
+## 2026-10-21 02:20 PT: Phase 97 (Guided builders B), built by Cursor cloud agent
+
+HighLevel, accounting, and the other business-tool builders. Same five steps as a Remix mission: Describe, Preview the AIs, Build, Test, Publish. A builder shows up only when the need is detected. Nothing is sent, posted, or charged until Publish.
+
+- Shared registry: `server/builders/registry.js`, `register({ id, title, tier, detect(ctx) })`. It is not cleared on startup, so Guided builders A can register beside these. Last writer wins on the same id.
+- HighLevel (official API, the existing vault id `ghl`, OAuth or a Private Integration token): Lead Capture Wizard (Pro), SMS and Email Campaign Builder through Conversations (Extreme), Workflow Starter Pack by tagging a contact (Pro), Pipeline Coach daily summary (Pro), Funnel Copy Writer (Pro). Campaign sends wait for a click. TCPA consent, STOP handling, quiet hours, A2P 10DLC, and CAN-SPAM are checkboxes. Credit-repair copy adds a CROA checkbox and does not promise a result.
+- Accounting organizes only. A tax question gets "Ask your accountant" and no tax advice. Receipt Snap (Free) can use Tesseract, PaddleOCR, or docTR. Send to QuickBooks (Pro) and Send to Xero (Pro) wait for approval. The Xero body matches xero-node AccountingApi.createInvoices and is posted as DRAFT, which does not pay. Invoice Reader (Free) follows the invoice2data fields. Invoice Maker (Pro) keeps Invoice Ninja off. Invoice Ninja is a separate service under the Elastic License.
+- From the chat topic: Website Chat Assistant with Chatwoot (Pro), Booking Page with Cal.com (Free), Meeting Notes with Whisper (Free), Contract and e-sign Sender with DocuSeal (Pro, separate AGPL service, user templates only, no legal advice), Review Responder drafts for approval (Free, not posted to the review site).
+- Tiers are gated in `server/feature-gate.js`. Free is included. Pro needs Pro, Studio, Extreme, or Owner. Extreme needs Extreme or Owner. Studio does not include the campaign builder. Remix pull request 92 adds its own exports in the same new file. A merge should keep both sets. `server/license.js` recognizes an Extreme tier the same way that pull request does. Phase 91 still sets the price. Square and billing are unchanged. Version stays 0.4.8.
+- The Builders tab is under Create. Help article `docs/help/builders.md` is stamped 0.4.8.
+- Commit: 8702634.
+- Tests here (Linux): npm test 431 tests, 430 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: 60 checks passed. Node 22.23.3. External APIs are local mocks. No real key. data/ was not read.
+- Clicked through in the browser on a temp data dir with the developer owner flag: a receipt shows only the five accounting builders; Receipt Snap runs Preview, Build, Test, and Publish and says the builder was saved and nothing was sent; a Google review shows only Review Responder and Publish does not post it; a 390px wide window still shows the form.
+- Not verified: Windows CI (this branch is pushed once so that check can run). No real HighLevel, QuickBooks, Xero, Chatwoot, Cal.com, or DocuSeal call. Tesseract, PaddleOCR, docTR, invoice2data, and Whisper are not bundled. The xero-node package is not installed. Invoice Ninja stays off. Review replies are not posted to Google or Yelp.
+
+PHASE 97 DONE
+## 2026-10-21: prompt votes, weekly packs, and a Builders category
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Square and billing were not touched. The Supabase file is a migration only and was not run.
+
+- Thumbs up or thumbs down on a prompt. A later vote replaces the earlier one. One vote per person per prompt. The vote is stored on this computer, and a signed-in hosted user can also store it in Supabase (`supabase/prompt-packs.sql`, row level security on, no write policy for packs). If the hub is offline, the local vote remains. A simple score uses a Wilson lower bound. A prompt with no votes is not buried, and one vote does not look perfect. New this week lasts 7 days from the Monday of `added_week`.
+- Weekly packs are JSON in `server/prompts/packs` plus the `prompt_packs` table when it answers. The same id, or a near-duplicate title, is kept once. A newer week wins. Categories include writing, email, marketing and ads, and the rest of the requested list, plus builders.
+- The Builders category has one prompt for each guided builder from the registry in pull request 102 (Receipt Snap, the accounting builders, Review Responder, and the others) and for Remix from pull request 100. Wording is plain, for example "Snap my receipt and log it". The source credit is Inspired by Meldmind. Use this opens that builder with the text filled in when the feature is installed. If it is not installed yet, the words go in the chat. Nothing is sent.
+- Popular prompts are suggested first under marching orders. The tour, Help, the "What can Meldmind do?" list, the user guide, and the handoff note say the same thing. `docs/WHATS-NEW.json` has the 0.4.9 bullets for the next version. The help catalog stays 0.4.8, matching this version. The guide PDF pipeline is not on main (it is open in pull request 101), so no PDF tool was added. `docs/help/what-can-meldmind-do.md` is the plain source a later PDF can read.
+- Windows CI (`.github/workflows/windows-ci.yml`) now runs on pull requests only. A push to main does not start it.
+- Tests here (Linux): npm test 431 tests, 429 pass, 0 fail, 2 skipped (Pyodide is not installed, and Electron is not installed in this environment). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome: dismissed What's new, opened Prompts, chose Builders (16 prompts), clicked thumbs down on Receipt Snap, clicked Use this, and the marching orders box read "Snap my receipt and log it". No chat or publish request was sent. Help showed "What can Meldmind do?" including Receipt Snap, Review Responder, and Remix.
+
+PROMPT VOTES AND BUILDERS (not a numbered phase)
+## 2026-10-21: Phase 97 Guided builders A, websites and marketing
+
+Built on branch cursor/guided-builders-web-marketing-5ea7. No Square change. Version stays 0.4.8. data/ was not read.
+
+- Create, Builders. Suggested for you lists a builder only when a note, a project, or a connection matches it. Show all lists the rest. The steps are Describe, Preview the AIs, Build, Test, Publish. One main button. The rest is under More options.
+- The registry is server/builders/registry.js. Workstream B can call registerBuilder or drop a module in server/builders/extras. Gates are server/feature-gate.js. Studio counts as Pro. Owner can use every builder. Extreme is a tier label only. Phase 91 still sets the price.
+- Web: Site Builder names GrapesJS (BSD-3, Pro). Client Page Editor names Puck (MIT, Pro). Static export names Astro (MIT, Free) and writes the pages on this computer. Site Health Check names Lighthouse (Apache-2.0, Free) and Fix it updates the page here. Netlify and Vercel publish is Pro, waits for the click, and keeps the token in the vault.
+- Marketing: Social Calendar names Postiz (AGPL-3.0, Pro) as a separate service, not bundled. Reel Maker names WhisperX (BSD-2) and auto-editor (Unlicense) and is Extreme. Remotion stays off unless the person turns it on and says they have a paid license, and this build still does not include it. Email Sequences can target listmonk, Mautic, or HighLevel (Pro) and always adds a postal address and an unsubscribe line. Ad Copy Studio is Free, names the routed AI, and trims to each network's character limit. SEO Fixer is Free. Credit repair and insurance ads show compliance checkboxes. The copy is not advice.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check. The browser click-through used a temp data folder: a website note suggested the site builders, Site Health Check ran Preview, Build, Test, Fix it, and Publish, and the result said nothing was sent. A credit repair and insurance note opened Ad Copy Studio with the three checkboxes and the no-advice line.
+
+PHASE 97 DONE
+## 2026-10-21: a handed-off job can report back to the person who sent it
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged: the Grok Bot body is still job_id, task, context, workspace, and callback_url, and the local callback is still POST /api/grokbot/callback/<job_id>. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- The hub accepts POST /api/handoff/:jobId/done. The token is random per job, stored only as a SHA-256 hash, works once, and expires in 7 days. The desktop polls with CC_WORKER_URL and CC_WORKER_TOKEN. It does not open a port.
+- The job and the token belong to the worker token of the account that created them. Another account gets an empty inbox and a 404 on ack. The per-job token can post a result and cannot read one. The hub deletes the result when that app acknowledges it, or after 7 days. The store is memory only. There is no admin view. The log line is the job id and the status, never the summary.
+- With no hub, the prompt only says to reply with DONE: <summary>, and the person uses Paste result. Nothing from that paste is saved until Save.
+- The same block is appended to manual handoff prompts and to the outbound Grok Bot task. It is not stored on the Grok Bot job. callback_url is unchanged.
+- Operators set CC_WORKER_URL to https://meldmind-hub.fly.dev. The app does not default that variable. CC_HUB_URL stays https://hub.meldmind.ai.
+- Tests here (Linux): npm test 432 tests, 430 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows the report-back note, the tour step says to use Paste result, Continue in shows Paste result, Save stores a DONE: line, and Help opens What can Meldmind do.
+
+REPORT BACK (no phase built)
+
+## 2026-10-21: Get it done for one job
+
+Not a numbered phase. No locked decision was changed. Decision 15 is unchanged. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- A job can run its ordinary steps without asking when the person turns on Get it done, says "get it done, don't ask me", or has saved Always for this kind of job. The grant ends when that job ends. The rule can be revoked any time.
+- Spending money and a permanent delete still need one tap. Sending a message stays off unless that separate control is on. Stop and the activity log stay on. The browser helper still refuses passwords, card fields, Square, and billing pages.
+- Every handoff prompt, including the outbound Grok Bot task, includes the permission level. The line is not stored on the Grok Bot job. callback_url is unchanged. A paid media step still waits for Approve.
+- Tests here (Linux): npm test 438 tests, 436 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). The first full run failed one source assertion in test/chat-priority.test.js; that assertion was updated for the new order fields and the file passed on re-run. The product code was the same. npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: What's new shows Get it done, the checkbox starts with sending off, the phrase ticks the box, Settings can save and revoke Always for this kind of job, the handoff prompt includes the permission line, the Stop banner shows and Stop clears it, Help opens the article, and the tour reaches the step.
+
+GET IT DONE (no phase built)
+
+## 2026-10-21: password manager tip
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothing was deployed. Square was not touched. data/ was not read.
+
+- When a job, a browser helper step, or a connection hits a sign-in, a small tip appears. Dismiss hides it. The words point at https://1password.com and https://bitwarden.com. Meldmind still never types or stores a password. A sign-in still waits for the person, including when Get it done is on.
+- Help and the guide data say the same thing.
+- Tests here (Linux): npm test 442 tests, 440 pass, 0 fail, 2 skipped (Pyodide is not installed; the Electron frame test skipped because devDependencies were not installed in this run). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in a browser on this machine: the Google connection in Settings shows the tip with both links, Dismiss removes it and a later Connect click does not bring it back, and Help opens the article.
+
+PASSWORD TIP (no phase built)
+## 2026-10-21: anonymous usage counts for the owner report
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.8. Square and billing were not changed. The migration was not run.
+
+- The app sends one anonymous active ping a day when Settings has Share anonymous usage counts to help improve Meldmind turned on. That switch is on unless the person turns it off. The ping is a random install id, the version, the operating system, the plan, and feature counts. It does not send prompts, chats, emails, or files. With the switch off, the daily check does not call the network.
+- supabase/migrations/20261021_usage_pings.sql adds usage_pings and record_usage_ping. Row level security allows insert only for anon and authenticated. There is no select policy. The file was not applied.
+- The desktop app POSTs the ping to the hub. The hub inserts with the service key, which stays on the server. GET /api/metrics/report needs CC_METRICS_SECRET. It returns DAU, WAU, MAU, week-1 and week-4 cohorts, installs by version and OS, active users by tier, top features, and paying users plus MRR from the licences table (tier, status, and source only). MRR uses the live monthly price of $15.99. The report does not call Square and does not include emails, licence keys, or install ids. npm run metrics:report prints that JSON.
+- Help, the privacy note, and What's new describe the switch.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The daily ping test uses real waits and removes its temp data. No real key. data/ was not read. The Settings switch was clicked in a browser: it started on, a reload kept it off, and Help showed the same privacy words.
+- Not verified: the migration against a live Supabase project (it was not run). The owner report was checked against a local stand-in, not the live licences table.
+
+ANONYMOUS USAGE COUNTS (not a numbered phase)
+
+## 2026-10-21: owner report MRR uses the list prices
+
+Not a numbered phase. No locked decision was changed. Square and billing were not changed. The live checkout is still the Phase 35 prices. Version stays 0.4.8. Nothing was published. data/ was not read. The new licence plan migration was not run.
+
+- The owner report no longer prices every paying licence at $15.99. It reads `server/metrics-prices.js`: Pro $18.99 a month or $189 a year ($15.75 a month), Extreme $29.99 a month or $299 a year ($24.92 a month). The studio tier is priced as Extreme. A licence with no plan is that tier's monthly price.
+- Lifetime founder licences (`lifetime-349` at $349 and `lifetime-499` at $499) add 0 to MRR. The report adds `lifetimeCount`, `lifetimeRevenueUsd`, and `lifetimeByPrice`. Promo, owner, Free, cancelled, and past due stay out of MRR. Past due is still counted apart. The report still does not call Square and still leaves out emails, licence keys, and install ids.
+- `supabase/migrations/20261021_license_plan.sql` adds nullable `licenses.plan`. It was not applied. The report select is tier, status, source, and plan.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+MRR LIST PRICES (not a numbered phase)
+## 2026-10-21: Community chat and weekly AI News
+
+Built because this run asked, ahead of Phase 91. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8.
+
+- Community chat is in the app, in the same area as AI News. Channels: General, Prompts, Builders, Help, and Show and tell. Sign in with the licence email and a display name. Send and Share in chat are the only posts. Keys and private files are refused. Report, a real rate-limit wait, a profanity and spam filter, and owner mute or delete are included. Shared prompt votes are written into the prompt library ranking, and they use the voting modules when those files are present.
+- AI News sits next to those channels. A published issue is pulled from Supabase when the app can reach it, so a new week does not need an app update. Items can be model releases, price changes, and new features, each with a source link, plus Meldmind notes from WHATS-NEW.json, top voted prompts, and community highlights. An unread badge shows until the issue is opened. People can react and share an item into chat. The owner builds a draft and publishes it. Other people do not see the draft.
+- scripts/ai-news.mjs builds that draft from local source snapshots. It can also write an HTML and text copy. It does not publish and it does not send email. supabase/community.sql is a migration file only and was not run.
+- Email me the weekly AI News note is off until it is ticked in Settings or on the setup page. The app can write the copy, with an unsubscribe link and an Everborn Productions address placeholder. It does not send email. The monthly savings email from the older later note was not part of this request and is not built.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 423 tests, 422 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. The Community screen was clicked through in a browser: join, Send, AI News, react, share into chat, the email copy, and the unchecked setup checkbox.
+
+PHASE 92 DONE
+PHASE 93 DONE
+
+## 2026-10-21: Community usernames
+
+Built on the community chat work. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8. The Supabase migration was not run.
+
+- The first time Community chat opens, it asks for a public username. A friendly name is suggested. The name is 3 to 20 characters, letters, numbers, and underscore, and it is unique without regard to case. Names that include meldmind, admin, or everborn are refused, and the same profanity list as chat messages is used. The licence email stays on the server. It is not shown in chat, in Settings, or in the community API.
+- The username can be changed in Settings. The first choice is immediate. The next change waits 1 hour. Saving the same name again does nothing. Nothing is posted until Send.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 426 tests, 425 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. Windows is the pull request check. The Community screen was clicked through in a browser: the suggested username, Save username, a sent message under that name, and the Settings change that waits 1 hour. No email was shown.
+
+## 2026-10-21: Account-wide public username
+
+The username is no longer only for chat. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8. The Supabase migration was not run.
+
+- One public username is stored on the account. First-run setup asks for it. Skip keeps the suggested name. Start saves the typed name, or the suggestion if the field is empty. The name is 3 to 20 characters, letters, numbers, and underscore, and it is unique without regard to case. Names that include meldmind, admin, or everborn are refused. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. Email stays off those public screens. The owner's own licence screen still shows the account email.
+- The name can be changed in Settings. The first choice is immediate. The next change waits 1 hour. Saving the same name again does nothing. A comment is a click. Nothing is posted until Send.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. Windows is the pull request check. A fresh install was clicked through in a browser: the suggested name was Sunny_River, the field was changed to Sunny_Finch, Skip kept Sunny_River, Settings showed that name and the one hour wait, chat posted as Sunny_River, an AI News comment used that name, and the Builders gallery heading was on the Agents screen. Those public screens did not show an email.
+## 2026-10-21: Ease of use from the v0.4.9 tester panel
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.10. No release tag was moved. Square and billing were not touched. data/ was not read.
+
+- Help search ranks ordinary questions. Start here is pinned. An open article sits at the top with Back to all help. An empty search offers three articles and Ask Meldmind, which does not send by itself.
+- Large and Extra large set the size on the html element so buttons, labels, headings, and chips grow. Simple keeps buttons at 16px and other small text at 14px. First-run Simple setup asks Bigger text? with a live preview. The top bar stays on one row from 1024px wide.
+- Simple Settings opens five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens the existing page and a search box. Expert is still the full page.
+- Reply, forward, share, invite, submit, transfer, refund, cancel, remove, archive, move, unsubscribe, order, checkout, sign, approve, update, edit, write, create, schedule, and book wait for a second click. A tool is read-only only when its name starts with a read word and the name has no risky word. The demo clock stays read-only.
+- The Simple tour is five short steps. See what else it can do opens the full tour.
+- My day in Simple opens Inbox and tasks, Day plan, and People. Icon buttons say Remove, Delete, Close, Good, or Not good. A practice answer says it is from a pretend AI. Help dropped the stale Mac and abort lines. The data folder name stays Everborn Command (decision 2).
+
+EASE OF USE (panel items, not a new version)
+
+## 2026-10-21: Integration 0.4.13
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published, tagged, or released. Square and billing were not touched. data/ was not read. No Supabase migration was run.
+
+- Merged, in order: pull requests 94, 100, 101, 102, 103, 104, 105, 106, 108, 112, and 113. Pull request 99 was skipped because 104 replaces it.
+- Feature gates from 94, 102, and 104 now live in server/feature-gate.js beside the Free, Pro, and Extreme table. Studio is Pro. Shared team recipes (94) are Extreme and moved to /api/teamrecipes beside the team spaces that already shipped.
+- Builders B (102) keeps /api/builders. Builders A (104) moved to server/builders/web and /api/webbuilders, on a Web and marketing page under Create, so the two registries do not collide.
+- The tour is the short guide tour (101). Simple starts with the five-step tour (113). See what else it can do opens the full tour. A few stops from later work (Try saying..., Programs on this PC, Computers on this key, Builders, Community, report back, Get it done) stay after the guide steps.
+- What's new keeps the first-install skip and lists every version since the last one seen (94).
+- Text size also scales answer text, headings, dialog titles, and the tour card. The usage ping and its migration accept the Extreme tier.
+- Version 0.4.13. What's new, the release notes, the help catalog, and the guide PDF say 0.4.13.
+- Desktop card fix (Chris, Windows 0.4.12): Allow Antigravity, Install and connect, Open settings, Not now, Never, Close, Escape, and a click outside all close the card first. Install progress shows as toasts. The card stays closed for the app session, while an install runs, and on Settings or Setup, so Open settings (Settings, Antigravity under connections) cannot bring it back. It is an in-page card, never an always-on-top window. Logic in web/desktop-prompt-flow.js, regression test in test/desktop-prompt.test.js.
+- Start a project now comes right before Projects in Simple and Expert menus (test/nav.test.js).
+
+## 2026-10-21 Menu, page, and link audit (0.4.13)
+
+Settings menu holds settings only. Help menu is Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, About Meldmind, in Simple and Expert. Simple adds More so every page is reachable. Marketplace has a menu item. Lock notes on Pro and Extreme pages. Report: docs/menu-audit-0.4.13.md. Test: test/menu-audit.test.js.
+
+MENU AUDIT BLOCKED (one item): "Run setup again" names two actions. Decision 20 keeps it on the Settings page for the first-run setup page; the tray, Help, and the Get everything connected card use it for the connections checklist. Renaming either touches decision 20 or the tray. Chris to decide which keeps the name.
+
+## 2026-10-21 Simple chat first, connectors under More > Connections (0.4.13)
+
+Simple: Chat is the first nav item and the top of the page. The chat page shows only the chat box, My day, three starters, and recent chats. Other Command widgets are Expert only (`SIMPLE_COMMAND` in web/mode.js). The Connect Zapier card left the chat page; Simple More ends with Connections (Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel), each opening Settings at that panel. Start a project sits right before Projects in Simple and Expert. docs/menu-audit-0.4.13.md and test/menu-audit.test.js updated.
+
+## 2026-10-21 Responsive nav, priority-plus (0.4.13)
+
+On wider windows the top bar promotes the most used pages out of their menu instead of only spreading the menus. Simple order after Chat, Start a project, Projects, My day: Pro prompts, Builders, Community, Connections. Expert: Command, Start a project, Projects, Pro prompts, Builders, Community, Missions, Councils, Research, Remix. A promoted page leaves its menu. Normal 8px gaps, one row, no wrapping. The fit is estimated from the measured free space (ResizeObserver, debounced 150 ms), then checked against the real bar: an overflowing item goes back, and the next one comes up while there is room. Code in web/nav.js and web/app.js, tests in test/nav-promote.test.js (1024, 1440, 1920).
+
+## 2026-10-21 Licence box, demo banner, Refocus, subscriptions, credits, busy buttons (0.4.13)
+
+- Licence: the "licence key required" error came from server/index.js. A Redeem click with the promo box empty sent no code, so the route fell through to Activate with no key. Chris's owner licence is active, so no database work was needed. Settings > Plan is now one box for a licence key or a promo code. server/license.js `submitLicence` redeems anything that is not an EVB- key (EVERBORN-OWNER, TEST-...), asks for an email when a code needs one, says "Enter a promo code." for an empty redeem, and says "This code was already used, has expired, or was typed wrong..." for used-up codes. Test: test/license-box.test.js.
+- Demo: while demo mode is on and its pretend AIs are in use, a banner on every screen says "You're in demo mode, using pretend AIs." with Exit demo mode. Off means no banner. Help > Try demo mode turns it back on. Test: test/demo-banner.test.js.
+- DEMO CHECKBOX BLOCKED (one item): Chris asked to remove the Settings demo checkbox so Help > Try demo mode is the only way back. Decision 11 says "Demo mode can be turned back on in Settings". The checkbox stays until Chris updates decision 11.
+- Busy buttons: web/busy.js. Any request started by a click marks that button busy (spinner, "Working..." or "Searching...", disabled), and shows "Done" when nothing else answered. Look-only preview buttons are inert. test/busy.test.js also checks every button id has a handler.
+- Refocus: Find only searched app chats, libraries and outputs, every word had to match, and source errors were swallowed. It now searches this PC (Videos, Downloads, Desktop, Documents, Music, Pictures, OneDrive, Google Drive "My Drive" folders, Claude folders, project folders), Claude Code sessions, Grok Bot results and other agents' handoffs. It matches on any word, with category words (music videos, billing), and logs why a search came back empty. Nothing found shows where it looked and Search more places. Each result names the AI that made it. Test: test/refocus-search.test.js.
+- Subscriptions: high-confidence receipts from a known AI vendor's own domain are added as "auto-detected" rows with Edit, Undo and Remove. Low-confidence ones stay suggestions. A daily rescan runs while a mailbox is connected, and fields the person edited are kept. Test: test/subscriptions-auto.test.js.
+- Credits left: server/provider-balance.js reads live balances (OpenRouter, DeepSeek, OpenAI and Anthropic admin cost, xAI management). It refreshes on open and every 15 minutes. Otherwise it shows a labelled estimate from the ledger and a saved budget, with a hint about which key gives live numbers. The xAI billing endpoint has only been tested against a mock. Test: test/provider-balance.test.js.
+- Tests: test/helpers.js now also keeps *_TOKEN, *_ACCESS_TOKEN, *_SERVICE_KEY and *_PASSWORD variables from the machine out of test servers.
+
+No locked decision was changed. Nothing was merged, tagged or released. Square and billing were not touched. data/ was not read. No migration was run.
+
+## 2026-10-21 Fold PRs into 0.4.13, Windows check, tracked credits (0.4.13)
+
+Not a numbered phase. No locked decision was changed. Nothing was merged into main, tagged, or released. Square and billing were not touched. data/ was not read. No migration was run.
+
+- Folding: pull requests 101, 113, 103, 105, 106, 102, 104, 100, 108, and 112 were already merged into integration/0.4.13 by the earlier integration pass. git fetch shows every one of their heads inside this branch, so there was nothing new to merge and no conflict. 98 is already merged into main. 99 was skipped because 104 replaces it.
+- Windows check: agents.test.js timed out on Windows (and Linux) since the demo-hiding change. A saved tools server counts as a real connection, so the demo AIs retire (decision 11). The router and realJobSkipsDemo then also dropped them for jobs, though a tools server cannot answer, so the run failed with "No AI available" before it was saved. realAiCanAnswer() in server/demo-visibility.js now counts only a real text AI for jobs. List hiding is unchanged. The test turns demo mode back on, the decision 11 path. Windows still failed after that: the background demo check started by saving the tools server could finish after the click and switch demo off again. The demo on and off route now waits in the same queue as that check, so the click is the last word.
+- Credits left, live balances: already built on this branch (server/provider-balance.js). Not rebuilt.
+- Tracked credits (server/credit-tracker.js): for an AI with no live balance, Update balance takes the credits and the day. Meldmind subtracts each ledger call after that and shows "tracked since <date>". Each row says where that AI shows usage history. Agents report use outside Meldmind with the new report_usage tool on the Meldmind MCP server (POST /api/bridge/usage, bridge token only) or a usage list in a report back. Show agent setup gives the standing instruction and a Claude Code command (no token in it). Balance, top-up, and usage emails from the AI's own domain update it on their own with "updated from email <date>", a history line, and Undo. No "balance is old" nudge. "Possibly off" shows only on a mismatch: live spend above what was tracked, or a usage email with no amount. Help article docs/help/credits-left.md. Test: test/credit-tracker.test.js.
+- Tests here (Linux, Node 22, no real key): every helper-process file run one at a time in the Windows order, then the rest. Results are in the pull request comment. The Subscriptions page was clicked through in a browser: Update balance, tracked since, history, Undo, and Show agent setup.

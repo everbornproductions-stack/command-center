@@ -21,6 +21,7 @@ import { streamChat } from "./providers.js";
 import { localFetch } from "./loopback-fetch.js";
 import { networkCause } from "./health.js";
 import { riskyAction } from "./action-policy.js";
+import { highlevelToolEntries, runHighlevelAction } from "./highlevel-tools.js";
 
 export const SERVERS_DOC = "mcp.servers";
 export const SETTINGS_DOC = "mcp.settings";
@@ -354,6 +355,14 @@ export async function executeTool(entry, args, { missionId = null, taskId = null
   }
   try {
     mcpTrace(`execute ${t.name} call`);
+    if (entry.local === "highlevel") {
+      const r = await runHighlevelAction(t.name, args || {}, { confirmed: true });
+      const ms = Date.now() - t0;
+      logCall({ ts: Date.now(), ...base, ok: !r.isError, denied: !!r.denied, ms });
+      emit("mcp.call", { ...base, ok: !r.isError, denied: !!r.denied, ms });
+      emit("log", { text: `Tool "${t.name}" on ${s.name} ${r.isError ? "did not run" : "ran"} in ${(ms / 1000).toFixed(1)} s.`, missionId });
+      return { text: r.text, isError: !!r.isError, denied: !!r.denied, ms };
+    }
     const sess = await connectServer(s.id);
     const r = await sess.client.callTool(t.name, args);
     mcpTrace(`execute ${t.name} back ok=${!r.isError} ms=${Date.now() - t0}`);
@@ -390,6 +399,13 @@ export function chatWithTools(opts, run = {}) {
   const seen = new Set(mcpTools.map((t) => t.name));
   const extra = run.tools !== false && supportsTools(pid) ? collectExtraTools().filter((t) => keep(t) && !seen.has(t.name)) : [];
   const tools = [...mcpTools, ...extra];
+  if (want && supportsTools(pid)) {
+    for (const entry of highlevelToolEntries()) {
+      if (allow && !allow.has(`highlevel/${entry.tool.name}`)) continue;
+      if (tools.some((t) => t.name === entry.name)) continue;
+      tools.push(entry);
+    }
+  }
   if (!tools.length) return streamChat(opts);
   return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
 }

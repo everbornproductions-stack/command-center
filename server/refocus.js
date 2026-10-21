@@ -1,6 +1,7 @@
 // Refocus: find related work, put it in date order, and plan one complete version.
 // Finding is read only. The rebuild mission starts only after a click, in the plugin.
 import { ctx, putDoc } from "./store.js";
+import { expandQuery, scoreFields, rank } from "./refocus-search.js";
 
 export const STATUSES = ["finished", "partial", "abandoned"];
 const DONE = new Set(["done", "finished", "complete", "completed"]);
@@ -17,11 +18,17 @@ export function topicWords(topic) {
   return String(topic || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length >= 3);
 }
 
+// Any query word (or a word it stands for, such as invoice for billing) is enough to match.
+// Items that match more words rank higher. A file item arrives already scored by the walker.
+export function scoreItem(item, topic) {
+  if (item && Number(item.matched) > 0) return { matched: Number(item.matched), score: Number(item.score) || 0 };
+  const groups = expandQuery(topic);
+  if (!groups.length) return { matched: 0, score: 0 };
+  return scoreFields({ name: item?.title || "", folders: `${item?.source || ""} ${item?.where || ""}`, text: `${item?.text || ""} ${item?.summary || ""}`, kind: item?.fileType || "" }, groups);
+}
+
 export function matchesTopic(item, topic) {
-  const words = topicWords(topic);
-  if (!words.length) return false;
-  const hay = `${item?.title || ""} ${item?.text || ""} ${item?.summary || ""} ${item?.source || ""}`.toLowerCase();
-  return words.every((w) => hay.includes(w));
+  return scoreItem(item, topic).matched > 0;
 }
 
 export function summaryOf(text, title) {
@@ -103,11 +110,21 @@ export function buildPlan(items, record = {}) {
   };
 }
 
-export function assemble({ runs = [], files = [], outputs = [], drive = [], topic, record } = {}) {
-  const raw = [...runs, ...files, ...outputs, ...drive];
+export function assemble({ runs = [], files = [], outputs = [], drive = [], local = [], ai = [], topic, record } = {}) {
+  const raw = [...runs, ...files, ...outputs, ...drive, ...ai, ...local];
   const skippedPrivate = raw.filter(isPrivate).length;
-  const items = byDate(raw.filter((x) => x && !isPrivate(x) && matchesTopic(x, topic)).map((x) => decorate(x))).slice(0, 200);
-  return { items, plan: buildPlan(items, record), skippedPrivate };
+  const seen = new Set();
+  const scored = [];
+  for (const x of raw) {
+    if (!x || isPrivate(x) || seen.has(x.id)) continue;
+    const s = scoreItem(x, topic);
+    if (!s.matched) continue;
+    seen.add(x.id);
+    scored.push(decorate({ ...x, score: s.score, matched: s.matched }));
+  }
+  const results = rank(scored).slice(0, 200);
+  const items = byDate(results);
+  return { items, results, plan: buildPlan(items, record), skippedPrivate };
 }
 
 export function publicItem(item) {
@@ -120,6 +137,12 @@ export function publicItem(item) {
     title: item.title || "",
     status: item.status,
     summary: item.summary || "",
+    madeBy: item.madeBy || item.source || null,
+    where: item.where || null,
+    path: item.path || null,
+    fileType: item.fileType || null,
+    links: Array.isArray(item.links) ? item.links.slice(0, 10) : [],
+    score: Number(item.score) || 0,
   };
 }
 
@@ -163,8 +186,10 @@ export function fromRun(m, names = {}) {
     source = names[m.provider] || m.providerName || "Saved chat";
     sourceKind = `chat:${m.provider}`;
   }
+  const madeBy = sourceKind.startsWith("import:") || sourceKind.startsWith("chat:") ? source : (m.providerName || names[m.provider] || source);
   return {
     id: m.id,
+    madeBy,
     title: String(m.title || m.prompt || m.goal || "Untitled").slice(0, 120),
     text,
     status: m.status,
@@ -274,4 +299,47 @@ export function noteWorked(chosen) {
   const next = mergeWorked(cur, chosen);
   putDoc(KIND, { ...next, chosen: cur.chosen || null });
   return next;
+}
+
+const URL_RE = /https:\/\/[^\s"'<>)\]]+/g;
+
+function linksIn(...parts) {
+  const out = new Set();
+  for (const p of parts) for (const m of String(p || "").match(URL_RE) || []) out.add(m.replace(/[.,;]+$/, ""));
+  return [...out].slice(0, 10);
+}
+
+// A Grok Bot job and what it reported back, including Drive links it sent.
+export function fromGrokJob(job) {
+  if (!job || !job.id) return null;
+  const arts = (Array.isArray(job.artifacts) ? job.artifacts : []).map((a) => (typeof a === "string" ? a : [a?.name, a?.title, a?.url, a?.link].filter(Boolean).join(" ")));
+  const links = linksIn(job.text, ...arts);
+  return {
+    id: `grokbot:${job.id}`,
+    title: String(job.task || "Grok Bot job").slice(0, 120),
+    text: [job.task, job.text, ...arts].filter(Boolean).join("\n"),
+    status: job.status,
+    date: Number(job.updatedAt || job.createdAt || 0),
+    source: "Grok Bot",
+    sourceKind: "agent:grokbot",
+    madeBy: "Grok Bot",
+    links,
+  };
+}
+
+// One outside agent handoff (Cursor, browser helper, and later agents), as the live view saw it.
+export function fromHandoff(h) {
+  if (!h || !h.jobId) return null;
+  const name = h.name || h.agent || "Agent";
+  return {
+    id: `agent:${h.agent}:${h.jobId}`,
+    title: String(h.task || `${name} job`).slice(0, 120),
+    text: [h.task, h.result].filter(Boolean).join("\n"),
+    status: h.status === "reported" ? (h.failed ? "failed" : "done") : "working",
+    date: Number(h.at || h.sentAt || 0),
+    source: name,
+    sourceKind: `agent:${h.agent}`,
+    madeBy: name,
+    links: linksIn(h.result, h.page),
+  };
 }

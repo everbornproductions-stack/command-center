@@ -185,3 +185,62 @@ test("agy on the path hides demo AIs on the next launch", async () => {
     } finally { await s2.stop(); }
   } finally { await s.stop().catch(() => {}); }
 });
+
+// Root cause for "demo AIs still show with real connections": an MCP server, an
+// app, or a Grok Bot handoff did not count, and the demo tools and demo catalog
+// were never gated. Nothing here reaches a real URL: the MCP server is a closed local port.
+test("an MCP server or Grok Bot handoff hides demo AIs, demo tools and the demo catalog", async () => {
+  const s = await startServer({ env: { CC_STATUS_PAGES: "off" } });
+  try {
+    await s.api("/demo", { method: "POST", body: { on: true } });
+    await s.api("/tools/demo", { method: "POST" });
+    let st = (await s.api("/state")).json;
+    assert.equal(st.realAi, false);
+    assert.ok(demoIds(st.providers).includes("demo-nova"));
+    let tools = (await s.api("/tools")).json;
+    assert.ok(tools.servers.some((x) => x.demo), "demo tools listed while nothing real is connected");
+    assert.ok((await s.api("/marketplace")).json.catalog.some((r) => r.demo), "demo catalog listed while nothing real is connected");
+
+    const dead = await freePort();
+    const add = await s.api("/tools/servers", { method: "POST", body: { name: "My tools", transport: "http", url: `http://127.0.0.1:${dead}/mcp` } });
+    assert.ok(add.json.server, JSON.stringify(add.json));
+    await new Promise((r) => setTimeout(r, 300));
+    st = (await s.api("/state")).json;
+    assert.equal(st.realAi, true, "a saved MCP server counts as a real connection");
+    assert.deepEqual(demoIds(st.providers), []);
+    assert.equal(st.demoBanner, false);
+    tools = (await s.api("/tools")).json;
+    assert.equal(tools.servers.some((x) => x.demo), false, "demo tools leave the list");
+    assert.equal(tools.demoAvailable, false, "no offer to add demo tools");
+    assert.deepEqual(demoIds(tools.providers), []);
+    const imgs = (await s.api("/images/providers")).json;
+    assert.ok(Array.isArray(imgs.items), JSON.stringify(imgs).slice(0, 200));
+    assert.deepEqual(demoIds(imgs.items), [], "demo images leave the picker");
+    const market = (await s.api("/marketplace")).json;
+    assert.ok(Array.isArray(market.catalog), JSON.stringify(market).slice(0, 200));
+    assert.equal(market.catalog.some((r) => r.demo), false, "the demo catalog leaves the list");
+
+    // Kept on in Settings: demos come back with a one-line banner, and Turn off clears both.
+    await s.api("/demo", { method: "POST", body: { on: true } });
+    st = (await s.api("/state")).json;
+    assert.equal(st.settings.demoKeep, true);
+    assert.equal(st.demoBanner, true);
+    assert.ok(demoIds(st.providers).includes("demo-nova"));
+    await s.api("/demo", { method: "POST", body: { on: false } });
+    st = (await s.api("/state")).json;
+    assert.equal(st.demoBanner, false);
+    assert.deepEqual(demoIds(st.providers), []);
+
+    // Remove the MCP server: nothing real is left, then a Grok Bot handoff alone hides them again.
+    await s.api(`/tools/servers/${encodeURIComponent(add.json.server.id)}`, { method: "DELETE" });
+    await new Promise((r) => setTimeout(r, 300));
+    st = (await s.api("/state")).json;
+    assert.equal(st.realAi, false);
+    const gb = await s.api("/grokbot/config", { method: "POST", body: { url: "https://grokbot.example.invalid/hook", key: "test-sender-key-123" } });
+    assert.equal(gb.status, 200, JSON.stringify(gb.json));
+    await new Promise((r) => setTimeout(r, 300));
+    st = (await s.api("/state")).json;
+    assert.equal(st.realAi, true, "a Grok Bot handoff counts");
+    assert.deepEqual(demoIds(st.providers), []);
+  } finally { await s.stop(); }
+});

@@ -21,7 +21,11 @@ not in the install folder, so updating or reinstalling keeps it.
    (0.2.0 becomes 0.3.0) or `npm version patch --no-git-tag-version` for a small fix (0.2.0 becomes 0.2.1).
    The update only shows if the new number is higher than the installed one.
    Then add that same version to `docs/WHATS-NEW.json` with plain-language bullets. The app shows
-   that note once after the update (and once on a first launch). If the release adds or changes
+   that note once on the first launch after the update (and once on a first install, for the new
+   version only). After an update it lists every bundled note from the version that was installed
+   through the new one, newest first, including versions that were skipped. The notes are in the
+   app, so they work offline. Settings and Help can open the same note again. The pre-install
+   update prompt still uses the one release note from the update feed. If the release adds or changes
    something people see, add or update a step in the onboarding tour (`web/features/tour.js`).
    `npm test` fails when `package.json` version has no What's new entry. Also set
    `docs/help/catalog.json` `lastUpdatedVersion` to that same version, and update the help

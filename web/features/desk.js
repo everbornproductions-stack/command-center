@@ -7,6 +7,13 @@ const css = `
 #cc-home h3 { margin: 0 0 4px; }
 #cc-home .cc-home-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 #cc-home button.row, #cc-desk-chats button.row { width: 100%; text-align: left; }
+/* Home list rows (chats, councils, missions) follow the theme. A bare button paints the browser's white over light theme text. */
+#cc-home .cc-home-list button.row { background: var(--bg-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; cursor: pointer; font-size: 0.875rem; }
+#cc-home .cc-home-list button.row:hover { border-color: var(--accent); }
+#cc-home .cc-home-list button.row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#cc-home .cc-home-list .chip { background: var(--panel-solid); border-color: var(--line-2); color: var(--text); }
+#cc-home .cc-home-list .lbl { font-size: 0.6875rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+#cc-home .dim { color: var(--muted); }
 #cc-readers { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-readers .card { width: min(520px, 100%); background: var(--panel-solid, #0e1522); color: var(--text, #e5e7eb); border: 1px solid var(--line, #1f2937); border-radius: 14px; padding: 16px 18px; }
 #cc-readers p { margin: 8px 0; line-height: 1.45; }
@@ -47,7 +54,11 @@ function paintHome(host) {
       el = document.createElement("div");
       el.id = "cc-home";
       el.className = "panel";
-      cmd.prepend(el);
+      // Expert: under Live ops in the right column, so any Live ops strip sits above Welcome back.
+      // Simple: under the chat box and My day, so Chat stays at the top.
+      const ops = cmd.querySelector("#ops-panel");
+      const recent = cmd.querySelector("#simple-recent");
+      if (ops) ops.after(el); else if (recent) recent.appendChild(el); else cmd.prepend(el);
     }
     const chats = (card.chats || []).map((c) => `<button type="button" class="row" data-chat="${esc(c.id)}"><span class="chip">${esc(c.kind)}</span>${c.private ? `<span class="chip">Private</span>` : ""}<span style="flex:1">${esc(c.title)}</span></button>`).join("");
     const projects = (card.projects || []).map((p) => `<button type="button" class="btn sm" data-proj="${esc(p.id)}">${esc(p.name)}</button>`).join("");
@@ -139,6 +150,8 @@ function toneLabel(id) {
 
 function renderCommand(container) {
   paintHome(container);
+  // Simple shows recent chats only. Private mode and tones stay in Expert and Settings.
+  if (S.uiMode === "simple") { container.innerHTML = ""; return; }
   const on = !!S.settings?.privateMode;
   const armed = S.settings?.nextTone || "";
   const tones = TONE_BUTTONS.map(([id, label]) => `<button type="button" class="btn sm ${armed === id ? "on" : ""}" data-tone="${id}">${label}</button>`).join("");
@@ -176,12 +189,31 @@ async function setTone(tone, container) {
   } catch (e) { toast(e.message, true); }
 }
 
+function answerProviderId() {
+  const live = S.live || {};
+  if (live.kind === "council") {
+    const c = live.council || {};
+    const key = c.winner || c.chair?.model;
+    const a = (key && c.answers?.[key]) || null;
+    return a?.provider || c.chair?.provider || "";
+  }
+  const run = live.mission || {};
+  return live.agents?.[live.primary]?.provider || run.provider || run.assembler?.provider || "";
+}
+function isPractice(id, name) {
+  if (String(id || "").startsWith("demo-")) return true;
+  const p = window.CC.P?.(id);
+  if (p?.demo) return true;
+  return /\(demo\)/i.test(String(name || ""));
+}
 function renderDeliverable(container, live) {
   if (!live?.id) { container.innerHTML = ""; return; }
   const id = live.id;
   const name = writerName();
+  const practice = isPractice(answerProviderId(), name);
   const review = (S.live.council || S.live.mission || {}).doubleCheck;
   container.innerHTML = `<div class="cc-desk-tools">
+    ${practice ? `<div class="panel" id="cc-practice" role="status"><p class="small" style="margin:0 0 8px">Practice answer from a pretend AI. Nothing was spent.</p><button type="button" class="btn sm" id="cc-practice-go">Get real answers</button></div>` : ""}
     ${name ? `<p class="small" style="margin:6px 0">Written by ${esc(name)}.</p>` : ""}
     ${review?.text ? `<div class="panel"><h3>Double-check</h3><p class="small">${esc(review.line || "")}</p><div class="md">${esc(review.text)}</div></div>` : ""}
     <div class="cc-desk-row">
@@ -189,6 +221,12 @@ function renderDeliverable(container, live) {
       <button type="button" class="btn sm" id="cc-check">Double-check this</button>
     </div>
   </div>`;
+  container.querySelector("#cc-practice-go")?.addEventListener("click", () => {
+    S.settingsMore = true;
+    S.navFocus = "#settings-keys";
+    S.view = "settings";
+    if (window.CC.render) window.CC.render();
+  });
   container.querySelector("#cc-again").addEventListener("click", async () => {
     try {
       const r = await api("/desk/repeat", { method: "POST", body: { id } });

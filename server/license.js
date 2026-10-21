@@ -208,6 +208,43 @@ export async function redeem(code, email) {
   return activate(r.key);
 }
 
+// Licence keys start with EVB- (gen_license_key makes EVB-XXXX-XXXX-XXXX). Anything else typed
+// in the key box, such as EVERBORN-OWNER or TEST-ABCD-EFGH, is a promo code.
+export const LICENCE_KEY_RE = /^EVB-[A-Z0-9][A-Z0-9-]*$/;
+export const looksLikeLicenceKey = (v) => LICENCE_KEY_RE.test(trim(v).toUpperCase());
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// The licence server's short replies, in plain words for the Plan panel.
+export function plainLicenceError(message, kind = "key") {
+  const m = trim(message);
+  if (/used up|invalid, used|expired/i.test(m) && kind === "code") return "This code was already used, has expired, or was typed wrong. Check the spelling, or ask Everborn for a new code.";
+  if (/different email/i.test(m)) return "This code belongs to a different email. Type the email the code was sent to.";
+  if (/email this code is for/i.test(m)) return "Enter your email so the code can be linked to you.";
+  if (/not found|not accepted|unknown key/i.test(m) && kind === "key") return "That licence key was not found. Check it, or if you have a promo code, type it in the same box.";
+  return m || (kind === "code" ? "Could not redeem that code." : "Could not check that licence key.");
+}
+
+// One box: a licence key activates, anything else is redeemed as a promo code.
+// action "redeem" with no code never falls back to activating a key.
+export async function submitLicence({ key, code, email, action } = {}) {
+  const fail = (m) => Object.assign(new Error(m), { status: 400 });
+  const k = trim(key);
+  let c = trim(code);
+  if (action === "redeem" && !c) throw fail("Enter a promo code.");
+  if (!c && k && !looksLikeLicenceKey(k)) c = k;
+  if (c) {
+    const mail = HOSTED ? ctx().email : trim(email);
+    if (!HOSTED && !EMAIL_RE.test(mail || "")) throw fail("Enter your email so the code can be linked to you.");
+    try { return await redeem(c.toUpperCase(), mail); }
+    catch (e) { throw fail(plainLicenceError(e.message, "code")); }
+  }
+  if (!k) throw fail("Enter your licence key or promo code.");
+  let st;
+  try { st = await activate(k); }
+  catch (e) { throw fail(plainLicenceError(e.message, "key")); }
+  return st.status === "active" ? st : { ...st, message: plainLicenceError(st.message, "key") };
+}
+
 // Hosted: find the licence that belongs to the signed-in email (RLS lets a user read only that row).
 export async function loadHostedLicense() {
   const email = ctx().email;

@@ -28,6 +28,14 @@ Marked DONE from `PHASE N DONE` in docs/BUILD-LOG.md, or from a merged pull requ
 
 Phase 14 is BLOCKED in the log: the on-Mac check and Apple signing are not done. The unsigned build moves to version 0.4.10 below. Signing moves to Later.
 
+### Remaining phases (built 2026-10-21)
+
+These numbers are the earlier roadmap names. Version stays 0.4.8. They are not the regrouped 0.4.10 phase numbers.
+
+- Phase 58. Second opinion. Two AIs answer the same orders. Differences show in plain words. Both answers stay. It sits beside Single, Council, and Mission. Demo uses pretend AIs and spends nothing.
+- Phase 61 add-on. Shared team recipes on a workspace for Extreme and Owner (Studio is Pro). Five people including the owner. Phase 8 workspaces are unchanged. Invite links are still shown once. Keys stay in the vault. Nothing is charged.
+- Phase 62. Industry starter packs for real estate, insurance, and credit repair, on the Prompts page. Picking one fills Marching orders. Nothing runs until send. Outbound text stays a draft. Credit repair and insurance keep SCF, CROA, and RESPA.
+
 ### Version 0.4.9 (next)
 
 On this branch: phases 45 to 51 with Antigravity first (live drivers are wired, and the tests use stand-ins), the program scan (phase 69), everyday actions and Calendar (phases 53, 54, and 56), the command-bar save (phase 70), the welcome email (phase 71, decision 22 text unchanged), and the graduate notice (phase 72). Still not done here: phases 66, 67, and 68. Package stays 0.4.8.
@@ -81,18 +89,20 @@ Not done, except the three rows already marked done above (share links, accessib
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here. This runs before Later.
-3. Phase 96. Remix any app. Built. A Pro mission, 8 a month on Pro and Studio (a placeholder, not a price), no monthly cap on Extreme or Owner. The gate is server/feature-gate.js. It runs right after Phase 90 and before Phase 91.
-4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
+3. Phase 96. Remix any app. Built, including Remix 2. One path: what to make, a starting point, preview, Build, Test, Publish. Extra choices sit under More options. A Pro mission, 8 a month on Pro and Studio (a placeholder, not a price), no monthly cap on Extreme or Owner. The gate is server/feature-gate.js. It runs right after Phase 90 and before Phase 91.
+4. Phase 97. Guided builders B: HighLevel, accounting, and business tools. Built. Describe, Preview the AIs, Build, Test, Publish. Each builder shows up only when the need is detected. The shared registry is `server/builders/registry.js` (`register({ id, title, tier, detect(ctx) })`). Tiers are gated in `server/feature-gate.js`. Version stays 0.4.8. Square is unchanged.
+5. Phase 97. Guided builders A: Websites and Marketing (the Web and marketing page, /api/webbuilders). Built. A Builders page suggests a builder only when it detects a website, a post, a reel, an ad, a site project, or a connected site or social account. Show all opens the rest. Each builder is Describe, Preview the AIs, Build, Test, then Publish. The registry is server/builders/registry.js so workstream B can plug in. Gates are server/feature-gate.js. Square, billing, and the version are unchanged.
+6. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
 
 ### Later
 
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
 - Phase 44. AI group chat. Built in the Together workstream. The version stayed 0.4.8.
-- Phase 92. User chat. Built in the Watch and talk workstream. The version stayed 0.4.8. Messages stay on this computer until a hub address is set. The hub was not deployed.
+- Phase 92. User chat. Built in the Watch and talk workstream. The version stayed 0.4.8. Messages stay on this computer until a hub address is set. The hub was not deployed. Community chat (public channels and AI News) was added beside it.
 - Phase 43. Live builds. Built in the Together workstream as local rooms. The hub was not deployed. The version stayed 0.4.8.
 - Phase 61. Team spaces. Built in the Together workstream: Extreme, 5 seats counting the owner, shared projects and roles. Phase 8 workspaces were not rebuilt. The version stayed 0.4.8.
-- Phase 93. A newsletter and a monthly savings email.
+- Phase 93. Weekly AI News is in the app (Community). The monthly savings email is still not built.
 - Phase 94. Spanish.
 - Phase 95. Phone apps.
 - Store listings (Apple App Store and Google Play).
@@ -104,11 +114,11 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 Left on the list so they are not dropped. They are not next.
 
 - Phase 32. Model-version alerts. Built in the Watch and talk workstream. The version stayed 0.4.8. Notes go to the Together news list, which is installed.
-- Phase 33. HighLevel contacts, invoices, and workflows as council tools stay with the posting that shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90. The package version stayed 0.4.8.
+- Phase 33. HighLevel contacts, invoices, and workflows are built as council tools under Connect (item 1). HighLevel posting already shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90.
 - Phase 34. Hide hosted plumbing. The simple licence copy hides the setup form. The package version stayed 0.4.8.
 - Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is built. The news list stores those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
-- Use your own Supabase (decision 23). Still not in the run order.
+- Use your own Supabase (decision 23). The spec in Planned, not in the run order is unchanged. The optional setting is built and off by default.
 
 Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the quick patch (adaptive menu for laptops and wide screens, Start a project out of Settings, hide demo bots when real AIs are connected). 0.4.8 is a hotfix (the top bar uses the width it has, and demo AIs stay hidden). 0.4.9 is desktop and app control, phases 45 to 51, with Google Antigravity as the first app, plus Calendar, everyday actions, What's new, and the idea box, and routing to whichever AI already has the login or the prior work. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay in Do last. Windows code signing (Azure) is pending Microsoft verification and stays in Do last. The user-facing page is docs/marketing.md.
 
@@ -120,7 +130,7 @@ Release line (2026-10-21): 0.4.6 is the engine hotfix (shipped). 0.4.7 is the qu
 5. Never deploy, never push (Chris pushes), never touch Square, real API keys, `data/`, `.env`, password files, or billing. Nothing posts, sends, emails or spends without an explicit user click; outbound integrations need user OAuth.
 6. Paid things (managed plan, trial credits, marketplace pricing) go behind a feature flag with PLACEHOLDER prices. Chris decides real pricing.
 7. At the end, append to `docs/BUILD-LOG.md`: date/time, features done, commits (hash + message), test counts (npm test pass/fail, smoke pass/fail), what is not verified, and a final line exactly `PHASE N DONE` or `PHASE N BLOCKED: <reason>`.
-8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once after each update.
+8. Every release adds a `docs/WHATS-NEW.json` entry for the new `package.json` version, with plain-language bullets, and adds or updates onboarding tour steps for any new user-facing feature. A test fails when that version has no entry. The What's new screen shows once on the first launch after an update, listing every bundled note since the version that was installed, newest first. Settings and Help can open it again. The notes ship in the app, so they work offline.
 
 ## Phases
 
@@ -572,6 +582,46 @@ The person shows an app or a game: a URL, screenshots, a short screen recording,
 - It learns as it goes. The router records which AIs, which engines, and which kinds of open-source sources worked best for that app type. It learns from the person's ratings and from the fixes they ask for. It keeps a library on this computer of working patterns and components from their own remixes, so the next one starts further along.
 - That learning uses the router and the shared-learning opt-in that already exist (decision 18, Phase 28). The record is the app type, the AI, the engine, the kind of source, the rating, and whether a fix was needed. It does not store the prompt, the screenshots, the original name, the characters, or any key. Nothing is shared unless the person has opted in. What would be shared is the same kind of anonymous totals as Who's best, and this phase does not send them on its own.
 - Guardrails: never decompile, unpack, or reuse another app's code, assets, logos, or brand. The pattern library is the person's own remix, not files taken from the app they showed. Nothing is posted or sent without a click. Tests use fixtures only. No real download, no real game, and no real key.
+- Remix 2 keeps the same mission and the same gate. The page is one path: What do you want to make, a starting point, Preview, Build, Test, then Publish. One main button on each step. Extra choices sit under More options.
+- A screenshot becomes a new layout (Pro, MIT, not copied). A recording becomes a clickable preview (Extreme, the same tool's video mode, not copied). A design file you made can be imported (Pro, Penpot is MPL-2.0 and is not bundled).
+- A game type names Godot demo projects and Kenney starter kits (Pro, MIT, not copied). Phaser create-game is Pro, runs through npx, is not bundled, and its license stays unconfirmed. A Bevy starter is Extreme (Apache-2.0 OR MIT, not copied).
+- Art is CC0 only, from Kenney and OpenGameArt. The FSFE reuse tool is GPL and runs only as its own program. Every kept file is listed in CREDITS. Anything that is not cleared is rejected. Downloads wait for a Media approval and are not fetched in tests.
+- New levels use original code (Extreme). The wave function collapse project is MIT and is not copied. Piper voices are GPL and run only as a separate program. Coqui is MPL-2.0 and also runs as its own program. Both wait for a Media approval (Extreme).
+- Each remix can write a Playwright smoke test and an accessibility report (Pro). axe-core is MPL-2.0. pa11y is LGPL and stays a separate program. Those checkers are not launched in tests.
+- Publish to a website (Vercel) or itch.io (butler) is Pro. A phone build (Expo EAS) is Extreme. An installer (Tauri or Electron Forge) is Extreme. Online play (Colyseus) is Extreme. Every publish waits for a click. Tokens go in the vault and are never logged.
+- Colors and type only (Style Dictionary, Pro), a blend of two ideas (Extreme), and a saved version (isomorphic-git, Pro) are the last group. GPL tools are never imported. Nothing from another app is copied. The version number stays 0.4.8.
+
+### Phase 97: Guided builders B (HighLevel, accounting, business tools) (built)
+Same five steps as a Remix mission: Describe, Preview the AIs, Build, Test, Publish. Plain words, smart defaults, and more options hidden. A builder is shown, or suggested from chat, only when the need is detected.
+The shared registry is `server/builders/registry.js`. Call `register({ id, title, tier, detect(ctx) })`. `detect(ctx)` returns false, true, or `{ why }`. Guided builders A uses the same file. Do not clear the registry on startup. A merge keeps both sets.
+- HighLevel builders (official API, OAuth or a Private Integration token already in the vault) appear when HighLevel is connected or mentioned. Lead Capture Wizard (Pro). SMS and Email Campaign Builder through Conversations (Extreme): every send waits for a click, and TCPA consent, STOP handling, quiet hours, A2P 10DLC, and CAN-SPAM are checkboxes. Credit-repair copy adds CROA notes. Workflow Starter Pack tags a contact to start a workflow (Pro). Pipeline Coach daily summary (Pro). Funnel Copy Writer (Pro).
+- Accounting builders appear when QuickBooks or Xero is connected, or when a receipt or an invoice comes up. They organize only. A tax question gets "Ask your accountant" and no tax advice. Receipt Snap can use Tesseract, PaddleOCR, or docTR (Free). Those programs are not bundled. Send to QuickBooks (Pro) and Send to Xero (Pro) wait for approval before posting. The Xero body matches xero-node's AccountingApi.createInvoices and is posted as a draft bill, which does not pay anyone. Invoice Reader follows the invoice2data fields (Free). Invoice Maker (Pro) keeps Invoice Ninja off. Invoice Ninja is a separate service under the Elastic License.
+- The other builders come from the chat topic. Website Chat Assistant with Chatwoot (Pro). Booking Page with Cal.com (Free). Meeting Notes with Whisper (Free). Whisper is not bundled and audio is not uploaded. Contract and e-sign Sender with DocuSeal (Pro): DocuSeal is a separate AGPL service, user templates only, no legal advice. Review Responder drafts a reply for approval and does not post it to the review site (Free).
+- Every send, post, or charge waits for Publish. Tests mock every external API on a local port. No real key. The gate is `server/feature-gate.js`. Free, Pro, and Extreme. Studio follows Pro. Owner follows Extreme. This phase does not rebuild Phase 7 HighLevel posting, Phase 33 council tools, Phase 36 limits, or Phase 91 prices. Square and billing are unchanged. Version stays 0.4.8.
+
+### Phase 97: Guided builders A, websites and marketing (built)
+A Web and marketing page under Create, beside Builders (guided builders B). Its registry is `server/builders/web/registry.js` and its API is `/api/webbuilders`, so the two sets do not collide. It is for someone who does not write code. Plain words, smart defaults, one main button, and the rest under More options. The steps match Remix: Describe, Preview the AIs, Build, Test, Publish. Nothing is sent until Publish is clicked. Tokens stay in the vault and are never shown again.
+
+The page opens on Suggested for you. A builder is suggested only when Meldmind detects the need: the person talks about a website, has a site project, or connects Netlify or Vercel; or they mention posts, reels, or ads, or connect a social account. Show all lists the rest. Detection lives in `server/builders/registry.js`. Workstream B adds a builder with `registerBuilder`, or by dropping a module in `server/builders/extras` that exports `register({ registerBuilder })`.
+
+Web, each with the license it keeps:
+- Site Builder uses GrapesJS (BSD-3). Pro.
+- Client Page Editor uses Puck (MIT). Pro.
+- Static export uses Astro (MIT). Free. The pages are written on this computer. Astro is not downloaded.
+- Site Health Check uses Lighthouse (Apache-2.0). Free. Fix it updates the page on this computer. Lighthouse is not started.
+- Publish to Netlify or Vercel is Pro. It waits for the click. With no token it records a dry run and sends nothing.
+
+Marketing:
+- Social Calendar uses Postiz (AGPL-3.0). Pro. Postiz stays a separate service and is not bundled.
+- Reel Maker uses WhisperX (BSD-2) and auto-editor (Unlicense). Extreme. Neither program is started in this build. Remotion is optional, off by default, and needs a paid license.
+- Email Sequences uses listmonk or Mautic as a separate service, or the HighLevel API. Pro. Every email gets a postal address and an unsubscribe line.
+- Ad Copy Studio uses Meldmind routing and a character limit per network. Free. The routed AI is named. The words are prepared here and are not sent.
+- SEO Fixer uses the Lighthouse check plus a prepared title and description. Free.
+- Credit repair and insurance ads show compliance checkboxes. Meldmind does not give advice for those ads.
+
+Gates are `server/feature-gate.js`. Free, Pro, and Extreme are the tool tiers. Studio counts as Pro. Owner can use every builder. This does not change Square, billing, or the version.
+
+Tests mock every network and every heavy tool. No GrapesJS, Puck, Astro, Lighthouse, Postiz, WhisperX, auto-editor, or Remotion package is installed.
 
 ### Phase 91: Three tiers and the lifetime founder counter
 The plan prices are in docs/billing.md and in the comparison table in the app. The live Square monthly checkout stays $15.99. Do not change that link. Do not call Square from the app.
@@ -587,8 +637,11 @@ These wait until after Phase 91. Store listings, signed apps, and paid hosting n
 ### Phase 92: User chat (built, version unchanged)
 People chat with each other inside the app. This is not the AI group chat (Phase 44). Direct messages and small groups are limited to people in the same team space. When team spaces from the Together work are not installed yet, a Phase 8 workspace is used so this computer still works. Report and block stay on this computer. Messages stay on this computer until a people-chat hub address is set (`CC_USERCHAT_HUB`, https, or a loopback address in tests). Nothing is sent until Send. Keys and private-mode content are not shared. The version stayed 0.4.8. The hub was not deployed.
 
-### Phase 93: Newsletter and monthly savings email (Later, not done)
-An opt-in newsletter, and a monthly email of what was saved. Phase 4's weekly report stays in the app and is still a draft until a click. This email does not send until the person opts in. No income or results claims. Do not touch Square.
+### Phase 92 add-on: Community chat and AI News (Done)
+Built because this run asked, ahead of Phase 91. Community chat sits in the app. Channels: General, Prompts, Builders, Help, and Show and tell. Each account has one public username. First-run setup asks for it, and Skip keeps the suggested name. The name is unique, and the email is not shown. The same name is used in chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. It can be changed in Settings after a 1 hour wait. Send, Comment, and Share in chat are the posts. Keys and private files are refused. Report, rate limits, a profanity and spam filter, and owner mute or delete are included. Shared prompt votes feed the prompt library ranking. Supabase RLS is a migration file only and was not run. This is not the AI group chat (Phase 44).
+
+### Phase 93: AI News (Done for the weekly note)
+Built because this run asked, ahead of Phase 91. The weekly note lives in the Community area as AI News, next to the chat channels. It updates from Supabase, so a new issue does not need an app update. Each issue can list model releases, price changes, and new features from major AI providers (each with a source link), Meldmind features from WHATS-NEW.json, top voted prompts, and community highlights. An unread badge shows until the issue is opened. People can react and share an item into chat. A generator writes a JSON draft for the owner to approve before publish. Email me the weekly AI News note is off until it is ticked. The app can write an HTML and text copy with an unsubscribe link and an Everborn Productions address placeholder. It does not send email. The monthly savings email from the older later note was not part of this request and is not built. Phase 4's weekly report stays in the app. Do not touch Square.
 
 ### Phase 94: Spanish (Later, not done)
 The app's own words can be shown in Spanish. User content is not translated unless the person asks.
@@ -611,7 +664,7 @@ Code and deploy config (not deployed, version stays 0.4.8):
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 
-Use your own Supabase (decision 23) stays here. Do not start them until Chris adds them to the run order above. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
+Use your own Supabase (decision 23) stays written here so the spec is not rewritten. Do not start them until Chris adds them to the run order above. Chris added this setting to the remaining-phases work on 2026-10-21, and the optional switch is now in Settings. It is off by default. The welcome email moved to Phase 71 on 2026-10-21. Its spec was not rewritten.
 
 ### Use your own Supabase
 - Optional advanced setting named "Use your own Supabase", for power users and companies.

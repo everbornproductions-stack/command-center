@@ -295,7 +295,7 @@ function renderPanel(el) {
     <label class="lbl" style="margin-top:10px">Pictures</label>
     <div class="row" style="gap:8px">${pics}<button class="btn sm ${prefs.wallpaper === "photo" ? "on" : ""}" id="cc-bg-photo">Your photo</button><button class="ghost small" id="cc-wall-clear">No picture</button></div>
     <input type="file" id="cc-bg-file" accept="image/png,image/jpeg,image/webp" aria-label="Choose a photo from this computer" style="display:none">
-    <div class="cc-theme-preview"><div class="box"><span class="dot green"></span> Panel text <span class="chip">chip</span></div><button class="btn primary sm">Primary</button><button class="btn sm">Button</button></div>
+    <div class="cc-theme-preview"><div class="box"><span class="dot green"></span> Panel text <span class="chip">chip</span></div><button class="btn primary sm sample-only" type="button" tabindex="-1" aria-hidden="true">Primary</button><button class="btn sm sample-only" type="button" tabindex="-1" aria-hidden="true">Button</button></div>
     <div class="dim small" style="margin-top:8px">Saved to your account${S.mode === "hosted" ? " in the hub" : " on this PC"}; every device you sign in on follows it. A picture or photo sits behind a dim, blurred layer so text stays readable. Your photo is chosen from a file on this computer. A web address is not accepted.</div>
   </div>`;
   const redraw = () => renderPanel(el);

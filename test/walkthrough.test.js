@@ -83,7 +83,7 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
   const model = menuModel(["command", "settings"]);
   const work = model.find((g) => g.id === "work").items;
   assert.equal(work.filter((i) => i.view === "start").length, 1);
-  assert.equal(model.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 0);
+  assert.equal(model.find((g) => g.id === "guides").items.filter((i) => i.view === "start").length, 0);
   assert.equal(groupFor("start"), "work");
   const withStart = menuModel(["command", "settings", "start"]);
   const work2 = withStart.find((g) => g.id === "work").items.filter((i) => i.view === "start");
@@ -95,10 +95,10 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
   assert.match(ui, /Simple mode keeps the route/);
   assert.match(ui, /Expert mode shows which AI/);
   assert.match(read("web/perf/registry.js"), /"walkthrough"/);
-  assert.match(read("web/features/tour.js"), /Start a project/);
-  assert.match(read("web/nav.js"), /Replay the tour/);
-  assert.match(read("web/nav.js"), /Watch example projects/);
-  assert.match(read("web/features/help.js"), /Replay the tour/);
+  assert.match(read("web/features/guide.js"), /Start a project/);
+  assert.match(read("web/nav.js"), /Take the tour/);
+  assert.doesNotMatch(read("web/nav.js"), /Replay the tour/);
+  assert.match(read("web/features/help.js"), /Take the tour/);
   assert.match(read("web/features/help.js"), /Watch example projects/);
   assert.match(read("web/app.js"), /ev\?\.example === true \|\| ev\?\.overlay === true/, "example playback does not become a mission toast");
   assert.match(ui, /Nothing runs until you click Build it/);

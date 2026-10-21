@@ -26,6 +26,7 @@
 //   size and downloads only after a click.
 
 export const FEATURES = [
+  { id: "sign-in-tip", shell: true },
   { id: "themes", shell: true },
   { id: "brand", shell: true },
   { id: "tour", shell: true },
@@ -41,6 +42,7 @@ export const FEATURES = [
   { id: "mcp", home: true, deliverable: true, settings: true },
   { id: "fallback", home: true, deliverable: true, settings: true },
   { id: "handoff", home: true, deliverable: true, settings: true, listen: true },
+  { id: "getdone", home: true, settings: true, listen: true },
   { id: "brain", views: ["brain"] },
   { id: "grokbot", home: true, deliverable: true, settings: true, listen: true },
   { id: "browser", home: true, deliverable: true, settings: true, listen: true },
@@ -62,14 +64,14 @@ export const FEATURES = [
   { id: "prompts", views: ["prompts"], home: true, deliverable: true, setup: true, settings: true },
   { id: "marketplace", views: ["marketplace"] },
   { id: "growth", home: true, settings: true, listen: true },
-  { id: "ratings", deliverable: true },
+  { id: "ratings", deliverable: true, settings: true },
   { id: "memory", home: true, settings: true },
   { id: "receipt", home: true, deliverable: true, credits: true, settings: true },
   { id: "media", views: ["media"], deliverable: true, settings: true },
   { id: "publish", views: ["publish"], deliverable: true, settings: true, listen: true },
   { id: "reports", views: ["reports"] },
   { id: "alerts", home: true, settings: true },
-  { id: "share", deliverable: true },
+  { id: "share", deliverable: true, settings: true },
   { id: "voice", home: true, settings: true },
   { id: "workspaces", views: ["workspaces"] },
   { id: "walkthrough", views: ["start"], home: true },
@@ -89,6 +91,8 @@ export const FEATURES = [
   { id: "devices", settings: true },
   { id: "background", home: true, listen: true },
   { id: "remix", views: ["remix"], kind: "builder" },
+  { id: "builders", views: ["builders"], kind: "builder", home: true },
+  { id: "webbuilders", views: ["webbuilders"], kind: "builder", home: true },
   { id: "export", deliverable: true },
   { id: "together", views: ["together"] },
   { id: "everyday-inbox", views: ["everyday-inbox"] },
@@ -101,6 +105,12 @@ export const FEATURES = [
   { id: "smarter-control", home: true, settings: true },
   { id: "modelwatch", settings: true },
   { id: "userchat", views: ["userchat"] },
+  { id: "community", views: ["community"], settings: true, deliverable: true, listen: true },
+  { id: "industries", views: ["prompts"] },
+  { id: "teamrecipes", views: ["workspaces"] },
+  { id: "highlevel", settings: true },
+  { id: "own-supabase", settings: true },
+  { id: "usage", settings: true },
 ];
 
 // Server plugins that stay out of startup. file is the name in server/plugins.

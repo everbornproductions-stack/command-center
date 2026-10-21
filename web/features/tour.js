@@ -1,102 +1,107 @@
-// Onboarding tour: a first-run walkthrough with a spotlight on each part of the console and a
-// sample run on the demo AIs (no keys, no spend). State lives on the server (/api/tour); the tour
-// offers itself once with a small invite and can be restarted from Settings.
-import { countsAsRealAi } from "../composer-ais.js";
+// Short tour: one idea per step, a Try it button, skip any time, replay from Help.
+// Steps come from web/features/guide.js and hide when their page is not in this app.
+import { liveProbe, rememberWalks, tourSteps } from "./guide.js";
+import { desktopClick, desktopPromptBlocked, markSessionClosed, sessionClosed } from "../desktop-prompt-flow.js";
 
-const { S, api, toast, esc, go, refresh } = window.CC;
+const { S, api, toast, esc, go } = window.CC;
 
-const STEPS = [
-  { id: "mode", for: "both", target: "#mode-toggle", view: "command", title: "Simple or Expert", body: "Simple is one chat box. You say what you want and the council picks the AI. Expert shows the debate, the scores, spend caps, the live map, Marketplace, MCP (a plug-in connection), webhooks (a web address that receives a message), and every menu. This switch is on every screen. One click changes it, and nothing you already did is lost." },
-  { id: "ways", for: "both", view: "command", title: "Single, Council, Mission, Pipelines", body: "Single: the best AI for the job answers. Council: several answer at once, review each other anonymously, and a chair writes the verdict. Mission: a planner splits the goal, specialists work in parallel, a different AI checks each piece, and an assembler compiles the result. Pipelines: a pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
-  { id: "simple-welcome", for: "simple", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. You are in Simple. Type what you want in the chat box. The council picks the AI. This tour uses pretend AIs, so nothing is spent." },
-  { id: "simple-nav", for: "simple", target: "#tabs", view: "command", title: "Chat, Projects, Create, and Settings", body: "Chat, Projects, Create, and Settings stay at the top, and Help sits with them. Chat is this box. Projects keeps one client or campaign together. Create holds prompts, images, media, publishing, and Remix. Settings is where a key goes. Everything else is one click away in Expert." },
-  { id: "help-tab", for: "both", target: "#help-search", view: "help", title: "Help", body: "Search the guides here. Ask Meldmind answers from these articles with a connected AI. If no AI is connected, you get the search only. Take the tour again, Check for updates, and Run setup again are on this page." },
-  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
-  { id: "simple-answer", for: "simple", target: "#out-md", view: "command", title: "The answer", body: "The answer lands here. Copy it when you want. Switch to Expert any time to see the debate, the scores, and the live map." },
-  { id: "simple-settings", for: "simple", target: "#settings-keys", view: "settings", title: "Add a key when you are ready", body: "Settings is where a real key goes. Until then, demo AIs can answer and nothing is spent. MCP, webhooks, and spend caps stay in Expert.", action: "keys" },
-  { id: "welcome", title: "Welcome to Meldmind", body: "Meldmind is an Everborn product. Take command of all your AIs. One console for every AI you pay for. Give orders once; the console picks the right AI for each part, lets them check each other's work, and keeps score of what everything costs. This tour uses three pretend AIs, so nothing is spent." },
-  { id: "menus", target: "#tabs", view: "command", title: "Dropdown menus", body: "The top bar is grouped dropdown menus. It uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps. Every page lives in one of those menus. Open a menu with a click, or with the arrow keys once it has focus." },
-  { id: "strip", target: "#strip", view: "command", title: "The status strip", body: "One tile per AI. Green: the key works. Amber: an incident, slow, or low balance. Red: key rejected or out of credits. Grey: no key yet. A tile pulses while that AI is working." },
-  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
-  { id: "plain-request", for: "both", target: "#plain-request", view: "command", title: "Try saying...", body: "Try saying: email this client and put it on my calendar. A cheap fast AI drafts the email and the event. You see the cost, usually a fraction of a cent. Meldmind sends the email and adds the event only after you click Approve once. No outside AI touches your Gmail or Calendar." },
-  { id: "home-return", for: "both", view: "command", title: "Home when you come back", body: "After you have used Meldmind, Home shows your recent chats and projects. Private mode keeps a chat on this computer. Backup and restore uses one file and does not include AI keys. Do this again repeats a finished job and is part of Pro. Double-check this asks a second AI to review an answer, and it is free. Tone buttons set the next answer only and do not send by themselves. AI credits shows what is left for each AI. Each answer says which AI wrote it. The first time you run a council, Meldmind explains it in plain words and lists who will read the prompt. You can remove one reader. Tools and connected services are listed too. A delete receipt can be saved as its own file." },
-  { id: "start-project", for: "both", target: "#sp-home", view: "command", title: "Start a project", body: "Start a project walks you from an idea to a finished deliverable. Pick Website, Music video, Marketing campaign, App/software, Business plan, or Social media reels. Watch an example first if you want a full sample. It works in Simple mode and in Expert mode. The same entry is in the Work menu, next to Projects, and on the Help page." },
-  { id: "files", target: "#pf-drop", view: "command", title: "Files in this project", body: "Drop a PDF, Word doc, text file, or image here. Meldmind shows what it will read and the cost. Nothing is added until you confirm. Later answers in this project can cite those files. A mission that makes a video, image, or voice clip also shows the price first, and a paid step waits until you click Approve." },
-  { id: "refocus", target: "#rf-root", view: "refocus", title: "Refocus", body: "Type a topic, such as music videos or half-done reels. Refocus lists the related chats, files, and saved work from oldest to newest, with a finished, partial, or abandoned label. Rebuild it starts a mission only after you click. The page shows who will read it first. Private chats stay out." },
-  { id: "prompts", target: "#pp-list", view: "prompts", title: "Pro prompts", body: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert. Search the pack here. Auto-detect on the order box can suggest one; you can remove that chip and write your own." },
-  { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. The sample runs only while no real AI is connected, so nothing is spent.", action: "sample" },
-  { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; a check can send a piece back for one revision when it falls short." },
-  { id: "pause-bg", target: "#bg-run", view: "command", title: "Pause a mission, or leave it running", body: "Pro can pause a mission, edit the steps that have not finished, and resume. Run in background leaves this screen. You get an alert when it is done. Nothing starts until you click Send orders." },
-  { id: "live", target: "#lv-open", view: "command", title: "Open live view", body: "The Open live view button is at the bottom-right of Live Ops. It opens the full live map. Live is also in the Work menu." },
-  { id: "deliverable", target: "#out-md", view: "command", title: "The deliverable", body: "The assembled result lands here. Copy it, see the savings receipt under it, and find it later under the project it was filed to. The top bar shows You saved this month and all time." },
-  { id: "share-export", target: "#out-md", view: "command", title: "Share and export", body: "A public share link is a Pro page anyone with the link can open. Download PDF or Word keeps headings, bold text, and lists. Industry packs for real estate, mortgage, credit repair, and creators are Pro. Credit repair does not promise a score change. Name an imported ChatGPT or Claude conversation in quotes and the chat uses it." },
-  { id: "reading", target: "#a11y-panel", view: "settings", title: "Text size and read aloud", body: "Settings, Reading, has a text size and a high-contrast mode. Read aloud is on an answer and speaks only when you click it." },
-  { id: "pipelines", target: "#pl-form", view: "pipelines", title: "Pipelines", body: "A pipeline is a saved mission with the steps already chosen. Pick one, fill a few blanks, and run it. Nothing starts until you click Run." },
-  { id: "schedules", target: "#sch-root", view: "schedules", title: "Scheduled agents", body: "Schedules run an agent, a chat, or a mission on a clock, from a webhook, or when a file lands in a folder. A result that would be sent somewhere waits until you approve it. Desktop schedules only run while the app is open." },
-  { id: "publish", target: "#pub-tour", view: "publish", title: "Publishing preview", body: "Publishing always shows a preview first. Nothing posts, schedules, or saves until you click Confirm. If credentials are not saved yet, the preview says it will record a dry run. Connect Google Drive, Instagram, HighLevel and Slack with your own sign-in in Settings, Publishing." },
-  { id: "marketplace", view: "marketplace", title: "Marketplace", body: "Browse and install templates other people shared. Every template is signed and checked before it installs, and nothing runs until you start it. You can share one of your own pipelines here too." },
-  { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again. A custom provider can be marked Good at the task types it should take.", action: "keys" },
-  { id: "desktop", for: "both", target: "#prov-antigravity", view: "settings", title: "Apps on your desktop", body: "Meldmind can use apps on this PC that have no API, after you allow each one. Google Antigravity is the first. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Add to Antigravity writes the local MCP config only after you confirm. You can change this later in Settings." },
-  { id: "desktop-apps", for: "both", target: "#app-discovery", view: "settings", title: "Programs on this PC", body: "When you turn on desktop control, Meldmind lists installed programs. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. Allow each app you want. Allowed apps are scored and join the router's choices, the same as a tool you add. While you plan a mission or client work, a card can suggest a program with a short reason, Free or Paid, and the official link. Dismiss hides that suggestion. Nothing is installed or bought. Program scan is part of Pro. Turn suggestions off in Settings." },
-  { id: "remix", for: "both", target: "#remix-root", view: "remix", title: "Remix any app", body: "Remix rebuilds from scratch. It does not copy the app or game you show. It does not decompile, extract, or reuse that app's code, assets, names, or brand. Show a URL, screenshots, a short recording, or an app on this computer, then describe what you can see. A preview lists the AIs and services before anything runs. Free tools stay only when the license is allowed, and the credits go in a CREDITS file." },
-  { id: "phone", for: "both", target: "#phone-pair", view: "settings", title: "Phone pairing", body: "Settings, Phone and other devices, turns on a link for a phone on the same Wi-Fi. The QR code and the address under it include the pairing code. It stays off until you turn it on. Copy works if the camera cannot scan." },
-  { id: "your-apps", for: "both", target: "[data-feature='byo']", view: "settings", title: "Your apps", body: "Your apps is where a HighLevel account, an MCP server address, and a custom webhook are connected. A change waits until you click Send." },
-  { id: "map-tutorials", target: "#lv-tutorials", view: "liveview", title: "Start a project on the map", body: "The live map lists Start a project. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click." },
-  { id: "watch-talk", target: "#model-watch", view: "settings", title: "Model watch and people chat", body: "Model watch looks at the model list for each AI you connected. It uses your own key, read only, at most once a day. A new model or a price change shows up as a note. A suggested switch waits until you accept it, and you can undo it. People chat is in the Business menu. Direct messages and small groups stay with people in your team space. Messages stay on this computer until a hub is set. Nothing is sent until you click Send. Keys are not shared." },
-  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
+// Short Simple tour. Each body stays at 30 words or fewer, with no expert jargon.
+export const SIMPLE_STEPS = [
+  { id: "s-type", for: "simple", target: "#orders", view: "command", title: "Type your question here", body: "Type what you want in the box. Then tap Send. Meldmind picks an AI for you." },
+  { id: "s-example", for: "simple", target: "#cc-starters", view: "command", title: "Or tap an example", body: "Or tap an example under the box. It fills the words. You can change them before you send." },
+  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Your answer shows here. Tap Read aloud to hear it." },
+  { id: "s-help", for: "simple", target: "#help-search", view: "help", title: "Help is here, any time", body: "Help is here, any time. Type a question in your own words." },
+  { id: "s-text", for: "simple", target: "#basics-reading", view: "settings", title: "Make text bigger", body: "Make text bigger in Settings. Open Text and reading, then pick Large or Extra large." },
 ];
 
 const css = `
 #cc-tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
 #cc-tour .spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(3,6,12,.58), 0 0 0 2px var(--accent); transition: all .25s ease; }
 #cc-tour .spot.none { box-shadow: 0 0 0 9999px rgba(3,6,12,.58); width: 0; height: 0; left: 50%; top: 50%; }
-#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 13.5px; line-height: 1.5; }
-#cc-tour .card h4 { margin: 0 0 6px; font-size: 16px; }
-#cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 11px; margin-left: auto; }
-#cc-tour .card .msg { margin-top: 8px; font-size: 12.5px; }
-#cc-tour .dots { display: flex; gap: 5px; margin-top: 12px; }
-#cc-tour .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); }
-#cc-tour .dots i.on { background: var(--accent); }
-#cc-tour .dots i.done { background: var(--muted); }
-.cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; }
+#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
+#cc-tour .card h4 { margin: 0 0 6px; font-size: 1rem; }
+#cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 0.6875rem; margin-left: auto; }
+#cc-tour .plan { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; }
+#cc-tour .card .note { margin-top: 6px; }
+.cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 0.8125rem; }
 #cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
-#cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
-#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 18px; }
-#cc-whats-new ul, #cc-desktop-prompt ul { margin: 10px 0 0; padding-left: 18px; }
+#cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: calc(100vw - 32px); min-width: 0; box-sizing: border-box; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+#cc-whats-new h4, #cc-desktop-prompt h4 { margin: 0 0 6px; font-size: 1.125rem; }
+#cc-desktop-prompt .card { position: relative; }
+#cc-desktop-prompt h4 { padding-right: 72px; }
+#cc-desktop-prompt .x { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.8125rem; line-height: 1.2; cursor: pointer; }
+#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: #1a2436; color: var(--text); }
+#cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
+#cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
+#cc-whats-new .ver + .ver { border-top: 1px solid var(--line-2); margin-top: 10px; }
 @media (max-width: 760px) { #cc-tour .card { left: 12px !important; right: 12px; bottom: calc(var(--strip-h) + 64px); top: auto !important; width: auto; } .cc-tour-invite { left: 12px; right: 12px; bottom: calc(var(--strip-h) + 66px); } }
 `;
 const style = document.createElement("style"); style.id = "cc-tour-style"; style.textContent = css; document.head.appendChild(style);
 
-let tour = null;      // server state
+let tour = null;
 let synced = false;
-let idx = -1;         // current step (-1 = closed)
-let el = null;        // overlay root
-let timer = null;     // reposition loop
-let msg = "";         // message under the current step (sample result etc.)
-let busy = false;
+let idx = -1;
+let el = null;
+let timer = null;
+let pinned = null;
+let fullTour = false;
 let newsOpen = false;
 let newsDismissed = false;
 let desktopOpen = false;
 let desktopDismissed = false;
+let desktopBusy = false;
+const session = () => { try { return window.sessionStorage; } catch { return null; } };
+const desktopBlocked = () => desktopPromptBlocked({ dismissed: desktopDismissed || sessionClosed(session()), busy: desktopBusy, view: S.view });
 
-async function sync() { try { tour = await api("/tour"); synced = true; } catch {} maybeInvite(); }
+// Stops for controls the guide does not list. Each shows only in its own mode.
+const APP_STEPS = [
+  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
+  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Popular prompts are suggested under this box, with the ones people like first. Click one to fill the box. Nothing is sent until you click Send. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
+  { id: "plain-request", for: "both", target: "#plain-request", view: "command", title: "Try saying...", body: "Try saying: email this client and put it on my calendar. A cheap fast AI drafts the email and the event. You see the cost, usually a fraction of a cent. Meldmind sends the email and adds the event only after you click Approve once. No outside AI touches your Gmail or Calendar." },
+  { id: "desktop-apps", for: "both", target: "#app-discovery", view: "settings", title: "Programs on this PC", body: "When you turn on desktop control, Meldmind lists installed programs. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. Allow each app you want. Allowed apps are scored and join the router's choices, the same as a tool you add. While you plan a mission or client work, a card can suggest a program with a short reason, Free or Paid, and the official link. Dismiss hides that suggestion. Nothing is installed or bought. Program scan is part of Pro. Turn suggestions off in Settings." },
+  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
+  { id: "builders", for: "both", target: "#builders-root", view: "builders", title: "Builders", body: "Builders show up when a need is detected. Describe what you want, preview which AIs would see it, then Build, Test, and Publish. Nothing is sent, posted, or charged until you click Publish. HighLevel, receipts, invoices, a booking, meeting notes, a contract, a review, or a website chat each bring up their own builder." },
+  { id: "report-back", for: "both", view: "command", title: "When another AI finishes", body: "When you hand a job to another AI, that AI can tell Meldmind it is finished. You get a notice, and the summary shows in the job. If it cannot call back, use Paste result. Nothing is saved from that paste until you click Save." },
+  { id: "get-it-done", for: "both", view: "command", title: "Get it done", body: "Get it done lets one job run its steps without asking. It ends when the job ends. You can also say get it done, don't ask me. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. Always for this kind of job is in Settings, and you can revoke it any time." },
+  { id: "community", for: "both", target: "#cc-community", view: "community", title: "Community and AI News", body: "Community chat has General, Prompts, Builders, Help, and Show and tell. AI News sits next to them and updates weekly. Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. Your email is never shown. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News. Change it in Settings. Click Send to post. Share a prompt, a builder, or a mission with one click. Keys and private files are refused. The weekly email is off until you tick it." },
+];
 
-// What's new first, then the tour invite. Never both at once. Seen version lives in the data folder.
+// Guide steps first, then these stops and the short steps the everyday pages add for this mode.
+function extraSteps() {
+  const mode = window.CC.uiMode?.() || "expert";
+  const extra = Array.isArray(window.CC.everydaySteps) ? window.CC.everydaySteps : [];
+  return [...APP_STEPS, ...extra]
+    .filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"))
+    .map((s) => ({ ...s, open: s.open || (s.view ? { view: s.view, focus: s.target || "" } : null) }));
+}
+function fullSteps() {
+  return [...tourSteps(liveProbe()), ...extraSteps()];
+}
+// Simple gets the five short steps. See what else it can do opens the full tour.
+function steps() {
+  if (pinned) return pinned;
+  const mode = window.CC.uiMode?.() || "expert";
+  if (mode === "simple" && !fullTour) return SIMPLE_STEPS;
+  return fullSteps();
+}
+function answeredOnce() {
+  try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch { /* storage can be off */ }
+  return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
+}
+
+async function sync() {
+  try { tour = await api("/tour"); } catch { /* invite waits until the next state tick */ }
+  await rememberWalks(api);
+  synced = true;
+  maybeInvite();
+}
+
 function hideNews() {
   const box = document.getElementById("cc-whats-new");
   if (box?._newsKey) document.removeEventListener("keydown", box._newsKey);
   box?.remove();
   newsOpen = false;
-}
-function answeredOnce() {
-  try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch {}
-  return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
-}
-function steps() {
-  const mode = window.CC.uiMode?.() || "expert";
-  const extra = Array.isArray(window.CC.everydaySteps) ? window.CC.everydaySteps : [];
-  return [...STEPS, ...extra].filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
 }
 function maybeInvite() {
   if (idx >= 0) return;
@@ -104,7 +109,7 @@ function maybeInvite() {
   if (S.view === "setup") { hideNews(); hideDesktop(); document.querySelector(".cc-tour-invite")?.remove(); return; }
   if (!newsDismissed && tour?.whatsNew) { showNews(); return; }
   if (newsOpen) return;
-  if (!desktopDismissed && tour?.desktopPrompt) { showDesktop(); return; }
+  if (!desktopBlocked() && tour?.desktopPrompt) { showDesktop(); return; }
   if (desktopOpen) return;
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
@@ -112,28 +117,50 @@ function maybeInvite() {
   if (!answeredOnce()) { existing?.remove(); return; }
   if (existing) return;
   const d = document.createElement("div"); d.className = "cc-tour-invite";
-  d.innerHTML = `<span>👋</span><span>New here? <b>Take the tour</b>: it runs a sample on pretend AIs.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
+  d.innerHTML = `<span>👋</span><span>New here? <b>Take a short tour</b>. You can skip it any time.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
   document.body.appendChild(d);
   d.querySelector("#cc-tour-go").addEventListener("click", () => start());
-  d.querySelector("#cc-tour-later").addEventListener("click", async () => { d.remove(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} });
+  d.querySelector("#cc-tour-later").addEventListener("click", async () => { d.remove(); try { tour = await api("/tour/skip", { method: "POST" }); } catch { /* the next visit can offer it again after a reset */ } });
 }
-// Views re-render into #view; re-check whether the invite should show (e.g. after leaving Setup).
-function showNews() {
-  const n = tour?.whatsNew;
-  if (!n || idx >= 0 || S.view === "setup") return;
+
+function newsMarkup(n) {
+  const versions = Array.isArray(n.versions) && n.versions.length ? n.versions : [{ version: n.version, title: n.title, bullets: n.bullets || [] }];
+  const many = versions.length > 1;
+  const title = many ? "What's new" : (n.title || "What's new");
+  const lead = many
+    ? `${n.from ? `Since ${esc(n.from)}, newest first. ` : "Newest first. "}These notes are saved in the app, so they work offline.`
+    : `Version ${esc(n.version)}. This note shows once for this version.`;
+  const body = many
+    ? versions.map((v) => `<section class="ver"><h5>${esc(v.title || "What's new")}</h5><div class="dim small">Version ${esc(v.version)}</div><ul>${(v.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul></section>`).join("")
+    : `<ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`;
+  return `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(title)}</h4><div class="dim small">${lead}</div>${body}<div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+}
+function showNews(n = tour?.whatsNew) {
+  if (!n || idx >= 0 || S.view === "setup") return false;
   document.querySelector(".cc-tour-invite")?.remove();
   let box = document.getElementById("cc-whats-new");
-  if (box) return;
+  if (box) return true;
   newsOpen = true;
   box = document.createElement("div");
   box.id = "cc-whats-new";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(n.title)}</h4><div class="dim small">Version ${esc(n.version)}. This note shows once for this version.</div><ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+  box.innerHTML = newsMarkup(n);
   document.body.appendChild(box);
   const onKey = (e) => { if (e.key === "Escape") dismissNews(false); };
   document.addEventListener("keydown", onKey);
   box._newsKey = onKey;
   box.querySelector("#cc-news-ok").addEventListener("click", () => dismissNews(false));
   box.querySelector("#cc-news-tour").addEventListener("click", () => dismissNews(true));
+  return true;
+}
+async function openNews() {
+  if (S.view === "setup" || idx >= 0) return;
+  let n = null;
+  try { n = (await api("/tour/whats-new")).whatsNew; }
+  catch (e) { toast(e.message, true); return; }
+  if (!n) { toast("No What's new notes for this version yet"); return; }
+  newsDismissed = true;
+  hideNews();
+  showNews(n);
 }
 async function dismissNews(thenTour) {
   newsDismissed = true;
@@ -153,89 +180,125 @@ function hideDesktop() {
 }
 function showDesktop() {
   const p = tour?.desktopPrompt;
-  if (!p || idx >= 0 || S.view === "setup") return;
+  if (!p || idx >= 0 || desktopBlocked()) return;
   document.querySelector(".cc-tour-invite")?.remove();
   if (document.getElementById("cc-desktop-prompt")) return;
   desktopOpen = true;
   const box = document.createElement("div");
   box.id = "cc-desktop-prompt";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-desktop-title"><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-modal="true" aria-labelledby="cc-desktop-title"><button type="button" class="x" id="cc-desktop-x" aria-label="Close"><span aria-hidden="true">×</span> Close</button><h4 id="cc-desktop-title">${esc(p.title)}</h4><div class="muted">${esc(p.body)}</div><ul>${(p.safety || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul><div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" id="cc-desktop-allow">Allow Antigravity</button><button class="btn sm" id="cc-desktop-install">Install and connect</button><button class="btn sm" id="cc-desktop-settings">Open settings</button><button class="btn sm" id="cc-desktop-later">Not now</button><button class="ghost small" id="cc-desktop-never">Never</button></div></div>`;
   document.body.appendChild(box);
-  const onKey = (e) => { if (e.key === "Escape") dismissDesktop("later"); };
+  const onKey = (e) => { if (e.key === "Escape") desktopChoice("close"); };
   document.addEventListener("keydown", onKey);
   box._deskKey = onKey;
-  box.querySelector("#cc-desktop-later").addEventListener("click", () => dismissDesktop("later"));
-  box.querySelector("#cc-desktop-never").addEventListener("click", () => dismissDesktop("never"));
-  box.querySelector("#cc-desktop-allow").addEventListener("click", () => allowDesktop(false));
-  box.querySelector("#cc-desktop-install").addEventListener("click", () => allowDesktop(true));
+  box.addEventListener("click", (e) => { if (e.target === box) desktopChoice("close"); });
+  for (const id of ["x", "allow", "install", "settings", "later", "never"]) {
+    box.querySelector(`#cc-desktop-${id}`).addEventListener("click", () => desktopChoice(id === "x" ? "close" : id));
+  }
+  box.querySelector("#cc-desktop-allow").focus();
 }
-async function dismissDesktop(action) {
+// Every choice closes the card before anything slow runs, and it stays closed for this session.
+async function desktopChoice(button) {
+  const step = desktopClick(button);
   desktopDismissed = true;
+  markSessionClosed(session());
   hideDesktop();
-  try { tour = await api("/tour/desktop", { method: "POST", body: { action } }); } catch {}
+  if (step.view) {
+    if (window.CC.openSettings) window.CC.openSettings(step.focus);
+    else go(step.view);
+  }
+  try { tour = await api("/tour/desktop", { method: "POST", body: { action: step.server } }); } catch { /* the card is already closed for this session */ }
+  if (step.run) await runDesktop(step.run === "install");
   maybeInvite();
 }
-async function allowDesktop(install) {
+async function runDesktop(install) {
+  const openSettings = { label: "Open settings", onClick: () => (window.CC.openSettings ? window.CC.openSettings("[data-feature='antigravity']") : go("settings")) };
+  desktopBusy = true;
   try {
     await api("/antigravity/allow", { method: "POST", body: { allow: true } });
-    if (install) {
-      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
-      const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
-      toast(r.message || "Installer finished", !r.ok);
-      if (r.ok) {
-        const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
-        toast(s.message || "Sign-in opened", !s.ok);
-      }
-    } else toast("Antigravity is allowed");
-  } catch (err) { toast(err.message, true); return; }
-  await dismissDesktop("done");
-  go("settings");
+    if (!install) { toast("Antigravity is allowed. Change this any time in Settings.", false, openSettings); return; }
+    if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) {
+      toast("Nothing was installed. Install and connect is in Settings.", false, openSettings);
+      return;
+    }
+    toast("Installing Antigravity. This can take a minute. You can keep working.");
+    const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
+    toast(r.message || "Installer finished", !r.ok, r.ok ? null : openSettings);
+    if (r.ok) {
+      const s = await api("/antigravity/signin", { method: "POST", body: { confirm: true } });
+      toast(s.message || "Sign-in opened", !s.ok);
+    }
+  } catch (err) { toast(err.message, true, openSettings); }
+  finally { desktopBusy = false; }
 }
 
 new MutationObserver(() => { if (synced) maybeInvite(); }).observe(document.getElementById("view") || document.body, { childList: true });
 
-// ---- the tour itself ----
-export function start(at = 0) {
+export async function start(at = 0, opts = {}) {
+  fullTour = !!opts.full;
   document.querySelector(".cc-tour-invite")?.remove();
+  await rememberWalks(api);
+  pinned = null;
+  pinned = steps();
+  if (!pinned.length) {
+    pinned = null;
+    toast("The tour is empty because those pages are not in this app yet.");
+    return;
+  }
   if (!el) {
     el = document.createElement("div"); el.id = "cc-tour"; el.innerHTML = `<div class="spot none"></div><div class="card"></div>`; document.body.appendChild(el);
     window.addEventListener("resize", position); window.addEventListener("scroll", position, true);
     document.addEventListener("keydown", onKey);
     timer = setInterval(position, 400);
   }
-  msg = ""; show(at);
+  show(at);
 }
+export function startFull() { start(0, { full: true }); }
 function close() {
+  pinned = null;
   if (!el) return;
   el.remove(); el = null; idx = -1; clearInterval(timer); timer = null;
   window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("keydown", onKey);
 }
 function onKey(e) { if (e.key === "Escape") skip(); else if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") back(); }
-async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch {} toast("Tour skipped. Take the tour again from the Settings menu, or from the Settings page."); }
-async function finish() { close(); try { tour = await api("/tour/complete", { method: "POST" }); } catch {} toast("Tour done. Add a key in Settings when you are ready for real answers."); }
-function next() { const list = steps(); if (idx >= list.length - 1) return finish(); msg = ""; show(idx + 1); }
-function back() { if (idx > 0) { msg = ""; show(idx - 1); } }
+async function skip() { close(); try { tour = await api("/tour/skip", { method: "POST" }); } catch { /* skip still closes the card */ } toast("Tour skipped. Take the tour from Help."); }
+async function finish() { close(); try { tour = await api("/tour/complete", { method: "POST" }); } catch { /* the card is already closed */ } toast("Tour done. Replay it any time from Help."); }
+function next() { const list = steps(); if (idx >= list.length - 1) return finish(); show(idx + 1); }
+function back() { if (idx > 0) show(idx - 1); }
+
+function follow(open) {
+  if (!open) return;
+  if (open.article) {
+    window.CC.openHelp?.(open.article);
+    return;
+  }
+  if (open.view && S.view !== open.view) go(open.view);
+  if (open.focus) setTimeout(() => document.querySelector(open.focus)?.scrollIntoView({ block: "center" }), 60);
+}
 
 function show(i) {
   const list = steps();
   if (!list.length) return close();
   if (i >= list.length) i = list.length - 1;
   idx = i; const st = list[i];
-  if (st.view && S.view !== st.view) { go(st.view); }
+  if (st.target === "#basics-reading") S.settingsMore = false;
+  if (st.view && S.view !== st.view) go(st.view);
+  else if (st.target === "#basics-reading" && S.view === "settings") go("settings");
   const last = i === list.length - 1;
+  const simpleShort = (window.CC.uiMode?.() || "expert") === "simple" && !fullTour;
+  const price = !st.tier ? "" : st.tier === "free" ? "Free" : `${esc(st.tierLabel)}, ${esc(st.price)}`;
   const card = el.querySelector(".card");
   card.innerHTML = `<div class="row" style="gap:8px"><h4>${esc(st.title)}</h4><span class="step">${i + 1} / ${list.length}</span></div>
+    ${price ? `<div class="plan"><span class="chip">${price}</span></div>` : ""}
     <div class="muted">${esc(st.body)}</div>
-    ${st.action === "sample" ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-sample" ${busy ? "disabled" : ""}>${busy ? "Starting…" : "Run the sample now"}</button><span class="dim small">about 30 seconds</span></div>` : ""}
-    ${st.action === "keys" ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-keys">Set up my keys</button><span class="dim small">or finish and do it later in Settings</span></div>` : ""}
-    ${msg ? `<div class="msg">${msg}</div>` : ""}
-    <div class="dots">${list.map((_, k) => `<i class="${k === i ? "on" : k < i ? "done" : ""}"></i>`).join("")}</div>
-    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next →"}</button></div>`;
+    ${st.priceNote ? `<div class="note dim small">${esc(st.priceNote)}</div>` : ""}
+    ${st.open ? `<div class="row" style="margin-top:10px"><button class="btn sm primary" id="cc-tour-try" type="button">Try it</button></div>` : ""}
+    <div class="row" style="margin-top:12px"><button class="ghost small" id="cc-tour-skip">Skip tour</button><span style="margin-left:auto"></span>${simpleShort && last ? `<button class="btn sm" id="cc-tour-more" type="button">See what else it can do</button>` : ""}${i > 0 ? `<button class="btn sm" id="cc-tour-back">Back</button>` : ""}<button class="btn sm primary" id="cc-tour-next">${last ? "Finish" : "Next"}</button></div>`;
   card.querySelector("#cc-tour-skip").addEventListener("click", skip);
+  card.querySelector("#cc-tour-more")?.addEventListener("click", () => { fullTour = true; pinned = fullSteps(); show(0); });
   card.querySelector("#cc-tour-back")?.addEventListener("click", back);
   card.querySelector("#cc-tour-next").addEventListener("click", next);
-  card.querySelector("#cc-tour-sample")?.addEventListener("click", runSample);
-  card.querySelector("#cc-tour-keys")?.addEventListener("click", async () => { await finish(); go("settings"); setTimeout(() => window.CC.keysetup?.open?.(), 150); });
+  card.querySelector("#cc-tour-try")?.addEventListener("click", () => { follow(st.open); requestAnimationFrame(position); });
   requestAnimationFrame(position);
 }
 
@@ -249,8 +312,8 @@ function position() {
     spot.className = "spot"; spot.style.left = `${r.left - 6}px`; spot.style.top = `${r.top - 6}px`; spot.style.width = `${r.width + 12}px`; spot.style.height = `${r.height + 12}px`;
     if (vw <= 760) return;
     let top = r.bottom + pad, left = r.left;
-    if (top + ch > vh - 10) top = r.top - ch - pad;                       // above
-    if (top < 10) { top = Math.max(10, Math.min(vh - ch - 10, r.top)); left = r.right + pad; }   // beside
+    if (top + ch > vh - 10) top = r.top - ch - pad;
+    if (top < 10) { top = Math.max(10, Math.min(vh - ch - 10, r.top)); left = r.right + pad; }
     if (left + cw > vw - 10) left = Math.max(10, vw - cw - 10);
     card.style.left = `${left}px`; card.style.top = `${top}px`;
   } else {
@@ -260,44 +323,26 @@ function position() {
   }
 }
 
-function realAiOn() {
-  return !!(S.realAi || (S.providers || []).some(countsAsRealAi));
-}
-
-async function runSample() {
-  if (busy) return; busy = true; show(idx);
-  try {
-    if (realAiOn()) {
-      msg = `<span class="chip amber">skipped</span> A real AI is connected, so the sample stays off. Demo mode was not turned on.`;
-      busy = false; show(idx); return;
-    }
-    if (!S.demo) { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await refresh(); go("command"); }
-    const r = await api("/tour/sample", { method: "POST" });
-    if (r.kind === "single") { await api("/chat", { method: "POST", body: { prompt: r.prompt } }); msg = `<span class="chip green">running</span> ${esc(r.note || "")} Watch the graph light up, then press Next.`; }
-    else msg = `<span class="chip green">running</span> The planner is splitting the goal; tasks appear in Live ops in a few seconds. Press Next when you like.`;
-    toast("Sample started on the demo AIs");
-  } catch (e) {
-    msg = `<span class="chip amber">skipped</span> ${esc(e.message)}`;
-  }
-  busy = false; show(idx);
-}
-
 function renderPanel(el2) {
   const t = tour || {};
+  const n = steps().length;
   el2.innerHTML = `<div class="panel"><h3>Onboarding tour <span class="right">${t.completed ? `finished ${t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ""}` : t.skippedAt ? "skipped" : "not taken yet"}</span></h3>
-    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour again</button><span class="dim small">${steps().length} stops, sample run on the demo AIs.${t.sampleRuns ? ` Sample run ${t.sampleRuns}×.` : ""}</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
+    <div class="row"><button class="btn sm" id="cc-tour-start">Take the tour</button><button class="btn sm" id="cc-tour-full" type="button">See what else it can do</button><button class="btn sm" id="cc-news-open">What's new</button><span class="dim small">${n} steps in this app. Each one has a Try it button. Skip any time, and replay from Help.</span>${t.completed || t.skippedAt ? `<button class="ghost small" id="cc-tour-reset" style="margin-left:auto">reset</button>` : ""}</div>
   </div>`;
   el2.querySelector("#cc-tour-start").addEventListener("click", () => { go("command"); setTimeout(() => start(), 120); });
+  el2.querySelector("#cc-news-open").addEventListener("click", () => openNews());
+  el2.querySelector("#cc-tour-full").addEventListener("click", () => { go("command"); setTimeout(() => startFull(), 120); });
   el2.querySelector("#cc-tour-reset")?.addEventListener("click", async () => { try { tour = await api("/tour/reset", { method: "POST" }); renderPanel(el2); maybeInvite(); } catch (e) { toast(e.message, true); } });
+  if (!Array.isArray(window.CC.guideWalks)) rememberWalks(api).then(() => { if (el2.isConnected) renderPanel(el2); });
 }
 
-function onMode() { if (idx >= 0) { msg = ""; show(0); } }
+function onMode() { if (idx >= 0) { pinned = null; pinned = steps(); show(0); } }
 function markFirstAnswer() {
-  try { localStorage.setItem("cc.firstAnswer", "1"); } catch {}
+  try { localStorage.setItem("cc.firstAnswer", "1"); } catch { /* storage can be off */ }
   maybeInvite();
 }
 window.CC.firstAnswer = markFirstAnswer;
-window.CC.tour = { start, open: start, state: () => tour, onMode, onAnswer: markFirstAnswer };
+window.CC.tour = { start, startFull, open: start, openNews, state: () => tour, onMode, onAnswer: markFirstAnswer, simpleSteps: () => SIMPLE_STEPS.slice() };
 
 CC.register({
   id: "tour",

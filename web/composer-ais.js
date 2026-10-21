@@ -57,6 +57,15 @@ export function hideDemoBots(list, { demoKeep = false, realAi = false } = {}) {
   return providers.filter((p) => !isDemoAi(p));
 }
 
+// One line at the top while demo AIs are kept on by choice next to a real AI.
+export const DEMO_BANNER_TEXT = "You're in demo mode, using pretend AIs.";
+export const DEMO_BANNER_ACTION = "Exit demo mode";
+// On while demo mode is on and its pretend AIs are in the lists. The server answer wins.
+export function demoBannerOn({ demoBanner, demo = false, demoKeep = false, realAi = false } = {}) {
+  if (typeof demoBanner === "boolean") return demoBanner;
+  return !!demo && (!realAi || !!demoKeep);
+}
+
 // Hub roster. Demo nodes stay only while no real AI is connected (or demoKeep is on).
 export function graphNodes(providers, subscriptions = [], { demoKeep = false, realAi = false } = {}) {
   const list = hideDemoBots(providers, { demoKeep, realAi });

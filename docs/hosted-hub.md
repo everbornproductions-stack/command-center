@@ -57,6 +57,7 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_IDLE_EVICT_MIN` | no | minutes a hosted user can sit idle before their in-memory context is dropped (default 30). Ignored in local mode |
 | `CC_SUPABASE_SERVICE_KEY` | no | service-role key; lets writes outlive a user's token, and lets the schedule tick load a user who is not already in memory (keep it only on the hub) |
 | `CC_TICK_SECRET` | for schedules | shared secret for `POST /api/internal/schedules/tick`. Set with `npx wrangler secret put CC_TICK_SECRET`. Never written into `wrangler.jsonc` or git |
+| `CC_METRICS_SECRET` | for the owner report | shared secret for `GET /api/metrics/report`. Set with `npx wrangler secret put CC_METRICS_SECRET`. Never written into `wrangler.jsonc` or git. The service key stays on the hub. |
 | `PORT` | no | listen port (Fly sets 8080 via fly.toml; default 4747) |
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
 | `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |
@@ -152,6 +153,16 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 `wrangler.jsonc` has a cron trigger, `*/5 * * * *`. Cloudflare calls `scheduled()` in `worker/index.js`, which wakes the container and POSTs `https://hub.meldmind.ai/api/internal/schedules/tick` with the header `x-cc-tick-secret`. The value is `CC_TICK_SECRET`, passed into the container the same way as the other secrets. The route answers 401 when the header is missing or wrong, and 404 in local mode. Local mode keeps its own timer and does not call this route.
 
 On each tick the hub runs `schedules.tick()` for every user who has a due cron schedule, whether that user is already in memory or only in Supabase. `CC_SUPABASE_SERVICE_KEY` is what loads a user who is not in memory. A slot is claimed before the run starts, so a second tick does not run it again. A slot older than the 5-minute lookback is not replayed. Spend caps and the Approve click are unchanged: a result that is sent out still waits until you click Approve. Webhooks work on the hub too. A watched folder stays on the desktop app. Desktop schedules still run only while the app is open.
+
+## Report-back relay
+
+An AI that was handed a job can POST the outcome to this server at `POST /api/handoff/:jobId/done`. The desktop does not open a port for that. It polls the hub with `CC_WORKER_URL` and `CC_WORKER_TOKEN` (outbound only).
+
+Operators point `CC_WORKER_URL` at the running hub. The live relay address is `https://meldmind-hub.fly.dev`. That variable is not given a default in the app, so a machine with it unset never calls out. `CC_HUB_URL` stays `https://hub.meldmind.ai` for pairing and OAuth. This relay does not change that address.
+
+The hub only relays. Each job and its one-time token are scoped to the worker token of the account that created the job, stored as a hash. Only that account's app can read the inbox. The per-job token can post a result and cannot read one. The result is deleted when that app acknowledges it, or after 7 days. The store is memory only: no disk, no database, and no admin view of the contents. The log line is `report-back <job id> <status>` and never includes the summary, the links, the files, or either token.
+
+A self-hosted or local app with no hub does not advertise a callback address. The prompt tells the other AI to reply with `DONE: <summary>`, and the person uses Paste result.
 
 ### Fallback: Fly.io (not chosen)
 

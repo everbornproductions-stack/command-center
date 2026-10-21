@@ -55,7 +55,7 @@ New installs open in Simple. The first setup step asks which mode you want to st
 
 Simple is one chat box. You say what you want, and the council picks the AI. The top bar shows Chat, Projects, Create, Help, and Settings. The chips under the box list only AIs you have connected (a saved key the provider accepted, or an MCP server). Demo shows there only while none are connected.
 
-Help searches the guides. Ask Meldmind answers from those guides with a connected AI. With no AI connected, it searches and does not invent steps. Take the tour again and Check for updates are on that page.
+Help searches the guides. Ask Meldmind answers from those guides with a connected AI. With no AI connected, it searches and does not invent steps. Take the tour is on that page, and Check for updates is under About Meldmind. The Help menu has Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, and About Meldmind. The Settings menu holds Settings and Setup only.
 
 Expert is the full console: the council debate, router scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu.
 
@@ -73,6 +73,14 @@ The Simple / Expert switch is in the top bar on every screen. One click changes 
 5. The cap (Cap $) stops a mission from spending more than you allow.
 
 While it runs, **Live ops** shows each AI as it works, and the **Live feed** on the right lists every step. The live map has **Start a project** tutorials. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click. Under the finished deliverable you can copy it, rate each AI (thumbs up or down, which teaches the router), see the savings receipt, open it in the Artifacts panel, share a read-only link, or send it on (see section 8).
+
+### Prompts, votes, and builders
+
+Popular prompts are suggested under the marching orders box, with the ones people like first. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. A prompt with no votes is not buried, and one vote does not make it look perfect. New this week shows for 7 days.
+
+Weekly packs cover writing, email, marketing and ads, and the other categories on the Prompts page. Inspired by names the source, and the name is a link when there is a page. The source for builder prompts is Meldmind.
+
+The Builders category has one ready prompt for each guided builder, including Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder with the text filled in when it is installed. If the builder is not installed yet, the words go in the chat. Putting the words in the box does not send them.
 
 ## 5. Projects
 
@@ -98,10 +106,12 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Schedules | Run an agent, chat or mission on a timer, from a webhook or when a file arrives |
 | Media | Video, image and voice through Kling, ElevenLabs, Runway and fal.ai, estimate first |
 | Pipelines | Saved missions with the steps already decided (Instagram week, music video, site launch) |
-| Remix | Rebuild an app or game you can see, from scratch, with your own characters and ideas. A Pro mission. Extreme has no monthly cap. |
+| Remix | Say what you want to make, pick a starting point, then preview, Build, Test, and Publish. It rebuilds from scratch. A Pro mission. Extreme has no monthly cap. |
+| Builders | Guided setup for HighLevel, receipts, invoices, a website chat, a booking page, meeting notes, a contract, or a review reply. A builder shows up only when that need is detected. Nothing is sent until you click Publish. |
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
+| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and the weekly AI News feed. First-run setup asks for one public username, and Skip keeps the suggested name. Your email is not shown. The same name is used in chat, on shared and voted prompts, in the Builders gallery, and on AI News. Click Send to post. Share a prompt, a builder, or a mission with one click. Change the username in Settings. |
 
 ## 7a. Apps on your desktop
 
@@ -118,7 +128,7 @@ You confirm before a send, a buy, or a delete. While an app is in use, a banner 
 
 After you update to 0.4.9, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
 
-Help has the same steps under Apps on your desktop. Take the tour again includes that stop.
+Help has the same steps under Apps on your desktop. Take the tour includes that stop.
 
 ## Programs on this PC
 
@@ -134,9 +144,12 @@ While you plan a mission or client work, a card may suggest a program that would
 
 Nothing posts, sends, emails or spends without a click from you.
 
+- **Builders** (Create, Builders) walks a website or a marketing job in plain steps: describe it, preview the AIs, build, test, and publish. Suggested for you shows a builder only when you have talked about a website, a post, a reel, or an ad, or when a site or social account is connected. Show all opens the rest. One button does the next step. More options holds the rest. Publish waits for your click. A saved token stays in the vault.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
+- **Get it done** lets one job run its steps without asking. Turn it on for that job, or say get it done, don't ask me. It ends when the job ends. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. **Always for this kind of job** is in Settings, and you can revoke it any time. The handoff prompt tells the other AI the permission level.
+- **Community** posts only when you click Send or Share in chat. AI News is in that same area and updates weekly. Email me the weekly AI News note is off until you tick it. The app can write that note. It does not send email.
 
 ## Plain requests
 
@@ -146,11 +159,19 @@ On Chat, the box titled Try saying... takes a sentence such as "email this clien
 
 Settings, Google Calendar, lists events after you connect with your own Google sign-in. Create event and Update run only when you click. Free includes 1 connected service. Pro includes every connected service. Grok Bot can still take calendar work. That handoff is unchanged.
 
-## 9. Updates
+## 9. When another AI finishes
+
+You can hand a job to another AI (Continue in, or Send to Grok Bot). The prompt asks that AI to tell Meldmind when it is finished.
+
+You get a notice, and the summary shows in the job. If that AI cannot call back, click **Paste result** and paste what it wrote. A line that starts with DONE: is enough. It is saved only when you click Save.
+
+With no hosted hub on this computer, Paste result is the way back. The hub keeps a report only for the person who handed off the job, and deletes it when the app picks it up, or after 7 days.
+
+## 10. Updates
 
 When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
 
-## 10. When something goes wrong
+## 11. When something goes wrong
 
 | What you see | What it means and what to do |
 |---|---|
@@ -164,7 +185,7 @@ When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Insta
 | "This key is already on 2 computers. Remove one in Settings > Devices." | The licence is already on a PC and a laptop. Open Settings, Devices, and remove one. Each person has their own key. |
 | "This pairing link is not valid" | The code in the link does not match. On the PC, open Settings, Phone and other devices, and scan the code that is on screen. |
 
-## 11. Keyboard and accessibility
+## 12. Keyboard and accessibility
 
 - **Tab** moves through every control. A clear ring shows where you are.
 - **Skip to content** is the first stop after the page loads, so you can jump past the tabs.
@@ -173,9 +194,9 @@ When a new version is out, the app shows "Meldmind vX.Y.Z is ready" with **Insta
 - Screen readers hear which tab is open, which run mode is chosen, the connection state, and every message (errors right away).
 - If your system asks for reduced motion, the app's blinking and pulsing stop and the live flow map switches to its calmer view.
 
-## 12. Privacy in one paragraph
+## 13. Privacy in one paragraph
 
-## 13. Zapier and Make
+## 14. Zapier and Make
 
 Simple has a **Connect Zapier** card on the chat page. The usual Zapier address is filled in. Paste a token if Zapier showed you one, then click **Connect Zapier**. Meldmind lists the actions you turned on there.
 
@@ -187,4 +208,6 @@ A chat or a mission can call those actions. Anything that sends, posts, or charg
 
 Free includes 1 of these app connections. Pro includes several (5). Extreme is unlimited.
 
-Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.
+When a job, the browser helper, or a connection asks you to sign in, a small tip appears. You can dismiss it. Tip: keep your passwords in a password manager like 1Password (or Bitwarden, free). Meldmind never stores your passwords. 1Password is at https://1password.com and Bitwarden is at https://bitwarden.com.
+
+Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. A report back from another AI reaches only the person who handed off that job. The hub deletes it when your app picks it up, or after 7 days, and it keeps no list of those summaries for anyone else. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Settings includes Share anonymous usage counts to help improve Meldmind. The switch is on unless you turn it off. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files. Clear the switch and the daily ping stops. Nothing is posted or emailed unless you click to confirm that action.

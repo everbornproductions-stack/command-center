@@ -274,7 +274,12 @@ test("services page against mock APIs and mailboxes: live balances, admin keys, 
     assert.equal(r.status, 200, r.text); assert.equal(r.json.mail.gmail.connected, true);
     r = await api("/services/mail/scan", { method: "POST", body: { source: "gmail" } });
     assert.equal(r.status, 200, r.text);
-    assert.equal(r.json.scanned, FIXTURES.length); assert.equal(r.json.found, FIXTURES.length - 2); assert.equal(r.json.failed.length, 2);
+    // high-confidence receipts for services with no filled-in row are added right away (auto-detected):
+    // ElevenLabs, Google AI (Pro and Ultra are one service: one row), Midjourney and Suno. Claude, ChatGPT and
+    // Kling already have rows the person filled in, so those receipts stay suggestions, as does the vague one.
+    assert.equal(r.json.scanned, FIXTURES.length); assert.equal(r.json.failed.length, 2);
+    assert.deepEqual(r.json.added.map((x) => x.id).sort(), ["elevenlabs", "google-ai", "midjourney", "suno"]);
+    assert.equal(r.json.found, 4);
     for (const f of r.json.failed) { assert.match(f.link, /^https:\/\/mail\.google\.com\/mail\/u\/0\/#all\//); assert.ok(f.reason); }
     const cands = r.json.candidates;
     const low = cands.find((c) => c.messageId === "g-low"); assert.equal(low.low, true); assert.ok(low.confidence < 0.6);
@@ -289,15 +294,15 @@ test("services page against mock APIs and mailboxes: live balances, admin keys, 
     assert.equal(saved.id, "claude"); assert.equal(saved.price, 180); assert.equal(saved.origin.price, "user"); assert.equal(saved.origin.plan, "email"); assert.ok(saved.confidence.plan > 0.8);
     assert.equal(saved.origin.renews, "email"); assert.equal(saved.renews, "2026-11-30"); assert.equal(saved.source.kind, "email"); assert.equal(saved.source.messageId, "g-claude-max");
     assert.equal(saved.confidence.price, undefined, "an edited value has no confidence: the person entered it");
-    // confirm Midjourney as a new row; dismiss the low-confidence one
-    const mj = cands.find((c) => c.messageId === "g-midjourney");
-    r = await api(`/services/pending/${mj.id}/confirm`, { method: "POST", body: {} });
-    assert.equal(r.json.saved.name, "Midjourney"); assert.equal(r.json.saved.cycle, "yearly"); assert.equal(r.json.saved.monthly, 48); assert.equal(r.json.saved.origin.price, "email");
+    // Midjourney was added with no confirm step; dismiss the low-confidence one
+    assert.equal(cands.find((c) => c.messageId === "g-midjourney"), undefined);
+    const mjRow = r.json.view.subscriptions.find((x) => x.id === "midjourney");
+    assert.equal(mjRow.name, "Midjourney"); assert.equal(mjRow.autoDetected, true); assert.equal(mjRow.cycle, "yearly"); assert.equal(mjRow.monthly, 48); assert.equal(mjRow.origin.price, "email");
     assert.equal((await api(`/services/pending/${low.id}/dismiss`, { method: "POST", body: {} })).status, 200);
     assert.equal((await api(`/services/pending/${low.id}/confirm`, { method: "POST", body: {} })).status, 404);
     // a rescan never brings back what was confirmed, dismissed or is still pending
     r = await api("/services/mail/scan", { method: "POST", body: { source: "gmail" } });
-    assert.equal(r.json.found, 0); assert.equal(r.json.skipped, FIXTURES.length - 2);
+    assert.equal(r.json.found, 0); assert.equal(r.json.added.length, 0); assert.equal(r.json.skipped, FIXTURES.length - 2);
     // the access token expires: the next call refreshes it with the refresh token
     m.st.gExpiresIn = 30;
     let a2 = new URL((await api("/services/mail/start", { method: "POST", body: { source: "gmail", origin: s.base } })).json.url);
@@ -319,9 +324,13 @@ test("services page against mock APIs and mailboxes: live balances, admin keys, 
     assert.equal(ms.searchParams.get("scope"), "https://graph.microsoft.com/Mail.Read offline_access");
     assert.equal((await api("/services/mail/finish", { method: "POST", body: { code: "ms-code", state: ms.searchParams.get("state") } })).status, 200);
     r = await api("/services/mail/scan", { method: "POST", body: { source: "outlook" } });
-    assert.equal(r.status, 200, r.text); assert.equal(r.json.found, 2); assert.equal(r.json.failed.length, 1);
-    const eleven = r.json.candidates.find((c) => c.messageId === "ms-g-elevenlabs");
-    assert.equal(eleven.plan, "Creator"); assert.match(eleven.link, /^https:\/\/outlook\.office365\.com\/owa\/\?ItemID=/);
+    // Claude stays a suggestion (the person's own row); ElevenLabs refreshes its auto-detected row, no duplicate
+    assert.equal(r.status, 200, r.text); assert.equal(r.json.found, 1); assert.equal(r.json.failed.length, 1);
+    assert.equal(r.json.candidates.find((c) => c.messageId === "ms-g-elevenlabs"), undefined);
+    const claudeMs = r.json.candidates.find((c) => c.messageId === "ms-g-claude-max");
+    assert.match(claudeMs.link, /^https:\/\/outlook\.office365\.com\/owa\/\?ItemID=/);
+    const elevenRows = r.json.view.subscriptions.filter((x) => x.vendor === "elevenlabs");
+    assert.equal(elevenRows.length, 1); assert.equal(elevenRows[0].plan, "Creator"); assert.equal(elevenRows[0].autoDetected, true);
     // disconnect removes the tokens from the vault
     assert.equal((await api("/services/mail/outlook", { method: "DELETE" })).json.outlook.connected, false);
 

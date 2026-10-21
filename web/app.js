@@ -1,16 +1,19 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
-import { CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows } from "./nav.js";
+import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
-import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
+import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
 import { isDesktopOnly } from "./desktop-only.js";
+import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
+import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
+import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
 
 // ---------------- state ----------------
 const S = {
@@ -88,7 +91,9 @@ async function apiHeaders() {
   else if (TOKEN) headers["x-cc-token"] = TOKEN;
   return headers;
 }
-async function api(path, opts = {}) {
+// Any request started by a click marks that button busy until it ends (web/busy.js).
+function api(path, opts = {}) { return trackBusy(apiCall(path, opts)); }
+async function apiCall(path, opts = {}) {
   const headers = await apiHeaders();
   // opts.raw: a File or Blob sent as is (history import zip), with opts.contentType
   const { raw, contentType, ...rest } = opts;
@@ -152,6 +157,7 @@ function showUpgrade(message) {
   box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
 }
 function toastNeedKey() {
+  noteToast();
   const t = document.createElement("div");
   t.className = "toast err";
   t.setAttribute("role", "alert");
@@ -173,6 +179,7 @@ function toastNeedKey() {
   setTimeout(() => t.remove(), 8000);
 }
 function toast(msg, err = false, link = null) {
+  noteToast();
   if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
   t.append(document.createTextNode(msg));
@@ -323,6 +330,8 @@ function applyState(st) {
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
+  S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
+  renderDemoBanner();
   syncUiMode();
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
@@ -388,6 +397,7 @@ function handle(ev) {
 
 // ---------------- live run handling ----------------
 let graph = null;
+let taskTouchN = 0;
 // Drafts for the reply boxes. A live update redraws Live Ops, and the text the person is typing stays.
 const replyDrafts = {};
 // Jobs logged for the mission on screen. Kept until that mission ends, so a finished AI stays large while the run is still going.
@@ -440,7 +450,7 @@ function onAgentDelta(ev) {
   const a = S.live.agents[ev.agent]; if (!a) return;
   a.text += ev.text;
   if (S.view !== "command") return;
-  if (ev.agent === S.live.primary) { const o = $("#out-md"); if (o) { o.innerHTML = md(a.text); o.classList.add("cursor"); o.scrollTop = o.scrollHeight; } }
+  if (ev.agent === S.live.primary) { const o = $("#out-md"); const dp = $("#deliv-panel"); if (dp && a.text) dp.hidden = false; if (o) { o.innerHTML = md(a.text); o.classList.add("cursor"); o.scrollTop = o.scrollHeight; } }
   if (S.live.kind === "council" && a.role === "answer") { const c = $(`[data-ans="${CSS.escape(a.model)}"] .body`); if (c) { c.innerHTML = md(a.text); c.scrollTop = c.scrollHeight; } }
   if (S.live.kind === "mission" && ev.taskId) { const t = $(`[data-task="${ev.taskId}"] .bar i`); if (t) { const cur = parseFloat(t.style.width) || 0; t.style.width = Math.max(cur, Math.min(96, 10 + a.text.length / 40)) + "%"; } }
 }
@@ -460,7 +470,8 @@ function onTask(ev) {
   if (isQuiet(ev.missionId)) return;
   ensureLive(ev.missionId, "mission");
   S.live.tasks[ev.task.id] = ev.task;
-  if (S.view === "command") renderTasks();
+  (S.live.touched ||= {})[ev.task.id] = ++taskTouchN;
+  if (S.view === "command") { renderTasks(); syncOpsPanel(); }
 }
 function replyTurns(run) {
   if (!run) return 0;
@@ -502,7 +513,7 @@ function onMission(m) {
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
       const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
       const cost = Number(m.cost) || 0;
-      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission";
+      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
@@ -641,7 +652,7 @@ function renderUpdateBar() {
   $("#upd-go")?.addEventListener("click", installUpdate);
   $("#upd-later")?.addEventListener("click", () => { S.updateDismissed = u.latest; bar.style.display = "none"; });
 }
-// Settings: current version, Check for updates, and the install button when one is waiting
+// Help > About: current version, Check for updates, and the install button when one is waiting
 function updateBoxHtml() {
   const u = S.update || {};
   const busy = u.phase === "downloading" || u.phase === "installing";
@@ -667,7 +678,7 @@ async function installUpdate() {
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
-function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus && !b.dataset.runMode) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
 function btnLabel(btn, text) {
   if (!btn) return;
   const icon = btn.querySelector("i");
@@ -756,6 +767,13 @@ function toggleSimpleCreate() {
   }));
   sheet.classList.add("open");
 }
+// A menu item with data-focus opens its page scrolled to that panel.
+function focusNavTarget() {
+  if (!S.navFocus || S.view === "settings") return;
+  const sel = S.navFocus;
+  S.navFocus = "";
+  setTimeout(() => document.querySelector(sel)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+}
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
@@ -776,7 +794,7 @@ function render() {
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -787,7 +805,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "marketplace", "images", "media", "publish", "remix", "builders", "webbuilders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "community", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -811,6 +829,25 @@ function ensureMobileMore() {
   $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]"));
   return more;
 }
+// The width check is an estimate, so the real bar decides. A promoted page that
+// overflows goes back to its menu (last one first). If there is room, the next one
+// in the order comes up. Runs only when the wanted row changes.
+function fitPromoted(root, views, mode, layout, surface, promote) {
+  const order = promotable(mode, views, surface).map((p) => p.id);
+  let shrank = false;
+  while (promote.length && rowOverflows(root)) {
+    promote = promote.slice(0, -1);
+    shrank = true;
+    installNav(root, views, mode, layout, surface, promote);
+  }
+  while (!shrank && promote.length < order.length && !rowOverflows(root)) {
+    const next = order.slice(0, promote.length + 1);
+    installNav(root, views, mode, layout, surface, next);
+    if (rowOverflows(root)) { installNav(root, views, mode, layout, surface, promote); break; }
+    promote = next;
+  }
+  return promote;
+}
 function ensureFeatureTabs() {
   const root = $("#tabs");
   const mode = S.uiMode === "expert" ? "expert" : "simple";
@@ -818,16 +855,25 @@ function ensureFeatureTabs() {
   if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
   const surface = S.mode === "hosted" ? "web" : "";
-  if (root) installNav(root, knownViews(), mode, layout, surface);
+  const views = knownViews();
+  let promote = currentNavPromote(mode, views, layout, surface);
+  if (root) {
+    const want = promote.join(",");
+    // Same width as last time: keep the row that already fit instead of rebuilding and trimming again.
+    const kept = root.dataset.nav === "1" && root.dataset.navPromoteWant === want && root.dataset.uiMode === mode && root.dataset.navLayout === layout && (root.dataset.navSurface || "") === surface;
+    if (kept) promote = (root.dataset.navPromote || "").split(",").filter(Boolean);
+    root.dataset.navPromoteWant = want;
+    installNav(root, views, mode, layout, surface, promote);
+    if (!kept && root.clientWidth > 0) fitPromoted(root, views, mode, layout, surface, promote);
+  }
   // Eight menus that still overflow this window merge back to the compact row.
   // A zero clientWidth means the bar has not been laid out yet, so it must not lock the compact row.
   if (mode === "expert" && root && root.dataset.navLayout === "normal" && root.clientWidth > 0 && rowOverflows(root)) {
     root.dataset.nav = "";
-    installNav(root, knownViews(), mode, "narrow", surface);
+    installNav(root, views, mode, "narrow", surface);
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
-    if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
@@ -850,6 +896,7 @@ function ensureFeatureTabs() {
     group.appendChild(b);
   }
   markNav(root, S.view, S.navMenu);
+  markLocks(root, S.license?.limits);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
 }
@@ -860,7 +907,7 @@ function renderExtras(kind, sel, ...args) {
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
-    if (simple && kind === "command" && EXPERT_COMMAND.has(f.id)) continue;
+    if (simple && kind === "command" && !SIMPLE_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
     const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
   }
@@ -1035,11 +1082,10 @@ function renderSimpleChat(v) {
   <div class="cmd simple-chat">
     <div class="orders">
       <div class="panel" style="display:flex;flex-direction:column;gap:10px">
-        <div id="graduate-slot"></div>
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
@@ -1052,7 +1098,7 @@ function renderSimpleChat(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div id="cc-zapier-slot"></div>
+    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
     <div class="panel output">
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
@@ -1064,6 +1110,7 @@ function renderSimpleChat(v) {
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "myday"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
     if (!item) return;
@@ -1092,6 +1139,14 @@ function renderSimpleChat(v) {
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
 }
+// My day on the Simple chat page: the same pages as the My day menu.
+function simpleDayHtml() {
+  const have = new Set(knownViews());
+  const labels = { "everyday-inbox": "Inbox and tasks", "everyday-plan": "Day plan", userchat: "People" };
+  const items = DAY_VIEWS.filter((view) => have.has(view));
+  if (!items.length) return "";
+  return `<div class="panel" id="simple-day"><h3>My day</h3><div class="row" style="flex-wrap:wrap;gap:6px">${items.map((view) => `<button type="button" class="btn sm" data-day="${esc(view)}">${esc(labels[view])}</button>`).join("")}</div></div>`;
+}
 function paintStarters() {
   const box = $("#cc-starters");
   if (!box) return;
@@ -1103,16 +1158,18 @@ function renderCommand(v) {
   v.innerHTML = `
   <div class="cmd">
     <div class="orders">
-      <div class="panel" style="display:flex;flex-direction:column;gap:6px;flex:1">
+      <div class="panel orders-panel">
         <div id="graduate-slot"></div>
         <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
         <label class="lbl">Priority</label>
         <div class="seg" id="cost-mode" role="group" aria-label="Priority">
@@ -1137,17 +1194,19 @@ function renderCommand(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div class="panel ops">
-      <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
-      <div class="graph-wrap" id="graph"></div>
-      <div id="tasks" class="tasks"></div>
-      <div id="council"></div>
-    </div>
-    <div class="panel output">
-      <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
-      <div class="md" id="out-md"></div>
-      <div id="out-follow"></div>
-      <div id="deliv-extras"></div>
+    <div class="cmd-side">
+      <div class="panel output" id="deliv-panel" hidden>
+        <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
+        <div class="md" id="out-md"></div>
+        <div id="out-follow"></div>
+        <div id="deliv-extras"></div>
+      </div>
+      <div class="panel ops" id="ops-panel">
+        <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
+        <div class="graph-wrap" id="graph"></div>
+        <div id="tasks" class="tasks"></div>
+        <div id="council"></div>
+      </div>
     </div>
   </div>`;
   graph = new AgentGraph($("#graph"));
@@ -1204,6 +1263,14 @@ function renderComposerAis() {
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
+// Idle Live ops is one line. The graph shows only while a run is going.
+function syncOpsPanel() {
+  const panel = $("#ops-panel"); if (!panel) return;
+  const idle = opsState(S.live) === "idle";
+  panel.classList.toggle("idle", idle);
+  const g = $("#graph");
+  if (g) g.hidden = idle || ["done", "done-with-errors", "failed", "aborted"].includes(S.live.status);
+}
 function stopResearch() {
   if (!S.live.id || S.live.kind !== "research") return;
   api(`/research/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true));
@@ -1231,13 +1298,14 @@ function renderOpsHead() {
   const h = $("#ops-head");
   const l = S.live;
   if (h) {
-    if (!l.id) h.textContent = "idle";
+    if (opsState(l) === "idle") h.textContent = IDLE_LINE;
     else {
       const cost = l.mission?.cost ?? l.council?.cost ?? 0;
       h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
     }
   }
   syncResearchStop();
+  syncOpsPanel();
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
@@ -1246,7 +1314,11 @@ function renderTasks() {
   if ((S.live.kind !== "mission" && S.live.kind !== "research") || !tasks.length) { box.innerHTML = (S.live.kind === "mission" || S.live.kind === "research") && (S.live.status === "planning" || S.live.status === "running") && !tasks.length ? `<div class="empty">${S.live.kind === "research" ? "Researching…" : "Planning…"}</div>` : ""; return; }
   const paused = S.live.status === "paused";
   const editable = paused ? tasks.filter((t) => t.status !== "done" && t.status !== "waiting" && t.status !== "failed") : [];
-  box.innerHTML = tasks.map((t) => {
+  // Live ops has no inner scrollbar: the newest few steps, then See all.
+  const showAll = S.opsAllFor === S.live.id;
+  const { shown, total } = newestTasks(S.live.tasks, S.live.touched, showAll ? 0 : OPS_SHOWN);
+  const more = total > OPS_SHOWN ? `<button type="button" class="ghost small ops-more" id="ops-more" aria-expanded="${showAll}">${showAll ? "Show newest only" : `See all (${total})`}</button>` : "";
+  box.innerHTML = shown.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
     const isGrok = isGrokId(t);
@@ -1263,13 +1335,14 @@ function renderTasks() {
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
       ${follow}
     </div>`;
-  }).join("") + (paused ? `<form id="pause-edit" style="margin-top:12px">
+  }).join("") + more + (paused ? `<form id="pause-edit" style="margin-top:12px">
       <div class="small">Done steps stay as they are. Edit the goal or a step that has not finished, then resume.</div>
       <label class="lbl" for="pause-goal">Goal</label>
       <textarea id="pause-goal" rows="2">${esc(S.live.mission?.prompt || "")}</textarea>
       ${editable.map((t) => `<label class="lbl" for="pause-task-${esc(t.id)}">${esc(t.title || t.id)}</label><textarea id="pause-task-${esc(t.id)}" data-pause-task="${esc(t.id)}" rows="2">${esc(t.instructions || "")}</textarea>`).join("")}
       <div class="row" style="margin-top:8px"><button class="btn sm primary" type="submit">Save and resume</button></div>
     </form>` : "");
+  box.querySelector("#ops-more")?.addEventListener("click", () => { S.opsAllFor = showAll ? null : S.live.id; renderTasks(); });
   box.querySelector("#pause-edit")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const goal = box.querySelector("#pause-goal")?.value || "";
@@ -1323,8 +1396,10 @@ function renderOutput() {
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
   const text = l.deliverable || prim?.text || "";
+  const panel = $("#deliv-panel");
+  if (panel) panel.hidden = !showDeliverable(l, text);
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
-  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
+  if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
@@ -1530,16 +1605,24 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
-      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background } });
+      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
     else if (mode === "council") {
-      const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      const started = await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
+    else if (mode === "opinion") {
+      const started = await api("/opinion", { method: "POST", body: { prompt, projectId, ...packBody } });
+      toast("Second opinion started. Both answers stay.");
+      S.live = newLive();
+      if (started?.id) S.live.id = started.id;
+      S.live.status = "running";
+      renderOps();
+    }
     else {
-      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background } });
+      const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
       noteBackground(started);
     }
@@ -1791,7 +1874,7 @@ function renderSubscriptions(v) {
     <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
     <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
-    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">✕</button></td>
+    <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">Remove</button></td>
   </tr>`).join("") || `<tr><td colspan="8" class="dim">Nothing tracked yet. Click + Add, or use Setup to find the AI tools you already pay for.</td></tr>`}
   </tbody></table>
   <div class="dim small" style="margin-top:8px">Prices marked "?" are unknown; the grey "~" placeholder is the public list price, used only for the estimate. Credits left update automatically for services with a balance API (OpenRouter, DeepSeek, ElevenLabs) and from logged generations otherwise.</div></div>`;
@@ -1848,7 +1931,71 @@ function licenceCloudFields() {
     <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
     <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
 }
+function openSettingsMore(focus) {
+  S.settingsMore = true;
+  S.navFocus = focus || "";
+  S.view = "settings";
+  render();
+}
+function planWord() {
+  const tier = String(S.license?.tier || "free").toLowerCase();
+  if (tier === "extreme") return "Extreme";
+  if (tier === "pro") return "Pro";
+  return "Free";
+}
+function renderSimpleBasics(v) {
+  const keyed = (S.providers || []).filter((p) => p.keyed && !p.demo);
+  const aiLine = keyed.length ? `Connected: ${keyed.slice(0, 3).map((p) => p.name).join(", ")}.` : "No AI connected yet. You can try a practice answer until you add one.";
+  const on = !!S.settings?.privateMode;
+  v.innerHTML = `<div class="settings-basics">
+    <div class="panel basics-card" id="basics-ai"><h3>Your AI</h3>
+      <p class="small" style="margin:0 0 10px">${esc(aiLine)}</p>
+      <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
+    </div>
+    <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
+    <div class="panel basics-card" id="basics-privacy"><h3>Privacy</h3>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
+      <p class="dim small" id="basics-private-line" style="margin:6px 0">${on ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer."}</p>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-share"> Share anonymous track records</label>
+      <p class="dim small" style="margin:6px 0">This shares the task type, which AI, and the score. It never shares your words or keys.</p>
+      <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
+    </div>
+    <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
+      <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
+      <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
+    </div>
+    <div class="panel basics-card" id="basics-help"><h3>Get help</h3>
+      <p class="small" style="margin:0 0 10px">The tour, setup, updates, and What's new are in the Help menu.</p>
+      <button type="button" class="btn sm" id="basics-help-go">Search help</button>
+    </div>
+    <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
+  </div>`;
+  $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
+  $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
+  $("#basics-more").addEventListener("click", () => openSettingsMore(""));
+  renderFeature("settings", "a11y", "#basics-reading-body");
+  $("#basics-private").addEventListener("change", async (e) => {
+    const next = !!e.target.checked;
+    try {
+      const r = await api("/desk/private", { method: "POST", body: { on: next } });
+      S.settings.privateMode = !!r.privateMode;
+      const line = $("#basics-private-line");
+      if (line) line.textContent = r.line || (next ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer.");
+    } catch (err) { e.target.checked = !next; toast(err.message, true); }
+  });
+  api("/brain/settings").then((d) => {
+    const box = $("#basics-share");
+    if (box) box.checked = !!d?.settings?.shareOptIn;
+  }).catch(() => {});
+  $("#basics-share").addEventListener("change", async (e) => {
+    try { await api("/brain/settings", { method: "POST", body: { shareOptIn: !!e.target.checked } }); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
+  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
+  $("#basics-help-go").addEventListener("click", () => { S.view = "help"; render(); });
+}
 function renderSettings(v) {
+  if (S.uiMode === "simple" && S.settingsMore !== true) return renderSimpleBasics(v);
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
@@ -1888,7 +2035,9 @@ function renderSettings(v) {
       ${p.liveModels?.length ? `<div class="dim small" style="margin-top:6px">Your account can also see: ${p.liveModels.slice(0, 14).map(esc).join(", ")}${p.liveModels.length > 14 ? "…" : ""}</div>` : ""}
       ${p.custom ? `<div class="dim small" style="margin-top:6px">Matching tasks go to this app or AI${p.addedCapabilities?.length ? ` (${p.addedCapabilities.join(", ")})` : ""}. ${p.addedStrengths?.length ? `Scores have raised ${[...new Set(p.addedStrengths.map((s) => s.capability))].join(", ")}.` : "Scores from your jobs make the pick sharper."}</div>` : ""}</div>` : ""}
   </div>`;
+  const moreBar = S.uiMode === "simple" ? `<div class="panel" id="settings-more-bar"><div class="row" style="gap:8px"><button type="button" class="btn sm" id="settings-back">Back to basics</button><input type="search" id="settings-find" placeholder="Find a setting" aria-label="Find a setting" style="flex:1"></div></div>` : "";
   v.innerHTML = `
+  ${moreBar}
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
@@ -1907,7 +2056,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}<span id="s-upd-box">${updateBoxHtml()}</span></div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -1917,11 +2066,13 @@ function renderSettings(v) {
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
       ${phonePanel()}
-      <div class="panel"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
-        <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
+      <div class="panel" id="settings-plan"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
+        <label class="small" for="lic-key"><b>Licence key or promo code</b></label>
+        <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
+        <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
-        <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
         ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
@@ -2024,9 +2175,13 @@ function renderSettings(v) {
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
   $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
-  $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
-  $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
-  $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });
+  // One box: the server tells a licence key from a promo code (EVERBORN-OWNER, TEST-...).
+  $("#lic-go")?.addEventListener("click", async () => {
+    const value = $("#lic-key").value.trim();
+    if (!value) { toast("Enter your licence key or promo code.", true); $("#lic-key").focus(); return; }
+    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `Licence active: ${S.license.tier}` : (S.license.message || "Licence checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
+  });
+  $("#lic-re")?.addEventListener("click", async () => { try { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); } catch (e) { toast(e.message, true); } });
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
@@ -2036,6 +2191,14 @@ function renderSettings(v) {
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
   $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
+  $("#settings-back")?.addEventListener("click", () => { S.settingsMore = false; S.navFocus = ""; render(); });
+  $("#settings-find")?.addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    $$(".panel", v).forEach((p) => {
+      if (p.id === "settings-more-bar") return;
+      p.hidden = !!q && !p.textContent.toLowerCase().includes(q);
+    });
+  });
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
   if (S.navFocus) { const el = document.querySelector(S.navFocus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); S.navFocus = ""; }
 }
@@ -2060,6 +2223,7 @@ function openRouterStartCard() {
     <span class="chip green">Recommended</span>
     <div style="margin-top:6px"><b>One key to start: OpenRouter</b></div>
     <div class="dim small" style="margin-top:4px">One key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, with free models available.</div>
+    ${S.uiMode === "simple" ? `<div class="row" style="margin-top:6px"><button type="button" class="ghost small" id="or-whats">What's this?</button></div><p class="hint" id="or-whats-note" hidden>One password that reaches several AIs. Meldmind does not charge extra for it.</p>` : ""}
     <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
       <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get an OpenRouter key</a>
       ${on ? `<span class="chip green">Connected</span>` : `<button type="button" class="btn sm primary" id="or-start-go">Add OpenRouter key</button>`}
@@ -2068,6 +2232,10 @@ function openRouterStartCard() {
 }
 function wireOpenRouterStart(root) {
   $("#or-start-go", root)?.addEventListener("click", () => window.CC.keysetup?.open?.("openrouter"));
+  $("#or-whats", root)?.addEventListener("click", () => {
+    const note = $("#or-whats-note", root);
+    if (note) note.hidden = !note.hidden;
+  });
 }
 function anyKeyHtml() {
   return `<div class="route" style="margin-top:4px"><div class="small muted" style="margin-bottom:6px">Paste any API key and the app works out which provider it belongs to (AQ. and AIza are Google Gemini, sk-ant- is Claude, sk- and sk-proj- are ChatGPT, xai- is Grok, sk-or- is OpenRouter, gsk_ is Groq).</div>
@@ -2140,16 +2308,6 @@ $("#tabs").addEventListener("click", (e) => {
   const trigger = e.target.closest(".nav-trigger");
   if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
-    if (S.uiMode === "simple" && menu?.dataset.menu === "settings") {
-      closeNav(root);
-      trigger.setAttribute("aria-expanded", "false");
-      S.connectWizard = false;
-      S.view = "settings";
-      S.openProject = null;
-      S.navMenu = "settings";
-      render();
-      return;
-    }
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
     if (!wasOpen) { menu.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); }
@@ -2157,15 +2315,22 @@ $("#tabs").addEventListener("click", (e) => {
   }
   const b = e.target.closest("button");
   if (!b || !root.contains(b)) return;
-  if (b.dataset.action === "tour" || b.dataset.action === "replay-tour") { closeNav(root); window.CC.tour?.start?.(); return; }
+  // Each data-action is listed in MENU_ACTIONS (web/nav.js). updates is handled in web/features/updates.js.
+  if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
   if (b.dataset.action === "connect-setup") { closeNav(root); window.CC.connectSetup?.open?.(); return; }
-  if (b.dataset.action === "examples") { closeNav(root); if (window.CC.startProject?.examples) window.CC.startProject.examples(); else { S.connectWizard = false; S.view = "start"; render(); } return; }
+  if (b.dataset.action === "news") { closeNav(root); window.CC.tour?.openNews?.(); return; }
+  if (b.dataset.action === "demo-on") { closeNav(root); if (S.demo) toast("Demo mode is already on. Use Exit demo mode at the top to leave it."); else setDemo(true); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
-  S.navMenu = b.closest(".nav-menu")?.dataset.menu || groupFor(b.dataset.view);
+  // Missions and Councils on a wide Expert bar open Command with that run mode picked.
+  if (b.dataset.runMode) S.cmdMode = b.dataset.runMode;
+  // A Connect or Connections link opens Settings past the Simple basics, at that panel.
+  if (b.dataset.view === "settings" && S.navFocus) S.settingsMore = true;
+  // A promoted page is lit on the bar, not on the menu it left.
+  S.navMenu = b.closest(".nav-menu")?.dataset.menu || (b.classList.contains("nav-promoted") ? "" : groupFor(b.dataset.view));
   closeNav(root);
   render();
 });
@@ -2175,7 +2340,9 @@ watchNavLayout((layout) => {
   if (!root) return;
   let next = layout;
   if (next === "normal" && root.clientWidth > 0 && rowOverflows(root)) next = "narrow";
-  if (root.dataset.navLayout === next && root.dataset.nav === "1") return;
+  const mode = S.uiMode === "expert" ? "expert" : "simple";
+  const want = currentNavPromote(mode, knownViews(), next, S.mode === "hosted" ? "web" : "").join(",");
+  if (root.dataset.navLayout === next && root.dataset.nav === "1" && (root.dataset.navPromoteWant || "") === want) return;
   if (!S.navFocus) S.navMenu = "";
   root.dataset.nav = "";
   ensureFeatureTabs();
@@ -2248,6 +2415,25 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.addEventListener("controllerchange", () => { if (swRefreshing) { swRefreshing = false; safeReload("new version activated", { manual: true }); } });
   }
 }
+// Demo mode on: a banner at the top of every screen with one click out. Off: no banner.
+// Help > Try demo mode turns it back on (setDemo below).
+function renderDemoBanner() {
+  let d = $("#demo-bar");
+  if (!S.demoBanner) { d?.remove(); return; }
+  if (d) return;
+  d = document.createElement("div"); d.id = "demo-bar"; d.className = "update-bar demo-bar"; d.setAttribute("role", "status");
+  d.innerHTML = `<div><b>${esc(DEMO_BANNER_TEXT)}</b> <span class="dim small">Nothing is spent.</span></div><button class="btn sm primary" type="button" style="margin-left:auto" id="demo-bar-off" data-busy-label="Exiting...">${esc(DEMO_BANNER_ACTION)}</button>`;
+  const bar = $("#update-bar"); if (bar) bar.after(d); else document.body.prepend(d);
+  $("#demo-bar-off").addEventListener("click", () => setDemo(false));
+}
+async function setDemo(on) {
+  try {
+    const r = await api("/demo", { method: "POST", body: { on } });
+    S.demo = r.demo;
+    toast(on ? "Demo mode is on: three pretend AIs, nothing is spent." : "Demo mode is off.");
+    await refresh();
+  } catch (e) { toast(e.message, true); }
+}
 function showRefreshPrompt(worker) {
   if ($("#sw-refresh")) return;
   const d = document.createElement("div"); d.id = "sw-refresh"; d.className = "update-bar"; d.setAttribute("role", "status");
@@ -2269,6 +2455,7 @@ function renderGate(message = "") {
   g.innerHTML = `<div class="gate-card">
     <div class="brand" style="justify-content:center;margin-bottom:6px"><span class="brand-mark"></span><span class="brand-name" title="Take command of all your AIs.">Meldmind</span></div>
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
+    ${tipHtml(localStorage)}
     ${unreachable ? "" : `<label class="lbl">Email</label>
     <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
@@ -2314,7 +2501,9 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); } };
+installClickTracking(document);
+window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
@@ -2327,9 +2516,22 @@ async function saveShareChoice() {
   await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
   st.shareSaved = on;
 }
+async function saveNewsChoice() {
+  if (S.setup?.newsOptIn !== true) return;
+  await api("/community/newsletter", { method: "POST", body: { optedIn: true } });
+}
+async function saveSetupUsername(useDefault) {
+  const input = $("#su-username");
+  const suggestion = input?.dataset.suggestion || S.setup?.usernameDefault || "";
+  const typed = input?.value?.trim() || "";
+  const username = useDefault ? (suggestion || typed) : (typed || suggestion);
+  if (!username) return;
+  await api("/account/username", { method: "POST", body: { username } });
+}
 function setupState() {
-  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true, newsOptIn: false });
   if (st.history === undefined) st.history = false;
+  if (typeof st.newsOptIn !== "boolean") st.newsOptIn = false;
   if (!st.phase) {
     if (!S.settings?.uiModeChosen) st.phase = "mode";
     else if (S.uiMode !== "expert") st.phase = "simple";
@@ -2349,7 +2551,7 @@ function renderModeStep(v, st) {
       <button type="button" class="route" id="su-mode-expert" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.expert)}</b><div class="dim small">${esc(MODE_STEP.expertLine)}</div></button>
     </div>
   </div></div>`;
-  $("#su-mode-simple").addEventListener("click", () => { st.phase = "simple"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
+  $("#su-mode-simple").addEventListener("click", () => { st.phase = "text"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
   $("#su-mode-expert").addEventListener("click", async () => {
     st.phase = "scan";
     st.afterScan = "expert";
@@ -2357,6 +2559,40 @@ function renderModeStep(v, st) {
     await saveExpert({ pendingScan: true, done: false, step: "ais", skipped: false });
     setUiMode("expert", { fromSetup: true, confirmed: true });
   });
+}
+function applyTextSize(id) {
+  let prev = {};
+  try { prev = JSON.parse(localStorage.getItem("cc.a11y") || "{}"); } catch {}
+  const next = { textSize: id, contrast: !!prev.contrast };
+  try { localStorage.setItem("cc.a11y", JSON.stringify(next)); } catch {}
+  window.__ccTextChosen = true;
+  document.documentElement.dataset.text = id;
+  window.CC.a11y?.apply?.(next, { user: true });
+  api("/a11y", { method: "POST", body: next }).catch(() => {});
+}
+function renderTextStep(v, st) {
+  const current = document.documentElement.dataset.text || "default";
+  const choices = [["default", "Default"], ["large", "Large"], ["xlarge", "Extra large"]];
+  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
+    <h2 style="margin:0 0 6px">Bigger text?</h2>
+    <div class="muted">Pick a size. The sample below changes right away. You can change this later in Settings.</div>
+    <div class="row" id="su-text-sizes" style="margin-top:16px;gap:8px">${choices.map(([id, label]) => `<button type="button" class="btn ${current === id ? "primary" : ""}" data-text="${id}">${label}</button>`).join("")}</div>
+    <div id="su-text-preview" class="panel" style="margin-top:16px">
+      <p class="small" style="margin:0 0 8px">This is how text looks.</p>
+      <button type="button" class="btn sm sample-only" tabindex="-1" aria-hidden="true">Sample button</button>
+      <span class="chip" style="margin-left:8px">Sample chip</span>
+    </div>
+    <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-text-skip">Skip</button><button class="btn primary" type="button" id="su-text-keep">Keep this size</button></div>
+  </div></div>`;
+  const goNext = () => { st.phase = "simple"; render(); };
+  $("#su-text-sizes").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-text]");
+    if (!b) return;
+    applyTextSize(b.dataset.text);
+    renderTextStep(v, st);
+  });
+  $("#su-text-skip").addEventListener("click", goNext);
+  $("#su-text-keep").addEventListener("click", goNext);
 }
 function renderSimpleStart(v) {
   v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
@@ -2425,6 +2661,7 @@ function renderSetup(v) {
   const st = setupState();
   if (st.desktop === undefined) st.desktop = false;
   if (st.phase === "mode") return renderModeStep(v, st);
+  if (st.phase === "text") return renderTextStep(v, st);
   if (st.phase === "simple") return renderSimpleStart(v);
   if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {
@@ -2437,6 +2674,15 @@ function renderSetup(v) {
       if (S.view === "setup" && !S.connectWizard && !st.result) render();
     }).catch(() => { st.shareKnown = true; }).finally(() => { st.shareLoading = false; });
   }
+  if (!st.usernameKnown && !st.usernameLoading) {
+    st.usernameLoading = true;
+    api("/account").then((d) => {
+      st.usernameDefault = d?.username || d?.suggestion || "";
+      if (!st.usernameTouched) st.usernameValue = st.usernameDefault;
+      st.usernameKnown = true;
+      if (S.view === "setup" && !S.connectWizard && !st.result) render();
+    }).catch(() => { st.usernameKnown = true; }).finally(() => { st.usernameLoading = false; });
+  }
   if (st.step === 1 || !st.result) {
     v.innerHTML = `<div style="max-width:860px;margin:0 auto">
       <div class="panel" style="padding:26px">
@@ -2447,6 +2693,13 @@ function renderSetup(v) {
         <div id="su-share-block" style="margin-top:18px">
           <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings.</div><div class="dim small" id="su-share-note" ${st.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div></div></label>
           <div class="small" style="margin-top:6px"><a href="#what-we-share" id="su-share-what">What we share</a></div>
+        </div>
+        <div id="su-news-block" style="margin-top:14px">
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-news" ${st.newsOptIn ? "checked" : ""} style="margin-top:4px"><div><b>Email me the weekly AI News note</b><div class="dim small">Off until you tick this. The app writes a copy of the weekly note. It does not send email. You can change this any time in Settings.</div></div></label>
+        </div>
+        <div id="su-username-block" style="margin-top:14px">
+          <label>Public username <input id="su-username" maxlength="20" autocomplete="off" aria-label="Public username" data-suggestion="${esc(st.usernameDefault || "")}" value="${esc(st.usernameValue || "")}"></label>
+          <div class="dim small">A friendly name is suggested. Skip keeps that name. People see it in chat, on shared prompts, in the Builders gallery, and on AI News. Your email is not shown. You can change it in Settings.</div>
         </div>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
@@ -2471,6 +2724,11 @@ function renderSetup(v) {
       const note = $("#su-share-note");
       if (note) note.hidden = st.shareOptIn;
     });
+    $("#su-news")?.addEventListener("change", () => { st.newsOptIn = !!$("#su-news").checked; });
+    $("#su-username")?.addEventListener("input", () => {
+      st.usernameTouched = true;
+      st.usernameValue = $("#su-username").value;
+    });
     $("#su-share-what")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       S.helpArticle = "getting-started";
@@ -2479,9 +2737,13 @@ function renderSetup(v) {
     });
     $("#su-go").addEventListener("click", async () => {
       st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.desktop = !!$("#su-desktop")?.checked; st.days = Number($("#su-days").value) || 180;
+      st.newsOptIn = !!$("#su-news")?.checked;
+      st.usernameValue = $("#su-username")?.value ?? st.usernameValue ?? "";
       st.busy = true; render();
       try {
+        await saveSetupUsername(false);
         await saveShareChoice();
+        await saveNewsChoice();
         st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
         if (st.desktop && S.license?.limits?.appScan) {
           try { await api("/apps/opt-in", { method: "POST", body: { on: true } }); }
@@ -2509,7 +2771,10 @@ function renderSetup(v) {
       } catch (e) { toast(e.message, true); }
     });
     $("#su-skip").addEventListener("click", async () => {
-      try { await saveShareChoice(); }
+      st.newsOptIn = !!$("#su-news")?.checked;
+      try { await saveSetupUsername(true); }
+      catch (e) { toast(e.message, true); }
+      try { await saveShareChoice(); await saveNewsChoice(); }
       catch (e) { toast(e.message, true); return; }
       finishAiSetup("settings");
     });

@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. Replace anything marked [ASK] before you use the copy. Nothing is published from here. Open Live to see which step went to which AI.
 
-To see a labeled sample first, click **Watch an example** on the Website card. That sample is Harbor and Rye. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the Website card. That sample is Harbor and Rye. See Watch example projects. To walk the rest of the console again, see Take the tour.

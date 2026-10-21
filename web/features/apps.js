@@ -141,7 +141,8 @@ CC.register({
 });
 
 // Zapier, Make, any MCP server, and webhook tools.
-// Simple shows a Connect Zapier card. Expert shows the plain-word setup.
+// Simple: Settings shows Zapier and Make (More > Connections). Expert adds MCP,
+// webhook tools, and the Meldmind webhook.
 
 function mode() {
   return window.CC.uiMode?.() || window.CC.S?.uiMode || "simple";
@@ -165,52 +166,6 @@ function actionList(conn) {
   return `<ul class="small" style="margin:6px 0 0;padding-left:18px">${rows.map((a) => `<li><b>${esc(a.name)}</b> ${a.needsApproval ? `<span class="chip amber">asks first</span>` : `<span class="chip green">read</span>`} <span class="dim">${esc(a.description || "")}</span></li>`).join("")}</ul>`;
 }
 
-async function connectZapier(form) {
-  const url = form.querySelector("[data-url]")?.value || "";
-  const token = form.querySelector("[data-token]")?.value || "";
-  const msg = form.querySelector("[data-msg]");
-  try {
-    const r = await api("/apps/zapier", { method: "POST", body: { url, token } });
-    if (form.querySelector("[data-token]")) form.querySelector("[data-token]").value = "";
-    if (r.error) {
-      if (msg) msg.textContent = r.error;
-      toast(r.error, true);
-    } else toast("Zapier connected");
-    view = r.view || view;
-    return r;
-  } catch (e) {
-    if (msg) msg.textContent = e.message;
-    toast(e.message, true);
-    return null;
-  }
-}
-
-function zapierCard(el) {
-  const g = view?.guide || {};
-  const have = (view?.connections || []).filter((c) => c.kind === "zapier");
-  el.innerHTML = `<div class="panel" id="cc-zapier-card">
-    <h3>Connect Zapier</h3>
-    <p class="small">${esc(g.simple || "")}</p>
-    <p class="small dim">${gateLine(view?.gate)}</p>
-    ${have.map((c) => `<div class="small" style="margin-top:8px"><b>${esc(c.name)}</b> <span class="chip green">Connected</span> <button type="button" class="ghost small" data-remove="${esc(c.id)}">Remove</button>${actionList(c)}${c.lastError ? `<div><button type="button" class="btn sm" data-signin="${esc(c.mcpServerId || "")}">Sign in</button></div>` : ""}</div>`).join("")}
-    <form id="cc-zapier-form" style="display:grid;gap:8px;margin-top:8px">
-      <label class="small">Zapier address<input data-url type="url" value="${esc(view?.presets?.zapier || "")}" style="width:100%"></label>
-      <label class="small">Token, if Zapier showed you one<input data-token type="password" autocomplete="off" style="width:100%"></label>
-      <div class="row"><button type="submit" class="btn primary" id="cc-zapier-go">Connect Zapier</button></div>
-      <div class="small" data-msg role="status"></div>
-    </form>
-  </div>`;
-  el.querySelector("#cc-zapier-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await connectZapier(e.target);
-    zapierCard(el);
-  });
-  el.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", async () => {
-    try { view = await api(`/apps/${encodeURIComponent(b.dataset.remove)}`, { method: "DELETE" }); toast("Removed"); zapierCard(el); } catch (err) { toast(err.message, true); }
-  }));
-  el.querySelectorAll("[data-signin]").forEach((b) => b.addEventListener("click", () => signIn(b.dataset.signin)));
-}
-
 async function signIn(id) {
   if (!id) return;
   try {
@@ -223,11 +178,11 @@ function field(label, name, value, type = "text") {
   return `<label class="small">${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value || "")}" autocomplete="off" style="width:100%"></label>`;
 }
 
-function expertPanel(el) {
+function expertPanel(el, { simple = false } = {}) {
   const g = view?.guide || {};
   const cons = view?.connections || [];
   el.innerHTML = `<div class="panel" id="cc-apps-panel">
-    <h3>Zapier, Make, and your own tools</h3>
+    <h3>${simple ? "Zapier and Make" : "Zapier, Make, and your own tools"}</h3>
     <p class="small dim">${gateLine(view?.gate)}</p>
     <section style="margin-top:12px">
       <h4>Zapier</h4>
@@ -247,7 +202,7 @@ function expertPanel(el) {
         <button class="btn sm primary" type="submit">Connect Make</button>
       </form>
     </section>
-    <section style="margin-top:14px">
+    ${simple ? "" : `    <section style="margin-top:14px">
       <h4>Any MCP server</h4>
       <p class="small">${esc(g.mcp || "")}</p>
       <form data-kind="mcp" style="display:grid;gap:8px">
@@ -279,7 +234,7 @@ function expertPanel(el) {
         ${view?.inbound?.hasToken ? `<button type="button" class="ghost small" id="cc-inbound-clear">Remove token</button>` : ""}
       </div>
       <div class="small" id="cc-inbound-out" style="margin-top:8px;white-space:pre-wrap"></div>
-    </section>
+    </section>`}
     <div style="margin-top:14px">${cons.map((c) => `<div class="small" style="margin-top:8px"><b>${esc(c.name)}</b> <span class="chip">${esc(c.kind)}</span> <span class="mono dim">${esc(c.url || "")}</span> <button type="button" class="ghost small" data-remove="${esc(c.id)}">Remove</button>${c.mcpServerId ? ` <button type="button" class="ghost small" data-refresh="${esc(c.id)}">Refresh</button>` : ""}${actionList(c)}</div>`).join("") || `<div class="small dim">Nothing connected yet.</div>`}</div>
   </div>`;
   el.querySelectorAll("form").forEach((form) => form.addEventListener("submit", async (e) => {
@@ -337,25 +292,9 @@ function expertPanelKeepToken(el, text) {
 
 window.CC.register({
   id: "zapier",
-  command: {
-    order: 8,
-    async render(el) {
-      // The chat composer is only 16rem tall. The card sits under it, outside that box, so it stays on screen.
-      const slot = document.getElementById("cc-zapier-slot");
-      const host = mode() === "simple" && slot ? slot : el;
-      if (host !== el) el.innerHTML = "";
-      if (mode() !== "simple") { host.innerHTML = ""; return; }
-      try { await load(); } catch (e) { host.innerHTML = `<div class="small dim">${esc(e.message)}</div>`; return; }
-      zapierCard(host);
-    },
-  },
   settings: {
     order: 16,
     async render(el) {
-      if (mode() !== "expert") {
-        el.innerHTML = `<div class="panel"><h3>Zapier and Make</h3><p class="small">Connect Zapier is on the chat page. Switch to Expert for Make, any MCP server, webhook tools, and the Meldmind webhook.</p></div>`;
-        return;
-      }
       try { await load(); } catch (e) { el.innerHTML = `<div class="panel"><h3>Zapier and Make</h3><div class="small">${esc(e.message)}</div></div>`; return; }
       expertPanel(el);
     },

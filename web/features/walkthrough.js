@@ -78,6 +78,8 @@ function renderHome(el) {
 function ensureHome() {
   const cc = window.CC;
   if (!cc?.S || cc.S.view !== "command") return;
+  // Simple has Start a project in the top row. Its chat page stays chat only.
+  if (cc.S.uiMode === "simple") return;
   if (document.getElementById("sp-home")) return;
   const view = document.getElementById("view");
   if (!view) return;
@@ -343,6 +345,7 @@ function paintReview(stage, w, busy) {
     <div class="sp-actions" style="margin-top:8px">
       <button class="btn sm" type="button" id="sp-rev" ${busy ? "disabled" : ""}>${busy ? "Revising…" : "Revise"}</button>
       <button class="btn sm" type="button" id="sp-exp">Export</button>
+      <button class="btn sm" type="button" id="sp-chat">Share in chat</button>
       <button class="btn sm primary" type="button" id="sp-fin" ${busy ? "disabled" : ""}>Finish</button>
       <button class="btn sm" type="button" id="sp-live">Open live view</button>
     </div>`;
@@ -352,6 +355,14 @@ function paintReview(stage, w, busy) {
     catch (e) { toast(e.message, true); }
   });
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
+  stage.querySelector("#sp-chat")?.addEventListener("click", () => {
+    window.CC.shareInChat?.({
+      kind: "mission",
+      id: w.id,
+      title: w.plan?.title || "A project",
+      text: String(w.deliverable || "").replace(/\s+/g, " ").slice(0, 280),
+    });
+  });
   stage.querySelector("#sp-fin").addEventListener("click", async () => {
     try { paintWalk(await api(`/walkthrough/${w.id}/finish?${qexp()}`, { method: "POST", body: { experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }

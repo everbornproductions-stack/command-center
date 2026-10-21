@@ -113,7 +113,9 @@ async function render(v) {
     ${data.memberOf.length ? `<div class="cat-h">Shared with you</div>` : ""}
     ${data.memberOf.map(card).join("")}
     ${!data.owned.length && !data.memberOf.length && data.studio ? `<div class="empty">No workspaces yet. Create one, invite someone with a role, tick the projects to share.</div>` : ""}
+    <div id="team-spaces"></div>
   </div>`;
+  window.CC.mountTeamSpaces?.(v.querySelector("#team-spaces"));
   const act = async (fn, okMsg) => { try { const r = await fn(); if (okMsg) toast(okMsg); await render(v); return r; } catch (e) { toast(e.message, true); } };
   const showLink = (cardEl, r) => {
     if (!r?.link) return;
@@ -157,6 +159,6 @@ async function tryJoin() {
 let loadedOnce = false;
 CC.register({
   id: "workspaces",
-  tab: { label: "Workspaces", short: "Teams", icon: "⚑", order: 40, render },
+  tab: { label: "Teams", short: "Teams", icon: "⚑", order: 40, render },
   onState() { if (!loadedOnce) { loadedOnce = true; load().catch(() => {}); } tryJoin(); },
 });

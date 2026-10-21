@@ -7,7 +7,7 @@
 //   exactly what will happen, and Stop. Closing the window stops the job.
 // - The page is read and driven from an isolated world, so the website's own scripts cannot see or move
 //   the helper's element references. Clicks are real mouse events at the element's position.
-const { BaseWindow, WebContentsView, session, ipcMain } = require("electron");
+const { BaseWindow, WebContentsView, session, ipcMain, shell } = require("electron");
 const path = require("node:path");
 
 const WORLD = 1027;
@@ -106,7 +106,8 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
   function layout() {
     if (!win || win.isDestroyed()) return;
     const b = win.getContentBounds();
-    const h = Math.min(b.height - 120, lastState && lastState.approval ? BAR_ASK : BAR);
+    const base = lastState && lastState.approval ? BAR_ASK : BAR;
+    const h = Math.min(b.height - 120, base + (lastState && lastState.passwordTip ? 72 : 0));
     bar.setBounds({ x: 0, y: 0, width: b.width, height: h });
     page.setBounds({ x: 0, y: h, width: b.width, height: Math.max(0, b.height - h) });
   }
@@ -151,6 +152,13 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
     ipcMain.handle("bar:stop", (e, id) => { if (fromBar(e) && control) control.stop(String(id)); return true; });
     ipcMain.handle("bar:ok", (e, id, aid) => { if (fromBar(e) && control) control.approve(String(id), String(aid)); return true; });
     ipcMain.handle("bar:no", (e, id, aid) => { if (fromBar(e) && control) control.deny(String(id), String(aid)); return true; });
+    ipcMain.handle("bar:open-tip", (e, url) => {
+      if (!fromBar(e)) return false;
+      const allow = url === "https://1password.com" || url === "https://bitwarden.com";
+      if (!allow) return false;
+      shell.openExternal(url).catch(() => {});
+      return true;
+    });
   }
 
   return {

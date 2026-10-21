@@ -95,7 +95,7 @@ const hitsTo = (re) => hits.filter((h) => re.test(h.path));
 
 test("connect: client ID first; sign-in links ask for least scopes; a wider grant or stale state saves nothing", async () => {
   const list = await s.api("/publish/connect");
-  assert.deepEqual(list.json.map((c) => c.id), ["google", "meta", "ghl", "slack"]);
+  assert.deepEqual(list.json.map((c) => c.id), ["google", "meta", "ghl", "slack", "ghlcrm"]);
   assert.ok(list.json.every((c) => !c.connected));
   const noId = await s.api("/publish/connect/slack/start", { method: "POST", body: { origin: s.base } });
   assert.equal(noId.status, 400); assert.equal(noId.json.code, "client_id");

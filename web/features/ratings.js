@@ -39,7 +39,7 @@ async function render(el, run) {
   el.innerHTML = `<div class="route" style="margin-top:12px"><div class="small muted" style="margin-bottom:6px">Rate the result. This teaches the router who to pick next time.</div>
     ${list.map((c) => { const r = existing.find((x) => x.model === c.model); return `<div class="row small" style="padding:4px 0" data-model="${esc(c.model)}" data-provider="${esc(c.provider)}" data-cap="${esc(c.capability || cap)}">
       <span class="dot" style="background:${pcolor(c.provider)}"></span><span style="flex:1">${esc(c.label)}</span>
-      <button class="ghost" data-up title="Good">${r?.up ? "👍" : "👍🏻"}</button><button class="ghost" data-down title="Not good">${r && !r.up ? "👎" : "👎🏻"}</button>
+      <button class="ghost" data-up title="Good">${r?.up ? "👍" : "👍🏻"} Good</button><button class="ghost" data-down title="Not good">${r && !r.up ? "👎" : "👎🏻"} Not good</button>
       <span class="chip ${r ? (r.up ? "green" : "red") : ""}" style="min-width:52px;justify-content:center">${r ? (r.up ? "good" : "poor") : "not rated"}</span></div>`; }).join("")}
     <input type="text" id="rt-note" placeholder="optional: what was good or wrong" style="margin-top:6px">
     ${pid && existing.some((x) => x.up) ? `<div class="row small" style="margin-top:6px"><button class="btn sm" id="rt-winner" title="Adds one line to this project's memory, so later prompts for the project learn from it">Keep as a past winner for this project</button></div>` : ""}

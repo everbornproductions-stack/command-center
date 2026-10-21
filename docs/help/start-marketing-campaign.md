@@ -18,4 +18,4 @@ Open **Start a project** on the Command home screen, or from the Work menu. Pick
 
 Export downloads a Markdown file on this computer. Nothing is posted or emailed. Check every claim, and replace anything marked [ASK], before you use a draft. Drafts stay here. Nothing is emailed or posted until you do that yourself.
 
-To see a labeled sample first, click **Watch an example** on the Marketing campaign card. That sample is Northline Outdoor. See Watch example projects. To walk the rest of the console again, see Replay the tour.
+To see a labeled sample first, click **Watch an example** on the Marketing campaign card. That sample is Northline Outdoor. See Watch example projects. To walk the rest of the console again, see Take the tour.

@@ -66,7 +66,7 @@ async function renderPanel() {
       <b style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.title)}">${esc(a.title)}</b>
       <span class="chip">${esc(KIND_LABEL[a.kind] || a.kind)}</span>
       <select id="art-v" title="Version">${a.versions.slice().reverse().map((x) => `<option value="${x.v}" ${x.v === ver.v ? "selected" : ""}>v${x.v} · ${esc(x.note || "")}</option>`).join("")}</select>
-      <button class="btn sm" id="art-close" title="Close">✕</button></div>
+      <button class="btn sm" id="art-close" title="Close">Close</button></div>
     <div style="padding:8px 14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)">
       <button class="btn sm primary" id="art-run">${isPy ? "Run Python" : "Re-run"}</button>
       <button class="btn sm" id="art-edit">${st.editing ? "Close editor" : "Edit"}</button>

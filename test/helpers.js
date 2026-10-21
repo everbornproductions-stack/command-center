@@ -8,6 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
+// Any key, token, service key or password on the machine running the tests (Square, Supabase service,
+// GHL, Fly, Cloudflare) is kept out of the app too.
+const PROVIDER_KEY_ENV = /^(?:[A-Z0-9]+_)*(?:API_KEY|API_TOKEN|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN|ACCESS_TOKEN|SERVICE_KEY|TOKEN|PASSWORD)$|^FAL_KEY$/;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -222,6 +225,9 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_UPDATE_FEED: `${stub.url}/latest.json`, CC_CLOUD_DEFAULTS_FILE: defaultsFile,
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
+    CC_USAGE_URL: "off",
+    // Refocus never walks the real home folder or real drives during the suite.
+    CC_REFOCUS_HOME: path.join(dir, "no-home-here"), CC_REFOCUS_DRIVES: path.join(dir, "no-drives-here"), CC_REFOCUS_ROOTS: "", OneDrive: "", OneDriveConsumer: "", OneDriveCommercial: "",
     ...env,
     CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
@@ -233,6 +239,8 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
+  // A provider key on the machine running the tests never reaches the app. A test passes a fake one in env.
+  for (const k of Object.keys(childEnv)) if (!(k in env) && PROVIDER_KEY_ENV.test(k)) delete childEnv[k];
   // Tests never call the public web. A loopback mock (CC_SEARCH_URL_*) still answers.
   if (childEnv.CC_SEARCH_OFFLINE === undefined) childEnv.CC_SEARCH_OFFLINE = "1";
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.

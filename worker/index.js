@@ -20,6 +20,7 @@ export class Hub extends Container {
       CC_SUPABASE_SERVICE_KEY: env.CC_SUPABASE_SERVICE_KEY || "",
       CC_UPDATE_FEED: env.CC_UPDATE_FEED || "",
       CC_TICK_SECRET: env.CC_TICK_SECRET || "",
+      CC_METRICS_SECRET: env.CC_METRICS_SECRET || "",
       CC_IDLE_EVICT_MIN: env.CC_IDLE_EVICT_MIN || "",
     };
   }

@@ -18,7 +18,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "POST" && p === "/jobs") {
       const task = String(body?.task || "").trim();
       if (!task) return h.json(res, 400, { error: "task required" });
-      const job = await dispatch({ task, context: String(body?.context || ""), needs: agentNeeds(task), source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null } });
+      const job = await dispatch({ task, context: String(body?.context || ""), needs: agentNeeds(task), source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null, getItDone: body?.getItDone === true, sendMessages: body?.sendMessages === true } });
       return h.json(res, job.status === "failed" ? 502 : 202, { job });
     }
     if (m === "POST" && p === "/test") {

@@ -5,6 +5,9 @@
 // may be used, and required credits go in a CREDITS file.
 // Hard rule: never decompile, extract, or copy another app's code, assets, names, or brand.
 
+import { decorateRemix, clearArt, applyReuseReport, importDesign, styleTokens } from "./remix-abilities.js";
+import { makeLevel } from "./remix-wfc.js";
+
 export const SCRATCH_NOTE = "Remix rebuilds from scratch. It does not copy the app or game you show. It does not decompile, extract, or reuse that app's code, assets, names, or brand.";
 
 export const SOURCES = {
@@ -214,8 +217,9 @@ export function checkLicense(item = {}) {
   };
 }
 
-export function creditsText(items) {
+export function creditsText(items, notes) {
   const used = (items || []).filter((i) => i && i.ok);
+  const extra = (notes || []).map((n) => String(n || "").trim()).filter(Boolean);
   const lines = [
     "# Credits",
     "",
@@ -224,11 +228,13 @@ export function creditsText(items) {
     "Nothing here is copied from the app or game that was shown.",
     "",
   ];
-  if (!used.length) {
+  if (!used.length && !extra.length) {
     lines.push("No outside code, engine, template, or art pack was used.");
     lines.push("");
     return lines.join("\n");
   }
+  if (!used.length) lines.push("No outside code, engine, template, or art pack was used.", "");
+  else {
   lines.push("## Outside pieces that passed the license check", "");
   for (const item of used) {
     lines.push(`- ${item.name}`);
@@ -241,6 +247,11 @@ export function creditsText(items) {
       if (item.credit) lines.push(`  Credit: ${item.credit}`);
     }
     lines.push("");
+  }
+  }
+  if (extra.length) {
+    lines.push("## Named tools that are not copied", "");
+    for (const note of extra) lines.push(`- ${note}`, "");
   }
   return lines.join("\n");
 }
@@ -302,6 +313,34 @@ function normalize(raw) {
   }
   const modId = clip(body.modId, 40).trim();
   if (modId && !MOD_TOOLS.some((m) => m.id === modId)) return fail("mod", "Pick an official mod tool from the list.");
+  const start = clip(body.start, 20).trim();
+  if (start && !["screenshot", "recording", "design", "game", "description"].includes(start)) {
+    return fail("start", "Choose a screenshot, a recording, your design file, a game type, or a description.");
+  }
+  const voice = clip(body.voice, 20).trim();
+  if (voice && voice !== "piper" && voice !== "coqui") return fail("voice", "Choose Piper or Coqui, or leave the voice off.");
+  const installer = clip(body.installer, 20).trim();
+  if (installer && installer !== "tauri" && installer !== "electron") return fail("installer", "Choose a desktop installer, or skip it.");
+  const designText = clip(body.designText, 20000);
+  const design = importDesign(designText);
+  if (!design.ok) return fail("design", design.error);
+  const blendIn = body.blend && typeof body.blend === "object" ? body.blend : null;
+  const blend = blendIn ? {
+    name: clip(blendIn.name, 80).trim(),
+    looks: clip(blendIn.looks, 1000).trim(),
+    ideas: clip(blendIn.ideas, 1000).trim(),
+  } : null;
+  const artFiles = [];
+  if (Array.isArray(body.artFiles)) {
+    for (const file of body.artFiles.slice(0, 40)) {
+      if (!file || typeof file !== "object") continue;
+      artFiles.push({
+        name: clip(file.name, 120).trim(),
+        source: clip(file.source, 40).trim(),
+        license: clip(file.license, 40).trim(),
+      });
+    }
+  }
   const pulls = [];
   if (Array.isArray(body.pulls)) {
     for (const p of body.pulls.slice(0, 12)) {
@@ -319,6 +358,12 @@ function normalize(raw) {
     ok: true,
     value: {
       source, appType, looks, plays, works, own, engineId, packIds, modId, pulls,
+      start, voice, installer, design, designText: designText.trim(),
+      usePhaser: body.usePhaser === true, useBevy: body.useBevy === true,
+      levels: body.levels === true, styleOnly: body.styleOnly === true, fork: body.fork === true,
+      multiplayer: body.multiplayer === true,
+      blend: blend?.name ? blend : null,
+      artFiles, reuseReport: clip(body.reuseReport, 8000),
       originalName: clip(body.originalName, 80).trim(),
       originalCharacters: clip(body.originalCharacters, 300).trim(),
       originalLook: clip(body.originalLook, 500).trim(),
@@ -394,6 +439,41 @@ export function planRemix(raw, { learned } = {}) {
   const mod = input.modId ? MOD_TOOLS.find((m) => m.id === input.modId) : null;
   const near = closeness(input);
   const projectName = clip(input.own.name, 80).trim() || "My remix";
+  const decorated = decorateRemix(input, picked.item?.id || "");
+  const cleared = clearArt(input.artFiles);
+  const reused = applyReuseReport(cleared.kept, input.reuseReport);
+  for (const file of reused.kept) {
+    const checked = checkLicense({ name: file.name, license: file.license, url: file.url, credit: file.credit, kind: "art" });
+    if (checked.ok) pieces.push(checked);
+    else rejected.push({ name: file.name, reason: "not cleared" });
+  }
+  for (const file of [...cleared.rejected, ...reused.rejected]) rejected.push({ name: file.name, reason: file.reason || "not cleared" });
+  if ((input.artFiles || []).length) {
+    decorated.notes.push(reused.reuseRan
+      ? "The FSFE reuse tool report was applied. It runs as its own program and is not part of Meldmind."
+      : "The external license tool was not run. Only CC0 files from Kenney and OpenGameArt were kept.");
+  }
+  const design = input.design?.empty ? null : {
+    shapes: input.design?.shapes || 0,
+    texts: (input.design?.texts || []).map((t) => scrub(t, hidden)).filter(Boolean),
+    note: input.design?.note || "",
+  };
+  const blend = input.blend ? {
+    name: scrub(input.blend.name, hidden).replace(/\s+/g, " ").trim().slice(0, 80),
+    looks: scrub(input.blend.looks, hidden),
+    ideas: scrub(input.blend.ideas, hidden),
+  } : null;
+  if (blend?.name && namesClose(input.blend.name, input.originalName)) {
+    near.warnings.push("The second name matches the name you typed for the original.");
+    near.close = true;
+  }
+  let level = null;
+  if (input.levels) {
+    let seed = 1;
+    for (const c of projectName) seed = Math.imul(seed ^ c.charCodeAt(0), 16777619) >>> 0;
+    level = makeLevel({ seed: seed || 1 });
+  }
+  const style = input.styleOnly ? styleTokens() : null;
   const steps = [
     "Write how it looks, plays, and works from what you could see.",
     "Plan a new project with your characters, art, and ideas.",
@@ -422,6 +502,9 @@ export function planRemix(raw, { learned } = {}) {
     "",
     toolLines.length ? "Free tools that passed the license check:\n" + toolLines.join("\n") : "No outside tool passed the license check. Use only their ideas.",
     mod ? `Official mod tool: ${mod.tool}. ${mod.note}` : "",
+    blend?.name ? `Second idea: ${blend.name}. ${blend.looks || ""} ${blend.ideas || ""}`.trim() : "",
+    input.styleOnly ? "Change colors and type only. Do not copy a layout." : "",
+    input.levels ? "Add new levels from the level maker in this app." : "",
     "",
     "Write a short build plan, the screens, and a first playable or usable slice. Keep the credits.",
   ].filter((line) => line !== "").join("\n").slice(0, 4000);
@@ -448,12 +531,22 @@ export function planRemix(raw, { learned } = {}) {
     pieces,
     rejected,
     mod: mod ? { id: mod.id, name: mod.name, tool: mod.tool, note: mod.note } : null,
-    creditsText: creditsText(pieces),
+    creditsText: creditsText(pieces, decorated.notes),
     goal,
     steps,
     closeness: near,
     projectName,
     summary,
+    start: input.start || "",
+    abilityIds: decorated.ids,
+    design,
+    blend,
+    level,
+    styleTokens: style,
+    styleOnly: !!input.styleOnly,
+    voice: input.voice || "",
+    installer: input.installer || "",
+    multiplayer: !!input.multiplayer,
     engineId: picked.item?.id || "",
     packIds: packIds.filter((id) => id !== picked.item?.id),
     modId: mod?.id || "",

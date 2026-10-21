@@ -4,7 +4,7 @@
 // come back to the browser: views carry names and flags only. Routes: /api/mcp/...
 import { HOSTED, doc } from "../store.js";
 import { demoActive } from "../mock.js";
-import { demosHidden } from "../demo-visibility.js";
+import { demosHidden, visibleRows } from "../demo-visibility.js";
 import { PROVIDERS } from "../registry.js";
 import { mcpSettings, saveMcpSettings, listServers, findServer, serverView, addServer, removeServer, addDemoServer, setToolPrefs, setServerOptions, connectServer, pendingList, resolveApproval, recentCalls, executeTool, enabledTools, workspaceKey, oauthStart, oauthFinish, oauthSignOut, supportsTools, toolReadOnly, needsApproval, sessionOf, TRANSPORTS, RESULT_MAX_CHARS } from "../mcp.js";
 
@@ -20,13 +20,15 @@ function workspaceName(key) {
 }
 function view(h) {
   const ws = workspaceKey();
-  const servers = listServers().map(serverView);
+  const hide = demosHidden();
+  // The demo tools server stays saved. It leaves the list, and the offer to add it, once a real AI is connected.
+  const servers = visibleRows(listServers(), { hidden: hide }).map(serverView);
   return {
-    settings: mcpSettings(), transports: TRANSPORTS, hosted: HOSTED, demo: demoActive(), demoAvailable: !HOSTED,
+    settings: mcpSettings(), transports: TRANSPORTS, hosted: HOSTED, demo: demoActive(), demoAvailable: !HOSTED && !hide,
     workspace: { key: ws, name: workspaceName(ws) },
     servers, enabledCount: servers.reduce((a, s) => a + s.enabledCount, 0),
     pending: pendingList(), recent: recentCalls(30),
-    providers: Object.values(h.PROVIDERS).filter((p) => p.kind === "text" && (!p.demo || (h.hasSecret(p.id) && !demosHidden()))).map((p) => ({ id: p.id, name: p.name, tools: supportsTools(p.id) })),
+    providers: Object.values(h.PROVIDERS).filter((p) => p.kind === "text" && (!p.demo || (h.hasSecret(p.id) && !hide))).map((p) => ({ id: p.id, name: p.name, tools: supportsTools(p.id) })),
   };
 }
 const bad = (res, h, msg, code = "mcp_invalid") => h.json(res, 400, { error: msg, code });

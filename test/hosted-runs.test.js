@@ -171,7 +171,7 @@ test("web surface hides desktop-only pages", () => {
   assert.equal(labels.includes("Setup"), false);
   assert.equal(labels.includes("Run setup again"), false);
   assert.equal(labels.includes("Check for updates"), false);
-  assert.equal(labels.includes("Take the tour again"), true);
+  assert.equal(labels.includes("Take the tour"), true);
   assert.equal(labels.includes("Schedules"), true);
   const desktop = menuModel(["command", "libraries", "setup", "settings", "help"], "normal");
   const desktopLabels = desktop.flatMap((g) => g.items.map((i) => i.label));
@@ -182,6 +182,13 @@ test("web surface hides desktop-only pages", () => {
   const plugin = fs.readFileSync(path.join(ROOT, "server", "plugins", "hosted-runs.js"), "utf8");
   const gate = fs.readFileSync(path.join(ROOT, "server", "feature-gate.js"), "utf8");
   assert.match(ui, /Running in the cloud/);
+  const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8");
+  const pill = html.match(/<div class="pill" id="cloud-pill"[^>]*>.*?<\/div>/)[0];
+  assert.match(pill, /<span id="cloud-txt"[^>]*>Cloud<\/span>/);
+  assert.match(pill, /title="Running in the cloud"/);
+  assert.match(pill, /aria-label="Running in the cloud"/);
+  assert.match(ui, /text\.textContent = CLOUD_SHORT/);
+  assert.match(ui, /pill\.setAttribute\("aria-label", full\)/);
   assert.match(plugin, /gateHostedRuns/);
   assert.match(gate, /extreme/);
   for (const file of [ui, plugin, gate, fs.readFileSync(path.join(ROOT, "web", "desktop-only.js"), "utf8")]) {

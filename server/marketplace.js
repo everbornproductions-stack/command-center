@@ -13,6 +13,7 @@ import { ctx, doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
 import { exportBundle, getAgent, getPrompt, importBundle, listListings, scanForListing } from "./custom-agents.js";
 import { normalizeMode } from "./modes.js";
+import { visibleRows } from "./demo-visibility.js";
 
 export const FORMAT = "command-ai/template";
 export const FORMAT_VERSION = 1;
@@ -698,7 +699,7 @@ export function overview() {
     };
   });
   return {
-    catalog: listedRows().map(card),
+    catalog: visibleRows(listedRows()).map(card), // the demo catalog leaves once a real AI is connected
     mine: listDoc(LISTINGS).list.map(ownerView),
     installed: installs,
     queue: queueRows(),

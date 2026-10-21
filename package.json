@@ -1,6 +1,6 @@
 {
   "name": "everborn-command-center",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Meldmind, an Everborn product. Take command of all your AIs. Council, missions, credits, projects.",
   "type": "module",
   "main": "electron/main.cjs",
@@ -8,16 +8,19 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "electron": "electron .",
-    "dist": "node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never",
-    "dist:mac": "node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never",
+    "build:guide": "node scripts/build-guide.mjs",
+    "dist": "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --win --publish never",
+    "dist:mac": "npm run build:guide && node scripts/inject-cloud-key.mjs -- electron-builder --mac dmg zip --x64 --arm64 --publish never",
     "test": "node scripts/test-all.mjs",
-    "smoke": "node test/smoke.mjs"
+    "smoke": "node test/smoke.mjs",
+    "metrics:report": "node scripts/metrics-report.mjs"
   },
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "electron-updater": "^6.8.9",
+    "isomorphic-git": "^1.44.3",
     "qrcode-generator": "^2.0.4",
     "undici": "^7.30.1",
     "ws": "^8.18.0"
@@ -28,7 +31,8 @@
   "devDependencies": {
     "@cloudflare/containers": "^0.3.7",
     "electron": "^44.9.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "pdfkit": "^0.20.2"
   },
   "author": "Everborn Productions <everbornproductions@gmail.com>",
   "homepage": "https://everbornproductions.com/command-center/"

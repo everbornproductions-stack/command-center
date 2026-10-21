@@ -20,7 +20,7 @@ export const PRO_DESKTOP_APPS = 3;
 export const PRO_RECIPES = 5;
 
 const TAIL = " Add a licence key in Settings.";
-const PRO_PRICE = proMonthlyLabel;
+export const PRO_PRICE = proMonthlyLabel;
 
 export const FEATURES = {
   missions: { kind: "bool", built: true },
@@ -700,6 +700,11 @@ function paidFail(message, code) {
 // Phone pairing, bring-your-own MCP, custom webhooks, desktop apps, recipes, and the budget cap.
 // Trial is already Pro on the licence state. This does not import license.js.
 export function gate(feature, info = {}) {
+  if (PHASE_GATES[feature]) {
+    const row = access(feature, info);
+    if (!row.ok) throw Object.assign(paidFail(row.message, row.code), { feature });
+    return row;
+  }
   if (feature === "learnTune" || feature === "phoneApprovals") return limitsFor();
   if (feature === "desktop" || feature === "desktopApps") {
     const limits = limitsFor();
@@ -850,4 +855,189 @@ export function assertRemix({ tier, used } = {}) {
   const g = remixGate({ tier: tier ?? readLicense().tier, used });
   if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
   return g;
+}
+
+// Second opinion, industry packs, shared team recipes, HighLevel tools, and Use your own Supabase.
+// Studio is Pro. Team spaces are Extreme, 5 people total counting the owner. Nothing here charges.
+export const TEAM_SEATS = EXTREME_TEAM_SEATS;
+export const PHASE_GATES = {
+  secondOpinion: { tier: "free", label: "Second opinion" },
+  industryPacks: { tier: "pro", label: "Industry packs" },
+  teamSpaces: { tier: "extreme", label: "Team spaces" },
+  teamSeats: { tier: "extreme", label: "Team spaces", cap: TEAM_SEATS },
+  highlevelTools: { tier: "free", label: "HighLevel tools" },
+  ownSupabase: { tier: "free", label: "Use your own Supabase" },
+};
+const PRO_AND_UP = new Set(["pro", "studio", "owner", "extreme"]);
+const EXTREME_AND_UP = new Set(["owner", "extreme"]);
+
+// Pure check. `tier` is free, pro, studio, owner, or extreme.
+export function decide(tier, feature, info = {}) {
+  const meta = PHASE_GATES[feature];
+  const name = meta?.label || "This feature";
+  const proMessage = `${name} is part of Pro (${proMonthlyLabel}).${TAIL}`;
+  if (!meta) return { ok: false, tier, feature, code: "pro_required", message: `This feature is part of Pro (${proMonthlyLabel}).${TAIL}` };
+  if (meta.tier === "free") return { ok: true, tier, feature, code: "open" };
+  if (meta.tier === "pro") {
+    if (PRO_AND_UP.has(tier)) return { ok: true, tier, feature, code: "open" };
+    return { ok: false, tier, feature, code: "pro_required", message: proMessage };
+  }
+  if (!EXTREME_AND_UP.has(tier)) {
+    return { ok: false, tier, feature, code: "extreme_required", message: `Team spaces are part of Extreme (${extremeMonthlyLabel}). Extreme includes ${TEAM_SEATS} people total, counting the owner.${TAIL}` };
+  }
+  if (feature === "teamSeats" && Number(info.count ?? 0) > TEAM_SEATS) {
+    return { ok: false, tier, feature, code: "seat_cap", message: `Team spaces include ${TEAM_SEATS} people total, counting the owner. This space is over that cap.` };
+  }
+  return { ok: true, tier, feature, code: "open", limit: TEAM_SEATS };
+}
+
+export function access(feature, info = {}) {
+  return decide(currentTier(), feature, info);
+}
+
+// Remix 2 choices. Pro includes Studio. Extreme includes Owner. Free includes none.
+// Publish to a website is Pro. A phone build is Extreme. A two-idea blend is Extreme.
+export const REMIX_PART_TIER = {
+  "screenshot-ui": "pro",
+  "recording-prototype": "extreme",
+  "penpot-design": "pro",
+  "godot-kenney": "pro",
+  "phaser-create": "pro",
+  "bevy-starter": "extreme",
+  "cc0-art": "pro",
+  "level-maker": "extreme",
+  "voices": "extreme",
+  "smoke-test": "pro",
+  "access-report": "pro",
+  "publish-web": "pro",
+  "publish-phone": "extreme",
+  installer: "extreme",
+  multiplayer: "extreme",
+  "style-only": "pro",
+  blend: "extreme",
+  forks: "pro",
+};
+
+const PART_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 2 };
+
+export function remixAbilityAllowed(tier, ability) {
+  const need = REMIX_PART_TIER[ability];
+  if (!need) return false;
+  const have = PART_RANK[String(tier || "free").toLowerCase()] ?? 0;
+  const want = need === "extreme" ? 2 : 1;
+  return have >= want;
+}
+
+export function remixAbilityGate({ tier = "free", ability } = {}) {
+  const id = String(ability || "");
+  const need = REMIX_PART_TIER[id];
+  if (!need) return { ok: false, status: 400, code: "ability", ability: id, message: "That choice is not available." };
+  if (!remixAbilityAllowed(tier, id)) {
+    return {
+      ok: false, status: 402, code: "ability_tier", ability: id, need, tier: String(tier || "free").toLowerCase(),
+      message: need === "extreme" ? "That choice is on Extreme." : "That choice is on Pro.",
+    };
+  }
+  return { ok: true, status: 200, code: null, ability: id, need, message: "" };
+}
+
+// Guided builders use Free, Pro, and Extreme. Studio follows Pro. Owner follows Extreme.
+// This does not set a price and does not import license.js.
+const BUILDER_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
+
+export function normalizeBuilderTier(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(BUILDER_RANK, t) ? t : "free";
+}
+
+export function builderTierRank(tier) {
+  return BUILDER_RANK[normalizeBuilderTier(tier)] ?? 0;
+}
+
+function builderNeedRank(need) {
+  const name = normalizeBuilderTier(need);
+  if (name === "extreme" || name === "owner") return BUILDER_RANK.extreme;
+  if (name === "pro" || name === "studio") return BUILDER_RANK.pro;
+  return BUILDER_RANK.free;
+}
+
+export function builderGate({ tier = "free", need = "free" } = {}) {
+  const haveName = normalizeBuilderTier(tier);
+  const needName = normalizeBuilderTier(need);
+  const have = builderTierRank(haveName);
+  const want = builderNeedRank(needName);
+  const haveLabel = LIMITS[haveName]?.label || "Free";
+  const asked = want >= BUILDER_RANK.extreme ? "extreme" : want >= BUILDER_RANK.pro ? "pro" : "free";
+  if (have >= want) {
+    return {
+      ok: true, tier: haveName, need: asked, status: 200, code: null,
+      message: asked === "free" ? "This builder is included." : `This builder is included on ${haveLabel}.`,
+    };
+  }
+  if (asked === "extreme") {
+    return { ok: false, tier: haveName, need: "extreme", status: 402, code: "extreme_required", message: "This builder is part of Extreme." };
+  }
+  return { ok: false, tier: haveName, need: "pro", status: 402, code: "pro_required", message: "This builder is part of Pro." };
+}
+
+export function assertBuilder(opts = {}) {
+  const g = builderGate({ ...opts, tier: opts.tier ?? currentTier() });
+  if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
+  return g;
+}
+
+// Guided builders for websites and marketing (builders A). Studio counts as Pro. Owner counts as every tier.
+// need is "free", "pro", or "extreme". This does not set a price and does not import license.js.
+const WEB_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
+
+export function tierRank(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(WEB_RANK, t) ? WEB_RANK[t] : 0;
+}
+
+export function planLabel(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return LIMITS[t]?.label || "Free";
+}
+
+export function webBuilderGate(need, tier = currentTier()) {
+  const want = String(need || "free").toLowerCase();
+  const have = String(tier || "free").toLowerCase();
+  const ok = tierRank(have) >= tierRank(want === "studio" ? "pro" : want);
+  const needLabel = planLabel(want);
+  const haveLabel = planLabel(have);
+  if (ok) {
+    return {
+      ok: true, status: 200, code: null, tier: have, need: want,
+      message: `${needLabel} tools are included on ${haveLabel}.`,
+    };
+  }
+  return {
+    ok: false, status: 402, code: "plan_required", tier: have, need: want,
+    message: `This is part of ${needLabel}. You are on ${haveLabel}.`,
+  };
+}
+
+export const PUBLISH_NEEDS = {
+  local: "free",
+  netlify: "pro",
+  vercel: "pro",
+  postiz: "pro",
+  listmonk: "pro",
+  mautic: "pro",
+  highlevel: "pro",
+};
+
+export function publishGate(target, tier = currentTier()) {
+  const key = String(target || "local").toLowerCase();
+  const need = Object.prototype.hasOwnProperty.call(PUBLISH_NEEDS, key) ? PUBLISH_NEEDS[key] : "pro";
+  const gate = webBuilderGate(need, tier);
+  if (gate.ok) return { ...gate, target: key };
+  return {
+    ...gate,
+    target: key,
+    message: key === "local"
+      ? gate.message
+      : `Publishing to ${key} is part of ${planLabel(need)}. You are on ${planLabel(tier)}. Nothing was sent.`,
+  };
 }

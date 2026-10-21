@@ -64,7 +64,7 @@ test("stdio client: initialize, tools with annotations, calls, errors, close", a
     const init = await c.connect();
     assert.equal(init.protocolVersion, PROTOCOL_VERSION); assert.equal(c.serverInfo.name, "Meldmind demo tools");
     const tools = await c.listTools();
-    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]);
+    assert.deepEqual(tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "report_usage", "submit_job"]);
     assert.equal(tools[0].annotations.readOnlyHint, true); assert.equal(tools[3].annotations, null);
     const wc = await c.callTool("word_count", { text: "one two three. four!" });
     assert.equal(wc.text, "4 words, 2 sentences, 20 characters."); assert.equal(wc.isError, false); assert.deepEqual(wc.structured, { words: 4, sentences: 2, characters: 20 });
@@ -302,7 +302,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     let r = await s.api("/tools/servers", { method: "POST", body: { name: "Demo tools", transport: "stdio", command: process.execPath, args: [DEMO], env: `DEMO_SECRET=${SECRET}\nOTHER=1` } });
     assert.equal(r.status, 200); assert.equal(r.json.ok, true, r.json.error);
     const srv = r.json.server; const sid = srv.id;
-    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "submit_job"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
+    assert.equal(srv.status, "connected"); assert.deepEqual(srv.tools.map((t) => t.name), ["clock", "word_count", "save_note", "list_notes", "list_agents", "get_result", "report_usage", "submit_job"]); assert.deepEqual(srv.envNames, ["DEMO_SECRET", "OTHER"]);
     assert.equal(srv.tools[0].readOnlyHint, true); assert.equal(srv.tools[0].needsApproval, true, "read-only asks until the server allows it"); assert.equal(srv.tools[3].readOnly, false, "no hint: treated as a write");
     assert.equal(srv.enabledCount, 0, "nothing enabled by default");
     assert.ok(!JSON.stringify(r.json).includes(SECRET), "env value never in a response");
@@ -324,7 +324,7 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.equal(v.workspace.key, ws.id); assert.equal(v.workspace.name, "Studio A"); assert.equal(v.enabledCount, 0, "the other workspace has nothing enabled yet");
     assert.deepEqual((await s.api("/tools/enabled")).json.tools, []);
     r = await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { all: true } });
-    assert.equal(r.json.server.enabledCount, 7);
+    assert.equal(r.json.server.enabledCount, 8);
     await s.api("/workspaces/active", { method: "POST", body: { id: null } });
     assert.equal((await s.api("/tools")).json.enabledCount, 1, "Personal keeps its own list");
 
@@ -487,7 +487,7 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
     let r = await s.api("/tools/demo", { method: "POST" });
-    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 7); assert.equal(r.json.server.autoReadOnly, true);
+    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.server.demo, true); assert.equal(r.json.server.enabledCount, 8); assert.equal(r.json.server.autoReadOnly, true);
     assert.equal(r.json.server.tools.find((t) => t.name === "clock").needsApproval, false); assert.equal(r.json.server.tools.find((t) => t.name === "save_note").needsApproval, true);
     assert.equal((await s.api("/tools/demo", { method: "POST" })).json.view.servers.length, 1, "added once");
     let posted = await s.api("/chat", { method: "POST", body: { prompt: "What time is it right now?", provider: "demo-nova", model: "nova-lite" } });

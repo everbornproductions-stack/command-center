@@ -26,6 +26,8 @@ Content-Type: application/json
 ```
 Answer 2xx to accept. An optional JSON reply `{ "status": "working" }` (or `queued`, `needs_approval`) sets the first status. 401 / 403 shows "Grok Bot refused the sender key", other errors "Grok Bot refused the job (code)", no answer "Could not reach Grok Bot: <reason>".
 
+The `task` string also ends with a report-back block when `CC_WORKER_URL` and `CC_WORKER_TOKEN` are set, so the same job can be posted to `POST /api/handoff/<job_id>/done` on that hub. `callback_url` is unchanged. The block is not stored on the job. With no hub, the block only says to reply with `DONE: <summary>` so the person can use Paste result. The local callback in decision 15 is still the one in `callback_url`. The same outbound task includes a permission line (ask, or Get it done for this job). That line is not stored on the job.
+
 ## Results (what Grok Bot sends back)
 ```
 POST <callback_url>

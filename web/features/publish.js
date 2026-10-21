@@ -102,7 +102,7 @@ async function renderSettings(el) {
 async function finishIfBack() {
   const q = new URLSearchParams(location.search);
   const code = q.get("code"), state = q.get("state") || "";
-  const m = /^pub-(google|meta|ghl|slack)-/.exec(state);
+  const m = /^pub-(google|meta|ghlcrm|ghl|slack)-/.exec(state);
   if (!code || !m) return;
   for (const k of ["code", "state", "scope", "authuser", "prompt", "session_state", "iss", "hd"]) q.delete(k);
   history.replaceState(null, "", location.pathname + (q.toString() ? `?${q}` : "") + location.hash);

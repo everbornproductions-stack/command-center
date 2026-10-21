@@ -10,6 +10,7 @@ const SIZES = [
 ];
 let prefs = read();
 let speaking = false;
+let userChose = false;
 
 function read() {
   try { return { textSize: "default", contrast: false, ...JSON.parse(localStorage.getItem(LS) || "{}") }; }
@@ -19,7 +20,8 @@ function remember(p) {
   try { localStorage.setItem(LS, JSON.stringify({ textSize: p.textSize, contrast: !!p.contrast })); } catch {}
 }
 
-export function apply(p = prefs) {
+export function apply(p = prefs, opts = {}) {
+  if (opts.user) userChose = true;
   prefs = { textSize: SIZES.some((s) => s.id === p.textSize) ? p.textSize : "default", contrast: !!p.contrast };
   remember(prefs);
   const root = document.documentElement;
@@ -29,10 +31,10 @@ export function apply(p = prefs) {
 }
 
 const css = `
-html[data-text="small"] body { font-size: 13px; }
-html[data-text="default"] body { font-size: 14px; }
-html[data-text="large"] body { font-size: 18px; }
-html[data-text="xlarge"] body { font-size: 20px; }
+html[data-text="small"] { font-size: 14px; }
+html[data-text="default"] { font-size: 16px; }
+html[data-text="large"] { font-size: 20px; }
+html[data-text="xlarge"] { font-size: 22.4px; }
 html[data-contrast="high"] {
   --text: #ffffff !important; --muted: #f3f4f6 !important; --dim: #e5e7eb !important;
   --bg: #000000 !important; --bg-2: #000000 !important; --panel: #000000 !important; --panel-solid: #000000 !important;
@@ -53,6 +55,7 @@ document.head.appendChild(style);
 apply(prefs);
 
 async function save(patch) {
+  userChose = true;
   const next = { ...prefs, ...patch };
   apply(next);
   try { const r = await api("/a11y", { method: "POST", body: { textSize: next.textSize, contrast: next.contrast } }); apply(r); }
@@ -115,6 +118,9 @@ CC.register({
     btn.addEventListener("click", () => readAloud(run, btn));
   } },
   onState() {
-    api("/a11y").then((r) => { if (r?.textSize) apply(r); }).catch(() => {});
+    api("/a11y").then((r) => {
+      if (userChose || window.__ccTextChosen || !r?.textSize) return;
+      apply(r);
+    }).catch(() => {});
   },
 });

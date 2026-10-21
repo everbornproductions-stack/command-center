@@ -17,9 +17,10 @@ test("every known view is in exactly one menu", () => {
   const model = menuModel(VIEWS);
   assert.deepEqual(model.map((g) => g.id), GROUP_ORDER);
   const homes = model.flatMap((g) => g.items.filter((i) => i.home).map((i) => i.view));
-  assert.equal(homes.length, VIEWS.length);
-  assert.equal(new Set(homes).size, VIEWS.length);
-  for (const view of VIEWS) assert.ok(homes.includes(view), view);
+  // The Help menu always carries Search help, so help is a home even when not listed.
+  assert.equal(homes.length, VIEWS.length + 1);
+  assert.equal(new Set(homes).size, VIEWS.length + 1);
+  for (const view of [...VIEWS, "help"]) assert.ok(homes.includes(view), view);
   assert.equal(groupFor("prompts"), "create");
   assert.equal(groupFor("liveview"), "work");
   assert.equal(groupFor("refocus"), "work");
@@ -37,12 +38,12 @@ test("Connect links scroll the Settings page and Help can start the tour", () =>
   assert.deepEqual(connect.map((i) => i.id), CONNECT_LINKS.map((l) => l.id));
   assert.ok(connect.every((i) => i.view === "settings" && i.focus));
   assert.ok(connect.some((i) => i.focus === "#settings-keys"));
-  const help = model.find((g) => g.id === "help").items;
-  assert.ok(help.some((i) => i.action === "tour" && i.label === "Take the tour again"));
+  const help = model.find((g) => g.id === "guides").items;
+  assert.ok(help.some((i) => i.action === "tour" && i.label === "Take the tour"));
   assert.ok(help.some((i) => i.action === "updates" && i.label === "Check for updates"));
   const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
   assert.match(navSrc, /globalThis\.CSS\.escape\(view\)/, "the stylesheet string must not shadow CSS.escape");
-  assert.ok(help.some((i) => i.view === "setup"));
+  assert.ok(model.find((g) => g.id === "help").items.some((i) => i.view === "setup"));
 });
 
 test("keyboard: Space opens, Escape closes, Alt+Space is ignored", () => {
@@ -75,7 +76,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
   assert.deepEqual(narrow.map((g) => g.id), GROUP_ORDER);
   assert.deepEqual(normal.map((g) => g.id), SPLIT_ORDER);
   assert.equal(normal.length, 8);
-  assert.ok(narrow.length <= 5);
+  assert.ok(narrow.length <= 6);
 
   for (const model of [narrow, normal]) {
     const homes = model.flatMap((g) => g.items.filter((i) => i.home).map((i) => i.view));
@@ -83,22 +84,23 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
     for (const view of views) assert.ok(homes.includes(view), view);
     const labels = model.flatMap((g) => g.items.map((i) => i.label));
     assert.ok(labels.includes("Check for updates"));
-    assert.ok(labels.includes("Take the tour again"));
+    assert.ok(labels.includes("Take the tour"));
     assert.ok(labels.includes("Start a project"));
     assert.ok(model.some((g) => g.items.some((i) => i.view === "liveview" && i.label === "Live")));
   }
   assert.equal(narrow.find((g) => g.id === "work").items.filter((i) => i.view === "start").length, 1);
-  assert.equal(narrow.find((g) => g.id === "help").items.filter((i) => i.view === "start").length, 0);
+  assert.equal(narrow.find((g) => g.id === "guides").items.filter((i) => i.view === "start").length, 0);
 
   const help = normal.find((g) => g.id === "guides");
   assert.equal(help.label, "Help");
   assert.deepEqual(
     help.items.map((i) => i.label),
-    ["Help", "Check for updates", "Run setup again", "Replay the tour", "Watch example projects"],
+    ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
   assert.equal(groupIdFor("agents", "normal"), "agents");
   assert.equal(groupIdFor("settings", "narrow"), "help");
+  assert.equal(groupIdFor("help", "narrow"), "guides");
   assert.equal(groupFor("liveview"), "work");
 
   const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
@@ -172,10 +174,25 @@ test("Settings holds only settings items, and Start a project is in Work", () =>
     }
     const work = model.find((g) => g.id === "work");
     assert.equal(work.items.filter((i) => i.view === "start").length, 1, layout);
+    const order = work.items.map((i) => i.view);
+    assert.equal(order.indexOf("start"), order.indexOf("projects") - 1, `${layout}: Start a project comes right before Projects`);
   }
   assert.equal(groupFor("start"), "work");
   assert.equal(groupIdFor("start", "narrow"), "work");
   assert.equal(groupIdFor("start", "normal"), "work");
+});
+
+test("Start a project comes right before Projects in Simple and Expert", () => {
+  for (const layout of ["narrow", "normal"]) {
+    for (const views of [["command", "projects", "settings"], ["command", "projects", "settings", "start"], ["start", "command", "projects"]]) {
+      const order = menuModel(views, layout).find((g) => g.id === "work").items.map((i) => i.label);
+      assert.equal(order.indexOf("Start a project") + 1, order.indexOf("Projects"), `${layout}: ${order.join(", ")}`);
+    }
+  }
+  const src = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
+  const simple = src.slice(src.indexOf("function mountSimple"), src.indexOf("export function installNav"));
+  assert.ok(simple.indexOf('"start", "Start a project"') < simple.indexOf('"projects", "Projects"'), "Simple mounts Start a project before Projects");
+  assert.match(src, /projects\.insertAdjacentElement\("beforebegin", btn\)/);
 });
 
 test("layout follows the window from wide to normal to small and back", async () => {

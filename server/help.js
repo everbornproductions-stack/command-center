@@ -4,25 +4,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./paths.js";
+export { tokens, distinctiveWords, searchArticles, helpOrder, tryThese, queryWords } from "../web/help-rank.js";
+import { distinctiveWords, searchArticles } from "../web/help-rank.js";
 
 export const HELP_DIR = path.join(ROOT, "docs", "help");
 
-const STOP = new Set("a an the and or of to in on for with your you it is are was be as at by if so not from that this after any its into than then also just more most out up do does can when what who how all one them they their our we but about over per via nor yet".split(" "));
-const SHORT_OK = new Set(["aq", "ai", "mcp"]);
-
-export function tokens(text) {
-  return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(Boolean);
-}
-
-export function distinctiveWords(text) {
-  const out = [];
-  for (const raw of tokens(text)) {
-    if (STOP.has(raw)) continue;
-    if (raw.length < 4 && !SHORT_OK.has(raw)) continue;
-    if (!out.includes(raw)) out.push(raw);
-  }
-  return out;
-}
+export const CAN_DO = [
+  "Chat, a council, or a mission from one box. Nothing starts until you click Send.",
+  "Pro prompts you can thumbs up or thumbs down. You can change your vote. A simple score shows on each prompt.",
+  "Weekly prompt packs for writing, email, marketing and ads, and the other categories. New this week shows for 7 days.",
+  "A Builders category: one prompt for each guided builder, such as Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder when it is installed. If it is not installed yet, the words go in the chat.",
+  "Inspired by names the source, and the name is a link when there is a page.",
+  "Popular prompts are suggested first when you fill marching orders.",
+  "Publishing, posting, and sending wait for your click.",
+];
 
 export function parseArticle(text, filename = "article.md") {
   const raw = String(text || "").replace(/^\uFEFF/, "");
@@ -56,23 +51,6 @@ export function loadHelp(dir = HELP_DIR) {
   const articles = fs.readdirSync(dir).filter((f) => f.endsWith(".md")).sort()
     .map((f) => parseArticle(fs.readFileSync(path.join(dir, f), "utf8"), f));
   return { catalog, articles };
-}
-
-export function searchArticles(articles, query, limit = 5) {
-  const q = tokens(query).filter((w) => w.length > 1 && !STOP.has(w));
-  const ranked = (articles || []).map((article) => {
-    if (!q.length) return { article, score: 1 };
-    const title = `${article.title} ${article.summary}`.toLowerCase();
-    const body = String(article.body || "").toLowerCase();
-    let score = 0;
-    for (const w of q) {
-      if (title.includes(w)) score += 5;
-      if (body.includes(w)) score += 1;
-    }
-    return { article, score };
-  }).filter((row) => row.score > 0);
-  ranked.sort((a, b) => b.score - a.score || a.article.id.localeCompare(b.article.id));
-  return ranked.slice(0, limit).map((row) => row.article);
 }
 
 export function excerpt(body, n = 220) {

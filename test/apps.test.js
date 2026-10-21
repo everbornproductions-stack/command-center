@@ -283,9 +283,9 @@ test("user-facing copy has no em dash and no install button", () => {
   const help = fs.readFileSync(path.join(ROOT, "docs", "help", "desktop-apps.md"), "utf8");
   assert.match(help, /lastUpdatedVersion: 0\.4\.9/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.12");
+  assert.equal(pkg.version, "0.4.13");
   const catalogJson = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "help", "catalog.json"), "utf8"));
-  assert.equal(catalogJson.lastUpdatedVersion, "0.4.12");
+  assert.equal(catalogJson.lastUpdatedVersion, "0.4.13");
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -361,12 +361,10 @@ test("Meldmind webhook template and the setup copy have no token and no em-dash"
   assert.doesNotMatch(raw, /gsk_|sk-|Bearer [A-Za-z0-9_-]{20,}/);
   const help = read("docs/help/zapier-make.md");
   const ui = read("web/features/apps.js");
-  assert.match(help, /Connect Zapier from the Simple chat card/);
+  assert.match(help, /More > Connections > Zapier and Make/);
   assert.match(ui, /Connect Zapier/);
-  assert.match(ui, /id="cc-zapier-go"/);
-  assert.match(ui, /cc-zapier-slot/);
-  assert.match(read("web/app.js"), /id="cc-zapier-slot"/);
-  assert.match(read("web/styles.css"), /#cc-zapier-slot:empty \{ display: none; \}/);
+  assert.match(ui, /Connect Make/);
+  assert.doesNotMatch(read("web/app.js"), /cc-zapier-slot/);
   assert.match(ui, /Create the Meldmind webhook/);
   assert.match(read("docs/USER-GUIDE.md"), /Zapier and Make/);
   assert.match(read("README.md"), /Zapier and Make/);

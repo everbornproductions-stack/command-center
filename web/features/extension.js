@@ -22,7 +22,7 @@ async function renderCommand(el) {
   if (!inbox.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<div class="route" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="small muted">From your browser:</span>
     ${inbox.slice(0, 5).map((it) => `<span class="chip" title="${esc(it.url || "")}">${it.kind === "selection" ? "selection" : it.kind === "link" ? "link" : "page"} · ${esc((it.title || it.url || "untitled").slice(0, 50))} · ${esc(ago(it.at))}
-      <button class="ghost small" data-ext-use="${it.id}">use</button><button class="ghost small" data-ext-drop="${it.id}" title="Remove">x</button></span>`).join("")}</div>`;
+      <button class="ghost small" data-ext-use="${it.id}">use</button><button class="ghost small" data-ext-drop="${it.id}" title="Remove">Remove</button></span>`).join("")}</div>`;
   el.querySelectorAll("[data-ext-use]").forEach((b) => b.addEventListener("click", () => useItem(inbox.find((x) => x.id === b.dataset.extUse))));
   el.querySelectorAll("[data-ext-drop]").forEach((b) => b.addEventListener("click", async () => { await api(`/extension/inbox/${b.dataset.extDrop}`, { method: "DELETE" }).catch(() => {}); renderCommand(el); }));
 }

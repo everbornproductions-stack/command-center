@@ -15,6 +15,8 @@ import { emit } from "./events.js";
 import { missionSummary } from "./mission.js";
 import { observe } from "./brain.js";
 import { heuristicClassify } from "./router.js";
+import { pasteBlock, reportBlock, reportStatus } from "./reportback.js";
+import { permissionFor, ASK_LINE } from "./getdone.js";
 
 export const DOC = "handoff.registry";
 export const SIGNIN_DOC = "handoff.signin";
@@ -169,7 +171,9 @@ export function removeTarget(id) {
 
 export function handoffView() {
   const targets = listTargets();
-  return { label: LABEL, instructions: INSTRUCTIONS, geminiNotice: GEMINI_DATA_NOTICE, geminiTerms: GEMINI_TERMS, maxChars: PROMPT_MAX, targets };
+  let report = { hub: false, waiting: [] };
+  try { report = reportStatus(); } catch { report = { hub: false, waiting: [] }; }
+  return { label: LABEL, instructions: INSTRUCTIONS, geminiNotice: GEMINI_DATA_NOTICE, geminiTerms: GEMINI_TERMS, maxChars: PROMPT_MAX, targets, report };
 }
 
 function answerTexts(thread) {
@@ -196,7 +200,7 @@ export function threadTurns(thread) {
   return turns.filter((t) => t.text);
 }
 
-export function buildHandoffPrompt({ targetName, summary, turns, draft } = {}) {
+export function buildHandoffPrompt({ targetName, summary, turns, draft, reportBlockText, permissionText } = {}) {
   const name = clip(targetName || "the chat", 60) || "the chat";
   const recent = (Array.isArray(turns) ? turns : []).slice(-6).map((t) => ({
     role: t.role === "user" ? "You" : "Assistant",
@@ -214,8 +218,14 @@ export function buildHandoffPrompt({ targetName, summary, turns, draft } = {}) {
   ];
   if (!recent.length) lines.push("(none yet)");
   else for (const t of recent) lines.push(`${t.role}: ${t.text}`);
-  let text = `${lines.join("\n").trim()}\n`;
-  if (text.length > PROMPT_MAX) text = `${text.slice(0, PROMPT_MAX - 24).trimEnd()}\n[cut to fit]\n`;
+  const block = String(reportBlockText || pasteBlock()).trim();
+  const perm = String(permissionText || ASK_LINE).trim() || ASK_LINE;
+  let text = `${lines.join("\n").trim()}\n\n${block}\n\n${perm}\n`;
+  if (text.length > PROMPT_MAX) {
+    const keep = `${block}\n\n${perm}\n`;
+    const room = Math.max(0, PROMPT_MAX - keep.length - 16);
+    text = `${text.slice(0, room).trimEnd()}\n[cut to fit]\n\n${keep}`;
+  }
   const chars = text.length;
   return { text, chars, maxChars: PROMPT_MAX, bytes: Buffer.byteLength(text), pct: Math.min(100, Math.round((chars / PROMPT_MAX) * 100)) };
 }
@@ -237,16 +247,24 @@ async function loadThread(id) {
   return m || null;
 }
 
-export async function buildForTarget({ targetId, threadId, draft } = {}) {
+export async function buildForTarget({ targetId, threadId, draft, getItDone, sendMessages } = {}) {
   const t = findTarget(targetId);
   if (!t) throw err(404, "No handoff target with that id.");
   const thread = threadId ? await loadThread(threadId) : null;
   if (threadId && !thread) throw err(404, "That thread was not found.");
   const turns = threadTurns(thread);
   const safeDraft = stripSecrets(String(draft || "").slice(0, 4000));
-  const built = buildHandoffPrompt({ targetName: t.name, summary: summaryFrom(thread, safeDraft, turns), turns, draft: safeDraft });
+  const reported = await reportBlock({ kind: "copy", threadId: threadId || null, targetId: t.id });
+  const perm = permissionFor({
+    runId: threadId || null,
+    ownId: threadId || reported.jobId,
+    text: `${safeDraft}\n${thread?.prompt || ""}`,
+    toggle: getItDone === true,
+    send: sendMessages === true,
+  });
+  const built = buildHandoffPrompt({ targetName: t.name, summary: summaryFrom(thread, safeDraft, turns), turns, draft: safeDraft, reportBlockText: reported.block, permissionText: perm.line });
   return {
-    targetId: t.id, name: t.name, url: t.url, label: LABEL,
+    targetId: t.id, name: t.name, url: t.url, label: LABEL, jobId: reported.jobId,
     prompt: built.text, chars: built.chars, maxChars: built.maxChars, bytes: built.bytes, pct: built.pct,
     instructions: INSTRUCTIONS, gemini: isGeminiTarget(t), geminiNotice: isGeminiTarget(t) ? GEMINI_DATA_NOTICE : null, geminiTerms: isGeminiTarget(t) ? GEMINI_TERMS : null,
     clipboard: "not read",

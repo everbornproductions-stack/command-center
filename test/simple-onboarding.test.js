@@ -45,7 +45,7 @@ test("the shell asks for a mode inside setup, hides the old popup, and prompts o
   assert.match(app, /data-simple-mic/);
   assert.match(app, /cc-upgrade/);
   assert.match(app, /function showUpgrade/);
-  assert.match(app, /dataset\.menu === "settings"/);
+  assert.match(read("web", "nav.js"), /id: "settings", label: "Settings", direct: true/);
   assert.match(app, /S\.view = "settings"/);
   assert.match(app, /expertConfirmed/);
   assert.match(app, /Not connected\. A free allowance needs your own AI Studio key\./);

@@ -131,6 +131,7 @@ function renderInto(v) {
       <h2 style="margin:0 0 6px;font-size:22px">Get everything connected</h2>
       <div class="muted">Every integration Meldmind can use. Connect uses the same sign-in, key, or MCP step as Settings. Skip any row. You can finish later.</div>
       <div class="dim small" style="margin-top:6px">Claude, ChatGPT, Grok, and Gemini stay in the AI setup. This list does not ask for those keys again.</div>
+      ${(items.some((it) => ["mcp", "browser-google", "mail", "publish", "library"].includes(it.flow?.type))) ? (window.CC.passwordTipHtml?.() || "") : ""}
       <div class="grid" style="margin-top:16px;gap:8px" id="cs-list">
         ${items.map((it) => `<div class="route cs-row" data-id="${esc(it.id)}">
           <div>
@@ -141,7 +142,7 @@ function renderInto(v) {
             ${accountBlock(it)}
           </div>
           <div class="cs-actions">
-            <button type="button" class="btn sm primary" data-connect="${esc(it.id)}">Connect</button>
+            <button type="button" class="btn sm primary" data-connect="${esc(it.id)}" ${["mcp", "browser-google", "mail", "publish", "library"].includes(it.flow?.type) ? `data-pw-login="1"` : ""}>Connect</button>
             <button type="button" class="btn sm" data-skip="${esc(it.id)}" ${it.skipped ? "disabled" : ""}>${it.skipped ? "Skipped" : "Skip"}</button>
           </div>
         </div>`).join("") || `<div class="empty">No integrations are listed.</div>`}
