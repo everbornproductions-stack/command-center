@@ -44,10 +44,32 @@ export function privateIPv4s(interfaces) {
   return out;
 }
 
-// One address for the QR. Prefer a home Wi-Fi range, then 10.x, then 172.16-31.
+// Virtual adapters (Hyper-V, Docker, WSL, VPN tunnels) often own a 192.168 address
+// the phone cannot route to. Skip those names when choosing the QR address.
+const VIRTUAL_NAME = /veth|docker|br-|virbr|vmnet|vbox|virtualbox|vethernet|hyper-v|wsl|tailscale|zerotier|\btun|\btap|utun|awdl|llw|npcap|bluetooth|isatap|teredo|loopback|bridge\d|virtual|vmware/i;
+
+export function lanCandidates(interfaces) {
+  const out = [];
+  const seen = new Set();
+  for (const [name, list] of Object.entries(interfaces || {})) {
+    if (VIRTUAL_NAME.test(String(name || ""))) continue;
+    for (const i of list || []) {
+      const v4 = i.family === "IPv4" || i.family === 4;
+      if (!v4 || i.internal || !isPrivateIPv4(i.address) || seen.has(i.address)) continue;
+      seen.add(i.address);
+      out.push({ name: String(name || ""), address: i.address });
+    }
+  }
+  const nameRank = (name) => (/wi-?fi|wlan|wireless/i.test(name) ? 0 : /^(eth|en|ethernet)/i.test(name) ? 1 : 2);
+  const ipRank = (ip) => (ip.startsWith("192.168.") ? 0 : ip.startsWith("10.") ? 1 : 2);
+  out.sort((a, b) => nameRank(a.name) - nameRank(b.name) || ipRank(a.address) - ipRank(b.address) || a.address.localeCompare(b.address, "en"));
+  return out;
+}
+
+// One address for the QR. Prefer a Wi-Fi name, then a normal Ethernet name,
+// and within that a home 192.168 range, then 10.x, then 172.16-31.
 export function preferredLanIPv4(interfaces) {
-  const rank = (ip) => (ip.startsWith("192.168.") ? 0 : ip.startsWith("10.") ? 1 : 2);
-  return privateIPv4s(interfaces).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "en"))[0] || null;
+  return lanCandidates(interfaces)[0]?.address || null;
 }
 
 export function readInterfaces() {
@@ -59,6 +81,16 @@ export function readInterfaces() {
 
 export function pairUrl(ip, port, token) {
   return `http://${ip}:${port}/?pair=${token}`;
+}
+
+// The QR uses a short path. Some phone cameras drop a query string.
+export function pairPathUrl(ip, port, token) {
+  return `http://${ip}:${port}/p/${token}`;
+}
+
+export function tokenFromPairPath(pathname) {
+  const m = /^\/p\/([a-f0-9]{64})$/.exec(String(pathname || ""));
+  return m ? m[1] : "";
 }
 
 export function pairTokenOk(presented, expected) {

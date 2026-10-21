@@ -4,6 +4,7 @@
 import { getContext } from "../store.js";
 import { allEntries } from "../ledger.js";
 import { applyLiveEvent, buildLiveView, createState, openIn, HISTORY_NOTE } from "../liveview.js";
+import { mapTutorials } from "../map-tutorials.js";
 
 export const id = "liveview";
 const WATCH = new Set(["mission.update", "council.update", "agent.start", "agent.done", "agent.error", "agent.msg", "task.update", "ledger.entry", "external.handoff"]);
@@ -29,8 +30,12 @@ function viewFor(h, userId, reducedMotion) {
   return buildLiveView(inputs(h, state, reducedMotion));
 }
 
+function fullView(h, userId, reducedMotion) {
+  return { ...viewFor(h, userId, reducedMotion), tutorials: mapTutorials() };
+}
+
 function publish(h, userId) {
-  try { h.emit("liveview.update", { view: viewFor(h, userId, false) }); }
+  try { h.emit("liveview.update", { view: fullView(h, userId, false) }); }
   catch (e) { console.error("[liveview]", e.message); }
 }
 
@@ -48,7 +53,7 @@ export async function routes(req, res, url, _body, h) {
   if (req.method !== "GET") return false;
   const p = url.pathname.replace(/^\/api\/liveview\/?/, "");
   const reduced = url.searchParams.get("motion") === "reduce";
-  if (p === "" || p === "/") return h.json(res, 200, viewFor(h, h.ctx().userId, reduced));
+  if (p === "" || p === "/") return h.json(res, 200, fullView(h, h.ctx().userId, reduced));
   if (p === "link") {
     const provider = String(url.searchParams.get("provider") || "");
     if (!provider) return h.json(res, 400, { error: "provider required" });

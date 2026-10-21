@@ -73,6 +73,7 @@ const FREE_FLAGS = {
   publicShare: false, documentExport: false,
   tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
   learningRouter: true, privateMode: true,
+  byoMcp: false, byoWebhook: false,
 };
 const PRO_FLAGS = {
   shareLinks: true, desktop: true, programScan: true, appScan: true, repeats: true,
@@ -81,6 +82,7 @@ const PRO_FLAGS = {
   publicShare: true, documentExport: true,
   tryItNow: true, simpleMode: true, safety: true, backup: true, doubleCheck: true,
   learningRouter: true, privateMode: true,
+  byoMcp: true, byoWebhook: true,
 };
 
 const FREE = {
@@ -194,6 +196,8 @@ function messageFor(limits, key, info, sell) {
   if (key === "publicShare" || key === "shareLinks") return part("Public share links");
   if (key === "documentExport" || key === "exportDocs") return part("PDF and Word export");
   if (key === "repeats") return part("Do this again");
+  if (key === "byoMcp") return part("An MCP server by URL");
+  if (key === "byoWebhook") return part("A custom webhook tool");
   if (key === "backgroundRuns") return part("Background runs");
   if (key === "pauseMissions" || key === "missionPause") return part("Pause, edit and resume");
   if (key === "deepResearchPerMonth") {
@@ -651,4 +655,21 @@ export function assertRefocusRebuild(state = readLicense()) {
   const gate = refocusGate(state);
   if (!gate.rebuild) throw refocusDeny(gate.rebuildUpgrade, gate.find ? "extreme_required" : "pro_required");
   return gate;
+}
+
+// Phone pairing, bring-your-own MCP, and custom webhooks. Trial is already Pro
+// on the licence state. This does not import license.js.
+export function gate(feature, info = {}) {
+  const s = readLicense();
+  const T = LIMITS[s.tier] || LIMITS.free;
+  const spec = { ...info };
+  delete spec.env;
+  const result = evaluateGate(T, feature, spec);
+  if (!result.ok) {
+    const err = new Error(result.message);
+    err.status = 402;
+    err.code = result.code;
+    throw err;
+  }
+  return s;
 }

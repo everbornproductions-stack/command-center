@@ -7,6 +7,8 @@ This plan includes the twelve items in `docs/roadmap.md` (marked R1 to R12) and 
 
 Shipped version on main is 0.4.8. Open pull requests are not done. Prices below are the plan. The live Square checkout is still the $15.99 monthly link. This document does not change Square.
 
+The connections workstream (phases 33 and 34, plus the extensions on 38, 39, and 41) keeps the package version at 0.4.8. There is no new What's new version for it.
+
 ### Already done
 
 Marked DONE from `PHASE N DONE` in docs/BUILD-LOG.md, or from a merged pull request checked on 2026-10-21. Do not rebuild these.
@@ -78,7 +80,7 @@ Not done, except the three rows already marked done above (share links, accessib
 ### New phases after 0.4.11
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
-2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
+2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here. This runs before Later.
 3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
 4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
 
@@ -102,8 +104,8 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 Left on the list so they are not dropped. They are not next.
 
 - Phase 32. Model-version alerts.
-- Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
-- Phase 34. Hide hosted plumbing.
+- Phase 33. HighLevel contacts, invoices, and workflows as council tools stay with the posting that shipped in Phase 7. Your apps can connect a HighLevel account, an MCP server by URL, and a custom webhook. Those two connections are Pro. The two-way Zapier and Make connectors stay in Phase 90. The package version stayed 0.4.8.
+- Phase 34. Hide hosted plumbing. The simple licence copy hides the setup form. The package version stayed 0.4.8.
 - Phase 42. Newsfeed and alerts. Built in the Together workstream. The version stayed 0.4.8. Model-version watching (Phase 32) is still not built. The news list has a place for those notes.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
@@ -321,19 +323,20 @@ Before a council or a chat, match the orders to a Pro prompt.
 ### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
 Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
 
-### Phase 33: Bring your own apps (MCP by URL and webhooks moved to Phase 90; HighLevel tools not in 0.4.9 to 0.4.11)
-HighLevel contacts, invoices, and workflows as council tools stay here. They are not in 0.4.9 to 0.4.11. HighLevel posting already shipped in Phase 7.
-1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools.
-2. MCP by URL moved to Phase 90 (version after 0.4.11). Do not build it here.
-3. Custom webhook / API tools moved to Phase 90. Do not build them here.
-Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
+### Phase 33: Bring your own apps (shipped in the connections workstream, version stays 0.4.8)
+HighLevel posting already shipped in Phase 7. This workstream also ships the council tools, MCP by URL, and custom webhooks. The package version stays 0.4.8.
+1. HighLevel contacts, invoices, and workflows are council tools. Reads run on click. Writes wait for a confirm click.
+2. MCP by URL uses the Phase 16 client. There is no second MCP client. It is Pro, through server/feature-gate.js.
+3. Custom webhook tools take a URL, an auth header, and input fields. They are Pro, through the same gate. The header value stays in the vault.
+Every action that sends, charges, or modifies something waits for a confirm click. Keys are never written to logs.
+Phase 90 still owns Zapier and Make, both ways. Do not rebuild MCP by URL or custom webhooks there.
 
-### Phase 34: Hide hosted plumbing (not in 0.4.9 to 0.4.11, not built)
-Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
-- The hosted Supabase URL and the publishable key ship built in. The app uses them. There is no setup form for those values.
-- Once our hosted server exists, the results callback URL auto-fills from that server. Until then the app keeps the current local callback.
-- Grok Bot and other agent handoff fields are prefilled where the app already knows the value.
-- Those fields stay hidden. They show only when the optional "Use your own Supabase" switch is on (it is off by default) or when an Advanced toggle is on.
+### Phase 34: Hide hosted plumbing (shipped in the connections workstream, version stays 0.4.8)
+Customers in Simple never see the licence server form or the Grok Bot webhook form. Those stay under Expert. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.
+- The hosted URL and the publishable key already ship with the app. The app uses them. Simple does not show a setup form for those values.
+- The licence connection behavior is unchanged. Saving it is still the existing Settings route, and only the Expert form shows it.
+- Grok Bot fields stay in Expert. The results address shows the callback the app already knows, as a hint, and is not saved on its own.
+- Decision 23 (the optional switch for your own project) is not built. It stays under Planned, not in the run order.
 
 ### Phase 35: Billing, yearly and lifetime founder plans (effort: M) (DONE)
 Chris, 2026-10-20: do this first. The monthly Pro $15.99 Square checkout already exists; do not change it. This phase only adds two Square plans: Pro yearly at $159 a year, and a lifetime founder deal at $299 for the first 100 buyers, then $499, capped at 500 total. Update docs/billing.md to match. Done in the app. The monthly link is unchanged. Yearly and lifetime are shown and are not charged. Version stays 0.4.5.
@@ -371,16 +374,16 @@ Free gets 1 connected service, Pro gets all. Free gets 1 email account per provi
 Shipped in pull request 40 (release 0.4.5): built-in background images, solid colors, gradients, and a photo from this computer. Do not rebuild.
 
 ### Phase 38: Guided setup checklist (effort: M) (DONE)
-Shipped in pull request 25 (release 0.4.3): Get everything connected, each row skippable, Run setup again in Settings. Do not rebuild.
+Shipped in pull request 25 (release 0.4.3): Get everything connected, each row skippable, Run setup again in Settings. Do not rebuild. The connections workstream adds a short step list on each row (Gmail, Drive, HighLevel, CapCut, and the rest) on that same checklist. Version stays 0.4.8.
 
 ### Phase 39: Guided "Start a project" tutorials (effort: L) (DONE)
-Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild.
+Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild. The connections workstream adds Start a project tutorials on the live map. Watch on the map is an example. Start this project opens the existing walk. Version stays 0.4.8.
 
 ### Phase 40: Learned from ratings (effort: M) (version 0.4.11, not done)
 Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them.
 
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
-Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild.
+Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild. The connections workstream prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if a self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Version stays 0.4.8.
 
 ### Phase 42: Newsfeed and alerts (effort: M) (built, version unchanged)
 One area for news and alerts: finished jobs, model-version alerts (Phase 32), spend warnings, updates.
@@ -541,12 +544,11 @@ Phase 15 (DONE) is web search with citations and source chips. This phase adds t
 - Filters for academic sources and for news.
 - Search calls stay in the ledger and inside spend caps. Demo mode uses a mock. Tests never call a real search API.
 
-### Phase 90: Zapier and Make, both ways (MCP by URL and webhooks moved here) (not done)
-Runs after 0.4.11 and before Later. Moved earlier from Phase 33.
+### Phase 90: Zapier and Make, both ways (not done)
+Runs after 0.4.11 and before Later.
 - Zapier, both ways: Meldmind can start a Zap, and a Zap can start a Meldmind action.
 - Make, both ways: the same.
-- MCP by URL: any user MCP server by URL, on the Phase 16 client. Do not add a second MCP client.
-- Custom webhooks: a URL, an auth header, and an input schema.
+- MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here.
 - Anything that sends, charges, or modifies data waits for a confirm click. Keys stay in the vault and are never logged.
 
 ### Phase 96: Remix any app (after Phase 90, before Phase 91, not done)

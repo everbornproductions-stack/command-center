@@ -15,7 +15,7 @@ This guide is for people using the app. Developers: see README.md and docs/plugi
    - check for API keys already on this PC (OpenRouter is the recommended first key: one key reaches Claude, GPT, Gemini, Grok, DeepSeek, Llama and more, and free models are available),
    - make an "AI" bookmark folder.
    Setup appears only once. Later starts open the hub. You can run it again from **Settings > Run setup again**.
-   After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu.
+   After that first setup, a new install shows **Get everything connected**. Each integration (Gmail, Google Drive, Google Calendar, HighLevel, CapCut, Kling, ElevenLabs, Suno, Google Flow, Cursor, and the others) shows Connected, Not connected, or Handoff, plus a short list of steps for that service. Gmail and Outlook list each account. Add another asks for a label, then uses the same sign-in. Skip any row, or finish later. **Run setup again** is in Settings and in the Help menu. **Your apps** (Settings) is where a HighLevel account, an MCP server by address, and a custom webhook are connected. A change waits until you click Send.
    The same first screen includes **Let Meldmind use your desktop**. It explains that you allow each app, that a send, a buy, or a delete waits for a second click, that a banner says Meldmind is using that app and has Stop, and that passwords are not stored. **Allow Antigravity** and **Install and connect** are on that screen. Install and connect runs Google's installer, then opens sign-in in your browser. You can skip it and change it later in Settings.
 
 Your settings, keys and history live in `%APPDATA%\Everborn Command\data` and survive updates and reinstalls.
@@ -61,7 +61,7 @@ Expert is the full console: the council debate, router scores, spend caps, the l
 
 The Simple / Expert switch is in the top bar on every screen. One click changes it. Chats, projects, and keys stay where they are. You can switch back the same way. Hidden tools are still there in Expert, and the keyboard shortcuts keep working in both.
 
-**Phone pairing** (Settings > Phone and other devices) is off until you turn it on. Then the QR code and the address under it use this PC's Wi-Fi address, with a pairing code. Copy the address if the camera cannot scan. The phone and the PC need the same Wi-Fi. On Windows, install and the first time you turn pairing on add an allow rule for Meldmind on private networks only. Turn it off and the PC answers only on this computer again.
+**Phone pairing** (Settings > Phone and other devices) is off until you turn it on. Then the QR code and the address under it use this PC's Wi-Fi address, with a pairing code. The QR opens a short address. The address under the code also works. A Wi-Fi address is preferred over a virtual adapter. Copy the address if the camera cannot scan. The phone and the PC need the same Wi-Fi. On Windows, install and the first time you turn pairing on add an allow rule for Meldmind on private networks only. Turn it off and the PC answers only on this computer again.
 2. Pick how to run it:
    - **Single**: the best AI for the job answers.
    - **Council**: several AIs answer, review each other without knowing who wrote what, and a chair writes the verdict.
@@ -70,7 +70,7 @@ The Simple / Expert switch is in the top bar on every screen. One click changes 
 4. **Preview route** shows, before anything is spent, who would get the job and roughly what it costs.
 5. The cap (Cap $) stops a mission from spending more than you allow.
 
-While it runs, **Live ops** shows each AI as it works, and the **Live feed** on the right lists every step. Under the finished deliverable you can copy it, rate each AI (thumbs up or down, which teaches the router), see the savings receipt, open it in the Artifacts panel, share a read-only link, or send it on (see section 8).
+While it runs, **Live ops** shows each AI as it works, and the **Live feed** on the right lists every step. The live map has **Start a project** tutorials. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click. Under the finished deliverable you can copy it, rate each AI (thumbs up or down, which teaches the router), see the savings receipt, open it in the Artifacts panel, share a read-only link, or send it on (see section 8).
 
 ## 5. Projects
 

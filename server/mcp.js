@@ -182,6 +182,35 @@ export async function closeSession(id) { const key = sessionKey(id); const sess 
 export async function closeAll() { for (const [k, sess] of sessions) { sessions.delete(k); try { await sess.client?.close(); } catch {} } }
 
 // ---------- CRUD ----------
+const extraProviders = [];
+export function registerExtraTools(fn) {
+  if (typeof fn === "function" && !extraProviders.includes(fn)) extraProviders.push(fn);
+}
+function collectExtraTools() {
+  const out = [];
+  for (const fn of extraProviders) {
+    let list = [];
+    try { list = fn() || []; } catch { list = []; }
+    for (const t of list) if (t?.name && t.server && t.tool) out.push(t);
+  }
+  return out;
+}
+export function markServer(id, patch = {}) {
+  const d = servers();
+  const row = d.list.find((x) => x.id === id);
+  if (!row) throw err(404, "server not found");
+  if (typeof patch.byo === "boolean") row.byo = patch.byo;
+  saveServers(d);
+  return row;
+}
+export function redactServerError(id, replacer) {
+  if (typeof replacer !== "function") return;
+  const d = servers();
+  const row = d.list.find((x) => x.id === id);
+  if (row?.lastError) { row.lastError = replacer(String(row.lastError)); saveServers(d); }
+  const sess = sessionOf(id);
+  if (sess?.error) sess.error = replacer(String(sess.error));
+}
 export async function addServer(input) {
   const v = validateServer(input);
   const d = servers();
@@ -329,7 +358,11 @@ export function chatWithTools(opts, run = {}) {
   const want = run.tools === false ? false : settings.on;
   // run.allow (custom agents, Phase 19): only these "serverId/tool" entries, and only if switched on as well
   const allow = Array.isArray(run.allow) ? new Set(run.allow) : null;
-  const tools = want && supportsTools(pid) ? enabledTools().filter((t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`)) : [];
+  const keep = (t) => !allow || allow.has(`${t.server.id}/${t.tool.name}`);
+  const mcpTools = want && supportsTools(pid) ? enabledTools().filter(keep) : [];
+  // Bring-your-own tools stay available when the MCP master switch is off. A run can still refuse tools.
+  const extra = run.tools !== false && supportsTools(pid) ? collectExtraTools().filter(keep) : [];
+  const tools = [...mcpTools, ...extra];
   if (!tools.length) return streamChat(opts);
   return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
 }
@@ -376,7 +409,10 @@ async function* loop(opts, tools, { missionId = null, taskId = null, maxRounds =
       const entry = byName.get(c.name);
       let r;
       if (!entry) r = { text: `No tool named ${c.name} is available.`, isError: true, denied: false, ms: 0 };
-      else {
+      else if (entry.byo && typeof entry.call === "function") {
+        yield { type: "tool", phase: "start", id: c.id, name: c.name, tool: entry.tool.name, server: entry.server.name, args: c.args, needsApproval: !!entry.needsApproval };
+        r = await entry.call(c.args || {}, { missionId, taskId, provider: pid, model: opts.model });
+      } else {
         yield { type: "tool", phase: "start", id: c.id, name: c.name, tool: entry.tool.name, server: entry.server.name, args: c.args, needsApproval: entry.needsApproval };
         r = await executeTool(entry, c.args || {}, { missionId, taskId, provider: pid, model: opts.model });
       }

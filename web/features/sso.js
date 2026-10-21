@@ -13,7 +13,7 @@ async function renderSettings(el) {
   const locked = [...(ws.memberOf || [])].filter((w) => w.locked);
   const rules = await Promise.all(managed.map((w) => api(`/sso/policy/${encodeURIComponent(w.id)}`).then((r) => ({ w, r })).catch(() => null)));
   el.innerHTML = `<div class="panel"><h3>Team sign-in <span class="right">${me.providers.length ? me.providers.map((p) => esc(p.name)).join(" and ") + " on" : "email link only"}</span></h3>
-    <div class="small muted">You signed in with ${esc(how(me.session))}. ${me.providers.length ? "Teammates can sign in with their work Google or Microsoft account." : "Google and Microsoft sign-in can be turned on by the hub owner (CC_SSO_PROVIDERS, after enabling them in Supabase Auth)."}</div>
+    <div class="small muted">You signed in with ${esc(how(me.session))}. ${me.providers.length ? "Teammates can sign in with their work Google or Microsoft account." : "Google and Microsoft sign-in can be turned on by the hub owner (CC_SSO_PROVIDERS, after enabling them in the sign-in service)."}</div>
     ${locked.map((w) => `<div class="small" style="margin-top:6px;color:var(--amber)"><b>${esc(w.name)}</b>: ${esc(w.locked)}</div>`).join("")}
     ${rules.filter(Boolean).map(({ w, r }) => `<div class="cat-h" style="margin-top:12px">${esc(w.name)}</div>
       <div class="row small" style="gap:10px;flex-wrap:wrap" data-sso-ws="${esc(w.id)}">

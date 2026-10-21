@@ -1809,7 +1809,7 @@ function phonePanel() {
       <img id="pair-qr" alt="QR code for phone pairing" style="width:150px;height:150px;background:#fff;border-radius:10px;padding:6px;display:block">
       <div id="pair-url" class="mono small">${esc(p.url)}</div>
       <button class="btn sm" id="pair-copy" type="button">Copy</button>
-      <div class="dim small" style="margin-top:8px">The phone and this PC need the same Wi-Fi. Scan the code, or copy the address under it.</div>
+      <div class="dim small" style="margin-top:8px">The phone and this PC need the same Wi-Fi. Scan the code, or copy the address under it. The code opens a short address. The address under the code also works. Both include the pairing code. A Wi-Fi address is used ahead of a virtual adapter.</div>
     </div>` : `<div class="dim small" style="margin-top:8px">Turn this on to show a code your phone can scan. Until then, this PC answers only on this computer.</div>`;
   return `<div class="panel" id="phone-pair"><h3>Phone &amp; other devices <span class="right">pairing</span></h3>
     <label class="row small" style="gap:8px"><input type="checkbox" id="pair-on" ${p.on ? "checked" : ""}> Phone pairing</label>
@@ -1818,6 +1818,16 @@ function phonePanel() {
       <div style="margin-top:8px">${hubFields()}</div>
       <div class="dim small" style="margin-top:8px">A hosted hub is a server elsewhere. The phone can use that address when this PC is off.</div>
     </details></div>`;
+}
+function licenceCloudFields() {
+  if (S.mode === "hosted") return "";
+  if (S.uiMode !== "expert") {
+    return `<div class="dim small" style="margin-top:8px">The licence connection ships with the app. The setup fields stay in Expert.</div>`;
+  }
+  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
+  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
+    <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
+    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
 }
 function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
@@ -1893,10 +1903,7 @@ function renderSettings(v) {
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
         <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
-        ${S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in; when running from source, enter the Supabase project URL and publishable key below (or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY).</div>`}
-        ${S.mode === "hosted" ? "" : `<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server (Supabase) connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
-          <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://xxxx.supabase.co" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
-          <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`}
+        ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
       <div class="panel"><h3>Media &amp; creative tools <span class="right">credits tracked · API where one exists</span></h3>
