@@ -13,6 +13,7 @@ import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, 
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
+import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
 
 // ---------------- state ----------------
 const S = {
@@ -90,7 +91,9 @@ async function apiHeaders() {
   else if (TOKEN) headers["x-cc-token"] = TOKEN;
   return headers;
 }
-async function api(path, opts = {}) {
+// Any request started by a click marks that button busy until it ends (web/busy.js).
+function api(path, opts = {}) { return trackBusy(apiCall(path, opts)); }
+async function apiCall(path, opts = {}) {
   const headers = await apiHeaders();
   // opts.raw: a File or Blob sent as is (history import zip), with opts.contentType
   const { raw, contentType, ...rest } = opts;
@@ -154,6 +157,7 @@ function showUpgrade(message) {
   box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
 }
 function toastNeedKey() {
+  noteToast();
   const t = document.createElement("div");
   t.className = "toast err";
   t.setAttribute("role", "alert");
@@ -175,6 +179,7 @@ function toastNeedKey() {
   setTimeout(() => t.remove(), 8000);
 }
 function toast(msg, err = false, link = null) {
+  noteToast();
   if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
   t.append(document.createTextNode(msg));
@@ -325,7 +330,7 @@ function applyState(st) {
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
-  S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demoKeep: !!settings.demoKeep, realAi: S.realAi });
+  S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
   renderDemoBanner();
   syncUiMode();
   noteOnboarding(S.onboarding);
@@ -2062,10 +2067,12 @@ function renderSettings(v) {
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
       ${phonePanel()}
       <div class="panel" id="settings-plan"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
-        <div class="row"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX"}" style="flex:1;font-family:var(--mono)"><button class="btn sm primary" id="lic-go">Activate</button><button class="btn sm" id="lic-re">Re-check</button></div>
+        <label class="small" for="lic-key"><b>Licence key or promo code</b></label>
+        <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
+        <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
-        <div class="row" style="margin-top:8px"><input type="text" id="lic-code" placeholder="promo code" style="width:180px">${S.mode === "hosted" ? `<span class="small muted" style="flex:1">redeems for ${esc(S.user?.email || "your account")}</span>` : `<input type="text" id="lic-email" placeholder="your email" style="flex:1">`}<button class="btn sm" id="lic-redeem">Redeem</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
         ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
@@ -2168,9 +2175,13 @@ function renderSettings(v) {
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
   $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
-  $("#lic-go")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { key: $("#lic-key").value } }); toast(S.license.message || "Licence checked", S.license.tier === "free"); render(); } catch (e) { toast(e.message, true); } });
-  $("#lic-re")?.addEventListener("click", async () => { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); });
-  $("#lic-redeem")?.addEventListener("click", async () => { try { S.license = await api("/license", { method: "POST", body: { code: $("#lic-code").value, email: $("#lic-email")?.value || S.user?.email } }); toast(`Redeemed: ${S.license.tier}`); render(); } catch (e) { toast(e.message, true); } });
+  // One box: the server tells a licence key from a promo code (EVERBORN-OWNER, TEST-...).
+  $("#lic-go")?.addEventListener("click", async () => {
+    const value = $("#lic-key").value.trim();
+    if (!value) { toast("Enter your licence key or promo code.", true); $("#lic-key").focus(); return; }
+    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `Licence active: ${S.license.tier}` : (S.license.message || "Licence checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
+  });
+  $("#lic-re")?.addEventListener("click", async () => { try { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); } catch (e) { toast(e.message, true); } });
   $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
@@ -2308,6 +2319,7 @@ $("#tabs").addEventListener("click", (e) => {
   if (b.dataset.action === "tour") { closeNav(root); window.CC.tour?.start?.(); return; }
   if (b.dataset.action === "connect-setup") { closeNav(root); window.CC.connectSetup?.open?.(); return; }
   if (b.dataset.action === "news") { closeNav(root); window.CC.tour?.openNews?.(); return; }
+  if (b.dataset.action === "demo-on") { closeNav(root); if (S.demo) toast("Demo mode is already on. Use Exit demo mode at the top to leave it."); else setDemo(true); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
   S.view = b.dataset.view;
@@ -2403,18 +2415,24 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.addEventListener("controllerchange", () => { if (swRefreshing) { swRefreshing = false; safeReload("new version activated", { manual: true }); } });
   }
 }
-// Demo AIs kept on in Settings while a real AI is connected: one line, one click to turn them off.
+// Demo mode on: a banner at the top of every screen with one click out. Off: no banner.
+// Help > Try demo mode turns it back on (setDemo below).
 function renderDemoBanner() {
   let d = $("#demo-bar");
   if (!S.demoBanner) { d?.remove(); return; }
   if (d) return;
-  d = document.createElement("div"); d.id = "demo-bar"; d.className = "update-bar"; d.setAttribute("role", "status");
-  d.innerHTML = `<div>${esc(DEMO_BANNER_TEXT)}</div><button class="btn sm" type="button" style="margin-left:auto" id="demo-bar-off">${esc(DEMO_BANNER_ACTION)}</button>`;
+  d = document.createElement("div"); d.id = "demo-bar"; d.className = "update-bar demo-bar"; d.setAttribute("role", "status");
+  d.innerHTML = `<div><b>${esc(DEMO_BANNER_TEXT)}</b> <span class="dim small">Nothing is spent.</span></div><button class="btn sm primary" type="button" style="margin-left:auto" id="demo-bar-off" data-busy-label="Exiting...">${esc(DEMO_BANNER_ACTION)}</button>`;
   const bar = $("#update-bar"); if (bar) bar.after(d); else document.body.prepend(d);
-  $("#demo-bar-off").addEventListener("click", async () => {
-    try { const r = await api("/demo", { method: "POST", body: { on: false } }); S.demo = r.demo; toast("Demo AIs offline"); await refresh(); }
-    catch (e) { toast(e.message, true); }
-  });
+  $("#demo-bar-off").addEventListener("click", () => setDemo(false));
+}
+async function setDemo(on) {
+  try {
+    const r = await api("/demo", { method: "POST", body: { on } });
+    S.demo = r.demo;
+    toast(on ? "Demo mode is on: three pretend AIs, nothing is spent." : "Demo mode is off.");
+    await refresh();
+  } catch (e) { toast(e.message, true); }
 }
 function showRefreshPrompt(worker) {
   if ($("#sw-refresh")) return;
@@ -2483,7 +2501,8 @@ async function boot() {
   connect();
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
-window.CC = { get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+installClickTracking(document);
+window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
@@ -2560,7 +2579,7 @@ function renderTextStep(v, st) {
     <div class="row" id="su-text-sizes" style="margin-top:16px;gap:8px">${choices.map(([id, label]) => `<button type="button" class="btn ${current === id ? "primary" : ""}" data-text="${id}">${label}</button>`).join("")}</div>
     <div id="su-text-preview" class="panel" style="margin-top:16px">
       <p class="small" style="margin:0 0 8px">This is how text looks.</p>
-      <button type="button" class="btn sm">Sample button</button>
+      <button type="button" class="btn sm sample-only" tabindex="-1" aria-hidden="true">Sample button</button>
       <span class="chip" style="margin-left:8px">Sample chip</span>
     </div>
     <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-text-skip">Skip</button><button class="btn primary" type="button" id="su-text-keep">Keep this size</button></div>

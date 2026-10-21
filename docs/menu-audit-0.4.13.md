@@ -5,7 +5,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 ## What changed
 
 - **Settings is settings only.** The Settings menu now holds Settings and Setup. Help, Take the tour, Run setup again, and Check for updates left it.
-- **Help is one menu, the same everywhere:** Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, About Meldmind. The web app hides Run setup again and Check for updates (no setup scan, no updater there).
+- **Help is one menu, the same everywhere:** Search help, Take the tour, Run setup again, Check for updates, What's new, Try demo mode, User guide, Contact and feedback, About Meldmind. The web app hides Run setup again and Check for updates (no setup scan, no updater there).
 - **One name per action.** "Replay the tour", "Take the tour again", and "Take the tour" were one action with three names. It is now **Take the tour** in menus, the Help page, the tour invite, the skip toast, and the help articles. The Help view item is **Search help**. The Teams page tab now says Teams, matching the menu (it said Workspaces).
 - **Duplicates removed.** Narrow Expert used to show Run setup again, Take the tour, and Check for updates in both Settings and Help. The Settings page "Get help" card had Take the tour, Check for updates, and See what else. Those are gone; the card now points to the Help menu. Version and Check for updates moved from the Settings page to Help > About Meldmind. The second "Download the guide (PDF)" button on the Help page is gone.
 - **Simple reaches every page.** Simple adds a **More** menu with every page not on its row (Compare, Pipelines, Agents, Live, Schedules, Libraries, Artifacts, History, Docs and follow-up, Refocus, Who's best, Marketplace, Subscriptions, Credits, Teams, Together, Reports, Community, Setup). Community moved from Help to More. Start a project now always shows in Simple, not only after its module loads. The Simple Settings dropdown was never openable (the trigger jumped straight to the Settings page), so its three items were dead; Settings is now a plain button.
@@ -74,6 +74,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
 | Help | Check for updates | action `updates` (manualCheck (web/features/updates.js document click)) | OK |
 | Help | What's new | action `news` (window.CC.tour.openNews (web/app.js menu click)) | OK |
+| Help | Try demo mode | action `demo-on` (setDemo(true) (web/app.js menu click)) | OK |
 | Help | User guide | page `help`, scrolled to `#can-do` | OK |
 | Help | Contact and feedback | page `help`, scrolled to `#help-contact` | OK |
 | Help | About Meldmind | page `help`, scrolled to `#help-about` | OK |
@@ -126,6 +127,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
 | Help | Check for updates | action `updates` (manualCheck (web/features/updates.js document click)) | OK |
 | Help | What's new | action `news` (window.CC.tour.openNews (web/app.js menu click)) | OK |
+| Help | Try demo mode | action `demo-on` (setDemo(true) (web/app.js menu click)) | OK |
 | Help | User guide | page `help`, scrolled to `#can-do` | OK |
 | Help | Contact and feedback | page `help`, scrolled to `#help-contact` | OK |
 | Help | About Meldmind | page `help`, scrolled to `#help-about` | OK |

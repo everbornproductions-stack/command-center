@@ -110,7 +110,7 @@ test("one name per action, and no duplicates in a menu", () => {
 });
 
 test("Settings holds settings only, and Help holds the help actions in order", () => {
-  const want = ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "User guide", "Contact and feedback", "About Meldmind"];
+  const want = ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"];
   for (const layout of ["narrow", "normal"]) {
     const model = menuModel(VIEWS(), layout);
     const settings = menuLabeledSettings(model);

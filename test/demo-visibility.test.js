@@ -89,12 +89,13 @@ test("demo tools, demo catalog rows and demo image models leave lists while demo
   assert.equal(rows.length, 4, "the saved rows stay");
 });
 
-test("the demo banner shows only when demo is kept on next to a real AI", () => {
-  assert.equal(DEMO_BANNER_TEXT + " " + DEMO_BANNER_ACTION, "Demo AIs are on. Turn off");
+test("the demo banner shows whenever demo mode is on and its pretend AIs are in use", () => {
+  assert.equal(DEMO_BANNER_TEXT + " " + DEMO_BANNER_ACTION, "You're in demo mode, using pretend AIs. Exit demo mode");
   assert.doesNotMatch(DEMO_BANNER_TEXT + DEMO_BANNER_ACTION, /\u2014/);
-  assert.equal(demoBannerOn({ demoKeep: true, realAi: true }), true);
-  assert.equal(demoBannerOn({ demoKeep: true, realAi: false }), false);
-  assert.equal(demoBannerOn({ demoKeep: false, realAi: true }), false);
+  assert.equal(demoBannerOn({ demo: true, demoKeep: true, realAi: true }), true);
+  assert.equal(demoBannerOn({ demo: true, realAi: false }), true);
+  assert.equal(demoBannerOn({ demo: true, demoKeep: false, realAi: true }), false, "retired demo AIs are not in use");
+  assert.equal(demoBannerOn({ demo: false, demoKeep: true, realAi: true }), false, "off means no banner");
   assert.equal(demoBannerOn({ demoBanner: false, demoKeep: true, realAi: true }), false, "the server answer wins");
   const list = [{ id: "demo-nova", kind: "text", demo: true }, { id: "openai", kind: "text", keyed: true }];
   assert.deepEqual(hideDemoBots(list, { realAi: true }).map((p) => p.id), ["openai"]);

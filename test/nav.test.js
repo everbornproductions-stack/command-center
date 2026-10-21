@@ -95,7 +95,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
   assert.equal(help.label, "Help");
   assert.deepEqual(
     help.items.map((i) => i.label),
-    ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "User guide", "Contact and feedback", "About Meldmind"],
+    ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
   assert.equal(groupIdFor("agents", "normal"), "agents");

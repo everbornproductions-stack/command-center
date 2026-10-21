@@ -239,9 +239,10 @@ export function demosHidden() {
   return realAiConnected() && !demoKeepOn();
 }
 
-// The one-line banner: demo AIs are kept on by choice while a real AI is connected.
-export function demoBanner() {
-  return realAiConnected() && demoKeepOn();
+// The banner at the top of every screen: demo mode is on and the pretend AIs are in use.
+// active is demoActive() from server/mock.js. Off means no banner at all.
+export function demoBanner(active = false) {
+  return !!active && !demosHidden();
 }
 
 // Demo tools, demo catalog listings and other demo rows leave lists the same way.

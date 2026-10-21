@@ -173,6 +173,7 @@ export const LABELS = {
 const SETUP_AGAIN = { id: "connect-setup", label: "Run setup again", action: "connect-setup", home: false };
 const TOUR_ITEM = { id: "tour", label: "Take the tour", action: "tour", home: false };
 const NEWS_ITEM = { id: "news", label: "What's new", action: "news", home: false };
+const DEMO_ITEM = { id: "try-demo", label: "Try demo mode", action: "demo-on", home: false };
 const UPDATES_ITEM = { id: "updates", label: "Check for updates", action: "updates", home: false };
 const GUIDE_ITEM = { id: "user-guide", label: "User guide", view: "help", focus: "#can-do", home: false };
 const CONTACT_ITEM = { id: "contact", label: "Contact and feedback", view: "help", focus: "#help-contact", home: false };
@@ -188,6 +189,7 @@ export function helpItems(surface = "") {
     { ...TOUR_ITEM },
     ...(web ? [] : [{ ...SETUP_AGAIN }, { ...UPDATES_ITEM }]),
     { ...NEWS_ITEM },
+    { ...DEMO_ITEM },
     { ...GUIDE_ITEM },
     { ...CONTACT_ITEM },
     { ...ABOUT_ITEM },
@@ -199,6 +201,7 @@ export const MENU_ACTIONS = {
   tour: "window.CC.tour.start (web/app.js menu click)",
   "connect-setup": "window.CC.connectSetup.open (web/app.js menu click)",
   news: "window.CC.tour.openNews (web/app.js menu click)",
+  "demo-on": "setDemo(true) (web/app.js menu click)",
   updates: "manualCheck (web/features/updates.js document click)",
 };
 
