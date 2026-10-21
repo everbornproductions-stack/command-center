@@ -8,6 +8,8 @@ import { subscriptionView } from "../subscriptions.js";
 import { subscriptionsLocked } from "../license.js";
 import { renewalSweep, raise } from "./alerts.js";
 import { scheduler } from "../perf/scheduler.js";
+import { setBalance, undoLast, standingInstruction } from "../credit-tracker.js";
+import { ensureBridgeToken, tokenPath, scriptPath } from "../meldmind-bridge.js";
 
 export const id = "services";
 let H = null;
@@ -73,6 +75,22 @@ async function handle(req, res, url, body, h) {
   if (m === "POST" && p === "/admin-key") return h.json(res, 200, { ...(await saveAdminKey(String(body.provider || ""), body.key, { teamId: body.teamId })), view: servicesView() });
   // a monthly budget or prepaid credit amount per provider: the estimate when there is no live balance
   if (m === "POST" && p === "/budget") { const saved = saveBudget(String(body.provider || ""), { amount: body.amount, kind: body.kind }); return h.json(res, 200, { saved, view: servicesView() }); }
+  // Update balance: the credits the person has now, with the date. Meldmind subtracts every call after it.
+  if (m === "POST" && p === "/balance") { const r = setBalance(String(body.provider || ""), { amount: body.amount, date: body.date, source: "you" }); return h.json(res, 200, { tracked: !!r.changed, view: servicesView() }); }
+  if (m === "POST" && p === "/balance/undo") { const r = undoLast(String(body.provider || "")); return h.json(res, 200, { undone: r.undone, view: servicesView() }); }
+  // The standing instruction and MCP setup for agents that report their own use. Shown after a click; nothing is sent.
+  if (m === "POST" && p === "/agent-setup") {
+    if (h.HOSTED) return h.json(res, 400, { error: "Agent reporting is set up in the desktop app." });
+    ensureBridgeToken();
+    const port = Number(process.env.PORT || process.env.CC_PORT || 4747);
+    const script = scriptPath(), tokenFile = tokenPath();
+    return h.json(res, 200, {
+      instruction: standingInstruction(),
+      claudeCode: `claude mcp add meldmind -e MELDMIND_PORT=${port} -e MELDMIND_TOKEN_FILE="${tokenFile}" -- node "${script}"`,
+      antigravity: "Antigravity: use Add to Antigravity in Settings. The report_usage tool comes with it.",
+      webhook: "Grok Bot and other webhook agents: add usage to the report back, as the instruction says.",
+    });
+  }
   if (m === "DELETE" && seg[0] === "admin-key" && seg[1]) { await removeAdminKey(seg[1]); h.emit("log", { text: "Admin key removed from the vault." }); return h.json(res, 200, servicesView()); }
 
   // manual add and edit, always available with or without the email scan; every field changed here is "you entered"

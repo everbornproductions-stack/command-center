@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { localFetch } from "./loopback-fetch.js";
+import { acceptUsageReport } from "./credit-tracker.js";
 
 export const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const BODY_MAX = 64 * 1024;
@@ -94,7 +95,7 @@ export function reportBlockText({ url, token } = {}) {
   if (!url || !token) return pasteBlock();
   const payload = JSON.stringify({ status: "done", summary: "<summary>", links: [] });
   const curl = `curl -sS -X POST "${url}" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" -d '${payload}'`;
-  return `When finished, let Meldmind know: POST ${url} with header Authorization: Bearer ${token} and JSON {status, summary, links}. If you can't make web requests, reply with DONE: <summary> and the user can paste it back.\n\n${curl}`;
+  return `When finished, let Meldmind know: POST ${url} with header Authorization: Bearer ${token} and JSON {status, summary, links}. If you can't make web requests, reply with DONE: <summary> and the user can paste it back.\n\n${curl}\n\nIf the work used paid AI credits, add usage: [{"provider": "anthropic", "cost": 0.42}] to the JSON, in US dollars, so Meldmind's credit balance stays right.`;
 }
 
 function safeHttp(raw) {
@@ -135,7 +136,14 @@ export function cleanReport(p) {
     if (!url && !text) continue;
     files.push({ name, url: url || null, text: text || null });
   }
-  return { status: p.status, summary: clip(p.summary || "", 8000), links, files };
+  // Optional: AI credits the agent spent on this job, so Meldmind's tracked balance stays right.
+  const usage = [];
+  for (const u of (Array.isArray(p.usage) ? p.usage : []).slice(0, 5)) {
+    const cost = Number(u?.cost ?? u?.credits_spent);
+    if (!u || typeof u.provider !== "string" || !Number.isFinite(cost) || cost < 0 || cost > 10000) continue;
+    usage.push({ provider: oneLine(u.provider, 40), cost: +cost.toFixed(4), note: oneLine(u.note || "", 140) });
+  }
+  return { status: p.status, summary: clip(p.summary || "", 8000), links, files, ...(usage.length ? { usage } : {}) };
 }
 
 export function parsePasted(text) {
@@ -193,7 +201,7 @@ function readLimited(req, max = BODY_MAX) {
 
 function publicResult(job) {
   const r = job.result;
-  return { jobId: job.jobId, status: r.status, summary: r.summary, links: r.links, files: r.files };
+  return { jobId: job.jobId, status: r.status, summary: r.summary, links: r.links, files: r.files, ...(r.usage ? { usage: r.usage } : {}) };
 }
 function pendingFor(ownerHash) {
   sweep();
@@ -478,6 +486,11 @@ export async function applyLocal(row, { pasted = false } = {}) {
   try { await writeThread(threadId, { status, summary, links, files, pasted }); } catch {}
   if (job.kind === "grokbot" || String(job.id).startsWith("gb-")) {
     try { await writeGrok(job.id, { status, summary, links }); } catch {}
+  }
+  // credits the agent reported for this job: counted once per job and line
+  const who = job.kind === "grokbot" || String(job.id).startsWith("gb-") ? "Grok Bot" : "A handed-off AI";
+  for (const [i, u] of (Array.isArray(row.usage) ? row.usage : []).slice(0, 5).entries()) {
+    try { acceptUsageReport({ provider: u.provider, cost: u.cost, note: u.note, report_id: `${job.id}:${i}`, by: who }); } catch {}
   }
   emit("reportback.result", { jobId: job.id, status, summary, links, threadId, pasted: !!pasted });
   emit("log", { text: `Report back ${job.id} ${status}.` });

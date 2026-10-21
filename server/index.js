@@ -140,11 +140,11 @@ function phonePair() {
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
   return { on: true, token: p.token };
 }
-// The Antigravity MCP process has no browser session. It may call only the
-// job bridge, and only with the token that stays in the data folder.
+// The Meldmind MCP process (Antigravity, Claude Code) has no browser session. It may call only the
+// job bridge and the usage report, and only with the token that stays in the data folder.
 function bridgeLoopbackOk(req, url) {
   const p = url.pathname;
-  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && !p.startsWith("/api/bridge/jobs/")) return false;
+  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && p !== "/api/bridge/usage" && !p.startsWith("/api/bridge/jobs/")) return false;
   return bridgeAuthorized(req.headers["x-meldmind-bridge"]);
 }
 function pairPresented(req, url) {

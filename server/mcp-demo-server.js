@@ -14,6 +14,7 @@ const TOOLS = [
   { name: "list_notes", description: "Lists the notes saved so far (title and first line).", inputSchema: { type: "object", properties: {} } }, // no annotations on purpose: the app must treat it as a write until the person marks it read-only
   { name: "list_agents", title: "List Meldmind agents", description: "Lists the agents Meldmind can hand work to. Names only. No chats and no keys.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { title: "List Meldmind agents", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
   { name: "get_result", title: "Get a Meldmind result", description: "Reads one Meldmind job by id. The text is the reply already stored. Nothing new is sent.", inputSchema: { type: "object", properties: { job_id: { type: "string", description: "The job id from submit_job" } }, required: ["job_id"], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+  { name: "report_usage", title: "Report AI credits used", description: "Tells Meldmind how many AI credits you spent outside Meldmind, so its running balance stays right. Call it after paid AI work. Report only real numbers you can see.", inputSchema: { type: "object", properties: { provider: { type: "string", description: "The AI provider, such as anthropic, openai, xai, google, or openrouter" }, credits_spent: { type: "number", description: "What the work cost, in US dollars" }, note: { type: "string", description: "A few words about the work" }, report_id: { type: "string", description: "Optional id so a retried report is counted once" } }, required: ["provider", "credits_spent"], additionalProperties: false }, annotations: { title: "Report AI credits used", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
   { name: "submit_job", title: "Submit a Meldmind job", description: "Asks Meldmind to queue a task for one agent. Does not send email, buy, or delete.", inputSchema: { type: "object", properties: { task: { type: "string" }, agent: { type: "string", description: "Optional agent id, such as antigravity" } }, required: ["task"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
 ];
 
@@ -26,6 +27,10 @@ const write = (msg) => {
   fs.writeSync(1, line);
 };
 const text = (t, extra = {}) => ({ content: [{ type: "text", text: t }], ...extra });
+
+// The agent that connected (from initialize), so a usage report says who spent the credits.
+const CLIENT_NAMES = { "claude-code": "Claude Code", "claude-ai": "Claude", antigravity: "Antigravity", cursor: "Cursor", "grok-bot": "Grok Bot" };
+let clientName = "An agent via MCP";
 
 const LOCAL_AGENTS = [
   { id: "grokbot", name: "Grok Bot" },
@@ -97,6 +102,16 @@ async function call(name, args = {}) {
     if (!live.json?.job) return text(live.json?.error || "No such job.", { isError: true });
     return text(String(live.json.job.text || live.json.job.status || "No reply yet."), { structuredContent: { job: live.json.job } });
   }
+  if (name === "report_usage") {
+    const provider = String(args.provider || "").trim().slice(0, 40);
+    const spent = Number(args.credits_spent);
+    if (!provider) return text("provider is required", { isError: true });
+    if (!Number.isFinite(spent) || spent < 0) return text("credits_spent must be a number of US dollars, 0 or more", { isError: true });
+    const live = await bridgeCall("POST", "/api/bridge/usage", { provider, credits_spent: spent, note: String(args.note || "").slice(0, 140), report_id: String(args.report_id || "").slice(0, 80), by: clientName });
+    if (!live) return text("Meldmind is not running on this computer, so the usage was not recorded. Report it again when Meldmind is open.", { isError: true });
+    if ((live.status || 500) >= 400) return text(live.json?.error || "Meldmind did not take the report.", { isError: true });
+    return text(live.json?.duplicate ? "Already recorded in Meldmind." : `Recorded in Meldmind: $${spent.toFixed(2)} on ${live.json?.provider || provider}.`, { structuredContent: { ok: true, provider: live.json?.provider || provider, duplicate: !!live.json?.duplicate } });
+  }
   if (name === "submit_job") {
     const task = String(args.task || "").trim();
     if (!task) return text("task is required", { isError: true });
@@ -119,7 +134,11 @@ async function handle(line) {
   let msg; try { msg = JSON.parse(line); } catch { return write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
   const { id, method, params } = msg;
   if (id === undefined) return; // notifications (initialized, cancelled): nothing to do
-  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer. submit_job queues work in the local app. It does not send mail or spend money on its own." } });
+  if (method === "initialize") {
+    const raw = String(params?.clientInfo?.name || "").trim().toLowerCase();
+    if (raw) clientName = CLIENT_NAMES[raw] || String(params.clientInfo.name).replace(/[^\w .-]/g, "").slice(0, 40) || clientName;
+  }
+  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer. submit_job queues work in the local app. It does not send mail or spend money on its own. Standing instruction: after paid AI work outside Meldmind, call report_usage with the provider and the US dollars spent, so Meldmind's credit balance stays right." } });
   if (method === "ping") return write({ jsonrpc: "2.0", id, result: {} });
   if (method === "tools/list") return write({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
   if (method === "tools/call") {

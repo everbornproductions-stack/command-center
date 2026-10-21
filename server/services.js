@@ -20,6 +20,7 @@ import { subscriptionView, totals as subTotals, saveSubscription, deleteSubscrip
 import { parseReceipt, htmlToText, vendorOf, LOW_CONFIDENCE, HIGH_CONFIDENCE } from "./receipts.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 import { ADAPTERS, NO_API, NO_INFO_HINT, liveHint, cachedLive, estimateCredits, budgetFor, clearCache } from "./provider-balance.js";
+import { trackedView, guideFor, parseBalanceEmail, applyBalanceEmail } from "./credit-tracker.js";
 
 // Test and development hook (like CC_BASE_URL_<ID>): local mocks for the mail and sign-in endpoints. Installed builds ignore it.
 const DEV = process.env.CC_PACKAGED !== "1";
@@ -172,9 +173,14 @@ export function apiRows() {
     const A = LIVE[p.id];
     const adminKeyed = A?.kind === "admin" ? !!adminSecret(p.id) : undefined;
     const liveError = L?.ok === false && L.error ? L.error : null;
-    // no live balance: an estimate from the saved budget, credit amount or spend cap, minus spend, plus a plain hint
+    // no live balance: the balance the person entered (or an email or agent gave), minus every call since,
+    // else an estimate from the saved budget, credit amount or spend cap, minus spend, plus a plain hint
     let creditsHint = null;
-    if (!credits) {
+    const tracked = credits ? null : trackedView(p.id, { entries: ledgerEntries(), liveMtd: apiMtd });
+    if (tracked) {
+      credits = tracked;
+      creditsHint = A ? liveHint(p.id, { adminKeyed, error: liveError }) || null : null; // only "add a key for live numbers", never "estimate"
+    } else if (!credits) {
       const budget = budgetFor(p.id, { budgets: saved, caps });
       credits = estimateCredits({ budget, spentMonth: ledgerMtd, spentSince: budget?.kind === "credit" ? spentSince(p.id, budget.at, ledgerEntries()) : null, liveMtd: apiMtd });
       creditsHint = [liveHint(p.id, { adminKeyed, error: liveError }) || (A ? null : noApiText(p)), budget ? null : NO_INFO_HINT].filter(Boolean).join(" ") || null;
@@ -196,7 +202,7 @@ export function apiRows() {
     const usable = supported && (!supported.needsAdmin || adminKeyed);
     rows.push({
       provider: p.id, name: p.name, color: p.color, keyed, demo: !!p.demo, custom: !!p.custom,
-      credits, creditsHint, budget: saved[p.id] || null, liveError,
+      credits, creditsHint, budget: saved[p.id] || null, liveError, guide: guideFor(p.id), possiblyOff: tracked?.possiblyOff || null,
       mtd, ledgerMtd, apiMtd, inTok: L?.inTok ?? null, outTok: L?.outTok ?? null, note: L?.note || null,
       cap, capPct, capPctAll, level, why,
       live: supported, noLive: usable ? null : NO_LIVE[p.id] || (supported ? "Without an admin key, month-to-date comes from this app's ledger." : "No balance API: month-to-date comes from this app's ledger."),
@@ -210,7 +216,7 @@ export function apiRows() {
 export function balancesView() {
   return {
     at: liveAt() || null,
-    balances: apiRows().map((r) => ({ provider: r.provider, name: r.name, credits: r.credits, hint: r.creditsHint, error: r.liveError, mtd: r.mtd, live: !!r.live, budget: r.budget })),
+    balances: apiRows().map((r) => ({ provider: r.provider, name: r.name, credits: r.credits, hint: r.creditsHint, error: r.liveError, mtd: r.mtd, live: !!r.live, budget: r.budget, guide: r.guide, possiblyOff: r.possiblyOff })),
   };
 }
 
@@ -411,7 +417,7 @@ async function mailGet(src, url, extra = {}, accountId) {
   }
 }
 
-const SUBJECT_TERMS = ["receipt", "invoice", "renewal", "renew", "subscription", "payment", "plan", "membership", "billing"];
+const SUBJECT_TERMS = ["receipt", "invoice", "renewal", "renew", "subscription", "payment", "plan", "membership", "billing", "credits", "balance", "usage"];
 const decode64 = (s) => Buffer.from(String(s || ""), "base64url").toString("utf8");
 function gmailBody(payload) {
   let plain = "", html = "";
@@ -522,7 +528,7 @@ export async function rescanConnected({ save = saveSubscription, days = 60, max 
     for (const accountId of targets) {
       try {
         const r = await scanMail(src, { days, max, subs: view(), accountId, save });
-        out.push({ source: src, accountId, ok: true, added: r.added.length, updated: r.updated.length, found: r.found });
+        out.push({ source: src, accountId, ok: true, added: r.added.length, updated: r.updated.length, balances: r.balances || 0, found: r.found });
       } catch (e) { out.push({ source: src, accountId, ok: false, error: e.message }); }
     }
   }
@@ -541,7 +547,7 @@ export async function scanMail(src, { days = 400, max = 50, subs = [], accountId
   const d = mailDoc();
   const it = src === "gmail" ? gmailMessages({ days, max, accountId }) : src === "outlook" ? outlookMessages({ max, accountId }) : demoMessages();
   let scanned = 0, skipped = 0;
-  const found = [], failed = [], added = [], updated = [];
+  const found = [], failed = [], added = [], updated = [], balances = [];
   const rows = subs.map((s) => ({ ...s, vendor: s.vendor || vendorOf(s) }));
   const keep = (saved) => { const i = rows.findIndex((x) => x.id === saved.id); const v = { ...saved, vendor: vendorOf(saved) }; if (i >= 0) rows[i] = v; else rows.push(v); };
   for await (const m of it) {
@@ -551,7 +557,12 @@ export async function scanMail(src, { days = 400, max = 50, subs = [], accountId
     scanned++;
     let email;
     try { email = await m.load(); } catch (e) { if (e.code === "sign_in" || e.network) throw e; failed.push({ messageId: m.id, link: m.link, reason: e.message }); continue; }
+    // a balance, top-up or usage email from an AI service updates the tracked credits on its own (history and Undo)
+    const bal = auto ? parseBalanceEmail(email) : null;
+    const balDone = bal ? applyBalanceEmail(bal, { ref: key }) : null;
+    if (balDone) balances.push({ provider: balDone.provider, kind: balDone.kind, messageId: m.id });
     const r = parseReceipt(email); // the body lives only in this loop iteration
+    if (!r.ok && bal) { d.seen[key] = "balance"; continue; } // understood as a balance email, not a receipt
     if (!r.ok) { failed.push({ messageId: m.id, link: m.link, reason: r.reason }); continue; }
     const match = rows.find((s) => (r.serviceId && s.id === r.serviceId) || (s.vendor && s.vendor === r.vendor));
     const day = (() => { const t = new Date(email.date); return Number.isNaN(t.getTime()) ? null : t.toISOString().slice(0, 10); })();
@@ -577,12 +588,12 @@ export async function scanMail(src, { days = 400, max = 50, subs = [], accountId
   }
   d.pending.push(...found);
   if (d.pending.length > 200) d.pending.splice(0, d.pending.length - 200);
-  const summary = { at: Date.now(), scanned, skipped, found: found.length, added: added.length, updated: updated.length, low: found.filter((c) => c.low).length, failed: failed.slice(0, 20) };
+  const summary = { at: Date.now(), scanned, skipped, found: found.length, added: added.length, updated: updated.length, balances: balances.length, low: found.filter((c) => c.low).length, failed: failed.slice(0, 20) };
   if (src !== "demo" && acct) markAccount(acct.id, { lastScanAt: summary.at, lastScan: summary, needsSignIn: false });
   else if (src !== "demo") d[src] = { ...d[src], lastScanAt: summary.at, lastScan: summary, needsSignIn: false };
   else d.demoScan = summary;
   saveMail(d);
-  return { ...summary, candidates: found, added, updated };
+  return { ...summary, candidates: found, added, updated, balanceUpdates: balances };
 }
 
 const FIELD_CONF = { name: "service", plan: "plan", price: "price", cycle: "cycle", renews: "renews" };

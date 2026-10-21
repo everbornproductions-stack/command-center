@@ -20,6 +20,22 @@ Plain-words notes for each release, newest first. Paste the top section into `gh
 - Easier to use: Help search answers plain questions, bigger text grows buttons and headings too, Simple Settings starts with five cards, and the Simple tour is five short steps.
 - Reply, forward, share, and similar actions wait for a second click.
 - Download the guide (PDF) from Help. It lists only what is in this app.
+- Credits left shows for every AI. Live where the AI has a balance API (OpenRouter, DeepSeek, xAI with a management key, OpenAI and Anthropic spend with an admin key). Everywhere else it says "estimated" and names the key that would give live numbers.
+- Update balance: for an AI with no balance API, type the credits you have now and the day you saw them. Meldmind subtracts each job and shows "tracked since" that day. Each row says where that AI shows your usage history.
+- Agents keep balances right: Claude Code, Antigravity, Grok Bot, and other agents that can run tools report what they spent outside Meldmind, through the Meldmind report_usage tool or their report back. Show agent setup gives the standing instruction to copy.
+- Receipt, top-up, and usage emails update the balance on their own, with "updated from email" and the date, a history line, and Undo. A soft "possibly off" note shows only when something does not match.
+- Subscriptions: clear receipts from a known AI service are added on their own as "auto-detected" rows with Edit, Undo, and Remove. A daily rescan keeps them current and keeps what you edited.
+- Refocus Find searches this PC (Videos, Downloads, Desktop, Documents, Music, Pictures, OneDrive, Google Drive), Claude folders and sessions, Grok Bot results, and other agents. Nothing found says where it looked.
+- Settings, Plan has one box for a licence key or a promo code, with plain messages when a code is used up or typed wrong.
+- In demo mode a banner on every screen says you are using pretend AIs, with Exit demo mode. Demo AIs leave once any real AI, app, or tool connection is saved.
+- Every button shows Working... while it runs, then Done.
+- Simple starts with Chat. Connections (Zapier and Make, keys, your apps, the browser extension, HighLevel) are under More. Start a project sits right before Projects.
+- Menus: Settings holds settings only, Help holds help, and every page has a menu item. Wider windows show the most used pages right on the top bar.
+- The desktop card (Allow Antigravity and similar) closes on the first click and stays closed for the session.
+- The header shows Cloud while a job runs in the cloud. Point at it for the full text.
+
+**Fixed**
+- Demo jobs run again when only a tools server is connected and demo mode was turned back on. This was the failing Windows check.
 
 **Still here**
 - Home, Private mode, and Backup and restore stay in this build.

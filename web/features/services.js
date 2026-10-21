@@ -29,6 +29,9 @@ const css = `
 #cc-sv .sv-hint { padding: 4px 0; }
 #cc-sv .sv-tag.est { color: var(--amber); border-color: #5a4616; }
 #cc-sv .sv-budget summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+#cc-sv .sv-off { color: var(--amber); }
+#cc-sv .sv-hist { margin: 4px 0 0; padding-left: 16px; }
+#cc-sv .sv-agent textarea { width: 100%; min-height: 96px; font-size: 12px; }
 #cc-sv .sv-spin { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sv-spin .8s linear infinite; vertical-align: -1px; margin-right: 4px; }
 @keyframes sv-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { #cc-sv .sv-spin { animation-duration: 2.4s; } }
@@ -73,16 +76,43 @@ function creditsCell(r) {
   const c = r.credits;
   const amount = (x, d) => (c.unit === "USD" ? money(x, d) : `${esc(String(x))} ${esc(c.unit)}`);
   let html = c
-    ? `<span class="mono">${amount(c.value)}${c.total != null ? ` <span class="dim">of ${amount(c.total, 0)}</span>` : ""}</span>${c.source === "estimate" ? tag("estimated", null, c.label) : tag("api", null, c.label)}${c.stale ? `<span class="sv-tag low">last known value</span>` : ""}`
+    ? `<span class="mono">${amount(c.value)}${c.total != null && c.source !== "tracked" ? ` <span class="dim">of ${amount(c.total, 0)}</span>` : ""}</span>${c.source === "tracked" ? `<span class="sv-tag est" style="align-self:flex-start" title="${esc(c.sourceNote || "")}">${esc(c.label)}</span><span class="dim small">${esc(c.sourceNote || "")}</span>` : c.source === "estimate" ? tag("estimated", null, c.label) : tag("api", null, c.label)}${c.stale ? `<span class="sv-tag low">last known value</span>` : ""}`
     : "";
+  if (r.possiblyOff) html += `<span class="small sv-off">${esc(r.possiblyOff)}</span>`;
   if (r.creditsHint) html += `<span class="dim small">${esc(r.creditsHint)}</span>`;
   else if (!c) html += `<span class="dim small">${esc(NO_INFO)}</span>`;
+  if (!c || c.source !== "api") html += balanceBox(r);
   if (!c || c.source === "estimate") {
     const b = r.budget;
     html += `<details class="sv-budget" data-budget="${esc(r.provider)}"><summary>${b ? `${b.kind === "credit" ? "credit bought" : "monthly budget"}: ${money(b.amount, 0)}, change` : "set a budget or credit amount"}</summary>
       <span class="row small" style="gap:4px;margin-top:4px"><input type="number" min="0" step="1" data-budget-amount value="${b?.amount ?? ""}" aria-label="${esc(r.name)} amount in dollars" placeholder="$" style="width:70px"><select data-budget-kind aria-label="What the amount is"><option value="monthly" ${b?.kind !== "credit" ? "selected" : ""}>monthly budget</option><option value="credit" ${b?.kind === "credit" ? "selected" : ""}>credit I bought</option></select><button class="ghost small" data-budget-save>save</button></span></details>`;
   }
   return html;
+}
+
+// Update balance: the credits you have now and the day you saw them. Meldmind subtracts every call after
+// that, plus what agents report and what usage emails show. The latest change can be undone.
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+function balanceBox(r) {
+  const c = r.credits, g = r.guide || {};
+  const hist = c?.source === "tracked" && c.history?.length ? `<ul class="sv-hist dim small">${c.history.slice(0, 5).map((h) => `<li>${esc(h.text)}</li>`).join("")}</ul><button class="ghost small" data-balance-undo="${esc(r.provider)}" title="Put the balance back the way it was before the latest change">Undo latest change</button>` : "";
+  return `<details class="sv-budget" data-balance="${esc(r.provider)}"><summary>Update balance</summary>
+    <div class="small" style="margin-top:4px">Type the credits ${esc(r.name)} shows now. Meldmind subtracts each job after that.</div>
+    <span class="row small" style="gap:4px;margin-top:4px;flex-wrap:wrap"><input type="number" min="0" step="0.01" data-balance-amount aria-label="${esc(r.name)} credits left in dollars" placeholder="$" style="width:80px"><input type="date" data-balance-date value="${today()}" max="${today()}" aria-label="Day you saw this balance"><button class="ghost small" data-balance-save>Save balance</button></span>
+    <div class="dim small" style="margin-top:6px"><b>Used ${esc(r.name)} outside Meldmind?</b> ${esc(g.where || "")}${g.url ? ` <a href="${esc(g.url)}" target="_blank" rel="noopener">Open</a>` : ""}</div>
+    ${g.email ? `<div class="dim small">${esc(g.email)}</div>` : ""}
+    ${g.report ? `<div class="dim small">${esc(g.report)}</div>` : ""}
+    ${hist}</details>`;
+}
+
+let agentSetup = null;
+function agentPanel() {
+  return `<div class="cat-h" style="margin-top:14px">Keep balances right when you use AIs outside Meldmind</div>
+    <div class="dim small">Agents that can run tools, such as Claude Code, Antigravity and Grok Bot, can tell Meldmind what they spent. Give them this standing instruction once. Plain chat apps cannot report, so their receipt and usage emails keep the balance current when your mailbox is connected.</div>
+    ${agentSetup ? `<div class="sv-agent" style="margin-top:6px"><textarea readonly aria-label="Standing instruction for your agents">${esc(agentSetup.instruction)}</textarea>
+      <div class="row small" style="gap:8px;margin-top:4px"><button class="ghost small" data-copy="instruction">Copy instruction</button>${agentSetup.claudeCode ? `<button class="ghost small" data-copy="claudeCode">Copy Claude Code setup command</button>` : ""}</div>
+      <div class="dim small" style="margin-top:4px">${esc(agentSetup.antigravity || "")} ${esc(agentSetup.webhook || "")}</div></div>`
+      : `<button class="btn sm" id="sv-agent-setup" style="margin-top:6px">Show agent setup</button>`}`;
 }
 
 function refreshButton() {
@@ -104,7 +134,8 @@ function apisPanel(v) {
       <td><span class="sv-lvl ${r.level}">${r.level === "ok" ? "ok" : r.level === "amber" ? "watch" : "attention"}</span>${r.why.length ? `<div class="dim small">${r.why.map(esc).join("<br>")}</div>` : ""}</td>
       <td class="right small">${r.links.billing ? `<a href="${esc(r.links.billing)}" target="_blank" rel="noopener">billing</a>` : ""}${r.links.usage && r.links.usage !== r.links.billing ? ` · <a href="${esc(r.links.usage)}" target="_blank" rel="noopener">usage</a>` : ""}</td>
     </tr>`).join("")}</tbody></table>` : `<div class="dim small">No AI keys yet. Add one in Settings and its credits and spend show here.</div>`}
-    <div class="dim small" style="margin-top:8px">Credits are read live from OpenRouter and DeepSeek, and from xAI with a management key. OpenAI and Anthropic show live spend with an admin key. Everywhere else the number is estimated from your budget or credit amount minus this app's spend, and says so. Balances refresh when this page opens and every 15 minutes while the app is in use. Spend caps are set in Settings, Spend caps and alerts: amber at 80%, and at 100% the router sends that AI no new work. Chats made through the APIs do not appear in claude.ai, ChatGPT or grok.com history.</div>
+    <div class="dim small" style="margin-top:8px">Credits are read live from OpenRouter and DeepSeek, and from xAI with a management key. OpenAI and Anthropic show live spend with an admin key. Everywhere else, type the balance once in Update balance: Meldmind then subtracts each job and shows "tracked since" that day. Without that, the number is estimated from your budget or credit amount minus this app's spend, and says so. Balances refresh when this page opens and every 15 minutes while the app is in use. Spend caps are set in Settings, Spend caps and alerts: amber at 80%, and at 100% the router sends that AI no new work. Chats made through the APIs do not appear in claude.ai, ChatGPT or grok.com history.</div>
+    ${agentPanel()}
     <div class="cat-h" style="margin-top:14px">Optional: live numbers from OpenAI, Anthropic and xAI</div>
     <div class="dim small">OpenAI and Anthropic cost reports need an admin key (made by an organization owner). The xAI prepaid balance needs a management key and your team id. None of these is required; without them the numbers are estimated. The key goes to the vault after one test call and is never shown again.</div>
     ${Object.entries(admin).map(([pid, a]) => `<div class="row small" style="gap:8px;margin-top:6px;flex-wrap:wrap">
@@ -256,6 +287,15 @@ function draw(el) {
     const raw = d.querySelector("[data-budget-amount]").value;
     run(() => api("/services/budget", { method: "POST", body: { provider: d.dataset.budget, amount: raw === "" ? null : Number(raw), kind: d.querySelector("[data-budget-kind]").value } }), raw === "" ? "Budget removed" : "Saved. The estimate uses it now.");
   }));
+  // Update balance, Undo, and the agent setup (shown after a click; nothing is sent anywhere)
+  $$("[data-balance]").forEach((d) => d.querySelector("[data-balance-save]").addEventListener("click", () => {
+    const amount = d.querySelector("[data-balance-amount]").value;
+    if (amount === "") return toast("Type the credits left first.", true);
+    run(() => api("/services/balance", { method: "POST", body: { provider: d.dataset.balance, amount, date: d.querySelector("[data-balance-date]").value || undefined } }), "Saved. Meldmind keeps this balance up to date from now on.");
+  }));
+  $$("[data-balance-undo]").forEach((b) => b.addEventListener("click", () => run(() => api("/services/balance/undo", { method: "POST", body: { provider: b.dataset.balanceUndo } }), (r) => `Undone: ${r.undone}`)));
+  $("#sv-agent-setup")?.addEventListener("click", async () => { try { agentSetup = await api("/services/agent-setup", { method: "POST", body: {} }); } catch (e) { toast(e.message, true); } draw(el); });
+  $$("[data-copy]").forEach((b) => b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(agentSetup?.[b.dataset.copy] || ""); toast("Copied"); } catch { toast("Could not copy. Select the text and copy it.", true); } }));
   $$("[data-admin-del]").forEach((b) => b.addEventListener("click", () => { if (!confirm("Remove this admin key from the vault?")) return; run(() => api(`/services/admin-key/${b.dataset.adminDel}`, { method: "DELETE" }), "Admin key removed"); }));
 
   // subscriptions: edit, delete, add
