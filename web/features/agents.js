@@ -158,10 +158,10 @@ const agentCard = (a) => `<div class="row small" style="gap:6px;padding:6px 0;bo
   <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
     <div class="dim">${esc(a.description || a.instructions.slice(0, 90))}</div>
     <div class="dim">${a.tools.mode === "off" ? "no tools" : a.tools.mode === "all" ? "all switched-on tools" : `${a.tools.allow.length} tool(s)`} · ${a.libraryNames.length} librar${a.libraryNames.length === 1 ? "y" : "ies"} · ${a.starters.length} starter(s)</div></div>
-  <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">✕</button></div>`;
+  <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-achat="${esc(a.id)}">Share in chat</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">✕</button></div>`;
 const promptCard = (p) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
   <div style="flex:1;min-width:160px"><b>${esc(p.name)}</b>${p.agentName ? ` <span class="chip">${esc(p.agentName)}</span>` : ""}<div class="dim mono" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px">${esc(p.text)}</div></div>
-  <button class="btn sm primary" data-puse="${esc(p.id)}">Use</button><button class="btn sm" data-pedit="${esc(p.id)}">Edit</button><button class="btn sm" data-pshare="${esc(p.id)}">Share</button><button class="btn sm" data-plist="${esc(p.id)}">List</button><button class="btn sm" data-pdel="${esc(p.id)}" title="Delete">✕</button></div>`;
+  <button class="btn sm primary" data-puse="${esc(p.id)}">Use</button><button class="btn sm" data-pedit="${esc(p.id)}">Edit</button><button class="btn sm" data-pshare="${esc(p.id)}">Share</button><button class="btn sm" data-pchat="${esc(p.id)}">Share in chat</button><button class="btn sm" data-plist="${esc(p.id)}">List</button><button class="btn sm" data-pdel="${esc(p.id)}" title="Delete">✕</button></div>`;
 const sharedCard = (x) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
   <div style="flex:1;min-width:160px"><b>${esc(x.name)}</b> <span class="chip">${x.kind}</span> <span class="dim">${esc(x.workspaceName || "workspace")} · shared by ${esc(x.mine ? "you" : x.sharedBy || "someone")} · you are ${esc(x.role)}</span>
     ${x.permissions.use ? "" : `<div class="dim">Read-only for your role.</div>`}</div>
@@ -203,12 +203,22 @@ async function renderTab(view) {
   view.querySelectorAll("[data-arun]").forEach((b) => b.addEventListener("click", () => runAgentDialog(findA(b.dataset.arun))));
   view.querySelectorAll("[data-aedit]").forEach((b) => b.addEventListener("click", () => { st.edit = structuredClone(findA(b.dataset.aedit)); renderTab(view); }));
   view.querySelectorAll("[data-ashare]").forEach((b) => b.addEventListener("click", () => shareDialog("agent", findA(b.dataset.ashare))));
+  view.querySelectorAll("[data-achat]").forEach((b) => b.addEventListener("click", () => {
+    const a = findA(b.dataset.achat);
+    if (!a) return;
+    window.CC.shareInChat?.({ kind: "builder", id: a.id, title: a.name, text: String(a.description || "").slice(0, 280) });
+  }));
   view.querySelectorAll("[data-alist]").forEach((b) => b.addEventListener("click", () => listingDialog("agent", findA(b.dataset.alist))));
   view.querySelectorAll("[data-aexp]").forEach((b) => b.addEventListener("click", () => exportFile(`?agents=${encodeURIComponent(b.dataset.aexp)}&prompts=${d.prompts.filter((p) => p.agentId === b.dataset.aexp).map((p) => p.id).join(",")}`)));
   view.querySelectorAll("[data-adel]").forEach((b) => b.addEventListener("click", async () => { const a = findA(b.dataset.adel); if (!confirm(`Delete the agent "${a.name}"? Its libraries and tools are not touched.`)) return; try { await api(`/agents/${a.id}`, { method: "DELETE" }); await refresh(); } catch (e) { toast(e.message, true); } }));
   view.querySelectorAll("[data-puse]").forEach((b) => b.addEventListener("click", () => fillDialog(findP(b.dataset.puse))));
   view.querySelectorAll("[data-pedit]").forEach((b) => b.addEventListener("click", () => { st.editPrompt = structuredClone(findP(b.dataset.pedit)); renderTab(view); }));
   view.querySelectorAll("[data-pshare]").forEach((b) => b.addEventListener("click", () => shareDialog("prompt", findP(b.dataset.pshare))));
+  view.querySelectorAll("[data-pchat]").forEach((b) => b.addEventListener("click", () => {
+    const p = findP(b.dataset.pchat);
+    if (!p) return;
+    window.CC.shareInChat?.({ kind: "prompt", id: p.id, title: p.name, text: String(p.text || "").slice(0, 280) });
+  }));
   view.querySelectorAll("[data-plist]").forEach((b) => b.addEventListener("click", () => listingDialog("prompt", findP(b.dataset.plist))));
   view.querySelectorAll("[data-pdel]").forEach((b) => b.addEventListener("click", async () => { const p = findP(b.dataset.pdel); if (!confirm(`Delete the prompt "${p.name}"?`)) return; try { await api(`/agents/prompts/${p.id}`, { method: "DELETE" }); await refresh(); } catch (e) { toast(e.message, true); } }));
   view.querySelectorAll("[data-ldel]").forEach((b) => b.addEventListener("click", async () => { try { await api(`/agents/listings/${b.dataset.ldel}`, { method: "DELETE" }); await refresh(); } catch (e) { toast(e.message, true); } }));

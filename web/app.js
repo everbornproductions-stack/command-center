@@ -672,7 +672,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "community", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -709,7 +709,7 @@ function ensureFeatureTabs() {
     installNav(root, knownViews(), mode, "narrow");
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
-    if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
+    if (mode === "simple" && f.id !== "help" && f.id !== "start" && f.id !== "community" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
     if (mode === "simple") continue;
     if ($(`#mobile-more button[data-view="${f.id}"]`) || $(`#mobile-nav button[data-view="${f.id}"]`)) continue;
@@ -1922,8 +1922,13 @@ async function saveShareChoice() {
   await api("/brain/settings", { method: "POST", body: { shareOptIn: on } });
   st.shareSaved = on;
 }
+async function saveNewsChoice() {
+  if (S.setup?.newsOptIn !== true) return;
+  await api("/community/newsletter", { method: "POST", body: { optedIn: true } });
+}
 function renderSetup(v) {
-  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true });
+  const st = S.setup || (S.setup = { step: 1, history: true, keys: true, bookmarks: true, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true, newsOptIn: false });
+  if (typeof st.newsOptIn !== "boolean") st.newsOptIn = false;
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
     api("/brain/settings").then((d) => {
@@ -1945,6 +1950,9 @@ function renderSetup(v) {
           <label class="route row" id="su-share-row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-share" ${st.shareOptIn ? "checked" : ""} style="margin-top:4px"><div><b>I am willing to share anonymous track records</b><div class="dim small">Meldmind learns from every job you run. Anonymous track records (the task type, which AI, and the score) help it pick the best AI for everyone. We never share prompts, content, or keys. You can change this any time in Settings.</div><div class="dim small" id="su-share-note" ${st.shareOptIn ? "hidden" : ""} style="margin-top:6px">Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.</div></div></label>
           <div class="small" style="margin-top:6px"><a href="#what-we-share" id="su-share-what">What we share</a></div>
         </div>
+        <div id="su-news-block" style="margin-top:14px">
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-news" ${st.newsOptIn ? "checked" : ""} style="margin-top:4px"><div><b>Email me the weekly AI News note</b><div class="dim small">Off until you tick this. The app writes a copy of the weekly note. It does not send email. You can change this any time in Settings.</div></div></label>
+        </div>
         <div class="grid" style="margin-top:22px;gap:12px">
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
@@ -1959,6 +1967,7 @@ function renderSetup(v) {
       const note = $("#su-share-note");
       if (note) note.hidden = st.shareOptIn;
     });
+    $("#su-news")?.addEventListener("change", () => { st.newsOptIn = !!$("#su-news").checked; });
     $("#su-share-what")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       S.helpArticle = "getting-started";
@@ -1967,9 +1976,11 @@ function renderSetup(v) {
     });
     $("#su-go").addEventListener("click", async () => {
       st.history = $("#su-h").checked; st.keys = $("#su-k").checked; st.bookmarks = $("#su-b").checked; st.days = Number($("#su-days").value) || 180;
+      st.newsOptIn = !!$("#su-news")?.checked;
       st.busy = true; render();
       try {
         await saveShareChoice();
+        await saveNewsChoice();
         st.result = await api("/setup/scan", { method: "POST", body: { history: st.history, keys: st.keys, days: st.days } });
         st.step = 2;
       }
@@ -1977,7 +1988,8 @@ function renderSetup(v) {
       st.busy = false; render();
     });
     $("#su-skip").addEventListener("click", async () => {
-      try { await saveShareChoice(); }
+      st.newsOptIn = !!$("#su-news")?.checked;
+      try { await saveShareChoice(); await saveNewsChoice(); }
       catch (e) { toast(e.message, true); return; }
       finishAiSetup("settings");
     });

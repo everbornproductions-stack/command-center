@@ -1606,3 +1606,16 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Community chat and weekly AI News
+
+Built because this run asked, ahead of Phase 91. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8.
+
+- Community chat is in the app, in the same area as AI News. Channels: General, Prompts, Builders, Help, and Show and tell. Sign in with the licence email and a display name. Send and Share in chat are the only posts. Keys and private files are refused. Report, a real rate-limit wait, a profanity and spam filter, and owner mute or delete are included. Shared prompt votes are written into the prompt library ranking, and they use the voting modules when those files are present.
+- AI News sits next to those channels. A published issue is pulled from Supabase when the app can reach it, so a new week does not need an app update. Items can be model releases, price changes, and new features, each with a source link, plus Meldmind notes from WHATS-NEW.json, top voted prompts, and community highlights. An unread badge shows until the issue is opened. People can react and share an item into chat. The owner builds a draft and publishes it. Other people do not see the draft.
+- scripts/ai-news.mjs builds that draft from local source snapshots. It can also write an HTML and text copy. It does not publish and it does not send email. supabase/community.sql is a migration file only and was not run.
+- Email me the weekly AI News note is off until it is ticked in Settings or on the setup page. The app can write the copy, with an unsubscribe link and an Everborn Productions address placeholder. It does not send email. The monthly savings email from the older later note was not part of this request and is not built.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 423 tests, 422 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. The Community screen was clicked through in a browser: join, Send, AI News, react, share into chat, the email copy, and the unchecked setup checkbox.
+
+PHASE 92 DONE
+PHASE 93 DONE

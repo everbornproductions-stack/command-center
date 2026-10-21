@@ -4,7 +4,10 @@
     "bullets": [
       "The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.",
       "Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.",
-      "This note shows once after an update. Take the tour again any time from Settings."
+      "This note shows once after an update. Take the tour again any time from Settings.",
+      "Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.",
+      "AI News sits next to those channels. It updates weekly from Supabase, so a new issue does not need an app update. It lists model releases, price changes, and new features from major AI providers, each with a source link, plus Meldmind features, top voted prompts, and community highlights. An unread badge shows until you open it. You can react and share an item into chat. A draft waits for the owner before it is published.",
+      "Email me the weekly note is off until you tick it in Settings or during setup. The app writes the note and does not send email. The note has an unsubscribe link and an Everborn Productions address placeholder."
     ]
   },
   "0.4.7": {

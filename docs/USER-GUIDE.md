@@ -92,6 +92,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
+| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and the weekly AI News feed. Sign in with your licence email. Click Send to post. Share a prompt, a builder, or a mission with one click. |
 
 ## 8. Sending things out: always your click
 
@@ -100,6 +101,7 @@ Nothing posts, sends, emails or spends without a click from you.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
+- **Community** posts only when you click Send or Share in chat. AI News is in that same area and updates weekly. Email me the weekly AI News note is off until you tick it. The app can write that note. It does not send email.
 
 ## 9. Updates
 

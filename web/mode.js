@@ -4,7 +4,7 @@
 
 export const CREATE_VIEWS = ["prompts", "images", "media", "publish"];
 
-export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", ...CREATE_VIEWS]);
+export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup", "help", "start", "community", ...CREATE_VIEWS]);
 
 // Command widgets and settings panels that Simple does not draw. The modules stay loaded,
 // so a hotkey or a switch back to Expert still reaches them.
