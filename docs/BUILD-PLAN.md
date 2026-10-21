@@ -81,9 +81,9 @@ Not done, except the three rows already marked done above (share links, accessib
 Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store without Chris's OK.
 
 - Phase 44. AI group chat.
-- Phase 92. User chat.
+- Phase 92. User chat. Done in the Community area because this run asked, ahead of Phase 91.
 - Phase 43. Live builds.
-- Phase 93. A newsletter and a monthly savings email.
+- Phase 93. Weekly AI News is in the app. The monthly savings email is still not built.
 - Phase 94. Spanish.
 - Phase 95. Phone apps.
 - Store listings (Apple App Store and Google Play).
@@ -533,11 +533,11 @@ The plan prices are in docs/billing.md. The app still shows the Phase 35 prices 
 
 These wait until after Phase 91. Store listings, signed apps, and paid hosting need Chris's OK before any money is spent.
 
-### Phase 92: User chat (Later, not done)
-People chat with each other inside the app. This is not the AI group chat (Phase 44). Nothing is sent until the person clicks send. No keys are shared.
+### Phase 92: User chat (Done)
+Built because this run asked, ahead of Phase 91. Community chat sits in the app. Channels: General, Prompts, Builders, Help, and Show and tell. People sign in with the licence email and a display name. Send and Share in chat are the only posts. Keys and private files are refused. Report, rate limits, a profanity and spam filter, and owner mute or delete are included. Shared prompt votes feed the prompt library ranking. Supabase RLS is a migration file only and was not run. This is not the AI group chat (Phase 44).
 
-### Phase 93: Newsletter and monthly savings email (Later, not done)
-An opt-in newsletter, and a monthly email of what was saved. Phase 4's weekly report stays in the app and is still a draft until a click. This email does not send until the person opts in. No income or results claims. Do not touch Square.
+### Phase 93: AI News (Done for the weekly note)
+Built because this run asked, ahead of Phase 91. The weekly note lives in the Community area as AI News, next to the chat channels. It updates from Supabase, so a new issue does not need an app update. Each issue can list model releases, price changes, and new features from major AI providers (each with a source link), Meldmind features from WHATS-NEW.json, top voted prompts, and community highlights. An unread badge shows until the issue is opened. People can react and share an item into chat. A generator writes a JSON draft for the owner to approve before publish. Email me the weekly AI News note is off until it is ticked. The app can write an HTML and text copy with an unsubscribe link and an Everborn Productions address placeholder. It does not send email. The monthly savings email from the older later note was not part of this request and is not built. Phase 4's weekly report stays in the app. Do not touch Square.
 
 ### Phase 94: Spanish (Later, not done)
 The app's own words can be shown in Spanish. User content is not translated unless the person asks.

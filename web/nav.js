@@ -66,6 +66,7 @@ const HOME = {
   credits: "business",
   workspaces: "business",
   reports: "business",
+  community: "business",
   settings: "help",
   setup: "help",
   help: "help",
@@ -94,6 +95,7 @@ const SPLIT_HOME = {
   credits: "business",
   workspaces: "business",
   reports: "business",
+  community: "business",
   settings: "settings",
   setup: "settings",
   start: "work",
@@ -120,6 +122,7 @@ export const LABELS = {
   credits: "Credits",
   workspaces: "Teams",
   reports: "Reports",
+  community: "Community",
   settings: "Settings",
   setup: "Setup",
   help: "Help",
@@ -528,7 +531,15 @@ function mountSimple(root, views, buttons) {
     if (have.has(view)) create.panel.appendChild(buttonFor(buttons, view, LABELS[view]));
   }
   root.appendChild(create.menu);
-  root.appendChild(helpMenu(buttons));
+  const help = helpMenu(buttons);
+  if (have.has("community")) {
+    const panel = help.querySelector("#nav-panel-guides");
+    const btn = buttonFor(buttons, "community", "Community");
+    const replay = panel?.querySelector("button[data-action='replay-tour']");
+    if (panel && replay) panel.insertBefore(btn, replay);
+    else if (panel) panel.appendChild(btn);
+  }
+  root.appendChild(help);
 
   const settings = menuShell("settings", "Settings");
   settings.panel.appendChild(buttonFor(buttons, "settings", "Settings"));
@@ -706,18 +717,20 @@ export function placeNavItem(root, view, label) {
       else root.appendChild(btn);
       return;
     }
-    if (view === "help") {
+    if (view === "community" || view === "help") {
       const panel = root.querySelector("#nav-panel-guides");
+      const labelText = view === "community" ? (label || "Community") : (label || "Help");
       if (panel) {
         if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-        const btn = tuneItem(root, itemButton({ view, label: label || "Help" }));
+        const btn = tuneItem(root, itemButton({ view, label: labelText }));
         const replay = panel.querySelector("button[data-action='replay-tour']");
         if (replay) panel.insertBefore(btn, replay);
         else panel.appendChild(btn);
         return;
       }
+      if (view === "community") return;
       if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]`)) return;
-      const btn = itemButton({ view, label: label || "Help" });
+      const btn = itemButton({ view, label: labelText });
       btn.classList.add("nav-direct");
       btn.removeAttribute("role");
       const settingsMenu = root.querySelector(".nav-menu[data-menu='settings']");
@@ -753,7 +766,7 @@ export function markNav(root, view, menuId) {
     let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
     if (root.dataset.uiMode === "simple" && !menuId) {
       if (id === "create") on = CREATE_VIEWS.includes(view);
-      else if (id === "guides") on = view === "help";
+      else if (id === "guides") on = view === "help" || view === "community";
       else if (id === "settings") on = view === "settings" || view === "setup";
     }
     t.classList.toggle("active", !!on);
