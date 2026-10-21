@@ -51,15 +51,18 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.doesNotMatch(releasing, /—/);
 });
 
-test("Windows CI workflow: test and package on pull requests and main, never publish", () => {
+test("Windows CI workflow: tests on pull requests, package only on main, never publish", () => {
   const wf = read(".github/workflows/windows-ci.yml");
   assert.match(wf, /runs-on: windows-latest/);
   assert.match(wf, /pull_request:/);
   assert.match(wf, /branches: \["main"\]/);
+  assert.match(wf, /cancel-in-progress: true/);
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: npm run smoke/);
-  assert.match(wf, /run: npm run dist/);
+  const pack = wf.slice(wf.indexOf("name: Package the Windows app"));
+  assert.match(pack, /if: github\.event_name == 'push'/);
+  assert.match(pack, /run: npm run dist/);
   assert.match(wf, /CC_PACK_UNPUBLISHED: "1"/);
   assert.match(wf, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);
   assert.match(wf, /GH_TOKEN: ""/);

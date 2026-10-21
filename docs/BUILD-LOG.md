@@ -1816,3 +1816,11 @@ Not a numbered phase by itself. Decision 22 and decision 23 text are unchanged. 
 - Phase 70 on this branch is the command bar only. A chat, a doc, and a connected file do not yet save back onto the same item.
 - Phases 66, 67, and 68 stay out of this pull request.
 - Tests here (Linux): npm test is the MCP file (11 pass) then 477 tests, 476 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node on this machine. No real key. data/ was not read.
+
+## 2026-10-21: pull requests run the Windows test job only
+
+No product code. Phase 14 stays BLOCKED (needs a Mac). Square and billing were not touched. data/ was not read.
+
+- A pull request starts Windows CI only. That job runs `npm ci`, `npm test`, and `npm run smoke`. It does not package. A push to main still packages, and that installer is not published.
+- Mac CI runs on a `v*` tag or when someone starts the workflow. It does not run on a pull request or on a push to main.
+- Windows CI and Mac CI cancel the older run of the same ref when a new one starts. The Windows release workflow still retries `npm test` once, and it does not cancel a release that is already running.

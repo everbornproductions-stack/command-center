@@ -1,12 +1,13 @@
-# Mac test on every pull request and every push to main.
+# Mac tests on a release tag or when someone starts the workflow by hand.
+# A pull request and a push to main do not start this job.
 # This does not build a disk image, does not publish, and does not read a secret.
 # The unsigned Mac installer stays in docs/ci/mac-build.yml until that workflow can be moved.
 name: Mac CI
 
 on:
-  pull_request:
+  workflow_dispatch:
   push:
-    branches: ["main"]
+    tags: ["v*"]
 
 permissions:
   contents: read

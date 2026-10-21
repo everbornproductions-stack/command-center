@@ -39,11 +39,14 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.doesNotMatch(wf, /—/, "no em-dashes");
 });
 
-test("Mac CI workflow: test and smoke on pull requests and main, never publish", () => {
+test("Mac CI workflow: test and smoke on a release tag or by hand, never on a pull request", () => {
   const wf = read(".github/workflows/mac-ci.yml");
   assert.match(wf, /runs-on: macos-latest/);
-  assert.match(wf, /pull_request:/);
-  assert.match(wf, /branches: \["main"\]/);
+  assert.match(wf, /workflow_dispatch:/);
+  assert.match(wf, /tags: \["v\*"\]/);
+  assert.match(wf, /cancel-in-progress: true/);
+  assert.doesNotMatch(wf, /pull_request:/);
+  assert.doesNotMatch(wf, /branches: \["main"\]/);
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: npm run smoke/);
@@ -52,7 +55,7 @@ test("Mac CI workflow: test and smoke on pull requests and main, never publish",
   assert.doesNotMatch(wf, /gh release/);
   assert.doesNotMatch(wf, /RELEASES_TOKEN|CSC_LINK|CSC_KEY_PASSWORD/);
   assert.doesNotMatch(wf, /—/);
-  assert.equal((wf.match(/npm test/g) || []).length, 1, "the pull request check runs the suite once");
+  assert.equal((wf.match(/npm test/g) || []).length, 1, "the Mac job runs the suite once");
 });
 
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
