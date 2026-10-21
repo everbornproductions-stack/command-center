@@ -1,22 +1,23 @@
 ---
 id: replay-the-tour
 title: Replay the tour
-summary: How to take the console tour again. It uses pretend AIs and spends nothing.
-lastUpdatedVersion: 0.4.2
+summary: The short tour has one idea per step and a Try it button. Skip it any time, and replay it from Help.
+lastUpdatedVersion: 0.4.8
 ---
 
 # Replay the tour
 
-The tour is the spotlight walk through Meldmind, an Everborn product. It is separate from Start a project. The tour shows the menus, orders, the council, live view, pipelines, publishing, and keys. One stop highlights **Start a project** on the home screen.
+The tour is a short walk through what Meldmind can do. Each step has one idea and a Try it button. A step is hidden when that page is not in your app, so the tour never points at something missing. You can skip the tour any time.
 
-The first time, Command shows **New here? Take the tour**. Click **Start** to begin, or **Not now** to leave it. If you skip it, a note says: Tour skipped. Take the tour again from the Settings menu, or from the Settings page.
+The first time, a note says New here? Take a short tour. Click Start to begin, or Not now to leave it. If you skip it, a note says: Tour skipped. Take the tour again from Help.
 
 To replay the tour later:
 
-1. Open the **Settings** menu and click **Take the tour again**.
-2. Or open the Settings page and click **Take the tour again** there.
-3. After an update, the What's new note also has **Take the tour**. **Got it** closes the note without starting the tour.
+1. Open Help and click Replay the tour.
+2. Or open the Settings menu and click Take the tour again.
+3. Or open the Settings page and click Take the tour again there.
+4. After an update, the What's new note also has Take the tour. Got it closes the note without starting the tour.
 
-The sample run uses three pretend AIs (Nova, Atlas, and Sage). They plan a one-week Instagram launch for a coffee roaster. It runs only while no real AI is connected, so demo mode is not turned on over a key you already saved. No keys are needed and nothing is spent. You can move with Next, or leave the tour. Your chats, projects, and keys stay put.
+Try it opens the page for that step. Next moves on. Skip tour closes it. Your chats, projects, and keys stay put. Nothing is sent or spent from the tour itself.
 
-Start a project is the walk for one kind of work (a website, a music video, a marketing campaign, an app, a business plan, or social reels). Replay the tour when you want the console overview. Open Start a project when you want a deliverable.
+Start a project is the walk for one kind of work, such as a website or reels. Replay the tour when you want the short overview of what Meldmind can do.
