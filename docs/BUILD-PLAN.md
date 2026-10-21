@@ -94,7 +94,7 @@ Not in 0.4.9, 0.4.10, or 0.4.11. Nothing here is bought or put in a store withou
 
 Left on the list so they are not dropped. They are not next.
 
-- Phase 32. Model-version alerts.
+- Phase 32. Model-version alerts. Built in the Watch and talk workstream. The version stayed 0.4.8. Notes go to the Together news list when that code is present, and to a local list until then.
 - Phase 33. HighLevel contacts, invoices, and workflows as council tools. MCP by URL and webhooks have moved to Phase 90. HighLevel posting already shipped in Phase 7.
 - Phase 34. Hide hosted plumbing.
 - Phase 42. Newsfeed and alerts.
@@ -308,8 +308,8 @@ Before a council or a chat, match the orders to a Pro prompt.
 - If the heuristic is unsure, one cheap classify call through the existing router may pick a template id. An unknown id is ignored.
 - The learning router records the template id and a count (suggested, applied, removed, halted). No prompt text, no inputs, no secrets.
 
-### Phase 32: Model-version alerts (not in 0.4.9 to 0.4.11, not built)
-Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
+### Phase 32: Model-version alerts (built, version unchanged)
+Watch connected AI providers for a new model and for a price change. The check uses each provider's public model list with the key saved for that provider. It is read only and runs at most once a day. A plain note is posted to the news list when that list is installed (Together, pull request 86). Until then the note stays in Model watch. A suggested switch can be accepted or undone. Nothing is switched on its own. The version stayed 0.4.8. Providers with no public model list (for example Kling) are not called.
 
 ### Phase 33: Bring your own apps (MCP by URL and webhooks moved to Phase 90; HighLevel tools not in 0.4.9 to 0.4.11)
 HighLevel contacts, invoices, and workflows as council tools stay here. They are not in 0.4.9 to 0.4.11. HighLevel posting already shipped in Phase 7.
