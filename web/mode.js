@@ -10,7 +10,7 @@ export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup",
 // so a hotkey or a switch back to Expert still reaches them.
 export const EXPERT_COMMAND = new Set([
   "pipelines", "agents", "liveview", "mcp", "fallback", "grokbot", "browser",
-  "libraries", "search", "alerts", "receipt", "images",
+  "libraries", "alerts", "growth", "receipt", "images",
 ]);
 
 export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);

@@ -1949,3 +1949,25 @@ Not a numbered phase. No locked decision was changed. Square was not called. The
 Not a numbered phase. No locked decision was changed. Square was not called. Studio workspaces were not rebuilt. The Extreme team cap stays 5. The count is the headcount before an invite, so 4 people (the owner plus 3 invited) can still invite one more, and 5 people total (the owner plus 4 invited) refuses the next person. The table, the Settings line, and the gate message say 5 people total, counting the owner.
 
 - Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+
+## 2026-10-21: research in the chat (web, Pro search, deep research)
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Live search stays in the router. DuckDuckGo is the free engine when no key is saved and demo mode is off. SearXNG is used when an address is saved. A saved Tavily, Brave, Serper, Exa, or Perplexity key still wins on Auto, and demo mode still uses the pretend engine. Gemini can ground a search inside the Gemini call. The same engines work for any model the router picks.
+- A question that needs current information is searched on its own. A pinned model uses the local hint. A routed chat trusts the classifier. Search can still be turned off for one run.
+- Free includes 20 live searches a day. Pro search (a few queries, one numbered source list) is Pro. Deep research reads pages, writes a cited report, and a second AI from another vendor cross-checks it. It runs in the background, raises a done alert, and can be exported as PDF or Word. Pro and Studio get 30 a month. Extreme and Owner have no monthly limit. The gate is server/feature-gate.js. Extreme is a licence tier here, not a Square checkout.
+- News and academic filters sit next to the search toggles. A finished deep research run can continue as a mission, which is where the browser helper and desktop steps take over.
+- Mac tests run on every pull request (`.github/workflows/mac-ci.yml`: npm test and smoke, no package, no secrets). Windows CI is unchanged. Mac packaging stays on the parked tag workflow.
+- Tests mock every provider. No real key and no public web call. Waits are real timers.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. No real key. data/ was not read. The chat screen was not clicked in a browser.
+
+## 2026-10-21: Stop a deep research run
+
+Not a numbered phase. Phase 15 stays as shipped. No locked decision was changed. Nothing was published. data/ was not read. Square and billing were not touched.
+
+- Stop ends a deep research run that is still going. The server aborts the search, the page reads, and the writer. The row is marked aborted, the unfinished report cannot be exported, and the alert is a plain "Deep research stopped" line rather than a failure alarm. Chat shows a Stop button while the run is going. Expert live ops uses Stop on the same control that aborts a mission. A later run can still finish.
+- Search depth (Auto, Pro, Deep) and the source filters are on the Chat screen, with the sources panel under the answer.
+- A fast chat can finish before Send returns. The answer that already arrived stays on screen, so the sources panel is not wiped.
+- Tests here (Linux): npm test 429 tests, 428 pass, 0 fail, 1 skipped. npm run smoke: all checks passed. The abort check holds the writer on a local mock and waits with a real timer. No real key. data/ was not read.
+- Headless Chrome on the Chat screen, against local mocks: turned on Single search, sent a price question, saw numbered citations and the sources panel, opened a source page, ran Pro search (three steps), started Deep research and clicked Stop while the writer was still going, then ran a second report and clicked Export PDF and Export Word. Both files came back (PDF header, Word zip). Screenshots are on the pull request.

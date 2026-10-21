@@ -116,8 +116,8 @@ test("server: engines, keys (refused never kept), toggles, injected prompt with 
     assert.equal((await s.api("/search", { noToken: true })).status, 401, "session token required");
     let v = (await s.api("/search")).json;
     assert.equal(v.engine, "auto"); assert.deepEqual(v.on, { single: false, council: false, mission: false }); assert.equal(v.maxResults, 5);
-    assert.deepEqual(v.engines.map((e) => e.id), ["tavily", "brave", "serper"]); assert.ok(v.engines.every((e) => !e.keyed && e.masked === null));
-    assert.equal(v.active.engine, null); assert.match(v.active.reason, /No search provider is set up/);
+    assert.deepEqual(v.engines.map((e) => e.id), ["tavily", "brave", "serper", "exa", "pplx"]); assert.ok(v.engines.every((e) => !e.keyed && e.masked === null));
+    assert.equal(v.active.engine, "duckduckgo", "no key and demo off uses DuckDuckGo"); assert.equal(v.active.name, "DuckDuckGo");
     assert.ok((await s.api("/state")).json.plugins.includes("search"));
 
     // demo mode: a pretend engine, no network, no cost

@@ -53,7 +53,9 @@ import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
-import { augment as webAugment, sourcesFromCitations, recordNative } from "./search.js";
+import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
+import { prepareWeb, beginDeep } from "./research.js";
+import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
@@ -441,14 +443,15 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
-async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied }) {
+  const pinnedModel = !!(provider && model);
   const id = runId || "s-" + Date.now().toString(36);
   if (isPrivate) markPrivateRun(id);
   const priority = chatPriority(mode);
@@ -479,8 +482,10 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
-  // live web search (Phase 15): numbered results go into the prompt; the answer cites them as [n]
-  const web = await webAugment({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined });
+  // live web search: numbered results go into the prompt; the answer cites them as [n]
+  // A pinned model uses the local hint. A routed chat trusts the classifier, so a mock that says needWeb false does not search.
+  const needWeb = pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb;
+  const web = await prepareWeb({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
   m.searched = web != null;
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
   // knowledge libraries (Phase 18): the chat's, the active workspace's, or the ones the request names; excerpts cited as [L1], [L2]
@@ -575,7 +580,9 @@ async function api(req, res, url) {
     const rankedAll = rank({ ...cls, mode, includeApps: true });
     const apps = rankedAll.filter((m) => m.kind === "app").slice(0, 6);
     const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
+    const best = ranked[0];
+    const search = previewSearch({ prompt, needWeb: !!cls.needWeb, provider: best?.provider, model: best?.model });
+    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
@@ -613,8 +620,18 @@ async function api(req, res, url) {
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     const tone = takeNextTone();
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.prompt, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { restoreTone(tone); return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) { restoreTone(tone); return json(res, gate.status || 402, { error: gate.message, code: gate.code }); }
+    }
     let promise;
-    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" }); }
+    try { promise = startCouncil({ prompt: job.prompt, members: job.members, chair: job.chair, projectId: job.projectId, qa: job.qa !== false, lite: !!job.lite, mode: job.mode, search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" }); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
     promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
     return json(res, 202, { ok: true });
@@ -627,9 +644,19 @@ async function api(req, res, url) {
     const s = settings();
     const tone = takeNextTone();
     const missionMode = normalizeMode(job.mode || s.defaultMode) || "balanced";
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.goal, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { restoreTone(tone); return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) { restoreTone(tone); return json(res, gate.status || 402, { error: gate.message, code: gate.code }); }
+    }
     try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
-    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" };
+    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "" };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -649,6 +676,16 @@ async function api(req, res, url) {
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
     try { guardMaxQuality(chatPriority(job.mode)); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    if (job.searchMode === "deep") {
+      try {
+        const started = beginDeep({ prompt: job.prompt, filter: job.filter, projectId: job.projectId });
+        return json(res, 202, { ok: true, id: started.id, runId: started.id });
+      } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+    if (job.searchMode === "pro") {
+      const gate = requireResearch("proSearch");
+      if (!gate.ok) return json(res, gate.status || 402, { error: gate.message, code: gate.code });
+    }
     // The id is known before the chat runs, so a caller can wait for this run
     // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
     const runId = job.runId || ("s-" + Date.now().toString(36));

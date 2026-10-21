@@ -229,6 +229,8 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
+  // Tests never call the public web. A loopback mock (CC_SEARCH_URL_*) still answers.
+  if (childEnv.CC_SEARCH_OFFLINE === undefined) childEnv.CC_SEARCH_OFFLINE = "1";
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.
   const child = spawn(process.execPath, ["--import", pathToFileURL(path.join(ROOT, "test", "vault-preload.mjs")).href, path.join(ROOT, "server", "index.js")], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
   trackChild(child);

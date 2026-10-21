@@ -12,6 +12,7 @@ import { emit } from "./events.js";
 import { classify, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
+import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
@@ -81,7 +82,7 @@ export function restoreScheduled() {
   }
 }
 
-export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
+export async function runMission({ goal, mode = "balanced", projectId, qa = true, budgetUsd = 2, maxTasks = 6, context = "", search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId }) {
   mode = normalizeMode(mode) || "balanced";
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
@@ -120,7 +121,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     mission.classification = cls;
 
     // ---- live web search (Phase 15): one search on the goal; the sources ride along as context ----
-    const web = await webAugment({ prompt: goal, kind: "mission", missionId: id, explicit: explicitSearch });
+    const web = await prepareWeb({ prompt: goal, kind: "mission", missionId: id, explicit: explicitSearch, needWeb: !!cls?.needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
     mission.searched = web != null;
     const searchOn = !!web && !web.native && !web.skipped;
     if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
@@ -312,7 +313,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // a task that needs live information gets its own search, numbered after the mission's sources
         let taskWeb = "";
         if (searchOn && t.needWeb && !ctl.signal.aborted) {
-          const tw = await webAugment({ prompt: `${t.title}. ${t.instructions || ""}`, kind: "mission", missionId: id, taskId: t.id, explicit: true, offset: mission.sources.length, role: "task-search" });
+          const tw = await webAugment({ prompt: `${t.title}. ${t.instructions || ""}`, kind: "mission", missionId: id, taskId: t.id, explicit: true, offset: mission.sources.length, role: "task-search", filter });
           if (tw?.sources?.length) { mission.sources = [...mission.sources, ...tw.sources]; mission.searchEngine = mission.searchEngine || tw.name; spend({ cost: tw.cost || 0 }); taskWeb = tw.block; update(); }
         }
         const s = Date.now();

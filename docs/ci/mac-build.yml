@@ -1,6 +1,7 @@
 # The unsigned Mac build now runs as the mac-release job in
 # .github/workflows/release-windows.yml (dmg and zip, no Apple signing).
-# Pull requests run tests on macOS in .github/workflows/mac-ci.yml.
+# Mac tests run on a v* tag or a manual start of .github/workflows/mac-ci.yml.
+# A pull request does not start that job.
 # This file is only a pointer. It is not a workflow.
 # First open: right-click the app, then Open.
 # Automatic updates for Mac are coming soon.

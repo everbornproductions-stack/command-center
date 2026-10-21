@@ -87,6 +87,8 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 
 `.github/workflows/mac-ci.yml` runs when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
 
+`.github/workflows/mac-ci.yml` runs on every pull request and every push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. It does not package the app, it does not publish, and it does not read secrets. Mac packaging stays on the tag workflow parked at `docs/ci/mac-build.yml`.
+
 ## Mac (unsigned for now)
 
 - The Windows release workflow (`.github/workflows/release-windows.yml`) has a `mac-release` job. A `vX.Y.Z` tag, or Run workflow, builds an unsigned `Meldmind-<version>-<arch>.dmg` and `.zip` (x64 and arm64) with electron-builder. There is no Apple signing.

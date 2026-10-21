@@ -399,7 +399,7 @@ function noteRunJob(entry) {
   runJobs[entry.provider] = (Number(runJobs[entry.provider]) || 0) + 1;
 }
 function ensureLive(id, kind) {
-  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
+  if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : id?.startsWith("r-") ? "research" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
   if (quietProvider(P(ev.provider))) return;
@@ -483,15 +483,17 @@ function onMission(m) {
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
       const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
       const cost = Number(m.cost) || 0;
+      const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : "Mission";
+      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
-        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")} · ${money(m.cost, 4)}`;
+        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${noun} ${stateWord} · ${money(m.cost, 4)}`;
         toast(failed && m.error ? m.error : base, failed);
       }
-      maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${m.kind === "single" ? "Answer" : "Mission"} ${m.status.replace("-", " ")}`);
+      maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
     }
   }
 }
@@ -1008,6 +1010,7 @@ function renderSimpleChat(v) {
         <div class="row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
+          <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1045,6 +1048,7 @@ function renderSimpleChat(v) {
     catch (e) { toast(e.message, true); }
   });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
   renderOutput();
@@ -1124,7 +1128,7 @@ function renderCommand(v) {
   $("#go").addEventListener("click", sendOrders);
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => copyDeliverable());
-  $("#abort").addEventListener("click", () => S.live.id && api(`/mission/${S.live.id}/abort`, { method: "POST" }));
+  $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
@@ -1153,19 +1157,39 @@ function renderComposerAis() {
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
-function renderOpsHead() {
-  const h = $("#ops-head"); if (!h) return;
+function stopResearch() {
+  if (!S.live.id || S.live.kind !== "research") return;
+  api(`/research/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true));
+}
+function syncResearchStop() {
   const l = S.live;
-  if (!l.id) { h.textContent = "idle"; $("#abort").style.display = "none"; return; }
-  const cost = l.mission?.cost ?? l.council?.cost ?? 0;
-  h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
-  $("#abort").style.display = l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status) ? "" : "none";
+  const researchLive = !!(l.id && l.kind === "research" && l.status === "running");
+  const stop = $("#stop-research");
+  if (stop) stop.style.display = researchLive ? "" : "none";
+  const abort = $("#abort");
+  if (!abort) return;
+  const missionLive = !!(l.id && l.kind === "mission" && ["scheduled", "planning", "running", "assembling"].includes(l.status));
+  abort.style.display = researchLive || missionLive ? "" : "none";
+  abort.textContent = researchLive ? "Stop" : "abort";
+  abort.title = researchLive ? "Stop this deep research run" : "";
+}
+function renderOpsHead() {
+  const h = $("#ops-head");
+  const l = S.live;
+  if (h) {
+    if (!l.id) h.textContent = "idle";
+    else {
+      const cost = l.mission?.cost ?? l.council?.cost ?? 0;
+      h.textContent = `${l.kind} · ${l.status || "running"} · ${money(cost, 4)}`;
+    }
+  }
+  syncResearchStop();
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
   const tasks = Object.values(S.live.tasks);
   if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="hint">Click Stop to cancel.</span></div>`; return; }
-  if (S.live.kind !== "mission" || !tasks.length) { box.innerHTML = S.live.kind === "mission" && S.live.status === "planning" ? `<div class="empty">Planning…</div>` : ""; return; }
+  if ((S.live.kind !== "mission" && S.live.kind !== "research") || !tasks.length) { box.innerHTML = (S.live.kind === "mission" || S.live.kind === "research") && (S.live.status === "planning" || S.live.status === "running") && !tasks.length ? `<div class="empty">${S.live.kind === "research" ? "Researching…" : "Planning…"}</div>` : ""; return; }
   box.innerHTML = tasks.map((t) => {
     const pct = t.status === "done" ? 100 : t.status === "failed" ? 100 : t.status === "review" ? 85 : t.status === "running" ? 30 : 0;
     const rv = t.review ? `<span class="chip ${t.review.pass ? "green" : "amber"}" title="${esc((t.review.issues || []).join("; "))}">QA ${t.review.score ?? ""}${t.review.pass ? " ✓" : " ✎"}</span>` : "";
@@ -1222,6 +1246,7 @@ function renderCouncil() {
 }
 function renderOutput() {
   const o = $("#out-md"), h = $("#out-head"); if (!o) return;
+  syncResearchStop();
   const follow = $("#out-follow");
   const l = S.live;
   const prim = l.primary ? l.agents[l.primary] : null;
@@ -1229,7 +1254,15 @@ function renderOutput() {
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want. The council picks the AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
-  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) { o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`; paintFollow(""); paintFailure(); return; }
+  if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
+    if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
+    else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
+    else if (l.kind === "research" && l.status === "running") o.innerHTML = `<div class="empty">Deep research is running. Stop ends it. You can keep using the chat.</div>`;
+    else o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`;
+    paintFollow("");
+    paintFailure();
+    return;
+  }
   o.innerHTML = text ? md(text) : "";
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
   paintFollow(`${outputFollowHtml()}${chargeNote(l)}`);
@@ -1304,6 +1337,7 @@ async function previewRoute() {
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
       ${r.agent?.fits ? `<div class="adv" style="color:#c4b5fd">${r.agent.needs.length ? `Needs ${esc(r.agent.needs.map((n) => n.label).join(", "))}: ` : ""}${esc(r.agent.name)} fits this job${r.agent.ready ? (r.agent.auto ? " and joins a council or mission on its own." : ". Pick Always under Grok Bot, or use Send to Grok Bot.") : ` but is ${esc(r.agent.detail)}.`}</div>` : ""}
       ${d ? `<div class="adv" style="color:var(--amber)">Not urgent? Off-peak at ${new Date(d.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${esc(d.model)} at ${d.pct}% off saves about ${d.saving}% (${money(d.laterCost, 4)} vs ${money(d.nowCost, 4)}). Pick "Off-peak" under When.</div>` : ""}
+      ${r.search?.note ? `<div class="small" style="margin-top:4px">${esc(r.search.note)}</div>` : ""}
       <div class="small dim" style="margin-top:4px">${r.ranked.slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>
       ${(r.apps || []).length ? `<div class="small" style="margin-top:4px">Allowed programs: ${(r.apps || []).slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>` : ""}`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
@@ -1377,6 +1411,7 @@ async function sendOrders() {
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
+  const ask = window.CC.searchAsk?.() || {};
   askNotify();
   S.awaitingRun = true;
   syncSendButton();
@@ -1389,20 +1424,36 @@ async function sendOrders() {
       if (Array.isArray(allowed.skip)) skip = allowed.skip;
     }
     const packBody = attached ? { promptPack: attached } : (pp?.removed ? { promptPack: { removed: true } } : {});
+    if (ask.searchMode === "deep") {
+      const started = await api("/research/deep", { method: "POST", body: { prompt, projectId, filter: ask.filter } });
+      S.live = newLive();
+      S.live.id = started.id;
+      S.live.kind = "research";
+      S.live.status = "running";
+      renderOps();
+      toast("Deep research started. You will get an alert when the report is ready.");
+      S.awaitingRun = false;
+    }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
-    if (mode === "single") {
+    else if (mode === "single") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
       const avoid = S.pendingAvoid || "";
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
-      await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody } });
+      await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask } });
+      S.live = newLive(); S.live.status = "running"; renderOps();
     }
-    // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
-    else if (mode === "council") await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } });
-    else { const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody } }); if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`); }
-    S.live = newLive(); S.live.status = "running"; renderOps();
+    else if (mode === "council") {
+      await api("/council", { method: "POST", body: { prompt, projectId, qa, mode: costMode, lite: costMode === "savings" || costMode === "economy", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask } });
+      S.live = newLive(); S.live.status = "running"; renderOps();
+    }
+    else {
+      const r = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, private: priv, skip, ...packBody, ...ask } });
+      if (r.scheduled) toast(`Queued for ${new Date(r.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.scheduled.reason}`);
+      S.live = newLive(); S.live.status = "running"; renderOps();
+    }
   } catch (e) {
     S.awaitingRun = false;
     if (e.code === "prompt_halt") toast([e.message, ...(e.questions || []).slice(0, 3)].filter(Boolean).join(" "), true);

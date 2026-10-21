@@ -16,6 +16,7 @@ import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
 import { bestModelEach, costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
 import { extraRouteModels } from "./route-extras.js";
+import { searchCoversAnyModel } from "./search.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -90,7 +91,8 @@ export function availableModels() {
 export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
-  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  const covered = !!needWeb && searchCoversAnyModel();
+  let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || covered || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
   // Allowed programs are scored with the same formula, then listed after the text models.
   // Text jobs, pick(), and missions keep the text ranking unless the caller asks for apps.
   if (!includeApps) list = list.filter((m) => m.kind !== "app");
