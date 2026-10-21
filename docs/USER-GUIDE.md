@@ -107,7 +107,7 @@ Meldmind can use an app on this PC that has no API, after you allow that app.
 
 You confirm before a send, a buy, or a delete. While an app is in use, a banner says Meldmind is using that app, and Stop ends it. Passwords are not stored. If a control in an app moves, Meldmind tries the other ways it knows to find it, then stops and offers the manual handoff.
 
-After you update to 0.4.8, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
+After you update to 0.4.9, the first launch shows **New: let Meldmind use your desktop**, with the same choices. **Not now** reminds you once. **Never** hides the card.
 
 Help has the same steps under Apps on your desktop. Take the tour again includes that stop.
 

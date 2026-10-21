@@ -57,7 +57,7 @@ Positioning line (Grok's draft, kept): "One place to talk. It picks the right AI
 
 ## Marketing: Meldmind can use the apps on your desktop, safely
 
-Headline feature for 0.4.8. The longer page is docs/marketing.md. Use this when the story is the desktop, not another chat window.
+Headline feature for 0.4.9. The longer page is docs/marketing.md. Use this when the story is the desktop, not another chat window.
 
 | Point | What to say |
 |---|---|
@@ -68,7 +68,7 @@ Headline feature for 0.4.8. The longer page is docs/marketing.md. Use this when 
 | No passwords stored | Sign-in happens in the app or in the browser. Meldmind does not keep the password, and it does not put a key on a command line. |
 | Self-healing when apps change | Controls are found by role, name, and shortcut. If a control moves, Meldmind tries the other ways it knows, then a manual handoff, and says so in plain words. |
 
-Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in. Add to Antigravity connects Meldmind as a local MCP server after a confirm click. The first-run setup screen and, after an update to 0.4.8, a one-time card (Not now reminds once, Never hides it) both offer the same choice.
+Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in. Add to Antigravity connects Meldmind as a local MCP server after a confirm click. The first-run setup screen and, after an update to 0.4.9, a one-time card (Not now reminds once, Never hides it) both offer the same choice.
 
 Do not claim that Meldmind posts, sends, or spends on its own. Do not mention income. Square and billing stay out of this story.
 

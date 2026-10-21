@@ -1,6 +1,6 @@
 # Meldmind can use the apps on your desktop, safely
 
-Headline feature for 0.4.8. Meldmind is the console for the AIs you already pay for. It can also use the apps already installed on your PC, including apps that have no API.
+Headline feature for 0.4.9. Meldmind is the console for the AIs you already pay for. It can also use the apps already installed on your PC, including apps that have no API.
 
 ## Key points
 

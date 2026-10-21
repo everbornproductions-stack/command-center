@@ -1,5 +1,5 @@
 {
-  "0.4.8": {
+  "0.4.9": {
     "title": "What's new in Meldmind",
     "bullets": [
       "New: let Meldmind use your desktop. It can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored.",

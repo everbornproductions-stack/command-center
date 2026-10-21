@@ -2,7 +2,7 @@
 id: desktop-apps
 title: Apps on your desktop
 summary: Let Meldmind use an app on this PC, starting with Google Antigravity. You allow each app, and passwords are not stored.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.9
 ---
 
 # Apps on your desktop
@@ -38,4 +38,4 @@ From Antigravity, the Meldmind tools can list agents, queue a task, and read a r
 
 ## After an update
 
-After you update to 0.4.8, the first launch shows New: let Meldmind use your desktop. It has the same Allow, Install and connect, and the safety summary. Not now reminds you once. Never hides the card. You can still turn an app on later in Settings.
+After you update to 0.4.9, the first launch shows New: let Meldmind use your desktop. It has the same Allow, Install and connect, and the safety summary. Not now reminds you once. Never hides the card. You can still turn an app on later in Settings.

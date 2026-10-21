@@ -1,8 +1,9 @@
-// One-time desktop card for people who update to 0.4.8.
+// One-time desktop card for people who update to 0.4.9.
 // Not now shows it once more. Never and Done keep it closed.
-// The card stays hidden until the installed version is 0.4.8 or newer.
+// The card stays hidden until the installed version is 0.4.9 or newer.
+// 0.4.8 is a hotfix and does not show this card.
 
-export const DESKTOP_PROMPT_FROM = "0.4.8";
+export const DESKTOP_PROMPT_FROM = "0.4.9";
 
 export function versionAtLeast(version, floor = DESKTOP_PROMPT_FROM) {
   const parse = (v) => String(v || "0").split(".").map((n) => parseInt(n, 10) || 0);
