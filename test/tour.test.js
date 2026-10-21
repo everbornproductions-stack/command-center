@@ -104,7 +104,7 @@ test("what's new is skipped on first install, shown after an upgrade, and a tour
   try {
     const g = await s.api("/tour");
     assert.equal(g.json.whatsNew.version, pkg.version);
-    assert.equal(g.json.desktopPrompt, null, "the desktop card waits until 0.4.9");
+    assert.equal(g.json.desktopPrompt?.title, "New: let Meldmind use your desktop");
     assert.ok(g.json.whatsNew.bullets.length > 0);
     const seen = await s.api("/tour/whats-new/seen", { method: "POST" });
     assert.equal(seen.status, 200);

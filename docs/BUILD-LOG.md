@@ -2152,3 +2152,15 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothi
 - Tests here (Linux): npm test 423 tests, 422 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 
 STAY LIGHT (built by Cursor cloud agent)
+
+## 2026-10-21: Release candidate 0.4.9
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. The hub was not deployed. data/ was not read. No real key was printed.
+
+- Windows CI on 5971c0c failed in test/apps.test.js. The program scan on Windows only lists .exe, .cmd, .bat, and .com. The test created an extensionless ffmpeg file, so the opt-in list did not include it. The test now writes ffmpeg.exe on Windows and sets both PATH and Path to that folder.
+- package.json is 0.4.9. docs/help/catalog.json lastUpdatedVersion is 0.4.9. Notes that were written under 0.4.8 after that hotfix shipped (background runs, ratings, pause, public share, export, industry packs, Reading, imported chats, Extreme, Zapier and Make) are in the 0.4.9 What's new note, because the updater shows only the new version. The shipped 0.4.8 note stays the top bar and the demo AI hide.
+- Help articles stamped 0.4.9 for that note: desktop-apps, idea-box, security, using-meldmind, everyday-leads, smarter-control, share-export, license, zapier-make.
+- Tests here (Linux): npm test, mcp 11 pass, then 609 tests, 608 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22. The live Supabase project was not contacted. Windows is the pull request check.
+- The tag v0.4.9 waits until Windows CI on this commit is green. Nothing is published before that.
+
+RELEASE CANDIDATE 0.4.9 (not tagged yet)

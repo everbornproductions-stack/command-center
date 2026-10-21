@@ -2,7 +2,7 @@
 id: zapier-make
 title: Connect Zapier and Make
 summary: Paste a Zapier or Make address, use their actions in a chat or a mission, and let a Meldmind webhook start work and return the result.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.9
 ---
 
 # Connect Zapier and Make

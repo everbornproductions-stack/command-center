@@ -2,7 +2,7 @@
 id: smarter-control
 title: Smarter control
 summary: Routing can lean from your thumbs and you can undo it. Apps, recipes, a monthly budget, and a yes on your phone before a send or a buy.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.9
 ---
 
 # Smarter control

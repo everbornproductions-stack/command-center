@@ -2,7 +2,7 @@
 id: license
 title: Licence redeem
 summary: Activate a licence key, see Free, Pro, and Extreme prices, see the computers on it, or start a 14-day Pro trial. Nothing is charged from this screen.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.9
 ---
 
 # Licence redeem

@@ -187,12 +187,15 @@ test("routes: scan a tiny PATH, suggest, score, and refuse http", async () => {
   const dir = tmpDir("cc-apps-http-");
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, "ffmpeg"), "");
-  fs.chmodSync(path.join(bin, "ffmpeg"), 0o755);
-  fs.writeFileSync(path.join(bin, "zznoise"), "");
-  fs.chmodSync(path.join(bin, "zznoise"), 0o755);
+  // Windows only lists .exe, .cmd, .bat, and .com on PATH. Linux lists an executable with no extension.
+  const exe = process.platform === "win32" ? ".exe" : "";
+  fs.writeFileSync(path.join(bin, `ffmpeg${exe}`), "");
+  fs.chmodSync(path.join(bin, `ffmpeg${exe}`), 0o755);
+  fs.writeFileSync(path.join(bin, `zznoise${exe}`), "");
+  fs.chmodSync(path.join(bin, `zznoise${exe}`), 0o755);
   fs.writeFileSync(path.join(bin, "readme.txt"), "secret words that must stay unread");
-  const s = await startServer({ env: { PATH: bin, CC_DEV_OWNER: "1" }, dataDir: dir });
+  // Node on Windows keeps Path and PATH as separate keys. Set both so the scan sees this folder.
+  const s = await startServer({ env: { PATH: bin, Path: bin, CC_DEV_OWNER: "1" }, dataDir: dir });
   try {
     const before = await s.api("/apps");
     assert.equal(before.status, 200);
@@ -280,9 +283,9 @@ test("user-facing copy has no em dash and no install button", () => {
   const help = fs.readFileSync(path.join(ROOT, "docs", "help", "desktop-apps.md"), "utf8");
   assert.match(help, /lastUpdatedVersion: 0\.4\.9/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.8");
+  assert.equal(pkg.version, "0.4.9");
   const catalogJson = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "help", "catalog.json"), "utf8"));
-  assert.equal(catalogJson.lastUpdatedVersion, "0.4.8");
+  assert.equal(catalogJson.lastUpdatedVersion, "0.4.9");
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

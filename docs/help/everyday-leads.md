@@ -2,7 +2,7 @@
 id: everyday-leads
 title: How to draft a new lead follow-up
 summary: Try saying draft a text and email for a new lead. Send is one click. Twilio is not contacted.
-lastUpdatedVersion: 0.4.6
+lastUpdatedVersion: 0.4.9
 ---
 
 # How to draft a new lead follow-up

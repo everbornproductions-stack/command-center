@@ -279,7 +279,7 @@ test("suggestApp is how the planner assigns an app step, and writing stays with 
   assert.match(drivers, /UIAutomationClient/);
   assert.match(drivers, /IsPasswordProperty/);
   assert.equal(drivers.includes("\u2014"), false);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.8");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.9");
   dropAgents();
 });
 
