@@ -1614,3 +1614,15 @@ Docs only. No code. No Square change. No phase was built. Open pull requests wer
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PLAN DOCS REGROUPED (no phase built)
+
+## 2026-10-21: Phase 96 Remix any app added to the plan
+
+Docs only. No code. No Square change. The phase is not built.
+
+- Phase 96 sits after Phase 90 (Zapier and Make) and before Phase 91 (the three tiers). It is a Pro mission, with no cap on Extreme.
+- The person shows an app or game (screenshots, a recording, or desktop control). The AIs document how it behaves and rebuild it from scratch with the person's own characters, name, and look. Free open-source code, Godot, Phaser, templates, and free art can be used when the license checks out and the credits stay. Official mods for Minecraft, Roblox, Godot, and Unity are in scope. The person's art can become sprites, models, and voices. A warning shows when the result is too close to the original.
+- It learns as it goes: which AIs, engines, and open-source sources worked for that app type, from ratings and fixes, plus a local library of the person's own patterns. Shared learning stays the existing opt-in (decision 18). No screenshots, original names, characters, or keys are stored for that record.
+- Guardrail: never decompile, unpack, or reuse another app's code, assets, logos, or brand.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PHASE 96 PLANNED (not built)

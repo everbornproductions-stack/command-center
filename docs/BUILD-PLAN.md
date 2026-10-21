@@ -73,7 +73,8 @@ Not done, except the three rows already marked done above (share links, accessib
 
 1. Phase 89. Research: web search with citations (Phase 15 is already done), Pro Search, Deep Research with a second-AI check, and academic and news filters.
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks move here from Phase 33. This runs before Later.
-3. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
+3. Phase 96. Remix any app. A Pro mission, unlimited on Extreme. It runs right after Phase 90 and before Phase 91. Not done.
+4. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $299 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The app still shows the Phase 35 prices until this phase is built. Do not change the live Square link until Chris publishes new Square plans.
 
 ### Later
 
@@ -509,6 +510,17 @@ Runs after 0.4.11 and before Later. Moved earlier from Phase 33.
 - MCP by URL: any user MCP server by URL, on the Phase 16 client. Do not add a second MCP client.
 - Custom webhooks: a URL, an auth header, and an input schema.
 - Anything that sends, charges, or modifies data waits for a confirm click. Keys stay in the vault and are never logged.
+
+### Phase 96: Remix any app (after Phase 90, before Phase 91, not done)
+A Pro mission. Extreme has no cap on Remix missions. The Pro cap is set when this phase is built. It does not change the live Square checkout, and it does not rebuild Phase 36 or Phase 91.
+The person shows an app or a game they saw online or on their desktop: screenshots, a recording, or desktop control (Phases 45 to 51, and only after Allow). The AIs write down how it behaves, then rebuild it from scratch with the person's own characters, name, and look.
+- Free open-source code, engines (Godot, Phaser), templates, and free art may be pulled from the internet. Each item keeps its license check and its credits. If the license is missing or is not free to use, it is not used.
+- Official mods are supported for Minecraft, Roblox, Godot, and Unity, through those products' own mod tools.
+- The person's own art can be turned into sprites, models, and voices.
+- Before the result is saved, Meldmind warns when the name, look, layout, or characters are too close to the original. Saving still needs a click.
+- It learns as it goes. The router records which AIs, which engines, and which kinds of open-source sources worked best for that app type. It learns from the person's ratings and from the fixes they ask for. It keeps a library on this computer of working patterns and components from their own remixes, so the next one starts further along.
+- That learning uses the router and the shared-learning opt-in that already exist (decision 18, Phase 28). The record is the app type, the AI, the engine, the kind of source, the rating, and whether a fix was needed. It does not store the prompt, the screenshots, the original name, the characters, or any key. Nothing is shared unless the person has opted in. What would be shared is the same kind of anonymous totals as Who's best, and this phase does not send them on its own.
+- Guardrails: never decompile, unpack, or reuse another app's code, assets, logos, or brand. The pattern library is the person's own remix, not files taken from the app they showed. Nothing is posted or sent without a click. Tests use fixtures only. No real download, no real game, and no real key.
 
 ### Phase 91: Three tiers and the lifetime founder counter (not done)
 The plan prices are in docs/billing.md. The app still shows the Phase 35 prices ($15.99 a month, $159 a year, lifetime $299 then $499) until this phase. Do not change the live Square link until Chris publishes new Square plans. Do not call Square from the app.
