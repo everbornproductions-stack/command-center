@@ -31,6 +31,7 @@ import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { whoWillRead } from "./readers.js";
 import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
@@ -584,7 +585,7 @@ async function api(req, res, url) {
     const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
     const best = ranked[0];
     const search = previewSearch({ prompt, needWeb: !!cls.needWeb, provider: best?.provider, model: best?.model });
-    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search });
+    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search, whoWillRead: whoWillRead({ prompt, mode, classification: cls }) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 

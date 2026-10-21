@@ -597,3 +597,58 @@ export function gateError(name) {
 export function assertGate(tier, name) {
   if (!GATES[name] || !gateAllows(tier, name)) throw gateError(name);
 }
+
+// Refocus. Find, the timeline, and the status labels are Pro (Studio counts as Pro).
+// The rebuild mission is Extreme and has no cap. Owner can do both.
+// Nothing here calls Square.
+export const FIND = "refocus";
+export const REBUILD = "refocusRebuild";
+
+const FIND_TIERS = new Set(["pro", "studio", "owner", "extreme"]);
+const REBUILD_TIERS = new Set(["extreme", "owner"]);
+
+function refocusNotes() {
+  return {
+    pro: `Refocus is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`,
+    extreme: "The full rebuild is part of Extreme. Your plan can find the work and list it. It does not start the rebuild.",
+  };
+}
+
+export function tierName(state = readLicense()) {
+  const tier = String(state?.tier || "free");
+  if (FIND_TIERS.has(tier) || tier === "free") return tier;
+  return "free";
+}
+
+export function refocusGate(state = readLicense()) {
+  const tier = tierName(state);
+  const find = FIND_TIERS.has(tier);
+  const rebuild = REBUILD_TIERS.has(tier);
+  const notes = refocusNotes();
+  return {
+    tier,
+    find,
+    timeline: find,
+    status: find,
+    rebuild,
+    unlimited: rebuild,
+    upgrade: find ? null : notes.pro,
+    rebuildUpgrade: rebuild ? null : (find ? notes.extreme : notes.pro),
+  };
+}
+
+function refocusDeny(message, code) {
+  return Object.assign(new Error(message), { status: 402, code, upgrade: message });
+}
+
+export function assertRefocusFind(state = readLicense()) {
+  const gate = refocusGate(state);
+  if (!gate.find) throw refocusDeny(gate.upgrade, "pro_required");
+  return gate;
+}
+
+export function assertRefocusRebuild(state = readLicense()) {
+  const gate = refocusGate(state);
+  if (!gate.rebuild) throw refocusDeny(gate.rebuildUpgrade, gate.find ? "extreme_required" : "pro_required");
+  return gate;
+}

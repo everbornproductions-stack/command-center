@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const { createNavDisplayWatch } = require("../electron/nav-display.cjs");
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
+const VIEWS = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "refocus", "brain", "prompts", "images", "media", "publish", "subscriptions", "credits", "workspaces", "reports", "settings", "setup"];
 
 test("every known view is in exactly one menu", () => {
   const model = menuModel(VIEWS);
@@ -22,11 +22,13 @@ test("every known view is in exactly one menu", () => {
   for (const view of VIEWS) assert.ok(homes.includes(view), view);
   assert.equal(groupFor("prompts"), "create");
   assert.equal(groupFor("liveview"), "work");
+  assert.equal(groupFor("refocus"), "work");
   assert.equal(groupFor("subscriptions"), "business");
   assert.equal(groupFor("settings"), "help");
   const create = model.find((g) => g.id === "create").items.map((i) => i.view);
   assert.ok(create.includes("prompts"));
   assert.ok(model.find((g) => g.id === "work").items.some((i) => i.view === "liveview" && i.label === "Live"));
+  assert.ok(model.find((g) => g.id === "work").items.some((i) => i.view === "refocus" && i.label === "Refocus"));
 });
 
 test("Connect links scroll the Settings page and Help can start the tour", () => {
