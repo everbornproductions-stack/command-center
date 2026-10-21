@@ -1,4 +1,13 @@
 {
+  "0.4.12": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Refocus is in the Work menu. Type a topic and click Find.",
+      "Meldmind reads saved chats, imported chats, project files, saved outputs, and Google Drive when Drive is already connected.",
+      "Private chats are left out. Nothing is sent when you click Find.",
+      "The full rebuild is part of Extreme. Finding the timeline is part of Pro. Free shows an upgrade note and does not search."
+    ]
+  },
   "0.4.11": {
     "title": "What's new in Meldmind",
     "bullets": [

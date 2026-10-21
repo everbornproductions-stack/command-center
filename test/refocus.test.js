@@ -195,7 +195,7 @@ test("gates: find is Pro, rebuild is Extreme with no cap, owner can do both", ()
   const help = loadHelp();
   const article = help.articles.find((a) => a.id === "refocus");
   assert.ok(article, "help article");
-  assert.equal(article.lastUpdatedVersion, "0.4.8");
+  assert.equal(article.lastUpdatedVersion, "0.4.12");
   assert.match(article.body, /finished, partial, or abandoned/);
   const pub = publicItem({ id: "x", source: "ChatGPT", date: 1000, title: "T", status: "finished", summary: "S", text: "Secret raw" });
   assert.equal(pub.text, undefined);

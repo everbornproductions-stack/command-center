@@ -2184,3 +2184,13 @@ Same tree as 0.4.10, with the package version set to 0.4.11. Not held for later 
 - The tag v0.4.11 waits until Windows CI on this branch is green, after v0.4.10 is queued.
 
 RELEASE CUT 0.4.11 (not tagged yet)
+
+## 2026-10-21: Release cut 0.4.12
+
+Same tree as 0.4.11, with the package version set to 0.4.12. Not held for later pull requests. Square and billing were not touched. The hub was not deployed. data/ was not read.
+
+- What's new covers Refocus: Find on a topic, private chats left out, Pro for the timeline, Extreme for the full rebuild.
+- docs/help/refocus.md is stamped 0.4.12. The catalog lastUpdatedVersion is 0.4.12.
+- The tag v0.4.12 waits until Windows CI on this branch is green, after v0.4.11 is queued.
+
+RELEASE CUT 0.4.12 (not tagged yet)
