@@ -18,9 +18,10 @@ const PRO = {
   missions: true, scheduler: true, councilsPerMonth: Infinity, projects: Infinity, subscriptionsTab: true,
   connectedServices: Infinity, emailAccounts: 8,
   phone: true, historySearch: true, sharedLearning: true, scores: true,
+  desktop: true, appScan: true,
 };
 export const TIERS = {
-  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, label: "Free" },
+  free:   { missions: false, scheduler: false, councilsPerMonth: 5, projects: 3, subscriptionsTab: false, connectedServices: 1, emailAccounts: 1, phone: false, historySearch: false, sharedLearning: false, scores: false, desktop: false, appScan: false, label: "Free" },
   pro:    { ...PRO, label: "Pro" },
   studio: { ...PRO, label: "Studio" },
   owner:  { ...PRO, label: "Owner" },
@@ -226,11 +227,19 @@ export const subscriptionsLocked = () => !TIERS[licenseState().tier].subscriptio
 //   guard("missions") | guard("scheduler") | guard("subscriptions") | guard("council") | guard("projects", { count })
 //   guard("connectedService", { count }) | guard("emailAccounts", { count })
 //   guard("phone") | guard("historySearch") | guard("sharedLearning") | guard("scores")
+//   guard("desktop") | guard("appScan")
+// desktop is desktop control (including Antigravity). appScan is the program scan and its suggestions.
+// missions is already Pro. These ids are the feature-gate names. isProFeature reads the same table.
+export function isProFeature(feature) {
+  return !!TIERS[licenseState().tier]?.[feature];
+}
 export function guard(feature, info = {}) {
   const s = licenseState();
   const T = TIERS[s.tier];
   switch (feature) {
     case "missions": if (!T.missions) throw pro("Mission mode"); return s;
+    case "desktop": if (!T.desktop) throw pro("Desktop control"); return s;
+    case "appScan": if (!T.appScan) throw pro("Program scan"); return s;
     case "scheduler": if (!T.scheduler) throw pro("The off-peak scheduler"); return s;
     case "subscriptions": case "subscriptionsTab": if (!T.subscriptionsTab) throw pro("The Subscriptions tracker"); return s;
     case "council": {

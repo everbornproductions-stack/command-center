@@ -1677,3 +1677,4 @@ Not a new phase. This brings the open everyday and idea-box work onto current ma
 
 - Merged: inbox and reminders, the day plan, What's new and suggestions, the idea box (upload, voice, status, media jobs), docs and meetings and lead drafts, Google Calendar, and plain-request actions.
 - The run order line is unchanged, including "Do last: 14,". Welcome email and Use your own Supabase stay out of that line.
+- The licence table registers `missions`, `desktop` (desktop control, including Antigravity), and `appScan` (program scan) as Pro. Free is false. Pro, Studio, and Owner are true. `guard` and `isProFeature` read that table. The scan and the Antigravity bridge enforce it on their own branches.
