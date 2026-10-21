@@ -235,6 +235,7 @@ export function guard(feature, info = {}) {
   const s = licenseState();
   const T = TIERS[s.tier] || TIERS.free;
   const spec = { ...info };
+  delete spec.env;
   if ((feature === "council" || feature === "councilsPerMonth") && spec.used == null && spec.count == null) spec.used = councilsThisMonth();
   const result = evaluateGate(T, feature, spec);
   if (!result.ok) {

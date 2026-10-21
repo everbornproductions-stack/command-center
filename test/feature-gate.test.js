@@ -91,8 +91,9 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
   assert.equal(evaluateGate(LIMITS.free, "industryPacks", { count: 0 }).ok, false);
   assert.equal(evaluateGate(LIMITS.pro, "industryPacks", { count: 0 }).ok, true);
   assert.equal(evaluateGate(LIMITS.pro, "industryPacks", { count: 1 }).code, "extreme_required");
-  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 2 }).ok, true);
-  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 3 }).ok, false);
+  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 4 }).ok, true);
+  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 5 }).ok, false);
+  assert.equal(LIMITS.extreme.teamSeats, 5);
 
   assert.equal(LIMITS.pro.emailAccounts, 8);
   assert.equal(LIMITS.extreme.emailAccounts, 8);
@@ -106,7 +107,7 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
 });
 
 test("the comparison table is Free, Pro, and Extreme", () => {
-  const table = publicCompare();
+  const table = publicCompare({});
   assert.deepEqual(table.columns.map((c) => c.id), ["free", "pro", "extreme"]);
   assert.match(table.columns[1].price, /\$18\.99\/month/);
   assert.match(table.columns[1].price, /\$189\/year/);
@@ -121,13 +122,30 @@ test("the comparison table is Free, Pro, and Extreme", () => {
   assert.deepEqual(cell("deep"), ["No", "8 a month", "Unlimited"]);
   assert.deepEqual(cell("packs"), ["No", "1 pack", "All packs"]);
   assert.deepEqual(cell("audit"), ["No", "No", "Yes"]);
-  assert.deepEqual(cell("team"), ["No", "No", "3"]);
+  assert.deepEqual(cell("team"), ["No", "No", "5"]);
   assert.deepEqual(cell("apps"), ["No", "3", "Unlimited"]);
   assert.deepEqual(cell("recipes"), ["No", "5", "Unlimited"]);
   assert.deepEqual(cell("hostedRuns"), ["No", "No", "Yes"]);
   assert.deepEqual(cell("hostedSchedules"), ["No", "No", "Yes"]);
   assert.deepEqual(cell("budget"), ["No", "No", "Yes"]);
   assert.deepEqual(cell("support"), ["No", "Yes", "Yes"]);
+  assert.deepEqual(cell("early"), ["No", "No", "Yes"]);
+  assert.deepEqual(cell("max"), ["No", "No", "Yes, inside the budget cap"]);
+  const off = publicCompare({ CC_EARLY_ACCESS: "0" });
+  assert.deepEqual(off.rows.find((r) => r.id === "early").cells, ["No", "No", "Flag off"]);
+  const flagged = evaluateGate(LIMITS.extreme, "earlyAccess", { env: { CC_EARLY_ACCESS: "0" } });
+  assert.equal(flagged.ok, false);
+  assert.equal(flagged.code, "early_access_off");
+  assert.match(flagged.message, /Early access is off/);
+  assert.equal(evaluateGate(LIMITS.free, "maxQuality").code, "extreme_required");
+  assert.match(evaluateGate(LIMITS.pro, "maxQuality").message, /best model each connected AI offers/);
+  assert.match(evaluateGate(LIMITS.pro, "maxQuality").message, /budget cap/);
+  assert.equal(evaluateGate(LIMITS.extreme, "maxQuality").ok, true);
+  assert.equal(evaluateGate(LIMITS.extreme, "maxQuality").built, true);
+  assert.equal(evaluateGate(LIMITS.free, "earlyAccess").code, "extreme_required");
+  assert.equal(FEATURES.earlyAccess.built, true);
+  assert.equal(FEATURES.maxQuality.built, true);
+  assert.equal(FEATURES.teamSeats.built, false);
 });
 
 test("the check route answers every Free gate", async () => {
@@ -248,4 +266,60 @@ test("a trial that is still running lapses to Free after a real wait", async () 
     assert.equal(mission.status, 402);
     assert.match(mission.json.error, /Mission mode is part of Pro/);
   } finally { await s.stop(); }
+});
+
+test("Max quality is Extreme only, including a trial and a Pro licence", async () => {
+  const free = await startServer();
+  try {
+    for (const path of [
+      ["/chat", { prompt: "max on free", mode: "max" }],
+      ["/council", { prompt: "max on free", mode: "max" }],
+      ["/mission", { goal: "max on free", mode: "max" }],
+    ]) {
+      const r = await free.api(path[0], { method: "POST", body: path[1] });
+      assert.equal(r.status, 402, path[0]);
+      assert.equal(r.json.code, "extreme_required");
+      assert.match(r.json.error, /Max quality is part of Extreme/);
+    }
+    const saved = await free.api("/settings", { method: "POST", body: { defaultMode: "max" } });
+    assert.equal(saved.status, 402);
+    assert.equal(saved.json.code, "extreme_required");
+    assert.notEqual((await free.api("/state")).json.settings.defaultMode, "max");
+    assert.equal((await free.api("/chat", { method: "POST", body: { prompt: "balanced still works", mode: "balanced" } })).status, 202);
+  } finally { await free.stop(); }
+
+  const box = { tier: "pro", plan: "pro-monthly-1899" };
+  const pro = await startServer({
+    cloud: { rpc: () => ({ ok: true, tier: box.tier, status: "active", email: "p@example.com", message: "ok", plan: box.plan }) },
+    seed: seedKey,
+  });
+  try {
+    await waitForTier(pro, "pro");
+    const mission = await pro.api("/mission", { method: "POST", body: { goal: "pro max", mode: "max" } });
+    assert.equal(mission.status, 402);
+    assert.equal(mission.json.code, "extreme_required");
+    assert.equal((await pro.api("/settings", { method: "POST", body: { defaultMode: "max" } })).status, 402);
+    box.tier = "extreme";
+    box.plan = "extreme-yearly-299";
+    await pro.api("/license/recheck", { method: "POST" });
+    await waitForTier(pro, "extreme");
+    const allowed = await pro.api("/settings", { method: "POST", body: { defaultMode: "max" } });
+    assert.equal(allowed.status, 200);
+    assert.equal(allowed.json.defaultMode, "max");
+    assert.equal((await pro.api("/chat", { method: "POST", body: { prompt: "extreme max", mode: "max" } })).status, 202);
+    assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "earlyAccess" } })).status, 200);
+    assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 4 } })).status, 200);
+    assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 5 } })).status, 402);
+  } finally { await pro.stop(); }
+
+  const trial = await startServer({
+    env: { CC_TRIAL: "1" },
+    seed: (dir) => fs.writeFileSync(path.join(dir, "growth.trial.json"), JSON.stringify({ startedAt: Date.now(), endsAt: Date.now() + 86400000 })),
+  });
+  try {
+    await waitForTier(trial, "pro");
+    const chat = await trial.api("/chat", { method: "POST", body: { prompt: "trial max", mode: "max" } });
+    assert.equal(chat.status, 402);
+    assert.equal(chat.json.code, "extreme_required");
+  } finally { await trial.stop(); }
 });

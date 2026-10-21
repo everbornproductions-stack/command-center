@@ -20,7 +20,7 @@ Prices in the app come from `server/price-config.js`. Yearly and lifetime are no
 |---|---|
 | Plan id | `pro-monthly-1899` |
 | Price | $18.99 a month |
-| Checkout | Not published. The app shows "Go Pro, $18.99/month". Nothing is charged from the app. |
+| Checkout | https://square.link/u/UrcjlAqi . A click opens that Square pay page. This app does not call Square. |
 
 ## Pro yearly
 
@@ -28,7 +28,7 @@ Prices in the app come from `server/price-config.js`. Yearly and lifetime are no
 |---|---|
 | Plan id | `pro-yearly-189` |
 | Price | $189 a year (was $159; that checkout was never published) |
-| Checkout | Not published. The app shows "Pro yearly, $189/year". Nothing is charged from the app. |
+| Checkout | https://square.link/u/8JlyJzxb . A click opens that Square pay page. This app does not call Square. |
 
 ## Extreme monthly
 
@@ -36,7 +36,7 @@ Prices in the app come from `server/price-config.js`. Yearly and lifetime are no
 |---|---|
 | Plan id | `extreme-monthly-2999` |
 | Price | $29.99 a month |
-| Checkout | Not published. The app shows "Go Extreme, $29.99/month". Nothing is charged from the app. |
+| Checkout | https://square.link/u/u5FdCONv . A click opens that Square pay page. This app does not call Square. |
 
 ## Extreme yearly
 
@@ -44,7 +44,7 @@ Prices in the app come from `server/price-config.js`. Yearly and lifetime are no
 |---|---|
 | Plan id | `extreme-yearly-299` |
 | Price | $299 a year |
-| Checkout | Not published. The app shows "Extreme yearly, $299/year". Nothing is charged from the app. |
+| Checkout | https://square.link/u/LxwtyrCy . A click opens that Square pay page. Extreme yearly stays $299. This app does not call Square. |
 
 ## Lifetime founder
 
@@ -53,19 +53,19 @@ Lifetime is Pro for life. It is not Extreme.
 | | |
 |---|---|
 | Plan id | `founder-lifetime` |
-| Early price | $299 for the first 100 |
+| Early price | $349 for the first 100 |
 | Later price | $499 for the next 400 |
 | Cap | Closed after 500 total |
 | Spots left | Hidden until 40 founders have bought (`FOUNDER_SPOTS_HIDDEN_UNTIL`, default 40). Before that the app says "Limited to the first 100 founders". After that it shows the spots left. |
-| Checkout | Not published. Nothing is charged from the app. |
+| Checkout | Placeholder. The founder link is being reissued at $349, so the button stays on the page and nothing is charged from that button. |
 
 ## Tiers
 
 | Tier | Price | Included |
 |---|---|---|
 | Free | $0 | Bring your own keys. Single mode (best AI for the job), the learning router (picks stay on this computer), status strip with health lights, 3 projects, Credits ledger, 5 councils per month, 1 connected service, 1 email account per provider. No missions, no scheduler, no shared learning, no scores dashboard, no phone pairing, no full history search. A 14-day Pro trial can be started in the app. The trial is not started for you, and nothing is charged. |
-| Pro | $18.99 / month, or $189 / year, or lifetime founder ($299 for the first 100, then $499, closed after 500). Existing subscribers stay at $15.99 / month. | Everything in Free plus: every connected service, up to 8 email accounts per provider, Mission mode (plan, assign, QA, assemble), unlimited Council (4 AIs per council, 3 runs at once), the off-peak scheduler and discount rules, balance-aware routing, unlimited projects and link hubs, Subscriptions tracker with burn rate and runway, shared learning, the scores dashboard (Who's best at what), phone pairing, full history search, update channel, priority support, 1 industry pack, Deep Research 8 times a month, 3 desktop control apps, 5 recipes. |
-| Extreme | $29.99 / month, or $299 / year | Everything in Pro plus: 8 AIs per council, 8 runs at once, unlimited Deep Research, all industry packs, a compliance audit log, team spaces with 3 seats, unlimited desktop control apps and recipes, hosted background runs and hosted schedules (gated, not a screen yet), and a monthly budget cap. |
+| Pro | $18.99 / month, or $189 / year, or lifetime founder ($349 for the first 100, then $499, closed after 500). Existing subscribers stay at $15.99 / month. | Everything in Free plus: every connected service, up to 8 email accounts per provider, Mission mode (plan, assign, QA, assemble), unlimited Council (4 AIs per council, 3 runs at once), the off-peak scheduler and discount rules, balance-aware routing, unlimited projects and link hubs, Subscriptions tracker with burn rate and runway, shared learning, the scores dashboard (Who's best at what), phone pairing, full history search, update channel, priority support, 1 industry pack, Deep Research 8 times a month, 3 desktop control apps, 5 recipes. |
+| Extreme | $29.99 / month, or $299 / year | Everything in Pro plus: 8 AIs per council, 8 runs at once, unlimited Deep Research, all industry packs, a compliance audit log, early access (new features reach Extreme first, behind a flag), Max quality (the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap), team spaces with 5 seats, unlimited desktop control apps and recipes, hosted background runs and hosted schedules (gated, not a screen yet), and a monthly budget cap. |
 | Studio (later) | $49 to $79 / month | Shared projects, team view, client workspaces. The Studio workspace screen is unchanged. |
 
 The free tier is deliberately the "feel the routing" tier; the Credits tab shows what the councils and missions would have saved, which is the upsell. The learning router stays on Free. Shared learning and the scores dashboard are Pro.
@@ -76,7 +76,7 @@ The app checks a licence key. With no active key the copy stays on Free. A 14-da
 
 ## Still to do (Chris, in Square, not in this repo)
 
-- Create the plan ids above. Do not change the live $15.99 plan or its pay link.
+- Leave the live $15.99 plan and https://square.link/u/dbU38mQC alone. The four new pay links above are published. Reissue the founder lifetime link at $349. The app keeps a placeholder until that link exists.
 - A landing page with the pay link and the download (everbornproductions.com/command-center).
 - Licence key issue on successful Square payment (Square webhook, generate key, email), and the check in the app. Store `plan` on the licence when the key is issued (`pro-monthly-1599` for the old price, `founder-lifetime` for lifetime, `pro-monthly-1899` or `extreme-monthly-2999` for the new plans).
 - Run `supabase/migrations/20261021_extreme_tier.sql` in the SQL editor before issuing an Extreme key. The app does not run it.

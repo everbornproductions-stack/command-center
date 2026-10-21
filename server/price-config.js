@@ -21,8 +21,9 @@ export const EXTREME_MONTHLY = monthly.extreme;
 export const PRO_YEARLY = 189;
 export const EXTREME_YEARLY = 299;
 
-// Lifetime is Pro for life. $299 for the first 100, $499 for the next 400, closed after 500.
-export const LIFETIME_EARLY_PRICE = 299;
+// Lifetime is Pro for life. $349 for the first 100, $499 for the next 400, closed after 500.
+// Extreme yearly stays $299. That number is not the founder price.
+export const LIFETIME_EARLY_PRICE = 349;
 export const LIFETIME_LATER_PRICE = 499;
 export const LIFETIME_EARLY_SEATS = 100;
 export const LIFETIME_CAP = 500;
@@ -37,6 +38,14 @@ export const FOUNDER_LIMITED_LINE = `Limited to the first ${LIFETIME_EARLY_SEATS
 export const GRANDFATHER_PRO_MONTHLY = 15.99;
 export const GRANDFATHER_PLAN_ID = "pro-monthly-1599";
 export const GRANDFATHER_PAY_LINK = "https://square.link/u/dbU38mQC";
+
+// Published Square pay pages. The app does not call Square. A click opens the page.
+// The founder link is being reissued at $349, so this stays a placeholder.
+export const PRO_MONTHLY_PAY_LINK = "https://square.link/u/UrcjlAqi";
+export const PRO_YEARLY_PAY_LINK = "https://square.link/u/8JlyJzxb";
+export const EXTREME_MONTHLY_PAY_LINK = "https://square.link/u/u5FdCONv";
+export const EXTREME_YEARLY_PAY_LINK = "https://square.link/u/LxwtyrCy";
+export const LIFETIME_PAY_LINK = null;
 
 export function moneyPlain(amount) {
   const n = Number(amount);
@@ -60,11 +69,11 @@ export const GRANDFATHER_NOTE = `If you already pay $${moneyPlain(GRANDFATHER_PR
 
 // Square plan ids Chris creates by hand. Nothing here calls Square.
 export const SQUARE_PLANS_TO_CREATE = [
-  { id: PRO_MONTHLY_PLAN_ID, name: "Meldmind Pro monthly", amount: PRO_MONTHLY, cadence: "month", tier: "pro" },
-  { id: PRO_YEARLY_PLAN_ID, name: "Meldmind Pro yearly", amount: PRO_YEARLY, cadence: "year", tier: "pro" },
-  { id: EXTREME_MONTHLY_PLAN_ID, name: "Meldmind Extreme monthly", amount: EXTREME_MONTHLY, cadence: "month", tier: "extreme" },
-  { id: EXTREME_YEARLY_PLAN_ID, name: "Meldmind Extreme yearly", amount: EXTREME_YEARLY, cadence: "year", tier: "extreme" },
-  { id: LIFETIME_PLAN_ID, name: "Meldmind Lifetime founder", amount: LIFETIME_EARLY_PRICE, laterAmount: LIFETIME_LATER_PRICE, cadence: "once", tier: LIFETIME_TIER, earlySeats: LIFETIME_EARLY_SEATS, cap: LIFETIME_CAP },
+  { id: PRO_MONTHLY_PLAN_ID, name: "Meldmind Pro monthly", amount: PRO_MONTHLY, cadence: "month", tier: "pro", payLink: PRO_MONTHLY_PAY_LINK },
+  { id: PRO_YEARLY_PLAN_ID, name: "Meldmind Pro yearly", amount: PRO_YEARLY, cadence: "year", tier: "pro", payLink: PRO_YEARLY_PAY_LINK },
+  { id: EXTREME_MONTHLY_PLAN_ID, name: "Meldmind Extreme monthly", amount: EXTREME_MONTHLY, cadence: "month", tier: "extreme", payLink: EXTREME_MONTHLY_PAY_LINK },
+  { id: EXTREME_YEARLY_PLAN_ID, name: "Meldmind Extreme yearly", amount: EXTREME_YEARLY, cadence: "year", tier: "extreme", payLink: EXTREME_YEARLY_PAY_LINK },
+  { id: LIFETIME_PLAN_ID, name: "Meldmind Lifetime founder", amount: LIFETIME_EARLY_PRICE, laterAmount: LIFETIME_LATER_PRICE, cadence: "once", tier: LIFETIME_TIER, earlySeats: LIFETIME_EARLY_SEATS, cap: LIFETIME_CAP, payLink: LIFETIME_PAY_LINK },
 ];
 
 export function spotsLeftPhrase(left, { ofFounders = false } = {}) {

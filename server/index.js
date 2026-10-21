@@ -32,7 +32,7 @@ import { planInfo } from "./plans.js";
 import "./tips.js";
 import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
 import { learnedStrengths } from "./added-caps.js";
-import { normalizeMode } from "./modes.js";
+import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
@@ -283,13 +283,19 @@ function trackRun(kind, promise) {
   p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
   return p;
 }
+function guardMaxQuality(mode) {
+  if (normalizeMode(mode) !== "max") return;
+  guard("maxQuality");
+}
 function startCouncil(opts) {
+  guardMaxQuality(opts.mode);
   guard("council");
   guard("concurrentRuns", { running: runsInFlight() });
   if (Array.isArray(opts.members) && opts.members.length) guard("aisPerCouncil", { count: opts.members.length });
   return trackRun("council", runCouncil(opts));
 }
 function startMission(opts) {
+  guardMaxQuality(opts.mode);
   guard("missions");
   if (opts.runAt === "offpeak") guard("scheduler");
   guard("concurrentRuns", { running: runsInFlight() });
@@ -409,6 +415,7 @@ const publicConfig = () => ({ mode: MODE, version: VERSION, name: "Meldmind", ta
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
 async function runChat({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
+  guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
   try { return await runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }); }
@@ -417,6 +424,7 @@ async function runChat({ prompt, provider, model, projectId, search, tools, libr
 async function runChatBody({ prompt, provider, model, projectId, search, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode }) {
   const id = runId || "s-" + Date.now().toString(36);
   const priority = chatPriority(mode);
+  const shape = outputShape(priority);
   let cls = null;
   // A caller that already asked the router (a walkthrough step) passes that task type.
   // The record then uses it, instead of guessing again from the long prompt.
@@ -457,7 +465,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: 3000, webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -575,9 +583,10 @@ async function api(req, res, url) {
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
-    try { guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const s = settings();
-    const opts = { goal: job.goal, mode: normalizeMode(job.mode || s.defaultMode) || "balanced", projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
+    const missionMode = normalizeMode(job.mode || s.defaultMode) || "balanced";
+    try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
@@ -593,6 +602,8 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    try { guardMaxQuality(chatPriority(job.mode)); }
+    catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     // The id is known before the chat runs, so a caller can wait for this run
     // without comparing clocks. Windows CI steps the clock and a "newer than now" check then never matches.
     const runId = job.runId || ("s-" + Date.now().toString(36));
@@ -711,7 +722,11 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/settings") {
     const { cloud, phonePair: _pair, ...rest } = body; // cloud and phone pairing have their own routes
-    if (rest.defaultMode != null) rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
+    if (rest.defaultMode != null) {
+      rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
+      try { guardMaxQuality(rest.defaultMode); }
+      catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+    }
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
   if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());

@@ -37,7 +37,7 @@ If you clear the box, this note appears: Meldmind learns from the community. Wit
 
 ## Priority
 
-Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.
+Max quality, Quality, Balanced, Max savings, and Speed apply to Single, Council, and Mission. Max quality is part of Extreme. It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap. Quality favours the stronger model. Balanced splits the difference. Max savings picks the cheaper model. Speed picks the faster one.
 
 ## Free models on this PC
 

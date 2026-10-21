@@ -16,7 +16,7 @@ import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
 import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
-import { councilPlan, reviewMode } from "./modes.js";
+import { councilPlan, outputShape, reviewMode } from "./modes.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
@@ -26,6 +26,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const t0 = Date.now();
   const plan = councilPlan(asked, lite);
   const mode = plan.priority;
+  const shape = outputShape(mode);
+  const answerTokens = shape.maxTokens || maxTokens;
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
   // Grok Bot (Phase 12) and the browser helper (Phase 27) are agents, not text models: one of them is picked
   // by what the job needs (signed-in browsing, Gmail, Drive, Calendar, teammate bots), never for plain text
@@ -118,7 +120,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     try {
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens, webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: members.filter((x) => x !== m) })) {
+      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: "Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: members.filter((x) => x !== m) })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -225,7 +227,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
       let text = "";
       for await (const ev of fallbackChat({
-        provider: chair.provider, model: chair.model, maxTokens: Math.max(1200, maxTokens),
+        provider: chair.provider, model: chair.model, maxTokens: Math.max(shape.maxTokens || 0, 1200, maxTokens), ...(shape.effort ? { effort: shape.effort } : {}),
         system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
       }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode })) {

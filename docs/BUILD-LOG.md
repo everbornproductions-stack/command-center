@@ -1596,3 +1596,13 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Mac CI is .github/workflows/mac-ci.yml. It runs npm test and npm run smoke. It does not package or publish. Windows CI is unchanged.
 - Tests here (Linux): npm test 435 tests, 434 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
 - Checked in a browser on this machine: the Subscriptions lock and Settings show Free, Pro at $18.99, and Extreme at $29.99 in three columns, including a 390px wide window. With 12 founders sold the line is "Limited to the first 100 founders" and there is no spots-left number. Pro yearly shows a toast that nothing was charged. No Square page opened.
+
+## 2026-10-21: Founder lifetime $349, published pay links, Extreme extras
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called and nothing was charged. Studio workspaces were not rebuilt. Extreme yearly stays $299.
+
+- Lifetime for the first 100 founders is $349. The next 400 stay at $499. The deal still closes at 500. The spots-left counter still stays hidden until 40 sales.
+- Published pay pages, stored next to the grandfather link and not fetched by the app: Pro monthly https://square.link/u/UrcjlAqi, Pro yearly https://square.link/u/8JlyJzxb, Extreme monthly https://square.link/u/u5FdCONv, Extreme yearly https://square.link/u/LxwtyrCy. The founder link is a placeholder (`LIFETIME_PAY_LINK` is null) until it is reissued at $349. The old $15.99 link is still not a new-plan button.
+- Extreme also includes early access (flag `CC_EARLY_ACCESS`, off only when it is `0`), Max quality (best model each connected AI offers, more reasoning and a longer context, inside the existing spend caps), and team spaces with 5 seats. Team spaces stay a gate with no new screen. Max quality is in the command bar and in Settings. Free, Pro, and a trial get a 402 for that mode.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.
+- Checked in a browser on this machine: Subscriptions and Settings show $349, three columns at 390px, team seats 5, early access, and Max quality. Lifetime toasts that nothing was charged. Pro and Extreme yearly show a Square pay page on hover and were not opened. An owner copy can save Max quality. No Square page opened.

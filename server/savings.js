@@ -29,6 +29,7 @@ export function isLocalFree(m, meta = null) {
 export function localGap(mode) {
   const m = String(mode || "").toLowerCase();
   if (m === "economy" || m === "savings") return Infinity;
+  if (m === "max") return 0;
   if (m === "quality") return 6;
   if (m === "speed") return 12;
   return 15;

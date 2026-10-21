@@ -49,6 +49,10 @@ export function upgradeButtonsHtml({ plans, tier = "free", primary = false } = {
   return parts.filter(Boolean).join("");
 }
 
+export function extremeExtrasHtml() {
+  return `<div class="dim small" data-extreme-extras>Extreme includes early access (new features reach Extreme first, behind a flag), Max quality (the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap), and team spaces with 5 seats.</div>`;
+}
+
 export function founderSpotsHtml(plans) {
   const life = plans?.lifetime;
   if (!life) return "";

@@ -6,7 +6,7 @@ import path from "node:path";
 import { ROOT } from "./helpers.js";
 import { proPlanCatalog } from "../server/billing-plans.js";
 import {
-  compareColumnCount, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml,
+  compareColumnCount, extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml,
 } from "../web/plan-compare.js";
 
 const css = fs.readFileSync(path.join(ROOT, "web", "styles.css"), "utf8");
@@ -48,9 +48,13 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
   assert.match(free, /Pro yearly, \$189\/year/);
   assert.match(free, /Go Extreme, \$29\.99\/month/);
   assert.match(free, /Extreme yearly, \$299\/year/);
-  assert.match(free, /Lifetime founder, \$299/);
-  assert.match(free, /data-pro-plan="pro-monthly-1899"/);
-  assert.doesNotMatch(free, /<a /);
+  assert.match(free, /Lifetime founder, \$349/);
+  assert.match(free, /href="https:\/\/square\.link\/u\/UrcjlAqi"/);
+  assert.match(free, /href="https:\/\/square\.link\/u\/8JlyJzxb"/);
+  assert.match(free, /href="https:\/\/square\.link\/u\/u5FdCONv"/);
+  assert.match(free, /href="https:\/\/square\.link\/u\/LxwtyrCy"/);
+  assert.match(free, /<button[^>]*data-pro-plan="founder-lifetime"/);
+  assert.doesNotMatch(free, /href="[^"]*founder-lifetime/);
   assert.doesNotMatch(free, /15\.99/);
   assert.doesNotMatch(free, /dbU38mQC/);
   assert.doesNotMatch(free, /\$159/);
@@ -62,7 +66,12 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
 
   const spots = founderSpotsHtml(plans);
   assert.match(spots, /Limited to the first 100 founders/);
-  assert.match(spots, /\$299 for the first 100/);
+  assert.match(spots, /\$349 for the first 100/);
+  const extras = extremeExtrasHtml();
+  assert.match(extras, /early access/);
+  assert.match(extras, /Max quality/);
+  assert.match(extras, /5 seats/);
+  assert.equal(extras.includes("\u2014"), false);
   assert.doesNotMatch(spots, /spots left/);
 
   const counted = founderSpotsHtml(proPlanCatalog(40));

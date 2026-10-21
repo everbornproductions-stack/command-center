@@ -2,16 +2,17 @@
 // Prices come from server/price-config.js. Yearly and lifetime are not derived from monthly.
 import { publicCompare } from "./feature-gate.js";
 import {
-  EXTREME_MONTHLY, EXTREME_MONTHLY_PLAN_ID, EXTREME_YEARLY, EXTREME_YEARLY_PLAN_ID,
+  EXTREME_MONTHLY, EXTREME_MONTHLY_PAY_LINK, EXTREME_MONTHLY_PLAN_ID, EXTREME_YEARLY, EXTREME_YEARLY_PAY_LINK, EXTREME_YEARLY_PLAN_ID,
   extremeMonthlyLabel, extremeYearlyLabel,
   FOUNDER_LIMITED_LINE, FOUNDER_SPOTS_HIDDEN_UNTIL,
   GRANDFATHER_NOTE, GRANDFATHER_PAY_LINK, GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY,
-  LIFETIME_CAP, LIFETIME_EARLY_PRICE, LIFETIME_EARLY_SEATS, LIFETIME_LATER_PRICE, LIFETIME_PLAN_ID, LIFETIME_RULE, LIFETIME_TIER,
-  PRICE_SET, PRO_MONTHLY, PRO_MONTHLY_PLAN_ID, PRO_YEARLY, PRO_YEARLY_PLAN_ID,
+  LIFETIME_CAP, LIFETIME_EARLY_PRICE, LIFETIME_EARLY_SEATS, LIFETIME_LATER_PRICE, LIFETIME_PAY_LINK, LIFETIME_PLAN_ID, LIFETIME_RULE, LIFETIME_TIER,
+  PRICE_SET, PRO_MONTHLY, PRO_MONTHLY_PAY_LINK, PRO_MONTHLY_PLAN_ID, PRO_YEARLY, PRO_YEARLY_PAY_LINK, PRO_YEARLY_PLAN_ID,
   proMonthlyLabel, proYearlyLabel, spotsLeftPhrase,
 } from "./price-config.js";
 
-export const MONTHLY_LINK = GRANDFATHER_PAY_LINK;
+// New Pro monthly. The grandfather $15.99 link is not a buy button.
+export const MONTHLY_LINK = PRO_MONTHLY_PAY_LINK;
 export const MONTHLY_AMOUNT = PRO_MONTHLY;
 export const YEARLY_AMOUNT = PRO_YEARLY;
 export const FOUNDER_EARLY_PRICE = LIFETIME_EARLY_PRICE;
@@ -19,28 +20,29 @@ export const FOUNDER_LATER_PRICE = LIFETIME_LATER_PRICE;
 export const FOUNDER_EARLY_SEATS = LIFETIME_EARLY_SEATS;
 export const FOUNDER_CAP = LIFETIME_CAP;
 
-function pendingPlan({ id, name, amount, cadence, label, button, tier }) {
-  return { id, name, tier, amount, cadence, label, button, payLink: null, pendingLink: true };
+function publishedPlan({ id, name, amount, cadence, label, button, tier, payLink }) {
+  const link = typeof payLink === "string" && payLink.startsWith("https://") ? payLink : null;
+  return { id, name, tier, amount, cadence, label, button, payLink: link, pendingLink: !link };
 }
 
-export const MONTHLY_PLAN = pendingPlan({
+export const MONTHLY_PLAN = publishedPlan({
   id: PRO_MONTHLY_PLAN_ID, name: "Pro", tier: "pro", amount: PRO_MONTHLY, cadence: "month",
-  label: proMonthlyLabel, button: `Go Pro, ${proMonthlyLabel}`,
+  label: proMonthlyLabel, button: `Go Pro, ${proMonthlyLabel}`, payLink: PRO_MONTHLY_PAY_LINK,
 });
 
-export const YEARLY_PLAN = pendingPlan({
+export const YEARLY_PLAN = publishedPlan({
   id: PRO_YEARLY_PLAN_ID, name: "Pro yearly", tier: "pro", amount: PRO_YEARLY, cadence: "year",
-  label: proYearlyLabel, button: `Pro yearly, ${proYearlyLabel}`,
+  label: proYearlyLabel, button: `Pro yearly, ${proYearlyLabel}`, payLink: PRO_YEARLY_PAY_LINK,
 });
 
-export const EXTREME_MONTHLY_PLAN = pendingPlan({
+export const EXTREME_MONTHLY_PLAN = publishedPlan({
   id: EXTREME_MONTHLY_PLAN_ID, name: "Extreme", tier: "extreme", amount: EXTREME_MONTHLY, cadence: "month",
-  label: extremeMonthlyLabel, button: `Go Extreme, ${extremeMonthlyLabel}`,
+  label: extremeMonthlyLabel, button: `Go Extreme, ${extremeMonthlyLabel}`, payLink: EXTREME_MONTHLY_PAY_LINK,
 });
 
-export const EXTREME_YEARLY_PLAN = pendingPlan({
+export const EXTREME_YEARLY_PLAN = publishedPlan({
   id: EXTREME_YEARLY_PLAN_ID, name: "Extreme yearly", tier: "extreme", amount: EXTREME_YEARLY, cadence: "year",
-  label: extremeYearlyLabel, button: `Extreme yearly, ${extremeYearlyLabel}`,
+  label: extremeYearlyLabel, button: `Extreme yearly, ${extremeYearlyLabel}`, payLink: EXTREME_YEARLY_PAY_LINK,
 });
 
 export const GRANDFATHER_PLAN = {
@@ -127,8 +129,8 @@ export function proPlanCatalog(sold = null) {
       id: LIFETIME_PLAN_ID,
       name: "Lifetime founder",
       kind: "one_time",
-      payLink: null,
-      pendingLink: life.open,
+      payLink: LIFETIME_PAY_LINK,
+      pendingLink: !LIFETIME_PAY_LINK && life.open !== false,
       button: lifetimeButton(life),
       ...life,
     },

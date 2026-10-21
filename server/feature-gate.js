@@ -12,7 +12,7 @@ export const PRO_CONCURRENT = 3;
 export const EXTREME_CONCURRENT = 8;
 export const PRO_DEEP_RESEARCH_PER_MONTH = 8;
 export const PRO_INDUSTRY_PACKS = 1;
-export const EXTREME_TEAM_SEATS = 3;
+export const EXTREME_TEAM_SEATS = 5;
 export const PRO_DESKTOP_APPS = 3;
 export const PRO_RECIPES = 5;
 
@@ -42,7 +42,16 @@ export const FEATURES = {
   budgetCap: { kind: "bool", built: false },
   prioritySupport: { kind: "bool", built: true },
   deepResearchPerMonth: { kind: "cap", built: false },
+  earlyAccess: { kind: "bool", built: true },
+  maxQuality: { kind: "bool", built: true },
 };
+
+// New features reach Extreme first. Unset means on. "0" turns the flag off.
+export function earlyAccessEnabled(env = process.env) {
+  const v = env?.CC_EARLY_ACCESS;
+  if (v == null || String(v).trim() === "") return true;
+  return String(v).trim() !== "0";
+}
 
 const ALIAS = {
   subscriptions: "subscriptionsTab",
@@ -59,6 +68,7 @@ const FREE = {
   hostedBackground: false, hostedSchedules: false, teamSeats: 0,
   desktopApps: 0, recipes: 0, industryPacks: 0, auditLog: false, budgetCap: false, prioritySupport: false,
   deepResearchPerMonth: 0,
+  earlyAccess: false, maxQuality: false,
   label: "Free",
 };
 
@@ -70,6 +80,7 @@ const PRO = {
   desktopApps: PRO_DESKTOP_APPS, recipes: PRO_RECIPES, industryPacks: PRO_INDUSTRY_PACKS,
   auditLog: false, budgetCap: false, prioritySupport: true,
   deepResearchPerMonth: PRO_DEEP_RESEARCH_PER_MONTH,
+  earlyAccess: false, maxQuality: false,
   label: "Pro",
 };
 
@@ -87,6 +98,8 @@ const EXTREME = {
   budgetCap: true,
   prioritySupport: true,
   deepResearchPerMonth: Infinity,
+  earlyAccess: true,
+  maxQuality: true,
   label: "Extreme",
 };
 
@@ -166,6 +179,8 @@ function messageFor(limits, key, info, sell) {
     return `${limits.label} includes ${plural(limit, "run")} at once. More runs at once is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
   }
   if (key === "teamSeats") return `Team spaces are part of Extreme (${extremeMonthlyLabel}). Extreme includes ${EXTREME_TEAM_SEATS} seats.${TAIL}`;
+  if (key === "earlyAccess") return `Early access is part of Extreme (${extremeMonthlyLabel}). New features reach Extreme first, behind a flag.${TAIL}`;
+  if (key === "maxQuality") return `Max quality is part of Extreme (${extremeMonthlyLabel}). It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap.${TAIL}`;
   if (key === "desktopApps") {
     if (!limit) return `Desktop control apps are part of Pro (${proMonthlyLabel}), with a limit. Unlimited desktop control apps are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
     return `${limits.label} includes ${plural(limit, "desktop control app")}. Unlimited desktop control apps are part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
@@ -193,6 +208,9 @@ export function evaluateGate(limits, feature, info = {}) {
   }
   const value = current[key];
   if (meta.kind === "bool") {
+    if (value && key === "earlyAccess" && !earlyAccessEnabled(info.env)) {
+      return { ok: false, feature: key, built, code: "early_access_off", message: "Early access is off. New features reach Extreme first when the flag is on." };
+    }
     if (value) return { ok: true, feature: key, built };
     const sell = sellingTier(current, key);
     return { ok: false, feature: key, built, code: sell === "extreme" ? "extreme_required" : "pro_required", message: messageFor(current, key, info, sell) };
@@ -232,10 +250,17 @@ const COMPARE_ROWS = [
   { id: "hostedSchedules", label: "Hosted schedules", key: "hostedSchedules", bool: true },
   { id: "budget", label: "Monthly budget cap", key: "budgetCap", bool: true },
   { id: "support", label: "Priority support", key: "prioritySupport", bool: true },
+  { id: "early", label: "Early access", key: "earlyAccess", bool: true },
+  { id: "max", label: "Max quality", key: "maxQuality", bool: true },
 ];
 
-function compareCell(tier, row) {
+function compareCell(tier, row, env) {
   const value = LIMITS[tier][row.key];
+  if (row.key === "earlyAccess") {
+    if (!value) return "No";
+    return earlyAccessEnabled(env) ? "Yes" : "Flag off";
+  }
+  if (row.key === "maxQuality") return value ? "Yes, inside the budget cap" : "No";
   if (row.packs) {
     if (value === Infinity) return "All packs";
     if (!value) return "No";
@@ -247,7 +272,7 @@ function compareCell(tier, row) {
   return cellCap(value, row.monthly);
 }
 
-export function publicCompare() {
+export function publicCompare(env = process.env) {
   const columns = [
     { id: "free", name: "Free", price: "$0" },
     { id: "pro", name: "Pro", price: `${proMonthlyLabel} or ${proYearlyLabel}` },
@@ -256,7 +281,7 @@ export function publicCompare() {
   const rows = COMPARE_ROWS.map((row) => ({
     id: row.id,
     label: row.label,
-    cells: columns.map((col) => compareCell(col.id, row)),
+    cells: columns.map((col) => compareCell(col.id, row, env)),
   }));
   return { columns, rows, minWidth: 390 };
 }
