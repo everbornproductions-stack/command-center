@@ -1643,5 +1643,6 @@ PHASE 14 BLOCKED: a real Mac was not used. The server, Keychain, tray, window, D
 
 - Not in this change: PDF and DOCX export (Phase 85) and industry packs (Phase 84).
 - Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local demo only. No real key. data/ was not read. Headless Chrome on Linux removed readers until one remained, checked the tools and services lines, saved the receipt file after confirm, set Shorter without starting a run, and read the remaining-balance line. Windows CI and Mac CI run on the pull request after this push.
+- CI fix: Mac refused `Ctrl+Alt+Delete` only on Windows and Linux, so the hotkey route test now uses `Command+Space` on macOS. Windows test requests use the doubled wait, because a stdio tool server can take longer than 20s to finish initialize.
 
 WORKSTREAM C LEFTOVERS (readers, receipt file, next-answer tone, remaining balance)
