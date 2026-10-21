@@ -168,7 +168,7 @@ test("mocked darwin platform: the notice names the arm64 dmg and the Gatekeeper 
     const { createUpdateController, promptButtons, macDmgName, macDmgUrl, macReadyLine, MAC_SOON } = require(${JSON.stringify(path.join(ROOT, "electron", "updater.cjs"))});
     const { EventEmitter } = require("node:events");
     const u = new EventEmitter();
-    u.checkForUpdates = async () => { const info = { version: "0.4.8" }; u.emit("update-available", info); return { updateInfo: info }; };
+    u.checkForUpdates = async () => { const info = { version: "0.4.10" }; u.emit("update-available", info); return { updateInfo: info }; };
     u.downloadUpdate = async () => { throw new Error("updater download"); };
     u.quitAndInstall = () => { throw new Error("quit"); };
     const c = createUpdateController({ autoUpdater: u, currentVersion: "0.4.7", manualInstall: process.platform === "darwin", arch: "arm64" });
@@ -181,9 +181,9 @@ test("mocked darwin platform: the notice names the arm64 dmg and the Gatekeeper 
         soon: s.soon,
         primary: promptButtons(s).primary,
         secondary: promptButtons(s).secondary,
-        name: macDmgName("0.4.8", "arm64"),
-        intel: macDmgUrl("0.4.8", "x64"),
-        ready: macReadyLine("v0.4.8"),
+        name: macDmgName("0.4.10", "arm64"),
+        intel: macDmgUrl("0.4.10", "x64"),
+        ready: macReadyLine("v0.4.10"),
         constant: MAC_SOON,
       }));
     }).catch((e) => { console.error(e); process.exit(1); });
@@ -194,12 +194,12 @@ test("mocked darwin platform: the notice names the arm64 dmg and the Gatekeeper 
   assert.equal(j.platform, "darwin");
   assert.equal(j.statePlatform, "darwin");
   assert.equal(j.arch, "arm64");
-  assert.equal(j.line, "Meldmind 0.4.8 is ready. Download and install it to update; your data stays.");
+  assert.equal(j.line, "Meldmind 0.4.10 is ready. Download and install it to update; your data stays.");
   assert.equal(j.soon, MAC_SOON);
   assert.equal(j.primary, "Download");
   assert.equal(j.secondary, "Remind me later");
-  assert.equal(j.name, "Meldmind-0.4.8-arm64.dmg");
-  assert.match(j.intel, /Meldmind-0\.4\.8-x64\.dmg$/);
+  assert.equal(j.name, "Meldmind-0.4.10-arm64.dmg");
+  assert.match(j.intel, /Meldmind-0\.4\.10-x64\.dmg$/);
   assert.equal(j.ready, j.line);
   const help = read("docs/help/getting-started.md");
   assert.match(help, /right-click > Open/);

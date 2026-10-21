@@ -32,6 +32,6 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
 
-## Next release after 0.4.8: unsigned Mac build
+## 0.4.10: unsigned Mac build
 
-Not part of 0.4.8. This release ships an unsigned .dmg and .zip (x64 and arm64) and the in-app notice "Meldmind X is ready. Download and install it to update; your data stays." Download fetches the .dmg for that CPU. Remind me later does not download. The notice includes "Automatic updates for Mac are coming soon." Signing and notarization stay later, with the Apple Developer account.
+0.4.10 comes after 0.4.9. 0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. This release ships an unsigned .dmg and .zip (x64 and arm64) and the in-app notice "Meldmind X is ready. Download and install it to update; your data stays." Download fetches the .dmg for that CPU. Remind me later does not download. The notice includes "Automatic updates for Mac are coming soon." Signing and notarization stay later, with the Apple Developer account.
