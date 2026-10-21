@@ -1806,3 +1806,12 @@ Not a numbered phase. No product behavior changed. Square and billing were not t
 - Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app behavior was changed.
 - Mac CI is a pull request check that runs the tests and the smoke check on macos-latest. It does not build the unsigned disk image and does not publish. Phase 14 stays blocked for a real Mac.
 - Mac CI refused to save Ctrl+Alt+Delete as a launcher shortcut only on Windows and Linux. That combination is now refused on a Mac too. The pairing test reads the in-app feed. A Windows runner can hold later console lines in a buffer, so the process log missed "Phone pairing on" after the run had already started.
+
+## 2026-10-21: PR 62 holds the 0.4.9 desktop scope
+
+Not a numbered phase by itself. Decision 22 and decision 23 text are unchanged. Phase 14 stays BLOCKED (needs a Mac). Package stays 0.4.8. The help catalog stays 0.4.8. Square and billing were not touched. data/ was not read.
+
+- This branch now includes the Antigravity CLI, the MCP bridge, the program scan (free or paid, official link, ask before use, suggestions can be turned off), the graduate notice, everyday actions and Calendar (pull requests 53, 56, 60, 61, and 63), the command-bar save, and the welcome email. Free AIs and upgrade tips were already on main.
+- Phases 45 to 51 have fixture drivers in server/desktop-doors.js. Allow registers a hub node. Revoke hides the app. A writing step stays on a text model. MCP calls use the existing approval gate. A local fixture page refuses a password and waits before submit. A signed-in profile is blocked while the browser is open. A fixture window refuses a password edit and a Delete until OK, and does nothing if another program is in front. Screenshot steps drop the previous picture, stop at the cap, and refuse Square and billing. No Edge window, no profile read, no UI Automation, and no picture is sent to a model.
+- Phase 70 on this branch is the command bar only. A chat, a doc, and a connected file do not yet save back onto the same item.
+- Phases 66, 67, and 68 stay out of this pull request.
