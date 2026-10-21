@@ -985,3 +985,59 @@ export function assertBuilder(opts = {}) {
   if (!g.ok) throw Object.assign(new Error(g.message), { status: g.status, code: g.code });
   return g;
 }
+
+// Guided builders for websites and marketing (builders A). Studio counts as Pro. Owner counts as every tier.
+// need is "free", "pro", or "extreme". This does not set a price and does not import license.js.
+const WEB_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
+
+export function tierRank(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(WEB_RANK, t) ? WEB_RANK[t] : 0;
+}
+
+export function planLabel(tier) {
+  const t = String(tier || "free").toLowerCase();
+  return LIMITS[t]?.label || "Free";
+}
+
+export function webBuilderGate(need, tier = currentTier()) {
+  const want = String(need || "free").toLowerCase();
+  const have = String(tier || "free").toLowerCase();
+  const ok = tierRank(have) >= tierRank(want === "studio" ? "pro" : want);
+  const needLabel = planLabel(want);
+  const haveLabel = planLabel(have);
+  if (ok) {
+    return {
+      ok: true, status: 200, code: null, tier: have, need: want,
+      message: `${needLabel} tools are included on ${haveLabel}.`,
+    };
+  }
+  return {
+    ok: false, status: 402, code: "plan_required", tier: have, need: want,
+    message: `This is part of ${needLabel}. You are on ${haveLabel}.`,
+  };
+}
+
+export const PUBLISH_NEEDS = {
+  local: "free",
+  netlify: "pro",
+  vercel: "pro",
+  postiz: "pro",
+  listmonk: "pro",
+  mautic: "pro",
+  highlevel: "pro",
+};
+
+export function publishGate(target, tier = currentTier()) {
+  const key = String(target || "local").toLowerCase();
+  const need = Object.prototype.hasOwnProperty.call(PUBLISH_NEEDS, key) ? PUBLISH_NEEDS[key] : "pro";
+  const gate = webBuilderGate(need, tier);
+  if (gate.ok) return { ...gate, target: key };
+  return {
+    ...gate,
+    target: key,
+    message: key === "local"
+      ? gate.message
+      : `Publishing to ${key} is part of ${planLabel(need)}. You are on ${planLabel(tier)}. Nothing was sent.`,
+  };
+}

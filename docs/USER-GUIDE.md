@@ -143,6 +143,7 @@ While you plan a mission or client work, a card may suggest a program that would
 
 Nothing posts, sends, emails or spends without a click from you.
 
+- **Builders** (Create, Builders) walks a website or a marketing job in plain steps: describe it, preview the AIs, build, test, and publish. Suggested for you shows a builder only when you have talked about a website, a post, a reel, or an ad, or when a site or social account is connected. Show all opens the rest. One button does the next step. More options holds the rest. Publish waits for your click. A saved token stays in the vault.
 - **Post to Instagram, Schedule in HighLevel, Send to Slack, Save to Drive** sit under every deliverable. Each one shows a preview first and sends exactly what you previewed only after you confirm.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.

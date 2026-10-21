@@ -91,7 +91,8 @@ Not done, except the three rows already marked done above (share links, accessib
 2. Phase 90. Zapier and Make connectors, both ways. MCP by URL and custom webhooks shipped with Phase 33. Do not rebuild them here. This runs before Later.
 3. Phase 96. Remix any app. Built, including Remix 2. One path: what to make, a starting point, preview, Build, Test, Publish. Extra choices sit under More options. A Pro mission, 8 a month on Pro and Studio (a placeholder, not a price), no monthly cap on Extreme or Owner. The gate is server/feature-gate.js. It runs right after Phase 90 and before Phase 91.
 4. Phase 97. Guided builders B: HighLevel, accounting, and business tools. Built. Describe, Preview the AIs, Build, Test, Publish. Each builder shows up only when the need is detected. The shared registry is `server/builders/registry.js` (`register({ id, title, tier, detect(ctx) })`). Tiers are gated in `server/feature-gate.js`. Version stays 0.4.8. Square is unchanged.
-5. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
+5. Phase 97. Guided builders A: Websites and Marketing (the Web and marketing page, /api/webbuilders). Built. A Builders page suggests a builder only when it detects a website, a post, a reel, an ad, a site project, or a connected site or social account. Show all opens the rest. Each builder is Describe, Preview the AIs, Build, Test, then Publish. The registry is server/builders/registry.js so workstream B can plug in. Gates are server/feature-gate.js. Square, billing, and the version are unchanged.
+6. Phase 91. The three tiers. Free. Pro at $18.99 a month or $189 a year. Extreme at $29.99 a month or $299 a year. About 6 months after those prices go live, the monthly prices rise to $24.99 and $39.99. Lifetime founders: $349 for the first 100, then $499 for the next 400, closed at 500. The buyer counter stays hidden under 40 buyers. Details in docs/billing.md. The comparison table in the app shows these prices. The live Square monthly checkout stays $15.99. Do not change that link, and do not call Square from the app.
 
 ### Later
 
@@ -597,6 +598,30 @@ The shared registry is `server/builders/registry.js`. Call `register({ id, title
 - Accounting builders appear when QuickBooks or Xero is connected, or when a receipt or an invoice comes up. They organize only. A tax question gets "Ask your accountant" and no tax advice. Receipt Snap can use Tesseract, PaddleOCR, or docTR (Free). Those programs are not bundled. Send to QuickBooks (Pro) and Send to Xero (Pro) wait for approval before posting. The Xero body matches xero-node's AccountingApi.createInvoices and is posted as a draft bill, which does not pay anyone. Invoice Reader follows the invoice2data fields (Free). Invoice Maker (Pro) keeps Invoice Ninja off. Invoice Ninja is a separate service under the Elastic License.
 - The other builders come from the chat topic. Website Chat Assistant with Chatwoot (Pro). Booking Page with Cal.com (Free). Meeting Notes with Whisper (Free). Whisper is not bundled and audio is not uploaded. Contract and e-sign Sender with DocuSeal (Pro): DocuSeal is a separate AGPL service, user templates only, no legal advice. Review Responder drafts a reply for approval and does not post it to the review site (Free).
 - Every send, post, or charge waits for Publish. Tests mock every external API on a local port. No real key. The gate is `server/feature-gate.js`. Free, Pro, and Extreme. Studio follows Pro. Owner follows Extreme. This phase does not rebuild Phase 7 HighLevel posting, Phase 33 council tools, Phase 36 limits, or Phase 91 prices. Square and billing are unchanged. Version stays 0.4.8.
+
+### Phase 97: Guided builders A, websites and marketing (built)
+A Web and marketing page under Create, beside Builders (guided builders B). Its registry is `server/builders/web/registry.js` and its API is `/api/webbuilders`, so the two sets do not collide. It is for someone who does not write code. Plain words, smart defaults, one main button, and the rest under More options. The steps match Remix: Describe, Preview the AIs, Build, Test, Publish. Nothing is sent until Publish is clicked. Tokens stay in the vault and are never shown again.
+
+The page opens on Suggested for you. A builder is suggested only when Meldmind detects the need: the person talks about a website, has a site project, or connects Netlify or Vercel; or they mention posts, reels, or ads, or connect a social account. Show all lists the rest. Detection lives in `server/builders/registry.js`. Workstream B adds a builder with `registerBuilder`, or by dropping a module in `server/builders/extras` that exports `register({ registerBuilder })`.
+
+Web, each with the license it keeps:
+- Site Builder uses GrapesJS (BSD-3). Pro.
+- Client Page Editor uses Puck (MIT). Pro.
+- Static export uses Astro (MIT). Free. The pages are written on this computer. Astro is not downloaded.
+- Site Health Check uses Lighthouse (Apache-2.0). Free. Fix it updates the page on this computer. Lighthouse is not started.
+- Publish to Netlify or Vercel is Pro. It waits for the click. With no token it records a dry run and sends nothing.
+
+Marketing:
+- Social Calendar uses Postiz (AGPL-3.0). Pro. Postiz stays a separate service and is not bundled.
+- Reel Maker uses WhisperX (BSD-2) and auto-editor (Unlicense). Extreme. Neither program is started in this build. Remotion is optional, off by default, and needs a paid license.
+- Email Sequences uses listmonk or Mautic as a separate service, or the HighLevel API. Pro. Every email gets a postal address and an unsubscribe line.
+- Ad Copy Studio uses Meldmind routing and a character limit per network. Free. The routed AI is named. The words are prepared here and are not sent.
+- SEO Fixer uses the Lighthouse check plus a prepared title and description. Free.
+- Credit repair and insurance ads show compliance checkboxes. Meldmind does not give advice for those ads.
+
+Gates are `server/feature-gate.js`. Free, Pro, and Extreme are the tool tiers. Studio counts as Pro. Owner can use every builder. This does not change Square, billing, or the version.
+
+Tests mock every network and every heavy tool. No GrapesJS, Puck, Astro, Lighthouse, Postiz, WhisperX, auto-editor, or Remotion package is installed.
 
 ### Phase 91: Three tiers and the lifetime founder counter
 The plan prices are in docs/billing.md and in the comparison table in the app. The live Square monthly checkout stays $15.99. Do not change that link. Do not call Square from the app.

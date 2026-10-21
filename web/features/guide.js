@@ -69,8 +69,12 @@ const BUILDERS = [
 // The Builders page (guided builders B) covers these kinds of work.
 const ON_BUILDERS_PAGE = new Set(["highlevel", "accounting", "booking", "meetings", "contracts", "assistant"]);
 
+// The Web and marketing page (guided builders A) covers these.
+const ON_WEB_PAGE = new Set(["website", "marketing", "reels"]);
+
 function builderOpen(probe, spec) {
   if (ON_BUILDERS_PAGE.has(spec.id) && has(probe.views, "builders")) return { view: "builders", focus: "#builders-root" };
+  if (ON_WEB_PAGE.has(spec.id) && has(probe.views, "webbuilders")) return { view: "webbuilders", focus: "#webbuilders-root" };
   for (const id of spec.views) {
     const page = viewOpen(probe, id);
     if (page) return page;

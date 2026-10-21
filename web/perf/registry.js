@@ -90,6 +90,7 @@ export const FEATURES = [
   { id: "background", home: true, listen: true },
   { id: "remix", views: ["remix"], kind: "builder" },
   { id: "builders", views: ["builders"], kind: "builder", home: true },
+  { id: "webbuilders", views: ["webbuilders"], kind: "builder", home: true },
   { id: "export", deliverable: true },
   { id: "together", views: ["together"] },
   { id: "everyday-inbox", views: ["everyday-inbox"] },

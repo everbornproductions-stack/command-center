@@ -2289,3 +2289,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Checked in Chrome: dismissed What's new, opened Prompts, chose Builders (16 prompts), clicked thumbs down on Receipt Snap, clicked Use this, and the marching orders box read "Snap my receipt and log it". No chat or publish request was sent. Help showed "What can Meldmind do?" including Receipt Snap, Review Responder, and Remix.
 
 PROMPT VOTES AND BUILDERS (not a numbered phase)
+## 2026-10-21: Phase 97 Guided builders A, websites and marketing
+
+Built on branch cursor/guided-builders-web-marketing-5ea7. No Square change. Version stays 0.4.8. data/ was not read.
+
+- Create, Builders. Suggested for you lists a builder only when a note, a project, or a connection matches it. Show all lists the rest. The steps are Describe, Preview the AIs, Build, Test, Publish. One main button. The rest is under More options.
+- The registry is server/builders/registry.js. Workstream B can call registerBuilder or drop a module in server/builders/extras. Gates are server/feature-gate.js. Studio counts as Pro. Owner can use every builder. Extreme is a tier label only. Phase 91 still sets the price.
+- Web: Site Builder names GrapesJS (BSD-3, Pro). Client Page Editor names Puck (MIT, Pro). Static export names Astro (MIT, Free) and writes the pages on this computer. Site Health Check names Lighthouse (Apache-2.0, Free) and Fix it updates the page here. Netlify and Vercel publish is Pro, waits for the click, and keeps the token in the vault.
+- Marketing: Social Calendar names Postiz (AGPL-3.0, Pro) as a separate service, not bundled. Reel Maker names WhisperX (BSD-2) and auto-editor (Unlicense) and is Extreme. Remotion stays off unless the person turns it on and says they have a paid license, and this build still does not include it. Email Sequences can target listmonk, Mautic, or HighLevel (Pro) and always adds a postal address and an unsubscribe line. Ad Copy Studio is Free, names the routed AI, and trims to each network's character limit. SEO Fixer is Free. Credit repair and insurance ads show compliance checkboxes. The copy is not advice.
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check. The browser click-through used a temp data folder: a website note suggested the site builders, Site Health Check ran Preview, Build, Test, Fix it, and Publish, and the result said nothing was sent. A credit repair and insurance note opened Ad Copy Studio with the three checkboxes and the no-advice line.
+
+PHASE 97 DONE
