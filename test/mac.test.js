@@ -39,21 +39,23 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.doesNotMatch(wf, /—/, "no em-dashes");
 });
 
-test("Mac CI workflow runs the tests and the smoke check, and does not package or publish", () => {
-  const wf = read(".github/workflows/mac-ci.yml");
-  assert.match(wf, /name: Mac CI/);
-  assert.match(wf, /runs-on: macos-latest/);
-  assert.match(wf, /pull_request:/);
-  assert.match(wf, /branches: \["main"\]/);
-  assert.match(wf, /run: npm ci/);
-  assert.match(wf, /run: npm test/);
-  assert.match(wf, /run: npm run smoke/);
-  const steps = wf.slice(wf.indexOf("jobs:"));
-  assert.doesNotMatch(steps, /npm run dist|electron-builder|gh release|notarize|CSC_IDENTITY|secrets\./);
-  assert.doesNotMatch(wf, /—/, "no em-dashes");
-  assert.ok(fs.existsSync(path.join(ROOT, ".github", "workflows", "windows-ci.yml")), "Windows CI stays");
-  assert.match(read(".github/workflows/windows-ci.yml"), /run: npm test/);
-  assert.ok(fs.existsSync(path.join(ROOT, "docs", "ci", "mac-build.yml")), "the unsigned Mac release stays out of workflows");
+test("pull requests run Windows tests only; Mac runs on a v* tag or a manual start", () => {
+  const dir = path.join(ROOT, ".github", "workflows");
+  assert.equal(fs.existsSync(path.join(dir, "mac-ci.yml")), false);
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith(".yml") && !name.endsWith(".yaml")) continue;
+    const wf = read(path.join(".github", "workflows", name));
+    if (/pull_request:/.test(wf)) assert.doesNotMatch(wf, /macos-latest/, `${name} must not run on Mac for a pull request`);
+  }
+  const win = read(".github/workflows/windows-ci.yml");
+  assert.match(win, /pull_request:/);
+  assert.match(win, /runs-on: windows-latest/);
+  assert.match(win, /run: npm test/);
+  const mac = read("docs/ci/mac-build.yml");
+  assert.match(mac, /workflow_dispatch:/);
+  assert.match(mac, /tags: \["v\*"\]/);
+  assert.doesNotMatch(mac, /pull_request:/);
+  assert.doesNotMatch(mac, /branches: \["main"\]/);
 });
 
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
