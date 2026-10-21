@@ -47,7 +47,7 @@ import { streamChat, complete } from "./providers.js";
 import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
-import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
+import { realAiConnected, demosHidden, demoBanner, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { bridgeAuthorized } from "./meldmind-bridge.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier, listDevices, removeDevice } from "./license.js";
@@ -253,6 +253,7 @@ const summarize = (m) => { const s = m.kind === "council" ? summaryOf(m) : missi
 // Nova, Atlas and Sage back. They come back only when every real AI is gone.
 // Settings can turn them back on (demoKeep).
 let demoChain = Promise.resolve();
+const CONNECTION_ROUTES = new Set(["tools", "apps", "grokbot", "antigravity", "handoff", "connect", "connectsetup", "byo", "highlevel", "control-apps", "sso"]);
 async function syncDemoPresenceBody() {
   await Promise.all([refreshCli().catch(() => {}), refreshWindowsEnv().catch(() => {})]);
   const real = realAiConnected();
@@ -433,7 +434,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
-    realAi: realAiConnected(), cli: cliNames(),
+    realAi: realAiConnected(), demoBanner: demoBanner(), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
   };
 }
@@ -907,7 +908,11 @@ async function api(req, res, url) {
     exec(opener);
     return json(res, 200, { ok: true });
   }
-  if (await handlePlugin(req, res, url, body)) return;
+  if (await handlePlugin(req, res, url, body)) {
+    // Saving an app, MCP server, Grok Bot, or sign-in is a real connection too: retire the demo AIs.
+    if (method !== "GET" && CONNECTION_ROUTES.has(seg[0])) syncDemoPresence().catch(() => {});
+    return;
+  }
   return json(res, 404, { error: "no such route" });
 }
 

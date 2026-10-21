@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
+const PROVIDER_KEY_ENV = /^(?:[A-Z0-9]+_)*(?:API_KEY|API_TOKEN|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN)$|^FAL_KEY$/;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -234,6 +235,8 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),
   };
   for (const k of Object.keys(childEnv)) if (childEnv[k] === "" || childEnv[k] === undefined) delete childEnv[k];
+  // A provider key on the machine running the tests never reaches the app. A test passes a fake one in env.
+  for (const k of Object.keys(childEnv)) if (!(k in env) && PROVIDER_KEY_ENV.test(k)) delete childEnv[k];
   // Tests never call the public web. A loopback mock (CC_SEARCH_URL_*) still answers.
   if (childEnv.CC_SEARCH_OFFLINE === undefined) childEnv.CC_SEARCH_OFFLINE = "1";
   // Linux CI has no OS keychain. The preload seals the test vault; the app never loads it.

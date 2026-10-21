@@ -4,7 +4,7 @@ import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentN
 import { CREATE_VIEWS, DAY_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
-import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
+import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
@@ -325,6 +325,8 @@ function applyState(st) {
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
+  S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demoKeep: !!settings.demoKeep, realAi: S.realAi });
+  renderDemoBanner();
   syncUiMode();
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
@@ -2371,6 +2373,19 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
     // reload only when the person asked for it, and only once
     navigator.serviceWorker.addEventListener("controllerchange", () => { if (swRefreshing) { swRefreshing = false; safeReload("new version activated", { manual: true }); } });
   }
+}
+// Demo AIs kept on in Settings while a real AI is connected: one line, one click to turn them off.
+function renderDemoBanner() {
+  let d = $("#demo-bar");
+  if (!S.demoBanner) { d?.remove(); return; }
+  if (d) return;
+  d = document.createElement("div"); d.id = "demo-bar"; d.className = "update-bar"; d.setAttribute("role", "status");
+  d.innerHTML = `<div>${esc(DEMO_BANNER_TEXT)}</div><button class="btn sm" type="button" style="margin-left:auto" id="demo-bar-off">${esc(DEMO_BANNER_ACTION)}</button>`;
+  const bar = $("#update-bar"); if (bar) bar.after(d); else document.body.prepend(d);
+  $("#demo-bar-off").addEventListener("click", async () => {
+    try { const r = await api("/demo", { method: "POST", body: { on: false } }); S.demo = r.demo; toast("Demo AIs offline"); await refresh(); }
+    catch (e) { toast(e.message, true); }
+  });
 }
 function showRefreshPrompt(worker) {
   if ($("#sw-refresh")) return;
