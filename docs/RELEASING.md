@@ -39,7 +39,7 @@ not in the install folder, so updating or reinstalling keeps it.
    `server/cloud-defaults.json` for the installer, then puts the empty value back.
    If neither variable is set, the release build stops and says so. Without the key every
    installed copy stays on the Free tier and `EVERBORN-OWNER` cannot redeem.
-   On GitHub Actions the same names are repo secrets (see `docs/ci/mac-build.yml`).
+   On GitHub Actions the same names are repo secrets (see `.github/workflows/mac-build.yml`).
    This makes three files in `dist\` that matter:
    - `Meldmind-Setup-X.Y.Z.exe` (the installer)
    - `Meldmind-Setup-X.Y.Z.exe.blockmap` (lets updates download only what changed)
@@ -86,8 +86,10 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 
 ## Mac (unsigned for now)
 
-- GitHub Actions workflow **Mac build**. It is parked at `docs/ci/mac-build.yml` because the PC's GitHub login cannot push workflow files yet. To turn it on: run `gh auth refresh -s workflow` once, then `git mv docs/ci/mac-build.yml .github/workflows/mac-build.yml`, commit and push. The workflow builds `Meldmind-<version>-<arch>.dmg` and `.zip` on a Mac runner. Start it from the Actions tab (Run workflow) after the Windows release is up, or push a `vX.Y.Z` tag.
-- One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
-- The workflow runs `npm test`, `npm run smoke` and `npm run dist:mac` (x64 and arm64). It never publishes: if the release `vX.Y.Z` does not exist yet, it creates it as a **draft** with the Mac files, and you add the Windows files and publish it as usual. If the Windows release is already published, the Mac files and `latest-mac.yml` are added to it.
-- Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates). Keys are sealed with the macOS Keychain through the desktop app.
-- TODO (needs an Apple Developer account, $99/year): signing and notarization. Until then Mac users right-click the app and choose Open the first time, and the in-app update button cannot install on Mac (Apple only allows signed apps to self-update). On a Mac, "Install now" opens the release page so they download the new .dmg instead. Once signing is on, set `MAC_SELF_UPDATE = true` in electron/main.cjs.
+- GitHub Actions workflow **Mac build** is `.github/workflows/mac-build.yml`. A pull request and a push to `main` run `npm test` and `npm run smoke` on a Mac runner. They do not build a disk image and they do not read `RELEASES_TOKEN`.
+- A `vX.Y.Z` tag, or Run workflow from the Actions tab, builds `Meldmind-<version>-<arch>.dmg` and `.zip` (x64 and arm64) on macos-latest. The tag must match `package.json`.
+- The upload uses the repo secret `RELEASES_TOKEN`, the same secret the Windows release uses (Settings > Secrets and variables > Actions): a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts and nothing is uploaded.
+- The release job runs `npm test`, `npm run smoke` and `npm run dist:mac`. It never publishes: if the release `vX.Y.Z` does not exist yet, it creates it as a **draft** with the Mac files, and you add the Windows files and publish it as usual. If the Windows release is already published, the Mac files and `latest-mac.yml` are added to it.
+- Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates and reinstalls). Keys are sealed with the macOS Keychain through the desktop app.
+- An unsigned Mac app checks for a newer version on startup and every hour. The notice says "Meldmind X is ready. Download and install it to update; your data stays." Download fetches the `.dmg` for that CPU and opens it, or opens it in the browser. Drag Meldmind to Applications and choose Replace. Remind me later does not download. The notice includes "Automatic updates for Mac are coming soon."
+- TODO (needs an Apple Developer account, $99/year): signing and notarization. Until then Mac users use right-click > Open the first time, and the app cannot replace itself (Apple only allows signed apps to self-update). Once signing is on, set `MAC_SELF_UPDATE = true` in electron/main.cjs.

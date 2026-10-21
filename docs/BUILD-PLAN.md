@@ -185,11 +185,13 @@ Every item below must respect: bring-your-own-key (the user's keys only), spend 
 - Team SSO (Google and Microsoft OIDC) for the hosted hub, and per-workspace API keys (stored in the vault, scoped to the workspace).
 - Acceptance tests: hotkey registration is mocked and unregisters on quit; the extension's message is accepted only with the pairing token; a pricing fixture updates the router's costs and an override wins; OIDC flows are mocked; a workspace key is used only for that workspace's calls.
 
-### Phase 14 (low priority, added 2026-10-18): Mac build
-- `docs/ci/mac-build.yml` (added by Grok Bot; move it to `.github/workflows/` after `gh auth refresh -s workflow`) builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It needs the repo secret `RELEASES_TOKEN` (fine-grained token, Contents read/write on command-center-releases only).
-- Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`.
-- TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open and in-app updates do not work on Mac.
-- Never block the Windows installer on this. In the chain after Phase 24; any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
+### Phase 14 (moved up for 0.4.8, added 2026-10-18): Mac build
+Unsigned Mac builds and the update notice moved up for 0.4.8 (a first customer is on a Mac). Signing and notarization stay in Do last. The run order line above still lists 14 under Do last; do not drop that phrase.
+- `.github/workflows/mac-build.yml` builds an unsigned `.dmg` and `.zip` (x64 and arm64) on macos-latest, on manual dispatch or a `v*` tag, and uploads them to the same public releases repo. It uses the repo secret `RELEASES_TOKEN` (the same token the Windows release uses; fine-grained, Contents read/write on command-center-releases only). Pull requests and pushes to main run the Mac tests (`npm test` and `npm run smoke`) and do not upload.
+- On an unsigned Mac, startup and the hourly check show "Meldmind X is ready. Download and install it to update; your data stays." Download fetches the `.dmg` for that CPU. Remind me later does not download. The notice includes "Automatic updates for Mac are coming soon." Data stays in `~/Library/Application Support/Everborn Command`. Help tells a first-run Mac user: right-click > Open.
+- Check that the app runs on a Mac: server start, Keychain vault (`safeStorage`), tray, window, data folder `~/Library/Application Support/Everborn Command`. That check still needs a real Mac.
+- TODO, needs an Apple Developer account ($99/year, Chris decides): Developer ID signing and notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` as repo secrets, `notarize: true`). Until then Gatekeeper warns on first open (right-click > Open) and the app cannot replace itself.
+- Never block the Windows installer on this. Any step that needs a real Mac to verify is written as PHASE 14 BLOCKED with the reason.
 
 ### Phase 30: Pro prompts pack (effort: L)
 A pre-loaded library of prompts the team wrote. Each template has an id, a name, a category, a description, the inputs it needs, a ROLE / CONTEXT / COMMAND / FORMAT brief, and an output format.
@@ -320,7 +322,7 @@ These two items are locked in docs/DECISIONS.md (items 22 and 23). Do not start 
 These items cost money to distribute the app everywhere. They run after every other phase. Nothing is bought, paid for, or put live without Chris's OK first.
 
 ### Phase 14: Mac build
-As written in Phase 14 above. Needs an Apple Developer account ($99 a year) for signing and notarization.
+The unsigned `.dmg` / `.zip` workflow and the download notice moved up for 0.4.8. Signing and notarization stay here. Needs an Apple Developer account ($99 a year). As written in Phase 14 above.
 
 ### Windows code-signing certificate (planned, not built)
 Buy a code-signing certificate and sign the Windows installer so SmartScreen stops warning on first run. Certificate secrets go in repo secrets only.

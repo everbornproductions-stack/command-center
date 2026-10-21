@@ -146,7 +146,10 @@ test("an unsigned Mac build does not download on Later", async () => {
   const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", manualInstall: true });
   const s = await c.check({ prompt: true, running: true });
   assert.equal(s.offer, "launch");
-  assert.equal(promptButtons(s).primary, "Install now");
+  assert.equal(promptButtons(s).primary, "Download");
+  assert.equal(promptButtons(s).secondary, "Remind me later");
+  assert.equal(s.readyLine, "Meldmind 9.9.9 is ready. Download and install it to update; your data stays.");
+  assert.equal(s.soon, "Automatic updates for Mac are coming soon.");
   await c.later();
   assert.deepEqual(au.calls, ["check"]);
   assert.equal(c.state.installOnQuit, false);

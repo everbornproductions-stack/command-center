@@ -6,7 +6,9 @@
   body { margin: 0; background: #090d14; color: #e6edf6; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
   .wrap { padding: 22px 24px; }
   h1 { font-size: 18px; margin: 0 0 4px; }
+  .banner { background: #132033; border: 1px solid #234056; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
   .sub { color: #8b98ab; font-size: 12px; margin-bottom: 12px; }
+  .howto { color: #c3cddb; font-size: 13px; margin: 0 0 8px; }
   .notes { color: #c3cddb; font-size: 13px; max-height: 92px; overflow: auto; margin-bottom: 14px; white-space: pre-wrap; }
   .bar { height: 8px; background: #1a2333; border-radius: 5px; overflow: hidden; display: none; margin: 4px 0 12px; }
   .bar i { display: block; height: 100%; width: 0; background: #22d3ee; transition: width .2s; }
@@ -20,14 +22,43 @@
 <body><div class="wrap">
   <h1 id="title">Meldmind update</h1>
   <div class="sub">an Everborn product. Take command of all your AIs.</div>
+  <p class="banner" id="banner" hidden></p>
   <div class="sub" id="sub"></div>
+  <div class="howto" id="howto" hidden></div>
+  <div class="sub" id="soon" hidden></div>
   <div class="notes" id="notes"></div>
   <div class="bar" id="bar"><i id="fill"></i></div>
   <div class="row"><span class="msg" id="msg"></span><button id="later">Later</button><button id="install" class="primary">Install now</button></div>
 </div>
 <script>
   const $ = (id) => document.getElementById(id);
+  const MAC_HOWTO = "Drag Meldmind to Applications and choose Replace. Your data stays in ~/Library/Application Support/Everborn Command.";
+  const MAC_SOON = "Automatic updates for Mac are coming soon.";
   function show(s) {
+    const mac = !!s.manualInstall;
+    $("banner").hidden = !mac;
+    $("howto").hidden = !mac;
+    $("soon").hidden = !mac;
+    if (mac && s.version) {
+      $("title").textContent = "Meldmind update";
+      $("banner").textContent = s.readyLine || `Meldmind ${s.version} is ready. Download and install it to update; your data stays.`;
+      $("sub").textContent = `You have v${s.current}.`;
+      $("howto").textContent = s.howto || MAC_HOWTO;
+      $("soon").textContent = s.soon || MAC_SOON;
+      $("install").textContent = "Download";
+      $("later").textContent = "Remind me later";
+      $("install").disabled = false;
+      $("later").disabled = false;
+      $("bar").style.display = "none";
+      if (s.notes) $("notes").textContent = s.notes;
+      $("msg").className = "msg" + (s.error ? " err" : "");
+      $("msg").textContent = s.error ? s.error
+        : s.opened === "file" ? "The disk image is open. Drag Meldmind to Applications and choose Replace."
+        : s.opened === "browser" ? "The download opened in your browser. Drag Meldmind to Applications and choose Replace."
+        : "";
+      return;
+    }
+    $("banner").textContent = "";
     if (s.version) $("title").textContent = `Meldmind v${s.version} is ready`;
     $("sub").textContent = `You have v${s.current}. Your settings, keys and history are kept.`;
     if (s.notes) $("notes").textContent = s.notes;
@@ -37,6 +68,7 @@
     const running = s.offer === "running";
     $("install").disabled = busy; $("later").disabled = busy;
     $("install").textContent = busy ? "Installing..." : (running ? "Restart and update" : "Install now");
+    $("later").textContent = "Later";
     $("msg").className = "msg" + (s.error ? " err" : "");
     const msg = s.error ? `Update failed: ${s.error}. Try again.`
       : s.phase === "downloading" ? `Downloading ${s.percent || 0}%`

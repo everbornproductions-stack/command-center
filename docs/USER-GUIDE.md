@@ -105,6 +105,8 @@ Nothing posts, sends, emails or spends without a click from you.
 
 When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Install now** and **Later**. Nothing downloads until you click Install now. The tray also has Check for updates, Install update and Restart app. Your data stays where it is.
 
+On a Mac, that notice says "Meldmind X is ready. Download and install it to update; your data stays." Download opens the disk image for this Mac. Drag it to Applications and choose Replace. Remind me later does not download anything. Automatic updates for Mac are coming soon. The first time you open the app, if macOS blocks it, use right-click > Open. Data stays in ~/Library/Application Support/Everborn Command.
+
 ## 10. When something goes wrong
 
 | What you see | What it means and what to do |
