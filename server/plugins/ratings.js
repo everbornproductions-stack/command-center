@@ -3,6 +3,7 @@
 import { recordHuman, skillTable, learnedDeltas } from "../router.js";
 import { CAPABILITIES } from "../registry.js";
 import { rate } from "../brain.js";
+import { noteThumb } from "../learn-tune.js";
 export const id = "ratings";
 const KIND = "ratings.log";
 
@@ -20,6 +21,7 @@ export function saveRating(h, { missionId, kind, provider, model, capability, up
   recordHuman(model, cap, item.up, prev ? { capability: prev.capability, up: prev.up } : null);
   // learning router (Phase 28): the thumb lands on the task type the model did in that run (no note text is kept there)
   rate({ runId: missionId, provider, model, capability: cap, up: item.up });
+  try { noteThumb({ model, up: item.up }); } catch { /* the thumb is already saved */ }
   h.emit("log", { text: `${up ? "👍" : "👎"} ${model} for ${cap}${note ? `: ${String(note).slice(0, 60)}` : ""}` });
   return item;
 }

@@ -33,7 +33,7 @@ Not done. In this order:
 1. Phase 66. Onboarding with the mode choice and extra Expert setup.
 2. Phase 67. The few-facts fix.
 3. Phase 68. Safety, sharing, and plain words.
-4. Phases 45 to 51. Desktop control, with Antigravity first.
+4. Phases 45 to 51. Desktop control, with Antigravity first. Fixture doors for app cards, scores, MCP, websites, a signed-in profile, Windows UI Automation, and the $1 screenshot cap are in the smarter control workstream. Pull request 62 stays separate.
 5. Phase 69. The program scan.
 6. Phases 53, 54, and 56. Everyday actions and Calendar.
 7. Phase 70. Save in place.
@@ -66,7 +66,7 @@ Not done, except the three rows already marked done above (share links, accessib
 ### Version 0.4.11
 
 1. Phase 87. Background runs.
-2. Phase 40. Learned from ratings.
+2. Phase 40. Learned from ratings. Built in the smarter control workstream: routing leans from thumbs and priority changes, and the person can undo it. Not a version bump.
 3. Phase 88. Mission pause.
 
 ### New phases after 0.4.11
@@ -359,8 +359,8 @@ Shipped in pull request 25 (release 0.4.3): Get everything connected, each row s
 ### Phase 39: Guided "Start a project" tutorials (effort: L) (DONE)
 Shipped in pull requests 13 and 18: Start a project walkthroughs for a website, a music video, a marketing campaign, an app, and a business plan, with a link to the live view. Do not rebuild.
 
-### Phase 40: Learned from ratings (effort: M) (version 0.4.11, not done)
-Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them.
+### Phase 40: Learned from ratings (effort: M) (version 0.4.11, built in smarter control, not released)
+Version 0.4.11. This is the learned-from-ratings work. The learning router keeps adjusting routing settings (quality, cost, speed) and defaults from the person's input (thumbs, picks, overrides). Changes are shown and can be undone. Still no prompts or secrets stored (decision 18). Phase 3 and Phase 28 already record the thumbs. Do not rebuild them. The smarter control workstream added the nudge and the undo. It did not change the version.
 
 ### Phase 41: Phone pairing fix (effort: S) (DONE)
 Shipped in pull request 11. Pairing uses this PC's Wi-Fi address and stays off until it is turned on in Settings. Do not rebuild.
@@ -374,29 +374,38 @@ Share a running mission into a room so others can watch it live, and let them co
 ### Phase 44: AI group chat with personas (effort: M) (Later, not done)
 Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt library: fun, technical, coach, support. The support persona says it is not a licensed therapist and shows the 988 Suicide and Crisis Lifeline note. Each AI gives 2 to 3 short replies per message.
 
-### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
-Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
+### Phases 45 to 51: No-API app control (version 0.4.9, fixture doors in smarter control)
+Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. The smarter control workstream landed fixture drivers for these doors. Real Edge, Playwright, UI Automation, and computer-use calls are not wired. Open pull requests 62 and 65 stay separate and are not done.
 
-### Phase 45: App cards (effort: M) (version 0.4.9, not done)
+### Phase 45: App cards (effort: M) (version 0.4.9, built in smarter control, fixture only)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 
-### Phase 46: Score and missions (effort: M) (version 0.4.9, not done)
+### Phase 46: Score and missions (effort: M) (version 0.4.9, built in smarter control, fixture only)
 Apps get starting scores from `added-caps.js` and record outcomes through the brain. Mission steps can name an approved app. Writing steps still go to text models; Grok Bot and the browser helper keep their tags.
 
-### Phase 47: MCP as an app (effort: M) (version 0.4.9, not done)
+### Phase 47: MCP as an app (effort: M) (version 0.4.9, built in smarter control, fixture only)
 An existing MCP server can be marked as an app with task types. Tool calls stay on the one MCP client and its approval gate.
 
-### Phase 48: Websites (effort: L) (version 0.4.9, not done)
+### Phase 48: Websites (effort: L) (version 0.4.9, built in smarter control, fixture only)
 Playwright drives system Edge with a Meldmind-owned profile, reusing the helper's action list, confirm gate, step cap and spend cap. Password fields are refused. Banner and Stop.
 
-### Phase 49: Signed-in profile (effort: M) (version 0.4.9, not done)
+### Phase 49: Signed-in profile (effort: M) (version 0.4.9, built in smarter control, fixture only)
 Opt-in use of the person's Edge or Chrome profile, off by default. Refuses to start while that browser is running, and warns about cookies and site terms.
 
-### Phase 50: Windows desktop (effort: L) (version 0.4.9, not done)
+### Phase 50: Windows desktop (effort: L) (version 0.4.9, built in smarter control, fixture only)
 UI Automation for one allowlisted exe. Same confirm gate and banner. Losing focus stops input. Password edits are refused.
 
-### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, not done)
+### Phase 51: Screenshot fallback (effort: L) (version 0.4.9, built in smarter control, fixture only)
 Anthropic and OpenAI computer-use tools, per app, off by default. Downscaled pictures, old pictures dropped, a cost estimate first, and a $1.00 default cap. Square and billing screens are refused.
+
+### Phase 57: Recipes (effort: L) (built in smarter control, fixture only)
+Record a desktop-control task once and replay it on a schedule. A recipe stores the app, the Allow, and the steps that ran. Replay uses the same rules as phases 45 to 51. A scheduled replay that would send, buy, or delete waits for that second yes. If the layout changed, say so and stop for the person to finish. Unlimited on Extreme. Pro includes 5. This does not replace saved pipelines or the existing schedules.
+
+### Phase 59: Cost guard (effort: M) (built in smarter control)
+A monthly budget cap for Extreme, and for anyone else who turns it on. At 80% the note is amber. At 100% a new paid run waits until the cap is raised or the month turns. Free, demo, and local runs still go through. The top bar You saved estimate stays. Per-AI spend caps and the ledger stay (decision 16). Do not change Square.
+
+### Phase 60: Phone approvals (effort: M) (built in smarter control)
+A send or a buy asks first. When a phone is paired, approving there is the yes. Declining sends nothing. Phone pairing stays off until the person turns it on. If no phone is paired, the approval stays on the PC. The phone payload is the action and the amount, not a key and not the prompt.
 
 ## Version 0.4.9 phases (not done)
 

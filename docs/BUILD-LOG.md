@@ -1606,3 +1606,30 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Smarter control (phases 40, 45 to 51, 57, 59, 60)
+
+No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. Square and billing were not touched. Version stays 0.4.8. data/ was not read. No real key was used or printed. Pull request 62 (desktop doors) was not edited. Phases 58, 61, and 62 were not built.
+
+- Phase 40. Thumbs and a Default priority change can nudge quality, cost, or speed. The change is shown in Settings and Undo puts the last one back, including the priority dropdown. Prompts and keys are not stored. Three thumbs of one lean are required before a nudge. Zero weights leave rank() in its old order.
+- Phases 45 to 51. Fixture drivers only. An allowed app gets a card, a starting score from added-caps.js, and a Who's best row through the brain. MCP uses the existing approval gate and does not open a second client. A website run uses the helper action list, a profile the person chooses (owned, Edge, or Chrome), a 12-step cap, and a $0.25 page cap. It refuses password fields and refuses a signed-in profile while that browser is open. A Windows run stays on one exe, stops if focus leaves, and refuses password edits. Screenshot control is off until it is turned on, downscales the long edge to 1280, drops older pictures, shows an estimate before any click, and stops at $1. Square and billing screens are refused. A banner says Meldmind is using that app, and Stop halts the next step. Real Edge, Playwright, UI Automation, and computer-use calls are not wired.
+- Phase 57. A recipe stores the app, the Allow, and the steps that ran, and can repeat on a cron schedule. A scheduled send, buy, or delete waits. A layout change stops for the person. Pro includes 5 recipes. Extreme is unlimited. This does not replace pipelines or the existing schedules.
+- Phase 59. A monthly budget cap is included for Extreme and for a developer owner. Anyone else can turn it on. At 80% the note is amber. At 100% a new paid run waits. Free, demo, and local runs still go through. The You saved figure stays an estimate. Per-AI caps and the ledger stay. Square was not changed.
+- Phase 60. A send or a buy asks first. When a phone is paired, the phone can give that yes, and the payload is the action and the amount only. Declining sends nothing. Pairing stays off until it is turned on. With no phone, the yes stays on this PC, and publish and image routes behave as they did.
+- Tiers go through server/feature-gate.js. Free is blocked from desktop apps and recipes. Pro is 3 apps and 5 recipes. Extreme is unlimited. The live licence table was not edited, so Extreme is read from a stored active licence row.
+- Settings shows Routing, Apps, Recipes, Monthly budget, and Phone approvals. Help article docs/help/smarter-control.md is stamped 0.4.8. The plan notes these phases. The version was not bumped.
+- Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+- Checked in Chrome: Settings shows the routing sentence, an Invoices app can be allowed and revoked, the monthly cap saves, and the phone panel says pairing is off. Desktop and a 390px wide view. A real phone, a real browser profile, and Windows UI Automation were not used.
+- Not in this change: the mission planner does not assign an app step by itself (POST /api/control-apps/run and suggestApp are the door). Pull request 62 remains a separate desktop-doors stack.
+
+PHASE 40 DONE
+PHASE 45 DONE
+PHASE 46 DONE
+PHASE 47 DONE
+PHASE 48 DONE
+PHASE 49 DONE
+PHASE 50 DONE
+PHASE 51 DONE
+PHASE 57 DONE
+PHASE 59 DONE
+PHASE 60 DONE
