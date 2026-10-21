@@ -1,5 +1,5 @@
 // Pro prompts: browse by category, fill from the Business Profile, and halt when a fact is missing.
-import { marketplacePacks, mountPromptBoard } from "./prompt-board.js";
+import { marketplacePacks, mountPromptBoard, voteBar } from "./prompt-board.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -146,6 +146,117 @@ async function consider(text, keepApplied) {
   } catch { /* a failed detect leaves the orders as typed */ }
 }
 
+function fillOrders(text) {
+  const orders = document.getElementById("orders");
+  const value = String(text || "");
+  if (orders) {
+    orders.value = value;
+    orders.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  window.CC.S.lastOrders = value;
+}
+
+function featureIds() {
+  return (window.CC.features || []).map((f) => f.id);
+}
+
+let watchTimer = 0;
+function watchOpen(plan) {
+  clearInterval(watchTimer);
+  let tries = 0;
+  watchTimer = setInterval(() => {
+    tries += 1;
+    if (plan.kind === "builder") {
+      const need = document.querySelector("#builders-need");
+      if (need && need.value !== plan.text) need.value = plan.text;
+      const btn = document.querySelector(`[data-open="${CSS.escape(plan.id || "")}"]`);
+      if (btn) {
+        btn.click();
+        const field = document.querySelector('#builders-form [data-field="text"]');
+        if (field) field.value = plan.text;
+        clearInterval(watchTimer);
+      }
+    } else if (plan.kind === "remix") {
+      const idea = document.querySelector("#remix-idea");
+      if (idea) {
+        idea.value = plan.text;
+        idea.dispatchEvent(new Event("input", { bubbles: true }));
+        clearInterval(watchTimer);
+      }
+    }
+    if (tries >= 20) clearInterval(watchTimer);
+  }, 150);
+}
+
+function applyPlan(plan) {
+  const text = plan?.text || "";
+  if (!plan || plan.kind === "chat") {
+    fillOrders(text);
+    toast("In the chat. Nothing is sent.");
+    go("command");
+    return;
+  }
+  try {
+    if (plan.storageKey) sessionStorage.setItem(plan.storageKey, text);
+    if (plan.openKey && plan.id) sessionStorage.setItem(plan.openKey, plan.id);
+  } catch { /* the page can still open */ }
+  if (plan.kind === "builder") {
+    go("builders");
+    toast("Opening the builder. Nothing is sent.");
+    watchOpen(plan);
+    return;
+  }
+  go("remix");
+  toast("Opening Remix. Nothing is sent.");
+  watchOpen(plan);
+}
+
+async function useListed(item) {
+  if (!item) return;
+  if (item.builder || item.feature === "remix" || item.kind === "builder") {
+    try {
+      const r = await api("/prompts/open", { method: "POST", body: { id: item.id, features: featureIds() } });
+      applyPlan(r.plan);
+    } catch (e) { toast(e.message, true); }
+    return;
+  }
+  fillOrders(item.prompt || item.title || item.name || "");
+  toast("In the orders box. Nothing is sent.");
+  go("command");
+}
+
+function creditHtml(row) {
+  const name = row?.source_name || "";
+  if (!name) return "";
+  const label = `Inspired by ${name}`;
+  if (row.source_url) return `<a href="${esc(row.source_url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+  return esc(label);
+}
+
+async function sendVote(id, dir, current) {
+  const vote = current === dir ? "clear" : dir;
+  return api("/prompts/vote", { method: "POST", body: { id, vote } });
+}
+
+function paintPopular(items) {
+  const box = document.getElementById("pp-popular");
+  if (!box) return;
+  if (!items?.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="small dim" style="margin-top:6px">Popular prompts. A new one with only a few votes stays in the mix. Nothing is sent until you click Send.</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${items.map((item) => `<button type="button" class="btn sm" data-suggest="${esc(item.id)}">${esc(item.title)}${item.fresh ? " (New this week)" : ""}</button>`).join("")}</div>`;
+  box.querySelectorAll("[data-suggest]").forEach((btn) => btn.addEventListener("click", () => {
+    const item = items.find((row) => row.id === btn.dataset.suggest);
+    useListed(item);
+  }));
+}
+
+async function loadPopular(text) {
+  try {
+    const r = await api(`/prompts/suggest?text=${encodeURIComponent(text || "")}`);
+    paintPopular(r.items || []);
+  } catch { /* the orders box still works */ }
+}
+
 function openCustom(item) {
   const box = document.getElementById("pp-form");
   if (!box || !item) return;
@@ -185,11 +296,16 @@ async function renderTab(view) {
     custom: data.custom || [],
     marketplace: marketplacePacks(market),
   };
+  const byScore = (a, b) => (b.popularity || 0) - (a.popularity || 0) || String(a.name || a.title || "").localeCompare(String(b.name || b.title || ""));
+  data.templates = [...(data.templates || [])].sort(byScore);
+  data.weekly = [...(data.weekly || [])].sort(byScore);
   view.innerHTML = `<div class="grid" style="gap:14px">
     <div class="panel"><h3>Pro prompts</h3><p class="small" style="margin:6px 0 0">${esc(data.note || NOTE)}</p>
+      <p class="small dim" style="margin:6px 0 0">Thumbs up or thumbs down any prompt. You can change your vote. Popular prompts are listed first.</p>
       <input id="pp-q" placeholder="Search prompts" style="width:100%;margin-top:10px" aria-label="Search prompts">
       <div id="pp-tools" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px" hidden></div>
     </div>
+    <div id="pp-weekly"></div>
     <div id="pp-list"></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
       <button class="btn sm" type="button" id="pp-sched">Add Friday and daily schedules</button>
@@ -199,9 +315,34 @@ async function renderTab(view) {
     <div id="pp-form"></div>
     <div id="pp-interview"></div>
   </div>`;
-  mountPromptBoard(view, model, {
+  const paintWeekly = () => {
+    const host = view.querySelector("#pp-weekly");
+    if (!host) return;
+    const cats = data.packCategories || [];
+    const picked = host.querySelector("#pp-pack-cat")?.value || "all";
+    const rows = (data.weekly || []).filter((row) => picked === "all" || row.category === picked);
+    host.innerHTML = `<div class="panel"><h3>Weekly prompts</h3>
+      <p class="small dim" style="margin:6px 0 0">New packs show up here, including Builders. Thumbs up or thumbs down. Use this opens the builder when it is installed, or puts the words in the chat. Nothing is sent.</p>
+      <label class="small" style="display:block;margin-top:8px">Category <select id="pp-pack-cat" aria-label="Prompt category"><option value="all">All categories</option>${cats.map((c) => `<option value="${esc(c)}"${c === picked ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+      <div style="margin-top:8px">${rows.map((row) => `<div style="margin-top:10px"><b>${esc(row.title)}</b> ${row.fresh ? `<span class="chip">New this week</span>` : ""}
+        <div class="small dim">${esc(row.category)}</div>
+        <div class="small" style="margin-top:4px">${esc(row.prompt)}</div>
+        ${voteBar(row, esc)}
+        <div class="small" style="margin-top:4px">${creditHtml(row)}</div>
+        <button class="btn sm" type="button" data-use="${esc(row.id)}" style="margin-top:6px">Use this</button>
+      </div>`).join("") || `<div class="small dim">No prompts in this category yet.</div>`}</div>
+    </div>`;
+    host.querySelector("#pp-pack-cat").addEventListener("change", paintWeekly);
+    host.querySelectorAll("[data-vote]").forEach((btn) => btn.addEventListener("click", () => onVote(btn.dataset.id, btn.dataset.vote)));
+    host.querySelectorAll("[data-use]").forEach((btn) => btn.addEventListener("click", () => {
+      const row = (data.weekly || []).find((item) => item.id === btn.dataset.use);
+      useListed(row);
+    }));
+  };
+  const redraw = mountPromptBoard(view, model, {
     esc,
     toast,
+    onVote: (id, dir) => onVote(id, dir),
     onOpen: (id) => openTemplate(data, id),
     onCustom: openCustom,
     onPack: openPack,
@@ -211,6 +352,21 @@ async function renderTab(view) {
       if (row) row.shelf = saved.shelf || shelf;
     },
   });
+  async function onVote(id, dir) {
+    const pools = [data.templates, data.custom, data.weekly, model.templates, model.custom];
+    const item = pools.flat().find((row) => row && row.id === id);
+    try {
+      const saved = await sendVote(id, dir, item?.mine);
+      const patch = { mine: saved.vote, up: saved.up, down: saved.down, scoreLabel: saved.scoreLabel };
+      for (const list of pools) {
+        const row = (list || []).find((entry) => entry && entry.id === id);
+        if (row) Object.assign(row, patch);
+      }
+      paintWeekly();
+      redraw?.();
+    } catch (e) { toast(e.message, true); }
+  }
+  paintWeekly();
   view.querySelector("#pp-sched").addEventListener("click", async () => {
     try { const r = await api("/prompts/schedules", { method: "POST", body: {} }); toast(r.note || "Schedules added, paused."); } catch (e) { toast(e.message, true); }
   });
@@ -290,9 +446,10 @@ window.CC.register({
     orders.addEventListener("input", () => {
       clearTimeout(timer);
       window.CC.S.lastOrders = orders.value;
-      timer = setTimeout(() => consider(orders.value, false), 350);
+      timer = setTimeout(() => { consider(orders.value, false); loadPopular(orders.value); }, 350);
     });
     paintChip();
+    loadPopular(orders.value);
   } },
   deliverable: { order: 3, render(el, run) {
     if (!run?.deliverable) { el.innerHTML = ""; return; }
