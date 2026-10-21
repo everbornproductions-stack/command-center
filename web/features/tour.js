@@ -1,6 +1,8 @@
 // Onboarding tour: a first-run walkthrough with a spotlight on each part of the console and a
 // sample run on the demo AIs (no keys, no spend). State lives on the server (/api/tour); the tour
 // offers itself once with a small invite and can be restarted from Settings.
+import { countsAsRealAi } from "../composer-ais.js";
+
 const { S, api, toast, esc, go, refresh } = window.CC;
 
 const STEPS = [
@@ -19,7 +21,7 @@ const STEPS = [
   { id: "start-project", for: "both", target: "#sp-home", view: "command", title: "Start a project", body: "Start a project walks you from an idea to a finished deliverable. Pick Website, Music video, Marketing campaign, App/software, Business plan, or Social media reels. Watch an example first if you want a full sample. It works in Simple mode and in Expert mode. The same entry is in the Work menu, next to Projects, and on the Help page." },
   { id: "files", target: "#pf-drop", view: "command", title: "Files in this project", body: "Drop a PDF, Word doc, text file, or image here. Meldmind shows what it will read and the cost. Nothing is added until you confirm. Later answers in this project can cite those files. A mission that makes a video, image, or voice clip also shows the price first, and a paid step waits until you click Approve." },
   { id: "prompts", target: "#pp-list", view: "prompts", title: "Pro prompts", body: "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert. Search the pack here. Auto-detect on the order box can suggest one; you can remove that chip and write your own." },
-  { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. Demo mode turns on by itself; no keys are needed and nothing is spent.", action: "sample" },
+  { id: "sample", target: "#graph", view: "command", title: "Run the sample", body: "Three demo AIs plan a one-week Instagram launch for a coffee roaster. The sample runs only while no real AI is connected, so nothing is spent.", action: "sample" },
   { id: "ops", target: "#graph", view: "command", title: "Live ops", body: "Watch who is working and who is talking to whom. Tasks fill in as they finish; a check can send a piece back for one revision when it falls short." },
   { id: "live", target: "#lv-open", view: "command", title: "Open live view", body: "The Open live view button is at the bottom-right of Live Ops. It opens the full live map. Live is also in the Work menu." },
   { id: "deliverable", target: "#out-md", view: "command", title: "The deliverable", body: "The assembled result lands here. Copy it, see the savings receipt under it, and find it later under the project it was filed to. The top bar shows You saved this month and all time." },
@@ -189,9 +191,17 @@ function position() {
   }
 }
 
+function realAiOn() {
+  return !!(S.realAi || (S.providers || []).some(countsAsRealAi));
+}
+
 async function runSample() {
   if (busy) return; busy = true; show(idx);
   try {
+    if (realAiOn()) {
+      msg = `<span class="chip amber">skipped</span> A real AI is connected, so the sample stays off. Demo mode was not turned on.`;
+      busy = false; show(idx); return;
+    }
     if (!S.demo) { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await refresh(); go("command"); }
     const r = await api("/tour/sample", { method: "POST" });
     if (r.kind === "single") { await api("/chat", { method: "POST", body: { prompt: r.prompt } }); msg = `<span class="chip green">running</span> ${esc(r.note || "")} Watch the graph light up, then press Next.`; }

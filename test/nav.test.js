@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import { EventEmitter } from "node:events";
-import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, navSingleRow, eightMenuMin, NAV_LAYOUT_WAIT_MS, watchNavLayout, resetNavMeasure, isSettingsItem, menuLabeledSettings, rowOverflows } from "../web/nav.js";
+import { menuModel, navKey, groupFor, groupIdFor, CONNECT_LINKS, GROUP_ORDER, SPLIT_ORDER, navLayout, navSingleRow, eightMenuMin, NAV_LAYOUT_WAIT_MS, watchNavLayout, resetNavMeasure, isSettingsItem, menuLabeledSettings, rowOverflows, measureMenuSlot, layoutForSlot } from "../web/nav.js";
 
 const require = createRequire(import.meta.url);
 const { createNavDisplayWatch } = require("../electron/nav-display.cjs");
@@ -207,11 +207,12 @@ test("layout follows the window from wide to normal to small and back", async ()
     await step(1024, { width: 1024, height: 768 }, "narrow");
     await step(1366, { width: 1366, height: 768 }, "normal");
     await step(2560, { width: 2560, height: 1440 }, "normal");
-    // A move onto a smaller monitor can leave innerWidth stale. The desktop report wins.
+    // A desktop content-bounds report can be smaller than the layout viewport
+    // (DPI scaling, another monitor). It must not pull a wide window back to compact.
     win.innerWidth = 2560;
     desktopFn({ width: 1024, screenWidth: 1024, screenHeight: 768 });
     await wait(NAV_LAYOUT_WAIT_MS + 300);
-    assert.equal(seen.at(-1), "narrow", "stale innerWidth still follows the smaller display");
+    assert.equal(seen.at(-1), "normal", "a smaller desktop report does not override a wide window");
     win.innerWidth = 2560;
     win.screen = { width: 2560, height: 1440 };
     win.dispatch("resize");
@@ -221,6 +222,75 @@ test("layout follows the window from wide to normal to small and back", async ()
     stop();
     resetNavMeasure();
   }
+});
+
+test("ultra-wide bar uses its free space, and a small desktop report cannot collapse it", async () => {
+  resetNavMeasure();
+  const seen = [];
+  const listeners = {};
+  const right = {
+    getBoundingClientRect: () => ({ width: 1700 }),
+    children: [
+      { getBoundingClientRect: () => ({ width: 72 }) },
+      { getBoundingClientRect: () => ({ width: 88 }) },
+    ],
+  };
+  const bar = {
+    clientWidth: 2400,
+    querySelector(sel) {
+      if (sel === ".brand") return { getBoundingClientRect: () => ({ width: 160 }) };
+      if (sel === ".top-right") return right;
+      return null;
+    },
+  };
+  class RO {
+    constructor(cb) { this.cb = cb; RO.last = this; }
+    observe(el) { this.el = el; this.cb(); }
+    disconnect() { this.disconnected = true; }
+  }
+  const win = {
+    innerWidth: 900,
+    devicePixelRatio: 1.5,
+    screen: { width: 900, height: 768 },
+    document: { querySelector: (sel) => (sel === ".topbar" ? bar : null) },
+    ResizeObserver: RO,
+    addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { listeners[type] = (listeners[type] || []).filter((f) => f !== fn); },
+    matchMedia() { return { addEventListener() {}, removeEventListener() {} }; },
+    visualViewport: { addEventListener() {}, removeEventListener() {} },
+  };
+  let desktopFn = null;
+  win.ccDesktop = { onNavDisplay(fn) { desktopFn = fn; return () => { desktopFn = null; }; } };
+  const slot = measureMenuSlot(bar);
+  assert.ok(slot > 1500, `slot ${slot} uses the bar, not the stretched right cluster`);
+  assert.equal(layoutForSlot(slot), "normal");
+  const stop = watchNavLayout((layout) => seen.push(layout), win);
+  try {
+    assert.equal(seen.at(-1), "normal", "wide bar opens the eight menus even when innerWidth is stale");
+    assert.equal(RO.last.el, bar);
+    desktopFn({ width: 900, screenWidth: 3440, screenHeight: 1440, scaleFactor: 1.5 });
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(seen.at(-1), "normal", "DPI content bounds do not collapse a wide bar");
+    bar.clientWidth = 860;
+    RO.last.cb();
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(seen.at(-1), "narrow", "a bar that cannot fit eight menus goes back to the compact row");
+    assert.equal(layoutForSlot(measureMenuSlot(bar)), "narrow");
+    bar.clientWidth = 2400;
+    RO.last.cb();
+    await wait(NAV_LAYOUT_WAIT_MS + 300);
+    assert.equal(seen.at(-1), "normal");
+  } finally {
+    stop();
+    assert.equal(RO.last.disconnected, true);
+    resetNavMeasure();
+  }
+  const navSrc = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
+  assert.match(navSrc, /ResizeObserver/);
+  assert.match(navSrc, /measureMenuSlot/);
+  assert.doesNotMatch(navSrc, /min-width:\s*max-content/);
+  assert.match(navSrc, /flex-wrap:\s*nowrap/);
+  assert.match(navSrc, /justify-content:\s*space-between/);
 });
 
 test("desktop display watch reports resize, move, and display changes, then stops", async () => {

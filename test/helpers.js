@@ -196,6 +196,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
+    CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
     CC_NET_TRACE: "1",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),

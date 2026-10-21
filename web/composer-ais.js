@@ -1,6 +1,7 @@
-// Who appears under the chat box. A provider is listed only when it is actually
-// connected: a saved API key that the provider has not rejected, or an MCP server.
-// Demo AIs fill that row only while nothing real is connected, then they leave it.
+// Who appears under the chat box, and which providers may sit on the hub.
+// A saved text key counts even when the probe could not reach the host.
+// A rejected key does not. A local model and a text MCP server count.
+// Demo AIs fill the row only while nothing real is connected, then they leave it.
 
 export function isDemoAi(p) {
   return !!(p && (p.demo === true || String(p.id || "").startsWith("demo-")));
@@ -11,7 +12,23 @@ export function keyRejected(p) {
   return p?.status?.status === "red" && /rejected|\b401\b/i.test(detail);
 }
 
-function unreachable(p) {
+function textKind(p) {
+  return !p?.kind || p.kind === "text";
+}
+
+// A text AI the person can use. Media and tool providers do not count here.
+// A saved key still counts when the status says the host could not be reached.
+export function countsAsRealAi(p) {
+  if (!p || isDemoAi(p) || !textKind(p)) return false;
+  if (p.connect?.mcp?.configured) return true;
+  if (p.noKey && (p.custom || p.auth === "local")) return true;
+  const key = !!(p.keyed || p.connect?.key?.configured);
+  if (!key) return false;
+  if (keyRejected(p) && !(p.status?.lastOk > 0)) return false;
+  return true;
+}
+
+function mediaUnreachable(p) {
   const st = p?.status;
   if (!st || st.lastOk > 0) return false;
   if (st.network === true) return true;
@@ -20,11 +37,35 @@ function unreachable(p) {
 
 export function isConnectedAi(p) {
   if (!p || isDemoAi(p)) return false;
-  const mcp = !!(p.connect?.mcp?.configured);
+  if (p.connect?.mcp?.configured) return true;
+  if (textKind(p) && p.noKey && (p.custom || p.auth === "local")) return true;
   const key = !!(p.keyed || p.connect?.key?.configured);
-  if (mcp) return true;
-  if (!key || keyRejected(p) || unreachable(p)) return false;
+  if (!key) return false;
+  if (keyRejected(p) && !(p.status?.lastOk > 0)) return false;
+  // A saved text key still counts when the probe cannot reach the host.
+  // A media key does not, so a dead video host does not clear the text demos.
+  if (!textKind(p) && mediaUnreachable(p)) return false;
   return true;
+}
+
+// Drop Nova, Atlas and Sage once a real AI is connected, unless Settings keeps demo on.
+export function hideDemoBots(list, { demoKeep = false, realAi = false } = {}) {
+  const providers = Array.isArray(list) ? list : [];
+  if (demoKeep) return providers.slice();
+  const real = !!realAi || providers.some(countsAsRealAi);
+  if (!real) return providers.slice();
+  return providers.filter((p) => !isDemoAi(p));
+}
+
+// Hub roster. Demo nodes stay only while no real AI is connected (or demoKeep is on).
+export function graphNodes(providers, subscriptions = [], { demoKeep = false, realAi = false } = {}) {
+  const list = hideDemoBots(providers, { demoKeep, realAi });
+  const subs = Array.isArray(subscriptions) ? subscriptions : [];
+  const textOn = list.filter((p) => p.kind === "text" && (p.keyed || p.noKey));
+  const textGrey = list.filter((p) => p.kind === "text" && !isDemoAi(p) && !p.keyed && !p.noKey).slice(0, Math.max(0, 8 - textOn.length));
+  const media = list.filter((p) => !isDemoAi(p) && p.kind !== "text" && p.kind !== "agent" && (p.keyed || subs.some((s) => s.provider === p.id && (s.credits != null || s.renews))));
+  const agents = list.filter((p) => p.kind === "agent" && !isDemoAi(p));
+  return [...textOn, ...textGrey, ...agents, ...media];
 }
 
 function chipOf(p) {

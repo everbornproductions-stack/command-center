@@ -2,11 +2,12 @@
 // Simple shows Chat, Projects, Create, Help, and Settings.
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
 //
-// Width is the window's CSS pixels (after DPI and zoom), measured again on
-// every resize and whenever the window changes monitor. There is no full-tab
-// row. Dropdowns stay on one line:
+// The wide row is chosen from the free space in the top bar (ResizeObserver),
+// not from a fixed window width and not from the desktop content-bounds report.
+// That report can be smaller than the layout viewport on a scaled or multi-monitor
+// display, so it only asks the bar to measure again. Dropdowns stay on one line:
 //   narrow  the compact menus (about five), plus Help
-//   normal  about eight dropdowns, when that row still fits
+//   normal  about eight dropdowns, spread across the free space, when they fit
 // If eight menus would overflow the top bar, they merge back.
 
 import { CREATE_VIEWS } from "./mode.js";
@@ -238,14 +239,17 @@ export function readNavDisplay(win = globalThis) {
   return { width: Number(s?.width) || 0, height: Number(s?.height) || 0 };
 }
 
-// The desktop app reports the window's CSS width and the display size. A move
-// between monitors can leave innerWidth stale, so the newer report wins.
+// The desktop app reports a move or a display change so the bar can measure again.
+// Its width is not the breakpoint: on a scaled multi-monitor desktop that number
+// can be smaller than the layout viewport and would lock the compact row.
 let reported = null;
 let cssAt = 0;
+let lastSlot = 0;
 
 export function resetNavMeasure() {
   reported = null;
   cssAt = 0;
+  lastSlot = 0;
 }
 
 export function noteNavDisplay(metrics) {
@@ -261,21 +265,66 @@ export function noteNavDisplay(metrics) {
   return reported;
 }
 
+function pxOf(style, name) {
+  if (!style) return 0;
+  const n = parseFloat(style[name]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function boxWidth(el) {
+  if (!el) return 0;
+  const rect = el.getBoundingClientRect?.();
+  if (rect && rect.width > 0) return rect.width;
+  return el.offsetWidth || 0;
+}
+
+function computed(el) {
+  try { return typeof getComputedStyle === "function" ? getComputedStyle(el) : null; } catch { return null; }
+}
+
+// Free width for the menus. The right cluster is flex-grow, so its border box
+// is not its content. Sum the children instead, or a wide bar looks empty.
+export function measureMenuSlot(bar) {
+  if (!bar || !(bar.clientWidth > 0)) return 0;
+  const style = computed(bar);
+  const pad = style ? pxOf(style, "paddingLeft") + pxOf(style, "paddingRight") : 36;
+  const gap = style ? (pxOf(style, "columnGap") || pxOf(style, "gap") || 24) : 24;
+  const brandW = boxWidth(bar.querySelector?.(".brand"));
+  const right = bar.querySelector?.(".top-right");
+  let rightW = 0;
+  if (right) {
+    const widths = [...(right.children || [])].map(boxWidth).filter((w) => w > 0);
+    if (widths.length) {
+      const rs = computed(right);
+      const childGap = rs ? (pxOf(rs, "columnGap") || pxOf(rs, "gap") || 12) : 12;
+      const summed = widths.reduce((n, w) => n + w, 0) + childGap * Math.max(0, widths.length - 1);
+      // scrollWidth stays at the content size when a flex sibling has squeezed the box
+      rightW = Math.max(summed, right.scrollWidth || 0);
+    }
+  }
+  let gaps = 0;
+  if (brandW > 0) gaps += gap;
+  if (rightW > 0) gaps += gap;
+  return Math.max(0, bar.clientWidth - pad - brandW - rightW - gaps);
+}
+
+export function layoutForSlot(slot) {
+  const s = Number(slot);
+  if (!Number.isFinite(s) || s < 1) return "narrow";
+  return eightNeed() <= s ? "normal" : "narrow";
+}
+
 export function measureNav(win = globalThis) {
   const css = readNavWidth(win);
   const fromWin = readNavDisplay(win);
-  let width = css;
   let display = { width: fromWin.width, height: fromWin.height };
-  if (reported && reported.at >= cssAt) {
-    if (reported.screenWidth > 0 && reported.screenHeight > 0) display = { width: reported.screenWidth, height: reported.screenHeight };
-    if (reported.width > 0) width = reported.width;
-  }
-  return { width, display };
+  if (reported?.screenWidth > 0 && reported?.screenHeight > 0) display = { width: reported.screenWidth, height: reported.screenHeight };
+  return { width: lastSlot > 0 ? lastSlot : css, display, slot: lastSlot };
 }
 
 export function currentNavLayout(win = globalThis) {
-  const m = measureNav(win);
-  return navLayout(m.width, m.display);
+  if (lastSlot > 0) return layoutForSlot(lastSlot);
+  return navLayout(readNavWidth(win));
 }
 
 function splitLayout(layout) {
@@ -353,10 +402,15 @@ export function navKey(state, key, { altKey = false, ctrlKey = false, metaKey = 
 
 const CSS = `
 .topbar { flex-wrap: nowrap; }
-.tabs, .tabs.nav-ready, .tabs.nav-split { display: flex; flex-wrap: nowrap; min-width: max-content; align-items: stretch; overflow: visible; }
-.tabs.nav-ready { gap: 4px; }
+.topbar > .tabs.nav-ready { flex: 1 1 auto; min-width: 0; justify-content: space-between; }
+.topbar > .top-right { flex: 0 0 auto; }
+.tabs, .tabs.nav-ready, .tabs.nav-split { display: flex; flex-wrap: nowrap; align-items: stretch; overflow: visible; }
+.tabs.nav-ready { gap: 8px; }
+.tabs.nav-split { gap: 16px; }
+.tabs.nav-ready:not(.nav-split) { gap: 2px; }
 .nav-menu { position: relative; flex: 0 0 auto; }
 .tabs .nav-trigger, .tabs button.nav-direct { white-space: nowrap; padding: 6px 8px; }
+.tabs.nav-ready:not(.nav-split) .nav-trigger, .tabs.nav-ready:not(.nav-split) button.nav-direct { padding-left: 4px; padding-right: 4px; }
 .nav-trigger { background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; }
 .nav-trigger:hover, .nav-trigger[aria-expanded="true"] { color: var(--text); }
 .nav-trigger.active { background: #1a2436; color: #fff; box-shadow: inset 0 0 0 1px #2b3a52; }
@@ -509,14 +563,32 @@ export function installNav(root, views, mode = "expert", layout = "narrow") {
 }
 
 // Resize, matchMedia (both directions), zoom / devicePixelRatio, and the desktop
-// display channel. The first read is immediate. Later reads wait so a drag does
-// not rebuild the bar on every pixel. The returned function removes every listener.
+// display channel. Each one asks the top bar to measure its own free space.
+// The first read is immediate. Later reads wait so a drag does not rebuild the
+// bar on every pixel. The returned function removes every listener.
 export function watchNavLayout(onChange, win = globalThis) {
   if (!win || typeof win.matchMedia !== "function" || typeof onChange !== "function") return () => {};
   let timer = null;
   let first = true;
-  const emit = () => onChange(currentNavLayout(win));
+  let ro = null;
+  const readSlot = () => {
+    const bar = win?.document?.querySelector?.(".topbar");
+    if (!bar) return;
+    const slot = measureMenuSlot(bar);
+    if (slot > 0) lastSlot = slot;
+  };
+  const emit = () => { readSlot(); onChange(currentNavLayout(win)); };
+  const armObserver = () => {
+    if (ro || typeof win.ResizeObserver !== "function") return;
+    const bar = win?.document?.querySelector?.(".topbar");
+    if (!bar) return;
+    try {
+      ro = new win.ResizeObserver(() => schedule());
+      ro.observe(bar);
+    } catch { ro = null; }
+  };
   const schedule = () => {
+    armObserver();
     if (first) { first = false; emit(); return; }
     clearTimeout(timer);
     timer = setTimeout(() => { timer = null; emit(); }, NAV_LAYOUT_WAIT_MS);
@@ -559,6 +631,8 @@ export function watchNavLayout(onChange, win = globalThis) {
   return () => {
     clearTimeout(timer);
     timer = null;
+    try { ro?.disconnect(); } catch { /* already gone */ }
+    ro = null;
     win.removeEventListener?.("resize", onCss);
     vv?.removeEventListener?.("resize", onCss);
     for (const mq of lists) mq.removeEventListener?.("change", onCss);

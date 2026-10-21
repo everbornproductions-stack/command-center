@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import * as A from "../custom-agents.js";
 import { listServers } from "../mcp.js";
 import * as L from "../libraries.js";
+import { demosHidden, visibleCustomAgents } from "../demo-visibility.js";
 
 export const id = "agents";
 
@@ -28,7 +29,7 @@ async function overview(h) {
   let shared = [], sharedError = null;
   try { shared = await A.listShared(); } catch (e) { sharedError = e.message; }
   return {
-    agents: A.listAgents(), prompts: A.listPrompts(), shared, sharedError, listings: A.listListings(),
+    agents: visibleCustomAgents(A.listAgents(), { hidden: demosHidden() }), prompts: A.listPrompts(), shared, sharedError, listings: A.listListings(),
     tools: toolChoices(), libraries: L.available() ? L.listLibraries().map((l) => ({ id: l.id, name: l.name, chunks: l.chunks })) : [],
     limits: A.LIMITS, toolModes: A.TOOL_MODES, categories: A.LISTING_CATEGORIES, sharePermissions: A.SHARE_PERMISSIONS, hosted: !!h.HOSTED,
   };
