@@ -1619,3 +1619,19 @@ Built because this run asked, ahead of Phase 91. No locked decision was changed.
 
 PHASE 92 DONE
 PHASE 93 DONE
+
+## 2026-10-21: Community usernames
+
+Built on the community chat work. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8. The Supabase migration was not run.
+
+- The first time Community chat opens, it asks for a public username. A friendly name is suggested. The name is 3 to 20 characters, letters, numbers, and underscore, and it is unique without regard to case. Names that include meldmind, admin, or everborn are refused, and the same profanity list as chat messages is used. The licence email stays on the server. It is not shown in chat, in Settings, or in the community API.
+- The username can be changed in Settings. The first choice is immediate. The next change waits 1 hour. Saving the same name again does nothing. Nothing is posted until Send.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 426 tests, 425 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. Windows is the pull request check. The Community screen was clicked through in a browser: the suggested username, Save username, a sent message under that name, and the Settings change that waits 1 hour. No email was shown.
+
+## 2026-10-21: Account-wide public username
+
+The username is no longer only for chat. No locked decision was changed. Phase 91, Square, and billing were not touched. Nothing was deployed. data/ was not read. Version stays 0.4.8. The Supabase migration was not run.
+
+- One public username is stored on the account. First-run setup asks for it. Skip keeps the suggested name. Start saves the typed name, or the suggestion if the field is empty. The name is 3 to 20 characters, letters, numbers, and underscore, and it is unique without regard to case. Names that include meldmind, admin, or everborn are refused. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. Email stays off those public screens. The owner's own licence screen still shows the account email.
+- The name can be changed in Settings. The first choice is immediate. The next change waits 1 hour. Saving the same name again does nothing. A comment is a click. Nothing is posted until Send.
+- Tests here (Linux): npm test passed. The mcp file passed 8/8, then 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. Windows is the pull request check. A fresh install was clicked through in a browser: the suggested name was Sunny_River, the field was changed to Sunny_Finch, Skip kept Sunny_River, Settings showed that name and the one hour wait, chat posted as Sunny_River, an AI News comment used that name, and the Builders gallery heading was on the Agents screen. Those public screens did not show an email.

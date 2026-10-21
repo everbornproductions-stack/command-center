@@ -8,10 +8,12 @@ import * as Chat from "../community-chat.js";
 import * as Votes from "../community-votes.js";
 import * as News from "../ai-news.js";
 import * as Cloud from "../community-cloud.js";
+import * as Account from "../account-name.js";
 
 export const id = "community";
 
 const PROFILE = "community.profile";
+const NAMES = "community.names";
 const ROOM = "community.room";
 const NEWS = "community.news";
 const LIST = "newsletter.subscriber";
@@ -41,6 +43,7 @@ function loadNews(h) {
     published: raw.published || null,
     seen: raw.seen || null,
     reactions: Array.isArray(raw.reactions) ? raw.reactions : [],
+    comments: Array.isArray(raw.comments) ? raw.comments : [],
   };
 }
 function saveNews(h, news) {
@@ -58,17 +61,50 @@ function loadList(h) {
 function saveList(h, row) {
   h.putDoc(LIST, row);
 }
-function actorOf(h) {
+function takenNames(h) {
+  const doc = h.doc(NAMES, () => ({ names: {} })) || { names: {} };
+  const names = {};
+  for (const [rawKey, rawEmail] of Object.entries(doc.names || {})) {
+    const key = String(rawKey).trim().toLowerCase();
+    const email = Chat.cleanEmail(rawEmail);
+    if (key && email) names[key] = email;
+  }
+  const room = loadRoom(h);
+  for (const message of room.messages || []) {
+    const key = String(message.displayName || message.username || "").trim().toLowerCase();
+    const email = Chat.cleanEmail(message.email);
+    if (!key || !email || names[key]) continue;
+    names[key] = email;
+  }
   const saved = h.doc(PROFILE, () => null) || {};
+  const current = String(saved.username || saved.displayName || "").trim().toLowerCase();
   const email = Chat.cleanEmail(saved.email);
+  if (current && email) names[current] = email;
+  return names;
+}
+function actorOf() {
+  const profile = Account.readProfile();
   const lic = licenceEmail();
-  if (!email || !lic || email !== lic) return { email: "", displayName: "", owner: isOwner() };
-  return { email, displayName: saved.displayName || "", owner: isOwner() };
+  const owner = isOwner();
+  const username = profile.username || "";
+  const changedAt = Number(profile.usernameChangedAt) || 0;
+  const cooldownUntil = username && changedAt ? changedAt + Chat.USERNAME_COOLDOWN_MS : 0;
+  if (!lic || !username) return { email: "", username, displayName: "", owner, cooldownUntil };
+  return { email: lic, username, displayName: username, owner, cooldownUntil };
 }
 function needActor(h) {
+  if (!licenceEmail()) return { error: "Add a licence first. Community chat uses the email on your licence.", status: 400 };
   const actor = actorOf(h);
-  if (!actor.email) return { error: "Sign in with the email on your licence first.", status: 401 };
+  if (!actor.email || !actor.username) return { error: "Pick a username first.", status: 401 };
   return { actor };
+}
+function clientList(row, { token = false } = {}) {
+  const out = { optedIn: row.optedIn === true, pending: row.pending === true };
+  if (token && row.token) out.token = row.token;
+  return out;
+}
+function saveUsername(h, rawName) {
+  return Account.saveAccountUsername(rawName, { requireLicence: true, extraNames: takenNames(h) });
 }
 
 async function libraryVote(h, room, actor, promptId) {
@@ -108,7 +144,8 @@ async function mergeRemote(h, channel) {
       id,
       channel: Chat.CHAT_IDS.has(row.channel) ? row.channel : channel,
       email: "",
-      displayName: String(row.displayName || "Member").slice(0, 24),
+      displayName: String(row.username || row.displayName || "Member").slice(0, 20),
+      username: String(row.username || row.displayName || "Member").slice(0, 20),
       body,
       kind: Chat.SHARE_KINDS.has(row.kind) ? row.kind : "text",
       share,
@@ -135,7 +172,11 @@ async function syncPost(message, key) {
 
 function publicNews(news, actor) {
   const issue = news.published && news.published.status === "published" ? news.published : null;
-  const withCounts = (item) => ({ ...item, ...News.reactionCounts(news, issue?.id, item.id, actor?.email || "") });
+  const withCounts = (item) => ({
+    ...item,
+    ...News.reactionCounts(news, issue?.id, item.id, actor?.email || ""),
+    comments: News.publicComments(news, issue?.id, item.id, actor),
+  });
   return {
     unread: News.isUnread(news),
     draft: actor?.owner ? news.draft : null,
@@ -163,7 +204,9 @@ async function refreshNews(h, actor) {
 }
 
 function reply(h, res, result) {
-  return h.json(res, result.status || 400, { error: result.error });
+  const payload = { error: result.error };
+  if (result.cooldownUntil) payload.cooldownUntil = result.cooldownUntil;
+  return h.json(res, result.status || 400, payload);
 }
 
 export async function routes(req, res, url, body, h) {
@@ -177,27 +220,30 @@ export async function routes(req, res, url, body, h) {
     await mergeRemote(h, channel);
     const room = loadRoom(h);
     const news = await refreshNews(h, actor);
+    const list = loadList(h);
     return h.json(res, 200, {
       channels: Chat.CHANNELS,
       conduct: Chat.CONDUCT,
       joined: !!actor.email,
       owner: actor.owner,
-      profile: actor.email ? { email: actor.email, displayName: actor.displayName } : null,
-      licenceEmail: licenceEmail() || null,
+      needsLicence: !licenceEmail(),
+      username: actor.username || Account.usernameOf(),
+      profile: (actor.username || Account.usernameOf()) ? { username: actor.username || Account.usernameOf(), displayName: actor.username || Account.usernameOf() } : null,
+      suggestion: actor.username ? "" : Chat.suggestUsername(takenNames(h)),
+      cooldownUntil: actor.cooldownUntil || 0,
       channel,
       messages: actor.email ? Chat.listMessages(room, channel, actor) : [],
       reports: actor.owner ? room.reports.map((item) => ({ id: item.id, messageId: item.messageId, reason: item.reason, at: item.at })) : [],
       news,
-      newsletter: loadList(h),
+      newsletter: clientList(list),
       limits: { burst: Chat.BURST_MAX, burstMs: Chat.BURST_MS },
     });
   }
 
-  if (method === "POST" && p === "/join") {
-    const joined = Chat.checkJoin({ email: body?.email, displayName: body?.displayName, licenceEmail: licenceEmail() });
-    if (!joined.ok) return reply(h, res, joined);
-    h.putDoc(PROFILE, { email: joined.email, displayName: joined.displayName, joinedAt: Date.now() });
-    return h.json(res, 200, { ok: true, email: joined.email, displayName: joined.displayName });
+  if (method === "POST" && (p === "/join" || p === "/username")) {
+    const saved = await saveUsername(h, body?.username || body?.displayName);
+    if (!saved.ok) return reply(h, res, saved);
+    return h.json(res, 200, { ok: true, username: saved.username, cooldownUntil: saved.cooldownUntil || 0 });
   }
 
   if (method === "POST" && (p === "/messages" || p === "/share")) {
@@ -240,7 +286,7 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true });
   }
   if (method === "POST" && p === "/mute") {
-    const muted = Chat.mutePerson(loadRoom(h), actor, body?.email, body?.minutes);
+    const muted = Chat.mutePerson(loadRoom(h), actor, body?.username || body?.displayName, body?.minutes, Date.now(), takenNames(h));
     if (!muted.ok) return reply(h, res, muted);
     saveRoom(h, muted.room);
     return h.json(res, 200, { ok: true, until: muted.until });
@@ -309,6 +355,15 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true, ...reacted.counts });
   }
 
+  if (method === "POST" && p === "/news/comment") {
+    const who = needActor(h);
+    if (who.error) return h.json(res, who.status, { error: who.error });
+    const commented = News.addComment(loadNews(h), who.actor, { issueId: body?.issueId, itemId: body?.itemId, body: body?.body });
+    if (!commented.ok) return reply(h, res, commented);
+    saveNews(h, commented.news);
+    return h.json(res, 200, { ok: true, comment: commented.comment });
+  }
+
   if (method === "POST" && p === "/news/share") {
     const who = needActor(h);
     if (who.error) return h.json(res, who.status, { error: who.error });
@@ -331,7 +386,7 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
   }
 
-  if (method === "GET" && p === "/newsletter") return h.json(res, 200, loadList(h));
+  if (method === "GET" && p === "/newsletter") return h.json(res, 200, clientList(loadList(h), { token: true }));
 
   if (method === "POST" && p === "/newsletter") {
     const optedIn = body?.optedIn === true;
@@ -348,7 +403,6 @@ export async function routes(req, res, url, body, h) {
     }
     return h.json(res, 200, {
       optedIn: row.optedIn,
-      email: row.email,
       pending: row.pending,
       synced,
       note: row.pending

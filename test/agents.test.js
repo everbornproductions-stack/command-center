@@ -278,16 +278,21 @@ test("hosted hub: a shared agent is visible to a workspace member and read-only 
     const pr = (await owner("/agents/prompts", { method: "POST", body: { name: "Order", text: "Order {{count}} {{item}}.", agentId: ag.id } })).json;
     assert.equal((await outsider(`/agents/${ag.id}`)).status, 404, "agents are per user");
 
+    const named = await owner("/account/username", { method: "POST", body: { username: "Bright_Otter" } });
+    assert.equal(named.status, 200, JSON.stringify(named.json));
     let r = await owner(`/agents/${ag.id}/share`, { method: "POST", body: { workspaceId: WS } });
     assert.equal(r.status, 200, JSON.stringify(r.json));
     assert.equal((await owner(`/agents/prompts/${pr.id}/share`, { method: "POST", body: { workspaceId: WS } })).status, 200);
     assert.equal(sb.rows.length, 2); assert.equal(sb.rows[0].shared_by_email, "owner@example.com");
+    assert.equal(sb.rows[0].data.authorUsername, "Bright_Otter");
     assert.ok(!JSON.stringify(sb.rows).match(/sk-|secret/i));
 
     // the member sees it and may use it, but not change what the owner shared
     let items = (await member("/agents/shared")).json.items;
     const it = items.find((x) => x.kind === "agent");
-    assert.ok(it, "visible to a workspace member"); assert.equal(it.name, "Order taker"); assert.equal(it.workspaceName, "Hosted bakery"); assert.equal(it.role, "member"); assert.equal(it.sharedBy, "owner@example.com");
+    assert.ok(it, "visible to a workspace member"); assert.equal(it.name, "Order taker"); assert.equal(it.workspaceName, "Hosted bakery"); assert.equal(it.role, "member"); assert.equal(it.sharedBy, "Bright_Otter");
+    assert.equal(JSON.stringify(items).includes("owner@example.com"), false);
+    assert.equal(JSON.stringify(items).includes("authorUsername"), false);
     assert.deepEqual(it.permissions, { use: true, edit: false, remove: false });
     assert.equal(it.data.instructions, "Take bakery orders politely and confirm them back.");
     r = await member(`/agents/shared/${WS}/agent/${ag.id}/copy`, { method: "POST" });
@@ -300,7 +305,8 @@ test("hosted hub: a shared agent is visible to a workspace member and read-only 
     // the viewer sees it, read-only: no run, no copy, no removal
     items = (await viewer("/agents/shared")).json.items;
     const iv = items.find((x) => x.kind === "agent");
-    assert.ok(iv, "visible to a viewer"); assert.equal(iv.role, "viewer"); assert.deepEqual(iv.permissions, { use: false, edit: false, remove: false });
+    assert.ok(iv, "visible to a viewer"); assert.equal(iv.role, "viewer"); assert.equal(iv.sharedBy, "Bright_Otter"); assert.deepEqual(iv.permissions, { use: false, edit: false, remove: false });
+    assert.equal(JSON.stringify(items).includes("owner@example.com"), false);
     assert.deepEqual(items.find((x) => x.kind === "prompt").variables, ["count", "item"]);
     r = await viewer(`/agents/shared/${WS}/agent/${ag.id}/run`, { method: "POST", body: { prompt: "Two rye loaves" } });
     assert.equal(r.status, 403); assert.equal(r.json.code, "role");

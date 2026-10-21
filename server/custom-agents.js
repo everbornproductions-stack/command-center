@@ -26,6 +26,7 @@ import { licenseState } from "./license.js";
 import { listServers } from "./mcp.js";
 import * as L from "./libraries.js";
 import { emit } from "./events.js";
+import { usernameOf } from "./account-name.js";
 
 export const AGENTS_DOC = "agents.custom";
 export const PROMPTS_DOC = "agents.prompts";
@@ -302,9 +303,12 @@ async function need(wsId, action) {
 const snapshotOf = (kind, item) => (kind === "agent" ? portableAgent(item) : portablePrompt(item));
 const rowView = (r, role) => {
   const mine = r.sharedBy === me();
+  const data = { ...(r.data || {}) };
+  const author = String(data.authorUsername || "").trim();
+  delete data.authorUsername;
   return {
-    workspaceId: r.workspaceId, workspaceName: r.workspaceName || null, kind: r.kind, itemId: r.itemId, name: r.data?.name || r.itemId, data: r.data,
-    variables: r.kind === "prompt" ? variablesOf(r.data?.text) : undefined, sharedBy: r.sharedBy, mine, updatedAt: r.updatedAt, role,
+    workspaceId: r.workspaceId, workspaceName: r.workspaceName || null, kind: r.kind, itemId: r.itemId, name: data.name || r.itemId, data,
+    variables: r.kind === "prompt" ? variablesOf(data.text) : undefined, sharedBy: author || "someone", mine, updatedAt: r.updatedAt, role,
     permissions: { use: canShare(role, "agents.use"), edit: (mine && canShare(role, "agents.share")) || canShare(role, "agents.manage"), remove: (mine && canShare(role, "agents.share")) || canShare(role, "agents.manage") },
   };
 };
@@ -344,6 +348,8 @@ export async function share(kind, itemId, wsId) {
   const existing = await findShared(wsId, kind, itemId);
   if (existing && existing.sharedBy !== me() && !canShare(role, "agents.manage")) throw err(403, "Someone else shared this item; only they, an admin or the owner can update it.", { code: "role" });
   const data = snapshotOf(kind, item);
+  const author = usernameOf();
+  if (author) data.authorUsername = author;
   if (!HOSTED) {
     const d = sharedDoc(); const rows = (d[wsId] ||= []);
     const i = rows.findIndex((r) => r.kind === kind && r.itemId === itemId);
@@ -421,7 +427,7 @@ export function prepareListing(kind, itemId, input = {}) {
   if (flagged.length) throw err(400, `This cannot be listed: it ${flagged.join(" and ")}.`, { code: "flagged", flagged });
   const d = listingsDoc();
   const prev = d.list.find((x) => x.kind === kind && x.itemId === itemId);
-  const listing = { id: prev?.id || newId("ls"), kind, itemId, title: item.name, category, promise, bundle, status: "draft", price: null, version: (prev?.version || 0) + 1, updatedAt: Date.now(), note: "Draft only. The Marketplace is not open yet; nothing was published. Pricing is decided in Phase 10." };
+  const listing = { id: prev?.id || newId("ls"), kind, itemId, title: item.name, category, promise, bundle, author: usernameOf() || "", status: "draft", price: null, version: (prev?.version || 0) + 1, updatedAt: Date.now(), note: "Draft only. The Marketplace is not open yet; nothing was published. Pricing is decided in Phase 10." };
   if (prev) Object.assign(prev, listing); else d.list.push(listing);
   putDoc(LISTINGS_DOC, d);
   return listing;
