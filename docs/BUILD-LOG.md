@@ -1574,3 +1574,10 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Tests here (Linux): npm test, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke passed. Node 22. No real key. data/ was not read. Windows CI is the pull request check.
 
 ANTIGRAVITY CLI (built by Cursor cloud agent)
+
+## 2026-10-21: Desktop control is Pro
+
+Not a numbered phase. No locked decision was changed. Package was not bumped. Square and billing were not touched. data/ was not read.
+
+- Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
+- Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.

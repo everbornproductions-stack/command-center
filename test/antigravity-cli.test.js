@@ -8,6 +8,7 @@ import { startServer, tmpDir, ROOT } from "./helpers.js";
 
 const DIR = tmpDir("cc-agy-");
 process.env.CC_DATA_DIR = DIR;
+process.env.CC_DEV_OWNER = "1";
 const FIXTURE = path.join(ROOT, "test", "fixtures", "fake-agy.mjs");
 
 const store = await import("../server/store.js");
@@ -269,6 +270,7 @@ test("Antigravity is a local-cli agent and the manual handoff target remains", (
 test("the running server shows the card and a fake agy task", async () => {
   const s = await startServer({
     env: {
+      CC_DEV_OWNER: "1",
       CC_AGY_BIN: FIXTURE,
       CC_AGY_EXEC: process.execPath,
       FAKE_AGY_MODE: "ok",
@@ -294,5 +296,24 @@ test("the running server shows the card and a fake agy task", async () => {
     assert.doesNotMatch(job.text, /sk-/);
     const denied = await s.api("/antigravity/install", { method: "POST", body: {} });
     assert.equal(denied.json.needsConfirm, true);
+  } finally { await s.stop(); }
+});
+
+test("Free cannot send an Antigravity task", async () => {
+  const preview = await agy.installAgy({ confirm: false });
+  assert.equal(preview.needsConfirm, true);
+  const s = await startServer({ env: { CC_DEV_OWNER: "", CC_AGY_BIN: FIXTURE, CC_AGY_EXEC: process.execPath, FAKE_AGY_MODE: "ok" } });
+  try {
+    const view = await s.api("/antigravity");
+    assert.equal(view.status, 200);
+    const posted = await s.api("/antigravity/jobs", { method: "POST", body: { task: "Say hello" } });
+    assert.equal(posted.status, 402);
+    assert.match(posted.json.error, /Desktop control is part of Pro/);
+    const held = await s.api("/antigravity/install", { method: "POST", body: {} });
+    assert.equal(held.status, 200);
+    assert.equal(held.json.needsConfirm, true);
+    const ui = fs.readFileSync(path.join(ROOT, "web", "features", "antigravity.js"), "utf8");
+    assert.match(ui, /Desktop control is part of Pro/);
+    assert.equal(ui.includes("\u2014"), false);
   } finally { await s.stop(); }
 });

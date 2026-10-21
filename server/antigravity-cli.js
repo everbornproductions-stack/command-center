@@ -18,6 +18,7 @@ import { heuristicClassify } from "./router.js";
 import { capsFor } from "./added-caps.js";
 import { registerLocalRoute } from "./local-routes.js";
 import { addRouteSource } from "./route-extras.js";
+import { guard, isProFeature } from "./license.js";
 
 export const AGENT_ID = "antigravity";
 export const NAME = "Google Antigravity";
@@ -430,6 +431,7 @@ async function runStored(job, opts = {}) {
 }
 
 export async function dispatchJob({ task, source = {}, timeoutMs } = {}) {
+  guard("desktop");
   const clean = stripSecrets(String(task || "")).trim();
   if (!clean) {
     const err = new Error("Type a task first.");
@@ -486,6 +488,7 @@ export async function* agyChatStream(opts = {}) {
 }
 
 export function routeModels() {
+  if (!isProFeature("desktop")) return [];
   const st = readState();
   if (!st.allowed || !cachedDetect?.found || st.signedIn !== true) return [];
   const caps = capsFor(["code", "reasoning"]);
@@ -621,11 +624,13 @@ export function hubCard() {
 }
 
 export async function allowAgy(allow) {
+  if (allow) guard("desktop");
   writeState({ allowed: !!allow });
   return cardView();
 }
 
 export async function installAgy({ confirm, platform = process.platform, spawnImpl = spawn } = {}) {
+  if (confirm === true) guard("desktop");
   if (confirm !== true) {
     return { ok: false, needsConfirm: true, message: "Install and connect downloads Google's Antigravity installer and runs it. You sign in in the browser. Nothing is installed until you confirm. No password is stored." };
   }
@@ -647,6 +652,7 @@ export async function installAgy({ confirm, platform = process.platform, spawnIm
 }
 
 export async function beginSignIn({ confirm, spawnImpl = spawn } = {}) {
+  if (confirm === true) guard("desktop");
   if (confirm !== true) {
     return { ok: false, needsConfirm: true, message: "This opens Antigravity sign-in in your browser. You sign in once. Meldmind does not see or store the password." };
   }
@@ -666,6 +672,7 @@ export async function beginSignIn({ confirm, spawnImpl = spawn } = {}) {
 }
 
 export async function verifyAgy({ confirm } = {}) {
+  if (confirm === true) guard("desktop");
   if (confirm !== true) {
     return { ok: false, needsConfirm: true, message: "Check sends one short test task to Antigravity and reads the reply. Nothing is sent until you confirm." };
   }

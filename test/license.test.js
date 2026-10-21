@@ -63,6 +63,11 @@ test("TIERS: free is the limited tier", () => {
   assert.equal(TIERS.free.historySearch, false);
   assert.equal(TIERS.free.sharedLearning, false);
   assert.equal(TIERS.free.scores, false);
+  assert.equal(TIERS.free.desktop, false);
+  assert.equal(TIERS.free.appScan, false);
+  assert.equal(TIERS.pro.missions, true);
+  assert.equal(TIERS.pro.desktop, true);
+  assert.equal(TIERS.pro.appScan, true);
   assert.equal(TIERS.pro.connectedServices, Infinity);
   assert.equal(TIERS.pro.emailAccounts, 8);
   assert.equal(TIERS.pro.phone, true);
