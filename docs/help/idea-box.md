@@ -2,7 +2,7 @@
 id: idea-box
 title: Files, voice, and your ideas
 summary: Upload a file or use Voice with an idea. Edit it before Send. Set a status after.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.9
 ---
 
 # Files, voice, and your ideas

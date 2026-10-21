@@ -38,4 +38,4 @@ A picture or a video on the idea box or on Marching orders can start a media job
 
 ## Release order (Chris, 2026-10-21)
 
-0.4.8 does not include the Mac build. The unsigned Mac .dmg and the "new version ready, Download" notice are the next release after 0.4.8. Signing and notarization stay later.
+0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.
