@@ -19,9 +19,9 @@ import { loadForActive as loadWorkspaceKeys } from "./workspace-keys.js";
 import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso.js";
 import { bus, emit } from "./events.js";
 import {
-  BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket, isPrivateIPv4,
-  lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairTokenOk, pairUrl,
-  preferredLanIPv4, probePort, readInterfaces, unreachableError,
+  BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket,
+  lanCandidates, lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
+  preferredLanIPv4, probePort, readInterfaces, tokenFromPairPath, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
 import { allStatus, checkAll, checkProvider, liveModels, noteCall, getStatus } from "./health.js";
@@ -46,6 +46,7 @@ import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
 import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
+import { gate } from "./feature-gate.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
@@ -98,6 +99,8 @@ let firewallStatus = { ok: true, skipped: true };
 let pairingError = null;
 let lanServer = null;
 let lanWss = null;
+let lanGroup = [];
+let lanPrimary = null;
 let pairLock = Promise.resolve();
 const hasBody = (req) => Number(req.headers["content-length"] || 0) > 0 || !!req.headers["transfer-encoding"];
 const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
@@ -123,7 +126,9 @@ function phonePair() {
 function pairPresented(req, url) {
   const token = phonePair().token;
   if (!token) return false;
-  return pairTokenOk(url.searchParams.get("pair"), token) || pairTokenOk(cookieValue(req.headers.cookie, "cc-pair"), token);
+  return pairTokenOk(url.searchParams.get("pair"), token)
+    || pairTokenOk(cookieValue(req.headers.cookie, "cc-pair"), token)
+    || pairTokenOk(tokenFromPairPath(url.pathname), token);
 }
 // Returns { status, error } to send, or null when the request may proceed.
 function localGate(req, url) {
@@ -378,9 +383,9 @@ function fullState() {
 
 function pairingView() {
   const saved = phonePair();
-  const address = preferredLanIPv4(readInterfaces());
-  const listening = !!(lanServer && address && lanServer.listening);
-  const url = saved.on && listening ? pairUrl(address, PORT, saved.token) : null;
+  const address = (lanServer?.listening && lanPrimary) ? lanPrimary : preferredLanIPv4(readInterfaces());
+  const listening = !!(lanServer && address && lanServer.listening && saved.on);
+  const url = listening ? pairUrl(address, PORT, saved.token) : null;
   return {
     on: !!url,
     url,
@@ -757,8 +762,17 @@ async function handleHttp(req, res) {
       if (!HOSTED && !hostOk(req)) return json(res, 421, { error: `wrong host: use http://127.0.0.1:${PORT}/`, code: "host" });
       return await extensionHook(req, res, url, json);
     }
-    const gate = localGate(req, url);
-    if (gate) return json(res, gate.status, { error: gate.error, code: gate.code });
+    const gateResult = localGate(req, url);
+    if (gateResult) return json(res, gateResult.status, { error: gateResult.error, code: gateResult.code });
+    // /p/<code> is the short address in the QR. A wrong code is refused, on this PC and on the LAN.
+    if (!HOSTED && url.pathname.startsWith("/p/")) {
+      if (!pairPresented(req, url)) return text(res, 401, BAD_LINK);
+      res.setHeader("set-cookie", pairCookie(phonePair().token));
+      res.setHeader("referrer-policy", "no-referrer");
+      const html = indexHtml(path.join(WEB_DIR, "index.html"));
+      res.writeHead(200, { "content-type": MIME[".html"], "cache-control": "no-store", "content-length": Buffer.byteLength(html) });
+      return res.end(html);
+    }
     // A phone on the LAN does not receive the session token until it presents the pairing code.
     if (!HOSTED && isLanSocket(req.socket?.remoteAddress) && !url.pathname.startsWith("/api/") && !pairPresented(req, url)) {
       return text(res, 401, BAD_LINK);
@@ -830,6 +844,12 @@ function onWs(ws, req) {
   if (!HOSTED) {
     // local: same Host/Origin pinning as HTTP, then the per-launch token as the first message
     if (!hostOk(req) || !originOk(req)) { ws.close(4403, "cross-site refused"); return; }
+    if (isLanSocket(req.socket?.remoteAddress)) {
+      let wsUrl = null;
+      try { wsUrl = new URL(req.url || "/ws", `http://127.0.0.1:${PORT}`); } catch { wsUrl = null; }
+      const presented = wsUrl && pairPresented(req, wsUrl);
+      if (!presented) { ws.close(4401, "pairing"); return; }
+    }
     const timer = setTimeout(() => ws.close(4401, "auth timeout"), 15000);
     ws.once("message", (raw) => {
       clearTimeout(timer);
@@ -868,43 +888,62 @@ function withPairLock(fn) {
   return run;
 }
 async function closeLan() {
-  const lan = lanServer;
-  const w = lanWss;
+  const group = lanGroup;
+  lanGroup = [];
   lanServer = null;
   lanWss = null;
-  if (w) {
-    const i = socketServers.indexOf(w);
-    if (i >= 0) socketServers.splice(i, 1);
-    try { for (const client of w.clients) client.close(1001, "pairing off"); } catch {}
-    try { w.close(); } catch {}
-  }
-  // server.close() stops new connections but leaves a phone's open socket up, so the
-  // phone would never see that pairing turned off. Drop those sockets too.
-  if (lan) {
-    try { lan.closeAllConnections(); } catch {}
-    await new Promise((resolve) => lan.close(() => resolve()));
+  lanPrimary = null;
+  for (const item of group) {
+    const w = item.wss;
+    if (w) {
+      const i = socketServers.indexOf(w);
+      if (i >= 0) socketServers.splice(i, 1);
+      try { for (const client of w.clients) client.close(1001, "pairing off"); } catch {}
+      try { w.close(); } catch {}
+    }
+    // server.close() stops new connections but leaves a phone's open socket up, so the
+    // phone would never see that pairing turned off. Drop those sockets too.
+    if (item.server) {
+      try { item.server.closeAllConnections(); } catch {}
+      await new Promise((resolve) => item.server.close(() => resolve()));
+    }
   }
 }
-async function openLan(ip) {
-  if (!ip || !isPrivateIPv4(ip)) throw Object.assign(new Error(NO_LAN), { code: "lan" });
-  if (lanServer && lanServer.listening && lanWss) {
-    const bound = lanServer.address();
-    if (bound && bound.address === ip) return;
+async function openLan() {
+  const candidates = lanCandidates(readInterfaces());
+  if (!candidates.length) throw Object.assign(new Error(NO_LAN), { code: "lan" });
+  if (lanServer?.listening && lanPrimary && candidates.some((c) => c.address === lanPrimary)) {
+    const reached = await probePort(lanPrimary, PORT, net);
+    return { address: lanPrimary, reachable: reached };
   }
   await closeLan();
-  const lan = http.createServer(handleHttp);
-  await new Promise((resolve, reject) => {
-    const fail = (e) => { lan.off("error", fail); reject(e); };
-    lan.once("error", fail);
-    lan.listen(PORT, ip, () => { lan.off("error", fail); resolve(); });
-  });
-  lanWss = attachWs(lan);
-  lanServer = lan;
-  const reached = await probePort(ip, PORT, net);
-  if (!reached) {
-    await closeLan();
-    throw Object.assign(new Error(unreachableError(ip, PORT)), { code: "reach" });
+  const bound = [];
+  let firstError = null;
+  for (const cand of candidates) {
+    const ip = cand.address;
+    const lan = http.createServer(handleHttp);
+    try {
+      await new Promise((resolve, reject) => {
+        const fail = (e) => { lan.off("error", fail); reject(e); };
+        lan.once("error", fail);
+        lan.listen(PORT, ip, () => { lan.off("error", fail); resolve(); });
+      });
+      lan.on("error", () => {});
+      const wss = attachWs(lan);
+      bound.push({ server: lan, wss, ip });
+    } catch (e) {
+      try { lan.close(); } catch {}
+      if (!bound.length && !firstError) firstError = e;
+    }
   }
+  if (!bound.length) throw firstError || Object.assign(new Error(BIND_FAIL), { code: "bind" });
+  lanGroup = bound;
+  lanServer = bound[0].server;
+  lanWss = bound[0].wss;
+  lanPrimary = bound[0].ip;
+  const reached = await probePort(lanPrimary, PORT, net);
+  // A failed self-check does not turn pairing off. The phone may still reach an address this PC could not probe.
+  return { address: lanPrimary, reachable: reached };
 }
 async function setPhonePair(on) {
   if (HOSTED) { pairingError = "Phone pairing is for the desktop app on this PC."; return pairingView(); }
@@ -919,7 +958,7 @@ async function setPhonePair(on) {
     emit("log", { text: "Phone pairing off. This PC answers only on this computer." });
     return pairingView();
   }
-  guard("phone");
+  gate("phone");
   const address = preferredLanIPv4(readInterfaces());
   if (!address) {
     pairingError = NO_LAN;
@@ -930,27 +969,31 @@ async function setPhonePair(on) {
   const prev = phonePair();
   const token = prev.on && prev.token ? prev.token : newPairToken();
   saveSettings({ ...settings(), phonePair: { on: true, token } });
-  try { await openLan(address); }
+  let opened;
+  try { opened = await openLan(); }
   catch (e) {
     await closeLan();
     const next = { ...settings() };
     delete next.phonePair;
     saveSettings(next);
-    pairingError = e.code === "reach" ? e.message : BIND_FAIL;
+    pairingError = e.code === "reach" ? e.message : (e.code === "lan" ? e.message : BIND_FAIL);
     console.log(pairingError);
     emit("log", { text: pairingError });
     return pairingView();
   }
   firewallStatus = await ensureWindowsFirewall();
-  pairingError = firewallStatus.error || null;
-  console.log(`Phone pairing on at ${address}:${PORT}.`);
-  emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+  pairingError = opened.reachable ? (firewallStatus.error || null) : unreachableError(opened.address, PORT);
+  console.log(`Phone pairing on at ${opened.address}:${PORT}.`);
+  emit("log", { text: `Phone pairing on at ${opened.address}:${PORT}.` });
   return pairingView();
 }
 function pairingQr(res) {
   const view = pairingView();
   if (!view.url) return json(res, 404, { error: view.error || "Phone pairing is off." });
-  const qr = qrcode(0, "M"); qr.addData(view.url); qr.make();
+  const shown = new URL(view.url);
+  const qr = qrcode(0, "M");
+  qr.addData(pairPathUrl(shown.hostname, shown.port || PORT, shown.searchParams.get("pair")), "Byte");
+  qr.make();
   const svg = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-store" });
   res.end(svg);
@@ -1017,13 +1060,12 @@ async function initContext() {
     if (HOSTED) console.log(`supabase: ${CFG.url}\nhub:      ${CFG.hubUrl || "(CC_HUB_URL not set)"}\nservice key: ${CFG.serviceKey ? "yes" : "no (writes use each user's own token)"}`);
     else console.log(`data: ${DATA_DIR}\nHQ:   ${HQ_DIR || "(not linked; set CC_HQ_DIR)"}`);
     if (!HOSTED && phonePair().on) {
-      const address = preferredLanIPv4(readInterfaces());
       try {
-        await openLan(address);
+        const opened = await openLan();
         firewallStatus = await ensureWindowsFirewall();
-        pairingError = firewallStatus.error || null;
-        console.log(`Phone pairing on at ${address}:${PORT}.`);
-        emit("log", { text: `Phone pairing on at ${address}:${PORT}.` });
+        pairingError = opened.reachable ? (firewallStatus.error || null) : unreachableError(opened.address, PORT);
+        console.log(`Phone pairing on at ${opened.address}:${PORT}.`);
+        emit("log", { text: `Phone pairing on at ${opened.address}:${PORT}.` });
       } catch (e) {
         pairingError = e.code === "reach" || e.code === "lan" ? (e.message || BIND_FAIL) : BIND_FAIL;
         console.log(pairingError);

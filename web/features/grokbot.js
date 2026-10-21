@@ -114,11 +114,11 @@ async function renderSettings(el) {
   const c = data.config, card = data.card;
   el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Integrations: Grok Bot <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
     <div class="small muted">Grok Bot is your own assistant with its own computer, signed-in browser, Gmail, Drive, Calendar and teammate bots. When a council or mission needs one of those (${c.tags.map((t) => esc(t.label)).join(", ")}), Meldmind hands Grok Bot that part as a job. It is never picked for plain text work another AI does as well. Nothing is sent without your orders or a click.</div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+    <div class="grid" data-plumbing="1" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
       <div><label class="lbl">Webhook URL ${c.urlSaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-url" placeholder="${c.urlSaved ? "saved in the vault (type to replace)" : "https://..."}" autocomplete="off"></div>
       <div><label class="lbl">Sender key ${c.keySaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-key" placeholder="${c.keySaved ? "saved in the vault (type to replace)" : "the key Grok Bot expects"}" autocomplete="off"></div>
       <div><label class="lbl">Header name (optional)</label><input type="text" id="gb-header" value="${esc(c.header)}" placeholder="Authorization" style="font-family:var(--mono)"><div class="dim small">Sent as <span class="mono">${esc(c.header)}: ${esc(c.headerValue)}</span></div></div>
-      <div><label class="lbl">Where results come back (optional)</label><input type="text" id="gb-public" value="${esc(c.publicUrl)}" placeholder="https://your-hub or tunnel address" style="font-family:var(--mono)"></div>
+      <div><label class="lbl">Where results come back (optional)</label><input type="text" id="gb-public" value="${esc(c.publicUrl)}" placeholder="${esc(c.publicUrl || c.callbackBase || "https://your-hub or tunnel address")}" style="font-family:var(--mono)"></div>
     </div>
     <div class="dim small" style="margin-top:6px">The URL and key are kept in the vault, never logged and never shown again after saving. Each job carries its own one-time callback address: <span class="mono">${esc(c.callbackExample)}</span>.
       ${c.reachable ? "" : `<span style="color:var(--amber)">That address is on this computer, so Grok Bot can only reach it once the hosted hub exists or a tunnel is set up. Until then jobs stay queued or working, and you can paste each result in by hand.</span>`}</div>

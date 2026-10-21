@@ -65,6 +65,13 @@ test("checklist covers the integrations and leaves AI key detection alone", () =
   assert.equal(items.find((it) => it.id === "ghl").flow.type, "publish");
   assert.equal(items.find((it) => it.id === "kling").flow.type, "keysetup");
   assert.equal(items.find((it) => it.id === "capcut").flow.type, "mcp");
+  for (const id of ["gmail", "drive", "ghl", "capcut"]) {
+    const steps = items.find((it) => it.id === id).steps;
+    assert.ok(Array.isArray(steps) && steps.length >= 3, id);
+  }
+  assert.match(items.find((it) => it.id === "capcut").steps.join(" "), /outside the US/);
+  assert.match(items.find((it) => it.id === "ghl").steps.join(" "), /waits for a click/);
+  assert.ok(items.every((it) => Array.isArray(it.steps) && it.steps.length > 0));
   const dumped = JSON.stringify(items);
   assert.equal(dumped.includes("must-not-leak"), false);
   assert.equal(dumped.includes("sk-not-real"), false);
@@ -103,6 +110,7 @@ test("the page, Help menu, and Settings can run setup again, and Simple hides th
   assert.doesNotMatch(ui, /type="password"/);
   assert.doesNotMatch(ui, /\/keys/);
   assert.match(ui, /cs-detail/);
+  assert.match(ui, /cs-steps/);
   assert.match(ui, /uiMode/);
   assert.match(app, /connectWizard/);
   assert.match(app, /connect-setup/);

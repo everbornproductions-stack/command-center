@@ -339,6 +339,7 @@ export function groupIdFor(view, layout = "narrow") {
 // Same Settings page, scrolled to the panel. Not a second copy of the app.
 export const CONNECT_LINKS = [
   { id: "keys", label: "Keys and providers", view: "settings", focus: "#settings-keys" },
+  { id: "byo", label: "Your apps", view: "settings", focus: "[data-feature='byo']" },
   { id: "mcp", label: "Tools (MCP)", view: "settings", focus: "[data-feature='mcp']" },
   { id: "integrations", label: "Integrations", view: "settings", focus: "[data-feature='grokbot']" },
   { id: "extension", label: "Browser extension", view: "settings", focus: "[data-feature='extension']" },

@@ -2,7 +2,7 @@
 // Open in <service> links, outside-agent handoffs, and a flow map driven by the same job events.
 // The map is SVG and CSS. prefers-reduced-motion keeps the highlights and drops the moving light.
 import { eased, SIZE_MS } from "../graph-usage.js";
-const { S, api, esc, money, go } = window.CC;
+const { S, api, esc, money, go, toast } = window.CC;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const css = `
@@ -336,6 +336,21 @@ function captions() {
   return `<div class="lv-captions"><p class="dim small lv-caption lv-caption-live">The bright node is working now. Light along a line is work moving. Idle agents stay on the map, dimmed.</p><p class="dim small lv-caption lv-caption-calm">Motion is reduced. The active agent stays lit, and idle ones stay dim. Moving light is off.</p></div>`;
 }
 
+function tutorialsHtml(list) {
+  const items = list || [];
+  if (!items.length) return "";
+  return `<div class="panel" id="lv-tutorials"><h3>Start a project</h3>
+    <p class="dim small">These sit on the live map. Watch plays an example. Start opens the real walk. Nothing is sent until you click.</p>
+    ${items.map((t) => `<div class="route" style="margin-top:8px">
+      <b>${esc(t.name)}</b>
+      <ol class="lv-steps">${(t.steps || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+      <div class="row" style="gap:8px;margin-top:6px">
+        <button type="button" class="btn sm" data-watch="${esc(t.id)}">Watch on the map</button>
+        <button type="button" class="btn sm primary" data-begin="${esc(t.id)}">Start this project</button>
+      </div>
+    </div>`).join("")}
+  </div>`;
+}
 function tabInner(view) {
   const { focus, runs, links, handoffs } = bits(view);
   const picks = [`<button class="btn sm ${focus ? "" : "on"}" data-proj="*">All</button>`]
@@ -355,6 +370,7 @@ function tabInner(view) {
     ${noteHtml()}
     <div class="lv-picks">${picks}</div>
     <div class="lv-stage"><div class="lv-map-slot"></div>${captions()}</div>
+    ${tutorialsHtml(view.tutorials)}
     ${linksHtml(links)}
     <p class="dim small" style="margin:0">Open in the service when it has a page for the job.</p>
     ${handoffHtml(handoffs)}
@@ -395,6 +411,13 @@ function delivInner(view, runId) {
 
 function wire(root) {
   if (!root) return;
+  root.querySelectorAll("[data-watch]").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      await api(`/walkthrough/example/${encodeURIComponent(b.dataset.watch)}/play`, { method: "POST", body: { immediate: true, experience: window.CC.uiMode?.() || "simple" } });
+      toast("Example playing on the map. No AI was called.");
+    } catch (e) { toast(e.message, true); }
+  }));
+  root.querySelectorAll("[data-begin]").forEach((b) => b.addEventListener("click", () => window.CC.startProject?.begin?.(b.dataset.begin)));
   root.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.proj === "*" ? "*" : b.dataset.proj; paint(); }));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { S.view = "projects"; S.openProject = b.dataset.open; window.CC.render(); }));
   mountOpsButton();
@@ -494,7 +517,11 @@ CC.register({
     if (!cache) ensure();
   } },
   onEvent(ev) {
-    if (ev.type === "liveview.update" && ev.view) { cache = ev.view; paint(); }
+    if (ev.type === "liveview.update" && ev.view) {
+      const tutorials = ev.view.tutorials || cache?.tutorials;
+      cache = tutorials ? { ...ev.view, tutorials } : ev.view;
+      paint();
+    }
   },
   onState() { scheduleDecorate(); ensure(); },
 });

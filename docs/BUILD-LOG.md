@@ -1606,3 +1606,23 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21 07:28 UTC: Connections and setup (phases 33, 34, and extensions of 38, 39, 41)
+
+Built by Cursor cloud agent. Version stays 0.4.8. No new What's new entry. Square and billing were not touched. Decision 23 (Use your own Supabase) was not built. Decision 15 stays as shipped: the Grok Bot webhook fields moved under Expert and still work there. No real key. data/ was not read. Nothing was deployed.
+
+- Phase 33: HighLevel contacts, invoices, and workflows are council tools. Reads run on the Run click. Writes and custom webhooks wait for Send. MCP by URL uses the existing Phase 16 client (no second client). Custom webhooks take a URL, an auth header, and input fields. Header values stay in the vault and are scrubbed from errors and logs. MCP by URL and custom webhooks are Pro through server/feature-gate.js. HighLevel uses the connection already saved and is not a second Pro gate. Phase 90 still owns Zapier and Make. Do not rebuild MCP by URL or custom webhooks there.
+- Phase 34: Simple settings do not show the licence server form or the Grok Bot webhook form. Expert still has both. The licence save route is unchanged. The setup fields say "Licence server connection" and the placeholder is https://your-project.example.
+- Phase 38 was already done. This adds a short step list on each existing checklist row, including Gmail, Drive, HighLevel, and CapCut. The checklist was not rebuilt.
+- Phase 39 was already done. The live map now has Start a project tutorials. Watch on the map plays an example and calls no AI. Start this project opens the existing walk. The walks were not rebuilt.
+- Phase 41 was already done. Pairing prefers a Wi-Fi address over a virtual adapter, listens on the private addresses it can open, keeps the listener if the self-check fails, and puts a short /p/ address in the QR. The address under the code still uses the query form. Both work. Free tier stays closed (402). Paired phones are not remembered by IP.
+- Commit: pending
+- Tests here (Linux): npm test 430 tests, 429 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3.
+- Browser check (headless Chrome, local stub server, owner tier): Simple settings show Your apps and the line that the licence fields stay in Expert, with no licence form and no webhook form. Expert settings show the licence form (summary "Licence server connection") and Your apps. The checklist shows step lists for Gmail, Drive, HighLevel, and CapCut. Watch on the map toasts "Example playing on the map. No AI was called." Start this project opens the website walk.
+- Not verified: a real phone, a real LAN, a firewall, or a Mac. Real HighLevel, a real MCP server, and the hosted licence project were not contacted (mocks and the test stub only).
+
+PHASE 33 DONE
+PHASE 34 DONE
+PHASE 38 DONE
+PHASE 39 DONE
+PHASE 41 DONE

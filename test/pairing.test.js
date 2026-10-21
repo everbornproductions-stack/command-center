@@ -8,7 +8,7 @@ import path from "node:path";
 import { startServer, ROOT, raw } from "./helpers.js";
 import {
   BAD_LINK, NO_LAN, PHONE_FETCH, firewallAddArgs, firewallDeleteArgs, ensureWindowsFirewall,
-  isPrivateIPv4, preferredLanIPv4, readInterfaces,
+  isPrivateIPv4, preferredLanIPv4, privateIPv4s, readInterfaces,
 } from "../server/pairing.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -44,6 +44,15 @@ test("private address choice, firewall args, and the Settings copy", async () =>
   };
   assert.equal(preferredLanIPv4(ifaces), "192.168.1.20");
   assert.equal(preferredLanIPv4({ lo: [{ address: "127.0.0.1", family: "IPv4", internal: true }] }), null);
+  assert.equal(preferredLanIPv4({
+    "vEthernet (Default Switch)": [{ address: "192.168.137.1", family: "IPv4", internal: false }],
+    "Wi-Fi": [{ address: "10.0.0.8", family: "IPv4", internal: false }],
+  }), "10.0.0.8");
+  assert.equal(preferredLanIPv4({ docker0: [{ address: "172.17.0.1", family: "IPv4", internal: false }] }), null);
+  assert.deepEqual(privateIPv4s({
+    "vEthernet (Default Switch)": [{ address: "192.168.137.1", family: "IPv4", internal: false }],
+    "Wi-Fi": [{ address: "10.0.0.8", family: "IPv4", internal: false }],
+  }).sort(), ["10.0.0.8", "192.168.137.1"]);
 
   const add = firewallAddArgs("C:\\Program Files\\Meldmind\\Meldmind.exe");
   assert.ok(add);
@@ -78,6 +87,9 @@ test("private address choice, firewall args, and the Settings copy", async () =>
   assert.equal(app.includes("\u2014"), false);
   assert.match(server, /server\.listen\(PORT, HOSTED \? "0\.0\.0\.0" : "127\.0\.0\.1"/);
   assert.match(server, /lan\.listen\(PORT, ip/);
+  assert.match(server, /gate\("phone"\)/);
+  assert.match(server, /pairPathUrl/);
+  assert.match(read("server", "feature-gate.js"), /byoMcp/);
   assert.equal(read("server", "pairing.js").includes("\u2014"), false);
   assert.equal(read("docs", "help", "phone.md").includes("\u2014"), false);
 });
@@ -129,6 +141,15 @@ test("pairing stays on this computer until it is turned on, then the phone must 
     assert.equal(page.status, 200);
     assert.ok(page.text.includes('name="cc-token"'));
     assert.equal(page.text.includes(token), false, "the pairing code is not copied into the page");
+    const short = await raw({ host: ip, port: s.port, path: `/p/${token}` });
+    assert.equal(short.status, 200);
+    assert.ok(short.text.includes('name="cc-token"'));
+    assert.equal(short.text.includes(token), false, "the short address does not copy the pairing code into the page");
+    assert.match([].concat(short.headers["set-cookie"] || []).join(";"), /cc-pair=/);
+    const badPath = await raw({ host: ip, port: s.port, path: "/p/not-a-code" });
+    assert.equal(badPath.status, 401);
+    assert.equal(badPath.text, BAD_LINK);
+    assert.equal(badPath.text.includes("cc-token"), false);
     const setCookie = [].concat(page.headers["set-cookie"] || []).join(";");
     assert.match(setCookie, /cc-pair=/);
     assert.match(setCookie, /HttpOnly/);
@@ -182,6 +203,18 @@ test("pairing stays on this computer until it is turned on, then the phone must 
   } finally {
     await s.stop();
   }
+});
+
+test("phone pairing stays closed on the free tier", { timeout: 60000 }, async () => {
+  const ip = preferredLanIPv4(readInterfaces());
+  const s = await startServer();
+  try {
+    const on = await s.api("/pairing", { method: "POST", body: { on: true } });
+    assert.equal(on.status, 402);
+    assert.equal(on.json.code, "pro_required");
+    assert.equal(await canConnect("127.0.0.1", s.port), true);
+    if (ip) assert.equal(await canConnect(ip, s.port), false);
+  } finally { await s.stop(); }
 });
 
 test("no private address leaves the server on this computer", { timeout: 60000 }, async () => {

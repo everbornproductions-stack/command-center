@@ -31,6 +31,8 @@ const STEPS = [
   { id: "marketplace", view: "marketplace", title: "Marketplace", body: "Browse and install templates other people shared. Every template is signed and checked before it installs, and nothing runs until you start it. You can share one of your own pipelines here too." },
   { id: "keys", target: "#settings-keys", view: "settings", title: "API keys and MCP", body: "Add an API key here, or connect an MCP server from Connect, then Tools (MCP). The guided setup shows where to get each key, you paste it, the console tests it, then seals it in the vault. Keys never leave this machine and are never shown again. A custom provider can be marked Good at the task types it should take.", action: "keys" },
   { id: "phone", for: "both", target: "#phone-pair", view: "settings", title: "Phone pairing", body: "Settings, Phone and other devices, turns on a link for a phone on the same Wi-Fi. The QR code and the address under it include the pairing code. It stays off until you turn it on. Copy works if the camera cannot scan." },
+  { id: "your-apps", for: "both", target: "[data-feature='byo']", view: "settings", title: "Your apps", body: "Your apps is where a HighLevel account, an MCP server address, and a custom webhook are connected. A change waits until you click Send." },
+  { id: "map-tutorials", target: "#lv-tutorials", view: "liveview", title: "Start a project on the map", body: "The live map lists Start a project. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click." },
 ];
 
 const css = `
