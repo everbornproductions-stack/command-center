@@ -43,6 +43,7 @@ const STEPS = [
   { id: "your-apps", for: "both", target: "[data-feature='byo']", view: "settings", title: "Your apps", body: "Your apps is where a HighLevel account, an MCP server address, and a custom webhook are connected. A change waits until you click Send." },
   { id: "map-tutorials", target: "#lv-tutorials", view: "liveview", title: "Start a project on the map", body: "The live map lists Start a project. Watch on the map plays an example and does not call an AI. Start this project opens the real walk. Sending still needs a click." },
   { id: "watch-talk", target: "#model-watch", view: "settings", title: "Model watch and people chat", body: "Model watch looks at the model list for each AI you connected. It uses your own key, read only, at most once a day. A new model or a price change shows up as a note. A suggested switch waits until you accept it, and you can undo it. People chat is in the Business menu. Direct messages and small groups stay with people in your team space. Messages stay on this computer until a hub is set. Nothing is sent until you click Send. Keys are not shared." },
+  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
 ];
 
 const css = `

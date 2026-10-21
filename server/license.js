@@ -117,7 +117,7 @@ export function licenseState() {
     },
     key: l.key ? l.key.replace(/^(.{3}).*(.{4})$/, "$1-••••-••••-$2") : null,
     email: l.email || ctx().email || null, status: l.status, checkedAt: l.checkedAt, lastOkAt: l.lastOkAt || null, graceUntil: r.graceUntil || null,
-    message, deviceId: l.deviceId, trialEndsAt: r.trialEndsAt || null,
+    message, deviceId: l.deviceId, maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2, trialEndsAt: r.trialEndsAt || null,
     compare: compareRows(),
     plan: l.plan || null,
     grandfathered: l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro",
@@ -125,11 +125,31 @@ export function licenseState() {
   };
 }
 
+// The licence server builds the same sentence in verify_license. Default cap is 2.
+export function deviceLimitMessage(maxDevices = 2) {
+  const n = Math.max(1, Math.floor(Number(maxDevices) || 2));
+  return `This key is already on ${n} computer${n === 1 ? "" : "s"}. Remove one in Settings > Devices.`;
+}
+
+export function deviceRpcMessage(err) {
+  const m = String(err?.message || "");
+  if (/schema cache|could not find the function|PGRST202|404/i.test(m)) {
+    return "The computer list is not available on the licence server yet.";
+  }
+  return m || "Could not reach the licence server.";
+}
+
 // Growth (Phase 9) asks the same licence server about referrals.
 export const licenceRpc = (fn, body) => rpc(fn, body);
 
-async function rpc(fn, body) {
-  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => (Array.isArray(j) ? j[0] : j));
+function rpcRows(j, all) {
+  if (all) return Array.isArray(j) ? j : (j == null ? [] : [j]);
+  return Array.isArray(j) ? j[0] : j;
+}
+
+async function rpc(fn, body, opts = {}) {
+  const all = !!opts.all;
+  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => rpcRows(j, all));
   const c = cloud();
   // legacy anon keys are JWTs and go in both headers; new publishable keys (sb_publishable_…) go in apikey only
   const headers = { apikey: c.anonKey, "content-type": "application/json" };
@@ -139,19 +159,28 @@ async function rpc(fn, body) {
     const r = await fetch(`${c.url.replace(/\/$/, "")}/rest/v1/rpc/${fn}`, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal });
     const j = await r.json().catch(() => null);
     if (!r.ok) throw new Error(j?.message || `HTTP ${r.status}`);
-    return Array.isArray(j) ? j[0] : j;
+    return rpcRows(j, all);
   } finally { clearTimeout(t); }
 }
+
+const capOf = (row) => {
+  const n = Number(row?.max_devices ?? row?.maxDevices);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
 
 export async function activate(key) {
   if (!cloudConfigured()) throw new Error("No licence server configured (Settings → Cloud).");
   const l = lic();
   const k = trim(key).toUpperCase();
   if (!k) throw new Error("Licence key required.");
+  const stamp = l.stamp || 0;
   const r = await rpc("verify_license", { p_key: k, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
+  // A remove of this computer while the check was in flight must not put the key back.
+  if ((lic().stamp || 0) !== stamp) return licenseState();
   const now = Date.now();
+  const maxDevices = capOf(r);
   if (r?.ok) {
-    const patch = { key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok" };
+    const patch = { key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
     if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
     saveLic(patch);
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
@@ -166,7 +195,7 @@ export async function activate(key) {
   }
   // a different key that fails leaves the stored licence alone; the stored key failing means it really is not active
   if (l.key && k !== l.key) throw new Error(r?.message || "Licence key not accepted");
-  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "Licence not active" });
+  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "Licence not active", ...(maxDevices ? { maxDevices } : {}) });
   emit("log", { text: `Licence problem: ${r?.message || "not active"}`, level: "error" });
   return licenseState();
 }
@@ -184,9 +213,14 @@ export async function loadHostedLicense() {
   if (!HOSTED || !email) return licenseState();
   const now = Date.now();
   try {
-    const rows = await rest(`licenses?select=key,tier,status,email,current_period_end&email=ilike.${encodeURIComponent(email)}&order=created_at.desc&limit=5`, { token: ctx().token });
+    const rows = await rest(`licenses?select=key,tier,status,email,current_period_end,max_devices&email=ilike.${encodeURIComponent(email)}&order=created_at.desc&limit=5`, { token: ctx().token });
     const best = (rows || []).find((r) => r.status === "active") || rows?.[0];
-    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: best.status === "active" ? "ok" : `Licence is ${best.status}` });
+    if (best?.status === "active" && best.key) {
+      const maxDevices = capOf(best);
+      if (maxDevices) saveLic({ maxDevices });
+      return await activate(best.key);
+    }
+    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: `Licence is ${best.status}`, ...(capOf(best) ? { maxDevices: capOf(best) } : {}) });
     else saveLic({ tier: null, status: null, checkedAt: now, lastOkAt: now, lastError: null, message: "No licence on this email" });
   } catch (e) { saveLic({ lastError: e.message, checkedAt: now }); }
   return licenseState();
@@ -222,6 +256,51 @@ export function validateCloudChange({ url, anonKey }) {
 // kept and re-verified against the new project on the next check.
 export function resetVerifiedTier(reason = "cloud settings changed") {
   saveLic({ tier: null, status: null, lastOkAt: 0, lastError: null, periodEnd: null, checkedAt: Date.now(), message: `Re-check needed (${reason}).` });
+}
+
+function viewDevice(row, currentId) {
+  const deviceId = String(row?.device_id || row?.deviceId || "");
+  return {
+    deviceId,
+    name: String(row?.name || "Computer"),
+    platform: String(row?.platform || ""),
+    lastSeen: row?.last_seen || row?.lastSeen || null,
+    thisComputer: !!(row?.this_computer || row?.thisComputer || (currentId && deviceId === currentId)),
+  };
+}
+
+// Computers registered on the key stored on this install. The request cannot name a different key.
+export async function listDevices() {
+  const l = lic();
+  const maxDevices = Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2;
+  const base = { configured: cloudConfigured(), hasKey: !!l.key, maxDevices, deviceId: l.deviceId, devices: [], message: null };
+  if (!base.configured) return { ...base, message: "No licence server is configured, so there is no computer list." };
+  if (!l.key) return { ...base, message: "Activate a licence key to see the computers on it." };
+  try {
+    const rows = await rpc("list_license_devices", { p_key: l.key, p_device_id: l.deviceId }, { all: true });
+    return { ...base, devices: (rows || []).filter((r) => r && (r.device_id || r.deviceId)).map((r) => viewDevice(r, l.deviceId)) };
+  } catch (e) {
+    return { ...base, message: deviceRpcMessage(e) };
+  }
+}
+
+// Remove one computer. Removing this computer also drops the key here so the next check does not take the spot again.
+export async function removeDevice(deviceId) {
+  if (!cloudConfigured()) throw Object.assign(new Error("No licence server configured (Settings → Cloud)."), { status: 400 });
+  const l = lic();
+  if (!l.key) throw Object.assign(new Error("Activate a licence key first."), { status: 400 });
+  const id = trim(deviceId);
+  if (!id || id.length > 128 || /[\u0000-\u001f]/.test(id)) throw Object.assign(new Error("Choose a computer to remove."), { status: 400 });
+  let r;
+  try { r = await rpc("remove_license_device", { p_key: l.key, p_device_id: id }); }
+  catch (e) { throw Object.assign(new Error(deviceRpcMessage(e)), { status: 400 }); }
+  if (!r?.ok) throw Object.assign(new Error(r?.message || "Could not remove that computer."), { status: 400 });
+  const removingThis = id === l.deviceId;
+  if (removingThis) {
+    saveLic({ key: null, tier: null, status: null, email: null, periodEnd: null, plan: null, lastOkAt: 0, lastError: null, checkedAt: Date.now(), stamp: Date.now(), message: "This computer was removed from the key. Activate the key again to use it here.", maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2 });
+  }
+  const list = await listDevices();
+  return { ok: true, ...list, message: removingThis ? "This computer was removed from the key." : (r.message || "Removed."), license: licenseState() };
 }
 
 // ---------- tier gates (one place; routes and plugin helpers both go through guard) ----------

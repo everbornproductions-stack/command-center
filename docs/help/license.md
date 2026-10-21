@@ -1,13 +1,15 @@
 ---
 id: license
 title: Licence redeem
-summary: Activate a licence key, see Free, Pro, and Extreme prices, or start a 14-day Pro trial. Nothing is charged from this screen.
+summary: Activate a licence key, see Free, Pro, and Extreme prices, see the computers on it, or start a 14-day Pro trial. Nothing is charged from this screen.
 lastUpdatedVersion: 0.4.8
 ---
 
 # Licence redeem
 
 Settings has Licence and cloud. Paste a licence key and click Activate, or paste a promo code and click Redeem. On this computer, Redeem can ask for your email. On the hosted app, the code redeems for the account you are signed in with.
+
+A key works on 2 computers, a PC and a laptop. Settings, Devices, lists those computers. Remove one there to free a spot. Removing asks you to confirm first. If the key is already on 2 computers, activating another one says: This key is already on 2 computers. Remove one in Settings > Devices. Each person has their own key. An Extreme team seat is its own key, with its own 2 computers. A promo or tester code can be locked to one email. That code redeems only for that email.
 
 The word license means the same thing on receipts and in some emails. The screen in the app says Licence.
 
