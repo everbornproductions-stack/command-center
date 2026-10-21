@@ -212,12 +212,13 @@ Before a council or a chat, match the orders to a Pro prompt.
 ### Phase 32: Model-version alerts (planned, not built)
 Watch providers for a new model version (for example Kling 4.0). Tell the person, and offer a one-click switch to that version. Docs only until a later phase. Do not call providers for this in the prompts work.
 
-### Phase 33: Bring your own apps (planned, not built)
-Three ways to connect the person's own tools. Docs only until a later phase.
-1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools.
-2. Add any user MCP server by URL. That covers Zapier, Make, and similar products that expose MCP.
-3. Custom webhook / API tools: a URL, an auth header, and an input schema.
-Every action that sends, charges, or modifies something waits for the person to confirm it. Keys are stored with the vault and are never written to logs.
+### Phase 33: Bring your own apps (items 2 and 3 built, item 1 still planned)
+Three ways to connect the person's own tools.
+1. API / OAuth connectors under the Connect menu. HighLevel first: contacts, invoices, and workflows as council tools. Still planned.
+2. Add any user MCP server by URL. Built. Zapier (paste the MCP address, usually `https://mcp.zapier.com/api/v1/connect`) and Make (`https://mcp.make.com`, a token address, or a scenario webhook) list the actions the person turned on. The router and missions call them through the existing tool loop. Simple has a Connect Zapier card. Expert has the plain-word setup.
+3. Custom webhook / API tools: a URL, an auth header, and an input schema. Built. The header value stays in the vault.
+Inbound: `POST /api/hooks/meldmind` starts a chat, a council, or a mission and returns the result. The ready template is `docs/integrations/meldmind-webhook.json`. The setup guide is `docs/help/zapier-make.md`.
+Every action that sends, posts, or charges waits for Allow. Keys are stored with the vault and are never written to logs. The connection gate is `server/feature-gate.js`: Free 1, Pro several (5), Extreme unlimited. This does not change Square or billing.
 
 ### Phase 34: Hide hosted plumbing (planned, not built)
 Customers never see Supabase or callback / webhook plumbing. Docs only until a later phase. Decision 15 stays as shipped: a Grok Bot handoff is still a webhook, a sender key, and a per-job callback. This phase only changes what a customer is asked to type. Nothing here deploys a hub or sends a job without a click.

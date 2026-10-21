@@ -129,4 +129,16 @@ When a new version is out, the app shows "Command AI vX.Y.Z is ready" with **Ins
 
 ## 12. Privacy in one paragraph
 
+## 13. Zapier and Make
+
+Simple has a **Connect Zapier** card on the chat page. The usual Zapier address is filled in. Paste a token if Zapier showed you one, then click **Connect Zapier**. Meldmind lists the actions you turned on there.
+
+Expert (Settings) is the plain-word setup for Zapier, Make, any MCP server address, and a webhook tool. A Make scenario webhook is the hook address Make shows you. The header value stays in the vault.
+
+A chat or a mission can call those actions. Anything that sends, posts, or charges waits until you click **Allow**.
+
+**Create the Meldmind webhook** gives Zapier or Make an address they can call to start a chat, a council, or a mission. The result comes back in the reply. The token is shown once. **Show the Meldmind template** is the ready request. On this computer that address is local. Meldmind does not open a tunnel. See the in-app help article "Connect Zapier and Make".
+
+Free includes 1 of these app connections. Pro includes several (5). Extreme is unlimited.
+
 Your API keys are sealed on your computer (Windows DPAPI) and only sent to the AI company they belong to. The app keeps your history, ledger and settings in your own data folder. Meldmind learns from every job you run. If you opt in, the anonymous scores from each job (task type, cost, speed) also help it pick the best AI for everyone. The learning router keeps scores, costs and the type of each task, never your prompts, answers or keys. You can turn that off any time in Settings. Nothing is shared with Everborn unless you turn on a feature that says so.

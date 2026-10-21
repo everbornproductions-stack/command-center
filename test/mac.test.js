@@ -39,6 +39,23 @@ test("Mac workflow: unsigned dmg and zip for x64 and arm64, one token secret, ne
   assert.doesNotMatch(wf, /—/, "no em-dashes");
 });
 
+test("Mac CI workflow runs the tests and the smoke check, and does not package or publish", () => {
+  const wf = read(".github/workflows/mac-ci.yml");
+  assert.match(wf, /name: Mac CI/);
+  assert.match(wf, /runs-on: macos-latest/);
+  assert.match(wf, /pull_request:/);
+  assert.match(wf, /branches: \["main"\]/);
+  assert.match(wf, /run: npm ci/);
+  assert.match(wf, /run: npm test/);
+  assert.match(wf, /run: npm run smoke/);
+  const steps = wf.slice(wf.indexOf("jobs:"));
+  assert.doesNotMatch(steps, /npm run dist|electron-builder|gh release|notarize|CSC_IDENTITY|secrets\./);
+  assert.doesNotMatch(wf, /—/, "no em-dashes");
+  assert.ok(fs.existsSync(path.join(ROOT, ".github", "workflows", "windows-ci.yml")), "Windows CI stays");
+  assert.match(read(".github/workflows/windows-ci.yml"), /run: npm test/);
+  assert.ok(fs.existsSync(path.join(ROOT, "docs", "ci", "mac-build.yml")), "the unsigned Mac release stays out of workflows");
+});
+
 test("builder config: Mac targets and names, same appId and public releases feed", () => {
   const y = read("electron-builder.yml");
   assert.match(y, /^appId: com\.everborn\.command/m);

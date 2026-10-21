@@ -1,0 +1,28 @@
+{
+  "name": "Meldmind",
+  "description": "Start a chat, a council, or a mission in Meldmind and get the result back.",
+  "request": {
+    "method": "POST",
+    "url": "{{MELDMIND_URL}}/api/hooks/meldmind",
+    "headers": {
+      "Authorization": "Bearer {{MELDMIND_TOKEN}}",
+      "Content-Type": "application/json"
+    },
+    "examples": [
+      { "kind": "chat", "prompt": "Summarise this: {{text}}" },
+      { "kind": "council", "prompt": "Which headline is stronger? {{text}}", "lite": true },
+      { "kind": "mission", "goal": "Draft a one-page plan for {{topic}}", "qa": false }
+    ]
+  },
+  "poll": {
+    "method": "GET",
+    "url": "{{MELDMIND_URL}}/api/hooks/meldmind/runs/{{RUN_ID}}",
+    "headers": { "Authorization": "Bearer {{MELDMIND_TOKEN}}" },
+    "when": "Use this when the first reply says the run is still going."
+  },
+  "notes": [
+    "The token is shown once in Meldmind. It is not this file.",
+    "Nothing is sent, posted, or charged until you click Allow in Meldmind.",
+    "On this computer the address is the local Meldmind address. Zapier and Make in the cloud can call it only if you have made this computer reachable. Meldmind does not open a tunnel."
+  ]
+}
