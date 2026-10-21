@@ -265,7 +265,7 @@ const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", 
 async function postSingle(s, body) {
   const posted = await s.api("/chat", { method: "POST", body });
   assert.equal(posted.status, 202);
-  assert.match(posted.json.runId || "", /^s-/);
+  assert.match(posted.json?.runId || "", /^s-/);
   return posted.json.runId;
 }
 async function waitPending(s, ms = 20000) {

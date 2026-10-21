@@ -379,6 +379,13 @@ Toggle which AIs are in the chat (up to 4). Each gets a persona from a prompt li
 ### Phases 45 to 51: No-API app control (version 0.4.9, Antigravity first, not done)
 Version 0.4.9. Antigravity comes first: the local `agy` CLI, after Allow, and only then the doors below. Antigravity is not a stored password and not a read of its tokens. From docs/plans/app-control.md (PR #47, not merged). Three doors (MCP first, websites through Playwright driving system Edge, Windows desktop through UI Automation), with screenshot computer use as an opt-in fallback. Safety for every phase: per-app Allow, a second click for send, buy or delete, a "Meldmind is using X" banner with Stop, and no stored passwords. Each phase lands with fixture drivers only, `npm test` and `npm run smoke` green. Open pull requests 62 and 65 are not done.
 
+### 0.4.9 slice: app discovery and suggestions (built on this branch)
+This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac build. Signing stays later.
+
+When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
+
+Phases 45 to 51 stay planned, not built. UI Automation, Playwright, screenshot fallback, hub cards, and registerExternalAgent are not in this slice.
+
 ### Phase 45: App cards (effort: M) (version 0.4.9, not done)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
 

@@ -87,10 +87,13 @@ export function availableModels() {
 }
 
 // mode: quality | balanced | savings (alias: economy) | speed
-export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false }) {
+export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false }) {
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  // Allowed programs are scored with the same formula, then listed after the text models.
+  // Text jobs, pick(), and missions keep the text ranking unless the caller asks for apps.
+  if (!includeApps) list = list.filter((m) => m.kind !== "app");
   // A real job never goes to Nova, Atlas or Sage while a real AI is connected, even if demo mode was turned back on.
   if (realAiConnected()) list = list.filter((m) => !PROVIDERS[m.provider]?.demo);
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
@@ -107,7 +110,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
-  const scored = list.map((m) => {
+  const scoreOf = (m) => {
     const est = estimateCostAt(m.model, estIn, estOut, when);
     // learning router (Phase 28): the person's own track record for this task type, when there is one,
     // replaces the older skills shift: base score blended with the record, cost per job, speed
@@ -133,9 +136,13 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
     return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
-  });
+  };
+  const scored = list.map(scoreOf);
   const ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), readPreferFree()), mode);
-  return ordered;
+  if (!includeApps) return ordered;
+  const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
+  if (!appRows.length) return ordered;
+  return ordered.concat(appRows.map(scoreOf).sort((a, b) => b.score - a.score));
 }
 
 // Would waiting for a discount window save real money on this job? Looks 48 h ahead.

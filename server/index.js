@@ -525,8 +525,10 @@ async function api(req, res, url) {
     if (!prompt.trim()) return json(res, 400, { error: "prompt required" });
     const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, role: "classify" }) });
     const mode = normalizeMode(url.searchParams.get("mode") || settings().defaultMode) || "balanced";
-    const ranked = rank({ ...cls, mode }).slice(0, 6);
-    return json(res, 200, { classification: cls, ranked, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
+    const rankedAll = rank({ ...cls, mode, includeApps: true });
+    const apps = rankedAll.filter((m) => m.kind === "app").slice(0, 6);
+    const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
+    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 

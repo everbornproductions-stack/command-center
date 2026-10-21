@@ -1616,6 +1616,25 @@ Not a numbered phase. No locked decision was changed. Package was not bumped. Sq
 - Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.
 - Windows CI timed out waiting for the denied tool run even though that run had already finished. The MCP chat tests now wait on the run id from the chat response. A Windows clock can stamp the run a tick before the test's Date.now(), so a startedAt comparison never sees it.
 
+## 2026-10-21: app discovery and suggestions (0.4.9 slice)
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Square was not called. Package version stays 0.4.8, the hotfix. This slice is part of 0.4.9. 0.4.10 is the unsigned Mac build. Signing stays later. Phases 45 to 51 stay planned, not built.
+
+- Desktop control is off until the person opts in, in Setup or in Settings. The scan lists names only. On Windows that is the uninstall registry keys and Start menu shortcut names, plus command-line tools on PATH. Other computers get the PATH list. File contents are not read.
+- A curated catalog maps a name to task types, Free or Paid, a short reason, and an official https link. Update the app list fetches an https address only after a click. It refuses http, redirects, and any installer or purchase field.
+- The person allows each app. Allowed apps are scored with the same formula as a user-added tool and join the router's choices. Text jobs, pick(), and missions stay on text models.
+- While a mission or client job is planned, a dismissible card can suggest a program. It shows a short reason, Free or Paid, and the official link. Nothing is installed or bought. A setting turns suggestions off.
+- Setup, the tour, Help, What's new (0.4.9), the user guide, and the roadmap mention it. The help article is stamped 0.4.9. The catalog stays 0.4.8 so the current release gate still checks the hotfix notes.
+- Tests here (Linux): npm test is the mcp file (8 pass) then 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine: Setup lists FFmpeg with Allow, Free, and the official link, and says nothing is installed or bought. Typing a video job shows a dismissible card with the reason, Free, and the official link. Dismiss hides that program. Turning suggestions off hides the card. Expert Preview route shows Allowed programs: FFmpeg with a score. The same Programs on this PC panel is in Settings. No install control.
+
+## 2026-10-21: Program scan is Pro
+
+Not a numbered phase. No locked decision was changed. Package stays 0.4.8. Square and billing were not touched. data/ was not read.
+
+- Program scan is registered as `appScan` on the licence tier table, next to `desktop` (desktop control) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("appScan")` and `isProFeature("appScan")` read that table, so a later feature-gate map can use the same ids.
+- Turning the scan on, scanning again, allowing a program, turning suggestions on, and updating the capability list are refused on Free with 402. Turning the scan off still works. Suggestions and router rows stay empty on Free. The Settings and Setup panels say Program scan is part of Pro.
+
 ## 2026-10-21: plan docs regrouped by version
 
 Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
