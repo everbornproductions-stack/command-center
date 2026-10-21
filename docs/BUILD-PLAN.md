@@ -101,6 +101,15 @@ Left on the list so they are not dropped. They are not next.
 - Phase 26 extension (decision 27). The manual handoff shipped in pull request 14. The automated relay is still not built. Decision 16 is unchanged.
 - Use your own Supabase (decision 23). Still not in the run order.
 
+### Guided builders (its own workstream, not part of 0.4.9)
+
+Phase 97. Guided builders A: Web design and Marketing. Detection lives in `server/builder-detect.js` so the next guided-builders pull request can reuse it. Tiers live in `server/feature-gate.js`. This workstream does not change the version, Square, or the 0.4.9 order.
+
+- Each builder is suggested only when a connected service, words in a chat or mission, or a file name shows the need. The card says "Want help building this?" The person can dismiss it, and can turn suggestions off in Settings. Settings keeps a gallery of every builder.
+- The screens are Describe, preview the AIs, Build, Test, and Publish. One main button on each screen. Extra choices sit under More options.
+- Site Builder uses GrapesJS (BSD-3), Pro. Client Page Editor uses Puck (MIT), Pro. Static export uses Astro (MIT), Free. Site Health Check uses Lighthouse (Apache-2.0) with Fix it buttons, Free. One-click Publish uses the Netlify and Vercel APIs, tokens in the vault, Pro. Social Calendar talks to Postiz (AGPL) as a separate service and does not link that code in, Pro. Reel Maker uses WhisperX (BSD-2) and auto-editor (Unlicense), Extreme. Remotion stays off unless the person turns it on, because of its company license. Email Sequences go through HighLevel or an external listmonk, with a CAN-SPAM footer and an unsubscribe line, Pro. Ad Copy Studio uses Meldmind routing, platform character limits, and warnings for credit and insurance ads, Free. SEO Fixer uses the health check plus rewrites, Free.
+- None of those tools are downloaded in tests. Network calls are mocked. Nothing is sent, posted, or published without a click.
+
 ## Rules for every phase (non-negotiable)
 1. Read `README.md`, `docs/roadmap.md`, this file and the end of `docs/BUILD-LOG.md` first.
 2. One commit per feature (`git add <your files>` only, never `git add -A`). Do NOT commit files you did not write in this phase. Other sessions may have uncommitted work here (e.g. workspaces files); leave it alone.
@@ -553,6 +562,15 @@ Windows code signing so SmartScreen stops warning on first run. Apple Developer 
 
 ### Phase 52: Hosted online (web) version (effort: L) (Later, not done)
 A hosted web version of the app, so it can be used in a browser without installing. Needs paid hosting. Going live needs Chris's OK before paying for anything.
+
+## Phase 97: Guided builders A, web design and marketing (DONE)
+
+Its own workstream, not part of the 0.4.9 order. The shared detector is `server/builder-detect.js`. The next guided-builders pull request should import that module and call `registerBuilder`. Tiers are `server/feature-gate.js` (free, pro, extreme). Owner includes extreme. Studio stays the teams flag and counts as pro here. Do not change Square or the version for this phase.
+
+- Suggest a builder only when a signal matches. Signals are a connected service, words in a chat or mission (for example website, reel, post schedule, email series), or a file name. The card is "Want help building this?" Dismiss hides that signal. Settings can turn every suggestion off. The Settings gallery still lists all ten.
+- Flow: Describe, preview the AIs, Build, Test, Publish. One main button per screen. More options holds the token, the host, Postiz, listmonk, and Remotion.
+- Engines are named and licensed, and they are not installed by this phase: GrapesJS BSD-3, Puck MIT, Astro MIT, Lighthouse Apache-2.0, WhisperX BSD-2, auto-editor Unlicense. Postiz AGPL runs as its own service. Remotion is off by default.
+- Publish, send, and post wait for `confirm: true`. Tokens stay in the vault and are never returned.
 
 ## Planned, not in the run order (Chris, 2026-10-19)
 

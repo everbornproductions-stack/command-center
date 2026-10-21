@@ -1606,3 +1606,18 @@ Docs only. No code. No Square change. The phase is not built.
 - Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
 
 PHASE 96 PLANNED (not built)
+
+## 2026-10-21: Phase 97 Guided builders A, web design and marketing
+
+No locked decision was changed. Version stays 0.4.8. Phase 14 stays BLOCKED (needs a Mac). Phase 91 (public Extreme prices and Square) was not touched. Nothing was published. data/ was not read. Square was not called.
+
+- Guided builders follow Describe, preview the AIs, Build, Test, and Publish. One main button on each screen. Extra choices sit under More options. Create, the chat card, and Settings can open them. Simple mode includes Builders.
+- A builder is suggested only when a connected service, words in the chat or a mission, or a file name matches. The card says "Want help building this?". Not now hides that signal. Settings can turn suggestions off. The Settings gallery still lists all ten. Detection is `server/builder-detect.js` (`registerBuilder` is there for the next builders pull request). Tiers are `server/feature-gate.js`: free, pro, and extreme. Owner includes extreme. Studio stays the teams flag and counts as pro here. Extreme is not a new Square price.
+- Site Builder (GrapesJS, BSD-3, Pro), Client Page Editor (Puck, MIT, Pro), static export (Astro, MIT, Free), Site Health Check (Lighthouse, Apache-2.0, Fix it, Free), one-click publish (Netlify and Vercel, vault tokens, Pro), Social Calendar (Postiz, AGPL, its own service, the code is not linked in, Pro), Reel Maker (WhisperX, BSD-2, and auto-editor, Unlicense, Extreme; Remotion stays off unless both settings allow it), Email Sequences (HighLevel or an external listmonk, CAN-SPAM footer and unsubscribe, Pro), Ad Copy Studio (Meldmind routing, platform limits, credit and insurance warnings, Free), SEO Fixer (health check plus rewrites, Free).
+- None of those packages were added to package.json or downloaded. Tests point publish and send at a local mock. A publish, send, or post without confirm does not call out. A missing token does not call out. Tokens are not returned or logged.
+- Tests here (Linux): npm test 440 tests, 439 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows is the pull request check.
+- Checked in a browser on this machine, Simple mode, owner copy, demo AIs: typing "I need a website for my bakery" shows the card; Help me build it walks Describe, preview (Nova, Sage), Build, Test, and Publish; Publish without a Netlify token says nothing was sent and stays on that screen. Settings lists all ten builders. A 390px wide layout does not overflow. No em dash in that page text.
+- Commit 80e6e5a: Add guided builders for web design and marketing.
+- Not verified: a real Netlify, Vercel, Postiz, HighLevel, or listmonk account; a real Lighthouse, WhisperX, auto-editor, GrapesJS, Puck, or Astro binary. Remotion is not installed. The phone-width check used a layout viewport, not a separate phone.
+
+PHASE 97 DONE
