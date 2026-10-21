@@ -11,6 +11,10 @@ import { KLING_PRESENT, VOICE_PRESENT, SCHEDULES_PRESENT, createTeam, createLeve
 import { featureOpen, requirePro } from "../feature-gate.js";
 import { noteTemplate } from "../brain.js";
 import { createPrompt, listPrompts } from "../custom-agents.js";
+import { PACK_CATEGORIES, creditLine, mergePacks, openPlan, readPackDir } from "../prompts/packs.js";
+import { rankPrompts, suggestForOrders } from "../prompts/rank.js";
+import { VOTE_KIND, castVote, countsFor, emptyVotes, markSynced, normalizeVotes } from "../prompts/votes.js";
+import { fetchCloudPacks, fetchCloudTotals, pushCloudVote } from "../prompts/cloud.js";
 import { cheapest } from "../router.js";
 import { completeFallback } from "../fallback.js";
 import { subscriptionView } from "../subscriptions.js";
@@ -64,24 +68,126 @@ function logMatch(templateId, action) {
   try { noteTemplate({ id: templateId, action }); } catch { /* learning router optional */ }
 }
 
+function voteState(h) {
+  return normalizeVotes(h.doc(VOTE_KIND, () => emptyVotes()));
+}
+
+function decorate(row, state, now) {
+  const c = countsFor(state, row.id);
+  const [ranked] = rankPrompts([{ ...row, up: c.up, down: c.down }], now);
+  return {
+    ...row,
+    up: c.up,
+    down: c.down,
+    mine: c.mine,
+    fresh: ranked.fresh,
+    popularity: ranked.popularity,
+    scoreLabel: ranked.scoreLabel,
+    credit: creditLine(row),
+  };
+}
+
+async function refreshCloud(state) {
+  let next = normalizeVotes(state);
+  const totals = await fetchCloudTotals();
+  if (!totals.offline) {
+    const community = {};
+    for (const row of totals.rows) community[row.promptId] = { up: row.up, down: row.down };
+    next = { ...next, community };
+  }
+  return { state: next, offline: totals.offline };
+}
+
+function knownIds(h) {
+  const ids = new Set(listTemplates().map((t) => t.id));
+  for (const row of readPackDir()) ids.add(row.id);
+  for (const row of listPrompts()) ids.add(row.id);
+  return ids;
+}
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/prompts/, "") || "/";
   const method = req.method;
 
   if (method === "GET" && (p === "" || p === "/")) {
     const industryOpen = featureOpen("industryPacks").ok;
+    const now = Date.now();
+    let state = voteState(h);
+    const cloudVotes = await refreshCloud(state);
+    state = cloudVotes.state;
+    const packs = await fetchCloudPacks();
+    const weekly = mergePacks(readPackDir(), packs.rows).map((row) => decorate(row, state, now));
+    if (!packs.offline || !cloudVotes.offline) h.putDoc(VOTE_KIND, state);
     return h.json(res, 200, {
       note: NOTE,
       categories: CATEGORIES,
+      packCategories: PACK_CATEGORIES,
       industryOpen,
-      templates: listTemplates().map((t) => ({ ...t, shelf: shelfFor(t), locked: !!(t.industry && !industryOpen) })),
+      templates: listTemplates().map((t) => decorate({ ...t, title: t.name, shelf: shelfFor(t), locked: !!(t.industry && !industryOpen) }, state, now)),
+      weekly: rankPrompts(weekly, now),
       shelves: SHELVES,
-      custom: customRows(h),
+      custom: customRows(h).map((row) => decorate({ ...row, title: row.name }, state, now)),
       interview: INTERVIEW,
       fields: FIELDS,
       integrations: { kling: KLING_PRESENT, voice: VOICE_PRESENT, schedules: SCHEDULES_PRESENT, pipelines: true, agents: true },
       schedules: scheduledPlan(),
+      offline: packs.offline && cloudVotes.offline,
     });
+  }
+  if (method === "GET" && p === "/suggest") {
+    const now = Date.now();
+    const state = voteState(h);
+    const packs = await fetchCloudPacks();
+    const weekly = mergePacks(readPackDir(), packs.rows);
+    const pool = [
+      ...weekly.map((row) => ({ ...row, kind: row.feature ? "builder" : "weekly" })),
+      ...listTemplates().map((t) => ({ id: t.id, title: t.name, name: t.name, category: t.category, description: t.description || "", prompt: t.description || t.name, kind: "template" })),
+      ...customRows(h).map((row) => ({ id: row.id, title: row.name, name: row.name, prompt: row.text || row.name, description: row.description || "", kind: "custom" })),
+    ].map((row) => decorate(row, state, now));
+    const items = suggestForOrders(url.searchParams.get("text") || "", pool, 4, now).map((row) => ({
+      id: row.id,
+      title: row.title || row.name,
+      prompt: row.prompt || "",
+      category: row.category || "",
+      kind: row.kind || "weekly",
+      builder: row.builder || "",
+      feature: row.feature || "",
+      scoreLabel: row.scoreLabel,
+      fresh: !!row.fresh,
+      credit: row.credit || "",
+      source_name: row.source_name || "",
+      source_url: row.source_url || "",
+    }));
+    return h.json(res, 200, { items });
+  }
+  if (method === "POST" && p === "/vote") {
+    const id = String(body?.id || "").trim();
+    const packs = await fetchCloudPacks();
+    const allowed = knownIds(h);
+    for (const row of packs.rows || []) {
+      const cleanId = String(row?.id || "").trim();
+      if (cleanId) allowed.add(cleanId);
+    }
+    if (!allowed.has(id)) return h.json(res, 404, { error: "That prompt is not in the list." });
+    let state;
+    try { state = castVote(voteState(h), id, body?.vote); }
+    catch (e) { return h.json(res, e.status || 400, { error: e.message }); }
+    h.putDoc(VOTE_KIND, state);
+    const pushed = await pushCloudVote(id, state.mine[id] || "clear");
+    if (!pushed.offline) state = markSynced(state, id);
+    h.putDoc(VOTE_KIND, state);
+    const c = countsFor(state, id);
+    const [ranked] = rankPrompts([{ id, up: c.up, down: c.down }], Date.now());
+    return h.json(res, 200, { id, vote: c.mine, up: c.up, down: c.down, scoreLabel: ranked.scoreLabel, offline: pushed.offline });
+  }
+  if (method === "POST" && p === "/open") {
+    const id = String(body?.id || "");
+    const packs = await fetchCloudPacks();
+    const rows = mergePacks(readPackDir(), packs.rows);
+    const row = rows.find((item) => item.id === id);
+    if (!row) return h.json(res, 404, { error: "That prompt is not in the list." });
+    const features = Array.isArray(body?.features) ? body.features.map((f) => String(f)) : [];
+    return h.json(res, 200, { plan: openPlan(row, { features }) });
   }
   if (method === "GET" && p === "/profile") return h.json(res, 200, { profile: profileDoc(h), global: globalBlock(profileDoc(h)), interview: INTERVIEW, fields: FIELDS });
   if (method === "POST" && p === "/profile") {

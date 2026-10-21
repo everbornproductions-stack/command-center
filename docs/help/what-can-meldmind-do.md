@@ -16,3 +16,13 @@ A row is hidden when its page is not in your app. The list never points at a mis
 Take the tour again for a short walk through the same list. Each step has one idea and a Try it button. You can skip the tour, and you can replay it from Help. A tour button never sends, posts, or buys anything.
 
 Download the guide (PDF) saves that same list. The button is on this page and on Help. The file shows the app version and the date it was built. It lists only the pages that are in this app.
+
+## Prompts you can vote on
+
+Thumbs up or thumbs down on every prompt. You can change your vote. A simple score shows. A prompt with no votes is not buried, and one vote does not make it look perfect. New this week shows for 7 days.
+
+Weekly prompt packs cover writing, email, marketing and ads, social media, sales, coding, research and summaries, business planning, studying and learning, images and design, video, productivity, customer support, finance and accounting, legal and contracts, HR and hiring, real estate, mortgage, insurance, credit repair, creators, and personal life. Inspired by names the source, and the name is a link.
+
+Popular prompts are suggested first when you fill marching orders. Putting the words in the box does not send them.
+
+The Builders category has one ready prompt for each guided builder, including Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder with the text filled in when it is installed. If the builder is not installed yet, the words go in the chat. The source is Meldmind.

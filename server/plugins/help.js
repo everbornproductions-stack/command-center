@@ -2,7 +2,7 @@
 // articles with a connected text AI, or returns search hits when it cannot.
 // The question and any key are never written to the log.
 import { getStatus } from "../health.js";
-import { HELP_DIR, loadHelp, pickHelpProvider, searchReply, NO_AI, AI_DOWN } from "../help.js";
+import { CAN_DO, HELP_DIR, loadHelp, pickHelpProvider, searchReply, NO_AI, AI_DOWN } from "../help.js";
 import { securityPdf } from "../security-pdf.js";
 
 export const id = "help";
@@ -34,7 +34,7 @@ export async function routes(req, res, url, body, h) {
   catch (e) { return h.json(res, 500, { error: e.message }); }
 
   if (req.method === "GET" && (p === "" || p === "/")) {
-    return h.json(res, 200, { lastUpdatedVersion: pack.catalog.lastUpdatedVersion, articles: pack.articles });
+    return h.json(res, 200, { lastUpdatedVersion: pack.catalog.lastUpdatedVersion, articles: pack.articles, canDo: CAN_DO });
   }
   if (req.method === "POST" && p === "ask") {
     const q = cleanQuestion(body?.question);

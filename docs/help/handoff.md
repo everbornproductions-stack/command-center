@@ -15,3 +15,4 @@ A handoff that would post, send, or change something outside Meldmind takes two 
 Nothing posts or sends without that second click. If you are not ready, choose Don't send, No, or leave the preview closed.
 
 The same rule covers an app on this PC. Allow that app first. A send, a buy, or a delete still waits for the second click. While Meldmind is using the app, the banner has Stop. Passwords are not stored. Google Antigravity can take a coding task from Settings, or you can use the manual handoff and paste the reply back yourself.
+Putting a prompt in marching orders is not a send. Use this on a weekly prompt fills the box, or opens a builder when that builder is installed. A thumbs up or a thumbs down only records your vote. Nothing posts or sends until you click Send, or approve a later step.

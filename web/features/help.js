@@ -183,6 +183,8 @@ function renderTab(view) {
   });
   api("/help").then((d) => {
     articles = d.articles || [];
+    const can = view.querySelector("#help-can-list");
+    if (can) can.innerHTML = (d.canDo || []).map((line) => `<li>${esc(line)}</li>`).join("");
     showList(view.querySelector("#help-search")?.value || "");
     const focus = window.CC.S?.helpArticle;
     if (focus && articles.some((a) => a.id === focus)) {
