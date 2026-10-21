@@ -12,6 +12,7 @@ export const PRO_CONCURRENT = 3;
 export const EXTREME_CONCURRENT = 8;
 export const PRO_DEEP_RESEARCH_PER_MONTH = 8;
 export const PRO_INDUSTRY_PACKS = 1;
+// 5 people total, counting the owner (the owner plus 4 invited). The gate count is the headcount before an invite.
 export const EXTREME_TEAM_SEATS = 5;
 export const PRO_DESKTOP_APPS = 3;
 export const PRO_RECIPES = 5;
@@ -178,7 +179,7 @@ function messageFor(limits, key, info, sell) {
   if (key === "concurrentRuns") {
     return `${limits.label} includes ${plural(limit, "run")} at once. More runs at once is part of Extreme (${extremeMonthlyLabel}).${TAIL}`;
   }
-  if (key === "teamSeats") return `Team spaces are part of Extreme (${extremeMonthlyLabel}). Extreme includes ${EXTREME_TEAM_SEATS} seats.${TAIL}`;
+  if (key === "teamSeats") return `Team spaces are part of Extreme (${extremeMonthlyLabel}). Extreme includes ${EXTREME_TEAM_SEATS} people total, counting the owner. That is the owner plus 4 invited.${TAIL}`;
   if (key === "earlyAccess") return `Early access is part of Extreme (${extremeMonthlyLabel}). New features reach Extreme first, behind a flag.${TAIL}`;
   if (key === "maxQuality") return `Max quality is part of Extreme (${extremeMonthlyLabel}). It uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap.${TAIL}`;
   if (key === "desktopApps") {
@@ -243,7 +244,7 @@ const COMPARE_ROWS = [
   { id: "deep", label: "Deep Research", key: "deepResearchPerMonth", monthly: true },
   { id: "packs", label: "Industry packs", key: "industryPacks", packs: true },
   { id: "audit", label: "Compliance audit log", key: "auditLog", bool: true },
-  { id: "team", label: "Team seats", key: "teamSeats" },
+  { id: "team", label: "Team", key: "teamSeats" },
   { id: "apps", label: "Desktop control apps", key: "desktopApps" },
   { id: "recipes", label: "Recipes", key: "recipes" },
   { id: "hostedRuns", label: "Hosted background runs", key: "hostedBackground", bool: true },
@@ -267,7 +268,7 @@ function compareCell(tier, row, env) {
     return value === 1 ? "1 pack" : `${value} packs`;
   }
   if (row.bool) return cellBool(value);
-  if (row.key === "teamSeats" && !value) return "No";
+  if (row.key === "teamSeats") return value ? `${value} people total` : "No";
   if ((row.key === "desktopApps" || row.key === "recipes") && value === Infinity) return "Unlimited";
   return cellCap(value, row.monthly);
 }

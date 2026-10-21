@@ -91,8 +91,13 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
   assert.equal(evaluateGate(LIMITS.free, "industryPacks", { count: 0 }).ok, false);
   assert.equal(evaluateGate(LIMITS.pro, "industryPacks", { count: 0 }).ok, true);
   assert.equal(evaluateGate(LIMITS.pro, "industryPacks", { count: 1 }).code, "extreme_required");
-  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 4 }).ok, true);
-  assert.equal(evaluateGate(LIMITS.extreme, "teamSeats", { seats: 5 }).ok, false);
+  const roomForOne = evaluateGate(LIMITS.extreme, "teamSeats", { seats: 4 });
+  assert.equal(roomForOne.ok, true, "4 people (the owner plus 3 invited) can still invite one more, for 5 people total");
+  const fullTeam = evaluateGate(LIMITS.extreme, "teamSeats", { seats: 5 });
+  assert.equal(fullTeam.ok, false, "5 people total (the owner plus 4 invited) refuses the next invite");
+  assert.match(fullTeam.message, /5 people total/);
+  assert.match(fullTeam.message, /counting the owner/);
+  assert.match(fullTeam.message, /owner plus 4 invited/);
   assert.equal(LIMITS.extreme.teamSeats, 5);
 
   assert.equal(LIMITS.pro.emailAccounts, 8);
@@ -122,7 +127,8 @@ test("the comparison table is Free, Pro, and Extreme", () => {
   assert.deepEqual(cell("deep"), ["No", "8 a month", "Unlimited"]);
   assert.deepEqual(cell("packs"), ["No", "1 pack", "All packs"]);
   assert.deepEqual(cell("audit"), ["No", "No", "Yes"]);
-  assert.deepEqual(cell("team"), ["No", "No", "5"]);
+  assert.deepEqual(cell("team"), ["No", "No", "5 people total"]);
+  assert.match(table.rows.find((r) => r.id === "team").label, /Team/);
   assert.deepEqual(cell("apps"), ["No", "3", "Unlimited"]);
   assert.deepEqual(cell("recipes"), ["No", "5", "Unlimited"]);
   assert.deepEqual(cell("hostedRuns"), ["No", "No", "Yes"]);
@@ -308,8 +314,12 @@ test("Max quality is Extreme only, including a trial and a Pro licence", async (
     assert.equal(allowed.json.defaultMode, "max");
     assert.equal((await pro.api("/chat", { method: "POST", body: { prompt: "extreme max", mode: "max" } })).status, 202);
     assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "earlyAccess" } })).status, 200);
-    assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 4 } })).status, 200);
-    assert.equal((await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 5 } })).status, 402);
+    const roomForOne = await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 4 } });
+    assert.equal(roomForOne.status, 200, "4 people (the owner plus 3 invited) can still invite one more, for 5 people total");
+    const fullTeam = await pro.api("/billing-plans/check", { method: "POST", body: { feature: "teamSeats", seats: 5 } });
+    assert.equal(fullTeam.status, 402, "5 people total (the owner plus 4 invited) refuses the next invite");
+    assert.match(fullTeam.json.error, /5 people total/);
+    assert.match(fullTeam.json.error, /counting the owner/);
   } finally { await pro.stop(); }
 
   const trial = await startServer({

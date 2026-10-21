@@ -1610,3 +1610,9 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 ## 2026-10-21: Founder lifetime pay page
 
 Not a numbered phase. No locked decision was changed. Square was not called. The $349 founder page is https://square.link/u/nKrsGaj2. The later $499 price does not use that page, so that button stays on the page. Extreme yearly stays $299. The old $15.99 link is unchanged.
+
+## 2026-10-21: Extreme team is 5 people total
+
+Not a numbered phase. No locked decision was changed. Square was not called. Studio workspaces were not rebuilt. The Extreme team cap stays 5. The count is the headcount before an invite, so 4 people (the owner plus 3 invited) can still invite one more, and 5 people total (the owner plus 4 invited) refuses the next person. The table, the Settings line, and the gate message say 5 people total, counting the owner.
+
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows and Mac are the pull request checks.

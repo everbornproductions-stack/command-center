@@ -50,7 +50,7 @@ export function upgradeButtonsHtml({ plans, tier = "free", primary = false } = {
 }
 
 export function extremeExtrasHtml() {
-  return `<div class="dim small" data-extreme-extras>Extreme includes early access (new features reach Extreme first, behind a flag), Max quality (the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap), and team spaces with 5 seats.</div>`;
+  return `<div class="dim small" data-extreme-extras>Extreme includes early access (new features reach Extreme first, behind a flag), Max quality (the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap), and team spaces for 5 people total, counting the owner (the owner plus 4 invited).</div>`;
 }
 
 export function founderSpotsHtml(plans) {

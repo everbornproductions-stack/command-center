@@ -224,7 +224,8 @@ test("live copy sells the new prices and keeps $15.99 as the grandfather note", 
   assert.match(doc, /https:\/\/square\.link\/u\/8JlyJzxb/);
   assert.match(doc, /https:\/\/square\.link\/u\/u5FdCONv/);
   assert.match(doc, /https:\/\/square\.link\/u\/LxwtyrCy/);
-  assert.match(doc, /5 seats/);
+  assert.match(doc, /5 people total/);
+  assert.match(doc, /counting the owner/);
   assert.match(doc, /early access/);
   assert.match(doc, /Max quality/);
   assert.match(doc, /https:\/\/square\.link\/u\/nKrsGaj2/);

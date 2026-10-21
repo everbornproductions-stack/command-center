@@ -74,7 +74,9 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
   const extras = extremeExtrasHtml();
   assert.match(extras, /early access/);
   assert.match(extras, /Max quality/);
-  assert.match(extras, /5 seats/);
+  assert.match(extras, /5 people total/);
+  assert.match(extras, /counting the owner/);
+  assert.match(extras, /owner plus 4 invited/);
   assert.equal(extras.includes("\u2014"), false);
   assert.doesNotMatch(spots, /spots left/);
 
