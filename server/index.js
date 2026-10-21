@@ -875,9 +875,15 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/demo/ack") { saveSettings({ ...settings(), demoNotice: false }); return json(res, 200, { ok: true }); }
   if (method === "POST" && p === "/demo") {
-    if (body.on) await startDemo(); else await stopDemo();
-    // turning demo on while a real AI is connected is a deliberate choice: keep it until switched off
-    saveSettings({ ...settings(), demo: !!body.on, demoKeep: !!body.on && realAiConnected(), demoNotice: false, ...(body.on ? {} : { demoRetiredAt: null }) });
+    // Queued with syncDemoPresence: a sync started by saving a connection can still be running.
+    // Waiting for it means this click is the last word, so a late sync cannot switch demo back off.
+    const toggle = demoChain.then(async () => {
+      if (body.on) await startDemo(); else await stopDemo();
+      // turning demo on while a real AI is connected is a deliberate choice: keep it until switched off
+      saveSettings({ ...settings(), demo: !!body.on, demoKeep: !!body.on && realAiConnected(), demoNotice: false, ...(body.on ? {} : { demoRetiredAt: null }) });
+    });
+    demoChain = toggle.then(() => {}, () => {});
+    await toggle;
     await checkAll();
     emit("log", { text: body.on ? "Demo mode on: three pretend AIs are online. No credits are spent." : "Demo mode off." });
     return json(res, 200, { demo: demoActive(), providers: providerView() });
