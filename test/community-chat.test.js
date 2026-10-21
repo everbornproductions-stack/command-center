@@ -121,17 +121,31 @@ test("chat needs the licence email, hides drafts, and enforces conduct", async (
 
   const s = await startServer({ seed: seedRoom });
   try {
+    const before = await s.api("/community?channel=general");
+    assert.equal(before.json.joined, false);
+    assert.match(before.json.suggestion, /^[A-Za-z0-9_]{3,20}$/);
+    assert.equal(JSON.stringify(before.json).includes("@"), false);
     const mismatch = await s.api("/community/join", { method: "POST", body: { email: "other@example.com", displayName: "Ada" } });
-    assert.equal(mismatch.status, 403);
-    const join = await s.api("/community/join", { method: "POST", body: { email: "Ada@example.com", displayName: "Ada" } });
-    assert.equal(join.status, 200);
+    assert.equal(mismatch.status, 200, mismatch.json?.error);
+    assert.equal(mismatch.json.username, "Ada");
+    assert.equal(JSON.stringify(mismatch.json).includes("@"), false);
+    const join = await s.api("/community/join", { method: "POST", body: { username: "Ada" } });
+    assert.equal(join.status, 200, join.json?.error);
+    assert.equal(join.json.email, undefined);
     const home = await s.api("/community?channel=general");
     assert.equal(home.json.joined, true);
     assert.equal(home.json.owner, false);
+    assert.equal(home.json.profile.username, "Ada");
+    assert.equal(home.json.profile.email, undefined);
+    assert.equal(home.json.licenceEmail, undefined);
     assert.equal(home.json.news.draft, null);
     assert.equal(home.json.newsletter.optedIn, false);
+    assert.equal(home.json.newsletter.email, undefined);
+    assert.equal(JSON.stringify(home.json).includes("ada@example.com"), false);
+    assert.equal(JSON.stringify(home.json).includes("other@example.com"), false);
     const other = home.json.messages.find((m) => m.id === "m-other");
     assert.ok(other);
+    assert.equal(other.displayName, "Other");
     assert.equal(other.email, undefined);
     assert.ok(home.json.channels.some((c) => c.id === "news" && c.label === "AI News"));
 

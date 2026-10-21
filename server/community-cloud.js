@@ -46,6 +46,10 @@ export function pushDraft(issue, licenceKey) {
   return anonRpc("save_ai_news_draft", { p_key: licenceKey, p_issue: issue });
 }
 
+export function pushUsername(payload) {
+  return anonRpc("community_set_username", payload);
+}
+
 export function pushPost(payload) {
   return anonRpc("community_post", payload);
 }

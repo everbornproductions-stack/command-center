@@ -92,7 +92,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
-| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and the weekly AI News feed. Sign in with your licence email. Click Send to post. Share a prompt, a builder, or a mission with one click. |
+| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and the weekly AI News feed. Pick a public username the first time you open chat. Your email is not shown. Click Send to post. Share a prompt, a builder, or a mission with one click. Change the username in Settings. |
 
 ## 8. Sending things out: always your click
 

@@ -11,13 +11,15 @@ Community is in the Business menu. In Simple it is also under Help.
 
 Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.
 
+Community chat asks for a public username the first time you open it. A friendly name is suggested. It is 3 to 20 characters, letters, numbers, and underscore, and it has to be unique. Names like meldmind, admin, and everborn are refused. Your email is never shown. You can change the username in Settings, then wait an hour before the next change.
+
 AI News sits next to those channels. It updates weekly from Supabase, so a new issue does not need an app update. It lists model releases, price changes, and new features from major AI providers, each with a source link, plus Meldmind features, top voted prompts, and community highlights. An unread badge shows until you open it. You can react and share an item into chat. A draft waits for the owner before it is published.
 
 Email me the weekly note is off until you tick it in Settings or during setup. The app writes the note and does not send email. The note has an unsubscribe link and an Everborn Productions address placeholder.
 
 ## How to join
 
-Use the email on your licence. Pick a display name of 2 to 24 characters. Nothing is posted until you click Send.
+Use the email on your licence. Pick a display name of 2 to 24 characters. The public name is a username: 3 to 20 characters, letters, numbers, and underscore. A friendly name is suggested the first time you open chat. Your email is never shown. Change the username in Settings, then wait an hour before the next change. Nothing is posted until you click Send.
 
 Share a prompt, a builder, or a mission with Share in chat. That click is the post. If you have not joined, the app opens Community and does not post.
 

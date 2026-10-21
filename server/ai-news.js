@@ -222,7 +222,7 @@ export function reactToItem(news, actor, { issueId, itemId, reaction }, now = Da
     seen: news?.seen || null,
     reactions: Array.isArray(news?.reactions) ? news.reactions.slice() : [],
   };
-  if (!actor?.email) return { ok: false, status: 401, error: "Sign in with the email on your licence first." };
+  if (!actor?.email) return { ok: false, status: 401, error: "Pick a username first." };
   if (!next.published || next.published.id !== issueId || next.published.status !== "published") {
     return { ok: false, status: 404, error: "That issue is not published." };
   }

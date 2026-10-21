@@ -55,7 +55,7 @@ async function shareInChat(input = {}) {
   try {
     const state = await api("/community");
     if (!state.joined) {
-      toast("Sign in on Community first. Nothing was posted.");
+      toast("Pick a username on Community first. Nothing was posted.");
       go("community");
       return { posted: false };
     }
@@ -114,7 +114,7 @@ function messageHtml(m, owner) {
     <button class="btn sm" type="button" data-vote="down" data-id="${esc(m.id)}">Thumbs down</button>` : "";
   const mine = m.mine || owner ? `<button class="btn sm" type="button" data-del="${esc(m.id)}">Delete</button>` : "";
   return `<div class="cc-msg" data-mid="${esc(m.id)}">
-    <div><span class="who">${esc(m.displayName || "Member")}</span> <span class="dim small">${esc(m.kind || "text")}</span></div>
+    <div><span class="who">${esc(m.username || m.displayName || "Member")}</span> <span class="dim small">${esc(m.kind || "text")}</span></div>
     ${share}
     <div style="white-space:pre-wrap">${esc(m.body || "")}</div>
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
@@ -170,10 +170,6 @@ function moreHtml() {
   return `<details style="margin-top:14px"><summary>More options</summary>
     <div class="grid" style="gap:10px;margin-top:8px">
       <div>
-        <label class="lbl">Display name</label>
-        <div class="row" style="gap:6px"><input id="cc-rename" maxlength="24" value="${esc(room?.profile?.displayName || "")}" aria-label="Display name"><button class="btn sm" type="button" id="cc-rename-go">Save name</button></div>
-      </div>
-      <div>
         <div class="lbl">Code of conduct</div>
         <ul>${(room?.conduct || []).map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
       </div>
@@ -195,7 +191,7 @@ function moreHtml() {
       ${owner ? `<div>
         <label class="lbl">Mute someone</label>
         <div class="row" style="gap:6px;flex-wrap:wrap">
-          <input id="cc-mute-email" type="email" placeholder="email" aria-label="Email to mute">
+          <input id="cc-mute-name" maxlength="20" placeholder="username" aria-label="Username to mute" autocomplete="off">
           <input id="cc-mute-min" type="number" min="1" max="43200" value="60" aria-label="Minutes" style="width:90px">
           <button class="btn sm" type="button" id="cc-mute-go">Mute</button>
         </div>
@@ -229,16 +225,15 @@ async function render(view) {
     </div>
     <div>
       <div class="panel">
-        ${joined ? "" : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
-          <div class="small">Sign in with the email on your licence and pick a display name.</div>
-          ${room.licenceEmail ? `<div class="small">Email on your licence: <b>${esc(room.licenceEmail)}</b></div>` : `<div class="small">Add a licence first if this box is empty. Community uses that email.</div>`}
-          <label>Licence email <input id="cc-email" type="email" name="cc-email" required autocomplete="off" value="${esc(room.licenceEmail || "")}"></label>
-          <label>Display name <input id="cc-name" name="cc-name" required maxlength="24" autocomplete="off" placeholder="Ada"></label>
-          <div><button class="btn sm primary" type="submit">Join</button></div>
-        </form>`}
+        ${room.needsLicence ? `<div class="small">Add a licence first. Community chat uses the email on your licence.</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || "")}</b>. Change this name in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
+          <div class="small">Pick a public username. A friendly one is suggested. Your email is not shown.</div>
+          <label>Username <input id="cc-name" name="cc-name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="off" value="${esc(room.suggestion || "")}" aria-label="Username"></label>
+          <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique.</div>
+          <div><button class="btn sm primary" type="submit">Save username</button></div>
+        </form>`)}
         <div class="dim small">${esc(SHORT)}</div>
         ${onNews ? newsHtml(room.news) : `
-          <div id="cc-feed">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Join to read and post.</div>`}</div>
+          <div id="cc-feed">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
             <textarea id="cc-body" rows="3" maxlength="2000" placeholder="Write a message. Nothing is posted until you click Send." aria-label="Message"></textarea>
             <div><button class="btn sm primary" type="submit" id="cc-send-go">Send</button></div>
@@ -261,8 +256,8 @@ async function render(view) {
   root.querySelector("#cc-join")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     try {
-      await api("/community/join", { method: "POST", body: { email: root.querySelector("#cc-email").value, displayName: root.querySelector("#cc-name").value } });
-      toast("You are signed in.");
+      await api("/community/username", { method: "POST", body: { username: root.querySelector("#cc-name").value } });
+      toast("Username saved.");
       render(view);
     } catch (e) { toast(e.message, true); }
   });
@@ -330,13 +325,6 @@ async function render(view) {
     select.value = shareOverride;
     select.addEventListener("change", () => { shareOverride = select.value; });
   }
-  root.querySelector("#cc-rename-go")?.addEventListener("click", async () => {
-    try {
-      await api("/community/join", { method: "POST", body: { email: room.licenceEmail || room.profile?.email, displayName: root.querySelector("#cc-rename").value } });
-      toast("Name saved.");
-      render(view);
-    } catch (e) { toast(e.message, true); }
-  });
   root.querySelector("#cc-preview")?.addEventListener("click", async () => {
     const out = root.querySelector("#cc-preview-out");
     try {
@@ -347,7 +335,7 @@ async function render(view) {
   });
   root.querySelector("#cc-mute-go")?.addEventListener("click", async () => {
     try {
-      await api("/community/mute", { method: "POST", body: { email: root.querySelector("#cc-mute-email").value, minutes: Number(root.querySelector("#cc-mute-min").value) } });
+      await api("/community/mute", { method: "POST", body: { username: root.querySelector("#cc-mute-name").value, minutes: Number(root.querySelector("#cc-mute-min").value) } });
       toast("Muted.");
     } catch (e) { toast(e.message, true); }
   });
@@ -376,7 +364,35 @@ async function render(view) {
 }
 
 function renderSettings(el) {
-  el.innerHTML = `<div class="panel" id="cc-settings-mail"><h3>Weekly AI News email</h3>${mailBox(false)}</div>`;
+  el.innerHTML = `<div class="panel" id="cc-settings-name">
+    <h3>Community username</h3>
+    <p class="small">This is the name people see in chat. Your email is not shown.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap">
+      <input id="cc-settings-username" maxlength="20" aria-label="Username" autocomplete="off">
+      <button class="btn sm" type="button" id="cc-settings-username-go">Save username</button>
+    </div>
+    <div class="dim small" id="cc-settings-username-note">You can change this name. After a change, wait 1 hour before the next one.</div>
+  </div>
+  <div class="panel" id="cc-settings-mail"><h3>Weekly AI News email</h3>${mailBox(false)}</div>`;
+  const note = el.querySelector("#cc-settings-username-note");
+  const input = el.querySelector("#cc-settings-username");
+  api("/community").then((state) => {
+    if (input) input.value = state.profile?.username || state.suggestion || "";
+    if (note && state.joined && state.cooldownUntil > Date.now()) {
+      note.textContent = `You can change this name after ${new Date(state.cooldownUntil).toLocaleString()}.`;
+    }
+  }).catch(() => {});
+  el.querySelector("#cc-settings-username-go")?.addEventListener("click", async () => {
+    try {
+      const saved = await api("/community/username", { method: "POST", body: { username: input?.value || "" } });
+      toast("Username saved.");
+      if (note) {
+        note.textContent = saved.cooldownUntil
+          ? `You can change this name after ${new Date(saved.cooldownUntil).toLocaleString()}.`
+          : "You can change this name. After a change, wait 1 hour before the next one.";
+      }
+    } catch (e) { toast(e.message, true); }
+  });
   api("/community/newsletter").then((row) => {
     const box = el.querySelector("#cc-mail");
     if (box) box.checked = row.optedIn === true;

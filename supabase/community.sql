@@ -1,16 +1,23 @@
 -- Meldmind community chat, AI News, and the optional email list.
 -- MIGRATION FILE ONLY. Review it, then run it yourself in the Supabase SQL editor. Safe to re-run.
 -- The app does not run this file. It was not run against a live database.
--- People sign in with the email on their licence. Keys and private files are not stored here.
+-- People pick a public username. The licence email stays on the server and is not returned.
+-- Keys and private files are not stored here.
 -- AI News drafts stay hidden. Only a published issue is readable. Email is opt-in and is never sent by the app.
 
 create table if not exists public.community_profiles (
   email        text primary key,
   user_id      uuid references auth.users(id) on delete set null,
   display_name text not null,
+  username     text,
+  username_changed_at timestamptz,
   muted_until  timestamptz,
   created_at   timestamptz not null default now()
 );
+alter table public.community_profiles add column if not exists username text;
+alter table public.community_profiles add column if not exists username_changed_at timestamptz;
+create unique index if not exists community_profiles_username_lower_idx
+  on public.community_profiles (lower(username));
 
 create table if not exists public.community_messages (
   id           uuid primary key default gen_random_uuid(),
@@ -141,6 +148,7 @@ declare
   l public.licenses%rowtype;
   n int;
   mid uuid;
+  uname text;
 begin
   select * into l from public.community_licence(p_key);
   if l.id is null then
@@ -155,6 +163,10 @@ begin
   if p_body ~ '(sk-|AIza|xai-|gsk_|BEGIN PRIVATE|id_rsa)' then
     return jsonb_build_object('ok', false, 'message', 'That message looks like a key or a private file. It was not sent.');
   end if;
+  select username into uname from public.community_profiles where lower(email) = lower(l.email);
+  if uname is null or btrim(uname) = '' then
+    return jsonb_build_object('ok', false, 'message', 'Pick a username first.');
+  end if;
   if exists (
     select 1 from public.community_profiles
     where lower(email) = lower(l.email) and muted_until is not null and muted_until > now()
@@ -166,13 +178,58 @@ begin
   if n >= 5 then
     return jsonb_build_object('ok', false, 'message', 'Slow down a moment, then try again.');
   end if;
-  insert into public.community_profiles (email, display_name)
-    values (lower(l.email), left(coalesce(nullif(trim(p_name), ''), 'Member'), 24))
-    on conflict (email) do update set display_name = excluded.display_name;
   insert into public.community_messages (channel, email, display_name, body, kind, share)
-    values (p_channel, lower(l.email), left(coalesce(nullif(trim(p_name), ''), 'Member'), 24), trim(p_body), coalesce(p_kind, 'text'), p_share)
+    values (p_channel, lower(l.email), uname, trim(p_body), coalesce(p_kind, 'text'), p_share)
     returning id into mid;
   return jsonb_build_object('ok', true, 'id', mid);
+end;
+$$;
+
+create or replace function public.community_set_username(p_key text, p_username text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  l public.licenses%rowtype;
+  clean text;
+  current text;
+  changed_at timestamptz;
+begin
+  select * into l from public.community_licence(p_key);
+  if l.id is null then
+    return jsonb_build_object('ok', false, 'message', 'Add a licence first. Community chat uses the email on your licence.');
+  end if;
+  clean := btrim(coalesce(p_username, ''));
+  if clean !~ '^[A-Za-z0-9_]{3,20}$' then
+    return jsonb_build_object('ok', false, 'message', 'Use 3 to 20 characters: letters, numbers, and underscore.');
+  end if;
+  if lower(clean) ~ '(meldmind|admin|everborn)'
+     or lower(replace(clean, '_', ' ')) ~ '(^| )(fuck|shit|bitch|asshole|bastard|cunt|dickhead)( |$)' then
+    return jsonb_build_object('ok', false, 'message', 'That username is not allowed. Pick another.');
+  end if;
+  if exists (
+    select 1 from public.community_profiles
+    where lower(username) = lower(clean) and lower(email) <> lower(l.email)
+  ) then
+    return jsonb_build_object('ok', false, 'taken', true, 'message', 'That username is taken. Pick another.');
+  end if;
+  select username, username_changed_at into current, changed_at
+    from public.community_profiles where lower(email) = lower(l.email);
+  if current is not null and lower(current) = lower(clean) then
+    return jsonb_build_object('ok', true, 'username', current);
+  end if;
+  if current is not null and changed_at is not null and changed_at > now() - interval '1 hour' then
+    return jsonb_build_object('ok', false, 'message', 'Wait 1 hour before you change your username again.');
+  end if;
+  insert into public.community_profiles (email, display_name, username, username_changed_at)
+    values (lower(l.email), clean, clean, now())
+    on conflict (email) do update
+      set display_name = excluded.display_name,
+          username = excluded.username,
+          username_changed_at = now();
+  return jsonb_build_object('ok', true, 'username', clean);
 end;
 $$;
 
@@ -187,6 +244,7 @@ as $$
     'id', m.id,
     'channel', m.channel,
     'displayName', m.display_name,
+    'username', m.display_name,
     'body', m.body,
     'kind', m.kind,
     'share', m.share,
@@ -250,7 +308,7 @@ begin
 end;
 $$;
 
-create or replace function public.community_mute(p_key text, p_email text, p_minutes int)
+create or replace function public.community_mute(p_key text, p_username text, p_minutes int)
 returns jsonb
 language plpgsql
 security definer
@@ -258,15 +316,24 @@ set search_path = public
 as $$
 declare
   l public.licenses%rowtype;
+  target text;
 begin
   select * into l from public.community_licence(p_key);
   if l.id is null or l.tier <> 'owner' then
     return jsonb_build_object('ok', false, 'message', 'Only the owner can mute someone.');
   end if;
-  insert into public.community_profiles (email, display_name, muted_until)
-    values (lower(trim(p_email)), 'Member', now() + make_interval(mins => greatest(1, least(p_minutes, 43200))))
-    on conflict (email) do update
-      set muted_until = now() + make_interval(mins => greatest(1, least(p_minutes, 43200)));
+  if btrim(coalesce(p_username, '')) !~ '^[A-Za-z0-9_]{3,20}$' then
+    return jsonb_build_object('ok', false, 'message', 'Enter the username to mute.');
+  end if;
+  select email into target from public.community_profiles
+    where lower(username) = lower(btrim(p_username))
+    limit 1;
+  if target is null then
+    return jsonb_build_object('ok', false, 'message', 'No one is using that username.');
+  end if;
+  update public.community_profiles
+    set muted_until = now() + make_interval(mins => greatest(1, least(coalesce(p_minutes, 1), 43200)))
+    where lower(email) = lower(target);
   return jsonb_build_object('ok', true);
 end;
 $$;
@@ -419,6 +486,7 @@ $$;
 revoke all on function public.community_is_owner() from public;
 revoke all on function public.community_licence(text) from public;
 revoke all on function public.community_post(text, text, text, text, text, jsonb) from public;
+revoke all on function public.community_set_username(text, text) from public;
 revoke all on function public.community_list(text) from public;
 revoke all on function public.community_report(text, uuid, text) from public;
 revoke all on function public.community_delete(text, uuid) from public;
@@ -434,6 +502,7 @@ grant execute on function public.community_is_owner() to authenticated;
 grant execute on function public.community_list(text) to anon, authenticated;
 grant execute on function public.ai_news_latest() to anon, authenticated;
 grant execute on function public.community_post(text, text, text, text, text, jsonb) to anon, authenticated;
+grant execute on function public.community_set_username(text, text) to anon, authenticated;
 grant execute on function public.community_report(text, uuid, text) to anon, authenticated;
 grant execute on function public.community_delete(text, uuid) to anon, authenticated;
 grant execute on function public.community_mute(text, text, int) to anon, authenticated;

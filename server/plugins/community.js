@@ -12,6 +12,7 @@ import * as Cloud from "../community-cloud.js";
 export const id = "community";
 
 const PROFILE = "community.profile";
+const NAMES = "community.names";
 const ROOM = "community.room";
 const NEWS = "community.news";
 const LIST = "newsletter.subscriber";
@@ -58,17 +59,82 @@ function loadList(h) {
 function saveList(h, row) {
   h.putDoc(LIST, row);
 }
+function takenNames(h) {
+  const doc = h.doc(NAMES, () => ({ names: {} })) || { names: {} };
+  const names = {};
+  for (const [rawKey, rawEmail] of Object.entries(doc.names || {})) {
+    const key = String(rawKey).trim().toLowerCase();
+    const email = Chat.cleanEmail(rawEmail);
+    if (key && email) names[key] = email;
+  }
+  const room = loadRoom(h);
+  for (const message of room.messages || []) {
+    const key = String(message.displayName || message.username || "").trim().toLowerCase();
+    const email = Chat.cleanEmail(message.email);
+    if (!key || !email || names[key]) continue;
+    names[key] = email;
+  }
+  const saved = h.doc(PROFILE, () => null) || {};
+  const current = String(saved.username || saved.displayName || "").trim().toLowerCase();
+  const email = Chat.cleanEmail(saved.email);
+  if (current && email) names[current] = email;
+  return names;
+}
 function actorOf(h) {
   const saved = h.doc(PROFILE, () => null) || {};
   const email = Chat.cleanEmail(saved.email);
   const lic = licenceEmail();
-  if (!email || !lic || email !== lic) return { email: "", displayName: "", owner: isOwner() };
-  return { email, displayName: saved.displayName || "", owner: isOwner() };
+  const username = String(saved.username || saved.displayName || "").trim();
+  const owner = isOwner();
+  const changedAt = Number(saved.usernameChangedAt) || 0;
+  if (!email || !lic || email !== lic || !username) return { email: "", username: "", displayName: "", owner, cooldownUntil: 0 };
+  return { email, username, displayName: username, owner, cooldownUntil: changedAt ? changedAt + Chat.USERNAME_COOLDOWN_MS : 0 };
 }
 function needActor(h) {
+  if (!licenceEmail()) return { error: "Add a licence first. Community chat uses the email on your licence.", status: 400 };
   const actor = actorOf(h);
-  if (!actor.email) return { error: "Sign in with the email on your licence first.", status: 401 };
+  if (!actor.email) return { error: "Pick a username first.", status: 401 };
   return { actor };
+}
+function clientList(row, { token = false } = {}) {
+  const out = { optedIn: row.optedIn === true, pending: row.pending === true };
+  if (token && row.token) out.token = row.token;
+  return out;
+}
+async function saveUsername(h, rawName) {
+  const lic = licenceEmail();
+  const saved = h.doc(PROFILE, () => null) || {};
+  const sameAccount = Chat.cleanEmail(saved.email) === lic;
+  const current = sameAccount ? String(saved.username || saved.displayName || "") : "";
+  const result = Chat.claimUsername({
+    username: rawName,
+    email: lic,
+    names: takenNames(h),
+    current,
+    changedAt: sameAccount ? Number(saved.usernameChangedAt) || 0 : 0,
+  });
+  if (!result.ok) return result;
+  if (result.same) return { ok: true, username: result.username, cooldownUntil: result.cooldownUntil || 0 };
+  const key = rawLicenceKey(h);
+  if (key) {
+    const pushed = await Cloud.pushUsername({ p_key: key, p_username: result.username });
+    const remote = pushed.body;
+    if (!pushed.offline && remote && remote.ok === false && (remote.taken === true || /taken/i.test(String(remote.message || "")))) {
+      return { ok: false, status: 409, error: "That username is taken. Pick another." };
+    }
+  }
+  const names = takenNames(h);
+  names[result.username.toLowerCase()] = lic;
+  h.putDoc(NAMES, { names });
+  const changedAt = Date.now();
+  h.putDoc(PROFILE, {
+    email: lic,
+    username: result.username,
+    displayName: result.username,
+    joinedAt: saved.joinedAt || changedAt,
+    usernameChangedAt: changedAt,
+  });
+  return { ok: true, username: result.username, cooldownUntil: changedAt + Chat.USERNAME_COOLDOWN_MS };
 }
 
 async function libraryVote(h, room, actor, promptId) {
@@ -108,7 +174,8 @@ async function mergeRemote(h, channel) {
       id,
       channel: Chat.CHAT_IDS.has(row.channel) ? row.channel : channel,
       email: "",
-      displayName: String(row.displayName || "Member").slice(0, 24),
+      displayName: String(row.username || row.displayName || "Member").slice(0, 20),
+      username: String(row.username || row.displayName || "Member").slice(0, 20),
       body,
       kind: Chat.SHARE_KINDS.has(row.kind) ? row.kind : "text",
       share,
@@ -163,7 +230,9 @@ async function refreshNews(h, actor) {
 }
 
 function reply(h, res, result) {
-  return h.json(res, result.status || 400, { error: result.error });
+  const payload = { error: result.error };
+  if (result.cooldownUntil) payload.cooldownUntil = result.cooldownUntil;
+  return h.json(res, result.status || 400, payload);
 }
 
 export async function routes(req, res, url, body, h) {
@@ -177,27 +246,29 @@ export async function routes(req, res, url, body, h) {
     await mergeRemote(h, channel);
     const room = loadRoom(h);
     const news = await refreshNews(h, actor);
+    const list = loadList(h);
     return h.json(res, 200, {
       channels: Chat.CHANNELS,
       conduct: Chat.CONDUCT,
       joined: !!actor.email,
       owner: actor.owner,
-      profile: actor.email ? { email: actor.email, displayName: actor.displayName } : null,
-      licenceEmail: licenceEmail() || null,
+      needsLicence: !licenceEmail(),
+      profile: actor.username ? { username: actor.username, displayName: actor.username } : null,
+      suggestion: actor.username ? "" : Chat.suggestUsername(takenNames(h)),
+      cooldownUntil: actor.cooldownUntil || 0,
       channel,
       messages: actor.email ? Chat.listMessages(room, channel, actor) : [],
       reports: actor.owner ? room.reports.map((item) => ({ id: item.id, messageId: item.messageId, reason: item.reason, at: item.at })) : [],
       news,
-      newsletter: loadList(h),
+      newsletter: clientList(list),
       limits: { burst: Chat.BURST_MAX, burstMs: Chat.BURST_MS },
     });
   }
 
-  if (method === "POST" && p === "/join") {
-    const joined = Chat.checkJoin({ email: body?.email, displayName: body?.displayName, licenceEmail: licenceEmail() });
-    if (!joined.ok) return reply(h, res, joined);
-    h.putDoc(PROFILE, { email: joined.email, displayName: joined.displayName, joinedAt: Date.now() });
-    return h.json(res, 200, { ok: true, email: joined.email, displayName: joined.displayName });
+  if (method === "POST" && (p === "/join" || p === "/username")) {
+    const saved = await saveUsername(h, body?.username || body?.displayName);
+    if (!saved.ok) return reply(h, res, saved);
+    return h.json(res, 200, { ok: true, username: saved.username, cooldownUntil: saved.cooldownUntil || 0 });
   }
 
   if (method === "POST" && (p === "/messages" || p === "/share")) {
@@ -240,7 +311,7 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true });
   }
   if (method === "POST" && p === "/mute") {
-    const muted = Chat.mutePerson(loadRoom(h), actor, body?.email, body?.minutes);
+    const muted = Chat.mutePerson(loadRoom(h), actor, body?.username || body?.displayName, body?.minutes, Date.now(), takenNames(h));
     if (!muted.ok) return reply(h, res, muted);
     saveRoom(h, muted.room);
     return h.json(res, 200, { ok: true, until: muted.until });
@@ -331,7 +402,7 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
   }
 
-  if (method === "GET" && p === "/newsletter") return h.json(res, 200, loadList(h));
+  if (method === "GET" && p === "/newsletter") return h.json(res, 200, clientList(loadList(h), { token: true }));
 
   if (method === "POST" && p === "/newsletter") {
     const optedIn = body?.optedIn === true;
@@ -348,7 +419,6 @@ export async function routes(req, res, url, body, h) {
     }
     return h.json(res, 200, {
       optedIn: row.optedIn,
-      email: row.email,
       pending: row.pending,
       synced,
       note: row.pending
