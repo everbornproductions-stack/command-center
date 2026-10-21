@@ -1564,9 +1564,9 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
 
-## 2026-10-20: Antigravity CLI agent (0.4.8, first slice)
+## 2026-10-20: Antigravity CLI agent (0.4.9, first slice)
 
-Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch). Phases 45 to 51 are still to build on top of this.
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and this slice is part of 0.4.9). Phases 45 to 51 are still to build on top of this.
 
 - Google Antigravity is an external agent with via local-cli. `server/antigravity-cli.js` runs `agy -p` with `--output-format stream-json`, streams events into the job and the ledger, scrubs output with `stripSecrets()`, and maps sign-in and quota errors to plain sentences.
 - A timeout and Stop kill the process. `agy --version` is pinned. The binary is detected on PATH or in `%LOCALAPPDATA%\agy\bin`. The card says when install or sign-in is still needed. Install and connect runs Google's official installer only after a confirm click, and never puts a key on the command line.
