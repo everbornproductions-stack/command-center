@@ -1,5 +1,6 @@
 // What's new card and the suggestion box. Send is a separate click. Nothing connects from here.
-import { FILE_ACCEPT, wireUpload, wireVoice } from "./capture-input.js";
+import { FILE_ACCEPT, fileTooBig, wireUpload, wireVoice } from "./capture-input.js";
+import { mediaKind, mountModify } from "./media-modify.js";
 
 const { api, apiBlobUrl, downloadBlob, toast, esc, go } = window.CC;
 
@@ -25,7 +26,7 @@ if (!document.getElementById("en-style")) {
 
 const TOUR = [
   { id: "ea-news", title: "What's new", body: "Try saying: What needs me today in all my inboxes? After an update, try a sample, skip, or remind later. Nothing connects or sends from this card." },
-  { id: "ea-suggest", title: "Suggest a connection or idea", body: "Try saying: I want a connection for my calendar. Upload a file or use Voice, then edit the words. You see the exact note before Send. Nothing is sent until that click." },
+  { id: "ea-suggest", title: "Suggest a connection or idea", body: "Try saying: I want a connection for my calendar. Upload a file or use Voice, then edit the words. You see the exact note before Send. Nothing is sent until that click. A picture or video can be retouched or described after you see the plan." },
   { id: "ea-ideas", title: "Your ideas", body: "After you send, you can edit, delete, or re-prioritize an idea, add a comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer." },
 ];
 window.CC.everydaySteps = [...(window.CC.everydaySteps || []), ...TOUR.map((s) => ({
@@ -43,11 +44,12 @@ function suggestForm(prefix) {
     <textarea id="${prefix}-text" rows="3" maxlength="2000" aria-label="Suggestion" placeholder="A connection or an action you want"></textarea>
     <div class="en-row" style="margin-top:8px">
       <button type="button" class="btn sm" id="${prefix}-upload">Upload</button>
-      <input type="file" id="${prefix}-file" hidden multiple accept="${FILE_ACCEPT}" aria-label="Upload a file, screenshot, or document">
+      <input type="file" id="${prefix}-file" hidden multiple accept="${FILE_ACCEPT}" aria-label="Upload a picture, video, screenshot, or document">
       <button type="button" class="btn sm" id="${prefix}-voice" aria-pressed="false">Voice</button>
       <span class="dim small" id="${prefix}-cap" aria-live="polite"></span>
     </div>
     <div class="en-chips" id="${prefix}-chips"></div>
+    <div class="dim small" style="margin-top:4px">A picture or video can be retouched or described after you see the plan. That Run click is separate from Send.</div>
     <div class="en-row" style="margin-top:8px">
       <label class="small">Category
         <select id="${prefix}-cat" aria-label="Category">
@@ -117,12 +119,22 @@ function paintIdeas(root, prefix, ideas) {
     </div>
     <div class="dim small" style="margin-top:6px">Saving stays on this computer. It is not sent again.</div>
     <div class="en-chips">${(idea.files || []).map((f) => `<button type="button" class="btn sm" data-act="download" data-file="${esc(f.id)}" data-name="${esc(f.name)}">${esc(f.name)}</button>`).join("")}</div>
+    ${(idea.files || []).filter((f) => mediaKind(f)).map((f) => `<div data-modify data-file="${esc(f.id)}" data-name="${esc(f.name)}" data-mime="${esc(f.mime || "")}" data-kind="${esc(f.kind || "")}"></div>`).join("")}
     ${(idea.comments || []).map((c) => `<div class="small" style="margin-top:6px">${esc(c.text)}</div>`).join("")}
     <div class="en-row" style="margin-top:8px">
       <input type="text" data-act="comment" maxlength="1000" aria-label="Comment" placeholder="Add a comment" style="flex:1;min-width:140px">
       <button type="button" class="btn sm" data-act="comment-add">Add comment</button>
     </div>
   </div>`).join("");
+  list.querySelectorAll("[data-modify]").forEach((host) => {
+    const card = host.closest("[data-idea]");
+    mountModify(host, {
+      file: { id: host.dataset.file, name: host.dataset.name, mime: host.dataset.mime, kind: host.dataset.kind },
+      where: "idea",
+      ideaId: card?.dataset.idea,
+      sourceUrl: `/everyday-news/files/${encodeURIComponent(card?.dataset.idea || "")}/${encodeURIComponent(host.dataset.file || "")}`,
+    });
+  });
 }
 
 async function reloadIdeas(root, prefix) {
@@ -192,7 +204,8 @@ function wireIdeas(root, prefix) {
         input.addEventListener("change", async () => {
           const file = input.files?.[0];
           if (!file) return;
-          if (file.size > 4 * 1024 * 1024) return toast("That file is over 4 MB.", true);
+          const tooBig = fileTooBig(file);
+          if (tooBig) return toast(tooBig, true);
           try {
             const data = await fileToB64(file);
             const r = await api(`/everyday-news/suggestions/${encodeURIComponent(id)}/files`, {
@@ -249,16 +262,18 @@ function wireSuggest(root, prefix, after) {
     onSaved(saved) {
       held.push(saved.id);
       const box = root.querySelector(`#${prefix}-chips`);
+      const wrap = document.createElement("div");
+      wrap.className = "mm-file";
+      wrap.dataset.file = saved.id;
       const span = document.createElement("span");
       span.className = "chip";
-      span.dataset.file = saved.id;
       span.textContent = saved.name || "file";
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ghost small";
       remove.textContent = "Remove";
       remove.addEventListener("click", async () => {
-        span.remove();
+        wrap.remove();
         const at = held.indexOf(saved.id);
         if (at >= 0) held.splice(at, 1);
         clear();
@@ -266,7 +281,13 @@ function wireSuggest(root, prefix, after) {
       });
       span.append(" ");
       span.appendChild(remove);
-      box?.appendChild(span);
+      wrap.appendChild(span);
+      if (mediaKind(saved)) {
+        const host = document.createElement("div");
+        wrap.appendChild(host);
+        mountModify(host, { file: saved, where: "idea", sourceUrl: `/everyday-news/suggestions/files/${encodeURIComponent(saved.id)}` });
+      }
+      box?.appendChild(wrap);
       clear();
     },
   });

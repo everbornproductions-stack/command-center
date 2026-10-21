@@ -12,7 +12,7 @@ The box is in **Settings**, on the What's new card, and on the connections page 
 Try saying: I want a connection for my calendar
 
 1. Write the idea. Pick connection, action, bug, or other. An email for a reply is optional.
-2. **Upload** adds a file, a screenshot, an image, or a document. Up to 4 files, about 4 MB each. You can also paste a screenshot into the box. The file stays on this computer. Only the file name is in the note.
+2. **Upload** adds a picture, a video, a screenshot, an image, or a document. Up to 4 files. Pictures can be 8 MB, videos 12 MB, and documents 4 MB. You can also paste a screenshot into the box. The file stays on this computer. Only the file name is in the note. A picture or video can be retouched, captioned, or described after you see the plan. Click Run only when that plan looks right. You can preview, download, or save the result. That is separate from Send, and nothing is posted.
 3. **Voice** records and writes the words into the box. It uses Whisper on this computer when that program is installed, or an AI you have already connected. Edit the words before you send. Voice does not send by itself.
 4. The version and OS box is on by default. It does not include chat.
 5. Click **Show exactly what is sent** and read the note.

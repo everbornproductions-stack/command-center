@@ -1575,3 +1575,16 @@ Not Phase 56 done. This sits on the suggestion box. package.json was not bumped.
 - Checked in a browser on this machine: Marching orders and the Simple chat box show Upload and Voice. Settings sends an idea after the exact note, then Save on status planned says the edit was not sent.
 
 IDEA BOX UPGRADES (built by Cursor cloud agent)
+
+## 2026-10-21: Uploads can start a media job (Cursor cloud agent)
+
+Not Phase 56 done. This extends the idea box and Marching orders uploads. It reuses image generation and the project media folder. It does not replace the gallery or the Media tab. package.json was not bumped. It stays 0.4.6. The help catalog stays on 0.4.6. No locked decision text was rewritten. data/ was not read. Square was not called. Nothing is posted.
+
+- A picture (up to 8 MB) or a video (up to 12 MB) can be attached on the idea box and on Marching orders. Documents stay at 4 MB. The page says so when a file is too big. A picture over 3.5 MB can stay attached, and retouch says it is too big.
+- Retouch, Variation, Describe, Trim, and Caption only fill the ask. Show the plan picks a connected AI for that kind (image edit, vision, or ffmpeg on this computer). Run is a second click and must repeat the price. Demo mode spends nothing. The result can be previewed, downloaded, or saved in a project.
+- The suggestion Send click is unchanged. It still posts names only. A media job does not send the idea.
+- Help, the user guide, the tour, the roadmap, and the 0.4.8 What's new note describe it.
+- Tests: `test/media-modify.test.js`. npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed), including the serial MCP file (8 pass) and the main batch (414 tests, 413 pass, 1 skipped). npm run smoke: all smoke checks passed. Node 22.23.3. Temp data dirs and local mocks only. No real key. data/ was not read.
+- Checked in a browser on this machine: Marching orders upload, Retouch, Show the plan ("Demo, nothing spent"), then Run, preview, Download, and Save to project. Simple still shows Upload and Voice. Settings idea box says the Run click is separate from Send. No error toast.
+
+MEDIA JOBS FROM UPLOADS (built by Cursor cloud agent)

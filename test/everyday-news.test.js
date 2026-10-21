@@ -37,7 +37,7 @@ test("snooze is 3 days then 7 days, and a suggestion is an exact note", () => {
   assert.equal(payload.os, "test-os");
   assert.equal("email" in payload, false);
   assert.throws(() => buildSuggestion({ text: "my password is hunter2" }), /password/);
-  const files = ["server/everyday-news.js", "server/plugins/everyday-news.js", "server/box-files.js", "server/dictate.js", "server/local-whisper.js", "server/plugins/orders-box.js", "web/features/everyday-news.js", "web/features/orders-input.js", "web/features/capture-input.js", "docs/help/everyday-whats-new.md", "docs/help/everyday-suggest.md", "docs/help/idea-box.md"];
+  const files = ["server/everyday-news.js", "server/plugins/everyday-news.js", "server/box-files.js", "server/dictate.js", "server/local-whisper.js", "server/plugins/orders-box.js", "server/media-modify.js", "server/plugins/media-modify.js", "web/features/everyday-news.js", "web/features/orders-input.js", "web/features/capture-input.js", "web/features/media-modify.js", "docs/help/everyday-whats-new.md", "docs/help/everyday-suggest.md", "docs/help/idea-box.md"];
   for (const file of files) assert.equal(fs.readFileSync(path.join(ROOT, file), "utf8").includes(EM), false, file);
   assert.throws(() => classifyFile("virus.exe", Buffer.from("MZ")), /not allowed/);
   assert.throws(() => classifyFile("page.html", Buffer.from("<html></html>")), /not allowed/);

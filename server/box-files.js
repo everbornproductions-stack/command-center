@@ -7,7 +7,11 @@ import { DATA_DIR } from "./paths.js";
 import { scrubText } from "./prompts/safety.js";
 
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
 export const MAX_FILES = 4;
+// A 12 MB video is about 16.8 MB of base64, plus the JSON wrapper.
+const MAX_B64 = 18_000_000;
 const MAX_PENDING = 20;
 const PREVIEW_CHARS = 4000;
 
@@ -20,6 +24,9 @@ const EXT = {
   jpeg: "image/jpeg",
   webp: "image/webp",
   gif: "image/gif",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
   pdf: "application/pdf",
   txt: "text/plain",
   md: "text/markdown",
@@ -57,7 +64,7 @@ function starts(buf, bytes) {
 export function classifyFile(name, buf) {
   const ext = extOf(name);
   const mime = EXT[ext];
-  if (!mime) throw fail(400, "That file type is not allowed. Use an image, a PDF, a text file, or a Word document.");
+  if (!mime) throw fail(400, "That file type is not allowed. Use an image, a video, a PDF, a text file, or a Word document.");
   if (ext === "png" && !starts(buf, [0x89, 0x50, 0x4e, 0x47])) throw fail(400, "That image could not be read.");
   if ((ext === "jpg" || ext === "jpeg") && !starts(buf, [0xff, 0xd8, 0xff])) throw fail(400, "That image could not be read.");
   if (ext === "gif") {
@@ -67,6 +74,8 @@ export function classifyFile(name, buf) {
   if (ext === "webp" && !(buf.slice(0, 4).toString("ascii") === "RIFF" && buf.slice(8, 12).toString("ascii") === "WEBP")) {
     throw fail(400, "That image could not be read.");
   }
+  if (ext === "webm" && !starts(buf, [0x1a, 0x45, 0xdf, 0xa3])) throw fail(400, "That video could not be read.");
+  if ((ext === "mp4" || ext === "mov") && buf.slice(4, 8).toString("ascii") !== "ftyp") throw fail(400, "That video could not be read.");
   if (ext === "pdf" && buf.slice(0, 4).toString("ascii") !== "%PDF") throw fail(400, "That PDF could not be read.");
   if (ext === "doc" && !starts(buf, [0xd0, 0xcf, 0x11, 0xe0])) throw fail(400, "That document could not be read.");
   if (ext === "docx" && !starts(buf, [0x50, 0x4b, 0x03, 0x04])) throw fail(400, "That document could not be read.");
@@ -76,17 +85,33 @@ export function classifyFile(name, buf) {
     if (/<\s*(script|html|iframe)\b/i.test(text)) throw fail(400, "That file type is not allowed.");
     return { name: safeName(name), mime, kind: "text", text };
   }
+  if (mime.startsWith("video/")) return { name: safeName(name), mime, kind: "video", text: "" };
+  if (mime.startsWith("image/")) return { name: safeName(name), mime, kind: "image", text: "" };
   return { name: safeName(name), mime, kind: "bin", text: "" };
+}
+
+export function limitForName(name) {
+  const ext = extOf(name);
+  if (ext === "mp4" || ext === "webm" || ext === "mov") {
+    return { max: MAX_VIDEO_BYTES, message: "That video is over 12 MB. Trim it shorter first." };
+  }
+  if (ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp" || ext === "gif") {
+    return { max: MAX_IMAGE_BYTES, message: "That picture is over 8 MB. Make it smaller first." };
+  }
+  return { max: MAX_FILE_BYTES, message: "That file is over 4 MB." };
 }
 
 export function decodeUpload(body) {
   const raw = String(body?.data || "");
   if (!raw) throw fail(400, "Choose a file first.");
-  if (raw.length > 6_000_000) throw fail(400, "That file is over 4 MB.");
+  const limit = limitForName(body?.name);
+  if (raw.length > MAX_B64) throw fail(400, limit.message);
   let buf;
   try { buf = Buffer.from(raw, "base64"); } catch { throw fail(400, "That file could not be read."); }
-  if (!buf.length || buf.length > MAX_FILE_BYTES) throw fail(400, "That file is over 4 MB.");
-  return { ...classifyFile(body?.name, buf), buf };
+  const info = classifyFile(body?.name, buf);
+  const sized = info.kind === "video" || info.kind === "image" ? limit : limitForName("notes.txt");
+  if (!buf.length || buf.length > sized.max) throw fail(400, sized.message);
+  return { ...info, buf };
 }
 
 function describe(info) {
@@ -172,7 +197,7 @@ export function savePending(body) {
   guardPendingCount();
   const meta = { id: newId(), name: described.name, mime: described.mime, bytes: decoded.buf.length, kind: described.kind };
   writePair(pendingDir(), meta, decoded.buf);
-  return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes };
+  return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes, kind: meta.kind };
 }
 
 export function dropPending(id) {
@@ -186,7 +211,7 @@ export function dropPending(id) {
 export function pendingMeta(id) {
   const row = readPair(pendingDir(), id);
   if (!row) throw fail(400, "That file is not on this computer.");
-  return { id: row.id, name: row.name, mime: row.mime, bytes: row.bytes };
+  return { id: row.id, name: row.name, mime: row.mime, bytes: row.bytes, kind: row.kind || "" };
 }
 
 export function claimPending(ideaId, fileIds) {
@@ -198,7 +223,7 @@ export function claimPending(ideaId, fileIds) {
   const from = pendingDir();
   return metas.map((meta) => {
     movePair(from, dir, meta.id);
-    return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes };
+    return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes, kind: meta.kind || "" };
   });
 }
 
@@ -208,7 +233,12 @@ export function addIdeaUpload(ideaId, body, already = 0) {
   const described = describe(decoded);
   const meta = { id: newId(), name: described.name, mime: described.mime, bytes: decoded.buf.length, kind: described.kind };
   writePair(ideaDir(ideaId), meta, decoded.buf);
-  return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes };
+  return { id: meta.id, name: meta.name, mime: meta.mime, bytes: meta.bytes, kind: meta.kind };
+}
+
+export function readPending(id) {
+  try { return readPair(pendingDir(), id); }
+  catch { return null; }
 }
 
 export function readIdeaFile(ideaId, fileId) {
@@ -232,6 +262,7 @@ export function saveOrderUpload(body) {
     name: meta.name,
     mime: meta.mime,
     bytes: meta.bytes,
+    kind: meta.kind,
     note: described.note,
     sends: false,
   };

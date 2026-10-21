@@ -14,7 +14,7 @@
 // POST /api/everyday-news/suggestions/:id/delete
 // GET  /api/everyday-news/files/:ideaId/:fileId
 import * as N from "../everyday-news.js";
-import { readIdeaFile, writeAttachment } from "../box-files.js";
+import { readIdeaFile, readPending, writeAttachment } from "../box-files.js";
 
 export const id = "everyday-news";
 
@@ -42,6 +42,12 @@ export async function routes(req, res, url, body, h) {
     }
     if (m === "POST" && seg[0] === "suggestions" && seg[1] === "files" && !seg[2]) return h.json(res, 200, N.attachPending(body || {}));
     if (m === "DELETE" && seg[0] === "suggestions" && seg[1] === "files" && seg[2]) return h.json(res, 200, N.forgetPending(seg[2]));
+    if (m === "GET" && seg[0] === "suggestions" && seg[1] === "files" && seg[2]) {
+      const file = readPending(seg[2]);
+      if (!file) return h.json(res, 404, { error: "That file is not on this computer." });
+      writeAttachment(res, file);
+      return true;
+    }
     if (m === "GET" && seg[0] === "files" && seg[1] && seg[2]) {
       const file = readIdeaFile(seg[1], seg[2]);
       if (!file) return h.json(res, 404, { error: "That file is not on this computer." });

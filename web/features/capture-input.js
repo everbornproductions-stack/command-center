@@ -1,7 +1,20 @@
 // Upload and voice for a text box. The words land in the box. Nothing is sent from here.
 const { api, toast } = window.CC;
 
-export const FILE_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.markdown,.csv,.doc,.docx";
+export const FILE_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mov,.pdf,.txt,.md,.markdown,.csv,.doc,.docx";
+
+export function fileTooBig(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "");
+  const size = Number(file?.size) || 0;
+  if (type.startsWith("video/") || /\.(mp4|webm|mov)$/.test(name)) {
+    return size > 12 * 1024 * 1024 ? "That video is over 12 MB. Trim it shorter first." : "";
+  }
+  if (type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/.test(name)) {
+    return size > 8 * 1024 * 1024 ? "That picture is over 8 MB. Make it smaller first." : "";
+  }
+  return size > 4 * 1024 * 1024 ? "That file is over 4 MB." : "";
+}
 
 function blobToB64(blob) {
   return blob.arrayBuffer().then((buf) => {
@@ -104,8 +117,9 @@ export function wireUpload(button, input, { url, onSaved, status, before = [] })
     if (!list.length) return;
     if (before.length + list.length > 4) toast("Up to 4 files.", true);
     for (const file of list.slice(0, Math.max(0, 4 - before.length))) {
-      if (file.size > 4 * 1024 * 1024) {
-        toast("That file is over 4 MB.", true);
+      const tooBig = fileTooBig(file);
+      if (tooBig) {
+        toast(tooBig, true);
         continue;
       }
       try {

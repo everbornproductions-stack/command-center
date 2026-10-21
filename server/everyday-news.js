@@ -45,7 +45,7 @@ const SAMPLES = {
 
 export const HOWTO = [
   { id: "news", title: "What's new", say: TRY_INBOX, steps: ["After an update, read each new connection and action.", "Try it runs a sample and does not send.", "Skip hides that item for good.", "Remind me later waits 3 days, then 7 days, then the item moves to Settings and stops asking.", "Skip all clears the card. Sign-in still starts only from the checklist."] },
-  { id: "suggest", title: "Suggest a connection or idea", say: TRY_SUGGEST, steps: ["Open Settings, the What's new card, or the connections page when nothing is connected.", "Write the idea, or use Voice and edit the words. Upload a file, a screenshot, or a document if you want. Up to 4 files, about 4 MB each. They stay on this computer.", "Pick a category if you want. An email is optional.", "Leave the version and OS box on, or turn it off. Chat is not included.", "Read the exact note, then click Send.", "After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again."] },
+  { id: "suggest", title: "Suggest a connection or idea", say: TRY_SUGGEST, steps: ["Open Settings, the What's new card, or the connections page when nothing is connected.", "Write the idea, or use Voice and edit the words. Upload a picture, a video, a screenshot, or a document if you want. Up to 4 files. Pictures up to 8 MB, videos up to 12 MB, documents up to 4 MB. They stay on this computer. A picture or video can be modified after you see the plan.", "Pick a category if you want. An email is optional.", "Leave the version and OS box on, or turn it off. Chat is not included.", "Read the exact note, then click Send.", "After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those changes stay on this computer and are not sent again."] },
 ];
 
 export const IDEA_STATUSES = ["new", "planned", "building", "shipped"];
@@ -328,7 +328,7 @@ function publicIdea(row) {
     rank: row.rank || 0,
     createdAt: row.createdAt || 0,
     delivered: !!row.delivered,
-    files: (row.files || []).map(({ id, name, mime, bytes }) => ({ id, name, mime, bytes })),
+    files: (row.files || []).map(({ id, name, mime, bytes, kind }) => ({ id, name, mime, bytes, kind: kind || "" })),
     comments: (row.comments || []).map(({ id, text, createdAt }) => ({ id, text, createdAt })),
   };
 }

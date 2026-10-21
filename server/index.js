@@ -163,7 +163,7 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let d = "";
-    req.on("data", (c) => { d += c; if (d.length > 7e6) req.destroy(); });
+    req.on("data", (c) => { d += c; if (d.length > 18e6) req.destroy(); });
     req.on("end", () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(new Error("bad json")); } });
     req.on("error", reject);
   });

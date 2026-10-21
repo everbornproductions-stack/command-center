@@ -44,6 +44,8 @@ Keys are never shown again after saving and never written to a log.
 
 **Upload** adds a file, a screenshot, or a document to the box. **Voice** writes what you say into the box. Edit the words, then send. Nothing is sent until that click. In Simple, the same buttons sit under the chat box. Tap to talk is separate: its auto-send box can still send when you turn that on.
 
+A picture or a video can go further. Choose Retouch, Variation, Describe, Trim, or Caption. Those only fill the box. **Show the plan** names the connected AI and the price, or says "Demo, nothing spent." **Run** is a second click. You can preview the result, download it, or save it in a project. Nothing is posted. Pictures can be 8 MB, videos 12 MB, and other files 4 MB. A picture over 3.5 MB can stay attached, and the page says it is too big to retouch.
+
 **Suggest a connection or idea** is in Settings. Upload and Voice work there too. You read the exact note, then click Send. After that you can edit, delete, or re-prioritize the idea, add a comment, and set a status: new, planned, building, or shipped. Those later changes stay on this computer.
 
 ### Simple and Expert
