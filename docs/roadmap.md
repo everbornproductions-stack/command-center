@@ -31,3 +31,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## 0.4.8 Welcome email
+
+Send a branded welcome email when someone gets the app: a website download signup, a Square Pro purchase (the Pro licence), or an in-app account. The template is emails/welcome.html and emails/welcome.txt with {{FIRST_NAME}} and {{INSTALL_URL}}. The install link is one page for Windows and Mac. The mail provider is pluggable and off until it is configured. Tests never send. The Supabase service key stays server-only. See docs/welcome-email.md.

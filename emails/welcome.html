@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome to Meldmind</title>
+<style>
+  .wrap { width: 560px; max-width: 560px; }
+  @media only screen and (max-width: 600px) {
+    .wrap { width: 100% !important; max-width: 100% !important; }
+    .pad { padding: 22px 16px !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#090d14;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#090d14;">
+  <tr>
+    <td align="center" style="padding:24px 12px;">
+      <table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;background:#111827;border:1px solid #1f2937;border-radius:14px;">
+        <tr>
+          <td class="pad" style="padding:28px 24px;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#e5e7eb;font-size:16px;line-height:1.5;">
+            <p style="margin:0 0 8px;font-size:13px;letter-spacing:.04em;color:#22d3ee;">MELDMIND</p>
+            <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#e5e7eb;">Your account is ready</h1>
+            <p style="margin:0 0 12px;">Hi {{FIRST_NAME}},</p>
+            <p style="margin:0 0 12px;">Your Meldmind account is ready.</p>
+            <p style="margin:0 0 12px;">Chats and settings back up to the cloud automatically. They are hosted on Everborn's Supabase. Each person sees only their own data (row level security).</p>
+            <p style="margin:0 0 12px;">Add AI keys, or connect via MCP, from Settings.</p>
+            <p style="margin:0 0 20px;">Nothing is sent until you click.</p>
+            <p style="margin:0;">
+              <a href="{{INSTALL_URL}}" style="display:inline-block;background:#22d3ee;color:#090d14;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Download for Windows and Mac</a>
+            </p>
+            <p style="margin:16px 0 0;font-size:13px;color:#8b95a7;">One page has the Windows installer and the Mac download: {{INSTALL_URL}}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
