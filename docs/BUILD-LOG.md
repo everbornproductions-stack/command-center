@@ -1617,6 +1617,7 @@ No locked decision was changed. Version stays 0.4.8. Phase 14 stays BLOCKED (nee
 - None of those packages were added to package.json or downloaded. Tests point publish and send at a local mock. A publish, send, or post without confirm does not call out. A missing token does not call out. Tokens are not returned or logged.
 - Tests here (Linux): npm test 440 tests, 439 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. Local mocks only. No real key. data/ was not read. Windows is the pull request check.
 - Checked in a browser on this machine, Simple mode, owner copy, demo AIs: typing "I need a website for my bakery" shows the card; Help me build it walks Describe, preview (Nova, Sage), Build, Test, and Publish; Publish without a Netlify token says nothing was sent and stays on that screen. Settings lists all ten builders. A 390px wide layout does not overflow. No em dash in that page text.
+- Commit 80e6e5a: Add guided builders for web design and marketing.
 - Not verified: a real Netlify, Vercel, Postiz, HighLevel, or listmonk account; a real Lighthouse, WhisperX, auto-editor, GrapesJS, Puck, or Astro binary. Remotion is not installed. The phone-width check used a layout viewport, not a separate phone.
 
 PHASE 97 DONE
