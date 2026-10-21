@@ -4,7 +4,8 @@
     "bullets": [
       "The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.",
       "Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.",
-      "This note shows once after an update. Take the tour again any time from Settings."
+      "This note shows once after an update. Take the tour again any time from Settings.",
+      "Settings includes Share anonymous usage counts to help improve Meldmind. The switch is on unless you turn it off. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files."
     ]
   },
   "0.4.7": {
