@@ -31,3 +31,7 @@ Build order is by payoff and by what can run in parallel without two sessions ed
 - Every feature works in local mode and hosted mode (use `ctx()` from `server/store.js` for data; never read `data/` directly).
 - Nothing posts, sends, spends or publishes without an explicit click; dry-run estimates come first.
 - Each session ends with: what works, how it was verified (demo mode is fine), what is not verified, files touched.
+
+## Next release after 0.4.8: unsigned Mac build
+
+Not part of 0.4.8. This release ships an unsigned .dmg and .zip (x64 and arm64) and the in-app notice "Meldmind X is ready. Download and install it to update; your data stays." Download fetches the .dmg for that CPU. Remind me later does not download. The notice includes "Automatic updates for Mac are coming soon." Signing and notarization stay later, with the Apple Developer account.

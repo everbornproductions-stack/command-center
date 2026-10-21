@@ -1574,9 +1574,9 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Version is 0.4.7.
 - Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
 
-## 2026-10-21: Phase 14 unsigned Mac build moved up for 0.4.8
+## 2026-10-21: unsigned Mac build is the release after 0.4.8
 
-No locked decision was changed. Version stays 0.4.7 (this ships with 0.4.8; the version was not bumped here). Nothing was published. data/ was not read. Square was not touched. No Apple signing secrets were added.
+No locked decision was changed. Chris moved this out of 0.4.8 on 2026-10-21. It is the next release after 0.4.8. Version stays 0.4.7 on this branch (the version was not bumped here). Nothing was published. data/ was not read. Square was not touched. No Apple signing secrets were added.
 
 - `.github/workflows/mac-build.yml` is the Mac workflow (moved out of `docs/ci/`). A pull request and a push to main run `npm test` and `npm run smoke` on macos-latest. They do not build a disk image and they do not read `RELEASES_TOKEN`.
 - A `v*` tag, or Run workflow, builds an unsigned `.dmg` and `.zip` (x64 and arm64) with `npm run dist:mac` and uploads them to `everbornproductions-stack/command-center-releases`. The upload uses `RELEASES_TOKEN`, the same secret the Windows release uses. A missing release is still created as a draft. This workflow does not publish, so a Mac-only release cannot replace `latest.yml`.
