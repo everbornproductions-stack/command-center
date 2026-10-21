@@ -106,7 +106,7 @@ test("tour, setup, and the Community screen mention AI News in plain words", () 
   assert.match(ui, /Email me the weekly AI News note/);
   assert.match(ui, /id="cc-community"/);
   assert.match(read("web", "nav.js"), /Community/);
-  assert.match(read("web", "features", "index.js"), /"community"/);
+  assert.match(read("web", "perf", "registry.js"), /"community"/);
 });
 
 test("chat needs the licence email, hides drafts, and enforces conduct", async () => {
