@@ -1,5 +1,6 @@
 // Growth (Phase 9): free trial counter and upgrade prompt, the "No keys needed" managed plan, referral rewards.
 // All behind flags set by the host; with every flag off this feature shows nothing. Every amount is a placeholder.
+import { compareTable } from "/compare.js";
 const { S, api, toast, esc, money, ago, go, refresh } = window.CC;
 let cache = null;
 
@@ -13,13 +14,16 @@ const PH = `<span class="chip amber" title="Chris decides real pricing">placehol
 
 function upgradeBox(g) {
   if (!g.upgrade?.show) return "";
-  return `<div class="route" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div><div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
+  return `<div class="route" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div><div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div>${compareTable(esc)}</div>`;
 }
 
 function trialLine(g) {
   const t = g.trial;
   if (!t) return "";
-  if (t.active) return `<span class="chip green">Free trial: ${t.daysLeft} day${t.daysLeft === 1 ? "" : "s"} left</span>`;
+  if (t.active) {
+    const end = t.endsAt ? new Date(t.endsAt).toLocaleDateString() : "";
+    return `<span class="chip green" id="cc-trial-chip">Free trial: ${t.daysLeft} day${t.daysLeft === 1 ? "" : "s"} left.${end ? ` Ends ${esc(end)}.` : ""}</span>`;
+  }
   if (t.started) return `<span class="chip">Free trial ended</span>`;
   return "";
 }

@@ -2,8 +2,8 @@
 // (document "tour.state", per user) and starts the sample run the tour shows. The sample only ever
 // runs on the three demo AIs: it refuses when demo mode is off or when any real text-AI key is
 // saved, so a brand-new user can never spend a cent by clicking through the tour.
-// What's new is a separate document ("whatsnew.state"): the screen shows once per app version,
-// including the first launch, and a tour reset does not show it again.
+// What's new is a separate document ("whatsnew.state"): the screen shows once per app version
+// after the first install, and a tour reset does not show it again.
 import fs from "node:fs";
 import path from "node:path";
 import { demoActive } from "../mock.js";
@@ -42,9 +42,15 @@ export function readChangelog(text = fs.readFileSync(NEWS_PATH, "utf8")) {
 const realKeys = () => realAiConnected();
 const state = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
 const save = (h, patch) => h.putDoc(KIND, { ...state(h), ...patch });
-const newsSeen = (h) => h.doc(NEWS_KIND, () => ({ seen: null })).seen || null;
+// First install does not show What's new. A later version still does.
 function pendingNews(h) {
-  if (newsSeen(h) === VERSION) return null;
+  const existing = h.doc(NEWS_KIND, () => undefined);
+  if (existing == null) {
+    h.putDoc(NEWS_KIND, { seen: null, installed: VERSION, firstInstall: true });
+    return null;
+  }
+  if (existing.seen === VERSION) return null;
+  if (existing.firstInstall === true && existing.installed === VERSION) return null;
   try { return whatsNewFor(VERSION, readChangelog()); }
   catch { return null; }
 }
@@ -57,7 +63,11 @@ export async function routes(req, res, url, body, h) {
   if (p === "/complete") { save(h, { completed: true, completedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/skip") { save(h, { skippedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/reset") { h.putDoc(KIND, { ...DEFAULTS }); return h.json(res, 200, view(h)); }
-  if (p === "/whats-new/seen") { h.putDoc(NEWS_KIND, { seen: VERSION }); return h.json(res, 200, view(h)); }
+  if (p === "/whats-new/seen") {
+    const prev = h.doc(NEWS_KIND, () => ({})) || {};
+    h.putDoc(NEWS_KIND, { ...prev, seen: VERSION, firstInstall: false });
+    return h.json(res, 200, view(h));
+  }
   if (p === "/sample") {
     const d = sampleDecision({ demo: demoActive(), realKeys: realKeys(h), canMission: !!h.licenseState().limits?.missions });
     if (!d.ok) return h.json(res, 400, { error: d.error, code: d.code });

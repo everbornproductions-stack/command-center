@@ -7,6 +7,7 @@ import { listProjects } from "../projects.js";
 import {
   ESTIMATE_LABEL, describeModel, referenceModel, referenceView, savingsOf, setReferenceModel,
 } from "../receipt-math.js";
+import { savingsCount } from "../../web/simple-ui.js";
 
 export const id = "receipt";
 export { ESTIMATE_LABEL, referenceModel, referenceView, setReferenceModel } from "../receipt-math.js";
@@ -24,9 +25,28 @@ function bounds() {
   };
 }
 
+function statusCache() {
+  const cache = new Map();
+  try {
+    const store = ctx().store;
+    if (typeof store?.listMissions !== "function") return cache;
+    for (const m of store.listMissions((row) => ({ id: row?.id, status: row?.status }))) {
+      if (m?.id) cache.set(m.id, m.status || "");
+    }
+  } catch { /* a stub store has no missions */ }
+  return cache;
+}
+
 function calls() {
+  const failed = statusCache();
   const rows = [];
-  allEntries().forEach((e, i) => { if (e.kind === "call") rows.push({ e, i, s: savingsOf(e, i) }); });
+  allEntries().forEach((e, i) => {
+    if (e.kind !== "call") return;
+    const s = { ...savingsOf(e, i) };
+    const status = e.missionId ? failed.get(e.missionId) : "";
+    if (status) s.saved = savingsCount(status, s.saved);
+    rows.push({ e, i, s });
+  });
   return rows;
 }
 

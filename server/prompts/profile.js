@@ -5,7 +5,7 @@ import { SCF_TEXT, SAFETY_TEXT, scrub } from "./safety.js";
 
 export const LIMIT = 4000;
 
-export const FIELDS = [
+const rawFields = [
   { key: "businessName", label: "Business name", group: "business" },
   { key: "offer", label: "What you sell", group: "business", multiline: true },
   { key: "customer", label: "Who you serve", group: "business" },
@@ -27,6 +27,8 @@ export const FIELDS = [
   { key: "wordsIAvoid", label: "Words you avoid", group: "voice" },
   { key: "sentenceStyle", label: "Sentence style", group: "voice" },
 ];
+// Every profile field is optional. A Pro prompt can still require its own inputs.
+export const FIELDS = rawFields.map((f) => ({ ...f, required: false }));
 
 export const INTERVIEW = [
   { id: "business", title: "Your business", voice: false, fields: ["businessName", "offer", "customer", "profession"] },

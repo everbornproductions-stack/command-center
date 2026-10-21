@@ -22,6 +22,7 @@ const css = `
 .cc-money-saved .cc-ms-note { font-size: 9px; color: var(--muted, #8b95a7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-money-saved .cc-ms-tip { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0b111b; color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 .cc-money-saved:hover .cc-ms-tip, .cc-money-saved:focus .cc-ms-tip, .cc-money-saved:focus-within .cc-ms-tip { display: block; }
+body[data-ui="simple"] .cc-money-saved { display: none; }
 .cc-ms-label { color: var(--muted, #8b95a7); font-size: 12px; margin-top: 6px; }
 html[data-theme="light"] .cc-money-saved { background: #fff; }
 html[data-theme="light"] .cc-money-saved .cc-ms-tip { background: #fff; }

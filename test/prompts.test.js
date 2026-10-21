@@ -133,7 +133,7 @@ test("the learning router stores the template id and counts, not the prompt", ()
 });
 
 test("routes: list, halt, redact, chat, schedules, team, pipelines, saved prompt", async () => {
-  const s = await startServer();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
   try {
     const list = await s.api("/prompts");
     assert.equal(list.status, 200);

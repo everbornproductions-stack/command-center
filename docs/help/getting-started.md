@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.8
 
 # Getting started
 
-A new install starts in Simple. The first time you open Meldmind it asks: Keep it simple or show me everything?
+A new install starts in Simple. The first setup step asks: Which mode do you want to start in? You can change this later.
 
 Simple is one chat box. You say what you want, and the council picks the AI. Expert is the full console. The Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
 

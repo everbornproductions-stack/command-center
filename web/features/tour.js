@@ -74,6 +74,10 @@ function hideNews() {
   box?.remove();
   newsOpen = false;
 }
+function answeredOnce() {
+  try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch {}
+  return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
+}
 function steps() {
   const mode = window.CC.uiMode?.() || "expert";
   return STEPS.filter((s) => s.for === "both" || s.for === mode || (!s.for && mode === "expert"));
@@ -87,6 +91,7 @@ function maybeInvite() {
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
   if (!show) { existing?.remove(); return; }
+  if (!answeredOnce()) { existing?.remove(); return; }
   if (existing) return;
   const d = document.createElement("div"); d.className = "cc-tour-invite";
   d.innerHTML = `<span>👋</span><span>New here? <b>Take the tour</b>: it runs a sample on pretend AIs.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
@@ -223,7 +228,12 @@ function renderPanel(el2) {
 }
 
 function onMode() { if (idx >= 0) { msg = ""; show(0); } }
-window.CC.tour = { start, open: start, state: () => tour, onMode };
+function markFirstAnswer() {
+  try { localStorage.setItem("cc.firstAnswer", "1"); } catch {}
+  maybeInvite();
+}
+window.CC.firstAnswer = markFirstAnswer;
+window.CC.tour = { start, open: start, state: () => tour, onMode, onAnswer: markFirstAnswer };
 
 CC.register({
   id: "tour",

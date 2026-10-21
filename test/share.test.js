@@ -41,7 +41,7 @@ async function finishedChat(s) {
 
 test("share link: public read-only view with the brand kit, costs only when toggled, list, restart, expiry, revoke", { timeout: 180000 }, async () => {
   const dir = tmpDir("cc-share-srv-");
-  let s = await startServer({ dataDir: dir });
+  let s = await startServer({ dataDir: dir, env: { CC_DEV_OWNER: "1" } });
   let s2 = null;
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
