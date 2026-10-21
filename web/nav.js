@@ -12,6 +12,13 @@
 //   narrow  the compact menus (about six, Help included)
 //   normal  about eight dropdowns, spread across the free space, when they fit
 // If eight menus would overflow the top bar, they merge back.
+//
+// Priority-plus: free space left after the menus promotes the most used pages
+// onto the bar as direct buttons, in a fixed order, as many as fit. A promoted
+// page leaves its menu (Create, More, Work, ...) so it is never listed twice.
+// Simple: Pro prompts, Builders, Community, Connections. Expert: Command, Start a
+// project, Projects, Pro prompts, Builders, Community, Missions, Councils,
+// Research, Remix. A promoted row uses normal gaps instead of spreading out.
 
 import { CREATE_VIEWS, DAY_VIEWS } from "./mode.js";
 import { isDesktopOnly } from "./desktop-only.js";
@@ -253,10 +260,10 @@ const TRIGGER_PAD = 16;
 const TRIGGER_GAP = 4;
 const TABS_BOX = 8;
 
-export function menusWidth(labels) {
+export function menusWidth(labels, gap = TRIGGER_GAP) {
   let n = TABS_BOX;
   for (let i = 0; i < labels.length; i++) {
-    if (i) n += TRIGGER_GAP;
+    if (i) n += gap;
     n += TRIGGER_PAD + Math.ceil(String(labels[i] || "").length * CHAR_PX);
   }
   return n;
@@ -443,8 +450,83 @@ export function groupFor(view) {
   return HOME[view] || "work";
 }
 
+// Gap between items on a promoted row. Normal spacing, not spread.
+export const PROMOTE_GAP = 8;
+
+// Promotion order. view + focus or runMode opens Command set up for that kind of
+// run. Those three are shortcuts, not menu items, so nothing leaves a menu for them.
+export const SIMPLE_PROMOTE = [
+  { id: "prompts", label: LABELS.prompts, view: "prompts" },
+  { id: "builders", label: LABELS.builders, view: "builders" },
+  { id: "community", label: LABELS.community, view: "community" },
+  { id: "connections", label: "Connections", menu: true },
+];
+
+export const EXPERT_PROMOTE = [
+  { id: "command", label: LABELS.command, view: "command" },
+  { id: "start", label: LABELS.start, view: "start" },
+  { id: "projects", label: LABELS.projects, view: "projects" },
+  { id: "prompts", label: LABELS.prompts, view: "prompts" },
+  { id: "builders", label: LABELS.builders, view: "builders" },
+  { id: "community", label: LABELS.community, view: "community" },
+  { id: "missions", label: "Missions", view: "command", runMode: "mission" },
+  { id: "councils", label: "Councils", view: "command", runMode: "council" },
+  { id: "research", label: "Research", view: "command", focus: "#cc-search-cmd" },
+  { id: "remix", label: LABELS.remix, view: "remix" },
+];
+
+const SIMPLE_ROW = ["Chat", "Start a project", "Projects", "\u2600 My day", "Create", "More", "Help", "Settings"];
+
+// The candidates this install has, in promotion order.
+export function promotable(mode, views, surface = "") {
+  const web = surface === "web";
+  const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
+  have.add("start");
+  const list = mode === "simple" ? SIMPLE_PROMOTE : EXPERT_PROMOTE;
+  return list.filter((p) => p.menu || have.has(p.view));
+}
+
+// Promoted entries for these ids, in promotion order.
+// Start a project comes up only together with Projects, so it stays right before it.
+export function promotedItems(mode, views, surface = "", promote = []) {
+  const ids = new Set(promote || []);
+  const all = promotable(mode, views, surface);
+  const out = all.filter((p) => ids.has(p.id));
+  const pair = all.some((p) => p.id === "projects") && !ids.has("projects");
+  return pair ? out.filter((p) => p.id !== "start") : out;
+}
+
+// A promoted page that leaves its menu (not a Command shortcut).
+function leavesMenu(p) {
+  return !!p.view && !p.focus && !p.runMode;
+}
+
+// Which candidates fit in this free width, in order. Stops at the first that does
+// not fit, so the row always keeps the top of the list.
+export function promoteFor(mode, views, slot, layout = "narrow", surface = "") {
+  const s = Number(slot);
+  if (!Number.isFinite(s) || s < 1) return [];
+  const base = mode === "simple" ? SIMPLE_ROW : rowLabels(layout);
+  const labels = [...base];
+  const out = [];
+  for (const p of promotable(mode, views, surface)) {
+    labels.push(p.label);
+    if (menusWidth(labels, PROMOTE_GAP) > s) break;
+    out.push(p.id);
+  }
+  return out;
+}
+
+// Free width for the promotion check. Same source as the layout.
+export function currentNavPromote(mode, views, layout = "narrow", surface = "", win = globalThis) {
+  const slot = lastSlot > 0 ? lastSlot : navAvailable(readNavWidth(win));
+  return promoteFor(mode === "simple" ? "simple" : "expert", views, slot, layout, surface);
+}
+
 export function menuModel(views, layout = "narrow", opts = {}) {
   const web = opts.surface === "web";
+  const up = promotedItems("expert", views, opts.surface, opts.promote);
+  const gone = new Set(up.filter(leavesMenu).map((p) => p.view));
   const split = splitLayout(layout);
   const order = split ? SPLIT_ORDER : GROUP_ORDER;
   const groups = split ? SPLIT_GROUPS : GROUPS;
@@ -464,13 +546,15 @@ export function menuModel(views, layout = "narrow", opts = {}) {
   const rest = help.filter((i) => i.view !== "help");
   help.length = 0;
   help.push(...helpItems(web ? "web" : ""), ...rest);
-  return order.map((id) => ({ ...groups[id], items: buckets[id] }));
+  const promoted = up.map((p) => ({ id: `up-${p.id}`, label: p.label, direct: true, promoted: true, items: [{ view: p.view, label: p.label, focus: p.focus, runMode: p.runMode, home: leavesMenu(p) }] }));
+  const menus = order.map((id) => ({ ...groups[id], items: buckets[id].filter((i) => !(i.view && !i.focus && !i.action && gone.has(i.view))) }));
+  return [...promoted, ...menus];
 }
 
 // Every item a mounted menu can show, for the audit test and docs/menu-audit-0.4.13.md.
-export function allMenuItems(views, { mode = "expert", layout = "narrow", surface = "" } = {}) {
-  if (mode === "simple") return simpleModel(views, surface).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
-  return menuModel(views, layout, { surface }).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
+export function allMenuItems(views, { mode = "expert", layout = "narrow", surface = "", promote = [] } = {}) {
+  if (mode === "simple") return simpleModel(views, surface, promote).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
+  return menuModel(views, layout, { surface, promote }).flatMap((g) => g.items.map((i) => ({ ...i, menu: g.label })));
 }
 
 // Keyboard inside one menu. Alt, Ctrl, and Meta are not handled here.
@@ -502,9 +586,11 @@ const CSS = `
 .tabs.nav-ready { gap: 8px; }
 .tabs.nav-split { gap: 16px; }
 .tabs.nav-ready:not(.nav-split) { gap: 2px; }
+.tabs.nav-ready.nav-promoted { justify-content: flex-start; gap: ${PROMOTE_GAP}px; }
 .nav-menu { position: relative; flex: 0 0 auto; }
 .tabs .nav-trigger, .tabs button.nav-direct { white-space: nowrap; padding: 6px 8px; }
 .tabs.nav-ready:not(.nav-split) .nav-trigger, .tabs.nav-ready:not(.nav-split) button.nav-direct { padding-left: 4px; padding-right: 4px; }
+.tabs.nav-ready.nav-promoted .nav-trigger, .tabs.nav-ready.nav-promoted button.nav-direct { padding-left: 8px; padding-right: 8px; }
 .nav-trigger { background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; }
 .nav-trigger:hover, .nav-trigger[aria-expanded="true"] { color: var(--text); }
 .nav-trigger.active { background: #1a2436; color: #fff; box-shadow: inset 0 0 0 1px #2b3a52; }
@@ -545,6 +631,7 @@ function itemButton(item) {
   if (item.view) b.dataset.view = item.view;
   if (item.focus) b.dataset.focus = item.focus;
   if (item.action) b.dataset.action = item.action;
+  if (item.runMode) b.dataset.runMode = item.runMode;
   if (item.view === "setup") b.id = "tab-setup";
   return b;
 }
@@ -582,23 +669,30 @@ function buttonFor(buttons, view, label) {
 // same way as Expert, so every page is still one click away.
 const SIMPLE_TOP = new Set(["command", "start", "projects", "help", "settings", ...CREATE_VIEWS, ...DAY_VIEWS]);
 
-export function simpleModel(views, surface = "") {
+export function simpleModel(views, surface = "", promote = []) {
   const web = surface === "web";
   const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
+  const up = promotedItems("simple", views, surface, promote);
+  const gone = new Set(up.filter(leavesMenu).map((p) => p.view));
   const day = [["everyday-inbox", "Inbox and tasks"], ["everyday-plan", "Day plan"], ["userchat", "People"]]
     .filter(([view]) => have.has(view)).map(([view, label]) => ({ view, label, home: true }));
-  const create = CREATE_VIEWS.filter((view) => have.has(view)).map((view) => ({ view, label: LABELS[view], home: true }));
+  const create = CREATE_VIEWS.filter((view) => have.has(view) && !gone.has(view)).map((view) => ({ view, label: LABELS[view], home: true }));
   const more = [];
   for (const view of have) {
-    if (SIMPLE_TOP.has(view)) continue;
+    if (SIMPLE_TOP.has(view) || gone.has(view)) continue;
     more.push({ view, label: LABELS[view] || view, home: true });
   }
-  for (const link of SIMPLE_CONNECT_LINKS) more.push({ ...link, home: false });
+  const connections = up.some((p) => p.menu);
+  if (!connections) for (const link of SIMPLE_CONNECT_LINKS) more.push({ ...link, home: false });
+  const promoted = up.map((p) => p.menu
+    ? { id: "connections", label: p.label, promoted: true, items: SIMPLE_CONNECT_LINKS.map(({ section, ...link }) => ({ ...link, home: false })) }
+    : { id: `up-${p.id}`, label: p.label, direct: true, promoted: true, items: [{ view: p.view, label: p.label, home: true }] });
   return [
     { id: "chat", label: "Chat", direct: true, items: [{ view: "command", label: "Chat", home: true }] },
     { id: "start", label: "Start a project", direct: true, items: [{ view: "start", label: "Start a project", home: true }] },
     { id: "projects", label: "Projects", direct: true, items: [{ view: "projects", label: "Projects", home: true }] },
     { id: "myday", label: "My day", items: day },
+    ...promoted,
     { id: "create", label: "Create", items: create },
     { id: "more", label: "More", items: more },
     { id: "guides", label: "Help", items: helpItems(surface) },
@@ -622,17 +716,32 @@ function mountItems(panel, buttons, items) {
   }
 }
 
-function mountExpert(root, views, buttons, layout, surface) {
-  const model = menuModel(views, layout, { surface });
+function directButton(buttons, item) {
+  const btn = item.focus || item.runMode ? itemButton(item) : buttonFor(buttons, item.view, item.label);
+  btn.classList.add("nav-direct", "nav-promoted");
+  btn.removeAttribute("role");
+  return btn;
+}
+
+function mountExpert(root, views, buttons, layout, surface, promote) {
+  const model = menuModel(views, layout, { surface, promote });
   for (const group of model) {
+    if (group.direct) {
+      root.appendChild(directButton(buttons, group.items[0]));
+      continue;
+    }
     const { menu, panel } = menuShell(group.id, group.label);
     mountItems(panel, buttons, group.items);
     root.appendChild(menu);
   }
 }
 
-function mountSimple(root, views, buttons, surface) {
-  for (const group of simpleModel(views, surface)) {
+function mountSimple(root, views, buttons, surface, promote) {
+  for (const group of simpleModel(views, surface, promote)) {
+    if (group.promoted && group.direct) {
+      root.appendChild(directButton(buttons, group.items[0]));
+      continue;
+    }
     if (group.direct) {
       const item = group.items[0];
       let btn;
@@ -658,24 +767,28 @@ function mountSimple(root, views, buttons, surface) {
 }
 
 // Rebuilds when the mode or the width layout changes. The same pair is left in place so a re-render does not drop focus.
-export function installNav(root, views, mode = "expert", layout = "narrow", surface = "") {
+export function installNav(root, views, mode = "expert", layout = "narrow", surface = "", promote = []) {
   if (!root) return root;
   mode = mode === "simple" ? "simple" : "expert";
   layout = layout === "normal" ? "normal" : "narrow";
   surface = surface === "web" ? "web" : "";
-  if (root.dataset.nav === "1" && root.dataset.uiMode === mode && root.dataset.navLayout === layout && (root.dataset.navSurface || "") === surface) return root;
+  const up = promotedItems(mode, views, surface, promote).map((p) => p.id);
+  const upKey = up.join(",");
+  if (root.dataset.nav === "1" && root.dataset.uiMode === mode && root.dataset.navLayout === layout && (root.dataset.navSurface || "") === surface && (root.dataset.navPromote || "") === upKey) return root;
   ensureNavStyle();
-  const buttons = [...root.querySelectorAll("button[data-view]")].filter((b) => !b.dataset.focus && !b.dataset.action);
+  const buttons = [...root.querySelectorAll("button[data-view]")].filter((b) => !b.dataset.focus && !b.dataset.action && !b.dataset.runMode);
   for (const b of buttons) b.remove();
   root.textContent = "";
   root.classList.add("nav-ready");
   root.classList.toggle("nav-split", layout === "normal");
+  root.classList.toggle("nav-promoted", up.length > 0);
+  root.dataset.navPromote = upKey;
   root.dataset.nav = "1";
   root.dataset.uiMode = mode;
   root.dataset.navLayout = layout;
   root.dataset.navSurface = surface;
-  if (mode === "simple") mountSimple(root, views, buttons, surface);
-  else mountExpert(root, views, buttons, layout, surface);
+  if (mode === "simple") mountSimple(root, views, buttons, surface, up);
+  else mountExpert(root, views, buttons, layout, surface, up);
   if (!root.dataset.navKeys) {
     root.dataset.navKeys = "1";
     root.addEventListener("keydown", onNavKey);
@@ -819,8 +932,12 @@ function tuneItem(_root, btn) {
   return btn;
 }
 
+// A page button on the bar itself (a promoted page or a Simple direct button).
+const PAGE_BUTTON = ":not([data-focus]):not([data-run-mode])";
+
 export function placeNavItem(root, view, label) {
   if (!root) return;
+  if (root.querySelector(`.nav-promoted[data-view="${globalThis.CSS.escape(view)}"]${PAGE_BUTTON}`)) return;
   if (root.dataset.uiMode === "simple") {
     if (view === "help" || view === "settings") return;
     if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]:not([data-focus])`)) return;
@@ -884,7 +1001,8 @@ export function markLocks(root, limits) {
 
 export function markNav(root, view, menuId) {
   if (!root) return;
-  root.querySelectorAll("button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view && !b.dataset.focus));
+  root.querySelectorAll("button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view && !b.dataset.focus && !b.dataset.runMode));
+  const onBar = !!root.querySelector(`.nav-promoted[data-view="${globalThis.CSS.escape(view || "")}"]${PAGE_BUTTON}`);
   root.querySelectorAll(".nav-trigger").forEach((t) => {
     const id = t.closest(".nav-menu")?.dataset.menu;
     let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
@@ -894,6 +1012,8 @@ export function markNav(root, view, menuId) {
       else if (id === "myday") on = DAY_VIEWS.includes(view);
       else if (id === "more") on = !SIMPLE_TOP.has(view);
     }
+    // A promoted page is lit on the bar, not on the menu it left.
+    if (onBar && !menuId) on = false;
     t.classList.toggle("active", !!on);
   });
 }

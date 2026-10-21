@@ -1,6 +1,6 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
+import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
@@ -673,7 +673,7 @@ async function installUpdate() {
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
-function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus && !b.dataset.runMode) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
 function btnLabel(btn, text) {
   if (!btn) return;
   const icon = btn.querySelector("i");
@@ -824,6 +824,25 @@ function ensureMobileMore() {
   $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]"));
   return more;
 }
+// The width check is an estimate, so the real bar decides. A promoted page that
+// overflows goes back to its menu (last one first). If there is room, the next one
+// in the order comes up. Runs only when the wanted row changes.
+function fitPromoted(root, views, mode, layout, surface, promote) {
+  const order = promotable(mode, views, surface).map((p) => p.id);
+  let shrank = false;
+  while (promote.length && rowOverflows(root)) {
+    promote = promote.slice(0, -1);
+    shrank = true;
+    installNav(root, views, mode, layout, surface, promote);
+  }
+  while (!shrank && promote.length < order.length && !rowOverflows(root)) {
+    const next = order.slice(0, promote.length + 1);
+    installNav(root, views, mode, layout, surface, next);
+    if (rowOverflows(root)) { installNav(root, views, mode, layout, surface, promote); break; }
+    promote = next;
+  }
+  return promote;
+}
 function ensureFeatureTabs() {
   const root = $("#tabs");
   const mode = S.uiMode === "expert" ? "expert" : "simple";
@@ -831,12 +850,22 @@ function ensureFeatureTabs() {
   if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
   const surface = S.mode === "hosted" ? "web" : "";
-  if (root) installNav(root, knownViews(), mode, layout, surface);
+  const views = knownViews();
+  let promote = currentNavPromote(mode, views, layout, surface);
+  if (root) {
+    const want = promote.join(",");
+    // Same width as last time: keep the row that already fit instead of rebuilding and trimming again.
+    const kept = root.dataset.nav === "1" && root.dataset.navPromoteWant === want && root.dataset.uiMode === mode && root.dataset.navLayout === layout && (root.dataset.navSurface || "") === surface;
+    if (kept) promote = (root.dataset.navPromote || "").split(",").filter(Boolean);
+    root.dataset.navPromoteWant = want;
+    installNav(root, views, mode, layout, surface, promote);
+    if (!kept && root.clientWidth > 0) fitPromoted(root, views, mode, layout, surface, promote);
+  }
   // Eight menus that still overflow this window merge back to the compact row.
   // A zero clientWidth means the bar has not been laid out yet, so it must not lock the compact row.
   if (mode === "expert" && root && root.dataset.navLayout === "normal" && root.clientWidth > 0 && rowOverflows(root)) {
     root.dataset.nav = "";
-    installNav(root, knownViews(), mode, "narrow", surface);
+    installNav(root, views, mode, "narrow", surface);
   }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
@@ -2284,9 +2313,12 @@ $("#tabs").addEventListener("click", (e) => {
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
+  // Missions and Councils on a wide Expert bar open Command with that run mode picked.
+  if (b.dataset.runMode) S.cmdMode = b.dataset.runMode;
   // A Connect or Connections link opens Settings past the Simple basics, at that panel.
   if (b.dataset.view === "settings" && S.navFocus) S.settingsMore = true;
-  S.navMenu = b.closest(".nav-menu")?.dataset.menu || groupFor(b.dataset.view);
+  // A promoted page is lit on the bar, not on the menu it left.
+  S.navMenu = b.closest(".nav-menu")?.dataset.menu || (b.classList.contains("nav-promoted") ? "" : groupFor(b.dataset.view));
   closeNav(root);
   render();
 });
@@ -2296,7 +2328,9 @@ watchNavLayout((layout) => {
   if (!root) return;
   let next = layout;
   if (next === "normal" && root.clientWidth > 0 && rowOverflows(root)) next = "narrow";
-  if (root.dataset.navLayout === next && root.dataset.nav === "1") return;
+  const mode = S.uiMode === "expert" ? "expert" : "simple";
+  const want = currentNavPromote(mode, knownViews(), next, S.mode === "hosted" ? "web" : "").join(",");
+  if (root.dataset.navLayout === next && root.dataset.nav === "1" && (root.dataset.navPromoteWant || "") === want) return;
   if (!S.navFocus) S.navMenu = "";
   root.dataset.nav = "";
   ensureFeatureTabs();

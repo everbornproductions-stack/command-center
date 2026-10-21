@@ -2423,3 +2423,7 @@ MENU AUDIT BLOCKED (one item): "Run setup again" names two actions. Decision 20 
 ## 2026-10-21 Simple chat first, connectors under More > Connections (0.4.13)
 
 Simple: Chat is the first nav item and the top of the page. The chat page shows only the chat box, My day, three starters, and recent chats. Other Command widgets are Expert only (`SIMPLE_COMMAND` in web/mode.js). The Connect Zapier card left the chat page; Simple More ends with Connections (Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel), each opening Settings at that panel. Start a project sits right before Projects in Simple and Expert. docs/menu-audit-0.4.13.md and test/menu-audit.test.js updated.
+
+## 2026-10-21 Responsive nav, priority-plus (0.4.13)
+
+On wider windows the top bar promotes the most used pages out of their menu instead of only spreading the menus. Simple order after Chat, Start a project, Projects, My day: Pro prompts, Builders, Community, Connections. Expert: Command, Start a project, Projects, Pro prompts, Builders, Community, Missions, Councils, Research, Remix. A promoted page leaves its menu. Normal 8px gaps, one row, no wrapping. The fit is estimated from the measured free space (ResizeObserver, debounced 150 ms), then checked against the real bar: an overflowing item goes back, and the next one comes up while there is room. Code in web/nav.js and web/app.js, tests in test/nav-promote.test.js (1024, 1440, 1920).

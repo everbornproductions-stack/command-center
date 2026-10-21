@@ -202,6 +202,17 @@ Web app (hosted) hides these desktop-only items: Libraries, Setup, Run setup aga
 | guide.js | `research` view | guarded by `has(p.views, "research")`, so it is skipped | OK, no dead link shown |
 | Command palette | none in this build | n/a | Nothing to check |
 
+## Wide bar: pages promoted out of their menu
+
+On a wide window the free space in the top bar promotes pages to direct buttons, in this order, as many as fit (web/nav.js `SIMPLE_PROMOTE`, `EXPERT_PROMOTE`). A promoted page leaves its menu, so it is never listed twice. Start a project comes up only together with Projects.
+
+| Mode | Order | Leaves |
+|---|---|---|
+| Simple | Pro prompts, Builders, Community, Connections | Create (Pro prompts, Builders), More (Community, the Connections section becomes its own Connections menu) |
+| Expert | Command, Start a project, Projects, Pro prompts, Builders, Community, Missions, Councils, Research, Remix | Work (Command, Start a project, Projects), Create (Pro prompts, Builders, Remix), Business (Community) |
+
+Missions and Councils open Command with that run mode picked. Research opens Command at Search the web. These three are shortcuts, not menu items, so nothing leaves a menu for them.
+
 ## Features with no page (0.4.9 to 0.4.13)
 
 | Version | Feature | Where it is | Status |
