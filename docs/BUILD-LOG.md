@@ -1593,6 +1593,7 @@ Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Phase
 - Settings, Reading, has text size (small, default, large, extra large) and high contrast. Read aloud is on an answer and uses the window speech API only after a click.
 - A chat or council that names an imported ChatGPT or Claude conversation, in quotes or by a title of 12 characters or more, gets that transcript only. Other imports stay out. Keys in the excerpt are hidden.
 - What's new bullets for these five items were added to the existing 0.4.8 note. People who already dismissed 0.4.8 will not see the note again. Help article docs/help/share-export.md is stamped 0.4.8.
+- Commit edd8f8f.
 - Tests here (Linux): npm test 433 tests, 432 pass, 0 fail, 1 skipped (Pyodide is not installed). That is mcp.test.js 8 pass, then the other files 425 tests, 424 pass, 1 skipped. npm run smoke: all checks passed. Node 22.23.3. Temp data dirs, demo AIs, and local mocks only. No real key. data/ was not read. Windows CI and Mac CI are the pull request checks.
 - Checked in the browser on this machine, owner copy, demo AIs: Extra large and High contrast apply (data-text xlarge, data-contrast high). Saving https://share.example.test and clicking Public link (Pro) shows that address and says nothing was posted. Download PDF toasts PDF downloaded. Read aloud switches to Stop reading. Industry packs shows Credit dispute draft with the CROA line and no lock. The chat box says to name an imported ChatGPT or Claude conversation in quotes.
 
