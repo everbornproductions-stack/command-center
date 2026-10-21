@@ -4,23 +4,31 @@
 
 function labelFor(state) {
   if (!state) return null;
-  if (state.phase === "downloaded" || state.phase === "installing") return "Restart to update";
   if (state.phase === "downloading") {
     const n = state.percent != null ? state.percent : state.progress;
     return `Downloading ${n ?? 0}%`;
   }
-  if (state.phase === "available" || state.available) return "Update available";
+  if (state.phase === "downloaded" || state.phase === "installing" || state.phase === "available" || state.available) return "Update ready, restart";
   return null;
+}
+
+const DOWNLOAD_PAGE = "https://github.com/everbornproductions-stack/command-center-releases/releases/latest";
+
+function openDownload(state) {
+  const url = (state && state.downloadUrl) || DOWNLOAD_PAGE;
+  const desk = window.ccDesktop;
+  if (desk?.openExternal) { desk.openExternal(url).catch(() => {}); return; }
+  window.open(url, "_blank", "noopener");
 }
 
 let desktop = null;
 
 function merged() {
   const server = window.CC?.S?.update;
-  if (desktop && (desktop.version || desktop.phase === "downloading" || desktop.phase === "downloaded")) {
-    return { phase: desktop.phase, version: desktop.version, percent: desktop.percent, progress: desktop.percent, available: desktop.phase === "available" || desktop.phase === "downloading" || desktop.phase === "downloaded", current: desktop.current, error: desktop.error };
+  if (desktop && (desktop.version || desktop.phase === "downloading" || desktop.phase === "downloaded" || desktop.phase === "available" || desktop.phase === "failed")) {
+    return { phase: desktop.phase, version: desktop.version, percent: desktop.percent, progress: desktop.percent, available: desktop.phase === "available" || desktop.phase === "downloading" || desktop.phase === "downloaded", current: desktop.current, error: desktop.error, downloadUrl: desktop.downloadUrl, detail: desktop.detail };
   }
-  if (server?.available) return server;
+  if (server?.available || server?.error) return server;
   return server || desktop;
 }
 
@@ -39,6 +47,25 @@ function paint() {
   }
   const state = merged();
   const label = labelFor(state);
+  const failed = !label && state && (state.phase === "failed" || (state.error && !state.available && !state.version));
+  let note = document.getElementById("upd-fail");
+  if (failed) {
+    if (!note) {
+      note = document.createElement("span");
+      note.id = "upd-fail";
+      note.style.cssText = "display:inline-flex;align-items:center;gap:8px";
+      const text = document.createElement("span");
+      text.textContent = "Couldn't check for updates";
+      const dl = document.createElement("button");
+      dl.type = "button";
+      dl.className = "btn sm";
+      dl.textContent = "Download";
+      dl.addEventListener("click", () => openDownload(merged()));
+      note.append(text, dl);
+      host.prepend(note);
+    }
+    note.hidden = false;
+  } else if (note) note.hidden = true;
   if (!label) { b.hidden = true; return; }
   b.hidden = false;
   b.textContent = label;
@@ -70,16 +97,16 @@ async function manualCheck() {
       if (st) desktop = st;
       paint();
       const label = labelFor(merged());
-      if (st?.error && !label) window.CC?.toast?.(`Could not check: ${st.error}`, true);
-      else if (label) window.CC?.toast?.(st?.version ? `Update available: v${st.version}` : label);
+      if ((st?.phase === "failed" || st?.error) && !label) window.CC?.toast?.("Couldn't check for updates", true);
+      else if (label) window.CC?.toast?.(st?.version ? `Update ready, restart: v${st.version}` : label);
       else window.CC?.toast?.("You have the newest version.");
       return;
     }
     const u = await window.CC.api("/update/check", { method: "POST" });
     window.CC.S.update = u;
     paint();
-    if (u?.available) window.CC.toast(`Update available: v${u.latest}`);
-    else if (u?.error) window.CC.toast(`Could not check: ${u.error}`, true);
+    if (u?.available) window.CC.toast(`Update ready, restart: v${u.latest}`);
+    else if (u?.error) window.CC.toast("Couldn't check for updates", true);
     else window.CC.toast("You have the newest version.");
   } catch (e) { window.CC?.toast?.(e.message || "Could not check for updates", true); }
 }
