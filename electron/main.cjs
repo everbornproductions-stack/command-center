@@ -248,7 +248,13 @@ function createWindow() {
   // external links open in the system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { shell.openExternal(url); return { action: "deny" }; } return { action: "allow" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { e.preventDefault(); shell.openExternal(url); } });
-  win.on("closed", () => { win = null; });
+  // The page loads the engine port, never the pretend-AI port. Menus remeasure on resize, move, and display changes.
+  const { createNavDisplayWatch } = require("./nav-display.cjs");
+  const stopNav = createNavDisplayWatch({
+    screen, win,
+    send: (payload) => { try { if (win && !win.isDestroyed()) win.webContents.send("nav:display", payload); } catch {} },
+  });
+  win.on("closed", () => { try { stopNav(); } catch {} win = null; });
 }
 
 // Reload-loop breaker: every main-frame load of the engine page is logged; more than 6 in 60 s means
@@ -415,7 +421,7 @@ app.whenReady().then(async () => {
   const launchCheck = updater ? updater.check({ prompt: true }).catch((e) => log("launch update check failed:", e && e.message)) : null;
   let ok = false, failReason = null;
   try { ok = await startServer(); } catch (e) { failReason = (e && e.message || String(e)).split("\n")[0]; log("server failed:", e && e.stack || e); }
-  log(ok ? `server ready on ${PORT} (demo ${process.env.CC_DEMO_PORT})` : "server did not answer");
+  log(ok ? `server ready on ${PORT}` : "server did not answer");
   setupWatchdog();
   await clearStaleWebState();
   if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within 20 seconds`);

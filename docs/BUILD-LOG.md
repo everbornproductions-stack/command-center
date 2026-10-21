@@ -1564,6 +1564,25 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
 
+## 2026-10-20: v0.4.7 nav layout, Start a project menu, demo AIs
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read.
+
+- The top bar is one row of dropdowns. There is no full-tab layout. A wider window uses about eight menus when they fit. A narrower window merges back to about five. The row is measured against the window, so it does not wrap or spill past the edge. Resize, move, and display changes measure the width again. Start a project stays in Work. Demo AIs hide once a real text AI is connected.
+- Start a project is in the Work menu. Settings keeps settings items.
+- Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
+- Version is 0.4.7.
+- Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
+
+## 2026-10-21: demo AIs stay hidden, and the wide nav uses the bar
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version is 0.4.8.
+
+- Nova, Atlas and Sage were coming back after a real key was saved. The first sync hid them, then the health probe marked the provider unreachable or rejected and a second sync started the pretend AIs again. A saved text key now counts even when the probe cannot reach the host. A rejected key still does not. A local model, an OpenRouter key, agy on the PATH, an official sign-in, and a configured Grok Bot webhook count. A media key does not. The hub drops demo nodes when a real AI is connected. Saved agents pinned to a demo model are filtered and tagged, not deleted. The tour no longer turns demo mode on when a real AI is already connected. demoKeep is unchanged.
+- The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
+- Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
+- Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
 ## 2026-10-20: Antigravity CLI agent (0.4.9, first slice)
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and this slice is part of 0.4.9). Phases 45 to 51 are still to build on top of this.
@@ -1581,3 +1600,4 @@ Not a numbered phase. No locked decision was changed. Package was not bumped. Sq
 
 - Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
 - Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
+- Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.

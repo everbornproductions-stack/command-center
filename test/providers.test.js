@@ -124,12 +124,14 @@ test("Google Gemini card, bad key vs good key vs unreachable, demo retires, demo
     assert.match(r.json.status.detail, /Key rejected \(40[01]\): API key not valid/);
     assert.equal(r.json.demoRetired, false);
 
-    // an unreachable provider says so, with the cause, and does not retire demo
+    // a saved key the probe could not reach still counts, so demo retires
     r = await s.api("/keys", { method: "POST", body: { provider: "xai", key: "xai-fakefakefakefakefake" } });
     assert.match(r.json.status.detail, /^Could not reach .+: connection refused/);
     assert.doesNotMatch(r.json.status.detail, /fetch failed/);
-    assert.equal(r.json.demoRetired, false);
+    assert.equal(r.json.demoRetired, true, "a saved key hides demo AIs even when the probe cannot connect");
     await s.api("/keys/xai", { method: "DELETE" });
+    st = (await s.api("/state")).json;
+    assert.equal(st.demo, true, "removing that key brings the demo AIs back");
 
     // the key goes in the header, not the URL
     r = await s.api("/keys", { method: "POST", body: { provider: "google", key: GOOD_GEMINI } });

@@ -24,6 +24,7 @@ import { complete, extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
 import { cheapest } from "./router.js";
+import { demosHidden, realJobSkipsDemo } from "./demo-visibility.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
 let DatabaseSync = null;
@@ -224,6 +225,7 @@ export function models(d) {
   const out = [];
   for (const p of TEXT_PROVIDERS) {
     if (p.kind !== "text" || !hasSecret(p.id, p.keyEnv)) continue;
+    if (p.demo && demosHidden()) continue;
     for (const m of p.models || []) out.push({ provider: p.id, providerName: p.name, model: m.id, name: m.name, tier: m.tier || null, demo: !!p.demo, capped: capped.includes(p.id), estCost: +estimateCost(m.id, inTok, outTok).toFixed(5) });
   }
   const c = cheapest(60);
@@ -237,6 +239,7 @@ export async function categorize({ draft: id, provider, model, business }) {
   const d = draft(id);
   const p = PROVIDERS[provider];
   if (!p || p.kind !== "text" || !p.models?.some((m) => m.id === model)) throw bad("Pick the AI to sort with from the list.");
+  if (realJobSkipsDemo(p)) throw bad("Nova, Atlas and Sage stay off this job while a real AI is connected. Pick one of your own AIs.");
   if (!hasSecret(p.id, p.keyEnv)) throw bad(`There is no key for ${p.name}. Add one in Settings first.`, 409);
   if ((doc("alerts.state", () => undefined)?.stop || []).includes(p.id)) throw bad(`${p.name} has reached its monthly spend cap. Pick another AI or raise the cap.`, 409, "cap");
   const biz = cleanName(business);

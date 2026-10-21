@@ -1,4 +1,21 @@
 {
+  "0.4.8": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.",
+      "Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
+  "0.4.7": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "The top bar is one row of dropdown menus. A wider window splits them into more menus, and a narrower window merges them back. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away.",
+      "Start a project is in the Work menu, with Projects. The Settings menu keeps Settings, setup, the tour, and Check for updates.",
+      "Nova, Atlas and Sage are the demo AIs. They hide once a real AI key or a real AI is connected, and they come back only when every real AI is removed. Real jobs are not sent to those demo AIs while a real AI is connected.",
+      "This note shows once after an update. Take the tour again any time from Settings."
+    ]
+  },
   "0.4.6": {
     "title": "What's new in Meldmind",
     "bullets": [

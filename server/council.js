@@ -6,6 +6,7 @@ import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
 import { emit } from "./events.js";
 import { classify, recordOutcome, rank } from "./router.js";
+import { isDemoProvider, realAiConnected } from "./demo-visibility.js";
 import { ctx } from "./store.js";
 import { augment as webAugment, nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
@@ -31,6 +32,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // work, and it answers asynchronously
   if (members?.some((m) => m?.provider === GROKBOT)) { grokbot = grokbot ?? true; members = members.filter((m) => m?.provider !== GROKBOT); }
   if (members?.some((m) => m?.provider === BROWSER)) { browser = browser ?? true; members = members.filter((m) => m?.provider !== BROWSER); }
+  // A named seat on Nova, Atlas or Sage is dropped while a real AI is connected. The router fills the council.
+  if (realAiConnected()) members = (members || []).filter((m) => m && !isDemoProvider(PROVIDERS[m.provider] || { id: m.provider }));
   const agentPick = pickAgent({ prompt, grokbot, browser });
   const A = agentPick.agent;
   if (!members?.length) {
@@ -45,6 +48,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     }
   }
   if (!members.length) throw new Error("No AI is available. Add at least one API key in Settings.");
+  if (chair && realAiConnected() && isDemoProvider(PROVIDERS[chair.provider] || { id: chair.provider })) chair = null;
   chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model)) || members[0];
   chair = { provider: chair.provider, model: chair.model };
 

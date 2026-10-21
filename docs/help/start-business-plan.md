@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.2
 
 # Start a business plan
 
-Open **Start a project** on the Command home screen, or from the Settings menu. Pick **Business plan** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
+Open **Start a project** on the Command home screen, or from the Work menu. Pick **Business plan** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
 
 1. Describe the idea. A sentence or two is enough. Click **Continue**.
 2. Answer the questions. Required: **The business in one sentence** and **Who pays, and for what?** Optional: **Facts you already know** and **What decision should this plan support?** Optional questions can stay blank. Empty facts stay empty. Nothing is invented to fill them. Click **Continue**.

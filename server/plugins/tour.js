@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { demoActive } from "../mock.js";
+import { realAiConnected } from "../demo-visibility.js";
 import { ROOT } from "../paths.js";
 import { VERSION } from "../update.js";
 export const id = "tour";
@@ -38,7 +39,7 @@ export function readChangelog(text = fs.readFileSync(NEWS_PATH, "utf8")) {
   return data;
 }
 
-const realKeys = (h) => Object.values(h.PROVIDERS).some((p) => p.kind === "text" && !p.demo && h.hasSecret(p.id, p.keyEnv));
+const realKeys = () => realAiConnected();
 const state = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
 const save = (h, patch) => h.putDoc(KIND, { ...state(h), ...patch });
 const newsSeen = (h) => h.doc(NEWS_KIND, () => ({ seen: null })).seen || null;

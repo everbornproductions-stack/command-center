@@ -24,6 +24,7 @@ import { getSecret } from "./vault.js";
 import { summary as ledgerSummary, recordImage } from "./ledger.js";
 import { emit } from "./events.js";
 import { demoActive } from "./mock.js";
+import { demosHidden, realJobSkipsDemo } from "./demo-visibility.js";
 import { networkCause } from "./health.js";
 import { filesFromTool, isDual, mcpConfigured, runService } from "./connect.js";
 
@@ -105,6 +106,7 @@ function capState(pid, add = 0) {
 function pick(body = {}) {
   const pv = IMAGE_PROVIDERS[body.provider];
   if (!pv) throw bad("Pick an image provider: OpenAI, Google Gemini, xAI, Replicate or fal.");
+  if (realJobSkipsDemo(pv)) throw bad("Demo images stay off while a real AI is connected. Pick a provider you have a key for.");
   if (pv.demo && !demoActive()) throw bad("Demo images are only there in demo mode. Turn demo mode on in Settings, or pick a provider you have a key for.");
   const op = body.op || "generate";
   if (!OPS.includes(op)) throw bad("op must be generate, edit or variation.");
@@ -138,7 +140,7 @@ export function estimate(body = {}) {
 const noKeyMessage = (pv) => (pv.demo ? "Turn demo mode on in Settings to try demo images." : `No ${pv.keyName} key saved. Add your ${pv.keyName} key in ${pv.where} to make images with ${pv.name}.`);
 
 export function providerList() {
-  return Object.values(IMAGE_PROVIDERS).filter((p) => !p.demo || demoActive()).map((p) => ({
+  return Object.values(IMAGE_PROVIDERS).filter((p) => !p.demo || (demoActive() && !demosHidden())).map((p) => ({
     id: p.id, name: p.name, ops: p.ops, defaultModel: p.defaultModel, editModel: p.editModel || null, where: p.where, demo: !!p.demo,
     models: Object.entries(p.models).map(([id, m]) => ({ id, name: m.name, edit: !!m.edit, price: m.price })),
     keyed: keyed(p.id), ready: keyed(p.id) || mcpReady(p.id), capped: capState(p.id).capped,

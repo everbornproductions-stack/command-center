@@ -53,9 +53,13 @@ export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", h
     const h = { connection: "close", ...headers };
     if (data !== null && h["content-length"] === undefined) h["content-length"] = Buffer.byteLength(data);
     const req = http.request({ host, port, method, path: p, headers: h, agent: false }, (res) => {
-      let text = "";
-      res.on("data", (c) => (text += c));
-      res.on("end", () => { let json = null; try { json = JSON.parse(text); } catch {} resolve({ status: res.statusCode, headers: res.headers, text, json }); });
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        let json = null; try { json = JSON.parse(text); } catch {}
+        resolve({ status: res.statusCode, headers: res.headers, text, json });
+      });
     });
     req.setTimeout(timeout, () => req.destroy(new Error(`timed out after ${timeout}ms: ${method} ${p}`)));
     req.on("error", reject);
@@ -192,6 +196,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
+    CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
     CC_NET_TRACE: "1",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),

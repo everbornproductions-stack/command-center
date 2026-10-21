@@ -1,8 +1,8 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, navLayout, readNavWidth, watchNavLayout } from "./nav.js";
+import { installNav, placeNavItem, markNav, closeNav, groupFor, GROUPS, currentNavLayout, watchNavLayout, rowOverflows } from "./nav.js";
 import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
-import { composerAis } from "./composer-ais.js";
+import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 
@@ -271,7 +271,9 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers: st.providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null });
+  const settings = st.settings || S.settings || {};
+  const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   syncUiMode();
   noteOnboarding(S.onboarding);
@@ -294,7 +296,13 @@ function handle(ev) {
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
     }
-    case "tick": Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers: ev.providers }); renderStrip(); renderBudget(); if (["credits", "subscriptions"].includes(S.view) && !window.CC?.byKind?.("tab").some((f) => f.id === S.view)) render(); return;
+    case "tick": {
+      const providers = hideDemoBots(ev.providers, { demoKeep: !!S.settings?.demoKeep, realAi: !!S.realAi });
+      Object.assign(S, { ledger: ev.ledger, subscriptions: ev.subscriptions || [], subscriptionTotals: ev.subscriptionTotals, subscriptionsLocked: !!ev.subscriptionsLocked, providers });
+      renderStrip(); renderBudget(); syncGraph();
+      if (["credits", "subscriptions"].includes(S.view) && !window.CC?.byKind?.("tab").some((f) => f.id === S.view)) render();
+      return;
+    }
     case "provider.status": {
       const p = P(ev.provider);
       if (p) {
@@ -690,9 +698,16 @@ function ensureMobileMore() {
 function ensureFeatureTabs() {
   const root = $("#tabs");
   const mode = S.uiMode === "expert" ? "expert" : "simple";
-  const layout = navLayout(readNavWidth());
+  let layout = currentNavLayout();
+  if (layout !== "normal") layout = "narrow";
   if (root && root.dataset.navLayout && root.dataset.navLayout !== layout && !S.navFocus) S.navMenu = "";
   if (root) installNav(root, knownViews(), mode, layout);
+  // Eight menus that still overflow this window merge back to the compact row.
+  // A zero clientWidth means the bar has not been laid out yet, so it must not lock the compact row.
+  if (mode === "expert" && root && root.dataset.navLayout === "normal" && root.clientWidth > 0 && rowOverflows(root)) {
+    root.dataset.nav = "";
+    installNav(root, knownViews(), mode, "narrow");
+  }
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (mode === "simple" && f.id !== "help" && f.id !== "start" && !CREATE_VIEWS.includes(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
@@ -957,12 +972,7 @@ function renderCommand(v) {
     </div>
   </div>`;
   graph = new AgentGraph($("#graph"));
-  // keyed AIs always appear; grey (no key) ones only fill in while there is room
-  const textKeyed = S.providers.filter((p) => p.kind === "text" && p.keyed);
-  const textGrey = S.providers.filter((p) => p.kind === "text" && !p.keyed).slice(0, Math.max(0, 8 - textKeyed.length));
-  const media = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent" && (p.keyed || S.subscriptions.some((s) => s.provider === p.id && (s.credits != null || s.renews))));
-  const agents = S.providers.filter((p) => p.kind === "agent");
-  graph.setProviders([...textKeyed, ...textGrey, ...agents, ...media]);
+  syncGraph(true);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
@@ -980,6 +990,14 @@ function renderCommand(v) {
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+}
+function syncGraph(force = false) {
+  if (!graph || S.view !== "command") return;
+  const next = graphNodes(S.providers, S.subscriptions, { demoKeep: !!S.settings?.demoKeep, realAi: !!S.realAi });
+  const sig = next.map((p) => p.id).join(",");
+  if (!force && S.graphSig === sig) return;
+  S.graphSig = sig;
+  graph.setProviders(next);
 }
 function renderComposerAis() {
   const box = $("#cc-composer-ais");
@@ -1725,7 +1743,7 @@ async function openCustomForm(editId, pre = {}) {
 $("#tabs").addEventListener("click", (e) => {
   const root = $("#tabs");
   const trigger = e.target.closest(".nav-trigger");
-  if (trigger && root.contains(trigger) && !root.classList.contains("nav-wide")) {
+  if (trigger && root.contains(trigger)) {
     const menu = trigger.closest(".nav-menu");
     const wasOpen = menu.classList.contains("open");
     closeNav(root);
@@ -1749,7 +1767,10 @@ $("#tabs").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => { const root = $("#tabs"); if (root && !root.contains(e.target)) closeNav(root); });
 watchNavLayout((layout) => {
   const root = $("#tabs");
-  if (!root || root.dataset.navLayout === layout) return;
+  if (!root) return;
+  let next = layout;
+  if (next === "normal" && root.clientWidth > 0 && rowOverflows(root)) next = "narrow";
+  if (root.dataset.navLayout === next && root.dataset.nav === "1") return;
   if (!S.navFocus) S.navMenu = "";
   root.dataset.nav = "";
   ensureFeatureTabs();

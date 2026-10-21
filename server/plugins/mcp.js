@@ -4,6 +4,7 @@
 // come back to the browser: views carry names and flags only. Routes: /api/mcp/...
 import { HOSTED, doc } from "../store.js";
 import { demoActive } from "../mock.js";
+import { demosHidden } from "../demo-visibility.js";
 import { PROVIDERS } from "../registry.js";
 import { mcpSettings, saveMcpSettings, listServers, findServer, serverView, addServer, removeServer, addDemoServer, setToolPrefs, setServerOptions, connectServer, pendingList, resolveApproval, recentCalls, executeTool, enabledTools, workspaceKey, oauthStart, oauthFinish, oauthSignOut, supportsTools, toolReadOnly, needsApproval, sessionOf, TRANSPORTS, RESULT_MAX_CHARS } from "../mcp.js";
 
@@ -25,7 +26,7 @@ function view(h) {
     workspace: { key: ws, name: workspaceName(ws) },
     servers, enabledCount: servers.reduce((a, s) => a + s.enabledCount, 0),
     pending: pendingList(), recent: recentCalls(30),
-    providers: Object.values(h.PROVIDERS).filter((p) => p.kind === "text" && (!p.demo || h.hasSecret(p.id))).map((p) => ({ id: p.id, name: p.name, tools: supportsTools(p.id) })),
+    providers: Object.values(h.PROVIDERS).filter((p) => p.kind === "text" && (!p.demo || (h.hasSecret(p.id) && !demosHidden()))).map((p) => ({ id: p.id, name: p.name, tools: supportsTools(p.id) })),
   };
 }
 const bad = (res, h, msg, code = "mcp_invalid") => h.json(res, 400, { error: msg, code });
