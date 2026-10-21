@@ -122,6 +122,7 @@ test("catalog matches names, refuses an installer, and merges an https list", as
 });
 
 test("opt in, allow, score, suggest, and dismiss", async () => {
+  process.env.CC_DEV_OWNER = "1";
   assert.deepEqual(apps.suggestFor("Trim the client video for the reel"), []);
   const state = await apps.optIn(true, fakeIo());
   assert.equal(state.optedIn, true);
@@ -190,7 +191,7 @@ test("routes: scan a tiny PATH, suggest, score, and refuse http", async () => {
   fs.writeFileSync(path.join(bin, "zznoise"), "");
   fs.chmodSync(path.join(bin, "zznoise"), 0o755);
   fs.writeFileSync(path.join(bin, "readme.txt"), "secret words that must stay unread");
-  const s = await startServer({ env: { PATH: bin }, dataDir: dir });
+  const s = await startServer({ env: { PATH: bin, CC_DEV_OWNER: "1" }, dataDir: dir });
   try {
     const before = await s.api("/apps");
     assert.equal(before.status, 200);
@@ -229,6 +230,27 @@ test("routes: scan a tiny PATH, suggest, score, and refuse http", async () => {
     assert.equal(stopped.json.optedIn, false);
     assert.equal((await s.api("/state")).json.plugins.includes("apps"), true);
   } finally { await s.stop(); }
+});
+
+test("Free cannot scan or allow a program", async () => {
+  const prev = process.env.CC_DEV_OWNER;
+  delete process.env.CC_DEV_OWNER;
+  try {
+    await assert.rejects(() => apps.optIn(true, fakeIo()), (err) => err.status === 402 && /Program scan is part of Pro/.test(err.message));
+    assert.deepEqual(apps.suggestFor("Trim the client video for the reel"), []);
+    const s = await startServer();
+    try {
+      const view = await s.api("/apps");
+      assert.equal(view.status, 200);
+      assert.equal(view.json.pro, false);
+      const denied = await s.api("/apps/opt-in", { method: "POST", body: { on: true } });
+      assert.equal(denied.status, 402);
+      assert.match(denied.json.error, /Program scan is part of Pro/);
+      const off = await s.api("/apps/opt-in", { method: "POST", body: { on: false } });
+      assert.equal(off.status, 200);
+      assert.equal(off.json.optedIn, false);
+    } finally { await s.stop(); }
+  } finally { if (prev) process.env.CC_DEV_OWNER = prev; }
 });
 
 test("user-facing copy has no em dash and no install button", () => {

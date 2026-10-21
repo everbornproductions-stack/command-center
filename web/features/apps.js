@@ -16,6 +16,12 @@ function priceChip(price) {
   return "";
 }
 
+const PRO_LINE = "Program scan is part of Pro. Add a licence key in Settings.";
+
+function lockedPanel(title) {
+  return `<div class="panel" id="app-discovery"><h3>${title}</h3><div class="dim small">${PRO_LINE} Nothing is installed or bought.</div></div>`;
+}
+
 function appRows(st) {
   const rows = st?.apps || [];
   if (!st?.optedIn) return `<div class="dim small">Desktop control is off. Turn it on to list programs on this PC.</div>`;
@@ -84,10 +90,11 @@ CC.register({
     refresh();
   } },
   settings: { order: 18, async render(el) {
-    let st = { optedIn: false, suggestions: true, apps: [] };
+    let st = { optedIn: false, suggestions: true, apps: [], pro: false };
     try { st = await api("/apps"); } catch (e) { el.innerHTML = `<div class="panel" id="app-discovery"><h3>Programs on this PC</h3><div class="dim small">${esc(e.message)}</div></div>`; return; }
     const paint = (next) => {
       st = next || st;
+      if (st.pro === false) { el.innerHTML = lockedPanel("Programs on this PC"); return; }
       el.innerHTML = `<div class="panel" id="app-discovery"><h3>Programs on this PC <span class="right">names only</span></h3>
         <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="app-desktop" ${st.optedIn ? "checked" : ""} style="margin-top:3px"><span><b>Let Meldmind use your desktop</b><div class="dim small">Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app. Allowed apps are scored and join the router's choices, the same as a tool you add. Nothing is installed or bought.</div></span></label>
         <label class="row small" style="gap:8px;margin-top:8px"><input type="checkbox" id="app-suggest-on" ${st.suggestions ? "checked" : ""}> Suggest a program while I plan a mission or client work</label>
@@ -122,8 +129,9 @@ CC.register({
   } },
   setup: { order: 12, async render(el) {
     if (el.parentElement?.id === "su-extras") { el.remove(); return; }
-    let st = { optedIn: false, suggestions: true, apps: [] };
+    let st = { optedIn: false, suggestions: true, apps: [], pro: false };
     try { st = await api("/apps"); } catch (e) { el.innerHTML = `<div class="panel"><h3>Programs on this PC</h3><div class="dim small">${esc(e.message)}</div></div>`; return; }
+    if (st.pro === false) { el.innerHTML = lockedPanel("Programs on this PC"); return; }
     el.innerHTML = `<div class="panel"><h3>Programs on this PC <span class="right">allow each one</span></h3>
       <div class="dim small" style="margin-bottom:8px">Allowed apps are scored and join the router's choices. Meldmind will not install or buy a program. Turn suggestions off any time in Settings.</div>
       <div id="app-setup-allow">${appRows(st)}</div>

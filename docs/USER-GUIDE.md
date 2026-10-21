@@ -95,6 +95,8 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 
 ## Programs on this PC
 
+Program scan is part of Pro. On Free the list stays off.
+
 Turn on desktop control in Setup or in Settings. Meldmind lists installed programs. On Windows that list comes from the uninstall list and the Start menu, plus command-line tools on PATH. It reads names only. File contents are not read.
 
 Allow the apps you want. Allowed apps are scored and join the router's choices, the same as a tool you add. They do not replace the AIs that write.

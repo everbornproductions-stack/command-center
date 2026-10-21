@@ -9,6 +9,7 @@ import { scanInstalled, liveIo } from "./app-scan.js";
 import { addRouteSource } from "./route-extras.js";
 import { doc, putDoc } from "./store.js";
 import { heuristicClassify } from "./router.js";
+import { guard, isProFeature } from "./license.js";
 
 const DOC = "apps.discovery";
 
@@ -75,12 +76,14 @@ export function describeFound(found, catalog) {
 export async function optIn(on, io = liveIo()) {
   const cur = loadState();
   if (!on) return saveState({ ...cur, optedIn: false });
+  guard("appScan");
   const found = await scanInstalled(io);
   const apps = describeFound(found, activeCatalog(cur));
   return saveState({ ...cur, optedIn: true, scannedAt: Date.now(), apps });
 }
 
 export async function rescan(io = liveIo()) {
+  guard("appScan");
   const cur = loadState();
   if (!cur.optedIn) {
     const err = new Error("Turn on desktop control before scanning.");
@@ -92,6 +95,7 @@ export async function rescan(io = liveIo()) {
 }
 
 export function setAllowed(id, allowed) {
+  if (allowed) guard("appScan");
   const cur = loadState();
   if (!cur.optedIn) {
     const err = new Error("Turn on desktop control before allowing an app.");
@@ -121,11 +125,13 @@ export function dismissSuggestion(id) {
 }
 
 export function setSuggestions(on) {
+  if (on) guard("appScan");
   const cur = loadState();
   return saveState({ ...cur, suggestions: !!on });
 }
 
 export async function updateCatalog(url, fetchImpl, io = liveIo()) {
+  guard("appScan");
   const extra = storedCatalog(await pullCatalog(url, fetchImpl));
   const cur = loadState();
   const next = saveState({ ...cur, catalogExtra: extra });
@@ -134,6 +140,7 @@ export async function updateCatalog(url, fetchImpl, io = liveIo()) {
 }
 
 export function suggestFor(prompt, state = loadState()) {
+  if (!isProFeature("appScan")) return [];
   if (!state.optedIn || state.suggestions === false) return [];
   const text = String(prompt || "").trim();
   if (text.length < 12) return [];
@@ -161,6 +168,7 @@ export function suggestFor(prompt, state = loadState()) {
 }
 
 export function routeRows(state = loadState()) {
+  if (!isProFeature("appScan")) return [];
   if (!state.optedIn) return [];
   const rows = [];
   for (const app of state.apps) {
@@ -196,6 +204,7 @@ export function routeRows(state = loadState()) {
 
 export function publicState(state = loadState()) {
   return {
+    pro: isProFeature("appScan"),
     optedIn: !!state.optedIn,
     suggestions: state.suggestions !== false,
     scannedAt: state.scannedAt || null,

@@ -1594,3 +1594,10 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Setup, the tour, Help, What's new (0.4.9), the user guide, and the roadmap mention it. The help article is stamped 0.4.9. The catalog stays 0.4.8 so the current release gate still checks the hotfix notes.
 - Tests here (Linux): npm test is the mcp file (8 pass) then 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
 - Checked in a browser on this machine: Setup lists FFmpeg with Allow, Free, and the official link, and says nothing is installed or bought. Typing a video job shows a dismissible card with the reason, Free, and the official link. Dismiss hides that program. Turning suggestions off hides the card. Expert Preview route shows Allowed programs: FFmpeg with a score. The same Programs on this PC panel is in Settings. No install control.
+
+## 2026-10-21: Program scan is Pro
+
+Not a numbered phase. No locked decision was changed. Package stays 0.4.8. Square and billing were not touched. data/ was not read.
+
+- Program scan is registered as `appScan` on the licence tier table, next to `desktop` (desktop control) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("appScan")` and `isProFeature("appScan")` read that table, so a later feature-gate map can use the same ids.
+- Turning the scan on, scanning again, allowing a program, turning suggestions on, and updating the capability list are refused on Free with 402. Turning the scan off still works. Suggestions and router rows stay empty on Free. The Settings and Setup panels say Program scan is part of Pro.
