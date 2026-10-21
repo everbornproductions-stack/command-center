@@ -191,7 +191,7 @@ test("Remix is in Create, the scratch note is visible, and the page does not fet
   assert.ok(server.includes(SCRATCH_NOTE));
   assert.ok(ui.includes("Preview who receives this"));
   assert.ok(ui.includes("Rebuild from scratch"));
-  assert.match(read("web", "features", "index.js"), /"remix"/);
+  assert.match(read("web", "perf", "registry.js"), /"remix"/);
   for (const [name, text] of [["ui", ui], ["server", server], ["plugin", plugin], ["gate", featureGate], ["help", read("docs", "help", "remix.md")]]) {
     assert.equal(text.includes(EM), false, name);
     assert.doesNotMatch(text, /\bfetch\s*\(/, name);

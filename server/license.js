@@ -15,6 +15,7 @@ import { VERSION } from "./update.js";
 import { emit } from "./events.js";
 import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
 import { GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY, LIFETIME_PLAN_ID, moneyPlain } from "./price-config.js";
+import { scheduler } from "./perf/scheduler.js";
 
 // One table. Studio is Pro. Owner is Extreme. Remix is unlimited on Extreme and Owner.
 // See server/feature-gate.js. This does not call Square.
@@ -237,7 +238,13 @@ export async function recheck() {
 export function startLicenseLoop() {
   const tick = () => { for (const c of allContexts()) runAs(c, () => recheck().catch(() => {})); };
   tick();
-  setInterval(tick, 12 * 3600 * 1000).unref();
+  scheduler.register({
+    id: "licence",
+    everyMs: 12 * 3600 * 1000,
+    lightEveryMs: 24 * 3600 * 1000,
+    pause: true,
+    run: tick,
+  });
 }
 
 // Validate a Settings → Cloud change (local mode). Returns the normalised values and whether the

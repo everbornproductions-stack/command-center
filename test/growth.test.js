@@ -283,7 +283,7 @@ test("referrals: code and link, the licence server confirms before any credit, r
 
 test("growth page code: registered, behind the flags, no checkout or payment link, no em-dashes", () => {
   const src = fs.readFileSync(path.join(ROOT, "web", "features", "growth.js"), "utf8");
-  const idx = fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8");
+  const idx = fs.readFileSync(path.join(ROOT, "web", "perf", "registry.js"), "utf8");
   assert.match(idx, /"growth"/);
   assert.match(src, /id: "growth"/);
   assert.match(src, /if \(!anyOn\(g\)\) \{ el\.innerHTML = ""; return; \}/, "shows nothing with every flag off");

@@ -56,6 +56,8 @@ import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
+import { scheduler } from "./perf/scheduler.js";
+import { bindPerf, noteActivity } from "./perf/power.js";
 import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
 import { requireResearch } from "./feature-gate.js";
@@ -874,6 +876,7 @@ async function api(req, res, url) {
       try { guardMaxQuality(rest.defaultMode); }
       catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     }
+    if (Object.prototype.hasOwnProperty.call(rest, "lightMode")) rest.lightMode = rest.lightMode === true;
     return json(res, 200, saveSettings({ ...settings(), ...rest }));
   }
   if (p === "/pairing" && method === "GET") return json(res, 200, pairingView());
@@ -917,6 +920,7 @@ function cors(req, res) {
 }
 
 async function handleHttp(req, res) {
+  noteActivity();
   let url;
   try { url = new URL(req.url, `http://127.0.0.1:${PORT}`); } catch { return json(res, 400, { error: "bad url" }); }
   try {
@@ -1178,15 +1182,26 @@ bus.on("event", (ev) => {
   const msg = JSON.stringify(ev);
   eachClient((c) => { if (c.readyState === 1 && c.ctx && (!ev.user || c.ctx.userId === ev.user)) c.send(msg); });
 });
-// Periodic state refresh (ledger totals, subscription view) so the UI never drifts
-setInterval(() => {
-  const byCtx = new Map();
-  eachClient((c) => { if (c.readyState !== 1 || !c.ctx) return; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); });
-  for (const [c, clients] of byCtx) {
-    const msg = runAs(c, () => JSON.stringify({ type: "tick", ledger: ledgerSummary(), ...subsView(), providers: providerView(), now: Date.now() }));
-    for (const ws of clients) ws.send(msg);
-  }
-}, 15000).unref();
+// Periodic state refresh (ledger totals, subscription view) so the UI never drifts.
+// One scheduler shared with schedules, model watch, and detection. This refresh
+// pauses only while the app is idle, so an open window stays current on battery.
+bindPerf({
+  light: () => { try { return !!settings().lightMode; } catch { return false; } },
+  sockets: () => { let n = 0; eachClient((c) => { if (c.readyState === 1) n += 1; }); return n; },
+});
+scheduler.register({
+  id: "ui-refresh",
+  everyMs: 15000,
+  pause: "idle",
+  run: () => {
+    const byCtx = new Map();
+    eachClient((c) => { if (c.readyState !== 1 || !c.ctx) return; if (!byCtx.has(c.ctx)) byCtx.set(c.ctx, []); byCtx.get(c.ctx).push(c); });
+    for (const [c, clients] of byCtx) {
+      const msg = runAs(c, () => JSON.stringify({ type: "tick", ledger: ledgerSummary(), ...subsView(), providers: providerView(), now: Date.now() }));
+      for (const ws of clients) ws.send(msg);
+    }
+  },
+});
 
 // Loads one user's world. Runs inside that user's context (local: once at boot; hosted: on first request).
 async function initContext() {
@@ -1252,6 +1267,11 @@ async function initContext() {
     startUpdateLoop();
     startLicenseLoop();
     // Hosted only: drop idle users from memory. Local mode keeps its one context.
-    if (HOSTED) setInterval(() => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)), 60 * 1000).unref();
+    if (HOSTED) scheduler.register({
+      id: "hosted-idle",
+      everyMs: 60 * 1000,
+      pause: false,
+      run: () => evictIdle({ socketCount: (c) => { let n = 0; eachClient((ws) => { if (ws.readyState === 1 && ws.ctx === c) n += 1; }); return n; } }).catch((e) => console.error("[idle]", e.message)),
+    });
   });
 })().catch((e) => { console.error(e.message); process.exit(1); });

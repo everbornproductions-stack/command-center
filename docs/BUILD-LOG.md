@@ -2138,3 +2138,17 @@ Not a numbered phase. No locked decision was changed. Square and billing were no
 - Tests here (Linux): npm test 436 tests, 435 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. The Settings > Devices panel was opened in a browser against a local licence stub: the list showed HOME-PC and Laptop, cancel left Laptop in place, and accepting Remove took Laptop off and left HOME-PC. The live Supabase project was not contacted. Windows is the pull request check.
 
 PER-PERSON LICENCES DONE (migration not applied)
+
+## 2026-10-21: Stay light (performance)
+
+Not a numbered phase. No locked decision was changed. Version stays 0.4.8. Nothing was published. data/ was not read. Square was not called.
+
+- Baseline on main is in docs/PERFORMANCE.md. Installer Meldmind-Setup-0.4.8.exe is 112,077,608 bytes. Linux unpacked install is 305,198,150 bytes. Electron cold start was 470 ms to health and 753 ms to the first window. Idle RAM across six Electron processes was 743,976 KB (about 727 MiB). The engine alone was 100,112 KB and 0% CPU, cold start 224 ms. Main-process idle CPU was 0% and the renderer about 8%. The gpu-process near 98% was Xvfb on this VM, not an ordinary PC.
+- Feature modules load when their page opens. web/perf/registry.js is the list open pull requests should extend. Shell modules still load with the window. Command still loads home, deliverable, and listen modules after settings arrive. Light mode skips those until their own page is open.
+- Schedules, model watch, detection, reports, renewals, history sync, credits, the server update check, the licence check, the UI refresh, and hosted idle eviction share one scheduler. They pause while the app is idle or on battery. Light mode waits longer. The desktop updater (hourly) and the 3 second watchdog stay in the Electron main process so an update can still install if the engine is down (decision 4).
+- OCR, Whisper, WhisperX, Piper, Godot and Bevy templates, Lighthouse, Playwright browsers, Postiz, Chatwoot, and DocuSeal are not in the installer. Settings, Performance lists each size. Install runs only after that click. Remove deletes the copy. Until then the cloud or connected AI route is used.
+- Settings, Performance has Light mode for an older PC. Help article: Stay fast on an older PC.
+- scripts/perf-budget.mjs fails if electron/main.cjs or server/index.js requires a heavy module, if package.json depends on one, if the installer grows more than 15% past 112,077,608 bytes (cap 128,889,249), or if CC_IDLE_RAM_BYTES is over 900 MiB. Windows CI runs it after packaging with CC_REQUIRE_INSTALLER=1. The unit test checks the recorded idle RAM and, on Linux, the running engine RSS against 300 MiB.
+- Tests here (Linux): npm test 423 tests, 422 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
+STAY LIGHT (built by Cursor cloud agent)

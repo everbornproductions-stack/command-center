@@ -76,3 +76,10 @@ jobs:
             exit 1
           fi
           echo "Windows package produced ${EXE} (${SIZE} bytes), the blockmap, and latest.yml. Nothing was published."
+
+      - name: Performance budget
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          CC_REQUIRE_INSTALLER: "1"
+        run: node scripts/perf-budget.mjs

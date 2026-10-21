@@ -11,6 +11,7 @@
 // openrouter/free) are never touched: their price is not OpenRouter's list price.
 import { TEXT_PROVIDERS, setLivePrices, modelPrice, priceSource, livePrice, findModel } from "./registry.js";
 import { HOSTED, ctx, putDoc } from "./store.js";
+import { scheduler } from "./perf/scheduler.js";
 
 export const DEFAULT_URL = "https://openrouter.ai/api/v1/models";
 const DOC = "pricing.live";
@@ -63,7 +64,7 @@ export function matchPrices(byNorm) {
 
 // One table per server process (the prices are public, the same for everyone).
 let state = { on: process.env.CC_LIVE_PRICING !== "off", fetchedAt: null, lastTry: null, listed: 0, prices: {}, error: null };
-let inflight = null, timer = null;
+let inflight = null, loopStarted = false;
 
 function apply() { setLivePrices(state.on ? state.prices : {}); }
 function persist() {
@@ -110,10 +111,16 @@ export function setOn(on) {
 
 // checks once an hour whether a refresh is due (daily, or an hour after a failure)
 export function startLoop() {
-  if (timer || process.env.CC_LIVE_PRICING === "off") return;
-  const tick = () => { if (due()) refresh().catch(() => {}); };
-  setTimeout(tick, 3000).unref?.();
-  timer = setInterval(tick, RETRY); timer.unref?.();
+  if (loopStarted || process.env.CC_LIVE_PRICING === "off") return;
+  loopStarted = true;
+  scheduler.register({
+    id: "model-watch",
+    everyMs: RETRY,
+    firstMs: 3000,
+    lightEveryMs: 6 * RETRY,
+    pause: true,
+    run: () => { if (due()) refresh().catch(() => {}); },
+  });
 }
 
 // What Settings shows: every model with its built-in, live, own and used price (per the current user).

@@ -58,7 +58,7 @@ test("migration: cap is 2 per person, a new computer past the cap is not stored,
 test("settings devices panel removes only after a click, and the tour names it", () => {
   const ui = fs.readFileSync(path.join(ROOT, "web", "features", "devices.js"), "utf8");
   const tour = fs.readFileSync(path.join(ROOT, "web", "features", "tour.js"), "utf8");
-  const features = fs.readFileSync(path.join(ROOT, "web", "features", "index.js"), "utf8");
+  const features = fs.readFileSync(path.join(ROOT, "web", "perf", "registry.js"), "utf8");
   assert.match(ui, /id="settings-devices"/);
   assert.match(ui, /Settings > Devices|Devices/);
   assert.match(ui, /\/license\/devices\/remove/);

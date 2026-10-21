@@ -193,6 +193,15 @@ input::placeholder, textarea::placeholder { color: #d2d8e4; opacity: 1; font-siz
   .brand-mark, .ev, .toast, .tile .light.red, .tile.active::after, .task .st.running, .task .st.review, .cursor::after { animation: none !important; }
   .btn, .btn:active { transition: none; transform: none; }
 }
+body.light-mode .brand-mark,
+body.light-mode .ev,
+body.light-mode .toast,
+body.light-mode .tile .light.red,
+body.light-mode .tile.active::after,
+body.light-mode .task .st.running,
+body.light-mode .task .st.review,
+body.light-mode .cursor::after { animation: none !important; }
+body.light-mode .btn, body.light-mode .btn:active { transition: none; transform: none; }
 
 /* ---- command view ---- */
 /* The view is the page scroller for every other tab. Command fills that pane so each

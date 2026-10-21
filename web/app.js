@@ -15,7 +15,7 @@ import { isDesktopOnly } from "./desktop-only.js";
 // ---------------- state ----------------
 const S = {
   providers: [], ledger: null, subscriptions: [], subscriptionTotals: null, projects: [], hq: null, missions: [], settings: {}, skills: {}, vault: null, capabilities: [],
-  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false, backgroundQuiet: new Set(),
+  view: "command", project: localStorage.getItem("cc.project") || "", live: newLive(), feed: [], activeByProvider: {}, routePreview: null, openProject: null, onboarding: null, onboardingNoticeAt: null, pairing: null, connectSetup: null, connectWizard: false, visitedConnect: false, settingsLoaded: false, backgroundQuiet: new Set(),
   navMenu: "", navFocus: "", uiMode: "simple", askMode: false, returnView: null, awaitingRun: false,
 };
 function newLive() { return { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; }
@@ -318,6 +318,7 @@ function syncUiMode() {
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
 function applyState(st) {
+  S.settingsLoaded = true;
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
@@ -757,6 +758,16 @@ function toggleSimpleCreate() {
 }
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
+  document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
+  const cc = window.CC;
+  const light = !!S.settings?.lightMode;
+  if (cc?.viewReady && !cc.viewReady(S.view, { light })) {
+    const token = (cc._paintToken = (cc._paintToken || 0) + 1);
+    cc.ensureView(S.view, { light }).then(() => {
+      if (cc._paintToken === token) render();
+    }).catch((e) => console.warn("[features]", e));
+    return;
+  }
   syncChrome();
   renderAsk();
   markTabs();
@@ -776,9 +787,9 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "images", "media", "publish", "remix", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "help", "settings", "setup"];
 function knownViews() {
-  const have = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup"]);
+  const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
   for (const f of window.CC?.byKind?.("tab") || []) have.add(f.id);
   let ordered = NAV_ORDER.filter((id) => have.has(id));
@@ -845,6 +856,7 @@ function ensureFeatureTabs() {
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
+  if (S.settings?.lightMode && (kind === "command" || kind === "deliverable")) return;
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;

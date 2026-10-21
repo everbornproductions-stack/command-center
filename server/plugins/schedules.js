@@ -15,6 +15,7 @@
 import * as S from "../schedules.js";
 import * as A from "../custom-agents.js";
 import { raise } from "./alerts.js";
+import { scheduler } from "../perf/scheduler.js";
 
 export const id = "schedules";
 const TICK_MS = Math.max(100, Number(process.env.CC_SCHEDULE_TICK_MS) || 15000);
@@ -52,7 +53,13 @@ export function init(h) {
   S.configure({ run: (s, o) => runOne(h, s, o), alert: (key, title, body, level) => raise(h, key, title, body, level), send });
   if (h.HOSTED) return; // the hub has no user at boot; the cron tick loads each due user
   const c = h.ctx();
-  setInterval(() => h.runAs(c, () => { try { S.tick(); } catch (e) { console.error("[schedules]", e.message); } }), TICK_MS).unref();
+  scheduler.register({
+    id: "schedules",
+    everyMs: TICK_MS,
+    lightEveryMs: Math.max(TICK_MS * 4, 60000),
+    pause: true,
+    run: () => h.runAs(c, () => { try { S.tick(); } catch (e) { console.error("[schedules]", e.message); } }),
+  });
 }
 
 const createOpts = (h, body) => {

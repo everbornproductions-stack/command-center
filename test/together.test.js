@@ -105,7 +105,7 @@ test("files: plain words, Together is in the menu, workspaces plugin is untouche
   const ui = fs.readFileSync(path.join(ROOT, "web/features/together.js"), "utf8");
   assert.match(ui, /988/);
   assert.match(ui, /not a licensed therapist/);
-  assert.match(fs.readFileSync(path.join(ROOT, "web/features/index.js"), "utf8"), /"together"/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web/perf/registry.js"), "utf8"), /"together"/);
   assert.match(fs.readFileSync(path.join(ROOT, "web/nav.js"), "utf8"), /together: "Together"/);
   const ws = fs.readFileSync(path.join(ROOT, "server/plugins/workspaces.js"), "utf8");
   assert.match(ws, /Phase 8/);

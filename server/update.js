@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./paths.js";
 import { emit } from "./events.js";
+import { scheduler } from "./perf/scheduler.js";
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 export const VERSION = pkg.version;
@@ -82,5 +83,12 @@ export function startUpdateLoop() {
   const b = bridge();
   if (b && typeof b.onEvent === "function") b.onEvent(desktopEvent);
   checkForUpdate();
-  setInterval(checkForUpdate, (b ? 60 * 60 * 1000 : 6 * 3600 * 1000)).unref();
+  const every = b ? 60 * 60 * 1000 : 6 * 3600 * 1000;
+  scheduler.register({
+    id: "updates",
+    everyMs: every,
+    lightEveryMs: Math.max(every, 6 * 3600 * 1000),
+    pause: true,
+    run: () => { checkForUpdate().catch(() => {}); },
+  });
 }

@@ -5,6 +5,7 @@
 import { PROVIDERS } from "./registry.js";
 import { getStatus, checkProvider } from "./health.js";
 import { allContexts, runAs, currentUserId } from "./store.js";
+import { scheduler } from "./perf/scheduler.js";
 
 export const RECHECK_MS = 15 * 60 * 1000;
 export const HEALTH_MS = 5 * 60 * 1000;
@@ -95,5 +96,11 @@ export function startCreditHealthLoop() {
     for (const c of allContexts()) runAs(c, () => checkRespectingPause().catch(() => {}));
   };
   tick();
-  setInterval(tick, 60 * 1000).unref();
+  scheduler.register({
+    id: "credits",
+    everyMs: 60 * 1000,
+    lightEveryMs: 5 * 60 * 1000,
+    pause: true,
+    run: tick,
+  });
 }

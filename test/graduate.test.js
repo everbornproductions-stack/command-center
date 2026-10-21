@@ -61,7 +61,7 @@ test("names: Grok Bot MCP matches, Grok the model does not; council ids are refu
   for (const id of ["xai", "openai", "anthropic", "google"]) assert.equal(G.isRouteActor(id), false, id);
   const src = ["server/graduate.js", "server/plugins/graduate.js", "web/features/graduate.js", "web/app.js", "web/styles.css"].map(read).join("\n");
   assert.doesNotMatch(src, /—/);
-  assert.match(read("web/features/index.js"), /"graduate"/);
+  assert.match(read("web/perf/registry.js"), /"graduate"/);
   assert.match(read("web/app.js"), /id="graduate-slot"/);
   assert.match(read("web/features/graduate.js"), /Add it/);
   assert.match(read("web/features/graduate.js"), /Not now/);
