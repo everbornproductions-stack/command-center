@@ -34,6 +34,7 @@ test("accelerators: normalized, a modifier required, junk refused, OS combinatio
   for (const bad of ["", "K", "Space", "Alt", "Alt+Ctrl", "Hyper+K", "Alt+Banana", "Ctrl+Alt+Shift+Super+K"]) assert.throws(() => normalize(bad), Error, bad);
   assert.equal(reservedBy("Alt+Tab", "win32"), true);
   assert.equal(reservedBy("ctrl+alt+delete", "win32"), true);
+  assert.equal(reservedBy("Ctrl+Alt+Delete", "darwin"), true, "refused on a Mac too");
   assert.equal(reservedBy("CommandOrControl+Space", "darwin"), true, "Spotlight on a Mac");
   assert.equal(reservedBy("Alt+Space", "win32"), false);
 });
