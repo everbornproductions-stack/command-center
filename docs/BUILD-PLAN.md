@@ -382,7 +382,7 @@ This slice is part of 0.4.9. 0.4.8 is the hotfix. 0.4.10 is the unsigned Mac bui
 
 When desktop control is on, the app lists installed program names (Windows uninstall keys and the Start menu, plus PATH). It does not read file contents. A curated catalog maps names to task types and can be refreshed from an https address on click. The person allows each app. Allowed apps are scored with the same capability scores as a user-added tool and appear in the router's choices. They are not sent text jobs. While a mission or client job is being planned, a card can suggest a program: a short reason, Free or Paid, and the official link. Dismiss hides it. Nothing is installed or bought. A setting turns suggestions off.
 
-Phases 45 to 51 stay not done. UI Automation, Playwright, screenshot fallback, hub cards, and registerExternalAgent are not in this slice.
+Phases 45 to 51 stay planned, not built. UI Automation, Playwright, screenshot fallback, hub cards, and registerExternalAgent are not in this slice.
 
 ### Phase 45: App cards (effort: M) (version 0.4.9, not done)
 A settings list of apps: name, kind, task types, origin, exe or existing MCP server, spend cap. Draft until Allow. A hub card, `registerExternalAgent()`, and a mock dispatch. Revoke hides the app from the planner.
