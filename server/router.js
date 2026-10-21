@@ -3,6 +3,7 @@
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
 // With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
 import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice } from "./registry.js";
+import { demosHidden, realAiConnected } from "./demo-visibility.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc } from "./store.js";
 import { extractJson } from "./providers.js";
@@ -74,7 +75,7 @@ export function availableModels() {
   for (const p of TEXT_PROVIDERS) {
     const st = getStatus(p.id);
     const keyed = hasSecret(p.id, p.keyEnv);
-    if (p.demo && !keyed) continue; // demo AIs only exist for users who turned demo mode on
+    if (p.demo && (!keyed || demosHidden())) continue; // pretend AIs leave once a real AI is connected
     for (const m of p.models) {
       const d = activeDiscount(p.id);
       const pr = modelPrice(m.id);
@@ -90,6 +91,8 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   mode = normalizeMode(mode) || "balanced";
   const weight = costWeight(mode);
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
+  // A real job never goes to Nova, Atlas or Sage while a real AI is connected, even if demo mode was turned back on.
+  if (realAiConnected()) list = list.filter((m) => !PROVIDERS[m.provider]?.demo);
   // spend caps (alerts plugin): a provider at 100% of its monthly cap gets no new work while another is available
   const capped = doc("alerts.state", () => null)?.stop || [];
   if (capped.length && list.some((m) => !capped.includes(m.provider))) list = list.filter((m) => !capped.includes(m.provider));

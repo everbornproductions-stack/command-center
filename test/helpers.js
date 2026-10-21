@@ -35,6 +35,30 @@ export function waitBudget(ms) {
   return ms * 2;
 }
 
+const RUN_DONE = ["done", "done-with-errors", "failed"];
+
+// A Windows runner can stamp a run a tick before Date.now() in the test process.
+// Wait on the id /chat returns, not on startedAt > now.
+export function runSettled(id) {
+  return (st) => (st.missions || []).find((m) => m.id === id && RUN_DONE.includes(m.status));
+}
+
+export async function chatRunId(api, body) {
+  const posted = await api("/chat", { method: "POST", body });
+  if (posted.status !== 202 || !/^s-/.test(posted.json?.runId || "")) {
+    throw new Error(`chat did not start (${posted.status})`);
+  }
+  return posted.json.runId;
+}
+
+// Council and mission do not return an id. Ignore runs that already existed.
+export async function newKindPred(api, route, body, kind) {
+  const before = new Set(((await api("/state")).json.missions || []).map((m) => m.id));
+  const posted = await api(route, { method: "POST", body });
+  if (posted.status !== 202) throw new Error(`${route} did not start (${posted.status})`);
+  return (st) => (st.missions || []).find((m) => m.kind === kind && !before.has(m.id) && RUN_DONE.includes(m.status));
+}
+
 export function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -53,9 +77,13 @@ export function raw({ port, host = "127.0.0.1", method = "GET", path: p = "/", h
     const h = { connection: "close", ...headers };
     if (data !== null && h["content-length"] === undefined) h["content-length"] = Buffer.byteLength(data);
     const req = http.request({ host, port, method, path: p, headers: h, agent: false }, (res) => {
-      let text = "";
-      res.on("data", (c) => (text += c));
-      res.on("end", () => { let json = null; try { json = JSON.parse(text); } catch {} resolve({ status: res.statusCode, headers: res.headers, text, json }); });
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        let json = null; try { json = JSON.parse(text); } catch {}
+        resolve({ status: res.statusCode, headers: res.headers, text, json });
+      });
     });
     req.setTimeout(timeout, () => req.destroy(new Error(`timed out after ${timeout}ms: ${method} ${p}`)));
     req.on("error", reject);
@@ -192,6 +220,7 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     ...env,
+    CC_CLI_SCAN: "0", CC_WIN_ENV_SCAN: "0", CC_CLI_CONNECTED: env.CC_CLI_CONNECTED || "",
     CC_INSTANCE: instance,
     CC_NET_TRACE: "1",
     NODE_OPTIONS: `${env.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ""} --require ${path.join(ROOT, "test", "vault-shim.cjs")}`.trim(),

@@ -9,7 +9,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, ROOT, raw, waitBudget } from "./helpers.js";
+import { startServer, tmpDir, ROOT, raw, waitBudget, newKindPred } from "./helpers.js";
 
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || tmpDir("cc-mcp-");
 const { McpClient, McpError, spawnSpec, normalizeResult, PROTOCOL_VERSION } = await import("../server/mcp-client.js");
@@ -260,8 +260,14 @@ async function waitRun(s, pred, label, ms = 60000) {
   const trace = (s?.log || "").split("\n").filter((l) => l.includes("MCPTRACE") || l.includes("NETTRACE")).slice(-40).join("\n");
   throw new Error(`timed out waiting for ${label}${lastError ? `\npoll: ${lastError}` : ""}${open.length ? `\n${JSON.stringify(open.map((m) => ({ id: m.id, kind: m.kind, status: m.status })))}` : ""}${recent.length ? `\nrecent ${JSON.stringify(recent)}` : ""}${trace ? `\n${trace}` : ""}`);
 }
-const finished = (kind, after) => (st) => st.missions.find((m) => m.kind === kind && m.startedAt > after && ["done", "done-with-errors", "failed"].includes(m.status));
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
+// Follow the id the chat returns. A Windows clock can stamp the run a tick before Date.now() in this process, so startedAt > t0 never matches a run that already finished.
+async function postSingle(s, body) {
+  const posted = await s.api("/chat", { method: "POST", body });
+  assert.equal(posted.status, 202);
+  assert.match(posted.json.runId || "", /^s-/);
+  return posted.json.runId;
+}
 async function waitPending(s, ms = 20000) {
   const budget = waitBudget(ms);
   const t0 = Date.now();
@@ -324,15 +330,15 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
 
     // the mock model gets the tools, calls clock, the app asks, we allow: result lands in the answer
     assert.equal((await s.api("/keys", { method: "POST", body: { provider: "groq", key: KEYS.groq } })).json.status.status, "green");
-    let t0 = Date.now(); const n0 = model.seen.length;
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "What does the clock say right now?", provider: "groq", model: "openai/gpt-oss-120b" } })).status, 202);
+    const n0 = model.seen.length;
+    let runId = await postSingle(s, { prompt: "What does the clock say right now?", provider: "groq", model: "openai/gpt-oss-120b" });
     let ask = await waitPending(s);
     assert.equal(ask.tool, "clock"); assert.equal(ask.serverName, "Demo tools"); assert.equal(ask.provider, "groq"); assert.equal(ask.readOnly, true); assert.deepEqual(ask.args, {});
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "mcp.approval" && e.id === ask.id), "the approval request is an event the UI can show");
     assert.equal((await s.api("/tools/approvals/nope", { method: "POST", body: { allow: true } })).status, 404);
     r = await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: true } });
     assert.equal(r.json.allowed, true); assert.deepEqual(r.json.pending, []);
-    let run = await waitRun(s, finished("single", t0 - 1), "single with clock");
+    let run = await waitRun(s, settled(runId), "single with clock");
     let full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.match(full.deliverable, /Let me check\.\s+Tool said: 20\d\d-/);
     assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].tool, "clock"); assert.equal(full.toolCalls[0].ok, true); assert.equal(full.toolCalls[0].denied, false);
@@ -349,11 +355,10 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     assert.ok((await s.api("/state")).json.recent.some((e) => e.type === "log" && /wants to run "clock" on Demo tools: waiting for your OK/.test(e.text)));
 
     // deny: the model is told, the run still finishes
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "clock please", provider: "groq", model: "openai/gpt-oss-120b" } });
+    runId = await postSingle(s, { prompt: "clock please", provider: "groq", model: "openai/gpt-oss-120b" });
     ask = await waitPending(s);
     await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: false } });
-    run = await waitRun(s, finished("single", t0 - 1), "denied single");
+    run = await waitRun(s, settled(runId), "denied single");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.match(full.deliverable, /declined to run the tool "clock"/);
     assert.equal(full.toolCalls[0].denied, true); assert.equal(full.toolCalls[0].ok, false);
@@ -365,12 +370,11 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "list_notes", enabled: true } });
     v = (await s.api("/tools")).json; const tl = Object.fromEntries(v.servers[0].tools.map((t) => [t.name, t]));
     assert.equal(tl.clock.needsApproval, false); assert.equal(tl.save_note.needsApproval, true); assert.equal(tl.list_notes.needsApproval, true);
-    t0 = Date.now();
-    await s.api("/chat", { method: "POST", body: { prompt: "clock then save_note", provider: "groq", model: "openai/gpt-oss-120b" } });
+    runId = await postSingle(s, { prompt: "clock then save_note", provider: "groq", model: "openai/gpt-oss-120b" });
     ask = await waitPending(s);
     assert.equal(ask.tool, "save_note", "only the write asked"); assert.deepEqual(ask.args, { title: "T", body: "B" }); assert.equal(ask.readOnly, false);
     await s.api(`/tools/approvals/${ask.id}`, { method: "POST", body: { allow: true } });
-    run = await waitRun(s, finished("single", t0 - 1), "clock + note");
+    run = await waitRun(s, settled(runId), "clock + note");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.deepEqual(full.toolCalls.map((c) => [c.tool, c.ok, c.denied]), [["clock", true, false], ["save_note", true, false]]);
     assert.match(full.deliverable, /Saved note "T"/);
@@ -379,9 +383,9 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     r = await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", readOnly: false } });
     assert.equal(r.json.server.tools[0].needsApproval, true, "an override to writes wins over the hint");
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", readOnly: null } });
-    t0 = Date.now(); const before = (await s.api("/tools")).json.pending.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "list_notes", provider: "groq", model: "openai/gpt-oss-120b" } });
-    run = await waitRun(s, finished("single", t0 - 1), "list_notes without a prompt");
+    const before = (await s.api("/tools")).json.pending.length;
+    runId = await postSingle(s, { prompt: "list_notes", provider: "groq", model: "openai/gpt-oss-120b" });
+    run = await waitRun(s, settled(runId), "list_notes without a prompt");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.match(full.deliverable, /1\. T: B/); assert.equal((await s.api("/tools")).json.pending.length, before, "no approval was asked");
 
@@ -395,20 +399,18 @@ test("server: add stdio server (env in the vault), per-workspace enablement, app
     // the master switch and the per-request flag
     await s.api("/tools/settings", { method: "POST", body: { on: false, maxRounds: 3 } });
     v = (await s.api("/tools")).json; assert.deepEqual(v.settings, { on: false, maxRounds: 3 });
-    t0 = Date.now(); const n1 = model.seen.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b" } });
-    run = await waitRun(s, finished("single", t0 - 1), "tools off");
+    const n1 = model.seen.length;
+    runId = await postSingle(s, { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b" });
+    run = await waitRun(s, settled(runId), "tools off");
     assert.ok(model.seen.slice(n1).every((j) => !j.tools), "no tools offered when off"); assert.deepEqual((await s.api(`/missions/${run.id}`)).json.toolCalls, []);
     await s.api("/tools/settings", { method: "POST", body: { on: true } });
-    t0 = Date.now(); const n2 = model.seen.length;
-    await s.api("/chat", { method: "POST", body: { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b", tools: false } });
-    await waitRun(s, finished("single", t0 - 1), "tools off for one request");
+    const n2 = model.seen.length;
+    runId = await postSingle(s, { prompt: "clock", provider: "groq", model: "openai/gpt-oss-120b", tools: false });
+    await waitRun(s, settled(runId), "tools off for one request");
     assert.ok(model.seen.slice(n2).every((j) => !j.tools), "tools: false on the request wins");
 
     // council: members with tools; the council records who used what
-    t0 = Date.now();
-    assert.equal((await s.api("/council", { method: "POST", body: { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false } })).status, 202);
-    run = await waitRun(s, finished("council", t0 - 1), "council with tools", 90000);
+    run = await waitRun(s, await newKindPred(s.api, "/council", { prompt: "Council: what time is it on the clock?", members: [{ provider: "groq", model: "openai/gpt-oss-120b" }], qa: false }, "council"), "council with tools", 90000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "done"); assert.equal(full.toolCalls.length, 1); assert.equal(full.toolCalls[0].by, "groq"); assert.equal(full.toolCalls[0].tool, "clock");
 
@@ -502,9 +504,7 @@ test("demo mode: the demo tools server, pretend AIs calling tools in a single an
     assert.equal(full.status, "done", full.error || "");
     assert.deepEqual(full.toolCalls, []);
     // a mission: specialists get the tools; the goal mentions the time, so the pretend AIs use the clock
-    const t0 = Date.now();
-    assert.equal((await s.api("/mission", { method: "POST", body: { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 } })).status, 202);
-    run = await waitRun(s, finished("mission", t0 - 1), "demo mission", 180000);
+    run = await waitRun(s, await newKindPred(s.api, "/mission", { goal: "Plan today's social posts around the current time.", mode: "economy", qa: false, budgetUsd: 1 }, "mission"), "demo mission", 180000);
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.ok(["done", "done-with-errors"].includes(full.status), `mission ${full.status}: ${full.error || ""}`);
     assert.ok(full.toolCalls.length >= 1, "at least one task used a tool"); assert.ok(full.toolCalls.every((c) => c.tool === "clock" && c.ok && c.taskId));

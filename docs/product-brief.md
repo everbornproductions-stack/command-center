@@ -44,14 +44,17 @@ The research (docs/market-research-2026-10-17.md) found nobody ships the full co
 
 Chris's call on 2026-10-18: this is a subscription service. Grok's advice in the "Selling an AI-Made App" chat (read 2026-10-18) and our market research agree on the shape; the research adds one guardrail: never resell opaque credits.
 
-| Tier | Price | What you get | Notes |
-|---|---|---|---|
-| Free | $0 | Bring your own keys, 1 project, Single mode, status strip, 3 councils/month | Enough to feel the routing; converts through the Credits tab ("here is what you would have saved") |
-| Pro | **$15.99 / month** (Chris, 2026-10-18); **$159 / year**; lifetime founder $299 for the first 100, then $499, capped at 500 (Chris, 2026-10-20) | Everything: Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | Under the $20 anchor every chat subscription sits at; Grok suggested $19–39, research said $15–29 |
-| Studio / Agency | $49–79 / month | Shared projects, team view, client workspaces, white-label hub links | For people running work for clients the way Everborn does |
-| Managed keys (later) | Pro + usage at cost + 10% | We hold the provider accounts for people who do not want API keys | Only with a live, itemised ledger; this is where the "hybrid" model lives |
+The live Square checkout is still **$15.99 / month** (Chris, 2026-10-18) at **https://square.link/u/dbU38mQC**. The app also shows Pro yearly at $159 and a lifetime founder price, and those buttons do not charge (Phase 35). The current plan (2026-10-21, Phase 91, not in the app yet) is three tiers:
 
-Recurring pay link (Square, live 2026-10-18): **https://square.link/u/dbU38mQC**. Details and the free-vs-Pro feature split are in docs/billing.md.
+| Tier | Plan price | What you get | Notes |
+|---|---|---|---|
+| Free | $0 | Bring your own keys, 3 projects, Single mode, status strip, 5 councils/month, 1 connected service | Enough to feel the routing. The Credits tab shows what was saved. |
+| Pro | **$18.99 / month** or **$189 / year**. About 6 months later, monthly rises to **$24.99**. | Everything in Free, plus Council, Mission, scheduler, off-peak routing, unlimited projects, subscription tracker, priority support | The app still shows $15.99 and $159 until Phase 91. |
+| Extreme | **$29.99 / month** or **$299 / year**. About 6 months later, monthly rises to **$39.99**. | The tier above Pro. The extra features are set when Phase 91 is built. | No fourth public price. The Studio flag in the app stays. |
+| Lifetime founder | $299 for the first 100, then $499 for the next 400, closed at 500 | Pro for the life of the product | The buyer counter stays hidden under 40 buyers. |
+| Managed keys (later) | Pro + usage at cost + 10% | We hold the provider accounts for people who do not want API keys | Only with a live, itemised ledger. |
+
+Details are in docs/billing.md. The version groups are in docs/BUILD-PLAN.md.
 
 Positioning line (Grok's draft, kept): "One place to talk. It picks the right AI (ChatGPT, Claude, Grok…), routes for speed and cost, and coordinates them to actually finish the project." Sell the savings and the finished work, not "orchestration".
 

@@ -43,7 +43,8 @@ import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscripti
 import { streamChat, complete } from "./providers.js";
 import { localRouteName } from "./local-routes.js";
 import { netTrace } from "./loopback-fetch.js";
-import { startDemo, stopDemo, demoActive } from "./mock.js";
+import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
+import { realAiConnected, demosHidden, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
 import { updateState, checkForUpdate, installUpdate, startUpdateLoop, VERSION } from "./update.js";
 import { bridgeAuthorized } from "./meldmind-bridge.js";
 import { licenseState, activate as activateLicense, redeem as redeemPromo, recheck as recheckLicense, startLicenseLoop, requireFeature, guard, subscriptionsLocked, loadHostedLicense, validateCloudChange, resetVerifiedTier } from "./license.js";
@@ -181,7 +182,7 @@ function readBody(req) {
 function providerView() {
   const st = allStatus();
   return Object.values(PROVIDERS)
-    .filter((p) => !p.demo || hasSecret(p.id)) // demo AIs only for the user who turned demo on
+    .filter((p) => !p.demo || (hasSecret(p.id) && !demosHidden())) // pretend AIs only with no real AI, or when Settings keeps demo on
     .map((p) => {
       const plan = planInfo(p.id);
       return {
@@ -202,24 +203,56 @@ function finishPausedChat({ id, prompt, projectId, customAgent, message, billing
 }
 
 function rulesView() {
-  return pricingRules().map((r) => { const a = activeDiscount(r.provider); const nx = nextDiscountStart(r.provider); return { ...r, providerName: PROVIDERS[r.provider]?.name || r.provider, color: PROVIDERS[r.provider]?.color || null, activeNow: !!a && a.id === r.id, nextStart: nx && nx.rule.id === r.id ? nx.at.getTime() : null }; });
+  const hide = demosHidden();
+  return pricingRules()
+    .filter((r) => !(hide && String(r.provider || "").startsWith("demo-")))
+    .map((r) => { const a = activeDiscount(r.provider); const nx = nextDiscountStart(r.provider); return { ...r, providerName: PROVIDERS[r.provider]?.name || r.provider, color: PROVIDERS[r.provider]?.color || null, activeNow: !!a && a.id === r.id, nextStart: nx && nx.rule.id === r.id ? nx.at.getTime() : null }; });
 }
 
 // runs made with the demo AIs stay in history, tagged demo, after demo mode is switched off
 const isDemoRun = (m) => JSON.stringify([m.members?.map((x) => x.provider), m.tasks?.map((t) => t.provider), m.planner, m.assembler, m.provider]).includes('"demo-');
 const summarize = (m) => { const s = m.kind === "council" ? summaryOf(m) : missionSummary(m); return s && isDemoRun(m) ? { ...s, demo: true } : s; };
 
-// Demo mode retires itself once a real key is saved and validated (built-in or custom provider).
-// The user can turn it back on in Settings; that choice (demoKeep) is respected until they turn it off again.
-const realValidated = (since = 0) => Object.values(PROVIDERS).some((p) => p.kind === "text" && !p.demo && hasSecret(p.id, p.keyEnv) && !getSecret(p.id, p.keyEnv)?.managed && (getStatus(p.id)?.lastOk || 0) > since && getStatus(p.id)?.status !== "red");
-async function retireDemoIfReal(since = 0) {
+// Demo mode retires itself once a real AI is connected. A saved key counts even
+// when the probe could not reach the host, so a failed health check cannot put
+// Nova, Atlas and Sage back. They come back only when every real AI is gone.
+// Settings can turn them back on (demoKeep).
+let demoChain = Promise.resolve();
+async function syncDemoPresenceBody() {
+  await Promise.all([refreshCli().catch(() => {}), refreshWindowsEnv().catch(() => {})]);
+  const real = realAiConnected();
   const s = settings();
-  if (!demoActive() || s.demoKeep || !realValidated(since)) return false;
-  await stopDemo();
-  saveSettings({ ...settings(), demo: false, demoRetiredAt: Date.now(), demoNotice: true });
-  emit("log", { text: "Demo AIs removed now that your own keys are set up. Turn demo mode back on in Settings any time." });
-  emit("demo.retired", {});
-  return true;
+  if (real && s.demoKeep) {
+    if (s.demo !== false && !demoActive()) await startDemo();
+    return;
+  }
+  if (real) {
+    const was = !!(demoActive() || s.demo);
+    if (demoActive()) await stopDemo();
+    if (was) {
+      saveSettings({ ...settings(), demo: false, demoKeep: false, demoRetiredAt: Date.now(), demoNotice: true });
+      emit("log", { text: "Demo AIs removed now that your own keys are set up. Turn demo mode back on in Settings any time." });
+      emit("demo.retired", {});
+    }
+    return;
+  }
+  if (!demoActive() && s.demoRetiredAt) {
+    await startDemo();
+    saveSettings({ ...settings(), demo: true, demoKeep: false, demoRetiredAt: null, demoNotice: false });
+    emit("log", { text: "Demo AIs are back. Every real AI was removed." });
+    return;
+  }
+  if (s.demo && !demoActive()) await startDemo();
+}
+function syncDemoPresence() {
+  const run = demoChain.then(syncDemoPresenceBody, syncDemoPresenceBody);
+  demoChain = run.then(() => {}, () => {});
+  return run;
+}
+async function retireDemoIfReal() {
+  const before = demoActive();
+  await syncDemoPresence();
+  return before && !demoActive();
 }
 function missionList() {
   return ctx().store.listMissions(summarize).filter(Boolean).sort((a, b) => b.startedAt - a.startedAt).slice(0, 200);
@@ -347,6 +380,7 @@ function fullState() {
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
+    realAi: realAiConnected(), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
   };
 }
@@ -385,6 +419,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, tools, 
   // A caller that already asked the router (a walkthrough step) passes that task type.
   // The record then uses it, instead of guessing again from the long prompt.
   const given = capability ? { capability, difficulty: difficulty ?? 2 } : null;
+  // An explicit pick of Nova, Atlas or Sage is not a real job while a real AI is connected.
+  if (realJobSkipsDemo(provider)) { provider = undefined; model = undefined; }
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     const best = rank({ ...cls, mode: priority })[0];
@@ -518,7 +554,7 @@ async function api(req, res, url) {
     const demoRetired = await retireDemoIfReal(t0);
     return json(res, 200, { ok: true, status: st, masked: maskedKey(body.provider), demoRetired });
   }
-  if (method === "DELETE" && seg[0] === "keys" && seg[1]) { noteKeySaved(seg[1]); await setSecret(seg[1], null); await checkProvider(seg[1]); stampAfterCheck(seg[1]); return json(res, 200, { ok: true }); }
+  if (method === "DELETE" && seg[0] === "keys" && seg[1]) { noteKeySaved(seg[1]); await setSecret(seg[1], null); await checkProvider(seg[1]); stampAfterCheck(seg[1]); await retireDemoIfReal(); return json(res, 200, { ok: true, demo: demoActive() }); }
   if (method === "POST" && p === "/check") { await checkAll(); for (const id of Object.keys(PROVIDERS)) stampAfterCheck(id); return json(res, 200, allStatus()); }
   if (method === "POST" && seg[0] === "check" && seg[1]) { const st = await checkProvider(seg[1]); stampAfterCheck(seg[1]); return json(res, 200, st); }
 
@@ -666,8 +702,8 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/demo/ack") { saveSettings({ ...settings(), demoNotice: false }); return json(res, 200, { ok: true }); }
   if (method === "POST" && p === "/demo") {
     if (body.on) await startDemo(); else await stopDemo();
-    // turning demo on while real keys are validated is a deliberate choice: keep it until switched off
-    saveSettings({ ...settings(), demo: !!body.on, demoKeep: !!body.on && realValidated(), demoNotice: false });
+    // turning demo on while a real AI is connected is a deliberate choice: keep it until switched off
+    saveSettings({ ...settings(), demo: !!body.on, demoKeep: !!body.on && realAiConnected(), demoNotice: false, ...(body.on ? {} : { demoRetiredAt: null }) });
     await checkAll();
     emit("log", { text: body.on ? "Demo mode on: three pretend AIs are online. No credits are spent." : "Demo mode off." });
     return json(res, 200, { demo: demoActive(), providers: providerView() });
@@ -950,13 +986,15 @@ async function initContext() {
   pricingRules();
   loadProjects();
   loadSubscriptions();
-  if (settings().demo) await startDemo().catch((e) => { console.error("[demo]", e.message); emit("log", { text: `Demo mode could not start: ${e.message}`, level: "error" }); });
+  await syncDemoPresence().catch((e) => { console.error("[demo]", e.message); emit("log", { text: `Demo mode could not start: ${e.message}`, level: "error" }); });
+  const demoPort = demoListenPort();
+  if (demoPort) console.log(`[demo] pretend AIs listening on 127.0.0.1:${demoPort}`);
   restoreScheduled();
   if (HOSTED) await loadHostedLicense();
   if (HOSTED) await loadWorkspaceKeys().catch((e) => console.error("[workspace-keys]", e.message)); // the active workspace's keys (Phase 24)
   prepareOnboarding();
   const userCtx = ctx();
-  const health = checkAll().then(() => retireDemoIfReal()).catch(() => {});
+  const health = checkAll().then(() => syncDemoPresence()).catch(() => {});
   if (!HOSTED) health.finally(() => { healthReady = true; dailyCtx = userCtx; tryDailyCheck(); });
 }
 
@@ -972,6 +1010,9 @@ async function initContext() {
   setContextInitializer(initContext);
   // plugins get the gated entry points, never the raw runners, so tier limits cannot be bypassed
   await loadPlugins({ json, emit, bus, settings, PROVIDERS, rank, classify, runMission: startMission, runCouncil: startCouncil, runChat, recordCall, recordCredits, ledgerSummary, listProjects, saveProject, subscriptionView, saveSubscription: saveSubscriptionGated, licenseState, requireFeature, guard, HOSTED, DATA_DIR, VERSION, readBody, streamChat, complete, getSecret, setSecret, hasSecret, doc, putDoc, ctx, runAs, retireDemoIfReal });
+  // Custom providers (Ollama and the other local presets) register during plugin init.
+  // The boot sync above runs first, so run it again once those providers exist.
+  if (!HOSTED) await syncDemoPresence().catch((e) => console.error("[demo]", e.message));
   pluginsReady = true;
   tryDailyCheck();
   // A taken port is a clear message and exit code 1, not a stack trace. The desktop app picks a free port

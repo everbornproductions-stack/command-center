@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.2
 
 # Start a music video
 
-Open **Start a project** on the Command home screen, or from the Settings menu. Pick **Music video** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
+Open **Start a project** on the Command home screen, or from the Work menu. Pick **Music video** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
 
 1. Describe the idea. A sentence or two is enough. Click **Continue**.
 2. Answer the questions. Required: **Song title, and what it is about** and **Look and mood**. Optional: **Who is on camera?** and **Length and where it will be posted**. Optional questions can stay blank. Click **Continue**.

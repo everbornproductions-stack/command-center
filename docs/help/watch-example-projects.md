@@ -9,7 +9,7 @@ lastUpdatedVersion: 0.4.2
 
 Each Start a project type has a read-only sample. An example does not call an AI, does not spend credits, and does not become your project.
 
-1. Open **Start a project** on the Command home screen, or from the Settings menu.
+1. Open **Start a project** on the Command home screen, or from the Work menu.
 2. On the type card, click **Watch an example**. You can also click **How this works** on that screen for a short note.
 3. The player walks the sample from the idea through the questions, the plan, each step, the deliverable, and the next steps. Use **Back**, **Next**, and **Pause**. **Open live view** plays the same example on the map.
 4. **Download example** saves the sample as Markdown. The file starts with a line that it is example data.

@@ -1564,6 +1564,25 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 
 WINDOWS TEST HANG FIX (built by Cursor cloud agent)
 
+## 2026-10-20: v0.4.7 nav layout, Start a project menu, demo AIs
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read.
+
+- The top bar is one row of dropdowns. There is no full-tab layout. A wider window uses about eight menus when they fit. A narrower window merges back to about five. The row is measured against the window, so it does not wrap or spill past the edge. Resize, move, and display changes measure the width again. Start a project stays in Work. Demo AIs hide once a real text AI is connected.
+- Start a project is in the Work menu. Settings keeps settings items.
+- Nova, Atlas and Sage hide once a real AI is connected, including on the next launch, and come back only when every real AI is removed. Routing skips them while a real AI is connected. Demo mode can still be turned back on in Settings.
+- Version is 0.4.7.
+- Tests here (Linux): npm test 411 tests, 409 pass, 0 fail, 2 skipped. npm run smoke: all checks passed. Node test of the nav in a headless browser: one menu row at 1024, 1366, 1920, and 2560, Expert and Simple, with no horizontal overflow. No real key. data/ was not read.
+
+## 2026-10-21: demo AIs stay hidden, and the wide nav uses the bar
+
+Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version is 0.4.8.
+
+- Nova, Atlas and Sage were coming back after a real key was saved. The first sync hid them, then the health probe marked the provider unreachable or rejected and a second sync started the pretend AIs again. A saved text key now counts even when the probe cannot reach the host. A rejected key still does not. A local model, an OpenRouter key, agy on the PATH, an official sign-in, and a configured Grok Bot webhook count. A media key does not. The hub drops demo nodes when a real AI is connected. Saved agents pinned to a demo model are filtered and tagged, not deleted. The tour no longer turns demo mode on when a real AI is already connected. demoKeep is unchanged.
+- The wide menu row was chosen from a desktop content-bounds width that can be smaller than the layout viewport on a scaled multi-monitor display, and from a fixed chrome guess. The row is now the free space in the top bar. Eight menus spread across that space when they fit, and the compact row is used when they do not. The desktop report only asks the bar to measure again. The row does not wrap.
+- Pull request 64 missed both. Its demo check required a healthy probe, and its nav tests required a smaller desktop report to override a wider window. Neither case is what an ultra-wide Windows install does.
+- Tests here (Linux): npm test 425 tests, 423 pass, 0 fail, 2 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. Windows is the pull request check.
+
 ## 2026-10-20: Antigravity CLI agent (0.4.9, first slice)
 
 Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (needs a Mac). Nothing was published. data/ was not read. Version stays 0.4.6 (0.4.7 is a separate patch, 0.4.8 is the hotfix, and this slice is part of 0.4.9). Phases 45 to 51 are still to build on top of this.
@@ -1594,3 +1613,38 @@ Not a numbered phase. No locked decision was changed. Package was not bumped. Sq
 - Desktop control is registered as `desktop` on the licence tier table, next to `appScan` (program scan) and `missions`. Free is false. Pro, Studio, and Owner are true. `guard("desktop")` and `isProFeature("desktop")` read that table.
 - Allow, install, sign-in, a test task, and sending a task are refused on Free. The confirm preview still shows before anything runs. Turning Allow off still works. The router does not list Antigravity on Free. The Settings card says Desktop control is part of Pro.
 - Writing the Antigravity MCP config and queueing a bridge job use the same `desktop` gate. A confirm preview does not write the file.
+- Merged the 0.4.8 hotfix from main so this branch is no longer behind. package.json and the help catalog are 0.4.8. This slice stays part of 0.4.9.
+- Windows CI timed out waiting for the denied tool run even though that run had already finished. The MCP chat tests now wait on the run id from the chat response. A Windows clock can stamp the run a tick before the test's Date.now(), so a startedAt comparison never sees it.
+
+## 2026-10-21: plan docs regrouped by version
+
+Docs only. No code. No Square change. No phase was built. Open pull requests were not treated as done.
+
+- docs/BUILD-PLAN.md now groups the work that is not done: 0.4.9, 0.4.10, 0.4.11, then research, Zapier and Make (MCP by URL and webhooks moved earlier), then the three tiers, then Later (AI group chat, user chat, live builds, newsletter, Spanish, phone apps, store listings, signed apps).
+- Phases with PHASE N DONE in this log are marked DONE in the plan. Also marked DONE from merged pull requests: 36 (0.4.4 limits), 37 (pull request 40), 38 (pull request 25), 39 (pull requests 13 and 18), 41 (pull request 11). Phase 14 stays BLOCKED for a real Mac. The unsigned build is 0.4.10. Signing is Later.
+- The welcome email (decision 22, spec unchanged) is Phase 71 in version 0.4.9. Use your own Supabase stays out of the run order.
+- docs/billing.md keeps the live $15.99 Square link and the Phase 35 prices the app shows. The plan prices are Pro $18.99/month or $189/year, Extreme $29.99/month or $299/year, a monthly rise to $24.99 and $39.99 in about 6 months, and lifetime founders at $299 for the first 100 then $499 for the next 400, closed at 500, counter hidden under 40 buyers.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PLAN DOCS REGROUPED (no phase built)
+
+## 2026-10-21: Phase 96 Remix any app added to the plan
+
+Docs only. No code. No Square change. The phase is not built.
+
+- Phase 96 sits after Phase 90 (Zapier and Make) and before Phase 91 (the three tiers). It is a Pro mission, with no cap on Extreme.
+- The person shows an app or game (screenshots, a recording, or desktop control). The AIs document how it behaves and rebuild it from scratch with the person's own characters, name, and look. Free open-source code, Godot, Phaser, templates, and free art can be used when the license checks out and the credits stay. Official mods for Minecraft, Roblox, Godot, and Unity are in scope. The person's art can become sprites, models, and voices. A warning shows when the result is too close to the original.
+- It learns as it goes: which AIs, engines, and open-source sources worked for that app type, from ratings and fixes, plus a local library of the person's own patterns. Shared learning stays the existing opt-in (decision 18). No screenshots, original names, characters, or keys are stored for that record.
+- Guardrail: never decompile, unpack, or reuse another app's code, assets, logos, or brand.
+- Tests here (Linux): npm test 425 tests, 424 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app code was changed.
+
+PHASE 96 PLANNED (not built)
+
+## 2026-10-21: fallback tests wait on the chat run id
+
+Not a numbered phase. No product behavior changed. Square and billing were not touched. data/ was not read.
+
+- Windows CI on the graduate notice and the everyday integration timed out on "openrouter retry" after that run had already finished. The same clock step that hid the MCP tool run: the server stamps startedAt a tick before the test's Date.now(), so startedAt > t0 never matches.
+- Chat waits in the fallback, learning, search, priority, growth, handoff, and MCP tests now use the run id from /chat. Council and mission still do not return an id, so those waits ignore runs that already existed before the post. The browser helper and Grok Bot tests do the same.
+- Tests here (Linux): npm test 428 tests, 427 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read. No app behavior was changed.
+- Mac CI is a pull request check that runs the tests and the smoke check on macos-latest. It does not build the unsigned disk image and does not publish. Phase 14 stays blocked for a real Mac.

@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.2
 
 # Start a marketing campaign
 
-Open **Start a project** on the Command home screen, or from the Settings menu. Pick **Marketing campaign** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
+Open **Start a project** on the Command home screen, or from the Work menu. Pick **Marketing campaign** and click **Start**. The same steps run in Simple and in Expert. Simple keeps the route in plain words. Expert shows which AI was chosen and lets you edit the plan before it runs.
 
 1. Describe the idea. A sentence or two is enough. Click **Continue**.
 2. Answer the questions. Required: **What are you offering?** and **Who is it for?** Optional: **Where should it show up?** and **The one result you want**. Optional questions can stay blank. Click **Continue**.

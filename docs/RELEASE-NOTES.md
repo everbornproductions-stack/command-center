@@ -2,6 +2,19 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.8 (2026-10-21)
+
+**Better**
+- The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line.
+- Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. You can turn demo mode back on in Settings.
+
+## v0.4.7 (2026-10-20)
+
+**Better**
+- The top bar is one row of dropdown menus. A wider window splits them into more menus, and a narrower window merges them back. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away.
+- Start a project is in the Work menu, with Projects. The Settings menu keeps Settings, setup, the tour, and Check for updates.
+- Nova, Atlas and Sage, the demo AIs, hide once a real AI is connected. They come back only when every real AI is removed. Real jobs are not sent to them while a real AI is connected.
+
 ## v0.4.5 (2026-10-20)
 
 **New**
