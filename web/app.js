@@ -5,6 +5,7 @@ import { ASK, CREATE_VIEWS, EXPERT_COMMAND, EXPERT_SETTINGS, isFreshInstall, res
 import { composerAis, hideDemoBots, graphNodes } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
+import { attachPack } from "./features/prompt-order.js";
 
 // ---------------- state ----------------
 const S = {
@@ -1165,11 +1166,10 @@ async function sendOrders() {
   const projectId = $("#proj")?.value || null;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toast("Add at least one API key first", true); }
   const pp = window.CC?.promptPack;
-  if (pp?.templateId && pp.halted) return toast(pp.message || "I need a few facts before I can run this. I will not invent them.", true);
+  const attached = attachPack(pp);
   $("#go").disabled = true;
   try {
-    const usePack = !!(pp?.templateId && !pp.removed);
-    const packBody = usePack ? { promptPack: { templateId: pp.templateId, inputs: pp.inputs || {} } } : (pp?.removed ? { promptPack: { removed: true } } : {});
+    const packBody = attached ? { promptPack: attached } : (pp?.removed ? { promptPack: { removed: true } } : {});
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
     if (mode === "single") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.

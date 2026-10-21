@@ -74,6 +74,8 @@ test("intent auto-applies a clear phrase, ignores hello, and uses the router onl
   const picked = await detectIntent("zzzzqqq no keywords here", TEMPLATES, { ask: async () => '{"id":"cfo-cost-cutter","why":"costs"}' });
   assert.equal(picked.id, "cfo-cost-cutter");
   assert.equal(picked.source, "router");
+  assert.equal(picked.autoApply, false);
+  assert.equal(picked.suggest, true);
   const bad = await detectIntent("zzzzqqq no keywords here", TEMPLATES, { ask: async () => '{"id":"not-a-template"}' });
   assert.equal(bad.id, null);
   const down = await detectIntent("zzzzqqq no keywords here", TEMPLATES, { ask: async () => { throw new Error("offline"); } });
