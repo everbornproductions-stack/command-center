@@ -3,7 +3,7 @@
 // server/receipts.js (the receipt parser). Renewal reminders are the alerts plugin's renewalSweep.
 // Like the tracker it builds on, this is a Pro feature: Free users get { locked: true }.
 // Keys and mail tokens go to the vault and never come back to the browser (masked only).
-import { servicesView, refreshLive, apiRows, saveAdminKey, removeAdminKey, setMailClient, mailStart, mailFinish, mailDisconnect, scanMail, confirmCandidate, dismissCandidate, mailView, MAIL_SOURCES, removeSubscription, undoAutoRow, rescanConnected } from "../services.js";
+import { servicesView, refreshLive, apiRows, saveAdminKey, saveBudget, removeAdminKey, setMailClient, mailStart, mailFinish, mailDisconnect, scanMail, confirmCandidate, dismissCandidate, mailView, MAIL_SOURCES, removeSubscription, undoAutoRow, rescanConnected } from "../services.js";
 import { subscriptionView } from "../subscriptions.js";
 import { subscriptionsLocked } from "../license.js";
 import { renewalSweep, raise } from "./alerts.js";
@@ -14,11 +14,12 @@ let H = null;
 export async function init(h) {
   H = h;
   if (h.HOSTED) return;
+  // provider balances every 15 minutes while the app is in use (skipped while idle or on battery)
   scheduler.register({
     id: "detection",
-    everyMs: 3600 * 1000,
+    everyMs: 15 * 60 * 1000,
     firstMs: 45000,
-    lightEveryMs: 6 * 3600 * 1000,
+    lightEveryMs: 3600 * 1000,
     pause: true,
     run: () => tick(),
   });
@@ -69,7 +70,9 @@ async function handle(req, res, url, body, h) {
 
   if (m === "POST" && p === "/refresh") { await refreshLive({ only: body.provider || undefined }); balanceAlerts(h); return h.json(res, 200, servicesView()); }
 
-  if (m === "POST" && p === "/admin-key") return h.json(res, 200, { ...(await saveAdminKey(String(body.provider || ""), body.key)), view: servicesView() });
+  if (m === "POST" && p === "/admin-key") return h.json(res, 200, { ...(await saveAdminKey(String(body.provider || ""), body.key, { teamId: body.teamId })), view: servicesView() });
+  // a monthly budget or prepaid credit amount per provider: the estimate when there is no live balance
+  if (m === "POST" && p === "/budget") { const saved = saveBudget(String(body.provider || ""), { amount: body.amount, kind: body.kind }); return h.json(res, 200, { saved, view: servicesView() }); }
   if (m === "DELETE" && seg[0] === "admin-key" && seg[1]) { await removeAdminKey(seg[1]); h.emit("log", { text: "Admin key removed from the vault." }); return h.json(res, 200, servicesView()); }
 
   // manual add and edit, always available with or without the email scan; every field changed here is "you entered"
@@ -112,4 +115,4 @@ async function handle(req, res, url, body, h) {
 }
 
 // live balances: the shared scheduler runs this (local mode; the hosted hub refreshes on demand)
-const tick = () => { try { if (H && !H.HOSTED && !subscriptionsLocked()) refreshLive().then(() => balanceAlerts(H)).catch(() => {}); } catch {} };
+const tick = () => { try { if (H && !H.HOSTED && !subscriptionsLocked()) refreshLive({ maxAgeMs: 10 * 60 * 1000 }).then(() => balanceAlerts(H)).catch(() => {}); } catch {} };

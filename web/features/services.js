@@ -27,10 +27,15 @@ const css = `
 #cc-sv .sv-mail { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 #cc-sv .sv-mail .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 #cc-sv .sv-hint { padding: 4px 0; }
+#cc-sv .sv-tag.est { color: var(--amber); border-color: #5a4616; }
+#cc-sv .sv-budget summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+#cc-sv .sv-spin { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sv-spin .8s linear infinite; vertical-align: -1px; margin-right: 4px; }
+@keyframes sv-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #cc-sv .sv-spin { animation-duration: 2.4s; } }
 `;
 const style = document.createElement("style"); style.id = "cc-services-style"; style.textContent = css; document.head.appendChild(style);
 
-let V = null, busy = false;
+let V = null, busy = false, checking = false, lastAuto = 0;
 const pct = (c) => `${Math.round(Number(c || 0) * 100)}%`;
 const lowConf = () => V?.mail?.lowConfidence ?? 0.6;
 
@@ -40,6 +45,7 @@ function tag(origin, conf, extra = "") {
   if (origin === "api") return `<span class="sv-tag auto" title="${esc(extra || "From the provider's API")}">auto-detected: API</span>`;
   if (origin === "ledger") return `<span class="sv-tag auto" title="Counted from this app's own ledger">auto-detected: ledger</span>`;
   if (origin === "estimate") return `<span class="sv-tag" title="${esc(extra)}">estimate</span>`;
+  if (origin === "estimated") return `<span class="sv-tag est" title="${esc(extra)}">estimated</span>`;
   if (origin === "none") return `<span class="sv-tag">not set</span>`;
   return `<span class="sv-tag user">you entered</span>`;
 }
@@ -61,26 +67,50 @@ function kpis(v) {
   </div>`;
 }
 
+// Credits left: live from the provider's API, else an estimate labelled "estimated", else what to add.
+const NO_INFO = "Set a monthly budget for this provider to see an estimate.";
+function creditsCell(r) {
+  const c = r.credits;
+  const amount = (x, d) => (c.unit === "USD" ? money(x, d) : `${esc(String(x))} ${esc(c.unit)}`);
+  let html = c
+    ? `<span class="mono">${amount(c.value)}${c.total != null ? ` <span class="dim">of ${amount(c.total, 0)}</span>` : ""}</span>${c.source === "estimate" ? tag("estimated", null, c.label) : tag("api", null, c.label)}${c.stale ? `<span class="sv-tag low">last known value</span>` : ""}`
+    : "";
+  if (r.creditsHint) html += `<span class="dim small">${esc(r.creditsHint)}</span>`;
+  else if (!c) html += `<span class="dim small">${esc(NO_INFO)}</span>`;
+  if (!c || c.source === "estimate") {
+    const b = r.budget;
+    html += `<details class="sv-budget" data-budget="${esc(r.provider)}"><summary>${b ? `${b.kind === "credit" ? "credit bought" : "monthly budget"}: ${money(b.amount, 0)}, change` : "set a budget or credit amount"}</summary>
+      <span class="row small" style="gap:4px;margin-top:4px"><input type="number" min="0" step="1" data-budget-amount value="${b?.amount ?? ""}" aria-label="${esc(r.name)} amount in dollars" placeholder="$" style="width:70px"><select data-budget-kind aria-label="What the amount is"><option value="monthly" ${b?.kind !== "credit" ? "selected" : ""}>monthly budget</option><option value="credit" ${b?.kind === "credit" ? "selected" : ""}>credit I bought</option></select><button class="ghost small" data-budget-save>save</button></span></details>`;
+  }
+  return html;
+}
+
+function refreshButton() {
+  return checking
+    ? `<button class="btn sm" id="sv-refresh" disabled aria-busy="true"><span class="sv-spin" aria-hidden="true"></span>Checking...</button>`
+    : `<button class="btn sm" id="sv-refresh">Refresh</button>`;
+}
+
 function apisPanel(v) {
   const rows = v.apis;
   const admin = v.admin || {};
-  return `<div class="panel"><h3>AI providers <span class="right small">${v.liveAt ? `live check ${ago(v.liveAt)} ago` : "no live check yet"} <button class="btn sm" id="sv-refresh" ${busy ? "disabled" : ""}>Refresh</button></span></h3>
+  return `<div class="panel"><h3>AI providers <span class="right small">${v.liveAt ? `live check ${ago(v.liveAt)} ago` : "no live check yet"} ${refreshButton()}</span></h3>
     ${rows.length ? `<table class="tbl"><thead><tr><th>Provider</th><th>Credits left</th><th>Month to date</th><th>Spend cap</th><th>Status</th><th></th></tr></thead><tbody>
     ${rows.map((r) => `<tr>
       <td><span class="dot" style="background:${r.color || pcolor(r.provider)}"></span> <b>${esc(r.name)}</b>${r.demo ? ` <span class="chip">demo</span>` : ""}<div class="dim small">${esc(r.live ? r.live.how : r.noLive || "")}</div>${r.note ? `<div class="dim small">${esc(r.note)}</div>` : ""}</td>
-      <td><div class="sv-cell">${r.credits ? `<span class="mono">${r.credits.unit === "USD" ? money(r.credits.value) : `${esc(String(r.credits.value))} ${esc(r.credits.unit)}`}${r.credits.total != null ? ` <span class="dim">of ${r.credits.unit === "USD" ? money(r.credits.total, 0) : esc(String(r.credits.total))}</span>` : ""}</span>${tag("api", null, r.credits.label)}${r.credits.stale ? `<span class="sv-tag low">last known value</span>` : ""}` : `<span class="dim">not available</span>`}</div></td>
+      <td><div class="sv-cell">${creditsCell(r)}</div></td>
       <td><div class="sv-cell"><span class="mono">${money(r.mtd.value)}</span>${tag(r.mtd.source === "api" ? "api" : "ledger", null, r.mtd.label)}${r.mtd.source === "api" && Math.abs(r.mtd.value - r.ledgerMtd) > 0.005 ? `<span class="dim small">${money(r.ledgerMtd)} through this app</span>` : ""}${r.inTok != null ? `<span class="dim small">${Number(r.inTok).toLocaleString()} in · ${Number(r.outTok || 0).toLocaleString()} out tokens</span>` : ""}</div></td>
       <td><div class="sv-cell">${r.cap ? `<span class="mono">${r.capPct}% of ${money(r.cap, 0)}</span>${tag("user")}` : `<span class="dim">no cap</span>`}</div></td>
       <td><span class="sv-lvl ${r.level}">${r.level === "ok" ? "ok" : r.level === "amber" ? "watch" : "attention"}</span>${r.why.length ? `<div class="dim small">${r.why.map(esc).join("<br>")}</div>` : ""}</td>
       <td class="right small">${r.links.billing ? `<a href="${esc(r.links.billing)}" target="_blank" rel="noopener">billing</a>` : ""}${r.links.usage && r.links.usage !== r.links.billing ? ` · <a href="${esc(r.links.usage)}" target="_blank" rel="noopener">usage</a>` : ""}</td>
     </tr>`).join("")}</tbody></table>` : `<div class="dim small">No AI keys yet. Add one in Settings and its credits and spend show here.</div>`}
-    <div class="dim small" style="margin-top:8px">Credits are read live from OpenRouter and DeepSeek. Spend caps are set in Settings, Spend caps and alerts: amber at 80%, and at 100% the router sends that AI no new work. Chats made through the APIs do not appear in claude.ai, ChatGPT or grok.com history.</div>
-    <div class="cat-h" style="margin-top:14px">Optional: exact month-to-date from OpenAI and Anthropic</div>
-    <div class="dim small">Their cost and usage reports need an admin key (made by an organization owner). It is never required; without it the month-to-date is what this app spent. The key goes to the vault after one test call and is never shown again.</div>
+    <div class="dim small" style="margin-top:8px">Credits are read live from OpenRouter and DeepSeek, and from xAI with a management key. OpenAI and Anthropic show live spend with an admin key. Everywhere else the number is estimated from your budget or credit amount minus this app's spend, and says so. Balances refresh when this page opens and every 15 minutes while the app is in use. Spend caps are set in Settings, Spend caps and alerts: amber at 80%, and at 100% the router sends that AI no new work. Chats made through the APIs do not appear in claude.ai, ChatGPT or grok.com history.</div>
+    <div class="cat-h" style="margin-top:14px">Optional: live numbers from OpenAI, Anthropic and xAI</div>
+    <div class="dim small">OpenAI and Anthropic cost reports need an admin key (made by an organization owner). The xAI prepaid balance needs a management key and your team id. None of these is required; without them the numbers are estimated. The key goes to the vault after one test call and is never shown again.</div>
     ${Object.entries(admin).map(([pid, a]) => `<div class="row small" style="gap:8px;margin-top:6px;flex-wrap:wrap">
-      <b style="width:90px">${pid === "openai" ? "OpenAI" : "Anthropic"}</b>
-      ${a.keyed ? `<span class="chip green">admin key saved ${esc(a.masked || "")}</span>${a.fromEnv ? `<span class="dim">from the environment</span>` : `<button class="ghost small" data-admin-del="${pid}" style="color:var(--red)">remove</button>`}`
-        : `<input type="password" autocomplete="off" data-admin-key="${pid}" placeholder="${esc(a.hint)}" style="width:240px;padding:4px 6px"><button class="btn sm" data-admin-save="${pid}">Test and save</button><a href="${esc(a.url)}" target="_blank" rel="noopener">get an admin key</a>`}
+      <b style="width:90px">${esc(a.name || pid)}</b>
+      ${a.keyed ? `<span class="chip green">${pid === "xai" ? "management" : "admin"} key saved ${esc(a.masked || "")}</span>${a.fromEnv ? `<span class="dim">from the environment</span>` : `<button class="ghost small" data-admin-del="${pid}" style="color:var(--red)">remove</button>`}`
+        : `<input type="password" autocomplete="off" data-admin-key="${pid}" placeholder="${esc(a.hint)}" aria-label="${esc(a.name || pid)} ${pid === "xai" ? "management" : "admin"} key" style="width:240px;padding:4px 6px">${a.needsTeam ? `<input type="text" autocomplete="off" data-admin-team="${pid}" placeholder="team id" aria-label="${esc(a.name || pid)} team id" style="width:140px;padding:4px 6px">` : ""}<button class="btn sm" data-admin-save="${pid}">Test and save</button><a href="${esc(a.url)}" target="_blank" rel="noopener">get ${pid === "xai" ? "a management" : "an admin"} key</a>`}
     </div>`).join("")}
   </div>`;
 }
@@ -193,15 +223,20 @@ async function render(el) {
   try { await load(); } catch (e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (V.locked) { window.CC.renderSubscriptionsCore?.(el); return; }
   draw(el);
-  // a live check older than 15 minutes is refreshed in the background once the page is open
-  if (!V.liveAt || Date.now() - V.liveAt > 15 * 60000) refreshNow(el, true);
+  // balances are checked when the page opens (at most once a minute here; the server reuses a check under 30 s old)
+  if (Date.now() - lastAuto > 60000) { lastAuto = Date.now(); refreshNow(el, true); }
 }
 
+// Ask every provider's balance API, then redraw. The button shows a spinner and "Checking..." meanwhile.
 async function refreshNow(el, quiet = false) {
-  if (busy) return;
-  busy = true; if (!quiet) draw(el);
-  try { await load(true); if (!quiet) toast("Balances and spend refreshed"); } catch (e) { if (!quiet) toast(e.message, true); }
-  busy = false;
+  if (checking) return;
+  checking = true; draw(el);
+  try {
+    await api(`/providers/balances?refresh=1${quiet ? "" : "&force=1"}`);
+    await load();
+    if (!quiet) toast("Balances and spend refreshed");
+  } catch (e) { if (!quiet) toast(e.message, true); }
+  checking = false;
   if (window.CC.S.view === "subscriptions" && document.body.contains(el)) draw(el);
 }
 
@@ -215,7 +250,12 @@ function draw(el) {
   $("#sv-notify")?.addEventListener("click", async () => { try { await Notification.requestPermission(); } catch {} draw(el); });
 
   // admin keys
-  $$("[data-admin-save]").forEach((b) => b.addEventListener("click", () => { const pid = b.dataset.adminSave; const key = $(`[data-admin-key="${pid}"]`).value.trim(); if (!key) return toast("Paste the admin key first.", true); run(() => api("/services/admin-key", { method: "POST", body: { provider: pid, key } }), (r) => `${r.label}. ${r.detail}`); }));
+  $$("[data-admin-save]").forEach((b) => b.addEventListener("click", () => { const pid = b.dataset.adminSave; const key = $(`[data-admin-key="${pid}"]`).value.trim(); if (!key) return toast("Paste the admin key first.", true); const teamId = $(`[data-admin-team="${pid}"]`)?.value.trim() || undefined; run(() => api("/services/admin-key", { method: "POST", body: { provider: pid, key, teamId } }), (r) => `${r.label}. ${r.detail}`); }));
+  // budget or credit amount per provider, for the estimate
+  $$("[data-budget]").forEach((d) => d.querySelector("[data-budget-save]").addEventListener("click", () => {
+    const raw = d.querySelector("[data-budget-amount]").value;
+    run(() => api("/services/budget", { method: "POST", body: { provider: d.dataset.budget, amount: raw === "" ? null : Number(raw), kind: d.querySelector("[data-budget-kind]").value } }), raw === "" ? "Budget removed" : "Saved. The estimate uses it now.");
+  }));
   $$("[data-admin-del]").forEach((b) => b.addEventListener("click", () => { if (!confirm("Remove this admin key from the vault?")) return; run(() => api(`/services/admin-key/${b.dataset.adminDel}`, { method: "DELETE" }), "Admin key removed"); }));
 
   // subscriptions: edit, delete, add

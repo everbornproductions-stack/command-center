@@ -14,6 +14,7 @@ import { checkProvider } from "../health.js";
 import { isBlockedFree } from "../savings.js";
 import { capsFor, learnedStrengths, profileFor } from "../added-caps.js";
 import { localFetch } from "../loopback-fetch.js";
+import { refreshLive, balancesView } from "../services.js";
 
 export const id = "providers";
 const DOC = "providers.custom";
@@ -150,6 +151,12 @@ export async function routes(req, res, url, body, h) {
   const seg = url.pathname.replace(/^\/api\/providers/, "").split("/").filter(Boolean);
   const method = req.method;
 
+  // credits left per provider: live from the balance APIs where they exist, else an estimate with a hint.
+  // ?refresh=1 asks the providers now (a check under 30 s old is reused); without it the cached numbers come back.
+  if (method === "GET" && seg[0] === "balances" && !seg[1]) {
+    if (url.searchParams.get("refresh") === "1") await refreshLive({ maxAgeMs: url.searchParams.get("force") === "1" ? 0 : 30000 });
+    return h.json(res, 200, balancesView());
+  }
   if (method === "GET" && seg[0] === "presets") return h.json(res, 200, { presets: PRESETS.map((p) => ({ ...p, builtin: p.builtin && PROVIDERS[p.builtin] ? p.builtin : null })) });
   if (method === "POST" && seg[0] === "suggest") return h.json(res, 200, { suggestion: suggestProvider(body.key) }); // suggestion only: the key is never echoed or logged
   if (method === "GET" && seg[0] === "custom" && !seg[1]) return h.json(res, 200, { hosted: HOSTED, custom: list().map(view) });
