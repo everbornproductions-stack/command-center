@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
 import { isLoopback, localFetch } from "./loopback-fetch.js";
-import { MONTHLY_AMOUNT } from "./billing-plans.js";
+import { METRICS_PRICES, monthlyCents, fromCents } from "./metrics-prices.js";
 
 export const SHARE_LABEL = "Share anonymous usage counts to help improve Meldmind";
 export const SHARE_DETAIL = "Once a day, if this is on, Meldmind sends a random install id, the app version, the operating system, your plan, and how many times each feature was used. It does not send prompts, chats, emails, or files. You can turn this off here.";
@@ -19,8 +19,8 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const OS = new Set(["win32", "darwin", "linux", "web", "other"]);
 const TIERS = new Set(["free", "pro", "studio", "owner"]);
 const ALLOWED_PING_KEYS = new Set(["installId", "version", "os", "tier", "day", "features"]);
-const PAID_TIERS = new Set(["pro", "studio"]);
 const PAID_SOURCES = new Set(["square", "manual"]);
+const REPORT_TIERS = ["free", "pro", "extreme", "owner"];
 
 export function utcDay(d = new Date()) {
   return new Date(d).toISOString().slice(0, 10);
@@ -315,12 +315,48 @@ async function fetchTable(table, select, env, fetchImpl) {
   return rows;
 }
 
-export function mrrNote(monthly = MONTHLY_AMOUNT) {
-  return `Paying users are active Pro or Studio licences whose source is Square or manual. Promo codes, the owner tier, Free, and every status other than active are not paying users. Past due licences are counted apart and are not in MRR. MRR is the paying user count times the live monthly price ($${monthly}). The licences table does not store a billing interval, so yearly and lifetime are not split out. Studio uses that same monthly price because the table has no price column. This report does not call Square and does not include emails, licence keys, or install ids.`;
+function moneyText(cents) {
+  return fromCents(cents).toFixed(2);
+}
+
+export function mrrNote(prices = METRICS_PRICES) {
+  const life = Object.values(prices.lifetime).map((n) => `$${Number(n)}`).join(" or ");
+  return `Paying users are active Pro or Extreme licences on a monthly or yearly plan whose source is Square or manual. The studio tier is the legacy name for Extreme and uses Extreme prices. Promo codes, the owner tier, Free, lifetime founders, and every status other than active are not paying users. Past due licences are counted apart and are not in MRR. A licence with no plan is counted as that tier's monthly price. Monthly list prices are Pro $${moneyText(monthlyCents("pro", "monthly", prices))} and Extreme $${moneyText(monthlyCents("extreme", "monthly", prices))}. Yearly list prices are Pro $${prices.pro.yearly} ($${moneyText(monthlyCents("pro", "yearly", prices))} a month) and Extreme $${prices.extreme.yearly} ($${moneyText(monthlyCents("extreme", "yearly", prices))} a month). Lifetime founder licences are ${life}. They add 0 to MRR. Their count and one-time revenue are reported separately. This report does not call Square and does not include emails, licence keys, or install ids.`;
+}
+
+function reportTier(tier, prices = METRICS_PRICES) {
+  const name = String(tier || "").toLowerCase();
+  return prices.legacyTier[name] || name;
+}
+
+function lifetimeAmount(plan, prices) {
+  const match = String(plan).match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  return Object.prototype.hasOwnProperty.call(prices.lifetime, amount) ? prices.lifetime[amount] : null;
+}
+
+function classifyLicense(row, prices = METRICS_PRICES) {
+  const tier = reportTier(row.tier, prices);
+  const plan = String(row.plan || "").toLowerCase().trim();
+  if (plan.startsWith("lifetime")) {
+    const amount = lifetimeAmount(plan, prices);
+    return amount == null ? null : { kind: "lifetime", amount };
+  }
+  let product = tier;
+  let cadence = "monthly";
+  if (plan) {
+    if (plan.startsWith("pro")) product = "pro";
+    else if (plan.startsWith("extreme") || plan.startsWith("studio")) product = "extreme";
+    if (plan.includes("year")) cadence = "yearly";
+    else if (plan.includes("month") || plan === "pro" || plan === "extreme" || plan === "studio") cadence = "monthly";
+    else return null;
+  }
+  if (!prices[product]) return null;
+  return { kind: "recurring", mrrCents: monthlyCents(product, cadence, prices) };
 }
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
-function money(n) { return Math.round(n * 100) / 100; }
 
 function latestByInstall(rows) {
   const map = new Map();
@@ -331,7 +367,7 @@ function latestByInstall(rows) {
   return map;
 }
 
-export function buildReport({ pings = [], licenses = [], asOf = utcDay(), monthlyUsd = MONTHLY_AMOUNT } = {}) {
+export function buildReport({ pings = [], licenses = [], asOf = utcDay(), prices = METRICS_PRICES } = {}) {
   const rows = [];
   const seenDay = new Set();
   for (const raw of pings) {
@@ -394,8 +430,11 @@ export function buildReport({ pings = [], licenses = [], asOf = utcDay(), monthl
     if (row.os) installsByOs[row.os] = (installsByOs[row.os] || 0) + 1;
   }
   const activeLatest = latestByInstall(wauRows);
-  const activeByTier = { free: 0, pro: 0, studio: 0, owner: 0 };
-  for (const row of activeLatest.values()) activeByTier[row.tier] = (activeByTier[row.tier] || 0) + 1;
+  const activeByTier = Object.fromEntries(REPORT_TIERS.map((tier) => [tier, 0]));
+  for (const row of activeLatest.values()) {
+    const tier = reportTier(row.tier, prices);
+    if (activeByTier[tier] != null) activeByTier[tier] += 1;
+  }
   const featureTotals = {};
   for (const row of wauRows) {
     for (const [name, n] of Object.entries(row.features)) featureTotals[name] = (featureTotals[name] || 0) + n;
@@ -407,13 +446,34 @@ export function buildReport({ pings = [], licenses = [], asOf = utcDay(), monthl
 
   let payingUsers = 0;
   let pastDue = 0;
+  let mrrCents = 0;
+  let lifetimeCount = 0;
+  let lifetimeCents = 0;
+  const lifetimeByPrice = {};
+  for (const amount of Object.values(prices.lifetime)) {
+    lifetimeByPrice[String(amount)] = { count: 0, revenueUsd: 0 };
+  }
   for (const raw of licenses) {
     if (!raw || typeof raw !== "object") continue;
-    const tier = String(raw.tier || "").toLowerCase();
     const status = String(raw.status || "").toLowerCase();
     const source = String(raw.source || "").toLowerCase();
-    if (status === "past_due" && PAID_TIERS.has(tier) && PAID_SOURCES.has(source)) pastDue += 1;
-    if (status === "active" && PAID_TIERS.has(tier) && PAID_SOURCES.has(source)) payingUsers += 1;
+    if (!PAID_SOURCES.has(source)) continue;
+    const seat = classifyLicense(raw, prices);
+    if (!seat) continue;
+    if (status === "past_due" && seat.kind === "recurring") pastDue += 1;
+    if (status !== "active") continue;
+    if (seat.kind === "lifetime") {
+      lifetimeCount += 1;
+      lifetimeCents += Math.round(Number(seat.amount) * 100);
+      const bucket = lifetimeByPrice[String(seat.amount)];
+      if (bucket) {
+        bucket.count += 1;
+        bucket.revenueUsd = fromCents(Math.round(bucket.count * Number(seat.amount) * 100));
+      }
+      continue;
+    }
+    payingUsers += 1;
+    mrrCents += seat.mrrCents;
   }
 
   return {
@@ -435,14 +495,17 @@ export function buildReport({ pings = [], licenses = [], asOf = utcDay(), monthl
     topFeaturesWindow: "wau",
     payingUsers,
     pastDue,
-    mrrUsd: money(payingUsers * monthlyUsd),
-    mrrNote: mrrNote(monthlyUsd),
+    mrrUsd: fromCents(mrrCents),
+    lifetimeCount,
+    lifetimeRevenueUsd: fromCents(lifetimeCents),
+    lifetimeByPrice,
+    mrrNote: mrrNote(prices),
   };
 }
 
 export async function fetchReport({ asOf = utcDay(), env = process.env, fetchImpl } = {}) {
   const pings = await fetchTable("usage_pings", "install_id,day,version,os,tier,features", env, fetchImpl);
-  const licenses = await fetchTable("licenses", "tier,status,source", env, fetchImpl);
+  const licenses = await fetchTable("licenses", "tier,status,source,plan", env, fetchImpl);
   return buildReport({
     pings: pings.map((row) => ({
       installId: row.install_id,

@@ -1619,3 +1619,14 @@ Not a numbered phase. No locked decision was changed. Phase 14 stays BLOCKED (ne
 - Not verified: the migration against a live Supabase project (it was not run). The owner report was checked against a local stand-in, not the live licences table.
 
 ANONYMOUS USAGE COUNTS (not a numbered phase)
+
+## 2026-10-21: owner report MRR uses the list prices
+
+Not a numbered phase. No locked decision was changed. Square and billing were not changed. The live checkout is still the Phase 35 prices. Version stays 0.4.8. Nothing was published. data/ was not read. The new licence plan migration was not run.
+
+- The owner report no longer prices every paying licence at $15.99. It reads `server/metrics-prices.js`: Pro $18.99 a month or $189 a year ($15.75 a month), Extreme $29.99 a month or $299 a year ($24.92 a month). The studio tier is priced as Extreme. A licence with no plan is that tier's monthly price.
+- Lifetime founder licences (`lifetime-349` at $349 and `lifetime-499` at $499) add 0 to MRR. The report adds `lifetimeCount`, `lifetimeRevenueUsd`, and `lifetimeByPrice`. Promo, owner, Free, cancelled, and past due stay out of MRR. Past due is still counted apart. The report still does not call Square and still leaves out emails, licence keys, and install ids.
+- `supabase/migrations/20261021_license_plan.sql` adds nullable `licenses.plan`. It was not applied. The report select is tier, status, source, and plan.
+- Tests here (Linux): npm test 422 tests, 421 pass, 0 fail, 1 skipped (Pyodide is not installed). npm run smoke: all checks passed. Node 22.23.3. No real key. data/ was not read.
+
+MRR LIST PRICES (not a numbered phase)

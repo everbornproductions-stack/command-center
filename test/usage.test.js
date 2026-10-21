@@ -9,6 +9,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { startServer, freePort, ROOT } from "./helpers.js";
 import { buildReport, usesFromEvent, validatePing, SHARE_LABEL } from "../server/usage.js";
+import { METRICS_PRICES, monthlyCents } from "../server/metrics-prices.js";
 
 const EM = "\u2014";
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -30,16 +31,23 @@ function closeServer(server) {
 }
 
 test("report math: cohorts, activity, features, paying users, and no personal data", () => {
+  assert.equal(METRICS_PRICES.pro.monthly, 18.99);
+  assert.equal(METRICS_PRICES.pro.yearly, 189);
+  assert.equal(METRICS_PRICES.extreme.monthly, 29.99);
+  assert.equal(METRICS_PRICES.extreme.yearly, 299);
+  assert.equal(monthlyCents("pro", "yearly") / 100, 15.75);
+  assert.equal(monthlyCents("extreme", "yearly") / 100, 24.92);
+  assert.deepEqual(METRICS_PRICES.lifetime, { 349: 349, 499: 499 });
+  assert.equal(METRICS_PRICES.legacyTier.studio, "extreme");
   const report = buildReport({
     asOf: "2026-10-21",
-    monthlyUsd: 15.99,
     pings: [
       { installId: "a".repeat(32), day: "2026-09-01", version: "0.4.7", os: "win32", tier: "free", features: { single: 1 } },
       { installId: "a".repeat(32), day: "2026-09-08", version: "0.4.8", os: "win32", tier: "pro", features: { council: 2 } },
       { installId: "a".repeat(32), day: "2026-09-29", version: "0.4.8", os: "win32", tier: "pro", features: { council: 3 } },
       { installId: "b".repeat(32), day: "2026-09-01", version: "0.4.7", os: "darwin", tier: "free", features: { single: 1 } },
       { installId: "c".repeat(32), day: "2026-10-20", version: "0.4.8", os: "linux", tier: "free", features: { mission: 4 } },
-      { installId: "d".repeat(32), day: "2026-10-21", version: "0.4.8", os: "win32", tier: "pro", features: { council: 2, single: 2 } },
+      { installId: "d".repeat(32), day: "2026-10-21", version: "0.4.8", os: "win32", tier: "studio", features: { council: 2, single: 2 } },
       { installId: "e".repeat(32), day: "2026-10-22", version: "0.4.8", os: "linux", tier: "pro", features: { council: 9 } },
     ],
     licenses: [
@@ -51,6 +59,12 @@ test("report math: cohorts, activity, features, paying users, and no personal da
       { tier: "pro", status: "cancelled", source: "square" },
       { tier: "free", status: "active", source: "square" },
       { tier: "pro", status: "active", source: "square", email: "hidden@example.com", key: "EVB-AAAA-BBBB-CCCC" },
+      { tier: "pro", status: "active", source: "square", plan: "pro-yearly" },
+      { tier: "studio", status: "active", source: "manual", plan: "extreme-yearly" },
+      { tier: "pro", status: "active", source: "manual", plan: "lifetime-349" },
+      { tier: "studio", status: "active", source: "square", plan: "lifetime-499" },
+      { tier: "pro", status: "active", source: "promo", plan: "lifetime-349" },
+      { tier: "pro", status: "active", source: "square", plan: "mystery" },
     ],
   });
   assert.equal(report.dau, 1);
@@ -68,16 +82,34 @@ test("report math: cohorts, activity, features, paying users, and no personal da
   assert.equal(recent.week4, null);
   assert.deepEqual(report.installsByVersion, { "0.4.8": 3, "0.4.7": 1 });
   assert.deepEqual(report.installsByOs, { win32: 2, darwin: 1, linux: 1 });
-  assert.deepEqual(report.activeByTier, { free: 1, pro: 1, studio: 0, owner: 0 });
+  assert.deepEqual(report.activeByTier, { free: 1, pro: 0, extreme: 1, owner: 0 });
   assert.deepEqual(report.topFeatures, [
     { feature: "mission", count: 4 },
     { feature: "council", count: 2 },
     { feature: "single", count: 2 },
   ]);
-  assert.equal(report.payingUsers, 3);
+  assert.equal(report.payingUsers, 5);
   assert.equal(report.pastDue, 1);
-  assert.equal(report.mrrUsd, 47.97);
-  assert.match(report.mrrNote, /\$15\.99/);
+  const expectedMrr = (
+    monthlyCents("pro", "monthly") * 2
+    + monthlyCents("extreme", "monthly")
+    + monthlyCents("pro", "yearly")
+    + monthlyCents("extreme", "yearly")
+  ) / 100;
+  assert.equal(report.mrrUsd, expectedMrr);
+  assert.equal(report.mrrUsd, 108.64);
+  assert.equal(report.lifetimeCount, 2);
+  assert.equal(report.lifetimeRevenueUsd, 848);
+  assert.deepEqual(report.lifetimeByPrice, {
+    349: { count: 1, revenueUsd: 349 },
+    499: { count: 1, revenueUsd: 499 },
+  });
+  assert.match(report.mrrNote, /\$18\.99/);
+  assert.match(report.mrrNote, /\$29\.99/);
+  assert.match(report.mrrNote, /\$24\.92/);
+  assert.match(report.mrrNote, /\$349 or \$499/);
+  assert.match(report.mrrNote, /add 0 to MRR/);
+  assert.match(report.mrrNote, /legacy name for Extreme/);
   assert.match(report.mrrNote, /does not call Square/);
   const dumped = JSON.stringify(report);
   assert.equal(dumped.includes("a".repeat(32)), false);
@@ -130,6 +162,14 @@ test("the migration is insert-only and the switch is disclosed", () => {
   }
   const usage = fs.readFileSync(path.join(ROOT, "server", "usage.js"), "utf8");
   assert.doesNotMatch(usage, /square\.link|squareup|SQUARE_/);
+  assert.doesNotMatch(usage, /billing-plans|18\.99|29\.99|24\.92|15\.99|\b349\b|\b499\b|\b189\b/);
+  const planSql = fs.readFileSync(path.join(ROOT, "supabase", "migrations", "20261021_license_plan.sql"), "utf8");
+  assert.match(planSql, /add column if not exists plan text/);
+  assert.match(planSql, /not been run/);
+  assert.match(planSql, /lifetime-349/);
+  assert.match(planSql, /lifetime-499/);
+  assert.doesNotMatch(planSql, /square\.link|SQUARE_/);
+  assert.equal(planSql.includes(EM), false);
   assert.match(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"), /"metrics:report"/);
   assert.equal(VERSION, "0.4.8");
 });
@@ -216,7 +256,8 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
   const licenses = [
     { tier: "pro", status: "active", source: "square", email: "hidden@example.com", key: "EVB-SECRET-KEY" },
     { tier: "pro", status: "active", source: "promo", email: "friend@example.com" },
-    { tier: "studio", status: "active", source: "manual" },
+    { tier: "studio", status: "active", source: "manual", plan: "extreme-yearly" },
+    { tier: "pro", status: "active", source: "manual", plan: "lifetime-499", email: "founder@example.com" },
   ];
   const dbHits = [];
   const db = http.createServer(async (req, res) => {
@@ -236,7 +277,7 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
     }
     if (req.method === "GET" && url.pathname === "/rest/v1/usage_pings") return send(200, pings);
     if (req.method === "GET" && url.pathname === "/rest/v1/licenses") {
-      return send(200, licenses.map((row) => ({ tier: row.tier, status: row.status, source: row.source })));
+      return send(200, licenses.map((row) => ({ tier: row.tier, status: row.status, source: row.source, plan: row.plan || null })));
     }
     return send(404, { message: "no route" });
   });
@@ -280,7 +321,9 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
     assert.equal(report.status, 200, report.text);
     assert.equal(report.json.dau, 1);
     assert.equal(report.json.payingUsers, 2);
-    assert.equal(report.json.mrrUsd, 31.98);
+    assert.equal(report.json.mrrUsd, 43.91);
+    assert.equal(report.json.lifetimeCount, 1);
+    assert.equal(report.json.lifetimeRevenueUsd, 499);
     assert.equal(report.json.topFeatures[0].feature, "council");
     assert.equal(report.text.includes("hidden@example.com"), false);
     assert.equal(report.text.includes("EVB-SECRET"), false);
@@ -290,6 +333,7 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
     assert.equal(licenseRead.search.includes("email"), false);
     assert.equal(licenseRead.search.includes("key"), false);
     assert.match(licenseRead.search, /tier/);
+    assert.match(licenseRead.search, /plan/);
     const child = spawn(process.execPath, [path.join(ROOT, "scripts", "metrics-report.mjs")], {
       env: {
         ...process.env,
@@ -308,7 +352,8 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
     assert.equal(code, 0, err);
     const parsed = JSON.parse(out);
     assert.equal(parsed.payingUsers, 2);
-    assert.equal(parsed.mrrUsd, 31.98);
+    assert.equal(parsed.mrrUsd, 43.91);
+    assert.equal(parsed.lifetimeRevenueUsd, 499);
     assert.equal(out.includes("hidden@example.com"), false);
     assert.equal(out.includes(EM), false);
   } finally {
