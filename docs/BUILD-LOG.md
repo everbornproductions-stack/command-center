@@ -2164,3 +2164,13 @@ Not a numbered phase. No locked decision was changed. Square and billing were no
 - The tag v0.4.9 waits until Windows CI on this commit is green. Nothing is published before that.
 
 RELEASE CANDIDATE 0.4.9 (not tagged yet)
+
+## 2026-10-21: Release cut 0.4.10
+
+Same tree as the 0.4.9 candidate, with the package version set to 0.4.10. This cut is not held for later pull requests. Square and billing were not touched. The hub was not deployed. data/ was not read.
+
+- What's new covers Home, private mode, backup, Do this again, double-check, tone buttons, AI credits, named answers, and the unsigned Mac first open.
+- Help articles stamped 0.4.10: getting-started, updates. The catalog lastUpdatedVersion is 0.4.10.
+- The tag v0.4.10 waits until Windows CI on this branch is green, and until v0.4.9 is already queued so latest.yml does not move backwards.
+
+RELEASE CUT 0.4.10 (not tagged yet)

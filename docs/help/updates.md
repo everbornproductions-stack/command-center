@@ -2,7 +2,7 @@
 id: updates
 title: Updates
 summary: Check for updates from Help or Settings. Nothing downloads until you click.
-lastUpdatedVersion: 0.4.8
+lastUpdatedVersion: 0.4.10
 ---
 
 # Updates

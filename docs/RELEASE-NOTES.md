@@ -2,6 +2,18 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.10 (2026-10-21)
+
+**New**
+- When you come back, Home shows your recent chats and projects.
+- Private mode keeps a chat on this computer.
+- Backup and restore uses one file and does not include AI keys.
+- Do this again repeats a finished job and is part of Pro.
+- Double-check this asks a second AI to review an answer.
+- Tone buttons set the next answer only and do not send by themselves.
+- AI credits shows what is left for each AI. Each answer says which AI wrote it.
+- The Mac build is unsigned. The first time you open it, right-click the app, then Open.
+
 ## v0.4.9 (2026-10-21)
 
 **New**
