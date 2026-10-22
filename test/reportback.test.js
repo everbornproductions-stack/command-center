@@ -60,6 +60,17 @@ function reportLines(log) {
   return String(log || "").split("\n").map((l) => l.trim()).filter((l) => l.includes("report-back "));
 }
 
+// The hub logs from a child process. On Windows a write to a pipe is async, so the
+// HTTP reply can arrive before the log line. Wait for the line with a real deadline.
+async function waitForReport(hub, line, ms = waitBudget(5000)) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (reportLines(hub.log).some((l) => l === line)) return true;
+    await sleep(50);
+  }
+  return reportLines(hub.log).some((l) => l === line);
+}
+
 test("prompt block, paste parse, and link cleanup use plain words", () => {
   assert.equal(workerOn(), false);
   assert.equal(ttlMs(), TTL_MS);
@@ -244,7 +255,7 @@ test("hub: a result is deleted after the real ttl, and the summary is never logg
     await sleep(1600);
     const gone = await inbox(hub, TOKEN_A);
     assert.deepEqual(gone.json.results, []);
-    assert.ok(reportLines(hub.log).some((l) => l === "report-back rb-expiry0001 expired"));
+    assert.ok(await waitForReport(hub, "report-back rb-expiry0001 expired"));
     assert.equal(hub.log.includes(EXPIRE_SUMMARY), false);
 
     const late = await post(hub, "/api/handoff/jobs", TOKEN_A, { jobId: "rb-expiry0002" });
@@ -340,7 +351,7 @@ test("desktop: the app picks up only its own result, then the hub deletes it", {
       return false;
     })();
     assert.equal(acked, true, "the app ack deleted the result");
-    assert.ok(reportLines(hub.log).some((l) => l === `report-back ${jobId} deleted`));
+    assert.ok(await waitForReport(hub, `report-back ${jobId} deleted`));
 
     const saved = await desk.api("/grokbot/config", { method: "POST", body: { url: `${mockBase}/hook`, key: SENDER } });
     assert.equal(saved.status, 200);
