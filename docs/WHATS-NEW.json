@@ -1,4 +1,12 @@
 {
+  "0.4.15": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Page buttons switch pages right away. Command, Projects, Settings, and the other buttons on the top bar, in the menus, and on the phone bar no longer show Working... or Done.",
+      "Other buttons keep their own name while they work. A small spinner shows only when something takes longer than half a second, and there is no Done flash afterwards.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
+  },
   "0.4.14": {
     "title": "What's new in Meldmind",
     "bullets": [

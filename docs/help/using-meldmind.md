@@ -2,12 +2,16 @@
 id: using-meldmind
 title: Using Meldmind day to day
 summary: Share links, schedules, words to avoid, masking, Stop, search, ratings, and Marketplace.
-lastUpdatedVersion: 0.4.9
+lastUpdatedVersion: 0.4.15
 ---
 
 # Using Meldmind day to day
 
 ## What changed
+
+Page buttons switch pages right away. Command, Projects, Settings, and the other buttons on the top bar, in the menus, and on the phone bar no longer show Working... or Done.
+
+Other buttons keep their own name while they work, and you cannot click them twice by mistake. A small spinner shows only when something takes longer than half a second. There is no Done flash afterwards.
 
 A share link made on this PC says this link only works on this PC. Copy the text or export a file.
 
