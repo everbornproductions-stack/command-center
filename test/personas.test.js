@@ -1,4 +1,4 @@
-// Test with personas (0.4.14). Pure checks: the panel is the 18-person Meldmind persona panel plus Max the developer, the smart
+// Test with personas (0.4.14). Pure checks: the panel is the 18-person Meldmind persona panel plus Max the developer and Rin the interface designer (20 people), the smart
 // default fits each output type (and brings topic experts), the panel's JSON is read safely. Then the
 // running server with the demo AIs (local mock, no real key or URL): test an output, apply one fix,
 // apply all. Web checks: the button shows under every output and on the draft, post, page and design
@@ -13,22 +13,30 @@ import { shellIds } from "../web/perf/registry.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\r\n/g, "\n");
 
-test("the panel is the Meldmind persona panel (18 people) plus Max the developer", () => {
-  assert.equal(PANEL.length, 19);
-  assert.deepEqual(PANEL.map((p) => p.name), ["Dana", "Marcus", "Priya", "Jordan", "Leo", "Sofia", "Helen", "Ray", "Tasha", "Kai", "Walt", "Nadia", "Elena", "Derek", "Carla", "Jaylen", "Priya Natarajan", "Dorothy", "Max"]);
-  assert.equal(new Set(PANEL.map((p) => p.id)).size, 19);
+test("the panel is the Meldmind persona panel (18 people) plus Max and Rin (20 people)", () => {
+  assert.equal(PANEL.length, 20);
+  assert.deepEqual(PANEL.map((p) => p.name), ["Dana", "Marcus", "Priya", "Jordan", "Leo", "Sofia", "Helen", "Ray", "Tasha", "Kai", "Walt", "Nadia", "Elena", "Derek", "Carla", "Jaylen", "Priya Natarajan", "Dorothy", "Max", "Rin"]);
+  assert.equal(new Set(PANEL.map((p) => p.id)).size, 20);
   const max = PANEL.find((p) => p.id === "max");
   assert.match(max.who, /senior full-stack developer/); assert.match(max.who, /Claude Code, Codex, Cursor/);
   for (const w of ["speed", "keyboard shortcuts", "clear errors", "cost per call", "rate limits", "privacy of code and keys", "reliable output formats", "no fluff"]) assert.ok(max.cares.includes(w), w);
   assert.ok(!(max.who + max.cares).includes("\u2014"));
-  for (const p of PANEL) assert.ok(p.who && p.cares, p.id);
+  const rin = PANEL.find((p) => p.id === "rin");
+  assert.equal(rin.name, "Rin");
+  assert.equal(rin.who, "33, product and interface designer who has shipped desktop and web apps and designs for both beginners and power users");
+  assert.equal(rin.cares, "menu structure and naming (one name per thing), visual hierarchy, spacing and alignment, contrast and readable text, consistency between Simple and Expert, keyboard and focus behavior, and how every screen holds up on a normal laptop screen (1366x768, 1920x1080) and a very wide monitor (2560x1080, 3440x1440): no stretched lines of text, no huge empty gutters, nothing cut off or crammed");
+  assert.ok(!(rin.who + rin.cares).includes("\u2014"));
+  for (const p of PANEL) {
+    assert.ok(p.who && p.cares, p.id);
+    assert.ok(!(p.who + p.cares).includes("\u2014"), `no em-dash in ${p.id}`);
+  }
   for (const k of ["chat", "mission", "draft", "post", "page", "design"]) assert.ok(KINDS[k], `output type ${k}`);
 });
 
 test("smart default: the right people for each kind of output", () => {
   assert.deepEqual(smartPick("post", "Fall menu is here!"), ["dana", "kai", "jordan"]);
-  assert.deepEqual(smartPick("page", "Welcome to our shop"), ["dorothy", "carla", "elena"]);
-  assert.deepEqual(smartPick("design", "A flyer"), ["elena", "sofia", "kai"]);
+  assert.deepEqual(smartPick("page", "Welcome to our shop"), ["dorothy", "carla", "elena", "rin"]);
+  assert.deepEqual(smartPick("design", "A flyer"), ["elena", "sofia", "kai", "rin"]);
   assert.deepEqual(smartPick("chat", "Here is how to reset your router."), ["dorothy", "carla", "helen"]);
   assert.ok(smartPick("post", "First-time home buyer? Our mortgage team can help.").includes("ray"), "mortgage wording brings Ray");
   assert.ok(smartPick("draft", "We can raise your credit score fast").includes("tasha"), "credit repair claims bring Tasha");
@@ -43,9 +51,20 @@ test("smart default: the right people for each kind of output", () => {
   // the developer reads code and apps, and anything about APIs, MCP, or developer settings
   assert.equal(smartPick("code", "const a = 1;")[0], "max");
   assert.equal(smartPick("app", "A habit tracker")[0], "max");
+  assert.ok(smartPick("app", "A habit tracker").includes("rin"));
   assert.ok(smartPick("page", "Our API docs: send a POST to the endpoint").includes("max"), "a technical page brings Max");
   assert.ok(smartPick("chat", "How do I add an MCP server in developer settings?").includes("max"));
   assert.ok(!smartPick("post", "Fall menu is here!").includes("max"), "not for a bakery post");
+  // the interface designer reads pages, design briefs, UI, layouts, screen descriptions, and text mentioning menu, layout, screen, button, navigation, design, or UI
+  for (const kind of ["page", "design", "design brief", "ui", "layout", "screen", "website", "app"]) {
+    assert.ok(smartPick(kind, "Overview for customers").includes("rin"), `kind ${kind} brings Rin`);
+  }
+  for (const word of ["menu", "layout", "screen", "button", "navigation", "design", "UI"]) {
+    assert.ok(smartPick("chat", `Please review the ${word} before we ship.`).includes("rin"), `word ${word} brings Rin`);
+  }
+  assert.ok(smartPick("", "Design brief: two-column layout with a sticky top bar").includes("rin"), "layout brief brings Rin");
+  assert.ok(!smartPick("email", "Subject: quick one\n\nHi Ana, can we meet Thursday at 2?").includes("rin"), "not for a plain email draft");
+  assert.ok(!smartPick("draft", "Hi Ana, thanks for stopping by yesterday.").includes("rin"), "not for a plain draft");
 });
 
 test("prompts and parsing: the panel's JSON is read safely, fixes are clean", () => {
@@ -87,7 +106,7 @@ test("server: test an output, apply one fix, apply all", async () => {
   try {
     assert.equal((await s.api("/personas", { noToken: true })).status, 401, "session token required");
     const panel = (await s.api("/personas")).json;
-    assert.equal(panel.personas.length, 19);
+    assert.equal(panel.personas.length, 20);
     assert.match(panel.note, /simulated/);
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
     const pick = (await s.api(`/personas/pick?kind=post&text=${encodeURIComponent("Our new mortgage rates")}`)).json;
