@@ -33,4 +33,4 @@ Under an answer, a mission result, a draft, a post, a page, or a design idea, cl
 2. What they think: each person reacts in their own words, gives a score out of 5, and suggests fixes.
 3. Click Apply on a fix, or Apply all fixes. You get a revised version. Click Use this version to put it back, Copy to copy it, or Undo last change.
 
-The people are the Meldmind persona panel, such as Dana the bakery owner, Marcus the insurance agent, and Dorothy, who is 74 and new to technology. Their reactions are simulated by an AI. Nothing is sent or posted. Each test uses your own AI keys, and the cost shows in Credits.
+The people are the Meldmind persona panel, such as Dana the bakery owner, Marcus the insurance agent, Dorothy, who is 74 and new to technology, and Max, a senior developer who runs several coding agents. Max reads code, apps, and anything about APIs, MCP, or developer settings, and he cares about speed, clear errors, cost per call, and keeping code and keys private. Their reactions are simulated by an AI. Nothing is sent or posted. Each test uses your own AI keys, and the cost shows in Credits.

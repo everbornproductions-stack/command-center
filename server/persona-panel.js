@@ -1,5 +1,5 @@
 // Test with personas (0.4.14). The Meldmind persona panel (the 18 people Chris reviews every release
-// with, docs: persona-feedback/PANEL.md) reads any output: a chat answer, a mission result, a draft, a
+// with, docs: persona-feedback/PANEL.md, plus Max the developer, added 2026-10-21) reads any output: a chat answer, a mission result, a draft, a
 // post, a page, or a design brief. Each picked persona reacts in their own words and suggests fixes.
 // Apply (one fix) or Apply all makes a revised output. Reactions are simulated by an AI and say so.
 //
@@ -29,6 +29,7 @@ export const PANEL = [
   { id: "jaylen", name: "Jaylen", who: "24, gamer and modder who streams, not a coder", cares: "speed, fun, and anything that feels slow, confusing, or cringe" },
   { id: "priya-n", name: "Priya Natarajan", who: "31, indie app developer", cares: "code quality, licenses, and whether this saves a real developer time" },
   { id: "dorothy", name: "Dorothy", who: "74, retired, has barely used technology", cares: "plain words, big clear steps, and whether she could follow it without help" },
+  { id: "max", name: "Max", who: "36, senior full-stack developer and heavy AI user who builds programs and tools every day and runs several coding agents (Claude Code, Codex, Cursor)", cares: "speed, keyboard shortcuts, clear errors, cost per call, rate limits, privacy of code and keys, reliable output formats, and no fluff. He scores 5 only when it works the first time and says exactly what it does" },
 ];
 const BY_ID = new Map(PANEL.map((p) => [p.id, p]));
 export const personaById = (id) => BY_ID.get(String(id || "")) || null;
@@ -44,7 +45,8 @@ export const KINDS = {
   page: { label: "a page", panel: ["dorothy", "carla", "elena"] },
   design: { label: "a design", panel: ["elena", "sofia", "kai"] },
   script: { label: "a script", panel: ["kai", "jaylen", "dana"] },
-  code: { label: "code", panel: ["priya", "priya-n", "jaylen"] },
+  code: { label: "code", panel: ["max", "priya", "priya-n", "jaylen"] },
+  app: { label: "an app", panel: ["max", "priya-n", "carla"] },
 };
 export const MAX_PERSONAS = 6;
 export const MAX_TEXT = 20000;
@@ -57,6 +59,8 @@ const TOPICS = [
   [/\b(attorney|lawyer|legal|contract|custody|divorce|confidential)\b/i, "helen"],
   [/\b(youtube|tiktok|reels?|shorts|thumbnail|subscribers)\b/i, "kai"],
   [/\b(hvac|technician|dispatch|sop|work order)\b/i, "nadia"],
+  // APIs, MCP, scripts, apps and developer settings bring the developer
+  [/\b(api|apis|mcp|sdk|endpoint|webhook|cli|json|npm|repo|github|bash|powershell|shell script|python|javascript|typescript|developer settings?|api keys?|rate limits?|tokens? per)\b/i, "max"],
 ];
 
 // A good guess at the output type when the caller did not say.
