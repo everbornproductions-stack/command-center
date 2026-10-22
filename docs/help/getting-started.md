@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.13
+lastUpdatedVersion: 0.4.17
 ---
 
 # Getting started
@@ -134,3 +134,11 @@ Remove, Good, and Not good are written on those buttons.
 A practice answer says it is from a pretend AI. Nothing was spent. Get real answers sits on that note.
 
 On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
+## New in 0.4.17
+
+- One welcome screen replaces the first-run pop-ups: pick Simple or Expert, text size, try it now or add a key, and sign in with Google or Microsoft in one click. Skip setup any time.
+- In Simple, the answer shows right under the chat box. Under each answer you get Copy, Double-check and Test with personas; the rest is under More actions.
+- Prompt suggestions show only while you type, match what you are doing, and keep the words you typed.
+- Clearer menus: People is under Connect, and the two setups are now Find my AIs and Get everything connected. Typing boxes are easy to read everywhere.
+- Anonymous usage counts are off on new installs unless you turn them on. Settings shows what leaves this computer.
