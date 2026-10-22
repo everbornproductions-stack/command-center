@@ -1,6 +1,7 @@
 // Anonymous usage counts. The desktop app sends one ping a day: a random install id,
 // the version, the operating system, the plan, and feature counts. No prompts, chats,
-// emails, files, or licence keys. The Settings switch is on unless the person turns it off.
+// emails, files, or licence keys. The Settings switch is off on a new install until the person
+// turns it on (Chris, 2026-10-21). An existing install keeps its choice (server/privacy.js).
 // The hub stores the ping (service key stays on the server). The owner report is aggregates only.
 import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
@@ -76,13 +77,17 @@ export function firstDelayMs(env = process.env) {
 }
 
 function freshState() {
-  return { v: 1, share: true, installId: crypto.randomBytes(16).toString("hex"), day: utcDay(), counts: {}, seen: [], lastSentDay: null };
+  return freshUsageDoc(false);
+}
+
+export function freshUsageDoc(share = false) {
+  return { v: 1, share: !!share, installId: crypto.randomBytes(16).toString("hex"), day: utcDay(), counts: {}, seen: [], lastSentDay: null };
 }
 
 export function loadState() {
   const s = doc(KIND, freshState);
   let changed = false;
-  if (s.share === undefined) { s.share = true; changed = true; }
+  if (typeof s.share !== "boolean") { s.share = false; changed = true; }
   if (!INSTALL_ID.test(String(s.installId || ""))) { s.installId = crypto.randomBytes(16).toString("hex"); changed = true; }
   if (!s.counts || typeof s.counts !== "object") { s.counts = {}; changed = true; }
   if (!Array.isArray(s.seen)) { s.seen = []; changed = true; }
@@ -91,7 +96,7 @@ export function loadState() {
 }
 
 export function publicState(s = loadState()) {
-  return { share: s.share !== false, label: SHARE_LABEL, detail: SHARE_DETAIL, sentToday: s.lastSentDay === utcDay() };
+  return { share: s.share === true, label: SHARE_LABEL, detail: SHARE_DETAIL, sentToday: s.lastSentDay === utcDay() };
 }
 
 export function setShare(on) {
@@ -118,7 +123,7 @@ export function cleanFeatures(input) {
 export function noteUse(feature, id) {
   if (!FEATURE_NAME.test(String(feature || ""))) return;
   const s = loadState();
-  if (s.share === false) return;
+  if (s.share !== true) return;
   const today = utcDay();
   if (s.day !== today) {
     const yesterday = addDays(today, -1);
@@ -217,7 +222,7 @@ export async function sendDuePing({ tier, version, os, destination, fetchImpl, n
   const url = destination ?? pingDestination();
   if (!url) return { sent: false, reason: "no_destination" };
   const s = loadState();
-  if (s.share === false) return { sent: false, reason: "off" };
+  if (s.share !== true) return { sent: false, reason: "off" };
   const today = utcDay(now);
   const yesterday = addDays(today, -1);
   if (s.day && s.day !== today && s.day !== yesterday) {
@@ -234,7 +239,7 @@ export async function sendDuePing({ tier, version, os, destination, fetchImpl, n
   const current = loadState();
   const day = current.day || today;
   if (current.lastSentDay === day) return { sent: false, reason: "already" };
-  if (loadState().share === false) return { sent: false, reason: "off" };
+  if (loadState().share !== true) return { sent: false, reason: "off" };
   const payload = buildPayload({
     installId: current.installId,
     version,
@@ -245,7 +250,7 @@ export async function sendDuePing({ tier, version, os, destination, fetchImpl, n
   });
   const checked = validatePing(payload, now);
   if (!checked.ok) return { sent: false, reason: "invalid" };
-  if (loadState().share === false) return { sent: false, reason: "off" };
+  if (loadState().share !== true) return { sent: false, reason: "off" };
   await postPing(url, checked.value, fetchImpl);
   const saved = loadState();
   saved.lastSentDay = checked.value.day;

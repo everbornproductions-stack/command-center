@@ -10,7 +10,7 @@ The learning router on your computer keeps scores, cost, speed, and the type of 
 
 ## Shared learning
 
-Shared learning is a separate choice. A new setup checks **I am willing to share anonymous track records**.
+Shared learning is a separate choice. A new install leaves **I am willing to share anonymous track records** off until you tick it. An install that already had it on keeps it on.
 
 Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 
@@ -18,9 +18,9 @@ Meldmind learns from every job you run. Anonymous track records help it pick the
 
 We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys. We do not use your name, your account, or the text of a chat.
 
-If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
+While the box is clear, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
-You can change this any time in Settings. On **Who's best**, clear **I am willing to share anonymous track records**.
+You can change this any time in Settings. On **Who's best**, tick or clear **I am willing to share anonymous track records**.
 
 **Show what would be shared** lists the anonymous totals on this computer. This version does not send them.
 
@@ -28,7 +28,7 @@ The same words are in docs/legal/shared-learning.md.
 
 ## Anonymous usage counts
 
-Settings includes **Share anonymous usage counts to help improve Meldmind**. The switch is on unless you turn it off.
+Settings includes **Share anonymous usage counts to help improve Meldmind**. On a new install the switch is off until you turn it on. An install that had it on keeps it on.
 
 Once a day, if this is on, Meldmind sends a random install id, the app version, the operating system, your plan, and how many times each feature was used. It does not send prompts, chats, emails, or files.
 

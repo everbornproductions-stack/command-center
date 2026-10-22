@@ -13,9 +13,10 @@
 //    fallback's business (Phase 26) and is not held against the model; a model that errors on the job is.
 //  - Stored as the user's own document "brain" (local: data/brain.json; hosted: their own user_docs row),
 //    so it is exported and deleted with the rest of their data. Reset clears it and the older skills table.
-//  - Sharing: an anonymous aggregate could train a small routing model of our own. New setups start
-//    with it on. The person can turn it off any time. Nothing is sent anywhere by this build; the
-//    preview shows what it would contain.
+//  - Sharing: an anonymous aggregate could train a small routing model of our own. A new install starts
+//    with it off until the person opts in (Chris, 2026-10-21). An existing install keeps its choice
+//    (server/privacy.js applyShareDefaults). Nothing is sent anywhere by this build; the preview shows
+//    what it would contain.
 import { CAPABILITIES, PROVIDERS, findModel } from "./registry.js";
 import { doc, putDoc } from "./store.js";
 import { emit } from "./events.js";
@@ -25,7 +26,7 @@ import { clearCommunity, communityModels, communityStat } from "./community.js";
 
 export const KIND = "brain";
 export const VERSION = 1;
-export const DEFAULTS = { on: true, shareOptIn: true };
+export const DEFAULTS = { on: true, shareOptIn: false };
 // how many quality signals before the record counts as much as the registry score
 export const QUALITY_K = 4;
 // how many jobs before observed cost / latency count as much as the estimate
@@ -40,6 +41,8 @@ const TASK_CAPS = CAPABILITIES;
 
 const emptyStat = () => ({ jobs: 0, ok: 0, fail: 0, rounds: 0, wins: 0, scoreSum: 0, scoreN: 0, qaSum: 0, qaN: 0, up: 0, down: 0, cost: 0, costN: 0, ms: 0, msN: 0, last: 0 });
 const fresh = () => ({ v: VERSION, since: Date.now(), settings: { ...DEFAULTS }, jobs: 0, stats: {}, runs: {} });
+// A brand-new brain document with the sharing value decided at startup.
+export const freshBrainDoc = (shareOptIn = DEFAULTS.shareOptIn) => ({ ...fresh(), settings: { ...DEFAULTS, shareOptIn: !!shareOptIn } });
 
 export function brain() {
   const b = doc(KIND, fresh);
