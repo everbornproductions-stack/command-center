@@ -11,6 +11,11 @@ Plain-words notes for each release, newest first. Paste the top section into `gh
 **Improved**
 - Expert Command: the orders box is bigger, a one-line placeholder holds the Deliverable spot until it shows, and council answers in Live ops show at full height instead of scrolling.
 
+**Still here**
+- Home, Private mode, and Backup and restore stay in this build.
+- Background runs, Together, People, Remix, Zapier and Make, and hosted runs are in this build. A send still waits for a click.
+- The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
 ## v0.4.13 (2026-10-21)
 
 **New**
