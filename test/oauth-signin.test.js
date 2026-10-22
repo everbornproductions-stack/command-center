@@ -442,13 +442,13 @@ test("build injection: the Google secret goes into a copy for the build, is clea
   assert.match(inject, /finally \{\s+try \{ oauth\.restore\(\); \}/, "cleared even when the build fails");
   const wf = fs.readFileSync(new URL("../.github/workflows/release-windows.yml", import.meta.url), "utf8");
   const uses = wf.match(/GOOGLE_OAUTH_CLIENT_SECRET: \$\{\{ secrets\.GOOGLE_OAUTH_CLIENT_SECRET \}\}/g) || [];
-  assert.equal(uses.length, 2, "Windows and Mac build steps only");
-  assert.equal((wf.match(/secrets\.GOOGLE_OAUTH_CLIENT_SECRET/g) || []).length, 2);
+  assert.equal(uses.length, 1, "the Windows build step only (the Mac build is gated off until 0.7.0)");
+  assert.equal((wf.match(/secrets\.GOOGLE_OAUTH_CLIENT_SECRET/g) || []).length, 1);
   assert.doesNotMatch(wf, /echo[^\n]*GOOGLE_OAUTH_CLIENT_SECRET/);
   const winBuild = wf.slice(wf.indexOf("- name: Build the Windows installer"), wf.indexOf("- name: Verify the installer signature"));
   assert.match(winBuild, /GOOGLE_OAUTH_CLIENT_SECRET: \$\{\{ secrets\.GOOGLE_OAUTH_CLIENT_SECRET \}\}/);
   const macBuild = wf.slice(wf.indexOf("- name: Build unsigned dmg and zip"), wf.indexOf("- name: Upload to the releases repo"));
-  assert.match(macBuild, /GOOGLE_OAUTH_CLIENT_SECRET: \$\{\{ secrets\.GOOGLE_OAUTH_CLIENT_SECRET \}\}/);
+  assert.doesNotMatch(macBuild, /GOOGLE_OAUTH_CLIENT_SECRET/, "the Mac workflow is not touched");
   assert.doesNotMatch(fs.readFileSync(new URL("../.github/workflows/windows-ci.yml", import.meta.url), "utf8"), /GOOGLE_OAUTH_CLIENT_SECRET/, "PR CI gets no secret");
 });
 

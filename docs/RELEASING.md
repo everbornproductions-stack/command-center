@@ -121,7 +121,7 @@ The three secrets go only to the build step. The next tagged release then prints
 The Google and Microsoft sign-in app ids are public and are in `server/oauth-clients.json`. Microsoft needs no secret. Google's desktop sign-in app also needs its client secret when Meldmind trades the sign-in code for a token. That secret is never committed.
 
 - Add the repository secret `GOOGLE_OAUTH_CLIENT_SECRET` at https://github.com/everbornproductions-stack/command-center/settings/secrets/actions. The value is the client secret of the Google Cloud OAuth client "Meldmind" (Desktop app).
-- The release workflow gives it only to the build steps (Windows and Mac). `npm run dist` and `npm run dist:mac` write it into `server/oauth-clients.json` for the build (`scripts/inject-oauth-secret.mjs`, called by `scripts/inject-cloud-key.mjs`) and put the file back when the build ends. The value is never printed.
+- The release workflow gives it only to the Windows build step (the Mac build is gated off until 0.7.0, so its job is unchanged). `npm run dist` writes it into `server/oauth-clients.json` for the build (`scripts/inject-oauth-secret.mjs`, called by `scripts/inject-cloud-key.mjs`) and put the file back when the build ends. The value is never printed.
 - Without it the build still finishes and prints one line saying the secret is not set. Sign in with Google then shows "coming soon" and the Advanced own-client path. Sign in with Microsoft still works.
 - For a local run, set `CC_GOOGLE_CLIENT_SECRET` in that shell only. Do not put it in a file.
 

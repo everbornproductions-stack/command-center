@@ -229,7 +229,6 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
-          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: npm run dist:mac
 
       - name: Upload to the releases repo
