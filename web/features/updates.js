@@ -22,6 +22,7 @@ function openDownload(state) {
 }
 
 let desktop = null;
+let failHidden = false;
 
 function merged() {
   const server = window.CC?.S?.update;
@@ -48,21 +49,32 @@ function paint() {
   const state = merged();
   const label = labelFor(state);
   const failed = !label && state && (state.phase === "failed" || (state.error && !state.available && !state.version));
+  // A failed check is a quiet line in the notice row above the page, not in the top bar,
+  // so it never crowds the menus or covers the page (0.4.17). One line only: when the
+  // engine's own notice already says it, this one stays hidden.
   let note = document.getElementById("upd-fail");
-  if (failed) {
+  const bar = document.getElementById("update-bar");
+  const engineSays = !!bar && bar.style.display !== "none" && /Couldn't check for updates/.test(bar.textContent || "");
+  if (failed && !failHidden && !engineSays) {
     if (!note) {
-      note = document.createElement("span");
+      note = document.createElement("div");
       note.id = "upd-fail";
-      note.style.cssText = "display:inline-flex;align-items:center;gap:8px";
-      const text = document.createElement("span");
+      note.className = "update-bar quiet";
+      note.setAttribute("role", "status");
+      const text = document.createElement("b");
       text.textContent = "Couldn't check for updates";
       const dl = document.createElement("button");
       dl.type = "button";
       dl.className = "btn sm";
       dl.textContent = "Download";
       dl.addEventListener("click", () => openDownload(merged()));
-      note.append(text, dl);
-      host.prepend(note);
+      const hide = document.createElement("button");
+      hide.type = "button";
+      hide.className = "ghost small";
+      hide.textContent = "Hide";
+      hide.addEventListener("click", () => { failHidden = true; note.hidden = true; });
+      note.append(text, dl, hide);
+      (document.getElementById("notices") || host).appendChild(note);
     }
     note.hidden = false;
   } else if (note) note.hidden = true;

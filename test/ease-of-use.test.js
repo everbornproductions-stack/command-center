@@ -56,11 +56,15 @@ test("text size scales from the html element and Simple stays at least 14px", ()
   }
   assert.deepEqual(found.sort(), [...allowed].sort());
   const app = read("web", "app.js");
-  const step = app.slice(app.indexOf("function renderTextStep"), app.indexOf("function renderSimpleStart"));
-  assert.match(step, /Bigger text\?/);
+  // 0.4.17: text size is a row on the one welcome screen, not its own page.
+  const step = app.slice(app.indexOf("function welcomeLookHtml"), app.indexOf("function welcomeAiHtml"));
+  assert.match(step, /WELCOME\.textTitle/);
   assert.match(step, /id="su-text-preview"/);
-  assert.match(step, /Extra large/);
+  assert.match(step, /TEXT_SIZES\.map/);
   assert.doesNotMatch(step, /data-text="small"/);
+  const ui = read("web", "simple-ui.js");
+  assert.match(ui, /\["xlarge", "Extra large"\]/);
+  assert.doesNotMatch(ui, /\["small"/);
 });
 
 test("Simple Settings opens five cards, then More options, and Expert keeps the full page", () => {

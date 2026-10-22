@@ -19,7 +19,7 @@ const KIND = "tour.state";
 const NEWS_KIND = "whatsnew.state";
 const DESKTOP_KIND = "desktop.prompt";
 export const NEWS_PATH = path.join(ROOT, "docs", "WHATS-NEW.json");
-export const DEFAULTS = { completed: false, completedAt: null, skippedAt: null, sampleRuns: 0, lastSampleAt: null };
+export const DEFAULTS = { completed: false, completedAt: null, skippedAt: null, offeredAt: null, sampleRuns: 0, lastSampleAt: null };
 export const SAMPLE_GOAL = "Plan a one-week Instagram launch for a small coffee roaster: five post ideas with hooks, short captions and a posting schedule.";
 export const SAMPLE_CONTEXT = "This is the onboarding sample run on the demo AIs. Keep every deliverable short and concrete.";
 
@@ -117,6 +117,8 @@ export async function routes(req, res, url, body, h) {
   if (req.method !== "POST") return false;
   if (p === "/complete") { save(h, { completed: true, completedAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/skip") { save(h, { skippedAt: Date.now() }); return h.json(res, 200, view(h)); }
+  // The quiet tour link was shown. It is offered once, so a later launch does not show it again.
+  if (p === "/offered") { if (!state(h).offeredAt) save(h, { offeredAt: Date.now() }); return h.json(res, 200, view(h)); }
   if (p === "/reset") { h.putDoc(KIND, { ...DEFAULTS }); return h.json(res, 200, view(h)); }
   if (p === "/whats-new/seen") {
     const d = newsDoc(h);

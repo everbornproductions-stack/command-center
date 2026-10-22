@@ -7,21 +7,44 @@ lastUpdatedVersion: 0.4.13
 
 # Getting started
 
-A new install starts in Simple. The first setup step asks: Which mode do you want to start in? You can change this later.
+A new install starts in Simple. The first time you open Meldmind you see one welcome screen, then chat. Every part of it is optional:
 
-Simple is one chat box. You say what you want, and the council picks the AI. Expert is the full console. The Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
+- How it looks: Simple or Expert (Simple is picked for you) and the text size, with a sample line.
+- Connect your first AI: Try it now gives practice answers from pretend AIs, and nothing is spent. Or paste an OpenRouter key (Get a key opens the OpenRouter page).
+- Connect your apps: Sign in with Google or Sign in with Microsoft.
+- What leaves this computer: a link to the plain list of what is sent where.
+
+Skip setup takes you straight to chat. Escape does the same when you are not typing in a box. The welcome screen shows once. Settings, Find my AIs (the Run setup again page) opens the longer setup (keys on this PC, browser history, bookmarks).
+
+Nothing else pops up on the first run. Desktop control waits in Settings until you want it. The tour is offered once, later, as a small link under the chat after a few answers.
+
+## Your answer
+
+In Simple, your newest answer shows right under the chat box. My day and Welcome back sit below it. Under the answer, one line says which AI answered. When two AI companies are connected, or one OpenRouter key, Ask a council sends the same question to a council.
+
+Three buttons sit under every answer: Copy, Double-check, and Test with personas. Everything else (Read aloud, Download PDF or Word, Post, Send to Slack, Save to Drive, Do this again, thumbs, and more) is under More actions. Nothing was removed.
+
+## Notices
+
+Update notices sit in their own slim row above the page, so they never cover what you are reading. If the app could not check for updates (for example with no internet), the row says Couldn't check for updates, with Download and Hide.
+
+## Top bar on a narrow window
+
+From 761 pixels wide up, the top bar never overlaps. When the menus do not fit, it first hides the name, Cloud and the clock, then the status pills, and then folds every menu under one Menu button. Phones use the bar at the bottom.
+
+Simple is one chat box. You say what you want, and Meldmind picks one AI and says which one answered. Expert is the full console. The Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
 
 ## Top bar on a laptop
 
 The top bar uses the width it has. A wide window shows about eight menus on one row. A narrower window shows about five. The row never wraps onto a second line. Resizing the window or moving it to another monitor updates the row right away. A 1024, 1366, 1920, or 2560 pixel wide window stays on that one row.
 
-Start a project is in the Work menu, with Projects. The Settings menu keeps Settings and Setup. The Help menu has Search help, Take the tour, Run setup again, Check for updates, What's new, User guide, Contact and feedback, and About Meldmind.
+Start a project is in the Work menu, with Projects. The Settings menu keeps Settings and Find my AIs. The Help menu has Search help, Take the tour, Get everything connected, Check for updates, What's new, User guide, Contact and feedback, and About Meldmind.
 
 Nova, Atlas and Sage hide from every list and from the hub once a real AI is connected, including a saved key, a local model, OpenRouter, or agy. They come back only when every real AI is removed. Real jobs are not sent to those demo AIs while a real AI is connected. You can turn demo mode back on in Settings if you want the pretend AIs in the lists again.
 
 Help is a tab in Simple and in Expert. Search the guides, or click Ask Meldmind. Take the tour is on the Help page, and Check for updates is under About Meldmind. This note shows once after an update. Take the tour any time from the Help menu.
 
-Community is in the Business menu, and under Help in Simple. AI News sits next to the chat channels. See Community and AI News.
+Community is in the Connect menu, in the People section with People and Together. In Simple it is on the bar when there is room, or under More. AI News sits next to the chat channels. See Community and AI News.
 
 Until you add a key, Demo can answer in the chat and nothing is spent. Demo does not answer Ask Meldmind.
 
@@ -33,17 +56,17 @@ When you come back, Home shows your recent chats and projects. Private mode keep
 
 Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 
-A new setup checks I am willing to share anonymous track records. You can change this any time in Settings. On Who's best, clear I am willing to share anonymous track records.
+A new install leaves I am willing to share anonymous track records off until you tick it. You can change this any time in Settings. On Who's best, tick or clear I am willing to share anonymous track records.
 
 ## What we share
 
 We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys.
 
-If you clear the box, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
+While the box is clear, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
 ## Anonymous usage counts
 
-Settings includes Share anonymous usage counts to help improve Meldmind. The switch is on unless you turn it off. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files.
+Settings includes Share anonymous usage counts to help improve Meldmind. On a new install the switch is off until you turn it on. An install that had it on keeps it on. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files.
 
 Clear the switch under Privacy in Settings and the daily ping stops.
 
@@ -81,20 +104,22 @@ Pro can pause a mission, edit the steps that have not finished, and resume. Done
 
 ## Appearance
 
-Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. Built-in restores the original background. A dim, blurred layer keeps text readable.
+Settings, Appearance, adds theme presets, gradients, built-in pictures, and a photo from a file on this computer, next to the accent and the background colour. A web address is not accepted. A dim, blurred layer keeps text readable.
+
+From 0.4.17 the default look is the stage picture: a dark theme, a cyan accent, and a dark green background colour. New installs start with it. On the first launch of 0.4.17 every install moves to it once, and a short note says "New background. Change it any time in Settings > Appearance." Click Undo on that note to go back to the look you had. Your old look stays saved, so Settings, Appearance, also shows Restore my previous background until you use it. Built-in and reset put the stage picture back.
 
 ## Apps on your desktop
 
-The first setup screen includes Let Meldmind use your desktop. You can skip it. Settings, Google Antigravity, is the same choice later. Allow is per app. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. The full steps are in Apps on your desktop.
+From 0.4.17 desktop control is not part of the first run. Settings, Google Antigravity, has the choice whenever you want it. Find my AIs in the Settings menu also offers Let Meldmind use your desktop. Allow is per app. Install and connect runs Google's installer, then opens sign-in in your browser. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. The full steps are in Apps on your desktop.
 ## Prompts you can vote on
 
-Under marching orders, popular prompts are suggested first. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. Weekly packs include a Builders category. Snap my receipt and log it opens Receipt Snap when that builder is installed. If it is not installed yet, the words go in the chat. Inspired by names the source. Nothing is sent until you click Send.
+Once you type a few letters in the chat box or marching orders, prompts that match what you are making are suggested, with a direct action first when it is clear (for example Make an image). Picking one keeps your words, and Undo puts them back. See Pro prompts. Thumbs up or thumbs down any prompt. You can change your vote. A simple score shows. Weekly packs include a Builders category. Snap my receipt and log it opens Receipt Snap when that builder is installed. If it is not installed yet, the words go in the chat. Inspired by names the source. Nothing is sent until you click Send.
 
 ## Easier to use
 
 Help search answers a plain question. Start here stays pinned. Back to all help returns to the list.
 
-Large and Extra large text grow buttons, labels, headings, and chips. Simple setup asks Bigger text with a live preview. Nothing in Simple is drawn smaller than 14 pixels at the default size, and buttons are at least 16.
+Large and Extra large text grow buttons, labels, headings, and chips. The welcome screen has Text size with a sample line, and Settings, Text and reading, has it too. Nothing in Simple is drawn smaller than 14 pixels at the default size, and buttons are at least 16.
 
 Simple Settings starts with five cards: Your AI, Text and reading, Privacy, Your plan, and Get help. More options opens every other panel. Expert settings stay the full page.
 

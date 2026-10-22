@@ -12,7 +12,8 @@ import { featureOpen, requirePro } from "../feature-gate.js";
 import { noteTemplate } from "../brain.js";
 import { createPrompt, listPrompts } from "../custom-agents.js";
 import { PACK_CATEGORIES, creditLine, mergePacks, openPlan, readPackDir } from "../prompts/packs.js";
-import { rankPrompts, suggestForOrders } from "../prompts/rank.js";
+import { rankPrompts } from "../prompts/rank.js";
+import { SUGGEST_LIMIT, rankSuggestions, suggestSource } from "../prompts/suggest.js";
 import { VOTE_KIND, castVote, countsFor, emptyVotes, markSynced, normalizeVotes } from "../prompts/votes.js";
 import { fetchCloudPacks, fetchCloudTotals, pushCloudVote } from "../prompts/cloud.js";
 import { cheapest } from "../router.js";
@@ -141,10 +142,15 @@ export async function routes(req, res, url, body, h) {
     const weekly = mergePacks(readPackDir(), packs.rows);
     const pool = [
       ...weekly.map((row) => ({ ...row, kind: row.feature ? "builder" : "weekly" })),
-      ...listTemplates().map((t) => ({ id: t.id, title: t.name, name: t.name, category: t.category, description: t.description || "", prompt: t.description || t.name, kind: "template" })),
+      ...listTemplates().map((t) => ({ id: t.id, title: t.name, name: t.name, category: t.category, description: t.description || "", prompt: t.description || t.name, kind: "template", industry: t.industry || null, inputs: (t.inputs || []).map((f) => ({ key: f.key, label: f.label, required: f.required !== false })) })),
       ...customRows(h).map((row) => ({ id: row.id, title: row.name, name: row.name, prompt: row.text || row.name, description: row.description || "", kind: "custom" })),
     ].map((row) => decorate(row, state, now));
-    const items = suggestForOrders(url.searchParams.get("text") || "", pool, 4, now).map((row) => ({
+    // Nothing until a few letters are typed, then only prompts that match the words or the intent.
+    // There is no popular or top-N fallback: no match means an empty list.
+    const found = rankSuggestions(url.searchParams.get("text") || "", rankPrompts(pool, now), { limit: SUGGEST_LIMIT });
+    const items = found.items.map((row) => ({
+      source: suggestSource(row),
+      inputs: row.kind === "template" ? row.inputs || [] : undefined,
       id: row.id,
       title: row.title || row.name,
       prompt: row.prompt || "",
@@ -157,8 +163,9 @@ export async function routes(req, res, url, body, h) {
       credit: row.credit || "",
       source_name: row.source_name || "",
       source_url: row.source_url || "",
+      relevance: row.relevance,
     }));
-    return h.json(res, 200, { items });
+    return h.json(res, 200, { items, intent: found.intent, subject: found.subject, action: found.action });
   }
   if (method === "POST" && p === "/vote") {
     const id = String(body?.id || "").trim();

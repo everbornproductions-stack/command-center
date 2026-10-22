@@ -38,6 +38,9 @@ export const FEATURES = [
   { id: "access", shell: true },
   { id: "personas", shell: true },
   { id: "answer-wait", shell: true },
+  { id: "app-signin", shell: true },
+  { id: "privacy", shell: true },
+  { id: "prompt-suggest", shell: true },
 
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
@@ -159,7 +162,8 @@ export function idsFor(view, { light = false } = {}) {
     if ((f.views || []).includes(name)) add(f);
   }
   if (name === "settings") for (const f of FEATURES) if (f.settings) add(f);
-  if (name === "setup") for (const f of FEATURES) if (f.setup) add(f);
+  // welcome: a section on the first-run welcome screen (the reserved slot #su-backup-slot).
+  if (name === "setup") for (const f of FEATURES) if (f.setup || f.welcome) add(f);
   if (name === "credits") for (const f of FEATURES) if (f.credits) add(f);
   if (name === "command" && !light) {
     for (const f of FEATURES) if (f.home || f.deliverable || f.listen) add(f);

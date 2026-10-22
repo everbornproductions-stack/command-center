@@ -24,13 +24,14 @@
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-name" title="Take command of all your AIs.">Meldmind</span><span class="brand-tag small dim" title="by Everborn Productions">an Everborn product</span>
     </div>
+    <button type="button" class="btn sm nav-toggle" id="nav-toggle" aria-controls="tabs" aria-expanded="false">Menu</button>
     <nav class="tabs" id="tabs" aria-label="Main">
       <button data-view="command" class="active" aria-current="page">Command</button>
       <button data-view="projects">Projects</button>
       <button data-view="credits">Credits</button>
       <button data-view="subscriptions">Subscriptions</button>
       <button data-view="settings">Settings</button>
-      <button data-view="setup" id="tab-setup">Setup</button>
+      <button data-view="setup" id="tab-setup">Find my AIs</button>
     </nav>
     <div class="top-right">
       <div class="mode-switch" id="mode-toggle" role="group" aria-label="Simple or Expert">
@@ -44,8 +45,12 @@
     </div>
   </header>
 
-  <div id="update-bar" class="update-bar" role="region" aria-label="Update" style="display:none"></div>
-  <main class="view" id="view" tabindex="-1"></main>
+  <div class="view-col">
+    <div class="notices" id="notices">
+      <div id="update-bar" class="update-bar" role="region" aria-label="Update" style="display:none"></div>
+    </div>
+    <main class="view" id="view" tabindex="-1"></main>
+  </div>
 
   <aside class="feed" id="feed" aria-label="Live feed">
     <div class="feed-head">

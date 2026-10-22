@@ -207,7 +207,7 @@ test("tour steps cover the current app and What's new shows before the invite", 
   assert.match(src, /S\.view === "setup"\) \{ hideNews\(\)/, "first-run setup is not covered by What's new");
   const invite = src.slice(src.indexOf("function maybeInvite"), src.indexOf("function showNews"));
   const offer = invite.indexOf("showNews()");
-  const create = invite.indexOf('className = "cc-tour-invite"');
+  const create = invite.indexOf('className = "cc-tour-invite quiet"');
   assert.ok(offer !== -1 && create !== -1 && offer < create, "What's new is offered before the tour invite");
   const yml = fs.readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8");
   assert.match(yml, /docs\/WHATS-NEW\.json/);

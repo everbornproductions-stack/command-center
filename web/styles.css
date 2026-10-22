@@ -20,6 +20,14 @@
   --radius: 14px;
   --strip-h: 96px;
   --feed-w: 340px;
+  /* Typing fields (0.4.17): one dark field look for every input, textarea, select and editable box.
+     The light theme sets its own values in web/features/themes.js. */
+  --field-bg: #0a0f18;
+  --field-text: #e5e7eb;
+  --field-border: #5b6b85;
+  --field-placeholder: #d2d8e4;
+  --focus-ring: #22d3ee;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { font-size: 16px; }
@@ -32,7 +40,8 @@ body {
   background: radial-gradient(1200px 600px at 20% -10%, #10233a 0%, transparent 60%), radial-gradient(900px 500px at 100% 0%, #1b1033 0%, transparent 55%), var(--bg);
   color: var(--text); font-family: var(--sans); font-size: 1rem; line-height: 1.45; overflow: hidden;
 }
-button, input, select, textarea { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; }
+button { color: inherit; }
 a { color: var(--accent-2); text-decoration: none; }
 a:hover { text-decoration: underline; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -77,7 +86,11 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .help-item { display: grid; gap: 2px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .help-item:hover, .help-item:focus-visible { border-color: var(--line-2); }
 .help-page textarea, .help-page input[type="search"] { width: 100%; }
-.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: auto auto minmax(0, 1fr); justify-content: center; }
+/* Simple: chat box, then the newest answer, then My day and Welcome back. The page scrolls as one column. */
+.cmd.simple-chat { grid-template-columns: minmax(0, 720px); grid-template-rows: none; grid-auto-rows: max-content; align-content: start; justify-content: center; height: auto; max-height: none; }
+.view:has(> .cmd.simple-chat) { overflow: auto; }
+.cmd.simple-chat .output { overflow: visible; }
+.cmd.simple-chat > [hidden] { display: none; }
 .cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow-y: auto; max-height: 16rem; }
 #cc-mode-ask, #cc-upgrade { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card, #cc-upgrade .card { width: 560px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
@@ -100,9 +113,46 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .dot.red { background: var(--red); box-shadow: 0 0 10px var(--red); }
 .dot.grey { background: var(--grey); }
 
-.update-bar { grid-area: view; align-self: start; z-index: 5; margin: 10px 18px 0; padding: 10px 14px; border-radius: 12px; background: linear-gradient(90deg, #14324a, #1b1b44); border: 1px solid #2b5c7a; display: flex; gap: 12px; align-items: center; font-size: 0.8125rem; }
+/* Notices (update, demo, refresh) sit in their own row above the page, so they never cover it (0.4.17). */
+.view-col { grid-area: view; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.notices { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.notices > [hidden] { display: none !important; }
+.update-bar { flex: 0 0 auto; margin: 8px 18px 0; padding: 6px 12px; border-radius: 10px; background: linear-gradient(90deg, #14324a, #1b1b44); border: 1px solid #2b5c7a; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 0.8125rem; }
 .update-bar b { color: var(--accent-2); }
-.view { grid-area: view; overflow: auto; padding: 18px; min-height: 0; }
+.update-bar.quiet { background: transparent; border-color: var(--line); color: var(--muted); }
+.update-bar.quiet b { color: var(--muted); font-weight: 600; }
+.view { flex: 1 1 auto; overflow: auto; padding: 18px; min-height: 0; min-width: 0; }
+/* Narrow windows (761px to 1100px): the top bar drops the extras first, so the menus never overlap (0.4.17).
+   The connection pill keeps its dot and its label for screen readers. */
+@media (max-width: 1100px) and (min-width: 761px) {
+  .topbar { gap: 10px; padding: 0 10px; }
+  .brand-tag, #cloud-pill, .clock { display: none !important; }
+  #conn-txt { display: none; }
+  .tabs button, .tabs .nav-trigger { padding: 6px 8px; }
+  .top-right { gap: 8px; }
+}
+@media (max-width: 920px) and (min-width: 761px) { .brand-name { display: none; } }
+/* Squeeze steps, set by squeezeTopbar() in app.js when the menus would not fit. */
+.nav-toggle { display: none; flex: 0 0 auto; }
+.topbar[data-squeeze="1"] .brand-name, .topbar[data-squeeze="2"] .brand-name, .topbar[data-squeeze="3"] .brand-name,
+.topbar[data-squeeze="1"] .brand-tag, .topbar[data-squeeze="2"] .brand-tag, .topbar[data-squeeze="3"] .brand-tag,
+.topbar[data-squeeze="1"] #cloud-pill, .topbar[data-squeeze="2"] #cloud-pill, .topbar[data-squeeze="3"] #cloud-pill,
+.topbar[data-squeeze="1"] .clock, .topbar[data-squeeze="2"] .clock, .topbar[data-squeeze="3"] .clock,
+.topbar[data-squeeze="2"] #conn-pill, .topbar[data-squeeze="2"] #budget-pill { display: none !important; }
+.topbar.nav-collapsed .nav-toggle { display: inline-flex; }
+.topbar.nav-collapsed #tabs { display: none; }
+.topbar.nav-collapsed.nav-open #tabs { display: flex; flex-wrap: wrap; position: absolute; top: 100%; left: 8px; right: 8px; z-index: 60; gap: 4px; padding: 8px; background: var(--panel-solid, #0d1420); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; }
+.welcome { max-width: 920px; margin: 0 auto; }
+.welcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 12px; margin-top: 16px; }
+.welcome-block { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.welcome-block h3 { margin: 0 0 8px; font-size: 1rem; }
+.welcome-slot:empty { display: none; }
+.answer-main { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.answer-more { margin-top: 8px; }
+.answer-more > summary { cursor: pointer; color: var(--muted); font-size: 0.8125rem; padding: 4px 0; width: max-content; }
+.answer-more > summary:hover { color: var(--text); }
+.answer-line { margin: 8px 0 0; }
+.tour-quiet { margin: 14px auto 0; max-width: 720px; text-align: center; }
 .feed { grid-area: feed; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: #0a0f18; }
 .feed-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 0.6875rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .feed-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.7813rem; }
@@ -161,8 +211,14 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .btn:disabled { opacity: .5; cursor: default; }
 .ghost { background: transparent; border: 0; color: var(--muted); cursor: pointer; }
 .ghost:hover { color: var(--text); }
-input[type=text], input[type=number], input[type=password], input[type=date], select, textarea { background: #0a0f18; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; color: var(--text); width: 100%; outline: none; }
-input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #22d3ee22; }
+input[type=text], input[type=number], input[type=password], input[type=date], select, textarea { width: 100%; }
+/* Every typing field, with or without a type (search, email, url, time, and the rest), gets the same
+   dark field: no browser-white box with light text on it. Checkboxes, radios, files and colours keep their own look. */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]),
+select, textarea, [contenteditable="true"], [contenteditable=""]) { background-color: var(--field-bg); border: 1px solid var(--field-border); border-radius: 10px; padding: 8px 10px; color: var(--field-text); outline: none; }
+:where(select option, select optgroup) { background-color: var(--field-bg); color: var(--field-text); }
+input:focus, select:focus, textarea:focus, [contenteditable]:focus { border-color: var(--focus-ring); box-shadow: 0 0 0 2px var(--focus-ring); }
+input:-webkit-autofill { -webkit-text-fill-color: var(--field-text); box-shadow: 0 0 0 40px var(--field-bg) inset; }
 textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
 label.lbl { display: block; font-size: 0.6875rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 5px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -188,7 +244,7 @@ table.tbl tr:hover td { background: #0f172299; }
 .dim { color: #a8b3c7; }
 .small { font-size: 0.8125rem; }
 .hint { font-size: 0.8125rem; color: #d2d8e4; line-height: 1.45; margin: 4px 0 0; }
-input::placeholder, textarea::placeholder { color: #d2d8e4; opacity: 1; font-size: 0.9375rem; }
+input::placeholder, textarea::placeholder { color: var(--field-placeholder); opacity: 1; font-size: 0.9375rem; }
 .right { text-align: right; }
 .empty { color: var(--dim); padding: 24px; text-align: center; border: 1px dashed var(--line-2); border-radius: 12px; }
 .toasts { position: fixed; right: 360px; bottom: 110px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
@@ -344,7 +400,7 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
   .pill { padding: 4px 8px; font-size: 0.6875rem; }
   .feed { display: none; }
   .view { padding: 12px; padding-bottom: 20px; }
-  .update-bar { margin: 8px 12px 0; font-size: 0.75rem; flex-wrap: wrap; }
+  .update-bar { margin: 6px 12px 0; font-size: 0.75rem; flex-wrap: wrap; }
   .mobile-nav { grid-area: nav; display: flex; border-top: 1px solid var(--line); background: #070a10; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); }
   .mobile-nav button { flex: 1; background: transparent; border: 0; color: var(--muted); font-size: 0.6563rem; letter-spacing: .04em; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; border-radius: 10px; }
   .mobile-nav button[hidden] { display: none; }
@@ -459,3 +515,6 @@ body[data-ui="simple"] .feed-head {
 #basics-reading-body .panel h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .settings-basics .basics-card { padding: 18px 18px 16px; }
 body[data-ui="simple"] .settings-basics .basics-card h3 { font-size: max(1.125rem, 18px) !important; letter-spacing: 0; text-transform: none; color: var(--text); }
+/* Simple names the AI in one line under the answer (0.4.17), so the extra copies hide. */
+body[data-ui="simple"] #simple-answer h3 #copy,
+body[data-ui="simple"] #deliv-extras .cc-written { display: none; }

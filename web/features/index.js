@@ -13,7 +13,8 @@
 //   deliverable: { order: 10, render(container, run) {...} },                 // optional: buttons/sections under the deliverable
 //   settings: { order: 10, render(container) {...} },                         // optional: a panel in Settings
 //   credits: { order: 10, render(container) {...} },                          // optional: a panel at the top of the Credits tab
-//   setup: { order: 10, render(container) {...} },                            // optional: a panel on the first-run Setup page (next to the AI bookmark folder)
+//   setup: { order: 10, render(container) {...} },                            // optional: a panel on the Run setup again page (next to the AI bookmark folder)
+//   welcome: { order: 10, render(container) {...} },                          // optional: a section in the reserved slot on the first-run welcome screen (#su-backup-slot); add welcome: true to its registry row
 //   onEvent(ev) {...},                                                        // optional: every WebSocket event
 //   onState(state) {...},                                                     // optional: after each full state load / tick
 // });

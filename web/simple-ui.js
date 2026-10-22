@@ -9,6 +9,39 @@ export const MODE_STEP = {
   expertLine: "Every menu, councils, missions, and settings, including MCP (a plug-in connection) and webhooks (a web address that receives a message).",
 };
 
+// The one welcome screen (0.4.17). It replaces the mode question, the text size page and
+// the key page, so a new person meets one screen before the first answer.
+export const WELCOME = {
+  title: "Welcome to Meldmind",
+  lead: "One screen, then chat. Every part is optional.",
+  skip: "Skip setup",
+  start: "Start chatting",
+  lookTitle: "How it looks",
+  textTitle: "Text size",
+  aiTitle: "Connect your first AI",
+  tryIt: "Try it now",
+  tryLine: "Practice answers from pretend AIs. Nothing is spent. You can add your own AI account later.",
+  keyLabel: "Or paste an OpenRouter key",
+  keyLine: "One OpenRouter key reaches Claude, ChatGPT, Gemini, Grok and more. It is kept sealed on this computer.",
+  getKey: "Get a key",
+  appsTitle: "Connect your apps",
+  appsLine: "Optional. Gmail, Calendar, Drive, and Outlook. You can do this later in Settings.",
+  privacyLine: "Anonymous track records and usage counts are off until you turn them on.",
+  privacyLink: "What leaves this computer",
+};
+
+export const TEXT_SIZES = [["default", "Default"], ["large", "Large"], ["xlarge", "Extra large"]];
+
+// Which setup page to draw. A fresh install always gets the one welcome screen.
+// "Run setup again" (requested = "scan") and an Expert setup that was left half done keep
+// the older pages, which are not part of the first run.
+export function setupPhase({ fresh = false, requested = "", expertSetup = null } = {}) {
+  if (requested) return requested;
+  if (fresh) return "welcome";
+  if (expertSetup && !expertSetup.done) return expertSetup.pendingScan ? "scan" : "expert";
+  return "scan";
+}
+
 export const PLACEHOLDER = "Ask anything. Meldmind picks the best AI for you.";
 
 export const STARTERS = [
