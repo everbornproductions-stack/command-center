@@ -69,7 +69,7 @@ function draftHtml() {
     <label class="small">Subject<input type="text" id="ea-subject" value="${esc(draft.subject || "")}"></label>
     <label class="small">Body<textarea id="ea-body" rows="6">${esc(draft.body || "")}</textarea></label>
     ${draft.toneNote ? `<div class="dim small">Tone: ${esc(draft.toneNote)}</div>` : ""}
-    <div class="ea-row" style="margin-top:8px"><button type="button" class="btn sm primary" id="ea-send">Send</button><span class="dim small">Send uses the To, subject, and body above.</span></div>
+    <div class="ea-row" style="margin-top:8px"><button type="button" class="btn sm primary" id="ea-send">Send</button><button type="button" class="btn sm" id="ea-personas" title="See how real people would react to this draft, then fix it in one click">Test with personas</button><span class="dim small">Send uses the To, subject, and body above.</span></div>
   </div>`;
 }
 
@@ -116,6 +116,11 @@ function render(root) {
   root.querySelector("#ea-help")?.addEventListener("click", () => go("help"));
   root.querySelector("#ea-add")?.addEventListener("click", () => addPlain(root));
   root.querySelector("#ea-send")?.addEventListener("click", () => send(root));
+  // Test with personas: a revised body goes back in the box; nothing is sent
+  root.querySelector("#ea-personas")?.addEventListener("click", () => {
+    const body = root.querySelector("#ea-body");
+    window.CC.testWithPersonas?.({ text: body?.value || "", kind: "email", onUse: (next) => { if (body) body.value = next; } });
+  });
   root.querySelectorAll("[data-reply]").forEach((b) => b.addEventListener("click", () => makeDraft(root, b)));
   root.querySelectorAll("[data-done]").forEach((b) => b.addEventListener("click", () => mark(root, b.dataset.done, "done")));
   root.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => mark(root, b.dataset.remove, "remove")));

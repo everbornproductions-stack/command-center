@@ -163,6 +163,16 @@ function answerFor(model, system, user, messages = []) {
     const crisis = persona === "support" ? " I am not a licensed therapist. If you are in crisis, call or text 988." : "";
     return JSON.stringify({ replies: [`${persona}: first take.${crisis}`, `${persona}: second take.`, `${persona}: third take.`] });
   }
+  // Test with personas: each persona on the panel reacts and suggests one fix; Apply marks what changed
+  if (/^Meldmind persona test:/.test(sys)) {
+    const ids = [...sys.matchAll(/^- ([a-z-]+): ([^,\n]+),/gm)].map((m) => ({ id: m[1], name: m[2] }));
+    return JSON.stringify({ reactions: ids.map((p, i) => ({ id: p.id, reaction: `${p.name} (demo): clear enough, but the first line could be warmer.`, score: 3 + (i % 2), fixes: [{ fix: `Start with a friendlier first line (${p.name}).`, why: "Demo suggestion." }] })) });
+  }
+  if (/^Meldmind persona fixes:/.test(sys)) {
+    const fixes = [...u.matchAll(/^\d+\. (.+)$/gm)].map((m) => m[1]);
+    const original = (u.split("OUTPUT TO REVISE:\n")[1] || "").trim();
+    return `${original}\n\n*Revised in demo mode: ${fixes.length} fix${fixes.length === 1 ? "" : "es"} applied.*`;
+  }
   if (/^You drive a web browser/.test(sys)) return demoBrowse(u);
   if (/^You sort browser bookmarks/.test(sys)) return demoBookmarks(u);
   if (/^You describe an image/.test(sys)) return demoDescribe(u, messages);
@@ -207,10 +217,13 @@ function answerFor(model, system, user, messages = []) {
   const topic = u.replace(/^(QUESTION|TASK|GOAL):\s*/i, "").split("\n")[0].slice(0, 70);
   // custom agents (Phase 19): the pretend AI says which agent it is playing, so instructions can be seen arriving
   const custom = sys.match(/^You are the custom agent "([^"\n]{1,80})"/)?.[1];
+  // AI employees (0.4.14): the pretend AI says which employee it is playing
+  const employee = sys.match(/^You are the AI employee "([^"\n]{1,80})"/)?.[1];
   // project memory (Phase 3): the pretend AI says so when the project's voice and never-say list arrived
   const memory = u.match(/PROJECT MEMORY for ([^\n]{1,80}?) \(follow this/)?.[1];
   const paras = [
     ...(custom ? [`*Speaking as your custom agent **${custom}**.*`] : []),
+    ...(employee ? [`*Working as your AI employee **${employee}**.*`] : []),
     ...(memory ? [`*Following the project memory for **${memory}**.*`] : []),
     `## ${topic}\n\nHere is how **${model}** would approach this. The demo AIs produce placeholder content so you can watch the console work without spending credits.`,
     `- First, the goal is restated so nothing is lost.\n- Then the strongest angle is chosen (${pick(["clarity", "speed", "emotion", "proof"], model.length)}).\n- Finally, the deliverable is written in a form you can paste straight into the project.`,
