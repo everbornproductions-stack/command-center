@@ -40,6 +40,9 @@ win:
       arch: [x64]
   icon: build/icon.ico
   artifactName: "Meldmind-${version}-${arch}-${os}.${ext}"
+  # Code signing: azureSignOptions (Azure Artifact Signing) is not set here on purpose.
+  # The release job adds it as -c.win.azureSignOptions.* flags only when every signing
+  # value exists (scripts/azure-sign-config.mjs). Local builds and PR CI stay unsigned.
 nsis:
   include: build/firewall.nsh
   oneClick: false
