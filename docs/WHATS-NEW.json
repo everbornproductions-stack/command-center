@@ -1,4 +1,13 @@
 {
+  "0.4.16": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Backup when API credits run out: if an AI runs out of API credits, Meldmind keeps answering through your own plan for that AI. It tries the official app on this PC first (Claude Code, Codex, Gemini CLI, or Antigravity), then asks you to copy the answer over and checks for it. The answer fills that AI's box. Pick the apps or turn it off in Settings.",
+      "Desktop control is safer: before Meldmind presses anything in a desktop app, it shows the exact list of buttons it will press. Nothing is pressed until you click Press these, and Stop works between steps.",
+      "Test with personas has a new reviewer, Max, a senior developer who reacts to code, apps, and technical pages.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
+  },
   "0.4.15": {
     "title": "What's new in Meldmind",
     "bullets": [

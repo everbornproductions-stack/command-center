@@ -1,4 +1,4 @@
-// Test with personas (0.4.14). Pure checks: the panel is the 18-person Meldmind persona panel, the smart
+// Test with personas (0.4.14). Pure checks: the panel is the 18-person Meldmind persona panel plus Max the developer, the smart
 // default fits each output type (and brings topic experts), the panel's JSON is read safely. Then the
 // running server with the demo AIs (local mock, no real key or URL): test an output, apply one fix,
 // apply all. Web checks: the button shows under every output and on the draft, post, page and design
@@ -13,10 +13,14 @@ import { shellIds } from "../web/perf/registry.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\r\n/g, "\n");
 
-test("the panel is the Meldmind persona panel (18 people)", () => {
-  assert.equal(PANEL.length, 18);
-  assert.deepEqual(PANEL.map((p) => p.name), ["Dana", "Marcus", "Priya", "Jordan", "Leo", "Sofia", "Helen", "Ray", "Tasha", "Kai", "Walt", "Nadia", "Elena", "Derek", "Carla", "Jaylen", "Priya Natarajan", "Dorothy"]);
-  assert.equal(new Set(PANEL.map((p) => p.id)).size, 18);
+test("the panel is the Meldmind persona panel (18 people) plus Max the developer", () => {
+  assert.equal(PANEL.length, 19);
+  assert.deepEqual(PANEL.map((p) => p.name), ["Dana", "Marcus", "Priya", "Jordan", "Leo", "Sofia", "Helen", "Ray", "Tasha", "Kai", "Walt", "Nadia", "Elena", "Derek", "Carla", "Jaylen", "Priya Natarajan", "Dorothy", "Max"]);
+  assert.equal(new Set(PANEL.map((p) => p.id)).size, 19);
+  const max = PANEL.find((p) => p.id === "max");
+  assert.match(max.who, /senior full-stack developer/); assert.match(max.who, /Claude Code, Codex, Cursor/);
+  for (const w of ["speed", "keyboard shortcuts", "clear errors", "cost per call", "rate limits", "privacy of code and keys", "reliable output formats", "no fluff"]) assert.ok(max.cares.includes(w), w);
+  assert.ok(!(max.who + max.cares).includes("\u2014"));
   for (const p of PANEL) assert.ok(p.who && p.cares, p.id);
   for (const k of ["chat", "mission", "draft", "post", "page", "design"]) assert.ok(KINDS[k], `output type ${k}`);
 });
@@ -36,6 +40,12 @@ test("smart default: the right people for each kind of output", () => {
   assert.equal(guessKind("Subject: quick one\n\nHi Ana"), "email");
   assert.equal(guessKind("New flavors this week! #bakery #fall"), "post");
   assert.equal(guessKind("Hello there, here is your answer."), "chat");
+  // the developer reads code and apps, and anything about APIs, MCP, or developer settings
+  assert.equal(smartPick("code", "const a = 1;")[0], "max");
+  assert.equal(smartPick("app", "A habit tracker")[0], "max");
+  assert.ok(smartPick("page", "Our API docs: send a POST to the endpoint").includes("max"), "a technical page brings Max");
+  assert.ok(smartPick("chat", "How do I add an MCP server in developer settings?").includes("max"));
+  assert.ok(!smartPick("post", "Fall menu is here!").includes("max"), "not for a bakery post");
 });
 
 test("prompts and parsing: the panel's JSON is read safely, fixes are clean", () => {
@@ -77,7 +87,7 @@ test("server: test an output, apply one fix, apply all", async () => {
   try {
     assert.equal((await s.api("/personas", { noToken: true })).status, 401, "session token required");
     const panel = (await s.api("/personas")).json;
-    assert.equal(panel.personas.length, 18);
+    assert.equal(panel.personas.length, 19);
     assert.match(panel.note, /simulated/);
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
     const pick = (await s.api(`/personas/pick?kind=post&text=${encodeURIComponent("Our new mortgage rates")}`)).json;

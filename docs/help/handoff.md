@@ -1,8 +1,8 @@
 ---
 id: handoff
 title: Two-click handoff
-summary: Prepare, then approve. When another AI finishes, the summary shows in the job. Paste result if it cannot call back.
-lastUpdatedVersion: 0.4.13
+summary: Prepare, then approve. When another AI finishes, the summary shows in the job. When API credits run out, Meldmind answers through your own plan for that AI.
+lastUpdatedVersion: 0.4.16
 ---
 
 # Two-click handoff
@@ -26,3 +26,19 @@ You get a notice, and the summary shows in the job. If that AI cannot call back,
 If this computer is not connected to the hosted hub, Paste result is the way the summary gets back in. The hub, when it is used, gives the result only to the person who handed off the job, then deletes it.
 
 Get it done can let that job run its ordinary steps without asking. The prompt tells the other AI the permission level. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. The permission ends when the job ends.
+
+## When an AI runs out of API credits
+
+If an AI runs out of API credits, Meldmind can keep answering through your own plan for that AI. This is on unless you turn it off in Settings: Backup when API credits run out, "When API credits run out, use my subscriptions". When it is off, a chat that runs out of credits stops as before.
+
+Meldmind first tries the usual backups: the same AI through OpenRouter, then the next best AI with credits. A side-by-side column keeps its own AI, so it goes straight to the backup below. When no API is left for that answer, the box does not fail. It says "Out of API credits. Answering through your Claude subscription." (or ChatGPT, Gemini, Grok), shows how long it has been waiting, and tries these in order:
+
+1. Official apps on this PC. If Claude Code, Codex (for ChatGPT), Gemini CLI, or Antigravity is installed and signed in with your own plan, Meldmind asks it the question and the answer fills the box on its own, tagged, for example, "via Claude Code (subscription)". It is asked to answer only, not to change files or run commands. Meldmind never signs in for you and never sees a password. Grok has no official app for this.
+2. Website, only if you turned it on. Website mode is coming in a later update, so for now this step is skipped.
+3. You copy it over. Continue in copies the question and opens that AI's page. Paste it there and send it. The question asks the AI to send its answer back to Meldmind: through the hosted hub when this computer uses one, through the Meldmind tool submit_answer when the AI has tools (Claude Code, Antigravity, or another MCP client connected to Meldmind), and always with a block at the end that starts with MELDMIND ANSWER and the job id.
+
+Meldmind keeps checking until the answer arrives or you click Stop waiting. In the desktop app, when you copy the AI's reply and come back to Meldmind, it reads the clipboard once and uses only the text inside that MELDMIND ANSWER block. Anything else on the clipboard is ignored and not kept. You can also click Paste reply and paste it yourself. Waiting answers survive a restart.
+
+In a council, the answer joins the others when it comes back: it is scored, and the verdict is written again with every answer. If no AI with credits is left to write the verdict, Meldmind shows the answers and says that no AI was available to write the verdict. In side by side, the column fills. In a chat, the answer fills.
+
+You can see each official app's status, turn each one on or off, and open its setup page from Settings, or from the Backup step in first-run setup. Check again looks again after you install or sign in.

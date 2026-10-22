@@ -201,3 +201,13 @@ test("Keychain vault on macOS: sealed by safeStorage (ss1:), refused without the
   assert.ok(fs.readFileSync(path.join(dir, "vault.bin"), "utf8").startsWith("ss1:"), "the refused save did not overwrite the vault");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("Mac builds are paused unless BUILD_MAC is on or the workflow is started by hand", () => {
+  const gate = "if: ${{ vars.BUILD_MAC == 'true' || github.event_name == 'workflow_dispatch' }}";
+  for (const f of [".github/workflows/mac-ci.yml", ".github/workflows/release-windows.yml"]) {
+    const wf = read(f).replace(/\r\n/g, "\n");
+    assert.ok(wf.includes(gate + "\n    runs-on: macos-latest"), f);
+  }
+  const win = read(".github/workflows/release-windows.yml").replace(/\r\n/g, "\n");
+  assert.ok(!win.includes(gate + "\n    runs-on: windows-latest"));
+});

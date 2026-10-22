@@ -142,6 +142,9 @@ jobs:
   # Unsigned Mac disk image and zip. No Apple signing. A missing release stays a draft
   # so a Mac-only upload cannot replace latest.yml. Automatic updates for Mac are coming soon.
   mac-release:
+    # Mac builds are paused to save GitHub minutes until version 0.7.0 (Chris, 2026-10-22). They
+    # run only when the repository variable BUILD_MAC is "true" or when someone starts this by hand.
+    if: ${{ vars.BUILD_MAC == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: macos-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"

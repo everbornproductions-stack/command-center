@@ -268,6 +268,12 @@ export async function startDemo() {
       return res.end(JSON.stringify({ object: "list", model: j.model, data: input.map((t, index) => ({ object: "embedding", index, embedding: demoEmbedding(t) })), usage: { prompt_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0), total_tokens: input.reduce((a, t) => a + Math.ceil(String(t || "").length / 4), 0) } }));
     }
     if (!Array.isArray(j.messages)) { res.writeHead(400); return res.end(); }
+    // Tests only: CC_DEMO_NO_CREDITS lists pretend models that answer like an API out of credits (HTTP 402).
+    const broke = String(process.env.CC_DEMO_NO_CREDITS || "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (broke.includes(j.model)) {
+      res.writeHead(402, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: { message: "insufficient_quota: You exceeded your current quota, please check your plan and billing details.", type: "insufficient_quota" } }));
+    }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
     const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n") : "")).join("\n");
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });

@@ -2,6 +2,20 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.16 (2026-10-22)
+
+**New**
+- Backup when API credits run out. Meldmind keeps answering through your own plan for that AI: first the official app on this PC (Claude Code, Codex, Gemini CLI, or Antigravity), then a copy-over hand-off where the other AI is asked to send its answer back and Meldmind checks for it. The answer fills that AI's box in Command. A Setup step and Settings let you pick the apps or turn it off.
+- Test with personas adds Max, a senior developer, for code, apps, and technical pages.
+
+**Safer**
+- Desktop control shows the exact list of buttons it will press in a desktop app and waits for Press these. Get it done cannot skip that confirm. Stop works between steps.
+
+**Still here**
+- Home, Private mode, and Backup and restore stay in this build.
+- Background runs, Together, People, Remix, Zapier and Make, and hosted runs are in this build. A send still waits for a click.
+- The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
 ## v0.4.15 (2026-10-21)
 
 **Improved**

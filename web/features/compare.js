@@ -6,7 +6,7 @@ const MAX = 6, MIN = 2;
 const st = { models: [], presets: [], cols: [], prompt: "", maxTokens: 1200, run: null, history: [], loaded: false };
 const key = (c) => `${c.provider}|${c.model}`;
 const secs = (ms) => (ms == null ? "n/a" : ms < 10000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 1000)} s`);
-const STATUS = { queued: ["waiting", ""], streaming: ["answering", "amber"], done: ["done", "green"], error: ["failed", "red"], skipped: ["skipped", ""] };
+const STATUS = { queued: ["waiting", ""], streaming: ["answering", "amber"], done: ["done", "green"], error: ["failed", "red"], skipped: ["skipped", ""], waiting: ["waiting on your plan", "amber"] };
 
 async function load() {
   try {
@@ -43,10 +43,10 @@ function columnHtml(c, run) {
   return `<div class="panel cmp-col" data-col="${c.i}" style="min-width:240px;display:flex;flex-direction:column;${won ? "outline:2px solid var(--green, #22c55e)" : ""}">
     <h3 style="gap:6px"><span class="dot" style="background:${c.color || "var(--muted)"}"></span>${esc(c.name)} <span class="dim small">${esc(c.providerName)}</span>
       <span class="right">${won ? `<span class="chip green">winner</span>` : `<span class="chip ${tone}">${label}</span>`}</span></h3>
-    ${c.note ? `<div class="small ${c.status === "error" ? "" : "dim"}" style="margin-bottom:6px">${esc(c.note)}</div>` : ""}
-    <div class="body md" style="flex:1;max-height:460px;overflow:auto">${c.text ? md(c.text) : c.status === "skipped" ? "" : `<span class="dim small">${c.status === "queued" ? "Waiting to start" : "Waiting for the first words"}</span>`}</div>
+    ${c.note && c.status !== "waiting" ? `<div class="small ${c.status === "error" ? "" : "dim"}" style="margin-bottom:6px">${esc(c.note)}</div>` : ""}
+    <div class="body md" style="flex:1;max-height:460px;overflow:auto">${c.status === "waiting" && c.waiting ? (window.CC.subWaitHtml?.(c.waiting) || esc(c.note || "")) : c.text ? md(c.text) : c.status === "skipped" ? "" : `<span class="dim small">${c.status === "queued" ? "Waiting to start" : "Waiting for the first words"}</span>`}</div>
     <div class="small dim" style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px">
-      ${c.status === "done" ? `<b class="mono">${money(c.cost, 5)}</b>${c.exact ? " ✓" : ""} · first words ${secs(c.ttftMs)} · total ${secs(c.ms)} · ${c.inTok} in / ${c.outTok} out tokens` : c.status === "error" ? `failed after ${secs(c.ms)}, nothing billed by this app` : c.status === "skipped" ? "not called, no cost" : "cost and time when it finishes"}
+      ${c.status === "done" ? `<b class="mono">${money(c.cost, 5)}</b>${c.exact ? " ✓" : ""} · first words ${secs(c.ttftMs)} · total ${secs(c.ms)} · ${c.inTok} in / ${c.outTok} out tokens` : c.status === "error" ? `failed after ${secs(c.ms)}, nothing billed by this app` : c.status === "skipped" ? "not called, no cost" : c.status === "waiting" ? "answering through your own plan, no API cost" : "cost and time when it finishes"}
     </div>
     ${canPick ? `<button class="btn sm primary" data-win="${c.i}" style="margin-top:8px">Pick winner</button>` : ""}
   </div>`;
@@ -57,7 +57,7 @@ function renderCols(view) {
   const run = st.run;
   if (!run) { box.innerHTML = `<div class="panel"><div class="empty">Pick 2 to 6 models, type a prompt and click Compare. The answers appear here side by side.</div></div>`; return; }
   const done = run.status !== "running";
-  box.innerHTML = `<div class="panel"><h3>${esc(run.prompt.slice(0, 120))}${run.prompt.length > 120 ? "…" : ""} <span class="right small">${done ? `${run.status === "done" ? "finished" : "failed"} · total ${money(run.cost, 5)}` : "running"}</span></h3>
+  box.innerHTML = `<div class="panel"><h3>${esc(run.prompt.slice(0, 120))}${run.prompt.length > 120 ? "…" : ""} <span class="right small">${done ? `${run.status === "done" ? "finished" : run.status === "waiting" ? "waiting on your plan" : "failed"} · total ${money(run.cost, 5)}` : "running"}</span></h3>
       <div class="small dim">${done && !run.winner && run.status === "done" ? "Pick the winner: it counts as a thumbs-up for that model on this kind of work, and the router learns from it." : run.winner ? `Winner: ${esc(run.winner.name)}. The router will favour it for ${esc(run.capability)} work.` : "Answers stream in as each model writes."}</div></div>
     <div style="display:grid;grid-template-columns:repeat(${run.columns.length}, minmax(240px, 1fr));gap:12px;overflow-x:auto;align-items:stretch">${run.columns.map((c) => columnHtml(c, run)).join("")}</div>`;
   box.querySelectorAll("[data-win]").forEach((b) => b.addEventListener("click", async () => {

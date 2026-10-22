@@ -9,6 +9,6 @@ lastUpdatedVersion: 0.4.8
 
 Meldmind can help with your apps and this PC. You stay in charge of anything that leaves the computer.
 
-Nothing is sent, posted, deleted, or bought until you click OK. Publish shows a preview first. Tools that write, send, or delete ask every time. If a control says Meldmind is using an app, Stop ends it.
+Nothing is sent, posted, deleted, or bought until you click OK. Publish shows a preview first. Tools that write, send, or delete ask every time. If a control says Meldmind is using an app, Stop ends it. When a step uses a Windows app, Meldmind first shows the exact controls it will press, in order. Nothing is pressed until you click Press these, only those controls are pressed, and Stop halts it between controls.
 
 Your phone can approve a waiting action when that choice is in the app. Phone pairing is in Settings, under Phone and other devices. The link stays off until you turn it on. Turning it on is Pro at $18.99 a month. Turning it off is free. The OK click itself is on every plan, including Free.

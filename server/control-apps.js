@@ -34,7 +34,7 @@ const SECRET = /password|billing|square|checkout/i;
 const RELAY_HOST = /(^|\.)((chatgpt|claude)\.com|chat\.openai\.com)$/i;
 
 function empty() {
-  return { apps: [], using: null, stopped: {} };
+  return { apps: [], using: null, stopped: {}, plans: {} };
 }
 export function loadState() {
   const saved = doc(DOC, empty);
@@ -42,6 +42,7 @@ export function loadState() {
     apps: Array.isArray(saved?.apps) ? saved.apps : [],
     using: saved?.using || null,
     stopped: saved?.stopped || {},
+    plans: saved?.plans && typeof saved.plans === "object" && !Array.isArray(saved.plans) ? saved.plans : {},
   };
 }
 function saveState(next) {
@@ -100,6 +101,7 @@ export function publicState() {
     apps: state.apps.map(publicApp),
     planner: plannerRows(),
     using: using ? { id: using.id, name: using.name, text: `Meldmind is using ${using.name}` } : null,
+    plans: Object.values(state.plans || {}).filter((pl) => Date.now() - pl.createdAt < PLAN_TTL_MS).map(publicPlan),
   };
 }
 
@@ -264,6 +266,7 @@ function failJob(prep, err) {
   app.activity = "Stopped";
   app.light = "red";
   prep.state.using = null;
+  prep.state.plans = loadState().plans;
   saveState(prep.state);
   handoff(app, "failed", { result: err.message });
   emit("agent.error", { agent: agentId(app.id), provider: "app", model: app.name, error: err.message });
@@ -271,6 +274,7 @@ function failJob(prep, err) {
 
 function finishJob(prep, result) {
   const fresh = loadState();
+  prep.state.plans = fresh.plans; // a list planned or pressed during this job is kept as it is now
   if (fresh.stopped?.[prep.app.id]) {
     prep.state.stopped[prep.app.id] = fresh.stopped[prep.app.id];
     prep.state.using = null;
@@ -288,8 +292,9 @@ function finishJob(prep, result) {
     state.using = null;
     handoff(app, "done", { result: app.activity });
     emit("agent.done", { agent: agentId(app.id), provider: "app", model: app.name, cost: result.cost || 0 });
-  } else if (result.status === "needs_approval") {
+  } else if (result.status === "needs_approval" || result.status === "needs_confirm") {
     app.activity = "Waiting for your OK";
+    if (result.status === "needs_confirm") state.using = null;
     handoff(app, "needs_approval", { result: result.reason || "Waiting for your OK" });
   } else {
     state.using = null;
@@ -542,19 +547,100 @@ async function runWebsiteLive(app, body) {
   }
 }
 
+// ---------- desktop apps: plan first, press only a confirmed list ----------
+// A desktop step with no explicit list (and every mission step) never presses anything on its own. It reads the
+// window, plans which controls it would press (a dry run), and waits. The person sees the exact list and clicks
+// Press these; only then are those controls pressed, in that order, with Stop checked before each one. Get it
+// done does not skip this: only the confirm route (confirmPlan: true) presses a planned list.
+export const PLAN_TTL_MS = 30 * 60 * 1000;
+const PLAN_MAX = 8;
+const isPassword = (n) => !!(n?.password || n?.type === "password" || /password/i.test(String(n?.name || "")));
+function publicPlan(pl) {
+  return { id: pl.id, appId: pl.appId, app: pl.app, title: pl.title || "", actions: pl.actions, createdAt: pl.createdAt, missionId: pl.missionId || null, taskId: pl.taskId || null };
+}
+// Which controls the step's words name, in the order the words name them. Passwords and unnamed controls are left out.
+export function planFromTree(nodes, { title = "", instructions = "" } = {}) {
+  const text = ` ${String(`${title}\n${instructions}`).toLowerCase()} `;
+  const hits = [];
+  for (const n of Array.isArray(nodes) ? nodes : []) {
+    const name = String(n?.name || "").trim();
+    if (!n?.id || !name || name.length < 2 || isPassword(n)) continue;
+    const re = new RegExp(`(^|[^a-z0-9])${name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`);
+    const m = re.exec(text);
+    if (m) hits.push({ at: m.index, ref: String(n.id), name, type: String(n.type || ""), risky: riskyLabel({ action: n.action || "click" }, name) || null });
+  }
+  hits.sort((a, b) => a.at - b.at);
+  const seen = new Set();
+  return hits.filter((h) => !seen.has(h.ref) && seen.add(h.ref)).slice(0, PLAN_MAX).map(({ at, ...rest }) => rest);
+}
+function savePlan(app, body, actions) {
+  const state = loadState();
+  for (const [id, pl] of Object.entries(state.plans)) if (Date.now() - pl.createdAt >= PLAN_TTL_MS) delete state.plans[id];
+  const id = "plan-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  state.plans[id] = { id, appId: app.id, app: app.name, title: String(body.title || "").slice(0, 120), actions, createdAt: Date.now(), missionId: body.missionId || null, taskId: body.taskId || null };
+  saveState(state);
+  emit("control.plan", { plan: publicPlan(state.plans[id]) });
+  return state.plans[id];
+}
+export function getPlan(id) {
+  const pl = loadState().plans[String(id || "")];
+  return pl && Date.now() - pl.createdAt < PLAN_TTL_MS ? publicPlan(pl) : null;
+}
+export function cancelPlan(id) {
+  const state = loadState();
+  const pl = state.plans[String(id || "")];
+  if (!pl) throw bad("That list is gone. Nothing was pressed.", 404, "no_plan");
+  delete state.plans[pl.id];
+  saveState(state);
+  emit("control.plan", { plan: { ...publicPlan(pl), cancelled: true } });
+  return { ok: true, cancelled: pl.id, pressed: 0 };
+}
+export const planLine = (actions) => actions.map((a, i) => `${i + 1}. ${a.name}${a.risky ? ` (this will ${a.risky})` : ""}`).join("\n");
+
+async function pressPlan(app, body, nodes) {
+  if (body.confirmPlan !== true) throw bad("Confirm the list of controls first. Nothing was pressed.", 409, "confirm_plan");
+  const state = loadState();
+  const pl = state.plans[String(body.planId || "")];
+  if (!pl || pl.appId !== app.id || Date.now() - pl.createdAt >= PLAN_TTL_MS) throw bad("That list is gone or is for another app. Nothing was pressed.", 404, "no_plan");
+  delete state.plans[pl.id]; // a list is pressed once
+  saveState(state);
+  const steps = [];
+  const log = [];
+  for (const a of pl.actions) {
+    if (halted(app.id, body)) return { status: "stopped", steps, log: log.concat(["Stopped."]), cost: 0, driver: "uia", planId: pl.id };
+    const node = nodes.find((n) => n.id && n.id === a.ref);
+    if (!node) { log.push(safeLog(`${a.name} is no longer in the window. Skipped.`)); continue; }
+    if (isPassword(node)) { log.push("Refused a password edit."); continue; }
+    const kind = needsYes({ action: node.action || "click" }, node.name || a.name);
+    if (kind) accepted(approvalFor(app, kind, node.name || a.name, node.amount), true); // the confirmed list named it
+    await invokeControl(app.exe, a.ref);
+    steps.push({ action: "invoke", ref: a.ref });
+    log.push(safeLog(`Used ${node.name || a.name}`));
+  }
+  return { status: "done", steps, log, cost: 0, driver: "uia", exe: app.exe, planId: pl.id };
+}
+
 async function runDesktopLive(app, body) {
   const tree = await readWindow(app.exe);
   if (tree?.focusLost || (tree?.foreground && app.exe && tree.foreground !== app.exe)) {
     return { status: "stopped", reason: "Focus left the allowed program. Input stopped.", steps: [], log: [], cost: 0, driver: "uia" };
   }
   const nodes = tree?.nodes || [];
-  if (!nodes.length && app.screenshot) return runShotsLive(app, body);
-  const list = Array.isArray(body.actions) && body.actions.length ? body.actions : nodes;
-  const log = [];
-  const steps = [];
-  if (!list.length) {
-    return { status: "done", steps: [{ action: "invoke", ref: "ready" }], log: ["Read the window."], cost: 0, driver: "uia", exe: app.exe };
+  if (body.planId) return pressPlan(app, body, nodes);
+  const explicit = Array.isArray(body.actions) && body.actions.length > 0 && !body.fromMission;
+  if (!explicit) {
+    // no list: plan only. Nothing is pressed until the person confirms the exact list.
+    const actions = planFromTree(nodes, body);
+    if (!actions.length) {
+      return { status: "nothing_to_press", reason: "Meldmind read the window but could not tell which controls to press. Nothing was pressed.", steps: [], log: ["Read the window. Nothing was pressed."], cost: 0, driver: "uia", plan: [] };
+    }
+    const pl = savePlan(app, body, actions);
+    return { status: "needs_confirm", planId: pl.id, plan: actions, reason: `Check the controls Meldmind will press in ${app.name}, then click Press these. Nothing was pressed yet.`, steps: [], log: [`Planned ${actions.length} control${actions.length === 1 ? "" : "s"}. Nothing was pressed yet.`], cost: 0, driver: "uia" };
   }
+  // a list the person gave: only controls that are really in this window are pressed
+  const list = body.actions.filter((a) => nodes.some((n) => n.id && (n.id === a.id || n.id === a.ref)));
+  const log = body.actions.length > list.length ? ["Skipped a control that is not in this window."] : [];
+  const steps = [];
   for (const node of list) {
     if (halted(app.id, body) || (body.stopAfter != null && steps.length >= body.stopAfter)) {
       return { status: "stopped", steps, log: log.concat(["Stopped."]), cost: 0, driver: "uia" };
@@ -570,7 +656,7 @@ async function runDesktopLive(app, body) {
       return { status: "needs_approval", approvalId: item.id, reason: `Waiting to ${kind}.`, steps, log, cost: 0, driver: "uia" };
     }
     if (kind && body.confirm) accepted(approvalFor(app, kind, known.name || kind, known.amount), true);
-    const ref = known.id || node.id || node.ref || known.name || "";
+    const ref = known.id || node.id || node.ref || "";
     if (ref && ref !== "ready") await invokeControl(app.exe, ref);
     steps.push({ action: "invoke", ref });
     log.push(safeLog(`Used ${known.name || node.name || "a control"}`));

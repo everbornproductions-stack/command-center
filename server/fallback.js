@@ -40,7 +40,9 @@ export const FREE_TIERS = {
   openrouter: { name: "OpenRouter free route", models: ["openrouter/free"], perDay: 50, perMinute: 20, defaultOn: true, note: "openrouter/free picks the best free model; the daily count is small without credits on the account." },
   groq: { name: "Groq free tier", models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b"], perDay: 1000, perMinute: 30, defaultOn: false, note: "Groq keys start on a free tier with rate limits; tick this if you have not added a card." },
 };
-export const DEFAULTS = { on: true, openrouterFirst: true, maxHops: 3, freeTiers: Object.fromEntries(Object.entries(FREE_TIERS).map(([k, v]) => [k, { on: v.defaultOn, perDay: v.perDay, perMinute: v.perMinute }])) };
+// subscriptions: when API credits run out and no API route is left, answer through the person's own plan
+// (server/answer-wait.js). Off means a slot fails as before.
+export const DEFAULTS = { on: true, openrouterFirst: true, maxHops: 3, subscriptions: true, freeTiers: Object.fromEntries(Object.entries(FREE_TIERS).map(([k, v]) => [k, { on: v.defaultOn, perDay: v.perDay, perMinute: v.perMinute }])) };
 
 // ---------- settings ----------
 export function fallbackSettings() {
@@ -54,6 +56,7 @@ export function saveFallbackSettings(patch = {}) {
   const next = { ...cur };
   if (patch.on !== undefined) next.on = !!patch.on;
   if (patch.openrouterFirst !== undefined) next.openrouterFirst = !!patch.openrouterFirst;
+  if (patch.subscriptions !== undefined) next.subscriptions = !!patch.subscriptions;
   if (patch.maxHops !== undefined) { const n = Number(patch.maxHops); if (!Number.isInteger(n) || n < 1 || n > 6) throw Object.assign(new Error("maxHops must be a whole number from 1 to 6"), { status: 400 }); next.maxHops = n; }
   if (patch.freeTiers && typeof patch.freeTiers === "object") {
     for (const [k, v] of Object.entries(patch.freeTiers)) {
@@ -262,6 +265,7 @@ export async function* fallbackChat(opts, run = {}) {
         const info = describePause(provider);
         const e = new Error(info?.message || `${nameOf(provider)} is paused: no credits. Add credits to use it.`);
         e.code = "paused";
+        e.kind = t.kind;
         e.status = 402;
         throw e;
       }

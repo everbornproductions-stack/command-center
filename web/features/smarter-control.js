@@ -17,15 +17,28 @@ CC.register({
     } catch { el.innerHTML = ""; return; }
     const using = apps.using;
     const waiting = phone.pending || [];
-    if (!using && !waiting.length) { el.innerHTML = ""; return; }
+    const plans = apps.plans || [];
+    if (!using && !waiting.length && !plans.length) { el.innerHTML = ""; return; }
     el.innerHTML = `<div class="route" style="margin-top:8px">
       ${using ? `<div class="row" style="gap:8px;align-items:center"><b>${esc(using.text)}</b><button class="btn sm" id="sc-stop" type="button">Stop</button></div>` : ""}
+      ${plans.map((pl) => `<div class="small" style="margin-top:6px" data-plan-box="${esc(pl.id)}"><b>${esc(pl.app)} will press these controls, in this order, only after you click Press these:</b><ol style="margin:4px 0 4px 18px;padding:0">${pl.actions.map((a) => `<li>${esc(a.name)}${a.risky ? ` <span class="chip amber">this will ${esc(a.risky)}</span>` : ""}</li>`).join("")}</ol><div class="row" style="gap:8px"><button class="btn sm primary" data-plan-go="${esc(pl.id)}" type="button">Press these</button><button class="btn sm" data-plan-no="${esc(pl.id)}" type="button">Cancel</button><span class="dim">Nothing has been pressed yet. Stop halts it between controls.</span></div></div>`).join("")}
       ${waiting.map((item) => `<div class="row small" style="gap:8px;margin-top:6px"><span>Approve before it goes out: ${esc(item.action)}${item.amount != null ? ` (${money(item.amount)})` : ""}</span><button class="btn sm primary" data-yes="1" data-id="${esc(item.id)}" type="button">Approve</button><button class="btn sm" data-yes="0" data-id="${esc(item.id)}" type="button">Decline</button></div>`).join("")}
     </div>`;
     el.querySelector("#sc-stop")?.addEventListener("click", async () => {
       try { await api("/control-apps/stop", { method: "POST", body: { id: using.id } }); toast("Stopped."); el.innerHTML = ""; }
       catch (e) { toast(e.message); }
     });
+    el.querySelectorAll("[data-plan-go]").forEach((btn) => btn.addEventListener("click", async () => {
+      try {
+        const r = await api(`/control-apps/plans/${encodeURIComponent(btn.dataset.planGo)}/confirm`, { method: "POST" });
+        toast(r.status === "done" ? "Done. Only the listed controls were pressed." : r.status === "stopped" ? "Stopped." : (r.reason || r.status));
+        renderCommandBox(el);
+      } catch (e) { toast(e.message); }
+    }));
+    el.querySelectorAll("[data-plan-no]").forEach((btn) => btn.addEventListener("click", async () => {
+      try { await api(`/control-apps/plans/${encodeURIComponent(btn.dataset.planNo)}/cancel`, { method: "POST" }); toast("Cancelled. Nothing was pressed."); renderCommandBox(el); }
+      catch (e) { toast(e.message); }
+    }));
     el.querySelectorAll("[data-id]").forEach((btn) => btn.addEventListener("click", async () => {
       try {
         await api("/phone-approvals/decide", { method: "POST", body: { id: btn.dataset.id, yes: btn.dataset.yes === "1", from: "pc" } });
@@ -34,6 +47,10 @@ CC.register({
       } catch (e) { toast(e.message); }
     }));
   } },
+  // a planned list of controls shows up in Command as soon as a step makes it
+  onEvent(ev) {
+    if (ev.type === "control.plan") renderCommandBox(document.querySelector('#cmd-extras [data-feature="smarter-control"]'));
+  },
   settings: { order: 44, async render(el) {
     el.innerHTML = `<div class="grid">${panel("Routing", `<div class="dim small">Loading…</div>`)}</div>`;
     let tune, apps, guard, phone, recipes;
@@ -126,6 +143,10 @@ CC.register({
   } },
 });
 
+function renderCommandBox(el) {
+  const feature = window.CC.features.find((item) => item.id === "smarter-control");
+  if (el && feature?.command) feature.command.render(el);
+}
 async function render(el) {
   const feature = window.CC.features.find((item) => item.id === "smarter-control");
   if (feature?.settings) await feature.settings.render(el);

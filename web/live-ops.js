@@ -35,6 +35,7 @@ export function showDeliverable(live, text) {
   const l = live || {};
   if (!l.id) return false;
   if (text) return true;
+  if (l.status === "waiting") return true; // out of API credits: the waiting box is the deliverable for now
   if (l.kind === "research" && (l.status === "aborted" || l.status === "failed")) return true;
   return false;
 }

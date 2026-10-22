@@ -18,6 +18,9 @@ concurrency:
 
 jobs:
   test:
+    # Mac builds are paused to save GitHub minutes until version 0.7.0 (Chris, 2026-10-22). They
+    # run only when the repository variable BUILD_MAC is "true" or when someone starts this by hand.
+    if: ${{ vars.BUILD_MAC == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

@@ -29,6 +29,7 @@ export const EXPERT_SETUP = [
   { id: "ais", title: "More AIs", body: "Add another key if you want. One is enough to start. You can skip this." },
   { id: "basics", title: "Councils and missions", body: "A council asks several AIs and writes one answer. A mission splits the job, checks each piece, and puts the result together. Both start from Chat once you are in Expert." },
   { id: "integrations", title: "Integrations", body: "Gmail, Drive, and the other tools can wait. Connect them now, or later from Settings." },
+  { id: "backup", title: "Backup when API credits run out", body: "If an AI runs out of API credits, Meldmind can keep answering through your own plan for that AI. You can skip this and change it later in Settings." },
   { id: "profile", title: "Business profile", body: "Optional. Later prompts can reuse it. Every field can stay blank." },
 ];
 
