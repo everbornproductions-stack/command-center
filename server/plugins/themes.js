@@ -17,7 +17,9 @@ export const BACKGROUNDS = {
   charcoal: "#18181b", navy: "#0c1b33", wine: "#2a1218", fog: "#e7e5e4",
 };
 export const GRADIENTS = ["aurora", "dusk", "tide", "ember", "frost"];
-export const IMAGES = ["horizon", "orbit", "lattice", "bloom"];
+// "stage" is a photo file shipped with the app (web/backgrounds, path in web/features/themes.js).
+// It is the default picture since 0.4.17.
+export const IMAGES = ["stage", "horizon", "orbit", "lattice", "bloom"];
 // Theme presets: a mode, an accent name, a background name (or null), and a wallpaper id (or null).
 export const LOOKS = {
   harbor: { mode: "dark", accent: "teal", background: "navy", wallpaper: null },
@@ -25,7 +27,14 @@ export const LOOKS = {
   paper: { mode: "light", accent: "blue", background: "paper", wallpaper: null },
   aurora: { mode: "dark", accent: "violet", background: null, wallpaper: "gradient:aurora" },
 };
-export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null, wallpaper: null, photo: null };
+// The default look since 0.4.17 (Chris, 2026-10-21): dark, cyan accent, pine background colour,
+// and the built-in stage picture. It paints the same way as any picture wallpaper.
+export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: BACKGROUNDS.pine, wallpaper: "image:stage", photo: null };
+// The look before 0.4.17, kept so tests and the migration can name it.
+export const OLD_DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null, wallpaper: null, photo: null };
+// Bump to move everyone to a new default once more.
+export const DEFAULT_VERSION = 2;
+export const NEW_BACKGROUND_NOTE = "New background. Change it any time in Settings > Appearance.";
 export const PHOTO_LIMIT = 900 * 1024;
 const HEX = /^#[0-9a-f]{6}$/;
 const DATA_URL = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/;
@@ -112,27 +121,84 @@ export function normalize(input = {}, prev = DEFAULTS) {
   return out;
 }
 
-const current = (h) => ({ ...DEFAULTS, ...h.doc(KIND, () => ({ ...DEFAULTS })) });
-const view = (h) => ({
-  ...current(h),
-  presets: ACCENTS,
-  backgrounds: BACKGROUNDS,
-  gradients: GRADIENTS,
-  images: IMAGES,
-  looks: LOOKS,
-  modes: MODES,
-});
+const LOOK_FIELDS = ["mode", "accent", "background", "wallpaper", "photo"];
+const pick = (p) => Object.fromEntries(LOOK_FIELDS.map((k) => [k, p?.[k] ?? (k === "mode" ? "dark" : k === "accent" ? ACCENTS.cyan : null)]));
+const sameLook = (a, b) => LOOK_FIELDS.every((k) => (a?.[k] ?? null) === (b?.[k] ?? null));
+
+// A brand-new install starts on the default and is already up to date: no note.
+export function freshDoc(now = Date.now()) {
+  return { ...DEFAULTS, defaultVersion: DEFAULT_VERSION, previous: null, notePending: false, updatedAt: now };
+}
+
+// One time per DEFAULT_VERSION: everyone moves to the default look. Whatever they had is kept
+// as `previous` (unless it already was the default), so Undo or Settings can put it back.
+// Pure. Returns { doc, changed }.
+export function migrate(raw, now = Date.now()) {
+  if (!raw || typeof raw !== "object") return { doc: freshDoc(now), changed: true };
+  if ((Number(raw.defaultVersion) || 0) >= DEFAULT_VERSION) return { doc: raw, changed: false };
+  const had = pick({ ...OLD_DEFAULTS, ...raw });
+  const previous = sameLook(had, DEFAULTS) ? null : had;
+  return {
+    doc: { ...DEFAULTS, defaultVersion: DEFAULT_VERSION, previous, notePending: true, migratedAt: now, updatedAt: now },
+    changed: true,
+  };
+}
+
+// Undo: put the saved previous look back. The previous slot is then empty.
+export function restorePrevious(raw, now = Date.now()) {
+  const d = raw && typeof raw === "object" ? raw : freshDoc(now);
+  if (!d.previous) return { doc: d, restored: false };
+  return { doc: { ...d, ...pick(d.previous), previous: null, notePending: false, updatedAt: now }, restored: true };
+}
+
+function load(h) {
+  const raw = h.doc(KIND, () => freshDoc());
+  const { doc, changed } = migrate(raw);
+  if (changed) h.putDoc(KIND, doc);
+  return doc;
+}
+const current = (h) => ({ ...DEFAULTS, ...load(h) });
+// The saved previous look can hold a large photo. The browser only needs to know it exists.
+const view = (h) => {
+  const d = current(h);
+  return {
+    ...pick(d),
+    updatedAt: d.updatedAt,
+    hasPrevious: !!d.previous,
+    note: d.notePending ? NEW_BACKGROUND_NOTE : null,
+    defaults: pick(DEFAULTS),
+    presets: ACCENTS,
+    backgrounds: BACKGROUNDS,
+    gradients: GRADIENTS,
+    images: IMAGES,
+    looks: LOOKS,
+    modes: MODES,
+  };
+};
+// Keep the migration flag and the saved previous look across normal saves.
+const keep = (d) => ({ defaultVersion: d.defaultVersion, previous: d.previous ?? null, notePending: !!d.notePending });
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/themes/, "");
+  if (p === "/previous" && req.method === "POST") {
+    const { doc, restored } = restorePrevious(current(h));
+    if (restored) h.putDoc(KIND, doc);
+    return h.json(res, restored ? 200 : 409, restored ? view(h) : { error: "There is no previous background to restore", code: "no_previous", ...view(h) });
+  }
+  if (p === "/note" && req.method === "POST") {
+    const d = current(h);
+    if (d.notePending) h.putDoc(KIND, { ...d, notePending: false });
+    return h.json(res, 200, view(h));
+  }
   if (p !== "" && p !== "/") return false;
   if (req.method === "GET") return h.json(res, 200, view(h));
   if (req.method === "POST" || req.method === "PUT") {
+    const prev = current(h);
     let next;
-    try { next = normalize(body, current(h)); } catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
-    h.putDoc(KIND, next);
+    try { next = normalize(body, prev); } catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
+    h.putDoc(KIND, { ...next, ...keep(prev) });
     return h.json(res, 200, view(h));
   }
-  if (req.method === "DELETE") { h.putDoc(KIND, { ...DEFAULTS, updatedAt: Date.now() }); return h.json(res, 200, view(h)); }
+  if (req.method === "DELETE") { h.putDoc(KIND, { ...DEFAULTS, ...keep(current(h)), updatedAt: Date.now() }); return h.json(res, 200, view(h)); }
   return false;
 }

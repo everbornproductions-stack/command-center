@@ -4,60 +4,66 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { startServer, ROOT } from "./helpers.js";
-import { normalize, validatePhoto, DEFAULTS, ACCENTS, BACKGROUNDS, GRADIENTS, IMAGES, LOOKS, MODES, PHOTO_LIMIT } from "../server/plugins/themes.js";
+import { normalize, validatePhoto, DEFAULTS, OLD_DEFAULTS, ACCENTS, BACKGROUNDS, GRADIENTS, IMAGES, LOOKS, MODES, PHOTO_LIMIT } from "../server/plugins/themes.js";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 test("normalize: defaults, presets, short hex, rejects junk", () => {
-  const d = normalize({}, DEFAULTS);
+  // The rules below start from the plain look (no picture). The shipped default is checked after.
+  const BASE = OLD_DEFAULTS;
+  const d = normalize({}, BASE);
   assert.equal(d.mode, "dark"); assert.equal(d.accent, "#22d3ee"); assert.ok(d.updatedAt > 0);
-  assert.equal(normalize({ mode: "light" }, DEFAULTS).mode, "light");
-  assert.equal(normalize({ mode: "system" }, DEFAULTS).mode, "system");
-  assert.equal(normalize({ accent: "violet" }, DEFAULTS).accent, ACCENTS.violet);
-  assert.equal(normalize({ accent: "#ABC" }, DEFAULTS).accent, "#aabbcc");
-  assert.equal(normalize({ accent: " #FF7000 " }, DEFAULTS).accent, "#ff7000");
-  assert.equal(normalize({}, DEFAULTS).background, null);
-  assert.equal(normalize({ background: "paper" }, DEFAULTS).background, BACKGROUNDS.paper);
-  assert.equal(normalize({ background: "#345" }, DEFAULTS).background, "#334455");
-  assert.equal(normalize({ background: "" }, { ...DEFAULTS, background: "#112233" }).background, null);
-  assert.equal(normalize({ accent: "#ff7000" }, { ...DEFAULTS, background: "#112233" }).background, "#112233");
-  assert.equal(normalize({ accent: "teal" }, DEFAULTS).accent, ACCENTS.teal);
-  assert.equal(normalize({ accent: "magenta" }, DEFAULTS).accent, ACCENTS.magenta);
-  assert.equal(normalize({ background: "charcoal" }, DEFAULTS).background, BACKGROUNDS.charcoal);
-  assert.equal(normalize({ background: "fog" }, DEFAULTS).background, BACKGROUNDS.fog);
-  assert.equal(normalize({}, DEFAULTS).wallpaper, null);
-  assert.equal(normalize({ wallpaper: "gradient:aurora" }, DEFAULTS).wallpaper, "gradient:aurora");
-  assert.equal(normalize({ wallpaper: "gradient:aurora" }, DEFAULTS).photo, null);
-  assert.equal(normalize({ wallpaper: "image:horizon" }, { ...DEFAULTS, background: "#112233" }).background, "#112233");
-  assert.equal(normalize({ wallpaper: "IMAGE:Bloom" }, DEFAULTS).wallpaper, "image:bloom");
-  const withPhoto = normalize({ wallpaper: "photo", photo: PNG }, DEFAULTS);
+  assert.equal(normalize({ mode: "light" }, BASE).mode, "light");
+  assert.equal(normalize({ mode: "system" }, BASE).mode, "system");
+  assert.equal(normalize({ accent: "violet" }, BASE).accent, ACCENTS.violet);
+  assert.equal(normalize({ accent: "#ABC" }, BASE).accent, "#aabbcc");
+  assert.equal(normalize({ accent: " #FF7000 " }, BASE).accent, "#ff7000");
+  assert.equal(normalize({}, BASE).background, null);
+  assert.equal(normalize({ background: "paper" }, BASE).background, BACKGROUNDS.paper);
+  assert.equal(normalize({ background: "#345" }, BASE).background, "#334455");
+  assert.equal(normalize({ background: "" }, { ...BASE, background: "#112233" }).background, null);
+  assert.equal(normalize({ accent: "#ff7000" }, { ...BASE, background: "#112233" }).background, "#112233");
+  assert.equal(normalize({ accent: "teal" }, BASE).accent, ACCENTS.teal);
+  assert.equal(normalize({ accent: "magenta" }, BASE).accent, ACCENTS.magenta);
+  assert.equal(normalize({ background: "charcoal" }, BASE).background, BACKGROUNDS.charcoal);
+  assert.equal(normalize({ background: "fog" }, BASE).background, BACKGROUNDS.fog);
+  assert.equal(normalize({}, BASE).wallpaper, null);
+  assert.equal(normalize({ wallpaper: "gradient:aurora" }, BASE).wallpaper, "gradient:aurora");
+  assert.equal(normalize({ wallpaper: "gradient:aurora" }, BASE).photo, null);
+  assert.equal(normalize({ wallpaper: "image:horizon" }, { ...BASE, background: "#112233" }).background, "#112233");
+  assert.equal(normalize({ wallpaper: "IMAGE:Bloom" }, BASE).wallpaper, "image:bloom");
+  const withPhoto = normalize({ wallpaper: "photo", photo: PNG }, BASE);
   assert.equal(withPhoto.wallpaper, "photo");
   assert.equal(withPhoto.photo, PNG);
-  assert.equal(normalize({ photo: PNG }, DEFAULTS).wallpaper, "photo");
-  assert.equal(normalize({ wallpaper: "" }, { ...DEFAULTS, wallpaper: "gradient:dusk", photo: PNG }).wallpaper, null);
-  assert.equal(normalize({ wallpaper: "" }, { ...DEFAULTS, wallpaper: "photo", photo: PNG }).photo, null);
-  assert.equal(normalize({ accent: "gold" }, { ...DEFAULTS, wallpaper: "image:orbit" }).wallpaper, "image:orbit");
+  assert.equal(normalize({ photo: PNG }, BASE).wallpaper, "photo");
+  assert.equal(normalize({ wallpaper: "" }, { ...BASE, wallpaper: "gradient:dusk", photo: PNG }).wallpaper, null);
+  assert.equal(normalize({ wallpaper: "" }, { ...BASE, wallpaper: "photo", photo: PNG }).photo, null);
+  assert.equal(normalize({ accent: "gold" }, { ...BASE, wallpaper: "image:orbit" }).wallpaper, "image:orbit");
   assert.equal(LOOKS.harbor.background, "navy");
   assert.equal(LOOKS.aurora.wallpaper, "gradient:aurora");
-  for (const badBg of ["red", "url(http://x)", "javascript:alert(1)", "#22d3ee;background:url(x)"]) assert.throws(() => normalize({ background: badBg }, DEFAULTS), /background must be/);
+  for (const badBg of ["red", "url(http://x)", "javascript:alert(1)", "#22d3ee;background:url(x)"]) assert.throws(() => normalize({ background: badBg }, BASE), /background must be/);
   for (const badWall of ["https://example.com/a.png", "url(https://example.com/a.png)", "javascript:alert(1)", "//cdn.example/a.png", "gradient:nope", "image:nope", "photo"]) {
-    assert.throws(() => normalize({ wallpaper: badWall }, DEFAULTS), /wallpaper|photo|gradient|image|choose a photo/);
+    assert.throws(() => normalize({ wallpaper: badWall }, BASE), /wallpaper|photo|gradient|image|choose a photo/);
   }
-  assert.throws(() => normalize({ photo: "https://example.com/a.jpg" }, DEFAULTS), /web address/);
-  assert.throws(() => normalize({ photo: "data:image/svg+xml;base64,PHN2Zy8+" }, DEFAULTS), /PNG, JPEG, or WebP/);
+  assert.throws(() => normalize({ photo: "https://example.com/a.jpg" }, BASE), /web address/);
+  assert.throws(() => normalize({ photo: "data:image/svg+xml;base64,PHN2Zy8+" }, BASE), /PNG, JPEG, or WebP/);
   // a partial update keeps the other field
   assert.equal(normalize({ accent: "#ff7000" }, { mode: "light", accent: "#000000" }).mode, "light");
-  for (const badMode of ["blue", "", null, 1, "DARK"]) assert.throws(() => normalize({ mode: badMode }, DEFAULTS), /mode must be/);
-  for (const badAccent of ["red", "22d3ee", "#22d3eeff", "#ggg", "", "url(x)", "#22d3ee; background:red"]) assert.throws(() => normalize({ accent: badAccent }, DEFAULTS), /accent must be/);
-  assert.throws(() => normalize([], DEFAULTS), /object/);
-  assert.throws(() => normalize(null, DEFAULTS), /object/);
+  for (const badMode of ["blue", "", null, 1, "DARK"]) assert.throws(() => normalize({ mode: badMode }, BASE), /mode must be/);
+  for (const badAccent of ["red", "22d3ee", "#22d3eeff", "#ggg", "", "url(x)", "#22d3ee; background:red"]) assert.throws(() => normalize({ accent: badAccent }, BASE), /accent must be/);
+  assert.throws(() => normalize([], BASE), /object/);
+  assert.throws(() => normalize(null, BASE), /object/);
   assert.deepEqual(MODES, ["dark", "light", "system"]);
   assert.deepEqual(GRADIENTS, ["aurora", "dusk", "tide", "ember", "frost"]);
-  assert.deepEqual(IMAGES, ["horizon", "orbit", "lattice", "bloom"]);
+  assert.deepEqual(IMAGES, ["stage", "horizon", "orbit", "lattice", "bloom"]);
   const big = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(PHOTO_LIMIT)]);
   assert.throws(() => validatePhoto(`data:image/png;base64,${big.toString("base64")}`), /too large/);
   assert.throws(() => validatePhoto("data:image/jpeg;base64," + Buffer.from("not-a-jpeg").toString("base64")), /do not match/);
   assert.equal(validatePhoto(PNG), PNG);
+  // The default since 0.4.17: dark, cyan accent, pine background, the built-in stage picture.
+  assert.deepEqual({ ...DEFAULTS }, { mode: "dark", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null });
+  const fresh = normalize({}, DEFAULTS);
+  assert.equal(fresh.wallpaper, "image:stage"); assert.equal(fresh.background, "#10241c"); assert.equal(fresh.photo, null);
 });
 
 let s;
@@ -69,9 +75,12 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
   const g = await s.api("/themes");
   assert.equal(g.status, 200);
   assert.equal(g.json.mode, "dark"); assert.equal(g.json.accent, "#22d3ee");
-  assert.equal(g.json.background, null);
-  assert.equal(g.json.wallpaper, null);
+  assert.equal(g.json.background, BACKGROUNDS.pine, "a new install starts on the default look");
+  assert.equal(g.json.wallpaper, "image:stage");
   assert.equal(g.json.photo, null);
+  assert.equal(g.json.note, null, "a new install gets no new-background note");
+  assert.equal(g.json.hasPrevious, false);
+  assert.deepEqual(g.json.defaults, { ...DEFAULTS });
   assert.equal(g.json.backgrounds.paper, BACKGROUNDS.paper);
   assert.equal(g.json.backgrounds.navy, BACKGROUNDS.navy);
   assert.equal(g.json.presets.violet, ACCENTS.violet);
@@ -143,8 +152,8 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
 
   const reset = await s.api("/themes", { method: "DELETE" });
   assert.equal(reset.status, 200); assert.equal(reset.json.mode, "dark"); assert.equal(reset.json.accent, "#22d3ee");
-  assert.equal(reset.json.background, null);
-  assert.equal(reset.json.wallpaper, null);
+  assert.equal(reset.json.background, BACKGROUNDS.pine, "reset puts the default look back");
+  assert.equal(reset.json.wallpaper, "image:stage");
   assert.equal(reset.json.photo, null);
   assert.equal((await s.api("/themes/other")).status, 404, "unknown sub-path falls through to 404");
   const st = await s.api("/state");
@@ -168,7 +177,12 @@ test("appearance panel offers a custom background and has no em-dash", () => {
   assert.equal(ui.includes("<script"), false);
   for (const id of ["teal", "indigo", "gold", "magenta", "charcoal", "navy", "wine", "fog"]) assert.match(ui, new RegExp(id));
   for (const id of GRADIENTS) assert.match(ui, new RegExp(`${id}:\\s*"`));
-  for (const id of IMAGES) assert.match(ui, new RegExp(`${id}:\\s*svgUri`));
+  for (const id of IMAGES.filter((x) => x !== "stage")) assert.match(ui, new RegExp(`${id}:\\s*svgUri`));
+  // The stage picture is a file shipped with the app, named in one constant.
+  const m = ui.match(/DEFAULT_PICTURE_URL = "([^"]+)"/);
+  assert.ok(m, "one path constant names the default picture");
+  assert.match(ui, /stage: `url\('\$\{DEFAULT_PICTURE_URL\}'\)`/);
+  assert.ok(fs.existsSync(path.join(ROOT, "web", m[1])), "the default picture ships in web/");
   assert.equal(ui.includes("\u2014"), false);
   assert.equal(fs.readFileSync(path.join(ROOT, "server", "plugins", "themes.js"), "utf8").includes("\u2014"), false);
 });

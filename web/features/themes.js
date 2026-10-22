@@ -6,7 +6,11 @@
 const { S, api, toast, esc } = window.CC;
 
 const LS = "cc.theme";
-const DEFAULTS = { mode: "dark", accent: "#22d3ee", background: null, wallpaper: null, photo: null };
+// The default picture since 0.4.17. Swap this file for a higher-resolution copy any time;
+// this is the only place its path is written.
+export const DEFAULT_PICTURE_URL = "/backgrounds/meldmind-default.jpg";
+// The default look (Chris, 2026-10-21). It paints the same way as any picture wallpaper.
+const DEFAULTS = { mode: "dark", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null };
 let prefs = read();
 let presets = {
   cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635",
@@ -17,7 +21,10 @@ let backgrounds = {
   charcoal: "#18181b", navy: "#0c1b33", wine: "#2a1218", fog: "#e7e5e4",
 };
 let gradients = ["aurora", "dusk", "tide", "ember", "frost"];
-let images = ["horizon", "orbit", "lattice", "bloom"];
+let images = ["stage", "horizon", "orbit", "lattice", "bloom"];
+let defaults = { ...DEFAULTS };
+let hasPrevious = false;
+let noteShown = false;
 let looks = {
   harbor: { mode: "dark", accent: "teal", background: "navy", wallpaper: null },
   ember: { mode: "dark", accent: "gold", background: null, wallpaper: "gradient:ember" },
@@ -96,6 +103,7 @@ function svgUri(body) {
   return `url('data:image/svg+xml,${encodeURIComponent(svg)}')`;
 }
 const IMAGE_CSS = {
+  stage: `url('${DEFAULT_PICTURE_URL}')`,
   horizon: svgUri(`<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#312e81"/><stop offset="0.55" stop-color="#6d28d9"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs><rect width="1600" height="900" fill="url(#sky)"/><circle cx="1180" cy="200" r="150" fill="#fde68a" opacity="0.35"/><circle cx="1180" cy="200" r="78" fill="#fde68a"/><path d="M0 560 C260 430 480 640 760 500 C1040 360 1280 560 1600 420 L1600 900 L0 900 Z" fill="#0e7490"/><path d="M0 700 C340 600 620 820 980 680 C1240 580 1420 760 1600 660 L1600 900 L0 900 Z" fill="#134e4a"/>`),
   orbit: svgUri(`<rect width="1600" height="900" fill="#0b1020"/><circle cx="500" cy="420" r="260" fill="none" stroke="#22d3ee" stroke-width="28" opacity="0.85"/><circle cx="1040" cy="380" r="320" fill="none" stroke="#a78bfa" stroke-width="22" opacity="0.75"/><circle cx="780" cy="470" r="110" fill="#1d4ed8"/>`),
   lattice: svgUri(`<rect width="1600" height="900" fill="#0f172a"/><g stroke="#38bdf8" stroke-width="3" opacity="0.45"><path d="M0 120H1600M0 300H1600M0 480H1600M0 660H1600M180 0V900M460 0V900M740 0V900M1020 0V900M1300 0V900"/></g><circle cx="460" cy="300" r="16" fill="#22d3ee"/><circle cx="1020" cy="480" r="16" fill="#c4b5fd"/>`),
@@ -161,6 +169,8 @@ function absorb(r) {
   if (Array.isArray(r?.gradients)) gradients = r.gradients;
   if (Array.isArray(r?.images)) images = r.images;
   if (r?.looks && typeof r.looks === "object") looks = r.looks;
+  if (r?.defaults && typeof r.defaults === "object") defaults = { ...DEFAULTS, ...r.defaults };
+  if (r && "hasPrevious" in r) hasPrevious = !!r.hasPrevious;
   return {
     mode: r.mode, accent: r.accent, background: r.background || null, wallpaper: r.wallpaper || null, photo: r.photo || null,
   };
@@ -171,15 +181,30 @@ async function save(patch) {
   catch (e) { toast(e.message, true); throw e; }
 }
 async function sync() {
-  try { const r = await api("/themes"); apply(absorb(r)); synced = true; } catch {}
+  try { const r = await api("/themes"); apply(absorb(r)); synced = true; showNote(r); } catch {}
 }
+// Put back the look the person had before the new default.
+async function restorePrevious() {
+  try { const r = await api("/themes/previous", { method: "POST" }); apply(absorb(r)); toast("Your previous background is back."); redrawPanel(); }
+  catch (e) { toast(e.message, true); }
+}
+// One short note after the one-time move to the new default, with Undo.
+function showNote(r) {
+  if (!r?.note || noteShown) return;
+  noteShown = true;
+  toast(r.note, false, hasPrevious ? { label: "Undo", onClick: () => restorePrevious() } : null);
+  api("/themes/note", { method: "POST" }).catch(() => {});
+}
+let panelEl = null;
+function redrawPanel() { if (panelEl?.isConnected) renderPanel(panelEl); }
 
 // ---- the style block: accent wiring for both themes + a full light palette ----
 const css = `
 .btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-deep)); border-color: var(--accent); color: var(--accent-ink); }
 .brand-mark { background: var(--accent); animation: ccbreathe 3s ease-in-out infinite; }
 @keyframes ccbreathe { 0%,100% { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 14px var(--accent-glow); } 50% { box-shadow: 0 0 0 6px var(--accent-soft), 0 0 26px var(--accent-glow); } }
-input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+:root { --focus-ring: var(--accent); }
 .hub-ring { stroke: var(--accent-soft); }
 .sparks i { background: linear-gradient(180deg, var(--accent), var(--accent-deep)); }
 .cc-spark-tip { color: var(--accent-2); }
@@ -216,6 +241,9 @@ html[data-wall] .graph-wrap { background: color-mix(in srgb, var(--panel-solid) 
 html[data-theme="light"] {
   --bg: #f3f5f9; --bg-2: #ffffff; --panel: #ffffffd9; --panel-solid: #ffffff; --line: #d9dfe8; --line-2: #c3ccd9;
   --text: #111827; --muted: #566071; --dim: #7b8595; --green: #059669; --amber: #d97706; --red: #dc2626; --grey: #9ca3af; --violet: #7c3aed;
+  --field-bg: #ffffff; --field-text: #111827; --field-border: #8794a8; --field-placeholder: #5b6575;
+  --focus-ring: color-mix(in srgb, var(--accent) 45%, #000000);
+  color-scheme: light;
 }
 html[data-theme="light"] body { background: radial-gradient(1200px 600px at 20% -10%, var(--accent-soft) 0%, transparent 60%), radial-gradient(900px 500px at 100% 0%, #e9e4f7 0%, transparent 55%), var(--bg); }
 html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c3ccd9; border-color: var(--bg); }
@@ -280,7 +308,7 @@ function renderPanel(el) {
   const lookBtns = Object.entries(looks).map(([id, look]) => `<button class="btn sm cc-look ${sameLook(look) ? "on" : ""}" data-look="${esc(id)}">${esc(labelOf(id))}</button>`).join("");
   const grads = gradients.map((id) => `<button class="cc-swatch cc-wall-swatch ${prefs.wallpaper === `gradient:${id}` ? "on" : ""}" data-gradient="${esc(id)}" title="${esc(labelOf(id))}" style="background:${GRADIENT_CSS[id] || "var(--bg-2)"}"></button>`).join("");
   const pics = images.map((id) => `<button class="cc-swatch cc-wall-swatch ${prefs.wallpaper === `image:${id}` ? "on" : ""}" data-image="${esc(id)}" title="${esc(labelOf(id))}" style="background-image:${IMAGE_CSS[id] || "none"};background-color:#10141c"></button>`).join("");
-  const plain = !prefs.background && !prefs.wallpaper;
+  const plain = (prefs.background || null) === (defaults.background || null) && (prefs.wallpaper || null) === (defaults.wallpaper || null) && !prefs.photo;
   el.innerHTML = `<div class="panel"><h3>Appearance <span class="right">${esc(resolved())} · ${esc(prefs.accent)}</span></h3>
     <label class="lbl">Theme</label>
     <div class="seg cc-theme-seg" id="cc-theme-mode">${["dark", "light", "system"].map((m) => `<button data-m="${m}" class="${prefs.mode === m ? "on" : ""}">${m[0].toUpperCase() + m.slice(1)}</button>`).join("")}</div>
@@ -294,17 +322,20 @@ function renderPanel(el) {
     <div class="row" style="gap:8px">${grads}</div>
     <label class="lbl" style="margin-top:10px">Pictures</label>
     <div class="row" style="gap:8px">${pics}<button class="btn sm ${prefs.wallpaper === "photo" ? "on" : ""}" id="cc-bg-photo">Your photo</button><button class="ghost small" id="cc-wall-clear">No picture</button></div>
+    ${hasPrevious ? `<div class="row" style="margin-top:8px"><button class="btn sm" id="cc-wall-previous" type="button">Restore my previous background</button></div>` : ""}
     <input type="file" id="cc-bg-file" accept="image/png,image/jpeg,image/webp" aria-label="Choose a photo from this computer" style="display:none">
     <div class="cc-theme-preview"><div class="box"><span class="dot green"></span> Panel text <span class="chip">chip</span></div><button class="btn primary sm sample-only" type="button" tabindex="-1" aria-hidden="true">Primary</button><button class="btn sm sample-only" type="button" tabindex="-1" aria-hidden="true">Button</button></div>
-    <div class="dim small" style="margin-top:8px">Saved to your account${S.mode === "hosted" ? " in the hub" : " on this PC"}; every device you sign in on follows it. A picture or photo sits behind a dim, blurred layer so text stays readable. Your photo is chosen from a file on this computer. A web address is not accepted.</div>
+    <div class="dim small" style="margin-top:8px">Saved to your account${S.mode === "hosted" ? " in the hub" : " on this PC"}; every device you sign in on follows it. Built-in puts the default back: the stage picture with a dark theme. A picture or photo sits behind a dim, blurred layer so text stays readable. Your photo is chosen from a file on this computer. A web address is not accepted.</div>
   </div>`;
+  panelEl = el;
   const redraw = () => renderPanel(el);
   el.querySelector("#cc-theme-mode").addEventListener("click", async (e) => { const b = e.target.closest("button"); if (!b) return; await save({ mode: b.dataset.m }); redraw(); });
   el.querySelectorAll("[data-accent]").forEach((b) => b.addEventListener("click", async () => { await save({ accent: b.dataset.accent }); redraw(); }));
   el.querySelector("#cc-theme-custom").addEventListener("change", async (e) => { await save({ accent: e.target.value }); redraw(); });
   el.querySelectorAll("[data-bg]").forEach((b) => b.addEventListener("click", async () => { await save({ background: b.dataset.bg, wallpaper: "", photo: "" }); redraw(); }));
   el.querySelector("#cc-bg-custom").addEventListener("change", async (e) => { await save({ background: e.target.value, wallpaper: "", photo: "" }); redraw(); });
-  el.querySelector("#cc-bg-clear").addEventListener("click", async () => { await save({ background: "", wallpaper: "", photo: "" }); redraw(); });
+  el.querySelector("#cc-bg-clear").addEventListener("click", async () => { await save({ background: defaults.background || "", wallpaper: defaults.wallpaper || "", photo: "" }); redraw(); });
+  el.querySelector("#cc-wall-previous")?.addEventListener("click", () => restorePrevious());
   el.querySelectorAll("[data-look]").forEach((b) => b.addEventListener("click", async () => {
     const look = looks[b.dataset.look]; if (!look) return;
     await save({ mode: look.mode, accent: look.accent, background: look.background || "", wallpaper: look.wallpaper || "", photo: "" });
@@ -324,7 +355,7 @@ function renderPanel(el) {
   el.querySelector("#cc-theme-reset").addEventListener("click", async () => { try { const r = await api("/themes", { method: "DELETE" }); apply(absorb(r)); redraw(); toast("Theme reset"); } catch (e) { toast(e.message, true); } });
 }
 
-window.CC.themes = { apply, prefs: () => ({ ...prefs }), set: save, resolved };
+window.CC.themes = { apply, prefs: () => ({ ...prefs }), set: save, resolved, restorePrevious, defaults: () => ({ ...defaults }) };
 
 CC.register({
   id: "themes",
