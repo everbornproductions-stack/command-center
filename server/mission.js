@@ -22,7 +22,7 @@ import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memor
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
-import { suggestApp, runLive } from "./control-apps.js";
+import { suggestApp, runLive, planLine } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
 
@@ -478,6 +478,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           live: true,
           honorStop: true,
           signal: ctl.signal,
+          // a mission step never presses on its own: it plans the controls and waits for Press these
+          fromMission: true,
+          missionId: id,
+          taskId: t.id,
         });
         t.cost = result.cost || 0;
         if (t.cost) spend({ cost: t.cost });
@@ -485,6 +489,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           t.output = (result.log || []).filter(Boolean).join("\n") || `${t.model} finished this step.`;
           outputs[t.id] = t.output;
           t.status = "done";
+        } else if (result.status === "needs_confirm") {
+          t.output = `${t.model} will press these controls once you confirm the list (Press these, in Command):\n${planLine(result.plan || [])}\nNothing was pressed yet.`;
+          t.appPlan = { planId: result.planId, actions: result.plan || [] };
+          outputs[t.id] = t.output;
+          t.status = "waiting";
+        } else if (result.status === "nothing_to_press") {
+          t.output = result.reason;
+          outputs[t.id] = t.output;
+          t.status = "waiting";
         } else if (result.status === "needs_approval" || result.status === "estimate") {
           t.output = result.reason || (result.log || [])[0] || "Waiting for your OK.";
           outputs[t.id] = t.output;
