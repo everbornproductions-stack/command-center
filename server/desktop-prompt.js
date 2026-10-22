@@ -18,18 +18,26 @@ export function versionAtLeast(version, floor = DESKTOP_PROMPT_FROM) {
   return true;
 }
 
+// "quiet" (0.4.17): a new install that finished the welcome screen never gets this card on
+// its own. Desktop control is offered in Settings, and when a task needs a desktop app.
+export const QUIET = "quiet";
+
 export function shouldShowDesktopPrompt({ version, status, laterCount } = {}) {
   if (!versionAtLeast(version)) return false;
+  if (status === QUIET) return false;
   if (status === "never" || status === "done") return false;
   return (Number(laterCount) || 0) < 2;
 }
 
 export function applyDesktopPrompt(state, action) {
   const cur = {
-    status: state?.status === "never" || state?.status === "done" || state?.status === "later" ? state.status : "pending",
+    status: state?.status === "never" || state?.status === "done" || state?.status === "later" || state?.status === QUIET ? state.status : "pending",
     laterCount: Number(state?.laterCount) || 0,
   };
   if (cur.status === "never" || cur.status === "done") return cur;
+  if (action === "quiet") return cur.status === "pending" ? { status: QUIET, laterCount: cur.laterCount } : cur;
+  // Not now on a quiet install keeps it quiet. Never and Done still close it for good.
+  if (cur.status === QUIET && action === "later") return cur;
   if (action === "never") return { status: "never", laterCount: cur.laterCount };
   if (action === "done") return { status: "done", laterCount: cur.laterCount };
   if (action === "later") return { status: "later", laterCount: cur.laterCount + 1 };

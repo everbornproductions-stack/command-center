@@ -35,3 +35,11 @@ Publish can stay on this computer, go to a website, go to itch.io, or make a pho
 Remix is a Pro mission. Pro includes 8 Remix missions a month. That number is a placeholder, not a price. Extreme has no monthly cap. A rating teaches the next remix on this computer. Nothing from that record is sent.
 
 Your own art can become sprites, models, or voices when you ask. Media still shows a price first and waits for Approve.
+
+## Build it all for me
+
+Turn on **Build it all for me** to run every step in one go: what to make, the starting point, the preview, the build, and the test. Publish stays a click. Meldmind answers the questions from your description. When a question has nothing in the description, it picks a plain default and lists it under **Assumed**, so you can change it later.
+
+It still stops for three things, the same rules as Get it done: spending money, deleting something for good, and posting or sending in public. A second switch, **Also allow posting**, lets public posting through. It is off unless you turn it on. Boxes that only you can tick, such as a compliance check, still wait for you.
+
+You see each step as it runs, and **Stop** ends the run before the next step. The switch is off at first. Meldmind remembers your choice for next time.

@@ -2,7 +2,13 @@
 
 Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact and wide rows, desktop and web), the phone bar, the Help page, the Settings page, tour steps, and in-app links. Checked by `test/menu-audit.test.js`.
 
-## What changed
+## 0.4.17 changes (Chris, 2026-10-21)
+
+- **People moved to Connect.** Connect now has two sections. **Apps and AIs**: Keys and providers, Your apps, Tools (MCP), Integrations, Browser extension, HighLevel. **People**: People, Together, Community. Business keeps money and team pages: Credits, Subscriptions, Reports, Teams. In Simple, People stays in My day, and Together and Community sit in a People section of More, above Connections. On the phone bar they are listed under Connect.
+- **Two setups, two names.** Settings > **Find my AIs** (page `setup`, id `tab-setup` kept) is the longer setup page: AI keys on this PC, browser history, bookmarks, track records. The Settings page link keeps decision 20's words: **Run setup again (Find my AIs)** (`#s-setup`). Help > **Get everything connected** (action `connect-setup`) is the integrations checklist, the same name as its screen title. The Help page button and the tray item use that name too. The checklist's Settings card button is now **Open the checklist**. No menu item is called just Setup any more.
+- Still unsure, not changed: Connect > **Integrations** opens the Grok Bot handoff panel, so "Agent handoffs" might say it better. Simple keeps **Find my AIs** in More (Simple's Settings is one button). Simple keeps **People** in My day rather than a Connect menu, because Simple has no Connect menu.
+
+## What changed (0.4.13)
 
 - **Settings is settings only.** The Settings menu now holds Settings and Setup. Help, Take the tour, Run setup again, and Check for updates left it.
 - **Help is one menu, the same everywhere:** Search help, Take the tour, Run setup again, Check for updates, What's new, Try demo mode, User guide, Contact and feedback, About Meldmind. The web app hides Run setup again and Check for updates (no setup scan, no updater there).
@@ -20,7 +26,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 
 ## Not changed (locked or out of scope)
 
-- **Decision 20: Settings keeps a manual "Run setup again".** That link on the Settings page (`#s-setup`) opens the first-run setup page (browser history, key import, bookmarks). The Help menu, the Help page, the tray, and the "Get everything connected" Settings card use the same words for the connections checklist (`connectSetup.open`). Two actions share one name. Renaming either changes decision 20 or the tray. Logged as BLOCKED in docs/BUILD-LOG.md for Chris.
+- **Decision 20: Settings keeps a manual "Run setup again".** That link on the Settings page (`#s-setup`) opens the first-run setup page (browser history, key import, bookmarks). The Help menu, the Help page, the tray, and the "Get everything connected" Settings card use the same words for the connections checklist (`connectSetup.open`). Two actions share one name. Renaming either changes decision 20 or the tray. Logged as BLOCKED in docs/BUILD-LOG.md for Chris. Resolved in 0.4.17 at Chris's request: the checklist is now Get everything connected everywhere, and the Settings link keeps Run setup again with the page name Find my AIs.
 - **Decision 4:** the tray keeps Check for updates, Install update, and Restart app.
 - **Mode names:** the Command page is "Chat" in Simple and "Command" in Expert, on purpose. The phone bar says "Subs" for Subscriptions for space.
 
@@ -57,21 +63,21 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Business | Subscriptions | page `subscriptions` | OK, lock note "Pro" on lower plans |
 | Business | Credits | page `credits` | OK |
 | Business | Teams | page `workspaces` | OK, lock note "Extreme" on lower plans |
-| Business | Together | page `together` | OK |
-| Business | People | page `userchat` | OK |
 | Business | Reports | page `reports` | OK |
-| Business | Community | page `community` | OK |
 | Connect | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |
 | Connect | Your apps | page `settings`, scrolled to `[data-feature='byo']` | OK |
 | Connect | Tools (MCP) | page `settings`, scrolled to `[data-feature='mcp']` | OK |
 | Connect | Integrations | page `settings`, scrolled to `[data-feature='grokbot']` | OK |
 | Connect | Browser extension | page `settings`, scrolled to `[data-feature='extension']` | OK |
 | Connect | HighLevel | page `settings`, scrolled to `[data-feature='highlevel']` | OK |
+| Connect | People | page `userchat` | OK (People section, 0.4.17) |
+| Connect | Together | page `together` | OK (People section, 0.4.17) |
+| Connect | Community | page `community` | OK (People section, 0.4.17) |
 | Settings | Settings | page `settings` | OK |
-| Settings | Setup | page `setup` | OK |
+| Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
 | Help | Take the tour | action `tour` (window.CC.tour.start (web/app.js menu click)) | OK |
-| Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
+| Help | Get everything connected | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
 | Help | Check for updates | action `updates` (manualCheck (web/features/updates.js document click)) | OK |
 | Help | What's new | action `news` (window.CC.tour.openNews (web/app.js menu click)) | OK |
 | Help | Try demo mode | action `demo-on` (setDemo(true) (web/app.js menu click)) | OK |
@@ -110,21 +116,21 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Business | Subscriptions | page `subscriptions` | OK, lock note "Pro" on lower plans |
 | Business | Credits | page `credits` | OK |
 | Business | Teams | page `workspaces` | OK, lock note "Extreme" on lower plans |
-| Business | Together | page `together` | OK |
-| Business | People | page `userchat` | OK |
 | Business | Reports | page `reports` | OK |
-| Business | Community | page `community` | OK |
 | Connect | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |
 | Connect | Your apps | page `settings`, scrolled to `[data-feature='byo']` | OK |
 | Connect | Tools (MCP) | page `settings`, scrolled to `[data-feature='mcp']` | OK |
 | Connect | Integrations | page `settings`, scrolled to `[data-feature='grokbot']` | OK |
 | Connect | Browser extension | page `settings`, scrolled to `[data-feature='extension']` | OK |
 | Connect | HighLevel | page `settings`, scrolled to `[data-feature='highlevel']` | OK |
+| Connect | People | page `userchat` | OK (People section, 0.4.17) |
+| Connect | Together | page `together` | OK (People section, 0.4.17) |
+| Connect | Community | page `community` | OK (People section, 0.4.17) |
 | Settings | Settings | page `settings` | OK |
-| Settings | Setup | page `setup` | OK |
+| Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
 | Help | Take the tour | action `tour` (window.CC.tour.start (web/app.js menu click)) | OK |
-| Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
+| Help | Get everything connected | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
 | Help | Check for updates | action `updates` (manualCheck (web/features/updates.js document click)) | OK |
 | Help | What's new | action `news` (window.CC.tour.openNews (web/app.js menu click)) | OK |
 | Help | Try demo mode | action `demo-on` (setDemo(true) (web/app.js menu click)) | OK |
@@ -167,7 +173,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | More | Together | page `together` | OK |
 | More | Reports | page `reports` | OK |
 | More | Community | page `community` | OK |
-| More | Setup | page `setup` | OK |
+| More | Find my AIs | page `setup` | OK |
 | More > Connections | Zapier and Make | page `settings`, scrolled to `[data-feature='zapier']` | OK |
 | More > Connections | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |
 | More > Connections | Your apps | page `settings`, scrolled to `[data-feature='byo']` | OK |
@@ -175,7 +181,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | More > Connections | HighLevel | page `settings`, scrolled to `[data-feature='highlevel']` | OK |
 | Help | Search help | page `help` | OK |
 | Help | Take the tour | action `tour` (window.CC.tour.start (web/app.js menu click)) | OK |
-| Help | Run setup again | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
+| Help | Get everything connected | action `connect-setup` (window.CC.connectSetup.open (web/app.js menu click)) | OK |
 | Help | Check for updates | action `updates` (manualCheck (web/features/updates.js document click)) | OK |
 | Help | What's new | action `news` (window.CC.tour.openNews (web/app.js menu click)) | OK |
 | Help | User guide | page `help`, scrolled to `#can-do` | OK |
@@ -183,7 +189,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Help | About Meldmind | page `help`, scrolled to `#help-about` | OK |
 | Settings | Settings | page `settings` | OK |
 
-Web app (hosted) hides these desktop-only items: Libraries, Setup, Run setup again, Check for updates.
+Web app (hosted) hides these desktop-only items: Libraries, Find my AIs, Get everything connected, Check for updates.
 
 ## Other links checked
 
@@ -191,12 +197,12 @@ Web app (hosted) hides these desktop-only items: Libraries, Setup, Run setup aga
 |---|---|---|---|
 | Phone bar | Command / Chat, Projects, Create (Simple), Credits, Subs, Feed (Expert), Help, Settings, More | pages of the same name, live feed, More sheet | OK |
 | Help page | Search help, Ask Meldmind, Security summary (PDF) | `/api/help`, `/api/help/ask`, `/api/help/security.pdf` | OK |
-| Help page | Take the tour, See what else it can do, Run setup again, What's new, Start a project, Watch example projects | tour.start, tour.startFull, connectSetup.open, tour.openNews, page `start`, startProject.examples | OK |
+| Help page | Take the tour, See what else it can do, Get everything connected, What's new, Start a project, Watch example projects | tour.start, tour.startFull, connectSetup.open, tour.openNews, page `start`, startProject.examples | OK |
 | Help page | Download the guide (PDF) | `/what-meldmind-can-do.pdf` (shipped in web/) | OK |
 | Help page | Contact and feedback | mailto link (opens the mail app, nothing sent from Meldmind), Open the idea box (Settings, `everyday-news` panel) | OK |
 | Help page | About Meldmind | version, Check for updates, Update ready, restart | OK |
 | Settings page | Search help (Get help card), What leaves this PC | page `help`, article `security` | OK |
-| Settings page | Run setup again (`#s-setup`) | first-run setup page | Locked by decision 20, see above |
+| Settings page | Run setup again (Find my AIs) (`#s-setup`) | the longer setup page | Decision 20 words kept, see 0.4.17 changes |
 | Connect menu | Keys and providers, Your apps, Tools (MCP), Integrations, Browser extension, HighLevel | Settings scrolled to `#settings-keys` or `[data-feature=...]` | OK |
 | Simple More > Connections | Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel | Settings (past the basics) scrolled to `#settings-keys` or `[data-feature=...]` | OK |
 | Tour | every step `view:` | command, help, settings, builders, community | OK, all pages exist |

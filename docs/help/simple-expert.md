@@ -7,9 +7,11 @@ lastUpdatedVersion: 0.4.3
 
 # Simple and Expert
 
-Simple and Expert. A new install starts in Simple: one chat box, and the council picks the AI.
+Simple and Expert. A new install starts in Simple: one chat box, and Meldmind picks one AI and says which one answered.
 
-The first setup step asks: Which mode do you want to start in? Simple is one chat box. Expert is every menu. You can change this later.
+The welcome screen has How it looks: Simple or Expert. Simple is picked for you. Simple is one chat box. Expert is every menu. You can change this later.
+
+In Simple, the newest answer shows right under the chat box, with Copy, Double-check, and Test with personas under it. Everything else is under More actions.
 
 A Simple / Expert switch sits in the top bar on every screen. One click changes it. Your chats, projects, and keys stay put.
 

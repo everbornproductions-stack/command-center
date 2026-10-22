@@ -117,10 +117,10 @@ test("the page, Help menu, and Settings can run setup again, and Simple hides th
   assert.match(ui, /uiMode/);
   assert.match(app, /connectWizard/);
   assert.match(app, /connect-setup/);
-  assert.match(nav, /Run setup again/);
-  assert.match(help, /Run setup again/);
+  assert.match(nav, /Get everything connected/);
+  assert.match(help, /Get everything connected/);
   assert.match(main, /label: "Help"/);
-  assert.match(main, /Run setup again/);
+  assert.match(main, /Get everything connected/);
   assert.equal([ui, app, nav, help].join("\n").includes(EM), false);
 });
 

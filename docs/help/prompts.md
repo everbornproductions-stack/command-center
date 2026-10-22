@@ -15,7 +15,11 @@ Weekly prompt packs cover writing, email, marketing and ads, social media, sales
 
 A pack can also arrive from the hub without an app update. The same prompt is kept once. A newer week replaces an older copy.
 
-Popular prompts are suggested first when you fill marching orders. Putting the words in the box does not send them.
+Suggestions show under the chat box (Simple) and the Marching orders box (Expert) once you have typed a few letters. An empty box shows none. They match what you are making: type need a fun image for a fantasy dragon and the first button is Make an image: fantasy dragon, then image prompts. When nothing matches well, nothing is shown. New this week and votes only break a tie.
+
+Make an image, Make a video, Make a voiceover, Make a post, and Build a website open that page with your words filled in. The price or estimate shows first, and nothing runs until you click there.
+
+Picking a prompt keeps your words. A blank such as [topic] is filled from what you typed, or the prompt is added after your words. Undo puts back exactly what you typed. Make it better rewrites your words into a stronger prompt, with your words kept at the end. It runs on this computer and costs nothing, and Undo works there too. Arrow Down from the end of the box moves into the suggestions, the arrows move between them, Enter picks one, and Escape or Hide closes them. Putting the words in the box does not send them.
 
 The Builders category has one ready prompt for each guided builder, including Snap my receipt and log it, the accounting builders, and Review Responder, plus Remix. Picking one opens that builder with the text filled in when it is installed. If the builder is not installed yet, the words go in the chat. The source is Meldmind.
 

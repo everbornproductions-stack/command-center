@@ -60,7 +60,7 @@ function renderTab(view) {
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <button class="btn sm" type="button" id="help-replay">Take the tour</button>
         <button class="btn sm" type="button" id="help-more-tour">See what else it can do</button>
-        ${desk ? `<button class="btn sm" type="button" id="help-setup">Run setup again</button>` : ""}
+        ${desk ? `<button class="btn sm" type="button" id="help-setup">Get everything connected</button>` : ""}
         <button class="btn sm" type="button" id="help-news">What's new</button>
         <button class="btn sm" type="button" id="help-start">Start a project</button>
         <button class="btn sm" type="button" id="help-examples">Watch example projects</button>

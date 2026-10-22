@@ -99,12 +99,12 @@ test("the choice is saved and does not close first-run setup", async () => {
   } finally { await s.stop(); }
 });
 
-test("the Simple chat page is Chat on top, then My day, a few starters, and recent chats", async () => {
+test("the Simple chat page is Chat on top, then the answer, then My day and recent chats", async () => {
   const { SIMPLE_COMMAND, SIMPLE_STARTER_COUNT } = await import("../web/mode.js");
   const app = read("web", "app.js");
   const simple = app.slice(app.indexOf("function renderSimpleChat"), app.indexOf("function paintStarters"));
-  // Chat box first, then My day and recent chats, then the answer.
-  const order = ['<h3>Chat</h3>', 'id="cc-starters"', 'id="simple-home"', "simpleDayHtml()", 'id="simple-recent"', 'class="panel output"'];
+  // 0.4.17: chat box first, then the newest answer right under it, then My day and recent chats.
+  const order = ['<h3>Chat</h3>', 'id="cc-starters"', 'class="panel output" id="simple-answer"', 'id="cc-answer-line"', 'id="simple-home"', "simpleDayHtml()", 'id="simple-recent"'];
   let at = -1;
   for (const bit of order) {
     const next = simple.indexOf(bit);

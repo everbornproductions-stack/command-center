@@ -67,7 +67,7 @@ not in the install folder, so updating or reinstalling keeps it.
 - Do not publish a release as a draft or pre-release; the app only looks at normal releases.
 - Do not rename the files; `latest.yml` points at the exact installer name.
 - The portable .exe in `dist\` does not self-update. Only the installed (Setup) version does.
-- The app is not code-signed yet, so Windows SmartScreen may warn on the first install
+- Until Windows code signing is set up (see "Windows code signing" below), the installer is not signed, so Windows SmartScreen may warn on the first install
   ("More info" then "Run anyway"). Updates install without that prompt.
 - Never put a token, service key, or password into `electron-builder.yml` or the app. The publishable key is injected from `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` at build time and is not committed.
 - The phone / web app updates itself when the hub is updated; it shows "New version available, Refresh".
@@ -88,6 +88,42 @@ Add both secrets at https://github.com/everbornproductions-stack/command-center/
 - `RELEASES_TOKEN`: a fine-grained token with Contents read and write on `everbornproductions-stack/command-center-releases` only. The workflow uses it to upload the release. It is not built into the app.
 
 `.github/workflows/windows-ci.yml` runs on every pull request and every push to `main`. A pull request runs `npm ci`, `npm test`, and `npm run smoke` only. A push to `main` also runs `npm run dist`. A new push cancels the older run of that ref. It does not publish, and it does not read signing secrets or the publishable key. That package is not a release installer.
+
+## Windows code signing (Azure Artifact Signing)
+
+The release job signs the Windows installer with Microsoft Azure Artifact Signing (it used to be called Trusted Signing) through electron-builder's built-in `azureSignOptions`. Signing turns on by itself once all seven values below exist. Until then the job builds unsigned, exactly as before, and the build step prints one line:
+
+`Code signing is not set up yet, building unsigned.`
+
+After the build, the step "Verify the installer signature" runs `Get-AuthenticodeSignature` on `Meldmind-Setup-X.Y.Z.exe` and prints `Valid` or `NotSigned`. It fails the job only when signing is set up but the installer is not validly signed. An unsigned installer while signing is not set up does not fail. Pull request CI (`windows-ci.yml`) and the Mac build stay unsigned. No value is printed to the log.
+
+One-time setup, in this order:
+
+1. **Identity validation.** In the Azure portal, create an Artifact Signing account (search for "Artifact Signing" or "Trusted Signing"), then open Identity validation and start a Public validation for Everborn Productions. Microsoft checks the business. This can take days. Nothing can be signed until it says Completed.
+2. **Certificate profile.** In the same account, open Certificate profiles and create a Public Trust profile linked to that identity validation. Note the account name, the profile name, and the account endpoint (for example `https://eus.codesigning.azure.net/`, it depends on the region you picked).
+3. **App registration.** In Microsoft Entra ID, open App registrations, create one (for example "Meldmind release signing"), and add a client secret under Certificates and secrets. Note the Directory (tenant) ID, the Application (client) ID, and the secret value (it is shown once).
+4. **Role.** On the Artifact Signing account (or on the certificate profile), open Access control (IAM), Add role assignment, pick **Artifact Signing Certificate Profile Signer** (older portals call it Trusted Signing Certificate Profile Signer), and assign it to that app registration.
+5. **GitHub.** At https://github.com/everbornproductions-stack/command-center/settings/variables/actions add these repository variables (they are not secret):
+   - `AZURE_SIGNING_ENDPOINT`: the account endpoint from step 2.
+   - `AZURE_SIGNING_ACCOUNT`: the Artifact Signing account name.
+   - `AZURE_SIGNING_PROFILE`: the certificate profile name.
+   - `AZURE_SIGNING_PUBLISHER`: the publisher name exactly as it shows in the certificate (the validated business name).
+
+   At https://github.com/everbornproductions-stack/command-center/settings/secrets/actions add these repository secrets:
+   - `AZURE_TENANT_ID`: the Directory (tenant) ID.
+   - `AZURE_CLIENT_ID`: the Application (client) ID.
+   - `AZURE_CLIENT_SECRET`: the client secret value.
+
+The three secrets go only to the build step. The next tagged release then prints `Code signing is set up. The installer will be signed with Azure Artifact Signing.` and the verify step should print `Valid`. The client secret expires (the portal shows when). Make a new one before then and update `AZURE_CLIENT_SECRET`, or the release stops at the verify step.
+
+### One-click Sign in with Google: the client secret
+
+The Google and Microsoft sign-in app ids are public and are in `server/oauth-clients.json`. Microsoft needs no secret. Google's desktop sign-in app also needs its client secret when Meldmind trades the sign-in code for a token. That secret is never committed.
+
+- Add the repository secret `GOOGLE_OAUTH_CLIENT_SECRET` at https://github.com/everbornproductions-stack/command-center/settings/secrets/actions. The value is the client secret of the Google Cloud OAuth client "Meldmind" (Desktop app).
+- The release workflow gives it only to the Windows build step (the Mac build is gated off until 0.7.0, so its job is unchanged). `npm run dist` writes it into `server/oauth-clients.json` for the build (`scripts/inject-oauth-secret.mjs`, called by `scripts/inject-cloud-key.mjs`) and put the file back when the build ends. The value is never printed.
+- Without it the build still finishes and prints one line saying the secret is not set. Sign in with Google then shows "coming soon" and the Advanced own-client path. Sign in with Microsoft still works.
+- For a local run, set `CC_GOOGLE_CLIENT_SECRET` in that shell only. Do not put it in a file.
 
 `.github/workflows/mac-ci.yml` runs when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
 

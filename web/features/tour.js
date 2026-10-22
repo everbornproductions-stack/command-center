@@ -23,6 +23,7 @@ const css = `
 #cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 0.6875rem; margin-left: auto; }
 #cc-tour .plan { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; }
 #cc-tour .card .note { margin-top: 6px; }
+.cc-tour-invite.quiet { position: static; display: flex; justify-content: center; gap: 8px; align-items: center; margin: 14px auto 0; max-width: 720px; background: transparent; border: 0; box-shadow: none; padding: 4px; }
 .cc-tour-invite { position: fixed; left: 18px; bottom: calc(var(--strip-h) + 16px); z-index: 45; display: flex; gap: 10px; align-items: center; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 0.8125rem; }
 #cc-whats-new, #cc-desktop-prompt { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-whats-new .card, #cc-desktop-prompt .card { width: 460px; max-width: calc(100vw - 32px); min-width: 0; box-sizing: border-box; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
@@ -52,12 +53,13 @@ let desktopOpen = false;
 let desktopDismissed = false;
 let desktopBusy = false;
 const session = () => { try { return window.sessionStorage; } catch { return null; } };
-const desktopBlocked = () => desktopPromptBlocked({ dismissed: desktopDismissed || sessionClosed(session()), busy: desktopBusy, view: S.view });
+// S.firstRunDone: the welcome screen just finished. First run never shows the desktop card (0.4.17).
+const desktopBlocked = () => desktopPromptBlocked({ dismissed: desktopDismissed || !!S.firstRunDone || sessionClosed(session()), busy: desktopBusy, view: S.view });
 
 // Stops for controls the guide does not list. Each shows only in its own mode.
 const APP_STEPS = [
-  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. The council picks the AI and the answer shows up below. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
-  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. Popular prompts are suggested under this box, with the ones people like first. Click one to fill the box. Nothing is sent until you click Send. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
+  { id: "simple-chat", for: "simple", target: "#orders", view: "command", title: "One chat box", body: "Say what you want in plain words. You do not pick a model. Meldmind picks one AI, says which one answered, and the answer shows up right under the box. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. The chips under the box are only the AIs you have connected. Demo shows there only until a real one is connected. Ctrl+Enter sends it." },
+  { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. After a few letters, prompts that match what you are making show under this box. Picking one keeps your words, and Undo puts them back. Nothing is sent until you click Send. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
   { id: "plain-request", for: "both", target: "#plain-request", view: "command", title: "Try saying...", body: "Try saying: email this client and put it on my calendar. A cheap fast AI drafts the email and the event. You see the cost, usually a fraction of a cent. Meldmind sends the email and adds the event only after you click Approve once. No outside AI touches your Gmail or Calendar." },
   { id: "desktop-apps", for: "both", target: "#app-discovery", view: "settings", title: "Programs on this PC", body: "When you turn on desktop control, Meldmind lists installed programs. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. Allow each app you want. Allowed apps are scored and join the router's choices, the same as a tool you add. While you plan a mission or client work, a card can suggest a program with a short reason, Free or Paid, and the official link. Dismiss hides that suggestion. Nothing is installed or bought. Program scan is part of Pro. Turn suggestions off in Settings." },
   { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
@@ -85,9 +87,14 @@ function steps() {
   if (mode === "simple" && !fullTour) return SIMPLE_STEPS;
   return fullSteps();
 }
-function answeredOnce() {
-  try { if (localStorage.getItem("cc.firstAnswer") === "1") return true; } catch { /* storage can be off */ }
-  return (S.missions || []).some((m) => m.status === "done" || m.status === "done-with-errors");
+// The tour is offered once, later, as a quiet link: after a few answers, never during first run.
+export const TOUR_AFTER_ANSWERS = 3;
+let offeredThisSession = false;
+function answeredEnough() {
+  let counted = 0;
+  try { counted = Number(localStorage.getItem("cc.answers")) || 0; } catch { /* storage can be off */ }
+  const done = (S.missions || []).filter((m) => m.status === "done" || m.status === "done-with-errors").length;
+  return Math.max(counted, done) >= TOUR_AFTER_ANSWERS;
 }
 
 async function sync() {
@@ -114,11 +121,16 @@ function maybeInvite() {
   const existing = document.querySelector(".cc-tour-invite");
   const show = tour && !tour.completed && !tour.skippedAt && S.view !== "setup";
   if (!show) { existing?.remove(); return; }
-  if (!answeredOnce()) { existing?.remove(); return; }
-  if (existing) return;
-  const d = document.createElement("div"); d.className = "cc-tour-invite";
-  d.innerHTML = `<span>👋</span><span>New here? <b>Take a short tour</b>. You can skip it any time.</span><button class="btn sm primary" id="cc-tour-go">Start</button><button class="ghost small" id="cc-tour-later">Not now</button>`;
-  document.body.appendChild(d);
+  if (!answeredEnough()) { existing?.remove(); return; }
+  if (tour.offeredAt && !offeredThisSession) { existing?.remove(); return; }
+  const host = document.getElementById("view");
+  if (!host || S.view !== "command") { existing?.remove(); return; }
+  if (existing && existing.parentNode === host) return;
+  existing?.remove();
+  const d = document.createElement("div"); d.className = "cc-tour-invite quiet";
+  d.innerHTML = `<span class="dim small">New here?</span><button type="button" class="ghost small" id="cc-tour-go">Take a short tour</button><button type="button" class="ghost small" id="cc-tour-later">Not now</button>`;
+  host.appendChild(d);
+  if (!offeredThisSession) { offeredThisSession = true; api("/tour/offered", { method: "POST" }).then((t) => { if (t) tour = t; }).catch(() => { /* the link still works this session */ }); }
   d.querySelector("#cc-tour-go").addEventListener("click", () => start());
   d.querySelector("#cc-tour-later").addEventListener("click", async () => { d.remove(); try { tour = await api("/tour/skip", { method: "POST" }); } catch { /* the next visit can offer it again after a reset */ } });
 }
@@ -337,12 +349,18 @@ function renderPanel(el2) {
 }
 
 function onMode() { if (idx >= 0) { pinned = null; pinned = steps(); show(0); } }
-function markFirstAnswer() {
-  try { localStorage.setItem("cc.firstAnswer", "1"); } catch { /* storage can be off */ }
+const answeredIds = new Set();
+function markFirstAnswer(id) {
+  const fresh = id && !answeredIds.has(id);
+  if (id) answeredIds.add(id);
+  try {
+    localStorage.setItem("cc.firstAnswer", "1");
+    if (fresh) localStorage.setItem("cc.answers", String((Number(localStorage.getItem("cc.answers")) || 0) + 1));
+  } catch { /* storage can be off */ }
   maybeInvite();
 }
 window.CC.firstAnswer = markFirstAnswer;
-window.CC.tour = { start, startFull, open: start, openNews, state: () => tour, onMode, onAnswer: markFirstAnswer, simpleSteps: () => SIMPLE_STEPS.slice() };
+window.CC.tour = { start, startFull, open: start, openNews, sync, state: () => tour, onMode, onAnswer: markFirstAnswer, simpleSteps: () => SIMPLE_STEPS.slice() };
 
 CC.register({
   id: "tour",

@@ -7,6 +7,7 @@ import { PROVIDERS } from "./registry.js";
 import { accessFor } from "./provider-access.js";
 import { isDual } from "./connect.js";
 import * as Google from "./google.js";
+import * as Microsoft from "./microsoft.js";
 import * as OA from "./publish/oauth.js";
 import { sourceView } from "./library-sources.js";
 import { readiness } from "./grokbot.js";
@@ -178,7 +179,9 @@ function providerRows(deps) {
 function integrationRows(deps) {
   const g = deps.google() || {};
   const scopes = new Set((g.scopes || []).map((s) => s.id || s));
-  const googleClient = !!(g.clientId || g.clientIdFromEnv) && !!g.clientSecretSaved;
+  // One-click Sign in with Google (0.4.17) counts as a ready client too.
+  const googleOneClick = !!g.oneClick?.ready;
+  const googleClient = (!!(g.clientId || g.clientIdFromEnv) && !!g.clientSecretSaved) || googleOneClick;
   const googleOn = !!g.connected;
   const pubs = deps.publish() || [];
   const pub = (id) => pubs.find((x) => x.id === id) || {};
@@ -189,7 +192,10 @@ function integrationRows(deps) {
   const gbReady = !!gb.ready;
   let outlook = {};
   try { outlook = deps.outlook?.() || {}; } catch { outlook = {}; }
-  const outlookClient = !!(outlook.clientId || outlook.clientIdFromEnv) && !!outlook.clientSecretSaved;
+  let ms = {};
+  try { ms = deps.microsoft?.() || {}; } catch { ms = {}; }
+  const msOneClick = !!(ms.oneClick?.ready || outlook.oneClick);
+  const outlookClient = (!!(outlook.clientId || outlook.clientIdFromEnv) && !!outlook.clientSecretSaved) || msOneClick;
   const googleMail = mailRows(deps, "google");
   const outlookMail = mailRows(deps, "outlook");
 
@@ -198,8 +204,8 @@ function integrationRows(deps) {
       id: "gmail", name: "Gmail",
       blurb: "Read mail with your Google sign-in. Add another account with a label.",
       detail: "Uses the browser helper Google sign-in. The client secret stays in the vault.",
-      status: statusOf({ connected: (googleOn && scopes.has("gmail")) || googleMail.some((a) => a.connected) }),
-      flow: { type: "browser-google", want: { gmail: true }, clientReady: googleClient, focus: "[data-feature='browser']" },
+      status: statusOf({ connected: (googleOn && (scopes.has("gmail") || scopes.has("send") || scopes.has("compose"))) || googleMail.some((a) => a.connected) }),
+      flow: { type: "browser-google", want: { gmail: true }, clientReady: googleClient, focus: "[data-feature='browser']", ...(googleOneClick ? { signin: { provider: "google", step: "inbox" } } : {}) },
       mail: { provider: "google" },
       accounts: googleMail,
     }),
@@ -207,15 +213,15 @@ function integrationRows(deps) {
       id: "drive", name: "Google Drive",
       blurb: "Read Google Drive with your Google sign-in.",
       detail: "Uses the browser helper Google sign-in. The client secret stays in the vault.",
-      status: statusOf({ connected: googleOn && scopes.has("drive") }),
-      flow: { type: "browser-google", want: { drive: true }, clientReady: googleClient, focus: "[data-feature='browser']" },
+      status: statusOf({ connected: googleOn && (scopes.has("drive") || scopes.has("driveFile")) }),
+      flow: { type: "browser-google", want: { drive: true }, clientReady: googleClient, focus: "[data-feature='browser']", ...(googleOneClick ? { signin: { provider: "google", step: "first" } } : {}) },
     }),
     row({
       id: "calendar", name: "Google Calendar",
       blurb: "List, create, and update events with your Google sign-in. Grok Bot can still take calendar work.",
       detail: "Uses the browser helper Google sign-in. The client secret stays in the vault. Grok Bot's calendar handoff is unchanged.",
       status: statusOf({ connected: googleOn && scopes.has("calendar") }),
-      flow: { type: "browser-google", want: { calendar: true }, keep: true, clientReady: googleClient, focus: "[data-feature='browser']" },
+      flow: { type: "browser-google", want: { calendar: true }, keep: true, clientReady: googleClient, focus: "[data-feature='browser']", ...(googleOneClick ? { signin: { provider: "google", step: "first" } } : {}) },
     }),
     row({
       id: "ghl", name: "HighLevel",
@@ -277,8 +283,8 @@ function integrationRows(deps) {
       id: "outlook", name: "Outlook",
       blurb: "Read Outlook mail for receipts.",
       detail: "The same mailbox sign-in as Subscriptions. The token stays in the vault.",
-      status: statusOf({ connected: outlookMail.some((a) => a.connected) || (!!outlook.connected && !outlook.needsSignIn) }),
-      flow: { type: "mail", provider: "outlook", clientReady: outlookClient, focusView: "subscriptions" },
+      status: statusOf({ connected: outlookMail.some((a) => a.connected) || (!!outlook.connected && !outlook.needsSignIn) || (!!ms.connected && !ms.needsSignIn) }),
+      flow: { type: "mail", provider: "outlook", clientReady: outlookClient, focusView: "subscriptions", ...(msOneClick ? { signin: { provider: "microsoft", step: "inbox" } } : {}) },
       mail: { provider: "outlook" },
       accounts: outlookMail,
     }),
@@ -300,6 +306,7 @@ function liveDeps() {
     access: accessFor,
     dual: isDual,
     google: () => { try { return Google.view(); } catch { return {}; } },
+    microsoft: () => { try { return Microsoft.view(); } catch { return {}; } },
     publish: () => { try { return OA.view(); } catch { return []; } },
     library: (k) => { try { return sourceView(k); } catch { return {}; } },
     grokbot: () => { try { return readiness(); } catch { return { ready: false }; } },
@@ -313,7 +320,7 @@ function liveDeps() {
     outlook: () => {
       try {
         const v = mailView()?.outlook || {};
-        return { connected: !!v.connected, needsSignIn: !!v.needsSignIn, accounts: v.accounts, clientId: v.clientId, clientIdFromEnv: v.clientIdFromEnv, clientSecretSaved: !!v.hasClientSecret };
+        return { connected: !!v.connected, needsSignIn: !!v.needsSignIn, accounts: v.accounts, clientId: v.clientId, clientIdFromEnv: v.clientIdFromEnv, clientSecretSaved: !!v.hasClientSecret, oneClick: !!v.oneClick };
       } catch { return {}; }
     },
   };

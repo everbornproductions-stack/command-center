@@ -65,3 +65,5 @@ Send a branded welcome email when someone gets the app: a website download signu
 ## Release order (Chris, 2026-10-21)
 
 0.4.8 is the hotfix. 0.4.9 is desktop and app control, Antigravity, everyday actions, What's new, the idea box, Simple chat layout, the graduate notice, and the welcome email. 0.4.10 is the unsigned Mac .dmg and the "new version ready, Download" notice. Signing and notarization stay later.
+
+Planned (Chris, 2026-10-22): Google Meet transcripts are planned for 0.6.0. Not built yet.

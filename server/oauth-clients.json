@@ -1,0 +1,5 @@
+{
+  "_about": "Everborn's own sign-in apps for one-click Sign in with Google and Sign in with Microsoft. Client ids are public. Overrides: CC_GOOGLE_CLIENT_ID, CC_MS_CLIENT_ID. The Google desktop client secret is never committed: release builds write it here from the GOOGLE_OAUTH_CLIENT_SECRET build secret (scripts/inject-oauth-secret.mjs) and put this file back afterwards. Local runs read CC_GOOGLE_CLIENT_SECRET. With no Google secret, Sign in with Google offers the Advanced own-client path. Microsoft is a public client and needs no secret.",
+  "google": { "clientId": "882564991373-1kkdvhs6bv58eba41m8g65ujqufiktka.apps.googleusercontent.com" },
+  "microsoft": { "clientId": "6873253c-9ea8-4c36-a57b-4c9668b050a4" }
+}

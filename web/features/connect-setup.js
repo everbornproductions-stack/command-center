@@ -55,7 +55,7 @@ function focusSettings(sel, message, view) {
 async function runFlow(item, accountId) {
   const f = item.flow || {};
   if (f.expertOnly && !expert()) {
-    toast("This connection is set up in Expert. Switch with the control in the top bar, then run setup again.");
+    toast("This connection is set up in Expert. Switch with the control in the top bar, then open Get everything connected from Help.");
     return;
   }
   if (f.type === "keysetup") {
@@ -78,15 +78,17 @@ async function runFlow(item, accountId) {
     toast(r.url ? `Opened ${r.url}` : "Opened");
     return;
   }
+  // One-click Sign in with Google or Microsoft (0.4.17), when Everborn's sign-in app is set up.
+  if (f.signin && !accountId && window.CC.appSignIn) { await window.CC.appSignIn.start(f.signin.provider, f.signin.step); return; }
   if (f.type === "browser-google") {
-    if (!f.clientReady) return focusSettings(f.focus, "Add the Google sign-in client in Settings, then connect. The secret stays in the vault.");
+    if (!f.clientReady) return focusSettings(f.focus, "One-click Sign in with Google is coming soon. For now you can add your own Google sign-in app under Advanced. The secret stays in the vault.");
     const r = await api("/browser/google/start", { method: "POST", body: { origin: location.origin, gmail: !!f.want?.gmail, drive: !!f.want?.drive, send: false, calendar: !!f.want?.calendar, keep: !!f.keep, ...(accountId ? { accountId } : {}) } });
     window.open(r.url, "_blank", "noopener");
     toast("Sign in with Google. This page finishes the link when you come back.");
     return;
   }
   if (f.type === "mail") {
-    if (!f.clientReady) return focusSettings("", "Add the sign-in client in Subscriptions, then connect. The secret stays in the vault.", f.focusView || "subscriptions");
+    if (!f.clientReady) return focusSettings("", f.provider === "outlook" ? "One-click Sign in with Microsoft is coming soon. For now you can add your own Microsoft sign-in app in Subscriptions. The secret stays in the vault." : "Add the sign-in client in Subscriptions, then connect. The secret stays in the vault.", f.focusView || "subscriptions");
     const r = await api("/services/mail/start", { method: "POST", body: { source: f.provider, origin: location.origin, ...(accountId ? { accountId } : {}) } });
     localStorage.setItem("cc.mail.oauth", f.provider);
     window.open(r.url, "_blank", "noopener");
@@ -187,7 +189,7 @@ function renderInto(v) {
   }));
   v.querySelector("#cs-later").addEventListener("click", async () => {
     try { data = await api("/connectsetup/later", { method: "POST" }); S.connectSetup = data; } catch (e) { toast(e.message, true); return; }
-    S.connectWizard = false; S.view = "command"; toast("You can run setup again from Settings or Help."); render();
+    S.connectWizard = false; S.view = "command"; toast("Open Get everything connected from Help any time."); render();
   });
   v.querySelector("#cs-done").addEventListener("click", async () => {
     try { data = await api("/connectsetup/complete", { method: "POST" }); S.connectSetup = data; } catch (e) { toast(e.message, true); return; }
@@ -224,7 +226,7 @@ CC.register({
   settings: { order: 6, render(el) {
     el.innerHTML = `<div class="panel"><h3>Get everything connected</h3>
       <div class="dim small">Gmail, Drive, Calendar, HighLevel, CapCut, Kling, and the other integrations. Connect uses the existing sign-in and key steps. Nothing here stores a key.</div>
-      <div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="cs-again">Run setup again</button></div></div>`;
+      <div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="cs-again">Open the checklist</button></div></div>`;
     el.querySelector("#cs-again").addEventListener("click", () => open());
   } },
 });

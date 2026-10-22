@@ -1,6 +1,7 @@
 // Council mode: the same question goes to several AIs at once. They then review each other's
 // answers anonymously, a chair writes the verdict, and the router learns who won.
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, estimateCostAt } from "./registry.js";
+import { assertSpendAllowed } from "./cost-guard.js";
 import { extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
@@ -22,9 +23,25 @@ import { councilPlan, outputShape, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
 import { openGrant, endGrant } from "./getdone.js";
 import { shouldWait, openWait, onSlotAnswer, onSlotStep, slotInfo } from "./answer-wait.js";
+import { openRouterFamilySeats, seatLabel } from "./council-offer.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
+// A family seat (one OpenRouter key seating Claude, ChatGPT, Gemini and Grok) keeps its own label and live-view id.
+const seatName = (m) => (m?.label ? m.label : nameOf(m?.provider));
+const seatTag = (m) => (m?.label ? `${m.provider}:${m.model}` : m.provider);
+
+// One OpenRouter key and no other AI company: seat one model from each family through OpenRouter,
+// so the council still has AIs from different companies checking each other. Only when the router
+// already offers OpenRouter (not capped, paused or out of credits) and the person removed nobody from it.
+export function widenWithOpenRouter(members, ranked, { limit = 4, mode = "balanced", skip = new Set(), real = true } = {}) {
+  if (!real || (members || []).length >= 2) return members;
+  if (skip.has("openrouter")) return members;
+  if (!(ranked || []).some((m) => m?.provider === "openrouter")) return members;
+  if ((members || []).some((m) => m.provider !== "openrouter")) return members;
+  const seats = openRouterFamilySeats(PROVIDERS, { limit, mode });
+  return seats.length >= 2 ? seats : members;
+}
 
 export async function runCouncil({ prompt, members, chair, projectId, qa = true, maxTokens = 1800, lite = false, mode: asked, search, searchMode, filter, tools, grokbot, browser, libraries, private: isPrivate = false, skip, tone, toneId, id: givenId, getItDone, sendMessages }) {
   const id = givenId || ("c-" + Date.now().toString(36));
@@ -52,12 +69,18 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // A named seat list (Do this again) keeps those seats. A removed reader is dropped and not replaced.
   const hadNamed = Array.isArray(members) && members.length > 0;
   if (hadNamed && skipSet.size) members = members.filter((m) => m && !skipSet.has(m.provider));
-  if (!hadNamed) members = takeMembers(rank({ ...cls, mode }), { limit: plan.members, skip: skipped });
+  if (!hadNamed) {
+    const ranked = rank({ ...cls, mode });
+    members = widenWithOpenRouter(takeMembers(ranked, { limit: plan.members, skip: skipped }), ranked, { limit: plan.members, mode, skip: skipSet, real: realAiConnected() });
+  }
   if (!members.length) throw new Error("No AI is available. Add at least one API key in Settings.");
   if (chair && realAiConnected() && isDemoProvider(PROVIDERS[chair.provider] || { id: chair.provider })) chair = null;
   if (chair && skipSet.has(chair.provider)) chair = null;
   chair ||= rank({ ...cls, mode }).find((m) => members.some((x) => x.model === m.model) && !skipSet.has(m.provider)) || members[0];
-  chair = { provider: chair.provider, model: chair.model };
+  {
+    const seat = members.find((x) => x.provider === chair.provider && x.model === chair.model && x.label);
+    chair = { provider: chair.provider, model: chair.model, ...(seat ? { label: seat.label, family: seat.family, priceModel: seat.priceModel } : {}) };
+  }
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
   const memBlock = contextFor(projectId);
@@ -67,7 +90,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
   runningCouncils.set(id, council);
   emit("council.update", { council: pub(council) });
-  emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
+  emit("log", { text: `Council convened: ${members.map((m) => seatName(m)).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
   // ---- the agent gets the same question as a job; its answer joins round 1 if it is back in time ----
   let agentWait = null;
@@ -124,13 +147,15 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
 
   // ---- Round 1: everyone answers, in parallel, streaming ----
   await Promise.all(members.map(async (m, i) => {
-    let agent = `${id}:${m.provider}`;
+    let agent = `${id}:${seatTag(m)}`;
     const orig = { provider: m.provider, model: m.model };
     const sitting = trouble(m.provider);
-    if (!(sitting && (sitting.kind === "credits" || sitting.kind === "rate"))) emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
+    if (!(sitting && (sitting.kind === "credits" || sitting.kind === "rate"))) emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${seatName(m)} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
     const s = Date.now();
     let text = "", usage = null, citations = null;
     try {
+      // a family seat is checked against the spend cap at the price of the model it seats
+      if (m.priceModel) assertSpendAllowed({ provider: m.provider, estimate: estimateCostAt(m.priceModel, 1500, 800) });
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
       for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held] })) {
@@ -139,7 +164,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
           text = ""; council.fallbacks.push(fallbackRecord(ev));
           const next = `${id}:${ev.to.provider}`;
           announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "answer" });
-          agent = next; m.provider = ev.to.provider; m.model = ev.to.model; m.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
+          agent = next; m.provider = ev.to.provider; m.model = ev.to.model; delete m.label; delete m.family; delete m.priceModel; m.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
           emit("council.update", { council: pub(council) });
         }
         else if (ev.type === "tool" && ev.phase === "done") { council.toolCalls.push({ by: m.provider, tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("council.update", { council: pub(council) }); }
@@ -147,7 +172,9 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       }
       const ms = Date.now() - s;
       noteCall(m.provider, true, ms);
-      const e = recordCall({ provider: m.provider, model: m.model, usage, missionId: id, role: "answer", ms });
+      // a family seat without an exact bill from OpenRouter is priced as the model it seats
+      const billed = m.priceModel && usage && typeof usage.cost !== "number" && !usage.priceModel ? { ...usage, priceModel: m.priceModel } : usage;
+      const e = recordCall({ provider: m.provider, model: m.model, usage: billed, missionId: id, role: "answer", ms });
       council.cost += e.cost;
       let own = [];
       if (nativeFor(m) && citations?.length) {
@@ -159,7 +186,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const shared = council.sources || [];
       const extra = own.filter((s) => !shared.some((x) => x.url === s.url));
       const answerSources = extra.length ? [...shared, ...extra] : shared;
-      council.answers[m.model] = { provider: m.provider, model: m.model, text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null, sources: answerSources };
+      council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), text, usage, ms, cost: e.cost, free: !!e.free, letter: LETTERS[i], standIn: m.standIn || null, sources: answerSources };
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err);
@@ -170,7 +197,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.answers[orig.model] = { provider: orig.provider, model: orig.model, waiting, account: true, letter: LETTERS[i] };
         emit("agent.done", { agent, provider: orig.provider, model: orig.model, missionId: id, ms: Date.now() - s, cost: 0 });
       } else {
-        council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
+        council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
         emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
       }
     }
@@ -193,8 +220,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     const packet = good.map((a) => `### Answer ${a.letter}\n${a.text}`).join("\n\n");
     // Grok Bot's answer is reviewed and scored like the others; it does not review (it answers asynchronously)
     await Promise.all(good.filter((a) => !a.agent).map(async (reviewer) => {
-      const agent = `${id}:${reviewer.provider}:review`;
-      emit("agent.start", { agent, provider: reviewer.provider, model: reviewer.model, role: "review", missionId: id, label: `${PROVIDERS[reviewer.provider].name} reviewing` });
+      const agent = `${id}:${seatTag(reviewer)}:review`;
+      emit("agent.start", { agent, provider: reviewer.provider, model: reviewer.model, role: "review", missionId: id, label: `${seatName(reviewer)} reviewing` });
       for (const other of good) if (other !== reviewer) emit("agent.msg", { from: reviewer.provider, to: other.provider, missionId: id, text: `reviewing answer ${other.letter}` });
       const s = Date.now();
       try {
@@ -206,7 +233,9 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         }, { missionId: id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: reviewMode(mode) }, { onFallback: (ev) => { council.fallbacks.push(fallbackRecord(ev)); announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: agent, role: "review" }); } });
         const ms = Date.now() - s;
         noteCall(r.provider, true, ms);
-        const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "review", ms });
+        const reviewSeat = members.find((x) => x.model === r.model && x.priceModel);
+        const reviewUsage = reviewSeat && r.usage && typeof r.usage.cost !== "number" && !r.usage.priceModel ? { ...r.usage, priceModel: reviewSeat.priceModel } : r.usage;
+        const e = recordCall({ provider: r.provider, model: r.model, usage: reviewUsage, missionId: id, role: "review", ms });
         council.cost += e.cost;
         const j = extractJson(r.text) || {};
         council.reviews[reviewer.model] = { provider: r.provider, model: r.model, scores: j.scores || {}, best: j.best, notes: j.notes || {}, disagreement: j.disagreement || "", cost: e.cost, standIn: r.fallback ? { for: reviewer.provider, forModel: reviewer.model, reason: r.fallback[r.fallback.length - 1].reason, via: r.via } : null };
@@ -234,7 +263,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
     if (winner && winner[1].avg != null) {
       for (const a of good) if (!a.agent) recordOutcome(a.model, cls.capability, a.model === winner[0]);
       council.winner = winner[0];
-      emit("log", { text: `Council scoreboard: ${nameOf(board[winner[0]].provider)} ranked best for ${cls.capability}.`, missionId: id });
+      emit("log", { text: `Council scoreboard: ${seatName(council.answers[winner[0]] || board[winner[0]])} ranked best for ${cls.capability}.`, missionId: id });
     }
   }
 
@@ -248,12 +277,12 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
 
   // ---- Round 3: chair verdict ----
   {
-    let agent = `${id}:${chair.provider}:chair`;
-    emit("agent.start", { agent, provider: chair.provider, model: chair.model, role: "chair", missionId: id, label: `${PROVIDERS[chair.provider].name} writing the verdict` });
+    let agent = `${id}:${seatTag(chair)}:chair`;
+    emit("agent.start", { agent, provider: chair.provider, model: chair.model, role: "chair", missionId: id, label: `${seatName(chair)} writing the verdict` });
     for (const a of good) if (a.provider !== chair.provider) emit("agent.msg", { from: a.provider, to: chair.provider, missionId: id, text: `answer ${a.letter} to chair` });
     const s = Date.now();
     try {
-      const packet = good.map((a) => `### Answer ${a.letter} (${nameOf(a.provider)}${council.scoreboard?.[a.model]?.avg != null ? `, peer score ${council.scoreboard[a.model].avg}/10` : ""})\n${a.text}`).join("\n\n");
+      const packet = good.map((a) => `### Answer ${a.letter} (${seatName(a)}${council.scoreboard?.[a.model]?.avg != null ? `, peer score ${council.scoreboard[a.model].avg}/10` : ""})\n${a.text}`).join("\n\n");
       const disagreements = Object.values(council.reviews).map((r) => r.disagreement).filter((d) => d && d.toLowerCase() !== "none");
       const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
       const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
@@ -268,19 +297,20 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
           text = ""; council.fallbacks.push(fallbackRecord(ev));
           const next = `${id}:${ev.to.provider}:chair`;
           announceFallback(ev, { missionId: id, agentFrom: agent, agentTo: next, role: "chair" });
-          agent = next; chair.provider = ev.to.provider; chair.model = ev.to.model; chair.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
+          agent = next; chair.provider = ev.to.provider; chair.model = ev.to.model; delete chair.label; delete chair.family; delete chair.priceModel; chair.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
           emit("council.update", { council: pub(council) });
         }
         else if (ev.type === "done") {
           const ms = Date.now() - s;
           noteCall(chair.provider, true, ms);
-          const e = recordCall({ provider: chair.provider, model: chair.model, usage: ev.usage, missionId: id, role: "chair", ms });
+          const chairUsage = chair.priceModel && ev.usage && typeof ev.usage.cost !== "number" && !ev.usage.priceModel ? { ...ev.usage, priceModel: chair.priceModel } : ev.usage;
+          const e = recordCall({ provider: chair.provider, model: chair.model, usage: chairUsage, missionId: id, role: "chair", ms });
           council.cost += e.cost;
           observe({ provider: chair.provider, model: chair.model, capability: cls.capability, difficulty: 3, runId: id, ok: true, cost: e.cost, ms, free: e.free });
           emit("agent.done", { agent, provider: chair.provider, model: chair.model, missionId: id, ms, cost: e.cost });
         }
       }
-      council.verdict = { provider: chair.provider, model: chair.model, text };
+      council.verdict = { provider: chair.provider, model: chair.model, ...(chair.label ? { label: chair.label } : {}), text };
     } catch (err) {
       noteCall(chair.provider, false, Date.now() - s, err);
       if (!troubleKind(err)) observe({ provider: chair.provider, model: chair.model, capability: cls.capability, difficulty: 3, runId: id, ok: false });
@@ -320,7 +350,7 @@ function finish(c) {
   return c;
 }
 export function summaryOf(c) {
-  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, private: !!c.private, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? nameOf(c.answers[c.winner]?.provider) || null : null };
+  return { id: c.id, kind: c.kind, title: c.prompt.slice(0, 90), projectId: c.projectId, private: !!c.private, status: c.status, startedAt: c.startedAt, finishedAt: c.finishedAt || null, cost: c.cost, members: (c.members || []).map((m) => m.provider).concat((c.agents || []).map((a) => a.id)), winner: c.winner ? (c.answers[c.winner] ? seatName(c.answers[c.winner]) : null) || null : null };
 }
 
 // ---- an agent's answer (Grok Bot or the browser helper) that came back after the council moved on ----

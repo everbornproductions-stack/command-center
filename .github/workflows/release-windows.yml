@@ -10,6 +10,15 @@
 #                             the secret is empty. The release stops when neither is set.
 #   RELEASES_TOKEN            fine-grained token, Contents read and write on
 #                             command-center-releases only.
+#   GOOGLE_OAUTH_CLIENT_SECRET  optional. The Google desktop sign-in secret for one-click
+#                             Sign in with Google. Given to the build steps only, written
+#                             into server/oauth-clients.json for the build and cleared after.
+#                             Missing means Sign in with Google offers the own-client path.
+#   Code signing (optional until Microsoft finishes identity validation):
+#   variables AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE,
+#   AZURE_SIGNING_PUBLISHER and secrets AZURE_TENANT_ID, AZURE_CLIENT_ID,
+#   AZURE_CLIENT_SECRET. With any one missing the installer is built unsigned.
+#   See docs/RELEASING.md, "Windows code signing".
 name: Windows release
 
 on:
@@ -67,14 +76,57 @@ jobs:
             echo "Publishable key source: SUPABASE_PUBLISHABLE_KEY"
           fi
 
+      # Code signing with Azure Artifact Signing turns on by itself once all seven values
+      # exist. Until then this step builds unsigned, as before, and says so in one line.
+      # The signing secrets are given to this step only, and no value is printed.
       - name: Build the Windows installer
+        id: build
         shell: bash
         env:
           CC_SUPABASE_ANON_KEY: ${{ secrets.CC_SUPABASE_ANON_KEY || vars.CC_SUPABASE_ANON_KEY }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
-        run: npm run dist
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          # Signing check: prints one plain line and writes signing=on or signing=off.
+          node scripts/azure-sign-config.mjs --check
+          SIGN_ARGS=()
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then SIGN_ARGS+=("$line"); fi
+          done < <(node scripts/azure-sign-config.mjs --args)
+          if [ "${#SIGN_ARGS[@]}" -eq 0 ]; then
+            npm run dist
+          else
+            npm run dist -- "${SIGN_ARGS[@]}"
+          fi
+
+      # Prints Valid or NotSigned. Fails only when signing was set up but the installer
+      # is not validly signed. An unsigned build while signing is not set up continues.
+      - name: Verify the installer signature
+        shell: pwsh
+        env:
+          SIGNING: ${{ steps.build.outputs.signing }}
+        run: |
+          $v = node -p "require('./package.json').version"
+          $exe = "dist/Meldmind-Setup-$v.exe"
+          if (-not (Test-Path $exe)) { Write-Host "Signature check stopped: the build did not produce $exe."; exit 1 }
+          $status = (Get-AuthenticodeSignature -FilePath $exe).Status
+          Write-Host "Meldmind-Setup-$v.exe signature: $status"
+          if ($env:SIGNING -eq "on" -and "$status" -ne "Valid") {
+            Write-Host "Release stopped: code signing is set up, but the installer is not validly signed."
+            exit 1
+          }
+          if ($env:SIGNING -ne "on") { Write-Host "Code signing is not set up yet, so an unsigned installer is expected." }
+          exit 0
 
       - name: Publish the normal release
         shell: bash

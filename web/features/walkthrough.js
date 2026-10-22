@@ -255,7 +255,14 @@ function paintWalk(w) {
 function paintIdea(stage, w) {
   stage.innerHTML = `<label class="lbl" for="sp-idea">Describe the idea</label>
     <textarea id="sp-idea" rows="5" placeholder="A sentence or two is enough.">${esc(w.idea || "")}</textarea>
-    <div class="sp-actions" style="margin-top:8px"><button class="btn sm primary" type="button" id="sp-idea-go">Continue</button></div>`;
+    <div class="sp-actions" style="margin-top:8px"><button class="btn sm primary" type="button" id="sp-idea-go">Continue</button></div>
+    <div id="sp-build-all" style="margin-top:10px"></div>`;
+  // Build it all for me: idea, questions, plan, build and test in one go.
+  import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(stage.querySelector("#sp-build-all"), {
+    surface: "start",
+    payload: () => ({ walkId: w.id, type: w.type, idea: stage.querySelector("#sp-idea").value, experience: clientExperience() }),
+    onEnd: () => openWalk(w.id),
+  })).catch(() => { /* the step by step buttons still work */ });
   stage.querySelector("#sp-idea-go").addEventListener("click", async () => {
     try { paintWalk(await api(`/walkthrough/${w.id}/idea?${qexp()}`, { method: "POST", body: { idea: stage.querySelector("#sp-idea").value, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }

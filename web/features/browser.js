@@ -157,6 +157,8 @@ async function renderSettings(el) {
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm primary" id="bh-save">Save</button><button class="btn sm" id="bh-demo" ${c.ready ? "" : "disabled"} title="A pretend bakery page that ships with the app: watch it read the page, fill in the contact form and ask for your OK">Try it on the demo page</button></div>
 
     <div class="cat-h" style="margin-top:14px">Google: Gmail, Drive, and Calendar ${g.connected ? `<span class="chip green">connected</span>` : g.needsSignIn ? `<span class="chip amber">sign in again</span>` : ""}</div>
+    ${window.CC.appSignIn ? window.CC.appSignIn.html({ providers: ["google"] }) : ""}
+    <details id="bh-g-adv" ${g.clientId && g.via !== "everborn" ? "open" : ""} style="margin-top:8px"><summary class="small" style="cursor:pointer">Advanced: use my own Google client (for developers)</summary>
     ${window.CC.passwordTipHtml?.() || ""}
     <div class="dim small">Uses your own Google sign-in and the least access that works: read Gmail and read Drive, unless you tick sending or Calendar. Even then every email waits for your OK, and a calendar change waits for a click. Grok Bot can still take calendar work. ${esc(g.setup)} <a href="${esc(g.consoleUrl)}" target="_blank" rel="noopener">Open the Google Cloud console</a>. The client secret and tokens stay in the vault and are never shown again.</div>
     ${g.connected ? `<div class="small" style="margin-top:4px">Allowed: ${g.scopes.map((x) => esc(x.label)).join(", ")}${g.connectedAt ? ` · since ${ago(g.connectedAt)} ago` : ""}</div>` : ""}
@@ -171,6 +173,7 @@ async function renderSettings(el) {
       <label class="row" style="gap:6px"><input type="checkbox" id="bh-g-cal" ${g.scopes?.some((x) => x.id === "calendar") ? "checked" : ""}> Google Calendar</label>
     </div>
     <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="bh-g-save">Save client</button><button class="btn sm primary" id="bh-g-connect" data-pw-login="1">${g.connected ? "Connect again" : "Connect Google"}</button>${g.connected ? `<button class="btn sm danger" id="bh-g-off" style="margin-left:auto">Disconnect</button>` : ""}</div>
+    </details>
     <div id="bh-accounts" style="margin-top:10px">
       ${(g.accounts || []).map((a) => `<div class="row small" data-bh-acct="${esc(a.id)}" style="gap:8px;flex-wrap:wrap;margin-top:6px">
         <input type="text" data-bh-label value="${esc(a.label)}" aria-label="Account label" style="width:160px;padding:4px 6px">
@@ -231,6 +234,7 @@ async function renderSettings(el) {
     });
   });
   const jb = el.querySelector("#bh-jobs"); if (jb) wire(jb, () => renderSettings(el));
+  window.CC.appSignIn?.wire(el);
 }
 
 // ---------- Google sign-in: the browser came back with ?code=&state=bh-... ----------

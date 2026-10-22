@@ -10,11 +10,13 @@ import { WebSocketServer } from "ws";
 import qrcode from "qrcode-generator";
 import { DATA_DIR, WEB_DIR, HQ_DIR } from "./paths.js";
 import { HOSTED, als, ctx, doc, putDoc, newContext, FileStore, setDefaultContext, getContext, runAs } from "./store.js";
+import { applyDesktopPrompt } from "./desktop-prompt.js";
 import { evictIdle } from "./idle.js";
 import { CFG, assertHostedConfig } from "./hosted.js";
 import { bearer, contextForToken, setContextInitializer } from "./auth.js";
 import { PROVIDERS, CAPABILITIES, setPricing, findModel, modelPrice, priceSource, pricingRules, saveRules, activeDiscount, nextDiscountStart } from "./registry.js";
 import { loadVault, setSecret, getSecret, getOwnSecret, hasSecret, maskedKey, vaultInfo } from "./vault.js";
+import { councilOffer } from "./council-offer.js";
 import { loadForActive as loadWorkspaceKeys } from "./workspace-keys.js";
 import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso.js";
 import { bus, emit } from "./events.js";
@@ -63,7 +65,7 @@ import { prepareWeb, beginDeep } from "./research.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
-import { observe, markPrivateRun } from "./brain.js";
+import { observe, markPrivateRun, freshBrainDoc } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { annotateOutput } from "./prompts/safety.js";
 import { withImported } from "./history-refs.js";
@@ -78,8 +80,9 @@ import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
 import { publicWebConfig } from "./web-config.js";
-import { handleUsageHttp, isUsageHttp } from "./usage.js";
+import { handleUsageHttp, isUsageHttp, freshUsageDoc } from "./usage.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
+import { applyShareDefaults } from "./privacy.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
 let lastScan = null, lastKeys = null;
@@ -195,7 +198,7 @@ function chatPriority(requested) {
   return normalizeMode(requested) || normalizeMode(settings().defaultMode) || "balanced";
 }
 
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".pdf": "application/pdf", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon", ".pdf": "application/pdf", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
 
 function json(res, status, body) {
   const b = JSON.stringify(body);
@@ -422,6 +425,15 @@ function onboardingPlan() {
   return planOnboarding({ record: readOnboarding(), history: onboardingHistory(), now: Date.now(), version: ONBOARDING_VERSION });
 }
 function onboardingState() { return publicOnboarding(onboardingPlan()); }
+// Sharing switches start off on a new install. An install with history keeps the old default (on),
+// and a saved choice always wins (server/privacy.js, Chris 2026-10-21). Runs before anything creates them.
+function seedShareDefaults() {
+  try {
+    const docs = ctx().docs || {};
+    const hasHistory = onboardingHistory().length > 0 || readOnboarding().completed === true;
+    applyShareDefaults({ docs, hasHistory, putDoc, freshBrain: freshBrainDoc, freshUsage: freshUsageDoc });
+  } catch (e) { console.error("[privacy]", e.message); }
+}
 function catalogNow() {
   return Object.values(PROVIDERS).filter((p) => p && !p.demo).map((p) => {
     const models = [];
@@ -470,6 +482,7 @@ function fullState() {
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
+    councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
 
@@ -893,6 +906,9 @@ async function api(req, res, url) {
     return json(res, 200, { added });
   }
   if (method === "POST" && p === "/setup/done") {
+    // First run ends here. A new install does not get the desktop card on its own after it (0.4.17).
+    const firstRun = !readOnboarding().completed;
+    if (firstRun) putDoc("desktop.prompt", applyDesktopPrompt(doc("desktop.prompt", () => ({ status: "pending", laterCount: 0 })), "quiet"));
     writeOnboarding(completeRecord(readOnboarding(), Date.now()));
     const s = saveSettings({ ...settings(), onboarded: true });
     try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); }
@@ -1289,6 +1305,7 @@ async function initContext() {
   pricingRules();
   loadProjects();
   loadSubscriptions();
+  if (!HOSTED) seedShareDefaults();
   await syncDemoPresence().catch((e) => { console.error("[demo]", e.message); emit("log", { text: `Demo mode could not start: ${e.message}`, level: "error" }); });
   const demoPort = demoListenPort();
   if (demoPort) console.log(`[demo] pretend AIs listening on 127.0.0.1:${demoPort}`);

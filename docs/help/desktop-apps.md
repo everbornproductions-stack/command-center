@@ -22,7 +22,7 @@ Google Antigravity is the first app. It runs on this PC through its agy command.
 
 If agy is missing, or you are not signed in, the card says what to do next. You do not need a terminal.
 
-The first setup screen has the same choice: Let Meldmind use your desktop. Skip it there and change it later in Settings.
+Find my AIs in the Settings menu (Run setup again) has the same choice: Let Meldmind use your desktop. From 0.4.17 the first run does not ask about desktop control. Turn it on in Settings when you want it.
 
 ## Add to Antigravity
 
@@ -40,7 +40,7 @@ From Antigravity, the Meldmind tools can list agents, queue a task, and read a r
 
 ## After an update
 
-After you update to 0.4.9, the first launch shows New: let Meldmind use your desktop. It has the same Allow, Install and connect, and the safety summary. Not now reminds you once. Never hides the card. You can still turn an app on later in Settings.
+After you update to 0.4.9, the first launch shows New: let Meldmind use your desktop. A new install from 0.4.17 on does not get this card on its own. It has the same Allow, Install and connect, and the safety summary. Not now reminds you once. Never hides the card. You can still turn an app on later in Settings.
 
 ## Programs on this PC
 

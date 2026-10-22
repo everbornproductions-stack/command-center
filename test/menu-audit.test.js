@@ -110,11 +110,11 @@ test("one name per action, and no duplicates in a menu", () => {
 });
 
 test("Settings holds settings only, and Help holds the help actions in order", () => {
-  const want = ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"];
+  const want = ["Search help", "Take the tour", "Get everything connected", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"];
   for (const layout of ["narrow", "normal"]) {
     const model = menuModel(VIEWS(), layout);
     const settings = menuLabeledSettings(model);
-    assert.deepEqual(settings.items.map((i) => i.label), ["Settings", "Setup"]);
+    assert.deepEqual(settings.items.map((i) => i.label), ["Settings", "Find my AIs"]);
     for (const item of settings.items) assert.equal(isSettingsItem(item), true);
     assert.deepEqual(model.find((g) => g.label === "Help").items.map((i) => i.label), want);
   }
@@ -123,7 +123,7 @@ test("Settings holds settings only, and Help holds the help actions in order", (
   assert.deepEqual(simple.find((g) => g.label === "Settings").items.map((i) => i.view), ["settings"]);
   assert.deepEqual(simple.map((g) => g.label), ["Chat", "Start a project", "Projects", "My day", "Create", "More", "Help", "Settings"]);
   const web = helpItems("web").map((i) => i.label);
-  assert.equal(web.includes("Run setup again") || web.includes("Check for updates"), false);
+  assert.equal(web.includes("Get everything connected") || web.includes("Check for updates"), false);
 });
 
 test("the Help page has every Help target, and Settings has no help duplicates", () => {
@@ -134,8 +134,8 @@ test("the Help page has every Help target, and Settings has no help duplicates",
   assert.match(help, /mailto:/);
   const basics = app.slice(app.indexOf('id="basics-help"'), app.indexOf('id="basics-more"'));
   for (const gone of ["basics-tour", "basics-upd", "basics-more-tour"]) assert.equal(basics.includes(gone), false, gone);
-  // Decision 20: Settings keeps a manual Run setup again.
-  assert.match(app, /id="s-setup">Run setup again</);
+  // Decision 20: Settings keeps a manual Run setup again (its menu name is Find my AIs, 0.4.17).
+  assert.match(app, /id="s-setup">Run setup again \(Find my AIs\)</);
 });
 
 test("Pro-locked pages carry a lock note in the menu", () => {

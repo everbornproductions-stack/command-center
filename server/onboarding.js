@@ -54,8 +54,9 @@ export function normalizeRecord(raw) {
 // (demo, cloud, a budget that is not the factory number). The factory defaults
 // written on a brand-new launch do not count. `onboarded` is the legacy flag.
 // `uiMode` is the Simple / Expert choice. It must not count as history, or the
-// first-run question would close setup before the person finishes it.
-const SAVED_IGNORE = new Set(["onboarded", "uiMode", "uiModeChosen", "phonePair"]);
+// first-run question would close setup before the person finishes it. expertConfirmed is
+// written when Expert is picked on the welcome screen (0.4.17), so it does not count either.
+const SAVED_IGNORE = new Set(["onboarded", "uiMode", "uiModeChosen", "expertConfirmed", "phonePair"]);
 
 export function settingsSaved(settings, defaults) {
   if (!settings || typeof settings !== "object") return false;

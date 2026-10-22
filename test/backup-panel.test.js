@@ -48,9 +48,9 @@ test("website mode needs an explicit confirm in the page, and the step is in bot
   assert.match(mod, /if \(!confirm\(/);
   assert.match(mod, /website: true, confirm: true/);
   const app = read("web", "app.js");
-  assert.match(app, /const goNext = \(\) => \{ st\.phase = "backup"; render\(\); \};/, "Simple setup: text size, then the backup step");
-  assert.match(app, /if \(st\.phase === "backup"\) return renderBackupStep\(v, st\);/);
-  assert.match(app, /id="su-backup-skip">Skip</);
+  // 0.4.17: Simple setup is one welcome screen, and the backup step fills its reserved slot.
+  assert.match(app, /id="su-backup-slot" data-slot="credit-backup"/);
+  assert.match(app, /window\.CC\.renderBackupPanel\(box, \{ setup: true \}\)/);
   assert.ok(EXPERT_SETUP.some((s) => s.id === "backup" && s.title === "Backup when API credits run out"));
   assert.match(app, /step\.id === "backup"\) window\.CC\.renderBackupPanel/);
   assert.match(read("web", "perf", "registry.js"), /\{ id: "answer-wait", shell: true \}/);

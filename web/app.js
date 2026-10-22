@@ -2,8 +2,10 @@ import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
-import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, spendLine } from "./simple-ui.js";
+import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, TEXT_SIZES, WELCOME, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
+import { arrangeAnswerActions } from "./answer-actions.js";
+import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -329,6 +331,7 @@ function applyState(st) {
   S.settingsLoaded = true;
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
+  S.councilOffer = st.councilOffer || S.councilOffer || null;
   Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
@@ -511,7 +514,7 @@ function onMission(m) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.();
+      if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.(m.id);
       const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
       const cost = Number(m.cost) || 0;
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
@@ -637,12 +640,17 @@ function renderBudget() {
 // ---------------- views ----------------
 function renderUpdateBar() {
   const u = S.update, bar = $("#update-bar"); if (!bar) return;
+  // A failed check is a quiet one-line notice in its own row (offline is normal). Hide closes it for this session.
   if (u?.error && !u?.available) {
+    if (S.updateErrorHidden) { bar.style.display = "none"; return; }
     bar.style.display = "";
+    bar.classList.add("quiet");
     const href = esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest");
-    bar.innerHTML = `<div><b>Couldn't check for updates</b></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a>`;
+    bar.innerHTML = `<div><b>Couldn't check for updates</b> <span class="small">You can keep working.</span></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a><button class="ghost small" type="button" id="upd-hide">Hide</button>`;
+    $("#upd-hide")?.addEventListener("click", () => { S.updateErrorHidden = true; bar.style.display = "none"; });
     return;
   }
+  bar.classList.remove("quiet");
   if (!u?.available || S.updateDismissed === u.latest) { bar.style.display = "none"; return; }
   bar.style.display = "";
   const busy = u.phase === "downloading" || u.phase === "installing";
@@ -900,7 +908,40 @@ function ensureFeatureTabs() {
   markLocks(root, S.license?.limits);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
+  squeezeTopbar();
 }
+// The top bar never overlaps (0.4.17). When the menus do not fit (a narrow window, Large text,
+// an update button), it drops extras in steps: 1 hides the name, Cloud and the clock, 2 hides
+// the status pills, and 3 folds every menu under one Menu button. Phones use the bottom bar.
+function squeezeTopbar() {
+  const bar = $(".topbar"), root = $("#tabs");
+  if (!bar || !root) return;
+  const open = bar.classList.contains("nav-open");
+  bar.classList.remove("nav-collapsed", "nav-open");
+  bar.dataset.squeeze = String(squeezeLevel(bar, root));
+  if (bar.dataset.squeeze === "3") { bar.classList.add("nav-collapsed"); if (open) bar.classList.add("nav-open"); }
+  const toggle = $("#nav-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", String(bar.classList.contains("nav-open")));
+}
+function squeezeLevel(bar, root) {
+  for (let level = 0; level < 3; level++) {
+    bar.dataset.squeeze = String(level);
+    if (!(root.clientWidth > 0)) return 0;
+    if (!rowOverflows(root)) return level;
+  }
+  return 3;
+}
+let squeezeFrame = 0;
+// Large and Extra large text change the menu widths without a resize.
+new MutationObserver(() => { const root = $("#tabs"); if (root) root.dataset.nav = ""; ensureFeatureTabs(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-text"] });
+window.addEventListener("resize", () => { cancelAnimationFrame(squeezeFrame); squeezeFrame = requestAnimationFrame(squeezeTopbar); });
+$("#nav-toggle")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const bar = $(".topbar");
+  bar?.classList.toggle("nav-open");
+  e.currentTarget.setAttribute("aria-expanded", String(!!bar?.classList.contains("nav-open")));
+});
+$("#tabs")?.addEventListener("click", (e) => { if (e.target.closest("button[data-view]")) $(".topbar")?.classList.remove("nav-open"); });
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
@@ -1100,14 +1141,15 @@ function renderSimpleChat(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
-    <div class="panel output">
+    <div class="panel output" id="simple-answer" ${S.live?.id ? "" : "hidden"}>
       <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
       <div class="md" id="out-md"></div>
+      <div id="cc-answer-line" class="answer-line small"></div>
       <div id="out-follow"></div>
       <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
+    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
   </div>`;
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
@@ -1257,7 +1299,8 @@ function renderComposerAis() {
   if (!box) return;
   const chips = composerAis(S.providers);
   if (!chips.length) {
-    box.innerHTML = `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
+    // Right after Try it now the practice AIs can be a moment behind. Never say "No AI" then.
+    box.innerHTML = S.demo ? `<div class="composer-empty dim small">Practice AIs are on. Nothing is spent.</div>` : `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
     return;
   }
   box.innerHTML = chips.map((c) => {
@@ -1359,6 +1402,10 @@ function renderTasks() {
     } catch (err) { toast(err.message, true); }
   });
 }
+// A council seat reached through one OpenRouter key carries its family label ("Gemini via OpenRouter").
+function seatName(c, a) {
+  return a?.label || (c?.members || []).find((m) => m.model === a?.model)?.label || pname(a?.provider);
+}
 function renderCouncil() {
   const box = $("#council"); if (!box) return;
   const c = S.live.council;
@@ -1385,7 +1432,7 @@ function renderCouncil() {
     const subTag = stored?.viaSubscription?.tag ? (window.CC.subTagHtml?.(stored.viaSubscription.tag) || "") : "";
     const followWait = isGrok && !!text && (stored?.followPending || partsFor(a.model).some((p) => p.pending));
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
-      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
+      <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(seatName(c, a))} <span class="dim small">${esc(a.letter || "")}</span>
       <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span>${subTag}</div>
       <div class="body md">${subWait || (waiting ? grokWaitHtml() : md(text))}</div>
       ${followWait ? grokWaitHtml() : ""}
@@ -1405,6 +1452,10 @@ function renderOutput() {
   const text = l.deliverable || prim?.text || "";
   const panel = $("#deliv-panel");
   if (panel) panel.hidden = !showDeliverable(l, text);
+  // Simple: the answer sits right under the chat box, and only when there is one.
+  const simpleAnswer = $("#simple-answer");
+  if (simpleAnswer) simpleAnswer.hidden = !l.id;
+  paintAnswerLine(l, text);
   const wait = $("#deliv-wait");
   if (wait && panel) wait.hidden = !panel.hidden;
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
@@ -1437,6 +1488,37 @@ function renderOutput() {
   paintFailure();
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
+  if (finished && text) arrangeAnswerActions($("#deliv-extras"), { onCopy: () => copyDeliverable(), open: !!S.answerMoreOpen, onToggle: (on) => { S.answerMoreOpen = on; } });
+}
+// Simple says who answered. With two AI companies, or one OpenRouter key, it offers Ask a council.
+function paintAnswerLine(l, text) {
+  const box = $("#cc-answer-line");
+  if (!box) return;
+  const done = ["done", "done-with-errors"].includes(l.status) || (l.kind === "single" && l.primary && l.agents[l.primary]?.done);
+  if (S.uiMode === "expert" || !l.id || !text || !done || l.kind === "research") { box.innerHTML = ""; return; }
+  const c = l.council;
+  const answeredBy = l.kind === "council" && c
+    ? { kind: "council", names: (c.members || []).map((m) => m.label || pname(m.provider)) }
+    : (l.primary ? pname(l.agents[l.primary]?.provider) : pname(l.mission?.provider || ""));
+  const line = simpleAnswerLine(S.councilOffer, answeredBy);
+  box.innerHTML = `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
+  $("#cc-ask-council", box)?.addEventListener("click", askCouncil);
+}
+async function askCouncil() {
+  const prompt = S.lastPrompt || l0Prompt();
+  if (!prompt) return toast("Type the question again, then Send.", true);
+  const req = councilRequest(prompt, { projectId: $("#proj")?.value || null });
+  try {
+    await api(req.path, { method: "POST", body: req.body });
+    S.live = newLive();
+    S.live.status = "running";
+    renderOps();
+    toast("Asking a council. Each AI answers, then they check each other.");
+  } catch (e) { toast(e.message, true); }
+}
+function l0Prompt() {
+  const m = S.live?.mission || S.live?.council || {};
+  return String(m.prompt || m.goal || m.title || "").trim();
 }
 function subWaitingHtml(l) {
   const box = window.CC.subWaitHtml;
@@ -1476,7 +1558,7 @@ function outputFollowHtml() {
     blocks.push((c.members || []).map((m) => {
       const a = c.answers?.[m.model];
       if (!a?.text) return "";
-      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
+      return `<div class="ans" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}"><div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(seatName(c, a))}</div><div class="body md">${md(a.text)}</div>${threadHtml(a.thread)}${answerReply(a.model, "Reply to this AI")}</div>`;
     }).join(""));
     blocks.push((c.agents || []).filter((g) => g.id === "grokbot").map(() => {
       const a = c.answers?.grokbot || {};
@@ -1581,6 +1663,7 @@ async function sendOrders() {
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
   if (!(await confirmRisky(prompt))) return;
+  S.lastPrompt = prompt;
   const simple = S.uiMode === "simple";
   const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
@@ -2090,7 +2173,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again</a> · `}Version, Check for updates, and About are in Help.</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again (Find my AIs)</a> · `}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2563,36 +2646,143 @@ async function saveSetupUsername(useDefault) {
   await api("/account/username", { method: "POST", body: { username } });
 }
 function setupState() {
-  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: true, shareSaved: true, newsOptIn: false });
+  // Track records start off here too. The server keeps the person's saved choice (privacy rule, 0.4.17).
+  const st = S.setup || (S.setup = { step: 1, history: false, keys: true, bookmarks: true, desktop: false, days: 180, result: null, busy: false, shareOptIn: false, shareSaved: false, newsOptIn: false });
   if (st.history === undefined) st.history = false;
   if (typeof st.newsOptIn !== "boolean") st.newsOptIn = false;
   if (!st.phase) {
-    if (!S.settings?.uiModeChosen) st.phase = "mode";
-    else if (S.uiMode !== "expert") st.phase = "simple";
-    else if (S.settings?.expertSetup && !S.settings.expertSetup.done) {
-      if (S.settings.expertSetup.pendingScan) { st.phase = "scan"; st.afterScan = "expert"; }
-      else st.phase = "expert";
-    } else st.phase = "scan";
+    const fresh = isFreshInstall({ onboarding: S.onboarding, settings: S.settings });
+    st.phase = setupPhase({ fresh, expertSetup: S.settings?.expertSetup || null });
+    if (st.phase === "scan" && S.settings?.expertSetup?.pendingScan) st.afterScan = "expert";
   }
   return st;
 }
-function renderModeStep(v, st) {
-  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
-    <h2 style="margin:0 0 6px;font-size:22px">${esc(MODE_STEP.title)}</h2>
-    <div class="muted">${esc(MODE_STEP.note)}</div>
-    <div class="grid" style="margin-top:18px;gap:10px">
-      <button type="button" class="route" id="su-mode-simple" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.simple)}</b><div class="dim small">${esc(MODE_STEP.simpleLine)}</div></button>
-      <button type="button" class="route" id="su-mode-expert" style="text-align:left;cursor:pointer"><b>${esc(MODE_STEP.expert)}</b><div class="dim small">${esc(MODE_STEP.expertLine)}</div></button>
+// One welcome screen instead of five stops: look, text size, first AI, apps, and a slot for
+// later steps, with Skip setup on top. Decision 20 is unchanged: finishing writes the
+// onboarding flag, so this shows once.
+function welcomeLookHtml() {
+  const mode = S.uiMode === "expert" ? "expert" : "simple";
+  const current = document.documentElement.dataset.text || "default";
+  return `<div class="welcome-block" id="su-look"><h3>${esc(WELCOME.lookTitle)}</h3>
+    <div class="seg" id="su-mode" role="group" aria-label="Simple or Expert">
+      <button type="button" data-ui-pick="simple" class="${mode === "simple" ? "on" : ""}" aria-pressed="${mode === "simple"}">${esc(MODE_STEP.simple)}</button>
+      <button type="button" data-ui-pick="expert" class="${mode === "expert" ? "on" : ""}" aria-pressed="${mode === "expert"}">${esc(MODE_STEP.expert)}</button>
     </div>
-  </div></div>`;
-  $("#su-mode-simple").addEventListener("click", () => { st.phase = "text"; setUiMode("simple", { fromSetup: true, confirmed: true }); });
-  $("#su-mode-expert").addEventListener("click", async () => {
-    st.phase = "scan";
-    st.afterScan = "expert";
-    st.history = false;
-    await saveExpert({ pendingScan: true, done: false, step: "ais", skipped: false });
-    setUiMode("expert", { fromSetup: true, confirmed: true });
+    <div class="dim small" style="margin-top:6px">${esc(mode === "expert" ? MODE_STEP.expertLine : MODE_STEP.simpleLine)} ${esc(MODE_STEP.note)}</div>
+    ${mode === "expert" ? `<div class="dim small" style="margin-top:4px">Expert extras (find AI keys on this PC, browser history, bookmarks) are in the Settings menu under Find my AIs.</div>` : ""}
+    <div class="lbl" style="margin-top:12px">${esc(WELCOME.textTitle)}</div>
+    <div class="row" id="su-text-sizes" style="gap:8px;flex-wrap:wrap">${TEXT_SIZES.map(([id, label]) => `<button type="button" class="btn sm ${current === id ? "primary" : ""}" data-text="${id}" aria-pressed="${current === id}">${label}</button>`).join("")}<span class="small" id="su-text-preview">This is how text looks.</span></div>
+  </div>`;
+}
+function welcomeAiHtml(st) {
+  const keyed = !!P("openrouter")?.keyed;
+  return `<div class="welcome-block" id="su-ai"><h3>${esc(WELCOME.aiTitle)}</h3>
+    <button type="button" class="btn primary" id="su-try">${esc(WELCOME.tryIt)}</button>
+    <div class="dim small" style="margin-top:6px">${esc(WELCOME.tryLine)}</div>
+    <div class="lbl" style="margin-top:12px">${esc(WELCOME.keyLabel)}</div>
+    ${keyed ? `<span class="chip green">OpenRouter connected</span>` : `<div class="row" style="gap:8px;flex-wrap:wrap">
+      <input type="password" id="su-or-key" autocomplete="off" placeholder="sk-or-..." aria-label="OpenRouter key" value="${esc(st.orKey || "")}" style="flex:1;min-width:12rem">
+      <button type="button" class="btn sm" id="su-or-save">Save key</button>
+      <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">${esc(WELCOME.getKey)}</a>
+    </div>`}
+    <div class="dim small" style="margin-top:6px">${esc(WELCOME.keyLine)} One key from one AI company gives one AI. A council needs two AI companies, or one OpenRouter key.</div>
+  </div>`;
+}
+function welcomeAppsHtml() {
+  const body = window.CC.appSignIn?.html ? window.CC.appSignIn.html({ providers: ["google", "microsoft"] }) : `<div class="dim small">Loading sign-in buttons...</div>`;
+  return `<div class="welcome-block" id="su-apps-signin"><h3>${esc(WELCOME.appsTitle)}</h3><div class="dim small" style="margin-bottom:8px">${esc(WELCOME.appsLine)}</div><div id="su-signin-box">${body}</div></div>`;
+}
+async function saveWelcomeKey(st) {
+  const key = ($("#su-or-key")?.value || st.orKey || "").trim();
+  if (!key) return false;
+  const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
+  st.orKey = "";
+  keyToast("openrouter", r);
+  await refresh();
+  return true;
+}
+function openPrivacyList() {
+  if (window.CC.openPrivacy) return window.CC.openPrivacy();
+  import("/features/privacy.js").then((m) => (window.CC.openPrivacy || m.openPrivacy)?.()).catch((e) => toast(e.message, true));
+}
+function renderWelcome(v, st) {
+  v.innerHTML = `<div class="welcome" id="su-welcome">
+    <div class="panel" style="padding:22px">
+      <div class="row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:14rem"><h2 style="margin:0 0 4px;font-size:22px">${esc(WELCOME.title)}</h2><div class="muted">${esc(WELCOME.lead)}</div></div>
+        <button type="button" class="btn" id="su-skip-all">${esc(WELCOME.skip)}</button>
+      </div>
+      <div class="welcome-grid">
+        ${welcomeLookHtml()}
+        ${welcomeAiHtml(st)}
+        ${welcomeAppsHtml()}
+        <!-- Reserved slot: 0.4.16 adds "Backup when credits run out" here with CC.register({ welcome: { order, render(el) } }). -->
+        <section class="welcome-slot" id="su-backup-slot" data-slot="credit-backup" aria-label="More setup"></section>
+      </div>
+      <div class="row" style="margin-top:16px;gap:10px;flex-wrap:wrap;align-items:center">
+        <span class="dim small">${esc(WELCOME.privacyLine)} <a href="#" id="su-privacy">${esc(WELCOME.privacyLink)}</a></span>
+        <button type="button" class="btn primary" id="su-start" style="margin-left:auto">${esc(WELCOME.start)}</button>
+      </div>
+    </div>
+  </div>`;
+  $("#su-mode").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-ui-pick]");
+    if (!b) return;
+    st.orKey = $("#su-or-key")?.value || st.orKey || "";
+    setUiMode(b.dataset.uiPick, { fromSetup: true, confirmed: true });
   });
+  $("#su-text-sizes").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-text]");
+    if (!b) return;
+    applyTextSize(b.dataset.text);
+    $$("#su-text-sizes button[data-text]").forEach((x) => { const on = x === b; x.classList.toggle("primary", on); x.setAttribute("aria-pressed", String(on)); });
+  });
+  $("#su-or-key")?.addEventListener("input", (e) => { st.orKey = e.target.value; });
+  $("#su-or-key")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#su-or-save")?.click(); } });
+  $("#su-or-save")?.addEventListener("click", async () => {
+    try { if (!(await saveWelcomeKey(st))) toast("Paste the key first", true); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#su-try").addEventListener("click", async () => {
+    try {
+      const r = await api("/demo", { method: "POST", body: { on: true } });
+      S.demo = r.demo;
+      // Load the practice AIs before chat opens, so the chat never says "No AI connected yet".
+      await refresh();
+      await finishWelcome();
+    } catch (e) { toast(e.message, true); }
+  });
+  $("#su-skip-all").addEventListener("click", () => finishWelcome({ skipped: true }));
+  $("#su-start").addEventListener("click", async () => {
+    try { await saveWelcomeKey(st); }
+    catch (e) { toast(e.message, true); return; }
+    await finishWelcome();
+  });
+  $("#su-privacy").addEventListener("click", (e) => { e.preventDefault(); openPrivacyList(); });
+  const box = $("#su-signin-box");
+  const wireSignIn = () => { if (!box?.isConnected || !window.CC.appSignIn) return; box.innerHTML = window.CC.appSignIn.html({ providers: ["google", "microsoft"] }); window.CC.appSignIn.wire(box); };
+  if (window.CC.appSignIn) window.CC.appSignIn.wire(box);
+  else import("/features/app-signin.js").then(wireSignIn).catch(() => { if (box) box.innerHTML = `<div class="dim small">Sign-in buttons are in Settings.</div>`; });
+  // 0.4.16 Backup when API credits run out: the same panel as Settings, in the reserved slot.
+  renderExtras("welcome", "#su-backup-slot");
+  const slot = $("#su-backup-slot");
+  if (slot && window.CC.renderBackupPanel) { const box = document.createElement("div"); box.id = "su-backup"; box.className = "welcome-block"; slot.prepend(box); window.CC.renderBackupPanel(box, { setup: true }); }
+}
+// Escape skips the welcome screen when the focus is not in a field.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || S.view !== "setup" || S.setup?.phase !== "welcome") return;
+  if (document.querySelector("#cc-privacy, [role='dialog']")) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) return;
+  finishWelcome({ skipped: true });
+});
+async function finishWelcome({ skipped = false } = {}) {
+  // Simple is the default. Saving it here keeps a later launch from asking again.
+  if (!S.settings?.uiModeChosen) {
+    const mode = S.uiMode === "expert" ? "expert" : "simple";
+    S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
+    api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } }).catch(() => {});
+  }
+  await finishAiSetup("command", { quiet: skipped });
 }
 function applyTextSize(id) {
   let prev = {};
@@ -2603,56 +2793,6 @@ function applyTextSize(id) {
   document.documentElement.dataset.text = id;
   window.CC.a11y?.apply?.(next, { user: true });
   api("/a11y", { method: "POST", body: next }).catch(() => {});
-}
-function renderTextStep(v, st) {
-  const current = document.documentElement.dataset.text || "default";
-  const choices = [["default", "Default"], ["large", "Large"], ["xlarge", "Extra large"]];
-  v.innerHTML = `<div style="max-width:640px;margin:0 auto"><div class="panel" style="padding:26px">
-    <h2 style="margin:0 0 6px">Bigger text?</h2>
-    <div class="muted">Pick a size. The sample below changes right away. You can change this later in Settings.</div>
-    <div class="row" id="su-text-sizes" style="margin-top:16px;gap:8px">${choices.map(([id, label]) => `<button type="button" class="btn ${current === id ? "primary" : ""}" data-text="${id}">${label}</button>`).join("")}</div>
-    <div id="su-text-preview" class="panel" style="margin-top:16px">
-      <p class="small" style="margin:0 0 8px">This is how text looks.</p>
-      <button type="button" class="btn sm sample-only" tabindex="-1" aria-hidden="true">Sample button</button>
-      <span class="chip" style="margin-left:8px">Sample chip</span>
-    </div>
-    <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-text-skip">Skip</button><button class="btn primary" type="button" id="su-text-keep">Keep this size</button></div>
-  </div></div>`;
-  const goNext = () => { st.phase = "backup"; render(); };
-  $("#su-text-sizes").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-text]");
-    if (!b) return;
-    applyTextSize(b.dataset.text);
-    renderTextStep(v, st);
-  });
-  $("#su-text-skip").addEventListener("click", goNext);
-  $("#su-text-keep").addEventListener("click", goNext);
-}
-function renderSimpleStart(v) {
-  v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
-    <h2 style="margin:0 0 6px;font-size:22px">One AI, then chat</h2>
-    <div class="muted">Add one key, or try it now. You can add more later in Settings.</div>
-    <div style="margin-top:16px">${openRouterStartCard()}</div>
-    <div class="row" style="margin-top:16px;gap:8px"><button class="btn primary" type="button" id="su-try">Try it now</button><button class="btn" type="button" id="su-chat">Continue to chat</button></div>
-    <div class="dim small" style="margin-top:8px">Try it now turns on demo mode. Nothing is spent.</div>
-  </div></div>`;
-  wireOpenRouterStart(v);
-  $("#su-try").addEventListener("click", async () => {
-    try { const r = await api("/demo", { method: "POST", body: { on: true } }); S.demo = r.demo; await finishAiSetup("command"); }
-    catch (e) { toast(e.message, true); }
-  });
-  $("#su-chat").addEventListener("click", () => finishAiSetup("command"));
-}
-// First-run step: backup when API credits run out. The same panel as Settings (one source of truth).
-function renderBackupStep(v, st) {
-  v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
-    <div id="su-backup"><div class="dim small">Checking this PC...</div></div>
-    <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-backup-skip">Skip</button><button class="btn primary" type="button" id="su-backup-next" style="margin-left:auto">Next</button></div>
-  </div></div>`;
-  window.CC.renderBackupPanel?.($("#su-backup"), { setup: true });
-  const next = () => { st.phase = "simple"; render(); };
-  $("#su-backup-skip").addEventListener("click", next);
-  $("#su-backup-next").addEventListener("click", next);
 }
 async function saveExpert(patch) {
   const expertSetup = { ...(S.settings?.expertSetup || {}), ...patch };
@@ -2707,10 +2847,7 @@ function renderExpertExtra(v, st) {
 function renderSetup(v) {
   const st = setupState();
   if (st.desktop === undefined) st.desktop = false;
-  if (st.phase === "mode") return renderModeStep(v, st);
-  if (st.phase === "text") return renderTextStep(v, st);
-  if (st.phase === "backup") return renderBackupStep(v, st);
-  if (st.phase === "simple") return renderSimpleStart(v);
+  if (st.phase === "welcome") return renderWelcome(v, st);
   if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {
     st.shareLoading = true;
@@ -2889,15 +3026,17 @@ function renderSetup(v) {
   });
 }
 // Setup finishes into chat. Get everything connected opens only from the Expert integrations step.
-async function finishAiSetup(nextView) {
+async function finishAiSetup(nextView, { quiet = false } = {}) {
   try {
     const saved = await api("/setup/done", { method: "POST" });
     S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
     if (S.onboarding) S.onboarding.show = false;
     S.visitedSetup = true;
     S.connectWizard = false;
+    // After the welcome screen: no desktop card and no tour this session (0.4.17).
+    if (S.setup?.phase === "welcome") { S.setup.phase = ""; S.firstRunDone = true; window.CC?.tour?.sync?.(); }
     S.view = nextView;
-    if (nextView === "command") toast("Setup complete");
+    if (nextView === "command" && !quiet) toast("Setup complete");
     render();
   } catch (e) { toast(e.message, true); }
 }

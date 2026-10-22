@@ -38,9 +38,11 @@ test("Simple copy, starters, spend line, and failed-run savings", () => {
 
 test("the shell asks for a mode inside setup, hides the old popup, and prompts on Pro", () => {
   const app = read("web", "app.js");
-  assert.match(app, /function renderModeStep/);
+  // 0.4.17: the mode choice is one row on the welcome screen.
+  assert.match(app, /function renderWelcome/);
+  assert.match(app, /data-ui-pick="simple"/);
   assert.match(app, /history: false/);
-  assert.match(app, /Try it now/);
+  assert.match(read("web", "simple-ui.js"), /tryIt: "Try it now"/);
   assert.match(app, /Turn on demo mode/);
   assert.match(app, /data-simple-mic/);
   assert.match(app, /cc-upgrade/);
@@ -54,8 +56,9 @@ test("the shell asks for a mode inside setup, hides the old popup, and prompts o
   const tour = read("web", "features", "tour.js");
   const invite = tour.slice(tour.indexOf("function maybeInvite"), tour.indexOf("function showNews"));
   const news = invite.indexOf("showNews()");
-  const answered = invite.indexOf("answeredOnce()");
-  const create = invite.indexOf('className = "cc-tour-invite"');
+  // The tour is a quiet link offered once, after a few answers (0.4.17).
+  const answered = invite.indexOf("answeredEnough()");
+  const create = invite.indexOf('className = "cc-tour-invite quiet"');
   assert.ok(news !== -1 && answered !== -1 && create !== -1 && news < answered && answered < create);
 });
 

@@ -41,7 +41,7 @@ test("Windows release workflow: test, inject the publishable key, publish a norm
   assert.doesNotMatch(win, /--draft(?!=false)/, "the Windows job never leaves a release as a draft");
   assert.doesNotMatch(wf, /--prerelease/);
   const secrets = [...wf.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(secrets)].sort(), ["CC_SUPABASE_ANON_KEY", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);
+  assert.deepEqual([...new Set(secrets)].sort(), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID", "CC_SUPABASE_ANON_KEY", "GOOGLE_OAUTH_CLIENT_SECRET", "RELEASES_TOKEN", "SUPABASE_PUBLISHABLE_KEY"]);
   assert.equal(secrets.some((s) => /SERVICE|SB_SECRET|PASSWORD/.test(s)), false);
   assert.doesNotMatch(wf, /sb_secret_|service_role/);
   assert.doesNotMatch(wf, /—/);

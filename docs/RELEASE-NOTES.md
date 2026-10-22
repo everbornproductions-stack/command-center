@@ -2,6 +2,14 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## 0.4.17
+
+- One welcome screen replaces the first-run pop-ups: pick Simple or Expert, text size, try it now or add a key, and sign in with Google or Microsoft in one click. Skip setup any time.
+- In Simple, the answer shows right under the chat box. Under each answer you get Copy, Double-check and Test with personas; the rest is under More actions.
+- Prompt suggestions show only while you type, match what you are doing, and keep the words you typed.
+- Clearer menus: People is under Connect, and the two setups are now Find my AIs and Get everything connected. Typing boxes are easy to read everywhere.
+- Anonymous usage counts are off on new installs unless you turn them on. Settings shows what leaves this computer.
+
 ## v0.4.16 (2026-10-22)
 
 **New**
