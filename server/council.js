@@ -21,6 +21,7 @@ import { withImported } from "./history-refs.js";
 import { councilPlan, outputShape, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
 import { openGrant, endGrant } from "./getdone.js";
+import { shouldWait, openWait, onSlotAnswer, onSlotStep, slotInfo } from "./answer-wait.js";
 
 const LETTERS = "ABCDEFGHIJ";
 const nameOf = (pid) => PROVIDERS[pid]?.name || agentName(pid);
@@ -64,6 +65,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const answerSystem = toneAdd("Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", tone);
   const chairSystem = toneAdd("You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.", tone);
   const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
+  runningCouncils.set(id, council);
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => PROVIDERS[m.provider].name).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
 
@@ -123,6 +125,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- Round 1: everyone answers, in parallel, streaming ----
   await Promise.all(members.map(async (m, i) => {
     let agent = `${id}:${m.provider}`;
+    const orig = { provider: m.provider, model: m.model };
     const sitting = trouble(m.provider);
     if (!(sitting && (sitting.kind === "credits" || sitting.kind === "rate"))) emit("agent.start", { agent, provider: m.provider, model: m.model, role: "answer", missionId: id, label: `${PROVIDERS[m.provider].name} answering${nativeFor(m) ? " (with its own web search)" : ""}` });
     const s = Date.now();
@@ -160,15 +163,30 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       emit("agent.done", { agent, provider: m.provider, model: m.model, missionId: id, ms, cost: e.cost, chars: text.length });
     } catch (err) {
       noteCall(m.provider, false, Date.now() - s, err);
-      council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
-      emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
+      if (shouldWait(err)) {
+        // out of API credits and no API route left: this seat answers through the person's own plan
+        m.provider = orig.provider; m.model = orig.model; delete m.standIn;
+        const waiting = openWait({ kind: "council", runId: id, slot: orig.model, provider: orig.provider, model: orig.model, ask: askPrompt, system: answerSystem, title: prompt });
+        council.answers[orig.model] = { provider: orig.provider, model: orig.model, waiting, account: true, letter: LETTERS[i] };
+        emit("agent.done", { agent, provider: orig.provider, model: orig.model, missionId: id, ms: Date.now() - s, cost: 0 });
+      } else {
+        council.answers[m.model] = { provider: m.provider, model: m.model, error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
+        emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
+      }
     }
     emit("council.update", { council: pub(council) });
   }));
   if (agentWait) await agentWait; // its timer started at the hand-off, so this waits at most the council wait
 
   const good = Object.values(council.answers).filter((a) => a.text);
-  if (!good.length) { council.status = "failed"; emit("council.update", { council: pub(council) }); return finish(council); }
+  if (!good.length) {
+    // every seat is waiting on a subscription answer: the council fills in as they come back
+    council.status = waitingSeats(council).length ? "waiting" : "failed";
+    endGrant(id);
+    emit("council.update", { council: pub(council) });
+    emit("mission.update", { mission: summaryOf(council) });
+    return finish(council);
+  }
 
   // ---- Round 2: anonymous peer review ----
   if (qa && good.length > 1) {
@@ -223,7 +241,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // learning router (Phase 28): every member's job, with its peer score and whether it won the round
   // (a member that failed because of its account, such as no credits, is smart fallback's business, not held against the model)
   for (const a of Object.values(council.answers)) {
-    if ((!a.text && a.account) || a.pending) continue;
+    if ((!a.text && a.account) || a.pending || a.waiting) continue;
     const b = council.scoreboard?.[a.model];
     observe({ provider: a.provider, model: a.model, capability: cls.capability, difficulty: cls.difficulty, runId: id, ok: !!a.text, score: b?.avg ?? null, won: council.winner ? a.model === council.winner : null, cost: a.cost, ms: a.ms, free: a.free });
   }
@@ -280,6 +298,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   return finish(council);
   } finally {
     endGrant(id);
+    if (runningCouncils.has(id)) { runningCouncils.delete(id); subWhileRunning.delete(id); }
   }
 }
 
@@ -291,9 +310,13 @@ function save(c) {
 // the council's last save; a Grok Bot answer that came back while it was still reviewing is added now
 function finish(c) {
   save(c);
+  runningCouncils.delete(c.id);
   const q = lateWhileRunning.get(c.id) || [];
   lateWhileRunning.delete(c.id);
   for (const job of q) lateAnswer(job).catch((e) => console.error("[council] late answer:", e.message));
+  const subs = subWhileRunning.get(c.id) || [];
+  subWhileRunning.delete(c.id);
+  (async () => { for (const [job, res] of subs) await subscriptionAnswer(job, res); })().catch((e) => console.error("[council] subscription answer:", e.message));
   return c;
 }
 export function summaryOf(c) {
@@ -345,3 +368,89 @@ async function lateAnswer(job) {
   emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: AID });
   emit("log", { text: `${ANAME}'s answer arrived after the verdict and was added to the council${a.score ? ` (judge score ${a.score}/10)` : ""}.`, missionId: c.id });
 }
+
+// ---- a seat that waited on the person's own plan (out of API credits, server/answer-wait.js) ----
+// The answer joins like a late agent answer: one judge scores it, and once no seat is still waiting the chair
+// writes the verdict again with every answer. With no API AI left to do that, the answers are shown as they
+// are and the verdict says plainly that no AI was available to write it.
+const runningCouncils = new Map(); // council id -> the live record while it runs
+const subWhileRunning = new Map(); // council id -> [[job, result]] that came back while the council was still running
+const waitingSeats = (c) => Object.values(c.answers || {}).filter((a) => a?.waiting);
+export const NO_AI_VERDICT = "No AI was available to write the verdict, so here are the answers as they came in.";
+function answersAsTheyAre(c) {
+  const good = Object.values(c.answers || {}).filter((a) => a.text);
+  return `${NO_AI_VERDICT}\n\n${good.map((a) => `### Answer ${a.letter || ""} (${nameOf(a.provider)}${a.viaSubscription ? `, ${a.viaSubscription.tag}` : ""})\n${a.text}`).join("\n\n")}`;
+}
+async function subscriptionAnswer(job, res) {
+  if (runningCouncils.has(job.runId)) {
+    if (!subWhileRunning.has(job.runId)) subWhileRunning.set(job.runId, []);
+    subWhileRunning.get(job.runId).push([job, res]);
+    return;
+  }
+  const c = await ctx().store.getMission(job.runId);
+  if (!c || c.kind !== "council") return;
+  const key = job.slot;
+  const prev = c.answers?.[key] || { provider: job.provider, model: job.model };
+  if (res.stopped) {
+    c.answers[key] = { ...prev, waiting: null, error: `Stopped waiting. No answer came back from ${job.aiName}.` };
+  } else {
+    const a = { provider: prev.provider || job.provider, model: prev.model || job.model, letter: prev.letter, text: res.text, late: true, cost: 0, free: true, jobId: job.id, viaSubscription: { tag: res.tag, by: res.by, route: res.route } };
+    try {
+      const judge = c.chair?.provider ? c.chair : (c.members || [])[0];
+      const r = await completeFallback({
+        provider: judge?.provider, model: judge?.model, maxTokens: 300,
+        system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
+        messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${res.text.slice(0, 12000)}` }],
+      }, { missionId: c.id, role: "review", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: reviewMode(c.mode) });
+      const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: c.id, role: "review" });
+      c.cost = +((c.cost || 0) + e.cost).toFixed(5);
+      const score = Number(extractJson(r.text)?.score);
+      if (score > 0) {
+        c.scoreboard ||= {};
+        c.scoreboard[key] = { letter: a.letter, provider: a.provider, avg: +Math.min(10, score).toFixed(2), votes: 1, bestVotes: 0, late: true, judge: r.provider };
+        a.score = c.scoreboard[key].avg;
+      }
+    } catch (err) { a.scoreError = err.message; }
+    c.answers = { ...(c.answers || {}), [key]: a };
+  }
+  if (!waitingSeats(c).length) {
+    const good = Object.values(c.answers || {}).filter((x) => x.text);
+    if (good.length) {
+      const chair = c.chair?.provider ? c.chair : (c.members || [])[0];
+      try {
+        const packet = good.map((x) => `### Answer ${x.letter} (${nameOf(x.provider)}${c.scoreboard?.[x.model]?.avg != null ? `, score ${c.scoreboard[x.model].avg}/10` : ""})\n${x.text}`).join("\n\n");
+        const r = await completeFallback({
+          provider: chair?.provider, model: chair?.model, maxTokens: 1800,
+          system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
+          messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWERS:\n${packet}` }],
+        }, { missionId: c.id, role: "chair", tools: false, cls: { ...(c.classification || {}), difficulty: 3 }, mode: c.mode });
+        const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: c.id, role: "chair" });
+        c.cost = +((c.cost || 0) + e.cost).toFixed(5);
+        if (!String(r.text || "").trim()) throw new Error("the chair wrote nothing");
+        c.verdict = { provider: r.provider, model: r.model, text: r.text, merged: true };
+      } catch (err) {
+        // keep a verdict the API AIs already wrote; with none, the answers are the result
+        if (!c.verdict?.text || c.verdict.noAi) c.verdict = { provider: null, model: null, text: answersAsTheyAre(c), noAi: true, error: err.message };
+      }
+      c.status = "done";
+    } else if (c.status === "waiting") c.status = "failed";
+    c.finishedAt = c.finishedAt || Date.now();
+  }
+  save(c);
+  emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: job.provider });
+  emit("mission.update", { mission: summaryOf(c) });
+}
+onSlotAnswer("council", subscriptionAnswer);
+// the waiting box redraws from the council record: its step (official app, then copy over) is kept there
+onSlotStep("council", (job) => {
+  (async () => {
+    const live = runningCouncils.get(job.runId);
+    if (live) { const a = live.answers?.[job.slot]; if (a?.waiting) { a.waiting = slotInfo(job); emit("council.update", { council: live }); } return; }
+    const c = await ctx().store.getMission(job.runId);
+    const a = c?.answers?.[job.slot];
+    if (!a?.waiting) return;
+    a.waiting = slotInfo(job);
+    save(c);
+    emit("grokbot.late", { runId: c.id, kind: "council", council: c, agent: job.provider });
+  })().catch(() => {});
+});

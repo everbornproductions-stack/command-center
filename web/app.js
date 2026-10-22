@@ -1381,11 +1381,13 @@ function renderCouncil() {
     const isGrok = isGrokId(a);
     const can = stored?.text && !stored.pending && !stored.agent;
     const waiting = isGrok && !text && !a.error;
+    const subWait = !text && stored?.waiting ? (window.CC.subWaitHtml?.(stored.waiting) || "") : "";
+    const subTag = stored?.viaSubscription?.tag ? (window.CC.subTagHtml?.(stored.viaSubscription.tag) || "") : "";
     const followWait = isGrok && !!text && (stored?.followPending || partsFor(a.model).some((p) => p.pending));
     return `<div class="ans ${c.winner === a.model ? "winner" : ""}" style="--c:${pcolor(a.provider)}" data-ans="${esc(a.model)}">
       <div class="hd"><span class="dot" style="background:${pcolor(a.provider)}"></span>Written by ${esc(pname(a.provider))} <span class="dim small">${esc(a.letter || "")}</span>
-      <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span></div>
-      <div class="body md">${waiting ? grokWaitHtml() : md(text)}</div>
+      <span class="score">${sb?.avg != null ? `${sb.late ? "judge" : "peer"} ${sb.avg}/10${c.winner === a.model ? " ★" : ""}` : a.ms ? `${(a.ms / 1000).toFixed(1)}s` : ""}${a.late ? " · arrived later" : ""}</span>${subTag}</div>
+      <div class="body md">${subWait || (waiting ? grokWaitHtml() : md(text))}</div>
       ${followWait ? grokWaitHtml() : ""}
       ${grokReplyHtml(a.model)}
       ${threadHtml(stored?.thread)}
@@ -1408,6 +1410,18 @@ function renderOutput() {
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
+  // out of API credits: the waiting box (single chat, and council seats in Simple mode, where seats are not shown)
+  const subWait = subWaitingHtml(l);
+  if (subWait) {
+    if (panel) panel.hidden = false;
+    if (wait) wait.hidden = true;
+    o.innerHTML = `${text ? md(text) : ""}${subWait}`;
+    o.classList.remove("cursor");
+    if (!text) { if (l.mission?.provider) h.textContent = `Waiting on ${pname(l.mission.provider)}`; paintFollow(""); paintFailure(); return; }
+    paintFollow(`${outputFollowHtml()}${chargeNote(l)}`);
+    paintFailure();
+    return;
+  }
   if (!text && !(S.uiMode !== "expert" && (l.council || l.mission))) {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
     else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
@@ -1423,6 +1437,15 @@ function renderOutput() {
   paintFailure();
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
+}
+function subWaitingHtml(l) {
+  const box = window.CC.subWaitHtml;
+  if (!box) return "";
+  if (l.kind === "single" && l.mission?.status === "waiting" && l.mission.waiting) return box(l.mission.waiting);
+  if (l.kind === "council" && l.council && S.uiMode !== "expert") {
+    return Object.values(l.council.answers || {}).filter((a) => a?.waiting).map((a) => box(a.waiting)).join("");
+  }
+  return "";
 }
 function paintFailure() {
   const slot = $("#cc-fail-slot");
@@ -2595,7 +2618,7 @@ function renderTextStep(v, st) {
     </div>
     <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-text-skip">Skip</button><button class="btn primary" type="button" id="su-text-keep">Keep this size</button></div>
   </div></div>`;
-  const goNext = () => { st.phase = "simple"; render(); };
+  const goNext = () => { st.phase = "backup"; render(); };
   $("#su-text-sizes").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-text]");
     if (!b) return;
@@ -2620,6 +2643,17 @@ function renderSimpleStart(v) {
   });
   $("#su-chat").addEventListener("click", () => finishAiSetup("command"));
 }
+// First-run step: backup when API credits run out. The same panel as Settings (one source of truth).
+function renderBackupStep(v, st) {
+  v.innerHTML = `<div style="max-width:720px;margin:0 auto"><div class="panel" style="padding:26px">
+    <div id="su-backup"><div class="dim small">Checking this PC...</div></div>
+    <div class="row" style="margin-top:16px;gap:8px"><button class="btn" type="button" id="su-backup-skip">Skip</button><button class="btn primary" type="button" id="su-backup-next" style="margin-left:auto">Next</button></div>
+  </div></div>`;
+  window.CC.renderBackupPanel?.($("#su-backup"), { setup: true });
+  const next = () => { st.phase = "simple"; render(); };
+  $("#su-backup-skip").addEventListener("click", next);
+  $("#su-backup-next").addEventListener("click", next);
+}
 async function saveExpert(patch) {
   const expertSetup = { ...(S.settings?.expertSetup || {}), ...patch };
   S.settings = { ...(S.settings || {}), expertSetup };
@@ -2639,10 +2673,12 @@ function renderExpertExtra(v, st) {
     <div class="muted">${esc(step.body)}</div>
     ${step.id === "ais" ? `<div style="margin-top:14px">${openRouterStartCard()}${anyKeyHtml()}</div>` : ""}
     ${step.id === "integrations" ? `<div class="row" style="margin-top:14px"><button class="btn sm" type="button" id="ex-connect">Get everything connected</button></div>` : ""}
+    ${step.id === "backup" ? `<div id="ex-backup" style="margin-top:14px"><div class="dim small">Checking this PC...</div></div>` : ""}
     ${step.id === "profile" ? `<div style="margin-top:14px"><div class="dim small">Every field is optional. You can fill this in later under Pro prompts.</div><button class="btn sm" type="button" id="ex-profile" style="margin-top:8px">Open business profile</button></div>` : ""}
     <div class="row" style="margin-top:18px"><button class="btn" type="button" id="ex-skip">Skip</button><button class="btn primary" type="button" id="ex-next" style="margin-left:auto">${last ? "Finish" : "Next"}</button></div>
   </div></div>`;
   if (step.id === "ais") { wireOpenRouterStart(v); wireAnyKey(v); }
+  if (step.id === "backup") window.CC.renderBackupPanel?.($("#ex-backup"), { setup: true });
   $("#ex-profile")?.addEventListener("click", () => { S.view = "prompts"; render(); });
   $("#ex-connect")?.addEventListener("click", async () => {
     try {
@@ -2673,6 +2709,7 @@ function renderSetup(v) {
   if (st.desktop === undefined) st.desktop = false;
   if (st.phase === "mode") return renderModeStep(v, st);
   if (st.phase === "text") return renderTextStep(v, st);
+  if (st.phase === "backup") return renderBackupStep(v, st);
   if (st.phase === "simple") return renderSimpleStart(v);
   if (st.phase === "expert") return renderExpertExtra(v, st);
   if (!st.shareKnown && !st.shareLoading) {

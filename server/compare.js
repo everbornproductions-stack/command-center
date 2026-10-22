@@ -23,6 +23,7 @@ import { heuristicClassify } from "./router.js";
 import { observe } from "./brain.js";
 import { troubleKind, markTrouble } from "./fallback.js";
 import { withMemory } from "./project-memory.js";
+import { shouldWait, openWait, onSlotAnswer, onSlotStep, slotInfo } from "./answer-wait.js";
 
 export const RUNS = "compare.runs";
 export const PRESETS = "compare.presets";
@@ -113,7 +114,7 @@ export function startCompare({ prompt, columns, maxTokens = 1200, projectId = nu
   const going = run.columns.filter((c) => c.status === "queued");
   emit("log", { text: `Side-by-side: ${going.map((c) => c.name).join(", ") || "nothing to run"}${run.columns.length > going.length ? ` (${run.columns.length - going.length} skipped)` : ""}.`, missionId: id });
   const done = Promise.all(going.map((c) => runColumn(run, c))).then(() => {
-    run.status = run.columns.some((c) => c.status === "done") ? "done" : "failed";
+    run.status = runStatus(run);
     run.finishedAt = Date.now();
     run.cost = +run.columns.reduce((a, c) => a + (c.cost || 0), 0).toFixed(6);
     save(run);
@@ -149,7 +150,11 @@ async function runColumn(run, c) {
     const kind = troubleKind(err);
     if (kind) markTrouble(c.provider, kind, err.message, { quiet: true, missionId: run.id }); // smart fallback learns of it for other jobs
     else observe({ provider: c.provider, model: c.model, capability: run.capability, difficulty: run.difficulty, runId: run.id, ok: false });
-    Object.assign(c, { status: "error", ms, note: err.message || "the call failed", finishedAt: Date.now() });
+    if (shouldWait(err)) {
+      // out of API credits: this column keeps its own AI and answers through the person's own plan
+      const waiting = openWait({ kind: "compare", runId: run.id, slot: c.i, provider: c.provider, model: c.model, ask: withMemory(run.prompt, run.projectId), system: SYSTEM, title: run.prompt });
+      Object.assign(c, { status: "waiting", ms, waiting, note: waiting.headline, text: "" });
+    } else Object.assign(c, { status: "error", ms, note: err.message || "the call failed", finishedAt: Date.now() });
   }
   publish(run);
 }
@@ -195,3 +200,33 @@ export function deletePreset(pid) {
   putDoc(PRESETS, d);
   return true;
 }
+
+// ---------- a column that waited on the person's own plan (server/answer-wait.js) ----------
+function runStatus(run) {
+  if (run.columns.some((c) => c.status === "done")) return "done";
+  if (run.columns.some((c) => c.status === "waiting")) return "waiting";
+  return "failed";
+}
+onSlotAnswer("compare", (job, res) => {
+  const run = getRun(job.runId);
+  if (!run) return;
+  const c = run.columns.find((x) => x.i === Number(job.slot));
+  if (!c || c.status !== "waiting") return;
+  if (res.stopped) Object.assign(c, { status: "error", waiting: null, note: `Stopped waiting. No answer came back from ${job.aiName}.`, finishedAt: Date.now() });
+  else Object.assign(c, { status: "done", waiting: null, text: String(res.text || "").slice(0, MAX_TEXT), note: res.tag, via: "subscription", cost: 0, inTok: 0, outTok: 0, exact: true, finishedAt: Date.now() });
+  if (!live.has(run.id)) {
+    run.status = runStatus(run);
+    run.finishedAt = run.finishedAt || Date.now();
+    save(run);
+  }
+  publish(run);
+});
+onSlotStep("compare", (job) => {
+  const run = getRun(job.runId);
+  const c = run?.columns.find((x) => x.i === Number(job.slot));
+  if (!c || c.status !== "waiting") return;
+  c.waiting = slotInfo(job);
+  c.note = c.waiting.headline;
+  if (!live.has(run.id)) save(run);
+  publish(run);
+});

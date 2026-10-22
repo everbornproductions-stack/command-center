@@ -69,6 +69,7 @@ import { annotateOutput } from "./prompts/safety.js";
 import { withImported } from "./history-refs.js";
 import { isCallback as isGrokbotCallback, handleCallback as grokbotCallback, routeAdvice as grokbotRoute } from "./grokbot.js";
 import { isReportRoute, handleReportRoute, startReportPoller } from "./reportback.js";
+import { shouldWait, waitOn, openWait, onSlotAnswer, onSlotStep, slotInfo } from "./answer-wait.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
@@ -144,7 +145,7 @@ function phonePair() {
 // job bridge and the usage report, and only with the token that stays in the data folder.
 function bridgeLoopbackOk(req, url) {
   const p = url.pathname;
-  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && p !== "/api/bridge/usage" && !p.startsWith("/api/bridge/jobs/")) return false;
+  if (p !== "/api/bridge/agents" && p !== "/api/bridge/jobs" && p !== "/api/bridge/usage" && p !== "/api/bridge/waiting" && p !== "/api/bridge/answers" && !p.startsWith("/api/bridge/jobs/")) return false;
   return bridgeAuthorized(req.headers["x-meldmind-bridge"]);
 }
 function pairPresented(req, url) {
@@ -228,6 +229,39 @@ function providerView() {
     }; })
     .concat(hubAgents()); // Grok Bot and the browser helper: their own hub cards (kind "agent", Phase 12)
 }
+
+// The router's pick is out of credits before anything was sent: the chat waits on the person's own plan.
+function startWaitingChat({ id, prompt, projectId, customAgent, provider, model, system, tone, toneId, isPrivate }) {
+  const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
+  const pick = model || (PROVIDERS[provider]?.models || []).find((x) => x.default)?.id || PROVIDERS[provider]?.models?.[0]?.id || null;
+  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "waiting", startedAt: Date.now(), provider: provider || null, model: pick, cost: 0, deliverable: "", sources: [], searched: false, toolCalls: [], fallbacks: [], ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
+  m.waiting = openWait({ kind: "single", runId: id, provider, model: pick, ask: withMemory(prompt, projectId), system: toneAdd(system || "", tone), title });
+  ctx().store.saveMission(m, missionSummary({ ...m, title }));
+  emit("mission.update", { mission: { ...m, title, tasks: [] } });
+  return m;
+}
+// A single chat that waited on the person's own plan fills in when the answer comes back.
+onSlotAnswer("single", async (job, res) => {
+  const m = await ctx().store.getMission(job.runId);
+  if (!m || m.kind !== "single" || m.status !== "waiting") return;
+  const title = (m.customAgent ? `${m.customAgent.name}: ${m.prompt}` : m.prompt || "").slice(0, 90);
+  if (res.stopped) { m.status = "failed"; m.error = `Stopped waiting. No answer came back from ${job.aiName}.`; m.deliverable = m.error; }
+  else { m.status = "done"; m.deliverable = `**${res.tag}**\n\n${res.text}`; m.via = "subscription"; m.subscription = { tag: res.tag, by: res.by, route: res.route, jobId: job.id }; }
+  m.waiting = null;
+  m.finishedAt = Date.now();
+  ctx().store.saveMission(m, missionSummary({ ...m, title }));
+  emit("mission.update", { mission: { ...m, title, tasks: [] } });
+});
+onSlotStep("single", (job) => {
+  (async () => {
+    const m = await ctx().store.getMission(job.runId);
+    if (!m || m.status !== "waiting" || !m.waiting) return;
+    m.waiting = slotInfo(job);
+    const title = (m.prompt || "").slice(0, 90);
+    ctx().store.saveMission(m, missionSummary({ ...m, title }));
+    emit("mission.update", { mission: { ...m, title, tasks: [] } });
+  })().catch(() => {});
+});
 
 function finishPausedChat({ id, prompt, projectId, customAgent, message, billing, provider }) {
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
@@ -495,6 +529,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     const pausedPick = best ? describePause(best.provider) : null;
     if (!best || pausedPick) {
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
+      if (named && !named.rate && waitOn()) { endGrant(id); return startWaitingChat({ id, prompt, projectId, customAgent, provider: named.provider, model: pausedPick && best ? best.model : null, system, tone, toneId, isPrivate }); }
       if (named) { endGrant(id); return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider }); }
       throw new Error("No AI available. Add a key in Settings.");
     }
@@ -525,6 +560,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const who = PROVIDERS[provider]?.name || localRouteName(provider) || provider;
   if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
+  const asked = { provider, model };
   let text = "";
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
@@ -557,14 +593,22 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
     if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
     if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
-    m.status = "failed"; m.error = err.message;
-    if (err.code === "paused") m.deliverable = err.message;
+    if (shouldWait(err)) {
+      // out of API credits and no API route left: the answer comes through the person's own plan
+      text = "";
+      m.provider = asked.provider; m.model = asked.model;
+      m.status = "waiting"; m.deliverable = "";
+      m.waiting = openWait({ kind: "single", runId: id, provider: asked.provider, model: asked.model, ask, system: toneAdd(system || "", tone), title });
+    } else {
+      m.status = "failed"; m.error = err.message;
+      if (err.code === "paused") m.deliverable = err.message;
+    }
   }
   if (!m.deliverable) m.deliverable = text;
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
-  if (creditHop && !m.notice) m.notice = pauseNotice(creditHop);
-  m.finishedAt = Date.now();
+  if (creditHop && !m.notice && !m.waiting) m.notice = pauseNotice(creditHop);
+  if (m.status !== "waiting") m.finishedAt = Date.now();
   endGrant(id);
   m.getDone = null;
   try {

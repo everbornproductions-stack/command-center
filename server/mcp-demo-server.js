@@ -16,6 +16,8 @@ const TOOLS = [
   { name: "get_result", title: "Get a Meldmind result", description: "Reads one Meldmind job by id. The text is the reply already stored. Nothing new is sent.", inputSchema: { type: "object", properties: { job_id: { type: "string", description: "The job id from submit_job" } }, required: ["job_id"], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
   { name: "report_usage", title: "Report AI credits used", description: "Tells Meldmind how many AI credits you spent outside Meldmind, so its running balance stays right. Call it after paid AI work. Report only real numbers you can see.", inputSchema: { type: "object", properties: { provider: { type: "string", description: "The AI provider, such as anthropic, openai, xai, google, or openrouter" }, credits_spent: { type: "number", description: "What the work cost, in US dollars" }, note: { type: "string", description: "A few words about the work" }, report_id: { type: "string", description: "Optional id so a retried report is counted once" } }, required: ["provider", "credits_spent"], additionalProperties: false }, annotations: { title: "Report AI credits used", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
   { name: "submit_job", title: "Submit a Meldmind job", description: "Asks Meldmind to queue a task for one agent. Does not send email, buy, or delete.", inputSchema: { type: "object", properties: { task: { type: "string" }, agent: { type: "string", description: "Optional agent id, such as antigravity" } }, required: ["task"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } },
+  { name: "list_waiting", title: "List answers Meldmind is waiting for", description: "Lists the questions Meldmind is waiting on because its API credits ran out: job id, AI, a short title, and the question. Answer one, then send it back with submit_answer.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { title: "List answers Meldmind is waiting for", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
+  { name: "submit_answer", title: "Send an answer back to Meldmind", description: "Sends your full answer to a question Meldmind is waiting on. Use the job id from the question or from list_waiting. The answer fills that box in Meldmind.", inputSchema: { type: "object", properties: { job_id: { type: "string", description: "The job id, it starts with ans-" }, answer: { type: "string", description: "Your full answer" } }, required: ["job_id", "answer"], additionalProperties: false }, annotations: { title: "Send an answer back to Meldmind", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } },
 ];
 
 // writeSync so a Windows pipe does not hold the JSON line in a block buffer.
@@ -120,6 +122,25 @@ async function call(name, args = {}) {
     if ((live.status || 500) >= 400) return text(live.json?.error || "Meldmind did not take the job.", { isError: true });
     return text(`Queued in Meldmind. Job id: ${live.json.job?.id || "unknown"}.`, { structuredContent: { job: live.json.job || null } });
   }
+  if (name === "list_waiting") {
+    const live = await bridgeCall("GET", "/api/bridge/waiting");
+    if (!live) return text("Meldmind is not running on this computer, so there is nothing to list.", { isError: true });
+    if ((live.status || 500) >= 400) return text(live.json?.error || "Meldmind did not answer.", { isError: true });
+    const jobs = (Array.isArray(live.json?.jobs) ? live.json.jobs : []).map((j) => ({ id: String(j.id || ""), ai: String(j.ai || ""), title: String(j.title || ""), prompt: String(j.prompt || "") })).filter((j) => j.id);
+    if (!jobs.length) return text("Meldmind is not waiting for any answers.", { structuredContent: { jobs: [] } });
+    return text(jobs.map((j) => `${j.id} (${j.ai}): ${j.title}\n${j.prompt}`).join("\n\n---\n\n"), { structuredContent: { jobs } });
+  }
+  if (name === "submit_answer") {
+    const id = String(args.job_id || "").trim();
+    const answer = typeof args.answer === "string" ? args.answer : "";
+    if (!/^ans-[A-Za-z0-9_-]{6,64}$/.test(id)) return text("job_id must be the Meldmind job id from the question (it starts with ans-).", { isError: true });
+    if (!answer.trim()) return text("answer is required: send your full answer", { isError: true });
+    if (answer.length > 100000) return text("answer is too long (100000 characters at most)", { isError: true });
+    const live = await bridgeCall("POST", "/api/bridge/answers", { job_id: id, answer });
+    if (!live) return text("Meldmind is not running on this computer, so the answer was not sent. Try again when Meldmind is open.", { isError: true });
+    if ((live.status || 500) >= 400) return text(live.json?.error || "Meldmind did not take the answer.", { isError: true });
+    return text("Sent. Meldmind filled that box with your answer.", { structuredContent: { ok: true, jobId: id } });
+  }
   return null;
 }
 
@@ -138,7 +159,7 @@ async function handle(line) {
     const raw = String(params?.clientInfo?.name || "").trim().toLowerCase();
     if (raw) clientName = CLIENT_NAMES[raw] || String(params.clientInfo.name).replace(/[^\w .-]/g, "").slice(0, 40) || clientName;
   }
-  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer. submit_job queues work in the local app. It does not send mail or spend money on its own. Standing instruction: after paid AI work outside Meldmind, call report_usage with the provider and the US dollars spent, so Meldmind's credit balance stays right." } });
+  if (method === "initialize") return write({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion === "2024-11-05" ? "2024-11-05" : "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "Meldmind demo tools", version: "1.0.0" }, instructions: "Demo tools for Meldmind. Nothing leaves this computer. submit_job queues work in the local app. It does not send mail or spend money on its own. Standing instruction: after paid AI work outside Meldmind, call report_usage with the provider and the US dollars spent, so Meldmind's credit balance stays right. When a prompt from Meldmind has a job id that starts with ans-, send your full answer back with submit_answer." } });
   if (method === "ping") return write({ jsonrpc: "2.0", id, result: {} });
   if (method === "tools/list") return write({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
   if (method === "tools/call") {

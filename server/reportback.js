@@ -399,6 +399,20 @@ async function registerRemote(jobId) {
   return data.token;
 }
 
+// The hub address and per-job token for one job, or { hub: false } when no hub is set up or it did not answer.
+// Answer jobs (server/answer-wait.js) build their own send-back words from this.
+export async function hubRoute({ jobId } = {}) {
+  const id = validId(jobId) ? jobId : newId();
+  if (!workerOn()) return { jobId: id, hub: false };
+  try {
+    const token = await registerRemote(id);
+    if (!token) return { jobId: id, hub: false };
+    return { jobId: id, hub: true, url: doneUrl(id), token };
+  } catch {
+    return { jobId: id, hub: false };
+  }
+}
+
 export async function reportBlock({ jobId, kind, threadId, targetId } = {}) {
   const id = validId(jobId) ? jobId : newId();
   try { rememberLocal({ jobId: id, kind, threadId, targetId }); } catch {}
@@ -463,6 +477,12 @@ async function writeGrok(jobId, { status, summary, links }) {
 
 export async function applyLocal(row, { pasted = false } = {}) {
   if (!row || !validId(row.jobId)) return null;
+  // an answer Meldmind is waiting for (out of API credits): it fills its own box, not the thread
+  if (String(row.jobId).startsWith("ans-")) {
+    const { fromHub } = await import("./answer-wait.js");
+    const out = await fromHub(row);
+    if (out) return out;
+  }
   const status = STATUSES.includes(row.status) ? row.status : "done";
   const summary = clip(row.summary || "", 8000);
   const links = Array.isArray(row.links) ? row.links.filter((u) => typeof u === "string").slice(0, 20) : [];

@@ -226,6 +226,9 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     CC_OPENROUTER_MODELS_URL: `${stub.url}/openrouter/models`, // live prices (Phase 24): never the real OpenRouter
     CC_SUPABASE_URL: "", CC_SUPABASE_ANON_KEY: "", CC_DEV_OWNER: "", CC_PACKAGED: "", CC_HQ_DIR: path.join(dir, "no-hq-here"),
     CC_USAGE_URL: "off",
+    // The official AI apps on the machine running the tests (Claude Code, Codex, Gemini CLI) are never
+    // found or run. A test that wants one passes a fake in env.
+    CC_SUBCLI_NO_PATH: "1", CC_SUBCLI_HOME: path.join(dir, "no-subcli-home"),
     // Refocus never walks the real home folder or real drives during the suite.
     CC_REFOCUS_HOME: path.join(dir, "no-home-here"), CC_REFOCUS_DRIVES: path.join(dir, "no-drives-here"), CC_REFOCUS_ROOTS: "", OneDrive: "", OneDriveConsumer: "", OneDriveCommercial: "",
     ...env,

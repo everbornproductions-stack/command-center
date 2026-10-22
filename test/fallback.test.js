@@ -269,14 +269,14 @@ test("server: pinned chat falls back on 402, 403-credits, 429, 401 and a cut con
     m.behave.or = "ok"; m.behave.xai = "ok";
     await s.api("/fallback/clear", { method: "POST", body: {} });
 
-    // 7. no stand-in when smart fallback is off: the run fails and says why
-    await s.api("/fallback/settings", { method: "POST", body: { on: false } });
+    // 7. no stand-in when smart fallback is off (and the subscription backup is off too): the run fails and says why
+    await s.api("/fallback/settings", { method: "POST", body: { on: false, subscriptions: false } });
     m.behave.xai = 402; from = m.since();
     run = await waitRun(s, settled(await postSingle(s, { prompt: "Tagline with fallback off.", provider: "xai", model: "grok-4.3" })), "fallback off");
     full = (await s.api(`/missions/${run.id}`)).json;
     assert.equal(full.status, "failed"); assert.match(full.error, /402/); assert.equal(full.fallbacks.length, 0);
     assert.equal(m.calls("xai", from).length, 1);
-    await s.api("/fallback/settings", { method: "POST", body: { on: true } });
+    await s.api("/fallback/settings", { method: "POST", body: { on: true, subscriptions: true } });
     m.behave.xai = "ok";
     await s.api("/fallback/clear", { method: "POST", body: {} });
 

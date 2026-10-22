@@ -2,7 +2,7 @@
 id: credits-left
 title: Credits left for each AI
 summary: Live balances where the AI has a balance API. Everywhere else, type your balance once and Meldmind keeps it up to date.
-lastUpdatedVersion: 0.4.13
+lastUpdatedVersion: 0.4.16
 ---
 
 # Credits left for each AI
@@ -26,3 +26,7 @@ Plain chat apps cannot report. When your mailbox is connected, a receipt, top-up
 ## Possibly off
 
 Meldmind does not ask you to re-enter an old balance. It shows a soft "possibly off" note only when something does not match: a live spend report shows more than Meldmind tracked, or a usage email did not say how much is left. Type the balance in Update balance to clear it.
+
+## When the credits run out
+
+When an AI's API credits run out, Meldmind tries another way first, then can answer through your own plan for that AI: the official app on this PC (Claude Code, Codex, Gemini CLI, Antigravity), or a question you copy into that AI's page that asks it to send the answer back. Those answers cost no API credits. See Two-click handoff for how it works, and Settings, Backup when API credits run out, to turn it off.
