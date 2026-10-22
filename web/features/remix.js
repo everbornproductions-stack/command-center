@@ -136,6 +136,7 @@ function shell(gate) {
           ${choice("remix-kind", "app", "An app", "A screen people use.", "checked")}
           ${choice("remix-kind", "game", "A game", "Something people play.")}
           ${choice("remix-kind", "tool", "A tool", "Something that does one job.")}
+          <div id="remix-build-all" style="margin-top:10px"></div>
         </section>
         <section data-step="start" hidden>
           ${choice("remix-start", "screenshot", "A screenshot", "A picture of a screen becomes a new layout.")}
@@ -408,6 +409,12 @@ async function render(view) {
   const past = root.querySelector("#remix-past");
   if (past) past.innerHTML = pastHtml();
   wirePast(root);
+  // Build it all for me: start, preview, build and test in one go. Publish stays a click.
+  import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(root.querySelector("#remix-build-all"), {
+    surface: "remix",
+    payload: () => ({ remix: payload(root), description: fieldValue(root, "#remix-idea") }),
+    onEnd: (j) => toast(j.status === "done" ? "Built it all. The project is in Projects." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+  })).catch(() => { /* the step by step button still works */ });
   const engine = root.querySelector("#remix-engine");
   if (engine) engine.value = "scratch-page";
   paint(root);

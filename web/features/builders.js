@@ -151,6 +151,7 @@ function workHtml() {
         <button type="button" class="btn sm primary" id="builders-publish" ${job?.step === "tested" && gate?.ok !== false ? "" : "disabled"}>Publish</button>
       </div>
       <div id="builders-checks" style="margin-top:8px">${checksHtml(checks)}</div>
+      <div id="builders-build-all" style="margin-top:10px"></div>
     </div>
     <div id="builders-preview-box" aria-live="polite" style="margin-top:12px">${previewHtml()}</div>
   </div>`;
@@ -197,6 +198,15 @@ function paint() {
     conn.textContent = on.length ? `Saved: ${on.join(", ")}.` : "Nothing saved from this form yet.";
   }
   wire(root);
+  // Build it all for me: describe, then preview, build, test and publish in one go.
+  const all = root.querySelector("#builders-build-all");
+  if (all) {
+    import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(all, {
+      surface: "builder",
+      payload: () => { const input = fieldValue(root); return { builderId: openId, description: String(input.text || ""), input }; },
+      onEnd: (j) => toast(j.status === "done" ? "Built it all. Open the builder again to see the result." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+    })).catch(() => { /* the step by step buttons still work */ });
+  }
   // Test with personas on the draft
   const pt = root.querySelector("#builders-personas");
   if (pt && window.CC.personaButton) pt.appendChild(window.CC.personaButton({ getText: () => draftText(preview?.draft), kind: "draft" }));

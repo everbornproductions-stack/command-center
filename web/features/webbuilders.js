@@ -325,7 +325,15 @@ function boot(view, openId) {
           ${fields.more.map((field) => fieldHtml(field, defaults)).join("") || `<p class="dim small">Nothing else to set.</p>`}
           ${detail.builder.id === "email-sequences" ? `<p class="dim small">HighLevel uses the token already saved in Publishing. The footer and the unsubscribe line stay on every email.</p>` : ""}
           ${detail.builder.id === "reel-maker" ? `<label class="small" style="display:block;margin:6px 0"><input type="checkbox" id="bd-remotionAck" data-field="remotionAck"> I have a paid Remotion license.</label>` : ""}
-        </details>`;
+        </details>
+        <div id="bd-build-all" style="margin-top:10px"></div>`;
+      // Build it all for me: preview, build, test and publish in one go. Posting
+      // in public still waits unless Also allow posting is on.
+      import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(root.querySelector("#bd-build-all"), {
+        surface: "webbuilder",
+        payload: () => { const input = payload(); return { builderId: detail.builder.id, description: String(input.about || input.topic || ""), input }; },
+        onEnd: (j) => toast(j.status === "done" ? "Built it all. Saved on this computer." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+      })).catch(() => { /* the step by step button still works */ });
       const notice = (root.querySelector("#bd-notice")?.value || pack?.notice || "").trim();
       if (notice) {
         const topic = root.querySelector("[data-field='topic']");

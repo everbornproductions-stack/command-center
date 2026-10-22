@@ -30,3 +30,11 @@ Site Builder and the Client Page Editor are Pro. Static export, Site Health Chec
 Site Health Check and SEO Fixer can show **Fix it**. That changes the page on this computer. Publishing to Netlify or Vercel, Postiz, listmonk, Mautic, or HighLevel waits for the click. With no token, Meldmind records a dry run and sends nothing. Tokens stay in the vault and are not shown again.
 
 Email sequences always include your business name, a postal address, and an unsubscribe line. For a credit repair or insurance ad, check the boxes. Meldmind does not give legal, credit, or insurance advice.
+
+## Build it all for me
+
+Turn on **Build it all for me** to run every step in one go: describe, preview, build, test, and publish when it only saves on this computer. Meldmind answers the questions from your description. When a question has nothing in the description, it picks a plain default and lists it under **Assumed**, so you can change it later.
+
+It still stops for three things, the same rules as Get it done: spending money, deleting something for good, and posting or sending in public. A second switch, **Also allow posting**, lets public posting through. It is off unless you turn it on. Boxes that only you can tick, such as a compliance check, still wait for you.
+
+You see each step as it runs, and **Stop** ends the run before the next step. The switch is off at first. Meldmind remembers your choice for next time.
