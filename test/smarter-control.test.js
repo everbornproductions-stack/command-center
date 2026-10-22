@@ -282,7 +282,7 @@ test("smarter control files stay plain and the version is unchanged", () => {
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 57: Recipes/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 59: Cost guard/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 60: Phone approvals/);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.13");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.14");
 });
 
 test("routes: a free copy cannot add an app, a Pro copy can run a fixture step", async () => {

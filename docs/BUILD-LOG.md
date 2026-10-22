@@ -2475,3 +2475,12 @@ Not a numbered phase. No locked decision was changed. Nothing was merged, tagged
 - Help: docs/help/ai-employees.md. Demo mock answers for the persona test and fixes in server/mock.js.
 - Tests: test/employees.test.js and test/personas.test.js (no real key; the server tests use the local demo AIs).
 - Local results after rebasing on integration/0.4.13 (5e2f512), Linux, Node 22, no credentials in the environment: Windows-order serial run (each helper-process file alone) 788 pass, 0 fail, 1 skip (Pyodide not installed); npm run smoke all passed; npm test 776 pass, 1 fail, 1 skip, the one failure being test/usage.test.js "the daily ping" (a file this change does not touch) under parallel load, which passed 3 of 3 times on its own and in the serial run. A browser click-through (Agents tab, library Add, Use, Test with personas through Apply all and Use this version, the mission picker, a project's team, and the Simple hint through an answer) showed no page errors.
+
+## 2026-10-21: Integration 0.4.14
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. data/ was not read. No Supabase migration was run. The hub was not deployed.
+
+- Built on integration/0.4.14 off main (0.4.13, ca8b232) from pull request 115 (feature/ai-employees): Expert Command layout (5e2f512), AI employees and Test with personas (47d11c2), and its build log (1d738ba). No separate layout-redo pull request was open.
+- Includes the reportback test fix from pull request 116: the hub logs from a child process, and on Windows a pipe write is async, so the two log checks now wait for the line with a real deadline. That race failed the v0.4.13 Windows release job twice.
+- Version 0.4.14. What's new, the release notes, the help catalog, and the AI employees help article say 0.4.14. Version pins in the tests moved to 0.4.14.
+- Tests here (Windows 11, Node 22.23.4, no real key): every helper-process file one at a time in the Windows order, then the rest. On this PC, mcp.test.js tests 6, 10, and 11, smoke, and sometimes reportback test 3 fail with ECONNRESET or HPE_INVALID_CHUNK_SIZE; clean main fails the same way here, so Windows CI on the pull request is the check.

@@ -1,4 +1,12 @@
 {
+  "0.4.14": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "AI employees: twenty ready-made helpers with a job script are on your team in Agents, and + Add more employees opens a library of thirty more. Click Use, say what you need, and it works with your own AI keys.",
+      "Test with personas: under an answer, a draft, a post, or a page, click Test with personas. People from the Meldmind persona panel react, score it out of 5, and suggest fixes you can Apply. Nothing is sent or posted.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
+  },
   "0.4.13": {
     "title": "What's new in Meldmind",
     "bullets": [

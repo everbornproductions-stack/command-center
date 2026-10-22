@@ -2,7 +2,7 @@
 id: ai-employees
 title: AI employees and Test with personas
 summary: Ready-made helpers with a job script, and a quick check of any output by people like your customers.
-lastUpdatedVersion: 0.4.13
+lastUpdatedVersion: 0.4.14
 ---
 
 # AI employees and Test with personas

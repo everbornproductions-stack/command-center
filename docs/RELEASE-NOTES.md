@@ -2,6 +2,15 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.14 (2026-10-21)
+
+**New**
+- AI employees: twenty ready-made helpers with a job script, in Agents, missions, project setup (a suggested team), and Simple chat (the best helper for what you typed). + Add more employees opens a library of thirty more.
+- Test with personas: the Meldmind persona panel reads an answer, a draft, a post, a page, or a design idea, scores it out of 5, and suggests fixes. Apply one fix or Apply all fixes, then Use this version, Copy, or Undo. Reactions are simulated by an AI. Nothing is sent or posted.
+
+**Improved**
+- Expert Command: the orders box is bigger, a one-line placeholder holds the Deliverable spot until it shows, and council answers in Live ops show at full height instead of scrolling.
+
 ## v0.4.13 (2026-10-21)
 
 **New**
