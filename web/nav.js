@@ -1,8 +1,9 @@
 // Grouped main menu. Every existing view stays reachable in Expert and in Simple.
 // Simple shows Chat, Start a project, Projects, My day, Create, More, Help, and Settings.
 // Zapier, Make, and the other connectors are under More > Connections in Simple.
-// Settings holds settings only. Help holds the tour, setup, updates, What's new,
-// the user guide, contact, and About. Each action has one name everywhere.
+// Settings holds settings only (Settings, Find my AIs). Help holds the tour, Get everything
+// connected, updates, What's new, the user guide, contact, and About. Each action has one name
+// everywhere. Connect has two sections: Apps and AIs, then People (People, Together, Community).
 // Modified keys (Alt, Ctrl, Meta) are ignored so Alt+Space and other hotkeys keep working.
 //
 // The wide row is chosen from the free space in the top bar (ResizeObserver),
@@ -84,10 +85,11 @@ const HOME = {
   subscriptions: "business",
   credits: "business",
   workspaces: "business",
-  together: "business",
   reports: "business",
-  userchat: "business",
-  community: "business",
+  // People-to-people pages sit in Connect, in a People section (Chris, 2026-10-21).
+  together: "connect",
+  userchat: "connect",
+  community: "connect",
   settings: "help",
   setup: "help",
   help: "guides",
@@ -123,10 +125,10 @@ const SPLIT_HOME = {
   subscriptions: "business",
   credits: "business",
   workspaces: "business",
-  together: "business",
   reports: "business",
-  userchat: "business",
-  community: "business",
+  together: "connect",
+  userchat: "connect",
+  community: "connect",
   settings: "settings",
   setup: "settings",
   start: "work",
@@ -165,12 +167,14 @@ export const LABELS = {
   reports: "Reports",
   community: "Community",
   settings: "Settings",
-  setup: "Setup",
+  // Settings > Find my AIs is the longer setup page (keys on this PC, browser history,
+  // bookmarks). Help > Get everything connected is the integrations checklist. 0.4.17.
+  setup: "Find my AIs",
   help: "Search help",
   start: "Start a project",
 };
 
-const SETUP_AGAIN = { id: "connect-setup", label: "Run setup again", action: "connect-setup", home: false };
+const SETUP_AGAIN = { id: "connect-setup", label: "Get everything connected", action: "connect-setup", home: false };
 const TOUR_ITEM = { id: "tour", label: "Take the tour", action: "tour", home: false };
 const NEWS_ITEM = { id: "news", label: "What's new", action: "news", home: false };
 const DEMO_ITEM = { id: "try-demo", label: "Try demo mode", action: "demo-on", home: false };
@@ -433,6 +437,12 @@ export function groupIdFor(view, layout = "narrow") {
 }
 
 // Same Settings page, scrolled to the panel. Not a second copy of the app.
+// Connect has two sections: Apps and AIs (the links below), then People.
+export const APPS_SECTION = "Apps and AIs";
+export const PEOPLE_SECTION = "People";
+export const PEOPLE_ORDER = ["userchat", "together", "community"];
+export const BUSINESS_ORDER = ["credits", "subscriptions", "reports", "workspaces"];
+
 export const CONNECT_LINKS = [
   { id: "keys", label: "Keys and providers", view: "settings", focus: "#settings-keys" },
   { id: "byo", label: "Your apps", view: "settings", focus: "[data-feature='byo']" },
@@ -542,7 +552,13 @@ export function menuModel(views, layout = "narrow", opts = {}) {
     const gid = groupIdFor(view, layout);
     (buckets[gid] || buckets[groupFor(view)]).push({ view, label: LABELS[view] || view, home: true });
   }
-  for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false });
+  // Connect: Apps and AIs first, then People (People, Together, Community).
+  const people = buckets.connect.splice(0).map((i) => ({ ...i, section: PEOPLE_SECTION }))
+    .sort((a, b) => PEOPLE_ORDER.indexOf(a.view) - PEOPLE_ORDER.indexOf(b.view));
+  for (const link of CONNECT_LINKS) buckets.connect.push({ ...link, home: false, section: APPS_SECTION });
+  buckets.connect.push(...people);
+  // Business keeps money and team pages, in this order.
+  buckets.business.sort((a, b) => BUSINESS_ORDER.indexOf(a.view) - BUSINESS_ORDER.indexOf(b.view));
   // Start a project belongs with Projects, in Work. It is not a settings item.
   ensureStart(buckets.work);
   const help = buckets.guides;
@@ -681,10 +697,14 @@ export function simpleModel(views, surface = "", promote = []) {
     .filter(([view]) => have.has(view)).map(([view, label]) => ({ view, label, home: true }));
   const create = CREATE_VIEWS.filter((view) => have.has(view) && !gone.has(view)).map((view) => ({ view, label: LABELS[view], home: true }));
   const more = [];
+  const people = [];
   for (const view of have) {
     if (SIMPLE_TOP.has(view) || gone.has(view)) continue;
-    more.push({ view, label: LABELS[view] || view, home: true });
+    if (PEOPLE_ORDER.includes(view)) people.push({ view, label: LABELS[view] || view, home: true, section: PEOPLE_SECTION });
+    else more.push({ view, label: LABELS[view] || view, home: true });
   }
+  // Same order as Expert: People pages in their own section, after the plain pages.
+  more.push(...people.sort((a, b) => PEOPLE_ORDER.indexOf(a.view) - PEOPLE_ORDER.indexOf(b.view)));
   const connections = up.some((p) => p.menu);
   if (!connections) for (const link of SIMPLE_CONNECT_LINKS) more.push({ ...link, home: false });
   const promoted = up.map((p) => p.menu
@@ -710,6 +730,7 @@ function mountItems(panel, buttons, items) {
       section = item.section;
       const head = document.createElement("div");
       head.className = "nav-section";
+      head.dataset.section = section;
       head.setAttribute("role", "presentation");
       head.textContent = section;
       panel.appendChild(head);
@@ -974,6 +995,19 @@ export function placeNavItem(root, view, label) {
   if (!panel) return;
   if (panel.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]:not([data-focus])`)) return;
   const btn = tuneItem(root, itemButton({ view, label: LABELS[view] || label || view, home: true }));
+  // A people page that loads later joins the People section at the end of Connect.
+  if (group === "connect") {
+    if (!panel.querySelector(`.nav-section[data-section="${PEOPLE_SECTION}"]`)) {
+      const head = document.createElement("div");
+      head.className = "nav-section";
+      head.dataset.section = PEOPLE_SECTION;
+      head.setAttribute("role", "presentation");
+      head.textContent = PEOPLE_SECTION;
+      panel.appendChild(head);
+    }
+    panel.appendChild(btn);
+    return;
+  }
   const links = panel.querySelector("button[data-focus]");
   if (links) panel.insertBefore(btn, links);
   else panel.appendChild(btn);

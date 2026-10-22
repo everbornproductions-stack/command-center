@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.13
 
 # Community and AI News
 
-Community is in the Business menu. In Simple it is also under Help.
+Community is in the Connect menu, in the People section with People and Together. In Simple it is on the bar when there is room, or under More.
 
 Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.
 

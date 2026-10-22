@@ -168,15 +168,15 @@ test("web surface hides desktop-only pages", () => {
   const wide = menuModel(["command", "libraries", "setup", "settings", "help", "schedules"], "normal", { surface: "web" });
   const labels = wide.flatMap((g) => g.items.map((i) => i.label));
   assert.equal(labels.includes("Libraries"), false);
-  assert.equal(labels.includes("Setup"), false);
-  assert.equal(labels.includes("Run setup again"), false);
+  assert.equal(labels.includes("Find my AIs"), false);
+  assert.equal(labels.includes("Get everything connected"), false);
   assert.equal(labels.includes("Check for updates"), false);
   assert.equal(labels.includes("Take the tour"), true);
   assert.equal(labels.includes("Schedules"), true);
   const desktop = menuModel(["command", "libraries", "setup", "settings", "help"], "normal");
   const desktopLabels = desktop.flatMap((g) => g.items.map((i) => i.label));
   assert.equal(desktopLabels.includes("Libraries"), true);
-  assert.equal(desktopLabels.includes("Run setup again"), true);
+  assert.equal(desktopLabels.includes("Get everything connected"), true);
   assert.ok(DESKTOP_ONLY.includes("hotkey"));
   const ui = fs.readFileSync(path.join(ROOT, "web", "features", "hosted-runs.js"), "utf8");
   const plugin = fs.readFileSync(path.join(ROOT, "server", "plugins", "hosted-runs.js"), "utf8");

@@ -95,7 +95,7 @@ test("breakpoint: narrow stays at the compact menus, a wider window splits to ei
   assert.equal(help.label, "Help");
   assert.deepEqual(
     help.items.map((i) => i.label),
-    ["Search help", "Take the tour", "Run setup again", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"],
+    ["Search help", "Take the tour", "Get everything connected", "Check for updates", "What's new", "Try demo mode", "User guide", "Contact and feedback", "About Meldmind"],
   );
   assert.equal(groupIdFor("liveview", "normal"), "work");
   assert.equal(groupIdFor("agents", "normal"), "agents");
@@ -417,4 +417,27 @@ test("desktop display watch reports resize, move, and display changes, then stop
   } finally {
     stop();
   }
+});
+
+test("Connect holds Apps and AIs, then People; Business keeps money and team pages (0.4.17)", async () => {
+  const { simpleModel, PEOPLE_SECTION, APPS_SECTION, LABELS } = await import("../web/nav.js");
+  const views = [...VIEWS, "together", "userchat", "community"];
+  for (const layout of ["narrow", "normal"]) {
+    const model = menuModel(views, layout);
+    const connect = model.find((g) => g.id === "connect").items;
+    assert.deepEqual(connect.filter((i) => i.section === APPS_SECTION).map((i) => i.label), ["Keys and providers", "Your apps", "Tools (MCP)", "Integrations", "Browser extension", "HighLevel"]);
+    assert.deepEqual(connect.filter((i) => i.section === PEOPLE_SECTION).map((i) => i.label), ["People", "Together", "Community"]);
+    assert.ok(connect.findIndex((i) => i.section === PEOPLE_SECTION) > connect.findIndex((i) => i.section === APPS_SECTION));
+    assert.deepEqual(model.find((g) => g.id === "business").items.map((i) => i.label), ["Credits", "Subscriptions", "Reports", "Teams"]);
+  }
+  for (const view of ["userchat", "together", "community"]) assert.equal(groupFor(view), "connect", view);
+  // Two different setups, two names: no menu item is just called Setup.
+  assert.equal(LABELS.setup, "Find my AIs");
+  const labels = menuModel(views, "normal").flatMap((g) => g.items.map((i) => i.label));
+  assert.ok(labels.includes("Find my AIs") && labels.includes("Get everything connected"));
+  assert.equal(labels.some((l) => /^(Setup|Run setup again)$/.test(l)), false);
+  const more = simpleModel(views).find((g) => g.id === "more").items;
+  assert.deepEqual(more.filter((i) => i.section === PEOPLE_SECTION).map((i) => i.view), ["together", "community"]);
+  const html = fs.readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="tab-setup">Find my AIs</);
 });
