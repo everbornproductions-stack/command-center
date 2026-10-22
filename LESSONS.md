@@ -24,3 +24,8 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 ## 2026-10-21: The site pins version numbers
 
 - www.everbornproductions.com/meldmind/ shows the version and links the Mac .dmg files by version-numbered name under releases/latest/download. Those links break when a newer release becomes Latest. Update the page with every release (or switch to version-free links). The page source was not found in git; it is deployed by zip upload to the Cloudflare Pages project everbornproductions.
+
+## 2026-10-21: The site follows releases on its own (correction)
+
+- The lesson above was read from the page source only. In a browser, the Meldmind page script calls the GitHub releases API on load and rewrites the version, the Windows and Mac download links, and (from 2026-10-21) the Just released list from the latest release notes. Load the page in a browser before calling the site stale.
+- The site source is now in the private repo everbornproductions-stack/everborn-site (media in Drive, Everborn Cloud/everborn-site). It still deploys by zip upload to Cloudflare Pages; mirror live first.

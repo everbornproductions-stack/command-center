@@ -2484,3 +2484,13 @@ Not a numbered phase. No locked decision was changed. Square and billing were no
 - Includes the reportback test fix from pull request 116: the hub logs from a child process, and on Windows a pipe write is async, so the two log checks now wait for the line with a real deadline. That race failed the v0.4.13 Windows release job twice.
 - Version 0.4.14. What's new, the release notes, the help catalog, and the AI employees help article say 0.4.14. Version pins in the tests moved to 0.4.14.
 - Tests here (Windows 11, Node 22.23.4, no real key): every helper-process file one at a time in the Windows order, then the rest. On this PC, mcp.test.js tests 6, 10, and 11, smoke, and sometimes reportback test 3 fail with ECONNRESET or HPE_INVALID_CHUNK_SIZE; clean main fails the same way here, so Windows CI on the pull request is the check.
+
+## 2026-10-21 Quieter buttons (0.4.15)
+
+Not a numbered phase. No locked decision was changed. Square and billing were not touched. data/ was not read. The hub was not deployed.
+
+- Chris: the top menu felt clunky. Clicking a page button showed Working..., then Done, then the old label, because 0.4.13 marked any button whose click started an api() call (web/busy.js trackBusy), and opening a page loads its data.
+- Page buttons are never marked: data-view, data-day, data-no-busy, role=tab, and buttons inside #tabs, .tabs, .nav-menu, #mobile-nav, #mobile-more, or a tablist (isNavButton).
+- Other buttons are disabled at once (no double submits) and keep their own label. A spinner joins the label only when the call takes longer than SPINNER_DELAY_MS (500 ms). The automatic Done flash is gone; flashDone stays for explicit use. withBusy (explicit long jobs) is unchanged.
+- Test: test/busy.test.js (fast call keeps the label and shows no Done, slow call adds the spinner then restores, page buttons untouched).
+- Local results (Windows 11, Node 22.23.4): busy.test.js 9 of 9 pass. The other server test files hit the known ECONNRESET and HPE_INVALID_CHUNK_SIZE noise on this PC (see LESSONS.md), in files that do not load web/busy.js, so Windows CI on the pull request is the check.

@@ -2,6 +2,17 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## v0.4.15 (2026-10-21)
+
+**Improved**
+- Page buttons switch pages right away. The top bar, the menus, and the phone bar no longer show Working... or Done.
+- Other buttons keep their own name while they work. A small spinner shows only when something takes longer than half a second. No Done flash afterwards.
+
+**Still here**
+- Home, Private mode, and Backup and restore stay in this build.
+- Background runs, Together, People, Remix, Zapier and Make, and hosted runs are in this build. A send still waits for a click.
+- The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
 ## v0.4.14 (2026-10-21)
 
 **New**
