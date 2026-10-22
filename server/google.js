@@ -6,7 +6,15 @@
 // client (Google Cloud console, Desktop app); its secret and the tokens live in the vault, never in a
 // file, a log or a reply to the browser. A grant wider than what was asked for is refused, nothing kept.
 // Grok Bot's calendar handoff is a separate route and is not changed here.
+//
+// One-click Sign in with Google (0.4.17) uses Everborn's own sign-in app (server/oauth-signin.js,
+// server/oauth-clients.json) instead of one the person makes. Its first sign-in asks only for
+// Calendar events, Drive files Meldmind makes or the person picks (drive.file), and sending email
+// (gmail.send). Reading the inbox (gmail.readonly) is a separate, later "Read my inbox" sign-in.
+// The person's own client stays under Advanced. `via` records which client a token came from,
+// so a refresh uses the same one.
 import crypto from "node:crypto";
+import { shippedClient } from "./oauth-signin.js";
 import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
@@ -29,16 +37,35 @@ export const SCOPES = {
   drive: "https://www.googleapis.com/auth/drive.readonly",
   send: "https://www.googleapis.com/auth/gmail.send",
   calendar: "https://www.googleapis.com/auth/calendar.events",
+  driveFile: "https://www.googleapis.com/auth/drive.file",
+  compose: "https://www.googleapis.com/auth/gmail.compose",
 };
-export const SCOPE_LABEL = { gmail: "read Gmail", drive: "read Google Drive", send: "send email (asks you every time)", calendar: "Google Calendar events" };
+export const SCOPE_LABEL = { gmail: "read Gmail", drive: "read Google Drive", send: "send email (asks you every time)", calendar: "Google Calendar events", driveFile: "Drive files Meldmind makes or you pick", compose: "Gmail drafts" };
+// What each one-click step asks for. gmail.readonly and gmail.compose are restricted scopes at
+// Google, so the first sign-in leaves them out. Compose is not asked for at all today: nothing
+// in Meldmind writes Gmail drafts yet.
+export const ONE_CLICK = { first: ["calendar", "driveFile", "send"], inbox: ["gmail"] };
+const SCOPE_KEYS = Object.keys(SCOPES);
+export const IDENTITY = ["openid", "email", "profile"];
 const HARMLESS = new Set(["openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]);
 export const SETUP = "Google Cloud console: create an OAuth client of type Desktop app, enable the Gmail API, the Google Drive API, and the Google Calendar API, and paste its client ID and client secret here.";
 
 const fail = (status, msg, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
-const gdoc = () => doc(DOC, () => ({ clientId: null, scopes: [], connectedAt: null, needsSignIn: false }));
+const gdoc = () => doc(DOC, () => ({ clientId: null, scopes: [], connectedAt: null, needsSignIn: false, via: null }));
 const saveDoc = (d) => putDoc(DOC, d);
 const secret = () => getSecret(VAULT_ID) || null;
-const clientId = () => gdoc().clientId || (!HOSTED ? process.env.CC_GOOGLE_CLIENT_ID || "" : "") || null;
+const shipped = () => (HOSTED ? { clientId: "", clientSecret: null, ready: false } : shippedClient("google"));
+// The person's own client (Advanced): the id saved in Settings, or for developers the id in
+// CC_GOOGLE_CLIENT_ID with the secret saved in the vault, as before 0.4.17. The shipped id in
+// server/oauth-clients.json is only used by one-click sign-in.
+const envClientId = () => (!HOSTED ? String(process.env.CC_GOOGLE_CLIENT_ID || "").trim() : "");
+const clientId = () => gdoc().clientId || envClientId() || null;
+// The client a token request uses. "everborn" is the shipped sign-in app.
+function clientFor(via) {
+  if (via === "everborn") { const sh = shipped(); return { id: sh.clientId || null, secret: sh.clientSecret || null }; }
+  return { id: clientId(), secret: secret()?.clientSecret || null };
+}
+export function oneClickReady() { return shipped().ready; }
 
 // granted scopes as the short names gmail / drive / send / calendar.
 // No accountId (and no added account chosen as the default) keeps the original single-account token.
@@ -73,7 +100,8 @@ export function view() {
   const d = gdoc(), s = secret();
   const accounts = listAccounts("google");
   const def = accounts.find((a) => a.isDefault);
-  return { clientId: d.clientId || null, clientIdFromEnv: !d.clientId && !!clientId(), clientSecretSaved: !!s?.clientSecret, connected: connected(def?.id), scopes: granted(def?.id).map((k) => ({ id: k, label: SCOPE_LABEL[k] })), connectedAt: def?.connectedAt || d.connectedAt || null, needsSignIn: def ? !!def.needsSignIn : !!d.needsSignIn, accounts, setup: SETUP, consoleUrl: "https://console.cloud.google.com/apis/credentials" };
+  const sh = shipped();
+  return { via: d.via || null, oneClick: { ready: sh.ready, first: ONE_CLICK.first.map((k) => ({ id: k, label: SCOPE_LABEL[k] })), inbox: ONE_CLICK.inbox.map((k) => ({ id: k, label: SCOPE_LABEL[k] })), inboxGranted: granted(def?.id).includes("gmail") }, clientId: d.clientId || null, clientIdFromEnv: !d.clientId && !!envClientId(), clientSecretSaved: !!s?.clientSecret, connected: connected(def?.id), scopes: granted(def?.id).map((k) => ({ id: k, label: SCOPE_LABEL[k] })), connectedAt: def?.connectedAt || d.connectedAt || null, needsSignIn: def ? !!def.needsSignIn : !!d.needsSignIn, accounts, setup: SETUP, consoleUrl: "https://console.cloud.google.com/apis/credentials" };
 }
 
 export async function setClient({ clientId: id, clientSecret } = {}) {
@@ -95,9 +123,12 @@ const pending = new Map(); // state -> { verifier, redirectUri, scopes, user, at
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 const b64url = (b) => Buffer.from(b).toString("base64url");
 
-export function start({ want = {}, redirectUri, accountId, keep = false } = {}) {
-  const id = clientId();
+export function start({ want = {}, redirectUri, accountId, keep = false, via = null } = {}) {
+  const useVia = via === "everborn" ? "everborn" : null;
+  const id = useVia ? (shipped().ready ? shipped().clientId : "") : clientId();
+  if (!id && useVia) throw fail(400, "One-click Sign in with Google is coming soon. For now you can use your own Google sign-in app under Advanced.", { code: "coming_soon" });
   if (!id) throw fail(400, `Add your Google OAuth client ID first. ${SETUP}`, { code: "client_id" });
+  if (useVia && accountId && accountId !== "google") throw fail(400, "One-click sign-in is for your main Google account. Add other accounts under Advanced.");
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
   let extraId = null;
   if (accountId && accountId !== "google") {
@@ -105,20 +136,24 @@ export function start({ want = {}, redirectUri, accountId, keep = false } = {}) 
     if (!a) throw fail(404, "That Google account is not in the list.");
     extraId = a.id;
   }
-  const asked = new Set(["gmail", "drive", "send", "calendar"].filter((k) => want[k]));
+  const asked = new Set(SCOPE_KEYS.filter((k) => want[k]));
   if (keep) for (const k of granted(extraId)) asked.add(k);
-  const keys = ["gmail", "drive", "send", "calendar"].filter((k) => asked.has(k));
+  const keys = SCOPE_KEYS.filter((k) => asked.has(k));
   if (!keys.length) throw fail(400, "Pick at least one: read Gmail, read Google Drive, send email, or Google Calendar.");
   for (const [k, p] of pending) if (Date.now() - p.at > 10 * 60 * 1000 || p.user === userId()) pending.delete(k);
   const verifier = b64url(crypto.randomBytes(48));
   const state = "bh-" + b64url(crypto.randomBytes(24));
   const scopes = keys.map((k) => SCOPES[k]);
-  pending.set(state, { verifier, redirectUri, scopes, user: userId(), at: Date.now(), accountId: extraId });
+  pending.set(state, { verifier, redirectUri, scopes, user: userId(), at: Date.now(), accountId: extraId, via: useVia });
+  // One-click also asks for the basic sign-in scopes (openid, email, profile), so Google shows
+  // which account is signed in. They give no access to mail, files, or the calendar.
+  const askScopes = useVia ? [...IDENTITY, ...scopes] : scopes;
   const u = new URL(authUrl());
   u.searchParams.set("response_type", "code"); u.searchParams.set("client_id", id); u.searchParams.set("redirect_uri", redirectUri);
-  u.searchParams.set("scope", scopes.join(" ")); u.searchParams.set("code_challenge", b64url(crypto.createHash("sha256").update(verifier).digest()));
+  u.searchParams.set("scope", askScopes.join(" ")); u.searchParams.set("code_challenge", b64url(crypto.createHash("sha256").update(verifier).digest()));
   u.searchParams.set("code_challenge_method", "S256"); u.searchParams.set("state", state);
   u.searchParams.set("access_type", "offline"); u.searchParams.set("prompt", "consent");
+  if (keep) u.searchParams.set("include_granted_scopes", "true");
   return { url: u.toString(), state, scopes };
 }
 
@@ -130,9 +165,9 @@ function netReason(e) {
   return "network error";
 }
 
-async function tokenRequest(form) {
-  const s = secret();
-  const body = new URLSearchParams({ ...form, client_id: clientId(), ...(s?.clientSecret ? { client_secret: s.clientSecret } : {}) });
+async function tokenRequest(form, via = gdoc().via) {
+  const c = clientFor(via);
+  const body = new URLSearchParams({ ...form, client_id: c.id || "", ...(c.secret ? { client_secret: c.secret } : {}) });
   let r;
   try { r = await localFetch(tokenUrl(), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body: body.toString(), signal: AbortSignal.timeout(12000) }); }
   catch (e) { throw fail(502, `Could not reach Google sign-in: ${netReason(e)}`, { network: true }); }
@@ -147,15 +182,15 @@ export async function finish({ code, state } = {}) {
   if (HOSTED && p.user !== userId()) throw fail(403, "This sign-in belongs to another account.");
   pending.delete(state);
   if (!code) throw fail(400, "No code came back from the sign-in.");
-  const tok = await tokenRequest({ grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, code_verifier: p.verifier });
+  const tok = await tokenRequest({ grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, code_verifier: p.verifier }, p.via);
   const got = String(tok.scope || p.scopes.join(" ")).split(/\s+/).filter(Boolean);
   const extra = got.filter((x) => !p.scopes.includes(x) && !HARMLESS.has(x));
   if (extra.length) throw fail(400, "The sign-in granted more than the helper asked for (for example full Gmail or Drive access). Nothing was saved; check the OAuth client's scopes.", { code: "scope" });
   const scopes = got.filter((x) => Object.values(SCOPES).includes(x));
   const expiresAt = tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null;
   const slots = [];
-  if (scopes.includes(SCOPES.gmail) || scopes.includes(SCOPES.send)) slots.push("gmail");
-  if (scopes.includes(SCOPES.drive)) slots.push("drive");
+  if (scopes.includes(SCOPES.gmail) || scopes.includes(SCOPES.send) || scopes.includes(SCOPES.compose)) slots.push("gmail");
+  if (scopes.includes(SCOPES.drive) || scopes.includes(SCOPES.driveFile)) slots.push("drive");
   if (scopes.includes(SCOPES.calendar)) slots.push("calendar");
   await assertServiceSlots(slots);
   if (p.accountId) {
@@ -169,7 +204,7 @@ export async function finish({ code, state } = {}) {
   }
   const cur = secret() || {};
   await setSecret(VAULT_ID, { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || null, expiresAt });
-  const d = gdoc(); d.scopes = scopes; d.connectedAt = Date.now(); d.needsSignIn = false; saveDoc(d);
+  const d = gdoc(); d.scopes = scopes; d.connectedAt = Date.now(); d.needsSignIn = false; d.via = p.via || null; saveDoc(d);
   emit("log", { text: `Google connected for the browser helper (${granted().map((k) => SCOPE_LABEL[k]).join(", ")}). The token is in the vault.` });
   return view();
 }
@@ -177,7 +212,7 @@ export async function finish({ code, state } = {}) {
 export async function disconnect() {
   const cur = secret();
   await setSecret(VAULT_ID, cur?.clientSecret ? { key: "oauth", clientSecret: cur.clientSecret } : null);
-  const d = gdoc(); d.scopes = []; d.connectedAt = null; d.needsSignIn = false; saveDoc(d);
+  const d = gdoc(); d.scopes = []; d.connectedAt = null; d.needsSignIn = false; d.via = null; saveDoc(d);
   emit("log", { text: "Google disconnected from the browser helper; its tokens were removed from the vault." });
   return view();
 }
@@ -195,7 +230,7 @@ async function accessToken(accountId) {
     if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
       if (!s.refresh) { markAccount(extra.id, { needsSignIn: true }); throw fail(409, `The Google sign-in for "${extra.label}" expired. Connect it again.`, { code: "sign_in" }); }
       try {
-        const tok = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refresh });
+        const tok = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refresh }, null);
         await setSecret(extra.vaultId, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || s.refresh, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
         return tok.access_token;
       } catch (e) { if (e.network) throw e; markAccount(extra.id, { needsSignIn: true }); throw fail(409, `The Google sign-in for "${extra.label}" expired (${e.message}). Connect it again.`, { code: "sign_in" }); }
@@ -227,7 +262,8 @@ async function call(url, { method = "GET", body, raw = false } = {}, accountId) 
   return raw ? (await r.text()) : r.json();
 }
 
-const need = (k, accountId) => { if (!granted(accountId).includes(k)) throw fail(403, `The Google sign-in does not include "${SCOPE_LABEL[k]}". Connect again with it ticked.`, { code: "scope" }); };
+const ALSO = { drive: ["driveFile"], send: ["compose"] };
+const need = (k, accountId) => { const g = granted(accountId); if (!g.includes(k) && !(ALSO[k] || []).some((x) => g.includes(x))) throw fail(403, `The Google sign-in does not include "${SCOPE_LABEL[k]}". Connect again with it ticked.`, { code: "scope" }); };
 const header = (payload, name) => (payload?.headers || []).find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
 const dec = (s) => Buffer.from(String(s || ""), "base64url").toString("utf8");
 function bodyText(payload) {
@@ -358,7 +394,8 @@ export function calendarStatus() {
     connected: canCalendar(),
     canSend: canSend(),
     scopes: v.scopes,
-    clientReady: !!(v.clientId || v.clientIdFromEnv) && !!v.clientSecretSaved,
+    clientReady: (!!(v.clientId || v.clientIdFromEnv) && !!v.clientSecretSaved) || !!v.oneClick?.ready,
+    oneClick: !!v.oneClick?.ready,
     needsSignIn: !!v.needsSignIn,
   };
 }

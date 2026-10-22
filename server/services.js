@@ -19,6 +19,7 @@ import { emit } from "./events.js";
 import { subscriptionView, totals as subTotals, saveSubscription, deleteSubscription, loadSubscriptions } from "./subscriptions.js";
 import { parseReceipt, htmlToText, vendorOf, LOW_CONFIDENCE, HIGH_CONFIDENCE } from "./receipts.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
+import { shippedClient } from "./oauth-signin.js";
 import { ADAPTERS, NO_API, NO_INFO_HINT, liveHint, cachedLive, estimateCredits, budgetFor, clearCache } from "./provider-balance.js";
 import { trackedView, guideFor, parseBalanceEmail, applyBalanceEmail } from "./credit-tracker.js";
 
@@ -297,13 +298,21 @@ export async function setMailClient(src, { clientId, clientSecret } = {}) {
   return mailView();
 }
 
-const oauthPending = new Map(); // state -> { src, verifier, redirectUri, user, at, accountId }
+const oauthPending = new Map(); // state -> { src, verifier, redirectUri, user, at, accountId, via }
+// "Read my inbox" for Outlook can use Everborn's own Microsoft sign-in app (one-click, 0.4.17).
+// It is a public client, so no secret. via "everborn" is remembered so a refresh uses it too.
+const shippedMs = () => (HOSTED ? { clientId: "", ready: false } : shippedClient("microsoft"));
+const clientFor = (src, via) => (via === "everborn" && src === "outlook" ? shippedMs().clientId || null : clientIdOf(src));
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const userId = () => { try { return ctx().userId; } catch { return null; } };
 
-export function mailStart(src, { redirectUri, accountId } = {}) {
+export function mailStart(src, { redirectUri, accountId, via = null } = {}) {
   const M = srcOk(src);
-  const clientId = clientIdOf(src);
+  const useVia = via === "everborn" && src === "outlook" ? "everborn" : null;
+  if (via === "everborn" && !useVia) throw fail(400, "One-click mail reading is for Outlook here. Gmail reading uses Sign in with Google.");
+  if (useVia && accountId) throw fail(400, "One-click sign-in is for your main mailbox. Add other accounts under Advanced.");
+  const clientId = clientFor(src, useVia);
+  if (!clientId && useVia) throw fail(400, "One-click Sign in with Microsoft is coming soon. For now you can use your own Microsoft sign-in app under Advanced.", { code: "coming_soon" });
   if (!clientId) throw fail(400, `Add your ${M.name} OAuth client ID first. ${M.setup}`, { code: "client_id" });
   if (!/^https?:\/\/[^\s]+$/.test(String(redirectUri || ""))) throw fail(400, "redirectUri required");
   let extraId = null;
@@ -316,7 +325,7 @@ export function mailStart(src, { redirectUri, accountId } = {}) {
   const verifier = b64url(crypto.randomBytes(48));
   const challenge = b64url(crypto.createHash("sha256").update(verifier).digest());
   const state = "mail-" + b64url(crypto.randomBytes(24));
-  oauthPending.set(state, { src, verifier, redirectUri, user: userId(), at: Date.now(), accountId: extraId });
+  oauthPending.set(state, { src, verifier, redirectUri, user: userId(), at: Date.now(), accountId: extraId, via: useVia });
   const u = new URL(M.authUrl());
   u.searchParams.set("response_type", "code"); u.searchParams.set("client_id", clientId); u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("scope", M.scopes.join(" ")); u.searchParams.set("code_challenge", challenge); u.searchParams.set("code_challenge_method", "S256"); u.searchParams.set("state", state);
@@ -324,10 +333,10 @@ export function mailStart(src, { redirectUri, accountId } = {}) {
   return { url: u.toString(), state, source: src, scopes: [...M.scopes] };
 }
 
-async function tokenRequest(src, form) {
+async function tokenRequest(src, form, via = null) {
   const M = MAIL[src];
-  const sec = mailSecret(src);
-  const body = new URLSearchParams({ ...form, client_id: clientIdOf(src), ...(sec?.clientSecret ? { client_secret: sec.clientSecret } : {}), ...(M.sendScopeOnToken ? { scope: M.scopes.join(" ") } : {}) });
+  const sec = via === "everborn" ? null : mailSecret(src);
+  const body = new URLSearchParams({ ...form, client_id: clientFor(src, via), ...(sec?.clientSecret ? { client_secret: sec.clientSecret } : {}), ...(M.sendScopeOnToken ? { scope: M.scopes.join(" ") } : {}) });
   let r;
   try { r = await fetch(M.tokenUrl(), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body: body.toString(), signal: AbortSignal.timeout(12000) }); }
   catch (e) { throw new ServiceError(`Could not reach ${new URL(M.tokenUrl()).host}: ${networkCause(e)}`, { network: true }); }
@@ -335,8 +344,9 @@ async function tokenRequest(src, form) {
   if (!r.ok || !j?.access_token) throw new ServiceError(`${M.name} sign-in failed${j?.error_description || j?.error ? `: ${String(j.error_description || j.error).slice(0, 160)}` : ` (HTTP ${r.status})`}`, { status: r.status >= 500 ? 502 : 400, rejected: r.status === 400 || r.status === 401 });
   return j;
 }
-async function storeTokens(src, tok) {
+async function storeTokens(src, tok, via) {
   const cur = mailSecret(src) || {};
+  if (via !== undefined) { const d = mailDoc(); d[src] = { ...d[src], via: via || null }; saveMail(d); }
   await setSecret(mailSecretId(src), { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || cur.refresh || null, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
 }
 
@@ -346,8 +356,11 @@ export async function mailFinish({ code, state }) {
   if (HOSTED && p.user !== userId()) throw fail(403, "This sign-in belongs to another account.");
   oauthPending.delete(state);
   if (!code) throw fail(400, "No code came back from the sign-in.");
-  const tok = await tokenRequest(p.src, { grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, code_verifier: p.verifier });
-  if (tok.scope && /mail\.(readwrite|send)|gmail\.(modify|send|compose|insert)|https:\/\/mail\.google\.com\/(\s|$)/i.test(tok.scope)) {
+  const tok = await tokenRequest(p.src, { grant_type: "authorization_code", code: String(code), redirect_uri: p.redirectUri, code_verifier: p.verifier }, p.via);
+  // With the one-click app Microsoft also lists Mail.Send from the first sign-in, which is
+  // allowed there. Mail.ReadWrite is never allowed.
+  if (tok.scope && p.via === "everborn" && /mail\.readwrite/i.test(tok.scope)) throw fail(400, "The sign-in granted more than read-only mail access. Nothing was saved.");
+  if (tok.scope && p.via !== "everborn" && /mail\.(readwrite|send)|gmail\.(modify|send|compose|insert)|https:\/\/mail\.google\.com\/(\s|$)/i.test(tok.scope)) {
     throw fail(400, "The sign-in granted more than read-only mail access. Nothing was saved; check the OAuth client's scopes.");
   }
   if (p.src === "outlook") {
@@ -362,7 +375,7 @@ export async function mailFinish({ code, state }) {
     emit("log", { text: `${MAIL[p.src].name} account "${a.label}" connected read-only for receipt scanning. Its token is in the vault.` });
     return { ok: true, source: p.src, accountId: a.id };
   }
-  await storeTokens(p.src, tok);
+  await storeTokens(p.src, tok, p.via || null);
   const d = mailDoc(); d[p.src] = { ...d[p.src], connectedAt: Date.now(), needsSignIn: false }; saveMail(d);
   emit("log", { text: `${MAIL[p.src].name} connected read-only for receipt scanning; its token is in the vault.` });
   return { ok: true, source: p.src };
@@ -396,7 +409,7 @@ async function accessToken(src, accountId) {
   if (!s?.access) throw fail(400, `${MAIL[src].name} is not connected. Connect it first.`, { code: "not_connected" });
   if (s.expiresAt && s.expiresAt - Date.now() < 60000) {
     if (!s.refresh) { markSignIn(src); throw fail(409, `${MAIL[src].name} sign-in expired. Connect it again.`, { code: "sign_in" }); }
-    try { const tok = await tokenRequest(src, { grant_type: "refresh_token", refresh_token: s.refresh }); await storeTokens(src, tok); return tok.access_token; }
+    try { const via = mailDoc()[src].via || null; const tok = await tokenRequest(src, { grant_type: "refresh_token", refresh_token: s.refresh }, via); await storeTokens(src, tok); return tok.access_token; }
     catch (e) { if (e.network) throw e; markSignIn(src); throw fail(409, `${MAIL[src].name} sign-in expired (${e.message}). Connect it again.`, { code: "sign_in" }); }
   }
   return s.access;
@@ -638,7 +651,7 @@ export function mailView() {
   const out = { pending: d.pending, demoScan: d.demoScan || null, lowConfidence: LOW_CONFIDENCE, highConfidence: HIGH_CONFIDENCE, autoDismissed: Object.keys(d.autoDismissed), autoRescanAt: d.autoRescanAt || null };
   for (const src of MAIL_SOURCES) {
     const M = MAIL[src], s = mailSecret(src), row = d[src];
-    out[src] = { name: M.name, scopes: [...M.scopes], readOnly: true, clientId: clientIdOf(src), clientIdFromEnv: !row.clientId && !!clientIdOf(src), hasClientSecret: !!s?.clientSecret, connected: !!s?.access, needsSignIn: !!row.needsSignIn, connectedAt: row.connectedAt || null, lastScanAt: row.lastScanAt || null, lastScan: row.lastScan || null, accounts: listAccounts(src), setup: M.setup, consoleUrl: M.consoleUrl };
+    out[src] = { name: M.name, via: row.via || null, oneClick: src === "outlook" ? shippedMs().ready : false, scopes: [...M.scopes], readOnly: true, clientId: clientIdOf(src), clientIdFromEnv: !row.clientId && !!clientIdOf(src), hasClientSecret: !!s?.clientSecret, connected: !!s?.access, needsSignIn: !!row.needsSignIn, connectedAt: row.connectedAt || null, lastScanAt: row.lastScanAt || null, lastScan: row.lastScan || null, accounts: listAccounts(src), setup: M.setup, consoleUrl: M.consoleUrl };
   }
   return out;
 }

@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { prepareOAuthSecret } from "./inject-oauth-secret.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DEFAULTS_FILE = path.join(ROOT, "server", "cloud-defaults.json");
@@ -90,6 +91,11 @@ function runBuild(builderArgs) {
   } else if (unpublishedPack()) {
     console.log("Unpublished package: no publishable key was written. Do not publish this installer.");
   }
+  // One-click Sign in with Google: the desktop client secret, same pattern, never printed.
+  let oauth;
+  try { oauth = prepareOAuthSecret(); }
+  catch (e) { prepared.restore(); console.error("The Google sign-in secret could not be prepared."); return 1; }
+  console.log(oauth.message);
   let status = 1;
   try {
     const require = createRequire(import.meta.url);
@@ -97,6 +103,11 @@ function runBuild(builderArgs) {
     const child = spawnSync(process.execPath, [bin, ...builderArgs], { stdio: "inherit", env: process.env });
     status = child.status ?? 1;
   } finally {
+    try { oauth.restore(); }
+    catch (e) {
+      console.error("The Google sign-in secret could not be cleared from server/oauth-clients.json. Do not commit that file.");
+      status = 1;
+    }
     try { prepared.restore(); }
     catch (e) {
       console.error("The publishable key could not be cleared from server/cloud-defaults.json. Do not commit that file.");
