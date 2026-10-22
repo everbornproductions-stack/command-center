@@ -1,7 +1,9 @@
-// Every button that calls the server shows it is working: a spinner, "Working..." (or
-// "Searching..." for Find and Search buttons), and it is disabled until the call ends.
-// api() in app.js calls trackBusy for any request that starts inside a click, so
-// handlers do not need to opt in. withBusy is the explicit form for longer jobs.
+// Buttons that call the server. api() in app.js calls trackBusy for any request that
+// starts inside a click: the button is disabled at once (no double submits) and keeps its
+// own label. Only a slow call (over SPINNER_DELAY_MS) adds a small spinner. No "Done" flash.
+// Page buttons (top tabs, nav menus, mobile nav) are never marked: switching pages is not
+// a job (Chris, 2026-10-21: the Working.../Done swap on the top menu felt clunky).
+// withBusy is the explicit form for long jobs: spinner plus "Working..." or "Searching...".
 export const WORKING = "Working...";
 export const SEARCHING = "Searching...";
 export const DONE = "Done";
@@ -44,8 +46,8 @@ export function setBusy(btn, on, label) {
   btn.removeAttribute("aria-busy");
 }
 
-// A short "Done" on the button when the click ended without any other visible answer
-// (no toast, and the button was not re-rendered away). No button looks like it did nothing.
+// A short "Done" on a button. Not used automatically any more; available for a button
+// whose result is otherwise invisible.
 export function flashDone(btn, ms = 1200) {
   if (!btn || !btn.isConnected || state.get(btn)) return;
   const html = btn.innerHTML;
@@ -75,13 +77,57 @@ export function installClickTracking(doc = document) {
 }
 export const clickedButton = () => clicked?.btn || null;
 
-// Wrap one request started by a click: busy while it runs, "Done" if nothing else showed.
-export function trackBusy(promise) {
+// Page buttons: anything that only switches the view. Never marked busy.
+const NAV_PARENTS = "#tabs, .tabs, .nav-menu, #mobile-nav, #mobile-more, [role=tablist]";
+export function isNavButton(btn) {
+  if (!btn) return false;
+  const d = btn.dataset || {};
+  if (d.view !== undefined || d.day !== undefined || d.noBusy !== undefined) return true;
+  if (btn.getAttribute?.("role") === "tab") return true;
+  return !!btn.parentElement?.closest?.(NAV_PARENTS);
+}
+
+export const SPINNER_DELAY_MS = 500;
+const held = new WeakMap();
+
+// Disable now, label untouched; a spinner joins the label only if the call is slow.
+function hold(btn, on, delay = SPINNER_DELAY_MS) {
+  const h = held.get(btn) || { count: 0 };
+  if (on) {
+    if (h.count === 0) {
+      h.disabled = btn.disabled;
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      h.timer = setTimeout(() => {
+        if (!btn.isConnected || !held.get(btn)) return;
+        h.html = btn.innerHTML;
+        h.shown = true;
+        btn.classList.add("busy");
+        btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>${h.html}`;
+      }, delay);
+    }
+    h.count += 1;
+    held.set(btn, h);
+    return;
+  }
+  if (!h.count) return;
+  h.count -= 1;
+  if (h.count) return;
+  clearTimeout(h.timer);
+  held.delete(btn);
+  if (!btn.isConnected) return;
+  if (h.shown) { btn.innerHTML = h.html; btn.classList.remove("busy"); }
+  btn.disabled = !!h.disabled;
+  btn.removeAttribute("aria-busy");
+}
+
+// Wrap one request started by a click. Page buttons and buttons already in withBusy are left alone.
+export function trackBusy(promise, delay = SPINNER_DELAY_MS) {
   const c = clicked;
-  if (!c) return promise;
-  setBusy(c.btn, true);
+  if (!c || isNavButton(c.btn) || state.get(c.btn)) return promise;
+  hold(c.btn, true, delay);
   return promise.then(
-    (v) => { setBusy(c.btn, false); setTimeout(() => { if (toasts === c.toasts) flashDone(c.btn); }, 400); return v; },
-    (e) => { setBusy(c.btn, false); throw e; },
+    (v) => { hold(c.btn, false); return v; },
+    (e) => { hold(c.btn, false); throw e; },
   );
 }

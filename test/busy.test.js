@@ -1,10 +1,11 @@
-// Every button that calls the server shows it is working, then a result (web/busy.js).
+// Buttons that call the server: disabled while the call runs, a spinner only when slow,
+// and page buttons are never touched (web/busy.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { busyLabel, setBusy, withBusy, flashDone, trackBusy, installClickTracking, noteToast, WORKING, SEARCHING, DONE } from "../web/busy.js";
+import { busyLabel, setBusy, withBusy, flashDone, trackBusy, installClickTracking, noteToast, isNavButton, WORKING, SEARCHING, DONE } from "../web/busy.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Windows checkouts use CRLF; the source checks below match "\n".
@@ -67,25 +68,62 @@ test("flashDone: a quiet success shows Done on the button", async () => {
   assert.equal(b.innerHTML, "Apply");
 });
 
-test("trackBusy: a request started inside a click marks that button busy", async () => {
+test("trackBusy: a click's request disables the button and keeps its label; no Done flash", async () => {
   let handler;
   installClickTracking({ addEventListener: (_t, fn) => { handler = fn; } });
   const b = fakeButton("Run");
   let release;
-  let seen;
   handler({ target: b });
   const p = trackBusy(new Promise((r) => { release = r; }));
-  seen = b.disabled;
-  noteToast();
+  assert.equal(b.disabled, true);
+  assert.equal(b.innerHTML, "Run", "a fast call never changes the label");
   release("ok");
   assert.equal(await p, "ok");
-  assert.equal(seen, true);
   assert.equal(b.disabled, false);
+  assert.equal(b.innerHTML, "Run");
+  await new Promise((r) => setTimeout(r, 600));
+  assert.equal(b.innerHTML, "Run", "no Done flash afterwards");
+  assert.equal(b.classList.contains("done"), false);
   // outside a click nothing is touched
-  await new Promise((r) => setTimeout(r, 5));
   const other = fakeButton("Idle");
   await trackBusy(Promise.resolve(1));
   assert.equal(other.disabled, false);
+});
+
+test("trackBusy: a slow call adds a spinner in front of the button's own label, then restores it", async () => {
+  let handler;
+  installClickTracking({ addEventListener: (_t, fn) => { handler = fn; } });
+  const b = fakeButton("Save");
+  let release;
+  handler({ target: b });
+  const p = trackBusy(new Promise((r) => { release = r; }), 30);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.match(b.innerHTML, /^<span class="spinner"[^>]*><\/span>Save$/);
+  assert.equal(b.classList.contains("busy"), true);
+  release(1);
+  await p;
+  assert.equal(b.innerHTML, "Save");
+  assert.equal(b.classList.contains("busy"), false);
+  assert.equal(b.disabled, false);
+});
+
+test("trackBusy: page buttons (top tabs, nav menus, mobile nav) are never marked", async () => {
+  let handler;
+  installClickTracking({ addEventListener: (_t, fn) => { handler = fn; } });
+  const tab = fakeButton("Projects", { view: "projects" });
+  assert.equal(isNavButton(tab), true);
+  const inMenu = { ...fakeButton("Open"), parentElement: { closest: (sel) => (/#tabs/.test(sel) ? {} : null) } };
+  assert.equal(isNavButton(inMenu), true);
+  assert.equal(isNavButton(fakeButton("Save")), false);
+  let release;
+  handler({ target: tab });
+  const p = trackBusy(new Promise((r) => { release = r; }), 10);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(tab.disabled, false);
+  assert.equal(tab.innerHTML, "Projects");
+  release(1);
+  await p;
+  assert.equal(tab.innerHTML, "Projects");
 });
 
 test("app-wide: api() goes through trackBusy, toasts are counted, the click tracker is installed", () => {
