@@ -24,3 +24,9 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 ## 2026-10-21: The site pins version numbers
 
 - www.everbornproductions.com/meldmind/ shows the version and links the Mac .dmg files by version-numbered name under releases/latest/download. Those links break when a newer release becomes Latest. Update the page with every release (or switch to version-free links). The page source was not found in git; it is deployed by zip upload to the Cloudflare Pages project everbornproductions.
+
+## 2026-10-21: [skip ci] at the head of a PR or in a squash message skips everything (0.4.14)
+
+- What happened: PR #117 started no check because its head commit said [skip ci]. After the squash-merge, main CI and the v0.4.14 tag push started nothing, because the squash message repeated the [skip ci] lines of the PR's commits. GitHub applies the marker to tag pushes too.
+- Rule: mark only intermediate commits [skip ci]. The last commit on a PR must not have it. Squash-merge with an explicit message that has no [skip ci] (`gh pr merge N --squash --subject "..." --body "..."`).
+- Fix if it happens: start "Windows release" and "Mac CI" by hand on the tag (`gh workflow run release-windows.yml --ref vX.Y.Z`, same for mac-ci.yml). That publishes exactly the same way, with no new commit and no tag move.
