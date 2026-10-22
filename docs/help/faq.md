@@ -9,7 +9,7 @@ lastUpdatedVersion: 0.4.3
 
 ## Where do I start?
 
-Open the chat box and say what you want. In Simple, the council picks the AI. Help is on the bar in Simple and in the Settings menu in Expert.
+Open the chat box and say what you want. In Simple, Meldmind picks one AI and says which one answered. A council needs two AI companies, or one OpenRouter key. Help is on the bar in Simple and in the Settings menu in Expert.
 
 ## Which AIs show under the chat?
 

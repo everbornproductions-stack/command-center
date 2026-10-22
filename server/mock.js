@@ -5,6 +5,7 @@ import http from "node:http";
 import { PROVIDERS, TEXT_PROVIDERS } from "./registry.js";
 import { setSecret, hasSecret } from "./vault.js";
 import { HOSTED } from "./store.js";
+import { practiceAnswer, practiceDisagreement, practiceVerdict } from "./demo-answers.js";
 
 // Loopback port for the pretend providers: main port + 52 (4799 when the app runs on 4747).
 const PORT = Number(process.env.CC_DEMO_PORT || Number(process.env.PORT || process.env.CC_PORT || 4747) + 52);
@@ -23,7 +24,6 @@ function caps(seed) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const pick = (arr, i) => arr[i % arr.length];
 
 // Which tool (if any) the pretend AI calls for these orders. Only when the caller offered tools and the
 // orders (or the mission goal in the system prompt) mention time, counting, notes or "tool".
@@ -161,7 +161,13 @@ function answerFor(model, system, user, messages = []) {
   if (/Meldmind group chat persona:/.test(sys)) {
     const persona = (sys.match(/persona: ([a-z]+)/) || [])[1] || "chat";
     const crisis = persona === "support" ? " I am not a licensed therapist. If you are in crisis, call or text 988." : "";
-    return JSON.stringify({ replies: [`${persona}: first take.${crisis}`, `${persona}: second take.`, `${persona}: third take.`] });
+    const takes = {
+      fun: ["Okay, that is a great question. Short version: try the simple thing first.", "Bonus points if you make it a weekend project.", "Report back, I want to know how it goes."],
+      technical: ["Two things to check first: what changed last, and whether it fails every time.", "If it is every time, it is config. If it is sometimes, it is timing.", "Write down the exact error text before you change anything."],
+      coach: ["Pick one small step you can finish today.", "What would make tomorrow easier? Do that first.", "You do not need the whole plan yet, just the next move."],
+      support: ["That sounds like a lot to carry. You do not have to sort it all out at once.", "Is there one person you trust that you could tell today?", "Small things count: water, food, a short walk."],
+    }[persona] || ["Good point.", "Here is another way to look at it.", "Try the smallest version first."];
+    return JSON.stringify({ replies: takes.map((t, i) => (i === 0 ? `${t}${crisis}` : t)) });
   }
   // Test with personas: each persona on the panel reacts and suggests one fix; Apply marks what changed
   if (/^Meldmind persona test:/.test(sys)) {
@@ -211,26 +217,23 @@ function answerFor(model, system, user, messages = []) {
     { id: "t4", title: "Schedule and checklist", capability: "analysis", difficulty: 1, needWeb: false, deps: ["t2", "t3"], instructions: "Turn the pieces into a dated schedule with a go-live checklist.", deliverable: "Schedule table" },
     ...demoMediaTask(u),
   ], assembly: "One document: audience, hooks, copy, schedule." });
-  if (/strict judge/.test(sys)) { const letters = [...u.matchAll(/### Answer ([A-J])/g)].map((m) => m[1]); const scores = {}; letters.forEach((l, i) => { scores[l] = 6 + ((l.charCodeAt(0) + model.length + i) % 4); }); const best = letters.sort((a, b) => scores[b] - scores[a])[0]; return JSON.stringify({ scores, best, notes: Object.fromEntries(letters.map((l) => [l, "demo note"])), disagreement: "Answers differ on how aggressive the hook should be." }); }
+  if (/strict judge/.test(sys)) { const letters = [...u.matchAll(/### Answer ([A-J])/g)].map((m) => m[1]); const scores = {}; letters.forEach((l, i) => { scores[l] = 6 + ((l.charCodeAt(0) + model.length + i) % 4); }); const best = letters.sort((a, b) => scores[b] - scores[a])[0]; const noteFor = (l) => ["Warm and complete, a little long.", "Clear structure, easy to act on.", "Short and plain, could say more."][(l.charCodeAt(0) - 65) % 3]; return JSON.stringify({ scores, best, notes: Object.fromEntries(letters.map((l) => [l, noteFor(l)])), disagreement: practiceDisagreement(u) }); }
   if (/You QA another AI/.test(sys)) return JSON.stringify({ pass: model !== "sage-mini", score: 8, issues: model === "sage-mini" ? ["missing a call to action"] : [], fix: model === "sage-mini" ? "Add a one-line call to action at the end." : null });
   if (u.includes("LIBRARY EXCERPTS")) { const lib = demoLibraryAnswer(model, u); if (lib) return lib; }
-  const topic = u.replace(/^(QUESTION|TASK|GOAL):\s*/i, "").split("\n")[0].slice(0, 70);
   // custom agents (Phase 19): the pretend AI says which agent it is playing, so instructions can be seen arriving
   const custom = sys.match(/^You are the custom agent "([^"\n]{1,80})"/)?.[1];
   // AI employees (0.4.14): the pretend AI says which employee it is playing
   const employee = sys.match(/^You are the AI employee "([^"\n]{1,80})"/)?.[1];
   // project memory (Phase 3): the pretend AI says so when the project's voice and never-say list arrived
   const memory = u.match(/PROJECT MEMORY for ([^\n]{1,80}?) \(follow this/)?.[1];
-  const paras = [
+  const lead = [
     ...(custom ? [`*Speaking as your custom agent **${custom}**.*`] : []),
     ...(employee ? [`*Working as your AI employee **${employee}**.*`] : []),
     ...(memory ? [`*Following the project memory for **${memory}**.*`] : []),
-    `## ${topic}\n\nHere is how **${model}** would approach this. The demo AIs produce placeholder content so you can watch the console work without spending credits.`,
-    `- First, the goal is restated so nothing is lost.\n- Then the strongest angle is chosen (${pick(["clarity", "speed", "emotion", "proof"], model.length)}).\n- Finally, the deliverable is written in a form you can paste straight into the project.`,
-    `### Draft\n\n${pick(["Short hook. Clear promise. One call to action.", "Lead with the result, then the method, then the invitation.", "Open on a question the audience already asks itself."], model.length + 1)}\n\n| Step | Owner | When |\n|---|---|---|\n| Draft | ${model} | today |\n| Review | another AI | +1h |\n| Publish | you | tomorrow |`,
-    `*Demo mode: swap in real keys in Settings to get real answers.*`,
   ];
-  return paras.join("\n\n");
+  // Practice answers (0.4.17): short, task-shaped examples. Each pretend AI has its own style, so a council differs.
+  if (/You chair a council/.test(sys)) return [...lead, practiceVerdict(u, model)].join("\n\n");
+  return practiceAnswer(u, model, lead);
 }
 
 // Demo is per user: the pretend providers are registered once for the process, and a user "has"
