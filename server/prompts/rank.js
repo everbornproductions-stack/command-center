@@ -2,6 +2,7 @@
 // vote from looking perfect, and a small prior keeps a prompt with no votes
 // from sinking under everything else. The "New this week" badge lasts 7 days
 // from the Monday of added_week.
+import { rankSuggestions } from "./suggest.js";
 
 const PRIOR_UP = 2;
 const PRIOR_DOWN = 2;
@@ -76,15 +77,10 @@ export function rankPrompts(rows, now = Date.now()) {
   return ranked;
 }
 
-// Empty orders: the popular prompts. Typed orders: matching prompts, still
-// with the popular ones first when the words are close.
-export function suggestForOrders(text, prompts, limit = 4, now = Date.now()) {
-  const ranked = rankPrompts(prompts, now);
-  const words = String(text || "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-  if (!words.length) return ranked.slice(0, limit);
-  const hits = ranked.filter((row) => {
-    const blob = `${row.title || ""} ${row.name || ""} ${row.prompt || ""} ${row.category || ""} ${row.description || ""}`.toLowerCase();
-    return words.some((w) => blob.includes(w));
-  });
-  return (hits.length ? hits : ranked).slice(0, limit);
+// Suggestions for what is typed in the orders box (0.4.17). An empty box gets nothing, prompts are
+// ranked by how well they match the words and the intent (server/prompts/suggest.js), and votes or
+// "New this week" only break a tie. No match means no suggestions, never the popular list instead.
+// Before 0.4.17 an empty box showed the popular list, and "for" matched every prompt.
+export function suggestForOrders(text, prompts, limit = 6, now = Date.now()) {
+  return rankSuggestions(text, rankPrompts(prompts, now), { limit }).items;
 }

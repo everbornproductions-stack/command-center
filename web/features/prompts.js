@@ -2,6 +2,7 @@
 // A guessed prompt never stops the orders box.
 import { marketplacePacks, mountPromptBoard, voteBar } from "./prompt-board.js";
 import { detectApplied } from "./prompt-order.js";
+import { applySuggestion } from "../prompt-suggest.js";
 import { plainExplain, plainLabel } from "../plain.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
@@ -9,6 +10,7 @@ const S = () => window.CC.S;
 const NOTE = "Pre-built pro prompts, written by our team, so you get expert-level results without being a prompt expert.";
 let pack = null;
 let removedId = "";
+let removedFor = "";
 let timer = 0;
 
 function voiceReady() {
@@ -107,6 +109,8 @@ function paintChip() {
   row.querySelector("#pp-skip")?.addEventListener("click", () => sendWithoutIt());
   row.querySelector("#pp-chip-x")?.addEventListener("click", async () => {
     removedId = pack.id;
+    // 0.4.17: no chip comes straight back for the same words, whichever prompt it would be.
+    removedFor = (document.getElementById("orders")?.value || "").trim();
     pack.applied = false;
     window.CC.promptPack = { removed: true };
     try { await api("/prompts/dismiss", { method: "POST", body: { id: removedId } }); } catch { /* still remove the chip */ }
@@ -138,18 +142,27 @@ function packState() {
 }
 
 function publishPack() {
-  window.CC.promptPack = pack?.applied ? packState() : null;
+  if (pack?.applied || !window.CC.promptPack?.fromSuggest) window.CC.promptPack = pack?.applied ? packState() : null;
   if (window.CC.promptPack) window.CC.promptPack.halted = !!pack?.halted;
+  paintChip();
+}
+
+// A Pro prompt picked from the suggestions under the box (web/features/prompt-suggest.js) stays
+// until its own Undo. A detect that finds nothing does not clear it.
+function clearPack() {
+  pack = null;
+  if (!window.CC.promptPack?.fromSuggest) window.CC.promptPack = null;
   paintChip();
 }
 
 async function consider(text, keepApplied) {
   const value = String(text || "").trim();
-  if (!value) { pack = null; window.CC.promptPack = null; paintChip(); return; }
+  // 0.4.17: nothing is suggested until a few letters are typed.
+  if (value.length < 3 || value === removedFor) { clearPack(); return; }
   try {
     const r = await api("/prompts/detect", { method: "POST", body: { text: value, llm: true } });
     const match = r.match;
-    if (!match?.id || match.id === removedId) { pack = null; window.CC.promptPack = null; paintChip(); return; }
+    if (!match?.id || match.id === removedId) { clearPack(); return; }
     const list = await api("/prompts");
     const template = (list.templates || []).find((t) => t.id === match.id);
     const prior = pack?.id === match.id ? pack.inputs || {} : {};
@@ -172,9 +185,12 @@ async function consider(text, keepApplied) {
   } catch { /* a failed detect leaves the orders as typed */ }
 }
 
+// 0.4.17: a prompt never wipes what is already in the box. Its blank is filled from those words,
+// or the prompt goes after them.
 function fillOrders(text) {
   const orders = document.getElementById("orders");
-  const value = String(text || "");
+  const had = String(orders ? orders.value : window.CC.S.lastOrders || "");
+  const value = had.trim() ? applySuggestion(had, { prompt: String(text || "") }) : String(text || "");
   if (orders) {
     orders.value = value;
     orders.dispatchEvent(new Event("input", { bubbles: true }));
@@ -262,25 +278,6 @@ function creditHtml(row) {
 async function sendVote(id, dir, current) {
   const vote = current === dir ? "clear" : dir;
   return api("/prompts/vote", { method: "POST", body: { id, vote } });
-}
-
-function paintPopular(items) {
-  const box = document.getElementById("pp-popular");
-  if (!box) return;
-  if (!items?.length) { box.innerHTML = ""; return; }
-  box.innerHTML = `<div class="small dim" style="margin-top:6px">Popular prompts. A new one with only a few votes stays in the mix. Nothing is sent until you click Send.</div>
-    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${items.map((item) => `<button type="button" class="btn sm" data-suggest="${esc(item.id)}">${esc(item.title)}${item.fresh ? " (New this week)" : ""}</button>`).join("")}</div>`;
-  box.querySelectorAll("[data-suggest]").forEach((btn) => btn.addEventListener("click", () => {
-    const item = items.find((row) => row.id === btn.dataset.suggest);
-    useListed(item);
-  }));
-}
-
-async function loadPopular(text) {
-  try {
-    const r = await api(`/prompts/suggest?text=${encodeURIComponent(text || "")}`);
-    paintPopular(r.items || []);
-  } catch { /* the orders box still works */ }
 }
 
 function openCustom(item) {
@@ -479,10 +476,11 @@ window.CC.register({
     orders.addEventListener("input", () => {
       clearTimeout(timer);
       window.CC.S.lastOrders = orders.value;
-      timer = setTimeout(() => { consider(orders.value, false); loadPopular(orders.value); }, 350);
+      // Prompt suggestions under the box come from web/features/prompt-suggest.js (0.4.17),
+      // the same in Simple and Expert. This keeps only the Pro prompt chip.
+      timer = setTimeout(() => { consider(orders.value, false); }, 350);
     });
     paintChip();
-    loadPopular(orders.value);
   } },
   deliverable: { order: 3, render(el, run) {
     if (!run?.deliverable) { el.innerHTML = ""; return; }

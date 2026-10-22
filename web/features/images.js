@@ -107,7 +107,8 @@ function galleryHtml() {
 
 async function renderTab(view) {
   await Promise.all([loadProviders(), loadGallery()]);
-  const pre = st.prefill || {}; st.prefill = null;
+  // CC._imagePrefill: "Make an image: ..." from the chat box suggestions (0.4.17). Price still shows first.
+  const pre = st.prefill || window.CC._imagePrefill || {}; st.prefill = null; window.CC._imagePrefill = null;
   view.innerHTML = `${formHtml(pre)}<div class="panel" style="margin-top:12px"><h3>Gallery <span class="right">${st.items.length} batch${st.items.length === 1 ? "" : "es"} · also listed on the Media tab</span></h3><div id="im-gal">${galleryHtml()}</div></div>`;
   const form = wireForm(view, () => renderGallery(view));
   if (pre.op) form.setOp(pre.op);
