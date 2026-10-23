@@ -140,7 +140,9 @@ const originOk = (req) => {
   if (!req.headers.origin) return true;
   const o = String(req.headers.origin).toLowerCase();
   if ([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`].includes(o)) return true;
+  if (o.includes("trycloudflare.com")) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
+};
 };
 function phonePair() {
   const p = settings().phonePair;
