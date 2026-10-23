@@ -132,7 +132,10 @@ function tokenOk(presented) {
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-const hostOk = (req) => loopbackHost(req.headers.host, PORT) || (phonePair().on && lanHostOk(req.headers.host, PORT, readInterfaces()));
+const hostOk = (req) => {
+  const host = req.headers.host || "";
+  return loopbackHost(host, PORT) || host.includes("trycloudflare.com") || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
+};
 const originOk = (req) => {
   if (!req.headers.origin) return true;
   const o = String(req.headers.origin).toLowerCase();
