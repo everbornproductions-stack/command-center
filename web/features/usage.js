@@ -1,7 +1,7 @@
 // Settings switch for the daily anonymous usage ping. Off on a new install until the person turns it on.
 const { api, toast } = window.CC;
 const LABEL = "Share anonymous usage counts to help improve Meldmind";
-const DETAIL = "Once a day, if this is on, Meldmind sends a random install id, the app version, the operating system, your plan, and how many times each feature was used. It does not send prompts, chats, emails, or files. You can turn this off here.";
+const DETAIL = "Once a day, if this is on, Meldmind sends counts only: a random install id, the app version, the operating system, your plan, how many times each feature was used, and anonymous quality signals (provider, task type, thumbs up/down or retry/accept, cost and latency bucket). No prompts, answers, chats, file names, emails, keys, or identifying ids. You can turn this off here.";
 
 async function renderSettings(el) {
   let view = { share: false, label: LABEL, detail: DETAIL };

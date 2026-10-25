@@ -23,10 +23,11 @@ import { emit } from "./events.js";
 import { COST_WEIGHT, latencyWeight, normalizeMode } from "./modes.js";
 export { LATENCY_WEIGHT } from "./modes.js";
 import { clearCommunity, communityModels, communityStat } from "./community.js";
+import { buildQualitySignalPayload } from "./privacy.js";
 
 export const KIND = "brain";
 export const VERSION = 1;
-export const DEFAULTS = { on: true, shareOptIn: false };
+export const DEFAULTS = { on: true, shareOptIn: true };
 // how many quality signals before the record counts as much as the registry score
 export const QUALITY_K = 4;
 // how many jobs before observed cost / latency count as much as the estimate
@@ -301,4 +302,25 @@ export function sharePreview() {
     rows.push({ model, capability: cap, jobs: Math.round(s.jobs), successRate: s.jobs ? +(s.ok / s.jobs).toFixed(2) : null, winRate: s.rounds ? +(s.wins / s.rounds).toFixed(2) : null, avgScore: s.scoreN ? +(s.scoreSum / s.scoreN).toFixed(1) : null, thumbsUp: Math.round(s.up), thumbsDown: Math.round(s.down), costPerJob: s.costN ? +(s.cost / s.costN).toFixed(5) : null, avgSec: s.msN ? +(s.ms / s.msN / 1000).toFixed(1) : null });
   }
   return { optedIn: !!b.settings.shareOptIn, sent: false, month: new Date().toISOString().slice(0, 7), rows };
+}
+
+export function qualitySignalsPayload({ installId = "", version = "0.0.0" } = {}) {
+  const b = brain();
+  const signals = [];
+  for (const [, m] of Object.entries(b.stats)) for (const cap of TASK_CAPS) {
+    if (!Object.keys(m.t).some((k) => k.startsWith(cap + ":"))) continue;
+    const s = merged(Object.keys(b.stats).find((k) => b.stats[k] === m), cap, null);
+    signals.push({
+      provider: m.provider,
+      taskType: cap,
+      thumbsUp: Math.round(s.up),
+      thumbsDown: Math.round(s.down),
+      accepted: Math.round(s.ok),
+      retried: Math.round(s.fail),
+      cost: s.costN ? s.cost / s.costN : 0,
+      ms: s.msN ? s.ms / s.msN : 0,
+      version,
+    });
+  }
+  return buildQualitySignalPayload({ installId, version, signals });
 }
