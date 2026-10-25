@@ -475,6 +475,26 @@ export const SIMPLE_PROMOTE = [
   { id: "connections", label: "Connections", menu: true },
 ];
 
+export const COMMAND_MODES = {
+  mission: "Mission mode: describe the goal",
+  council: "Council mode: ask several AIs",
+  research: "Research: ask with sources",
+};
+
+export function shortcutModeOf(item) {
+  if (!item) return "";
+  const ds = item.dataset || item;
+  if (ds.view && ds.view !== "command") return "";
+  if (ds.runMode) return ds.runMode;
+  if (ds.focus === "#cc-search-cmd") return "research";
+  return "";
+}
+
+export function commandHeading(mode, uiMode = "expert") {
+  if (uiMode === "simple") return "Chat";
+  return COMMAND_MODES[mode] || "Marching orders";
+}
+
 export const EXPERT_PROMOTE = [
   { id: "command", label: LABELS.command, view: "command" },
   { id: "start", label: LABELS.start, view: "start" },
@@ -484,7 +504,7 @@ export const EXPERT_PROMOTE = [
   { id: "community", label: LABELS.community, view: "community" },
   { id: "missions", label: "Missions", view: "command", runMode: "mission" },
   { id: "councils", label: "Councils", view: "command", runMode: "council" },
-  { id: "research", label: "Research", view: "command", focus: "#cc-search-cmd" },
+  { id: "research", label: "Research", view: "command", focus: "#cc-search-cmd", runMode: "research" },
   { id: "remix", label: LABELS.remix, view: "remix" },
 ];
 
@@ -1036,10 +1056,21 @@ export function markLocks(root, limits) {
   });
 }
 
-export function markNav(root, view, menuId) {
+export function markNav(root, view, menuId, runMode = "") {
   if (!root) return;
-  root.querySelectorAll("button[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view && !b.dataset.focus && !b.dataset.runMode));
-  const onBar = !!root.querySelector(`.nav-promoted[data-view="${globalThis.CSS.escape(view || "")}"]${PAGE_BUTTON}`);
+  const mode = typeof runMode === "object" && runMode ? String(runMode.runMode || "") : String(runMode || "");
+  const activeShortcut = root.dataset?.uiMode === "simple" || view !== "command" ? "" : mode;
+  const buttons = [...root.querySelectorAll("button[data-view]")];
+  const shortcutBtn = activeShortcut
+    ? buttons.find((b) => b.dataset.view === "command" && shortcutModeOf(b) === activeShortcut)
+    : null;
+  buttons.forEach((b) => {
+    const on = shortcutBtn ? b === shortcutBtn : (b.dataset.view === view && !b.dataset.focus && !b.dataset.runMode);
+    b.classList.toggle("active", on);
+    if (on) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  const onBar = !!shortcutBtn || !!root.querySelector(`.nav-promoted[data-view="${(globalThis.CSS?.escape || String)(view || "")}"]${PAGE_BUTTON}`);
   root.querySelectorAll(".nav-trigger").forEach((t) => {
     const id = t.closest(".nav-menu")?.dataset.menu;
     let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);

@@ -33,8 +33,12 @@ Under an answer, a mission result, a draft, a post, a page, or a design idea, cl
 2. What they think: each person reacts in their own words, gives a score out of 5, and suggests fixes.
 3. Click Apply on a fix, or Apply all fixes. You get a revised version. Click Use this version to put it back, Copy to copy it, or Undo last change.
 
-The people are the Meldmind persona panel, such as Dana the bakery owner, Marcus the insurance agent, Dorothy, who is 74 and new to technology, and Max, a senior developer who runs several coding agents. Max reads code, apps, and anything about APIs, MCP, or developer settings, and he cares about speed, clear errors, cost per call, and keeping code and keys private. Their reactions are simulated by an AI. Nothing is sent or posted. Each test uses your own AI keys, and the cost shows in Credits.
+The people are the 20-person Meldmind persona panel (18 everyday and business reviewers, plus Max and Rin), such as Dana the bakery owner, Marcus the insurance agent, Dorothy, who is 74 and new to technology, Max, a senior developer who runs several coding agents, and Rin, a product and interface designer. Max reads code, apps, and anything about APIs, MCP, or developer settings, and he cares about speed, clear errors, cost per call, and keeping code and keys private. Rin reads pages, design briefs, layouts, apps, and anything about menus, screens, buttons, navigation, or UI, and she cares about menu structure and naming, visual hierarchy, spacing, readable text, Simple and Expert consistency, keyboard and focus behavior, and how screens hold up on normal laptop screens and wide monitors. Their reactions are simulated by an AI. Nothing is sent or posted. Each test uses your own AI keys, and the cost shows in Credits.
 
 ## Max, the developer reviewer
 
-Test with personas has a new reviewer, Max, a senior developer and heavy AI user. He reacts to code, apps, scripts, and technical pages, and joins the panel on his own for that kind of work. He cares about speed, clear errors, cost per call, and keeping your code and keys private.
+Test with personas includes Max, a senior developer and heavy AI user. He reacts to code, apps, scripts, and technical pages, and joins the panel on his own for that kind of work. He cares about speed, clear errors, cost per call, and keeping your code and keys private.
+
+## Rin, the interface designer reviewer
+
+Test with personas also includes Rin, a product and interface designer who designs for both beginners and power users. She joins the panel on her own for pages, design briefs, layouts, screen descriptions, and whenever the text mentions menu, layout, screen, button, navigation, design, or UI.

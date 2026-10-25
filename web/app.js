@@ -1,6 +1,6 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows } from "./nav.js";
+import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, TEXT_SIZES, WELCOME, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
@@ -687,7 +687,7 @@ async function installUpdate() {
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
-function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus && !b.dataset.runMode) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function markTabs() { if (S.view !== "command" || S.uiMode !== "expert") S.cmdShortcut = ""; $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); markNav($("#tabs"), S.view, S.navMenu, S.cmdShortcut); }
 function btnLabel(btn, text) {
   if (!btn) return;
   const icon = btn.querySelector("i");
@@ -904,7 +904,7 @@ function ensureFeatureTabs() {
     b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.navMenu = gid; S.openProject = null; render(); });
     group.appendChild(b);
   }
-  markNav(root, S.view, S.navMenu);
+  markNav(root, S.view, S.navMenu, S.cmdShortcut);
   markLocks(root, S.license?.limits);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
@@ -1206,7 +1206,7 @@ function renderCommand(v) {
     <div class="orders">
       <div class="panel orders-panel">
         <div id="graduate-slot"></div>
-        <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
+        <h3 id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))} <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <div id="pp-popular"></div>
@@ -1215,6 +1215,7 @@ function renderCommand(v) {
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
           <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
         <label class="lbl">Priority</label>
@@ -1261,7 +1262,7 @@ function renderCommand(v) {
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); });
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
@@ -1285,6 +1286,8 @@ function renderCommand(v) {
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+  focusNavTarget();
+  if (S.focusOrders) { S.focusOrders = false; $("#orders")?.focus(); }
 }
 function syncGraph(force = false) {
   if (!graph || S.view !== "command") return;
@@ -1711,7 +1714,7 @@ async function sendOrders() {
       S.awaitingRun = false;
     }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
-    else if (mode === "single") {
+    else if (mode === "single" || mode === "research") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
       const avoid = S.pendingAvoid || "";
@@ -1720,7 +1723,8 @@ async function sendOrders() {
       if (avoid) packBody.avoid = avoid;
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
-      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
+      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
@@ -2444,6 +2448,9 @@ $("#tabs").addEventListener("click", (e) => {
   S.navFocus = b.dataset.focus || "";
   // Missions and Councils on a wide Expert bar open Command with that run mode picked.
   if (b.dataset.runMode) S.cmdMode = b.dataset.runMode;
+  const sc = S.uiMode === "expert" ? shortcutModeOf(b) : "";
+  if (sc) { S.cmdMode = sc; S.cmdShortcut = sc; S.focusOrders = true; }
+  else S.cmdShortcut = "";
   // A Connect or Connections link opens Settings past the Simple basics, at that panel.
   if (b.dataset.view === "settings" && S.navFocus) S.settingsMore = true;
   // A promoted page is lit on the bar, not on the menu it left.
