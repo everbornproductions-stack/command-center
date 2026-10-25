@@ -20,7 +20,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const OS = new Set(["win32", "darwin", "linux", "web", "other"]);
 const TIERS = new Set(["free", "pro", "studio", "extreme", "owner"]);
 const ALLOWED_PING_KEYS = new Set(["installId", "version", "os", "tier", "day", "features"]);
-const PAID_SOURCES = new Set(["square", "manual"]);
+const PAID_SOURCES = new Set(["stripe", "manual"]);
 const REPORT_TIERS = ["free", "pro", "extreme", "owner"];
 
 export function utcDay(d = new Date()) {
@@ -326,7 +326,7 @@ function moneyText(cents) {
 
 export function mrrNote(prices = METRICS_PRICES) {
   const life = Object.values(prices.lifetime).map((n) => `$${Number(n)}`).join(" or ");
-  return `Paying users are active Pro or Extreme licences on a monthly or yearly plan whose source is Square or manual. The studio tier is the legacy name for Extreme and uses Extreme prices. Promo codes, the owner tier, Free, lifetime founders, and every status other than active are not paying users. Past due licences are counted apart and are not in MRR. A licence with no plan is counted as that tier's monthly price. Monthly list prices are Pro $${moneyText(monthlyCents("pro", "monthly", prices))} and Extreme $${moneyText(monthlyCents("extreme", "monthly", prices))}. Yearly list prices are Pro $${prices.pro.yearly} ($${moneyText(monthlyCents("pro", "yearly", prices))} a month) and Extreme $${prices.extreme.yearly} ($${moneyText(monthlyCents("extreme", "yearly", prices))} a month). Lifetime founder licences are ${life}. They add 0 to MRR. Their count and one-time revenue are reported separately. This report does not call Square and does not include emails, licence keys, or install ids.`;
+  return `Paying users are active Pro or Extreme licences on a monthly or yearly plan whose source is Stripe or manual. The studio tier is the legacy name for Extreme and uses Extreme prices. Promo codes, the owner tier, Free, lifetime founders, and every status other than active are not paying users. Past due licences are counted apart and are not in MRR. A licence with no plan is counted as that tier's monthly price. Monthly list prices are Pro $${moneyText(monthlyCents("pro", "monthly", prices))} and Extreme $${moneyText(monthlyCents("extreme", "monthly", prices))}. Yearly list prices are Pro $${prices.pro.yearly} ($${moneyText(monthlyCents("pro", "yearly", prices))} a month) and Extreme $${prices.extreme.yearly} ($${moneyText(monthlyCents("extreme", "yearly", prices))} a month). Lifetime founder licences are ${life}. They add 0 to MRR. Their count and one-time revenue are reported separately. This report does not call Stripe and does not include emails, licence keys, or install ids.`;
 }
 
 function reportTier(tier, prices = METRICS_PRICES) {
@@ -353,6 +353,7 @@ function classifyLicense(row, prices = METRICS_PRICES) {
   if (plan) {
     if (plan.startsWith("pro")) product = "pro";
     else if (plan.startsWith("extreme") || plan.startsWith("studio")) product = "extreme";
+    else if (plan.startsWith("developer")) product = "developer";
     if (plan.includes("year")) cadence = "yearly";
     else if (plan.includes("month") || plan === "pro" || plan === "extreme" || plan === "studio") cadence = "monthly";
     else return null;

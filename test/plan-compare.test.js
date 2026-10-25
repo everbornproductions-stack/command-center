@@ -6,7 +6,7 @@ import path from "node:path";
 import { ROOT } from "./helpers.js";
 import { proPlanCatalog } from "../server/billing-plans.js";
 import {
-  compareColumnCount, extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml,
+  compareColumnCount, extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtml,
 } from "../web/plan-compare.js";
 
 const css = fs.readFileSync(path.join(ROOT, "web", "styles.css"), "utf8");
@@ -41,7 +41,7 @@ test("the narrow layout keeps three plan columns", () => {
   assert.match(css, /\.grid\.cols-2, \.grid\.cols-3 \{ grid-template-columns: 1fr; \}/);
 });
 
-test("upgrade buttons sell the new prices and the grandfather link is only a note", () => {
+test("upgrade buttons sell the prices and open Stripe pay links", () => {
   const plans = proPlanCatalog(10);
   const free = upgradeButtonsHtml({ plans, tier: "free", primary: true });
   assert.match(free, /Go Pro, \$18\.99\/month/);
@@ -49,16 +49,20 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
   assert.match(free, /Go Extreme, \$29\.99\/month/);
   assert.match(free, /Extreme yearly, \$299\/year/);
   assert.match(free, /Lifetime founder, \$349/);
-  assert.match(free, /href="https:\/\/square\.link\/u\/UrcjlAqi"/);
-  assert.match(free, /href="https:\/\/square\.link\/u\/8JlyJzxb"/);
-  assert.match(free, /href="https:\/\/square\.link\/u\/u5FdCONv"/);
-  assert.match(free, /href="https:\/\/square\.link\/u\/LxwtyrCy"/);
-  assert.match(free, /href="https:\/\/square\.link\/u\/nKrsGaj2"/);
-  assert.doesNotMatch(free, /0TdXbn2B/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/00wbIUdIrcBz8uP9ybgQE00"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/dRm4gs0VF597bH1h0DgQE07"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/dRmdR20VF1WVdP9cKngQE03"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/6oU7sEgUD5978uP7q3gQE04"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/5kQ7sE8o7bxvh1ldOrgQE02"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/9B6fZafQzgRPdP9dOrgQE05"/);
+  assert.match(free, /href="https:\/\/buy\.stripe\.com\/9B6dR2gUDeJH7qL7q3gQE06"/);
+  assert.match(free, /Go Developer, \$34\.99\/month/);
+  assert.match(free, /Developer yearly, \$349\/year/);
+  assert.match(free, /data-upgrade-link="founder-lifetime"/);
   const later = upgradeButtonsHtml({ plans: proPlanCatalog(100), tier: "free" });
   assert.match(later, /Lifetime founder, \$499/);
   assert.match(later, /<button[^>]*data-pro-plan="founder-lifetime"/);
-  assert.doesNotMatch(later, /nKrsGaj2/);
+  assert.doesNotMatch(later, /5kQ7sE8o7bxvh1ldOrgQE02/);
   assert.doesNotMatch(free, /15\.99/);
   assert.doesNotMatch(free, /dbU38mQC/);
   assert.doesNotMatch(free, /\$159/);
@@ -82,11 +86,4 @@ test("upgrade buttons sell the new prices and the grandfather link is only a not
 
   const counted = founderSpotsHtml(proPlanCatalog(40));
   assert.match(counted, /60 of 100 founder spots left/);
-
-  const note = grandfatherHtml(plans, { grandfathered: true });
-  assert.match(note, /data-grandfather/);
-  assert.match(note, /15\.99/);
-  assert.match(note, /\$18\.99\/month/);
-  assert.doesNotMatch(note, /<a /);
-  assert.equal(note.includes("\u2014"), false);
 });

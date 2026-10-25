@@ -1,5 +1,5 @@
 // Welcome email triggers. Signup covers a website download and an in-app account.
-// A Pro licence is handled in server/license.js (Square is not called here).
+// A Pro licence is handled in server/license.js (Stripe is not called here).
 // The config body never accepts an API key.
 import { publicWelcome, saveMailConfig, queueWelcome, cleanEmail } from "../welcome-mail.js";
 

@@ -14,11 +14,12 @@ import { CFG, rest } from "./hosted.js";
 import { VERSION } from "./update.js";
 import { emit } from "./events.js";
 import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
-import { GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY, LIFETIME_PLAN_ID, moneyPlain } from "./price-config.js";
+import { LIFETIME_PLAN_ID } from "./price-config.js";
+import { signedInEmail } from "./signed-in-email.js";
 import { scheduler } from "./perf/scheduler.js";
 
 // One table. Studio is Pro. Owner is Extreme. Remix is unlimited on Extreme and Owner.
-// See server/feature-gate.js. This does not call Square.
+// See server/feature-gate.js. This does not call Stripe.
 export const TIERS = LIMITS;
 
 // Offline grace: keep the last known good tier until current_period_end or this long after the
@@ -77,7 +78,7 @@ export function resolveTier({ lic: l, now = Date.now(), ownerEmail = false, devO
 // A lifetime founder licence is Pro for life, including when the row was tagged Extreme by mistake.
 function applyLifetime(l, result) {
   if (!result || result.tier === "free" || result.tier === "owner") return result;
-  if (l?.plan !== LIFETIME_PLAN_ID) return result;
+  if (l?.plan !== LIFETIME_PLAN_ID && !/^lifetime-/.test(String(l?.plan || ""))) return result;
   if (result.tier !== "pro" && result.tier !== "extreme") return result;
   return { ...result, tier: "pro", lifetime: true };
 }
@@ -104,7 +105,6 @@ export function licenseState() {
   else if (r.reason === "trial") message = `Free trial: Pro for ${r.daysLeft} more day${r.daysLeft === 1 ? "" : "s"}. Nothing is charged.`;
   else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
   else if (r.lifetime && r.reason === "active") message = "Lifetime founder: Pro for life.";
-  else if (l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro" && r.reason === "active") message = `Pro, grandfathered at $${moneyPlain(GRANDFATHER_PRO_MONTHLY)}/month. That price stays.`;
   else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
   else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
   return {
@@ -121,7 +121,8 @@ export function licenseState() {
     message, deviceId: l.deviceId, maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2, trialEndsAt: r.trialEndsAt || null,
     compare: compareRows(),
     plan: l.plan || null,
-    grandfathered: l.plan === GRANDFATHER_PLAN_ID && r.tier === "pro",
+    canUnlockByEmail: !!signedInEmail(),
+    unlockEmail: l.via === "email" ? (l.email || null) : null,
     lifetime: !!r.lifetime,
   };
 }
@@ -181,7 +182,7 @@ export async function activate(key) {
   const now = Date.now();
   const maxDevices = capOf(r);
   if (r?.ok) {
-    const patch = { key: k, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
+    const patch = { key: k, via: null, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
     if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
     saveLic(patch);
     emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
@@ -264,12 +265,55 @@ export async function loadHostedLicense() {
   return licenseState();
 }
 
+// Unlock by the signed-in email (Google or Microsoft one-click sign-in): no key to type. The licence
+// server looks up an active licence on that email (activate_license_by_email, see
+// supabase/migrations/20261025_stripe.sql) and registers this computer like a key check does.
+// A key already on this copy stays unless the email licence is a higher tier or the key is not active.
+// Neither the email nor a key is logged. Offline grace works the same as for a key.
+const TIER_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
+export const EMAIL_UNLOCK_RPC = "activate_license_by_email";
+
+export async function unlockByEmail() {
+  if (!cloudConfigured()) return licenseState();
+  const email = signedInEmail();
+  if (!email) return licenseState();
+  const l = lic();
+  const stamp = l.stamp || 0;
+  const now = Date.now();
+  let r;
+  try {
+    r = await rpc(EMAIL_UNLOCK_RPC, { p_email: email, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
+  } catch (e) {
+    // The function may not be on the licence server yet. Offline grace keeps what we had.
+    if (l.via === "email") saveLic({ lastError: e.message, checkedAt: now });
+    return licenseState();
+  }
+  if ((lic().stamp || 0) !== stamp) return licenseState();
+  const keyed = !!l.key && l.via !== "email";
+  const keyedActive = keyed && l.status === "active" && !!l.tier;
+  const maxDevices = capOf(r);
+  if (r?.ok) {
+    if (keyedActive && (TIER_RANK[r.tier] || 0) <= (TIER_RANK[l.tier] || 0)) return licenseState();
+    saveLic({ key: null, via: "email", tier: r.tier, status: r.status, email: r.email || email, periodEnd: r.period_end || null, plan: r.plan || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) });
+    emit("log", { text: `Licence active by sign-in: ${r.tier}` });
+    return licenseState();
+  }
+  // Not active on this email. Only a licence that came from the email is changed.
+  if (l.via === "email") saveLic({ tier: null, status: r?.status || "unknown", periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "No active licence on this email" });
+  else if (!keyed) saveLic({ message: r?.message || "No active licence on this email yet" });
+  return licenseState();
+}
+
 export async function recheck() {
   if (!cloudConfigured()) return licenseState();
   if (HOSTED && !lic().key) return loadHostedLicense();
-  if (!lic().key) return licenseState();
-  try { return await activate(lic().key); }
-  catch (e) { saveLic({ lastError: e.message, checkedAt: Date.now() }); return licenseState(); }
+  const l = lic();
+  if (l.key && l.via !== "email") {
+    try { await activate(l.key); }
+    catch (e) { saveLic({ lastError: e.message, checkedAt: Date.now() }); }
+  }
+  if (!HOSTED && signedInEmail()) return unlockByEmail();
+  return licenseState();
 }
 
 export function startLicenseLoop() {
@@ -341,7 +385,7 @@ export async function removeDevice(deviceId) {
   if (!r?.ok) throw Object.assign(new Error(r?.message || "Could not remove that computer."), { status: 400 });
   const removingThis = id === l.deviceId;
   if (removingThis) {
-    saveLic({ key: null, tier: null, status: null, email: null, periodEnd: null, plan: null, lastOkAt: 0, lastError: null, checkedAt: Date.now(), stamp: Date.now(), message: "This computer was removed from the key. Activate the key again to use it here.", maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2 });
+    saveLic({ key: null, via: null, tier: null, status: null, email: null, periodEnd: null, plan: null, lastOkAt: 0, lastError: null, checkedAt: Date.now(), stamp: Date.now(), message: "This computer was removed from the key. Activate the key again to use it here.", maxDevices: Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2 });
   }
   const list = await listDevices();
   return { ok: true, ...list, message: removingThis ? "This computer was removed from the key." : (r.message || "Removed."), license: licenseState() };

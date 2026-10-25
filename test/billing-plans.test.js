@@ -1,21 +1,21 @@
 // Prices live in server/price-config.js. Yearly and lifetime are not derived from monthly.
-// Published pay links are opened by the browser. Tests do not fetch them. Nothing calls Square.
+// Published pay links are opened by the browser. Tests do not fetch them. Nothing calls Stripe.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { startServer, ROOT } from "./helpers.js";
 import {
-  founderQuote, mockSquareCheckout, proPlanCatalog,
+  founderQuote, mockStripeCheckout, proPlanCatalog,
 } from "../server/billing-plans.js";
 import {
   EXTREME_MONTHLY, EXTREME_MONTHLY_PLAN_ID, EXTREME_YEARLY, EXTREME_YEARLY_PLAN_ID,
   FOUNDER_LIMITED_LINE, FOUNDER_SPOTS_HIDDEN_UNTIL,
   EXTREME_MONTHLY_PAY_LINK, EXTREME_YEARLY_PAY_LINK,
-  GRANDFATHER_PAY_LINK, GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY,
+  DEVELOPER_MONTHLY, DEVELOPER_MONTHLY_PAY_LINK, DEVELOPER_MONTHLY_PLAN_ID, DEVELOPER_YEARLY, DEVELOPER_YEARLY_PAY_LINK, DEVELOPER_YEARLY_PLAN_ID,
+  payLinkWithEmail,
   LIFETIME_PAY_LINK, LIFETIME_PLAN_ID, MONTHLY_SETS, PRICE_SET,
   PRO_MONTHLY, PRO_MONTHLY_PAY_LINK, PRO_MONTHLY_PLAN_ID, PRO_YEARLY, PRO_YEARLY_PAY_LINK, PRO_YEARLY_PLAN_ID,
-  SQUARE_PLANS_TO_CREATE,
 } from "../server/price-config.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -36,10 +36,10 @@ test("one config holds the current prices, and the monthly raise is a separate s
   assert.equal(LIFETIME_PLAN_ID, "founder-lifetime");
   assert.notEqual(PRO_YEARLY, Math.round(PRO_MONTHLY * 12));
   assert.notEqual(EXTREME_YEARLY, Math.round(EXTREME_MONTHLY * 12));
-  const ids = SQUARE_PLANS_TO_CREATE.map((p) => p.id);
-  assert.deepEqual(ids, [
-    "pro-monthly-1899", "pro-yearly-189", "extreme-monthly-2999", "extreme-yearly-299", "founder-lifetime",
-  ]);
+  assert.equal(DEVELOPER_MONTHLY, 34.99);
+  assert.equal(DEVELOPER_YEARLY, 349);
+  assert.equal(DEVELOPER_MONTHLY_PLAN_ID, "developer-monthly-3499");
+  assert.equal(DEVELOPER_YEARLY_PLAN_ID, "developer-yearly-349");
 });
 
 test("spots stay hidden until 40 founders have bought", () => {
@@ -110,45 +110,45 @@ test("spots stay hidden until 40 founders have bought", () => {
 
 test("mock checkout records the published pay links and does not charge", () => {
   const mock = { calls: [], checkout(row) { this.calls.push(row); } };
-  const monthly = mockSquareCheckout("monthly", { client: mock });
+  const monthly = mockStripeCheckout("monthly", { client: mock });
   assert.equal(monthly.url, PRO_MONTHLY_PAY_LINK);
   assert.equal(monthly.amount, 18.99);
   assert.equal(monthly.charged, false);
   assert.equal(monthly.mocked, true);
   assert.equal(monthly.planId, PRO_MONTHLY_PLAN_ID);
 
-  const yearly = mockSquareCheckout("pro-yearly", { client: mock });
+  const yearly = mockStripeCheckout("pro-yearly", { client: mock });
   assert.equal(yearly.amount, 189);
   assert.equal(yearly.url, PRO_YEARLY_PAY_LINK);
   assert.equal(yearly.charged, false);
 
-  const extreme = mockSquareCheckout("extreme-monthly", { client: mock });
+  const extreme = mockStripeCheckout("extreme-monthly", { client: mock });
   assert.equal(extreme.amount, 29.99);
   assert.equal(extreme.url, EXTREME_MONTHLY_PAY_LINK);
   assert.equal(extreme.planId, EXTREME_MONTHLY_PLAN_ID);
 
-  const extremeYear = mockSquareCheckout(EXTREME_YEARLY_PLAN_ID);
+  const extremeYear = mockStripeCheckout(EXTREME_YEARLY_PLAN_ID);
   assert.equal(extremeYear.amount, 299);
   assert.equal(extremeYear.url, EXTREME_YEARLY_PAY_LINK);
   assert.equal(extremeYear.charged, false);
 
-  const early = mockSquareCheckout("lifetime", { sold: 4, client: mock });
+  const early = mockStripeCheckout("lifetime", { sold: 4, client: mock });
   assert.equal(early.amount, 349);
   assert.equal(early.url, LIFETIME_PAY_LINK);
-  assert.equal(LIFETIME_PAY_LINK, "https://square.link/u/nKrsGaj2");
+  assert.equal(LIFETIME_PAY_LINK, "https://buy.stripe.com/5kQ7sE8o7bxvh1ldOrgQE02");
   assert.equal(early.charged, false);
-  const later = mockSquareCheckout("founder-lifetime", { sold: 100 });
+  const later = mockStripeCheckout("founder-lifetime", { sold: 100 });
   assert.equal(later.amount, 499);
   assert.equal(later.url, null);
   assert.equal(later.charged, false);
-  const closed = mockSquareCheckout("lifetime", { sold: 500 });
+  const closed = mockStripeCheckout("lifetime", { sold: 500 });
   assert.equal(closed.open, false);
   assert.equal(closed.amount, null);
   assert.equal(closed.charged, false);
 
   assert.equal(mock.calls.length, 4);
   assert.ok(mock.calls.every((row) => row.charged === false));
-  assert.throws(() => mockSquareCheckout("studio"), /Unknown plan/);
+  assert.throws(() => mockStripeCheckout("studio"), /Unknown plan/);
 
   const catalog = proPlanCatalog(null);
   assert.equal(catalog.monthly.amount, 18.99);
@@ -165,16 +165,17 @@ test("mock checkout records the published pay links and does not charge", () => 
   assert.equal(catalog.lifetime.pendingLink, false);
   assert.equal(catalog.lifetime.spotsLine, "Limited to the first 100 founders");
   assert.equal(catalog.lifetime.button, "Lifetime founder, $349 then $499");
-  assert.equal(catalog.grandfather.checkout, false);
-  assert.equal(catalog.grandfather.id, GRANDFATHER_PLAN_ID);
-  assert.equal(catalog.grandfather.amount, GRANDFATHER_PRO_MONTHLY);
-  assert.equal(catalog.grandfather.payLink, GRANDFATHER_PAY_LINK);
+  assert.equal(catalog.developerMonthly.amount, 34.99);
+  assert.equal(catalog.developerMonthly.payLink, DEVELOPER_MONTHLY_PAY_LINK);
+  assert.equal(catalog.developerYearly.amount, 349);
+  assert.equal(catalog.developerYearly.payLink, DEVELOPER_YEARLY_PAY_LINK);
+  assert.equal(catalog.grandfather, undefined);
   assert.equal(catalog.charged, false);
   assert.equal(catalog.priceSet, "current");
   assert.equal(catalog.compare.columns.length, 3);
 });
 
-test("live copy sells the new prices and keeps $15.99 as the grandfather note", () => {
+test("live copy sells the prices through Stripe pay links and mentions no Square", () => {
   const src = read("server", "billing-plans.js");
   const plugin = read("server", "plugins", "billing-plans.js");
   const app = read("web", "app.js");
@@ -192,65 +193,87 @@ test("live copy sells the new prices and keeps $15.99 as the grandfather note", 
     assert.equal(text.includes(EN), false);
   }
   for (const text of [src, plugin, prices]) {
-    assert.doesNotMatch(text, /\bfetch\s*\(/);
-    assert.doesNotMatch(text, /connect\.squareup\.com|squareup\.com\/v2/);
+    assert.doesNotMatch(text, /fetch\s*\(/);
+    assert.doesNotMatch(text, /api\.stripe\.com/);
   }
-  assert.match(prices, /https:\/\/square\.link\/u\/UrcjlAqi/);
-  assert.match(prices, /https:\/\/square\.link\/u\/8JlyJzxb/);
-  assert.match(prices, /https:\/\/square\.link\/u\/u5FdCONv/);
-  assert.match(prices, /https:\/\/square\.link\/u\/LxwtyrCy/);
-  assert.match(prices, /LIFETIME_PAY_LINK = "https:\/\/square\.link\/u\/nKrsGaj2"/);
-  assert.doesNotMatch(prices, /0TdXbn2B/);
+  for (const link of [
+    "00wbIUdIrcBz8uP9ybgQE00", "dRm4gs0VF597bH1h0DgQE07", "dRmdR20VF1WVdP9cKngQE03", "6oU7sEgUD5978uP7q3gQE04",
+    "9B6fZafQzgRPdP9dOrgQE05", "9B6dR2gUDeJH7qL7q3gQE06", "5kQ7sE8o7bxvh1ldOrgQE02",
+  ]) {
+    assert.ok(prices.includes(`https://buy.stripe.com/${link}`), link);
+    assert.ok(doc.includes(`https://buy.stripe.com/${link}`), `doc ${link}`);
+  }
+  assert.equal(prices.includes("9B65kwbAjdFDfXhfWzgQE01"), false, "the duplicate Pro link is not used");
   assert.equal(prices.includes(EM), false);
   assert.equal(prices.includes(EN), false);
-  for (const text of [app, compare, growthUi, growth, license, gate]) {
-    assert.equal(text.includes("15.99"), false, "buy surfaces do not hard-code the grandfather price");
-    assert.equal(text.includes("dbU38mQC"), false);
-    assert.equal(text.includes("square.link"), false);
-    assert.equal(text.includes("$159"), false);
+  for (const text of [app, compare, growthUi, growth, license, gate, prices, src]) {
+    assert.equal(text.includes("15.99"), false, "no old grandfather price in buy surfaces");
+    assert.doesNotMatch(text, /square\.link|squareup|GRANDFATHER/i);
   }
+  assert.match(doc, /^# Billing \(Stripe\)/);
   assert.match(doc, /\$18\.99/);
   assert.match(doc, /\$189/);
   assert.match(doc, /\$29\.99/);
   assert.match(doc, /\$299/);
+  assert.match(doc, /\$34\.99/);
   assert.match(doc, /\$499/);
-  assert.match(doc, /\$15\.99/);
-  assert.match(doc, /https:\/\/square\.link\/u\/dbU38mQC/);
-  assert.match(doc, /pro-monthly-1599/);
+  assert.match(doc, /\$349/);
   assert.match(doc, /pro-monthly-1899/);
   assert.match(doc, /extreme-monthly-2999/);
-  assert.match(doc, /\$349/);
-  assert.match(doc, /https:\/\/square\.link\/u\/UrcjlAqi/);
-  assert.match(doc, /https:\/\/square\.link\/u\/8JlyJzxb/);
-  assert.match(doc, /https:\/\/square\.link\/u\/u5FdCONv/);
-  assert.match(doc, /https:\/\/square\.link\/u\/LxwtyrCy/);
+  assert.match(doc, /prefilled_email/);
+  assert.match(doc, /STRIPE_WEBHOOK_SECRET/);
   assert.match(doc, /5 people total/);
   assert.match(doc, /counting the owner/);
   assert.match(doc, /early access/);
   assert.match(doc, /Max quality/);
-  assert.match(doc, /https:\/\/square\.link\/u\/nKrsGaj2/);
-  assert.doesNotMatch(doc, /0TdXbn2B/);
   assert.match(doc, /founder-lifetime/);
   assert.match(doc, /Limited to the first 100 founders/);
   assert.match(doc, /FOUNDER_SPOTS_HIDDEN_UNTIL/);
   assert.match(doc, /PRICE_SET/);
   assert.match(doc, /\$24\.99/);
   assert.match(doc, /\$39\.99/);
+  assert.doesNotMatch(doc, /square/i);
   assert.match(help, /\$18\.99/);
   assert.match(help, /\$349/);
   assert.match(help, /early access/);
   assert.match(help, /Max quality/);
   assert.match(help, /five team seats/);
-  assert.match(help, /lifetime pay links are published/);
-  assert.doesNotMatch(help, /0TdXbn2B/);
+  assert.match(help, /Stripe checkout/);
+  assert.match(help, /I paid, check now/);
   assert.match(help, /Limited to the first 100 founders/);
-  assert.match(help, /\$15\.99 a month, that price stays/);
+  assert.doesNotMatch(help, /square/i);
   assert.match(brief, /\$18\.99/);
   assert.doesNotMatch(app, /Go Pro, \$15\.99/);
   assert.match(read("docs", "mobile.md"), /\$18\.99/);
 });
 
-test("the plans route hides the counter under 40 and never calls Square", async () => {
+test("every pay link carries the signed-in email, URL-encoded, and only when it looks like one", () => {
+  const bare = proPlanCatalog(null);
+  const withMail = proPlanCatalog(null, { email: "Sam+test@Example.com" });
+  for (const key of ["monthly", "yearly", "extremeMonthly", "extremeYearly", "developerMonthly", "developerYearly"]) {
+    assert.equal(bare[key].payLink.includes("prefilled_email"), false, key);
+    const u = new URL(withMail[key].payLink);
+    assert.equal(u.hostname, "buy.stripe.com");
+    assert.equal(u.searchParams.get("prefilled_email"), "Sam+test@Example.com", key);
+    assert.ok(withMail[key].payLink.includes("prefilled_email=Sam%2Btest%40Example.com"), `${key} is URL-encoded`);
+    assert.equal(withMail[key].payLink.startsWith(bare[key].payLink), true);
+  }
+  assert.ok(withMail.lifetime.payLink.includes("prefilled_email=Sam%2Btest%40Example.com"));
+  assert.equal(proPlanCatalog(100, { email: "a@b.co" }).lifetime.payLink, null, "the later price has no link to decorate");
+  assert.equal(payLinkWithEmail(PRO_MONTHLY_PAY_LINK, "not an email"), PRO_MONTHLY_PAY_LINK);
+  assert.equal(payLinkWithEmail(PRO_MONTHLY_PAY_LINK, ""), PRO_MONTHLY_PAY_LINK);
+  assert.equal(payLinkWithEmail(PRO_MONTHLY_PAY_LINK, null), PRO_MONTHLY_PAY_LINK);
+  assert.equal(payLinkWithEmail("https://example.com/x", "a@b.co"), "https://example.com/x", "only Stripe links are touched");
+  assert.equal(payLinkWithEmail(null, "a@b.co"), null);
+  const rec = mockStripeCheckout("developer-yearly", { email: "a@b.co" });
+  assert.equal(rec.planId, DEVELOPER_YEARLY_PLAN_ID);
+  assert.equal(rec.amount, 349);
+  assert.equal(new URL(rec.url).searchParams.get("prefilled_email"), "a@b.co");
+  assert.equal(DEVELOPER_MONTHLY_PAY_LINK.startsWith("https://buy.stripe.com/"), true);
+  assert.equal(DEVELOPER_YEARLY_PAY_LINK.startsWith("https://buy.stripe.com/"), true);
+});
+
+test("the plans route hides the counter under 40 and never calls Stripe", async () => {
   const open = await startServer();
   try {
     const r = await open.api("/billing-plans");
@@ -268,14 +291,15 @@ test("the plans route hides the counter under 40 and never calls Square", async 
     assert.equal(r.json.lifetime.price, null);
     assert.equal(r.json.lifetime.showSpots, false);
     assert.equal(r.json.lifetime.spotsLine, "Limited to the first 100 founders");
-    assert.equal(r.json.grandfather.checkout, false);
+    assert.equal(r.json.grandfather, undefined);
+    assert.equal(r.json.developerMonthly.payLink, DEVELOPER_MONTHLY_PAY_LINK);
     assert.equal(r.json.charged, false);
     assert.equal(r.json.compare.columns.length, 3);
     const st = await open.api("/state");
     assert.equal(st.json.proPlans.yearly.amount, 189);
     assert.equal(st.json.proPlans.monthly.payLink, PRO_MONTHLY_PAY_LINK);
     assert.equal(st.json.proPlans.monthly.amount, 18.99);
-    assert.doesNotMatch(open.log, /connect\.squareup\.com|squareup\.com\/v2/);
+    assert.doesNotMatch(open.log, /api\.stripe\.com/);
   } finally {
     await open.stop();
   }

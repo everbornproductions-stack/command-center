@@ -22,6 +22,7 @@ import { htmlToText } from "./receipts.js";
 import { localFetch } from "./loopback-fetch.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
 import { assertServiceSlots } from "./service-limit.js";
+import { rememberIdentity, forgetIdentity } from "./signed-in-email.js";
 
 const VAULT_ID = "google-helper";
 const DOC = "browser.google";
@@ -203,6 +204,7 @@ export async function finish({ code, state } = {}) {
     return view();
   }
   const cur = secret() || {};
+  rememberIdentity("google", tok.id_token);
   await setSecret(VAULT_ID, { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || null, expiresAt });
   const d = gdoc(); d.scopes = scopes; d.connectedAt = Date.now(); d.needsSignIn = false; d.via = p.via || null; saveDoc(d);
   emit("log", { text: `Google connected for the browser helper (${granted().map((k) => SCOPE_LABEL[k]).join(", ")}). The token is in the vault.` });
@@ -210,6 +212,7 @@ export async function finish({ code, state } = {}) {
 }
 
 export async function disconnect() {
+  forgetIdentity("google");
   const cur = secret();
   await setSecret(VAULT_ID, cur?.clientSecret ? { key: "oauth", clientSecret: cur.clientSecret } : null);
   const d = gdoc(); d.scopes = []; d.connectedAt = null; d.needsSignIn = false; d.via = null; saveDoc(d);

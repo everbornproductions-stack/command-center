@@ -11,7 +11,8 @@ import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-pic
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
-import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { createPaidWatch } from "./paid-watch.js";
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
@@ -1951,18 +1952,33 @@ function chooseProPlan(which) {
   if (plan.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
   if (plan.payLink && plan.checkout !== false && openPayLink(plan.payLink)) return;
   const name = plan.button || plan.label || "This plan";
-  toast(name + ". The Square checkout link is not published yet. Nothing was charged.");
+  toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
+// After an Upgrade link opens, re-check the licence every few seconds for two minutes, and on focus.
+const paidWatch = createPaidWatch({
+  current: () => S.license,
+  check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
+  onUnlock: (lic) => { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); },
+});
+window.addEventListener("focus", () => { paidWatch.focus(); });
 function bindProPlans(root) {
   $$("[data-pro-plan]", root).forEach((b) => b.addEventListener("click", () => chooseProPlan(b.dataset.proPlan)));
+  $$("[data-upgrade-link]", root).forEach((a) => a.addEventListener("click", () => paidWatch.start()));
+  $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
+    const before = S.license?.tier || "free";
+    const lic = await paidWatch.check();
+    if (!lic) { toast("Could not reach the licence server. Try again in a moment.", true); return; }
+    if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your licence key.", true);
+  }));
 }
 function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" id="sub-lic">I have a licence key</button></div>
-      ${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a licence key</button></div>
+      ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
-      <div class="dim small" style="margin-top:8px">Pro, Extreme, and the $349 lifetime button open their Square pay page. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
+      <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
 }
 
 function renderSubscriptions(v) {
@@ -2192,7 +2208,7 @@ function renderSettings(v) {
         <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
         <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
-        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
+        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}</div>`}
         <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
         ${licenceCloudFields()}
       </div>
