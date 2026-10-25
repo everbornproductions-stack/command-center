@@ -130,6 +130,15 @@ function renderInto(v) {
   const showDetail = expert();
   v.innerHTML = `<div class="cs-wrap">
     <div class="panel" style="padding:22px">
+      <div class="route cs-row" id="cs-restart-box" style="margin-bottom:14px">
+        <div>
+          <b>Run the whole setup again</b>
+          <div class="dim small" style="margin-top:4px">Start over: welcome screen, Find my AIs, then connections. Nothing you saved is changed without asking.</div>
+        </div>
+        <div class="cs-actions">
+          <button type="button" class="btn sm" id="cs-restart-all">Run the whole setup again</button>
+        </div>
+      </div>
       <h2 style="margin:0 0 6px;font-size:22px">Get everything connected</h2>
       <div class="muted">Every integration Meldmind can use. Connect uses the same sign-in, key, or MCP step as Settings. Skip any row. You can finish later.</div>
       <div class="dim small" style="margin-top:6px">Claude, ChatGPT, Grok, and Gemini stay in the AI setup. This list does not ask for those keys again.</div>
@@ -187,6 +196,14 @@ function renderInto(v) {
     try { data = await api("/connectsetup/skip", { method: "POST", body: { id: b.dataset.skip } }); S.connectSetup = data; render(); }
     catch (e) { toast(e.message, true); }
   }));
+  v.querySelector("#cs-restart-all")?.addEventListener("click", () => {
+    if (window.CC.restartFullSetup) { window.CC.restartFullSetup(); return; }
+    S.connectWizard = false;
+    S.setup = { ...(S.setup || {}), step: 1, result: null, busy: false, phase: "welcome", fullFlow: true };
+    S.firstRunDone = true;
+    S.view = "setup";
+    render();
+  });
   v.querySelector("#cs-later").addEventListener("click", async () => {
     try { data = await api("/connectsetup/later", { method: "POST" }); S.connectSetup = data; } catch (e) { toast(e.message, true); return; }
     S.connectWizard = false; S.view = "command"; toast("Open Get everything connected from Help any time."); render();
@@ -212,6 +229,7 @@ async function renderWizard(v) {
 async function open() {
   try { data = await api("/connectsetup/reset", { method: "POST" }); }
   catch (e) { toast(e.message, true); return; }
+  if (S.setup) { S.setup.fullFlow = false; S.setup.phase = ""; }
   S.connectSetup = data;
   S.connectWizard = true;
   S.visitedConnect = true;

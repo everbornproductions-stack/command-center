@@ -2,7 +2,7 @@ import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
-import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, TEXT_SIZES, WELCOME, setupPhase, spendLine } from "./simple-ui.js";
+import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
@@ -2078,7 +2078,9 @@ function renderSimpleBasics(v) {
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
       <p class="dim small" id="basics-private-line" style="margin:6px 0">${on ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer."}</p>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-share"> Share anonymous track records</label>
-      <p class="dim small" style="margin:6px 0">This shares the task type, which AI, and the score. It never shares your words or keys.</p>
+      <p class="dim small" style="margin:6px 0">Helping Meldmind get smarter: anonymous results only, never your text. This shares the task type, which AI, and the score (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id). It never shares your words or keys (no prompts, answers, file names, emails, keys, or identifying ids).</p>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-content-optin"> Share real prompts and answers for our own-AI program</label>
+      <p class="dim small" style="margin:6px 0">Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded.</p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
@@ -2104,12 +2106,18 @@ function renderSimpleBasics(v) {
       if (line) line.textContent = r.line || (next ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer.");
     } catch (err) { e.target.checked = !next; toast(err.message, true); }
   });
-  api("/brain/settings").then((d) => {
+  api("/privacy").then((d) => {
     const box = $("#basics-share");
-    if (box) box.checked = !!d?.settings?.shareOptIn;
+    if (box) box.checked = !!d?.levels?.qualitySignals;
+    const cbox = $("#basics-content-optin");
+    if (cbox) cbox.checked = d?.levels?.contentOptIn === true;
   }).catch(() => {});
   $("#basics-share").addEventListener("change", async (e) => {
-    try { await api("/brain/settings", { method: "POST", body: { shareOptIn: !!e.target.checked } }); }
+    try { await api("/privacy", { method: "POST", body: { qualitySignals: !!e.target.checked } }); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
+  $("#basics-content-optin")?.addEventListener("change", async (e) => {
+    try { await api("/privacy", { method: "POST", body: { contentOptIn: !!e.target.checked } }); }
     catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
   });
   $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
@@ -2177,7 +2185,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again (Find my AIs)</a> · `}Version, Check for updates, and About are in Help.</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · <a href="#" id="s-find-ais">Find my AIs</a> · `}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2268,7 +2276,8 @@ function renderSettings(v) {
     } catch (e) { toast(e.message, true); }
   });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
-  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.phase = "scan"; S.view = "setup"; render(); });
+  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); restartFullSetup(); });
+  $("#s-find-ais")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
   $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
@@ -2443,6 +2452,7 @@ $("#tabs").addEventListener("click", (e) => {
   if (b.dataset.action === "demo-on") { closeNav(root); if (S.demo) toast("Demo mode is already on. Use Exit demo mode at the top to leave it."); else setDemo(true); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
+  if (b.dataset.view === "setup") { S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; }
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
@@ -2517,6 +2527,7 @@ $("#mobile-nav").addEventListener("click", (e) => {
   if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
+  if (b.dataset.view === "setup") { S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; }
   S.view = b.dataset.view; S.openProject = null; render();
 });
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
@@ -2626,12 +2637,48 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
 // ----- Setup (first run) -----
+function restartFullSetup() {
+  S.connectWizard = false;
+  S.setup = {
+    ...(S.setup || {}),
+    step: 1,
+    result: null,
+    busy: false,
+    phase: setupPhase({ fresh: false, fullRestart: true }),
+    fullFlow: true,
+    afterScan: "",
+  };
+  S.firstRunDone = true;
+  S.view = "setup";
+  window.CC?.tour?.sync?.();
+  render();
+}
+async function advanceFromScanToConnections() {
+  if (S.setup) {
+    S.setup.fullFlow = false;
+    S.setup.phase = "";
+  }
+  try {
+    const saved = await api("/setup/done", { method: "POST" });
+    S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (S.onboarding) S.onboarding.show = false;
+    S.visitedSetup = true;
+  } catch (e) { toast(e.message, true); }
+  if (window.CC.connectSetup?.open) {
+    await window.CC.connectSetup.open();
+  } else {
+    S.connectWizard = true;
+    S.visitedConnect = true;
+    S.view = "setup";
+    render();
+  }
+}
 async function saveShareChoice() {
   const st = S.setup;
   const on = !!$("#su-share")?.checked;
@@ -2645,9 +2692,15 @@ async function saveNewsChoice() {
   await api("/community/newsletter", { method: "POST", body: { optedIn: true } });
 }
 async function saveSetupUsername(useDefault) {
+  const st = S.setup;
   const input = $("#su-username");
-  const suggestion = input?.dataset.suggestion || S.setup?.usernameDefault || "";
+  const suggestion = input?.dataset.suggestion || st?.usernameDefault || "";
   const typed = input?.value?.trim() || "";
+  const saved = st?.usernameSaved || "";
+  if (saved) {
+    if (useDefault || !st?.usernameTouched || !typed || typed === saved) return;
+    if (!confirm(`Change your saved username from "${saved}" to "${typed}"?`)) return;
+  }
   const username = useDefault ? (suggestion || typed) : (typed || suggestion);
   if (!username) return;
   await api("/account/username", { method: "POST", body: { username } });
@@ -2702,6 +2755,7 @@ function welcomeAppsHtml() {
 async function saveWelcomeKey(st) {
   const key = ($("#su-or-key")?.value || st.orKey || "").trim();
   if (!key) return false;
+  if (P("openrouter")?.keyed && !confirm("An OpenRouter key is already saved in the vault. Replace it?")) return false;
   const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
   st.orKey = "";
   keyToast("openrouter", r);
@@ -2713,6 +2767,17 @@ function openPrivacyList() {
   import("/features/privacy.js").then((m) => (window.CC.openPrivacy || m.openPrivacy)?.()).catch((e) => toast(e.message, true));
 }
 function renderWelcome(v, st) {
+  if (!st.privacyKnown && !st.privacyLoading) {
+    st.privacyLoading = true;
+    api("/privacy").then((d) => {
+      if (!st.qualityTouched && typeof d?.levels?.qualitySignals === "boolean") st.qualitySignals = d.levels.qualitySignals;
+      if (!st.contentTouched) st.contentOptIn = d?.levels?.contentOptIn === true;
+      st.privacyKnown = true;
+      if (S.view === "setup" && st.phase === "welcome") render();
+    }).catch(() => { st.privacyKnown = true; }).finally(() => { st.privacyLoading = false; });
+  }
+  const qualityChecked = typeof st.qualitySignals === "boolean" ? st.qualitySignals : true;
+  const contentChecked = st.contentOptIn === true;
   v.innerHTML = `<div class="welcome" id="su-welcome">
     <div class="panel" style="padding:22px">
       <div class="row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -2726,12 +2791,32 @@ function renderWelcome(v, st) {
         <!-- Reserved slot: 0.4.16 adds "Backup when credits run out" here with CC.register({ welcome: { order, render(el) } }). -->
         <section class="welcome-slot" id="su-backup-slot" data-slot="credit-backup" aria-label="More setup"></section>
       </div>
+      <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
+        <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">
+          <input type="checkbox" id="su-quality-signals" ${qualityChecked ? "checked" : ""}>
+          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span></span>
+        </label>
+        <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start;margin-top:8px">
+          <input type="checkbox" id="su-content-optin" ${contentChecked ? "checked" : ""}>
+          <span><b>${esc(WELCOME.contentOptInLabel)}</b> <span class="dim">${esc(WELCOME.contentOptInLine)}</span></span>
+        </label>
+      </div>
       <div class="row" style="margin-top:16px;gap:10px;flex-wrap:wrap;align-items:center">
         <span class="dim small">${esc(WELCOME.privacyLine)} <a href="#" id="su-privacy">${esc(WELCOME.privacyLink)}</a></span>
         <button type="button" class="btn primary" id="su-start" style="margin-left:auto">${esc(WELCOME.start)}</button>
       </div>
     </div>
   </div>`;
+  $("#su-quality-signals")?.addEventListener("change", (e) => {
+    st.qualityTouched = true;
+    st.qualitySignals = !!e.target.checked;
+    api("/privacy", { method: "POST", body: { qualitySignals: st.qualitySignals, noticeSeen: true } }).catch(() => {});
+  });
+  $("#su-content-optin")?.addEventListener("change", (e) => {
+    st.contentTouched = true;
+    st.contentOptIn = !!e.target.checked;
+    api("/privacy", { method: "POST", body: { contentOptIn: st.contentOptIn } }).catch(() => {});
+  });
   $("#su-mode").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-ui-pick]");
     if (!b) return;
@@ -2788,6 +2873,17 @@ async function finishWelcome({ skipped = false } = {}) {
     const mode = S.uiMode === "expert" ? "expert" : "simple";
     S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
     api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } }).catch(() => {});
+  }
+  if (S.setup?.fullFlow) {
+    S.setup.phase = nextRestartPhase("welcome");
+    S.setup.step = 1;
+    S.setup.result = null;
+    S.firstRunDone = true;
+    S.connectWizard = false;
+    S.view = "setup";
+    window.CC?.tour?.sync?.();
+    render();
+    return;
   }
   await finishAiSetup("command", { quiet: skipped });
 }
@@ -2869,6 +2965,7 @@ function renderSetup(v) {
   if (!st.usernameKnown && !st.usernameLoading) {
     st.usernameLoading = true;
     api("/account").then((d) => {
+      st.usernameSaved = d?.username || "";
       st.usernameDefault = d?.username || d?.suggestion || "";
       if (!st.usernameTouched) st.usernameValue = st.usernameDefault;
       st.usernameKnown = true;
@@ -2968,6 +3065,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
       try { await saveShareChoice(); await saveNewsChoice(); }
       catch (e) { toast(e.message, true); return; }
+      if (st.fullFlow) { await advanceFromScanToConnections(); return; }
       finishAiSetup("settings");
     });
     window.CC.mountPromptInterview?.($("#su-prompts"));
@@ -3014,13 +3112,17 @@ function renderSetup(v) {
   renderExtras("setup", "#su-extras");
   renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => {
+    if (st.fullFlow) {
+      await advanceFromScanToConnections();
+      return;
+    }
     if ((st.afterScan === "expert" || S.settings?.expertSetup?.pendingScan) && !S.settings?.expertSetup?.done) {
       st.afterScan = "";
       st.phase = "expert";

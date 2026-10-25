@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startServer } from "./helpers.js";
-import { WELCOME, TEXT_SIZES, setupPhase } from "../web/simple-ui.js";
+import { WELCOME, TEXT_SIZES, RESTART_SETUP_LABEL, RESTART_SETUP_LINE, nextRestartPhase, setupPhase } from "../web/simple-ui.js";
 import { MAIN_ACTIONS, KEEP_IN_VIEW, MORE_LABEL, planActions } from "../web/answer-actions.js";
 import { applyDesktopPrompt, shouldShowDesktopPrompt, QUIET } from "../server/desktop-prompt.js";
 import { settingsSaved } from "../server/onboarding.js";
@@ -23,6 +23,12 @@ test("a fresh install gets the one welcome screen; Run setup again keeps the old
   assert.equal(setupPhase({ fresh: true }), "welcome");
   assert.equal(setupPhase({ fresh: true, requested: "scan" }), "scan");
   assert.equal(setupPhase({ fresh: false }), "scan");
+  assert.equal(setupPhase({ fresh: false, fullRestart: true }), "welcome");
+  assert.equal(nextRestartPhase("welcome"), "scan");
+  assert.equal(nextRestartPhase("scan"), "connections");
+  assert.equal(nextRestartPhase("connections"), "");
+  assert.equal(RESTART_SETUP_LABEL, "Run the whole setup again");
+  assert.equal(RESTART_SETUP_LINE, "Start over: welcome screen, Find my AIs, then connections. Nothing you saved is changed without asking.");
   assert.equal(setupPhase({ fresh: false, expertSetup: { done: false, pendingScan: true } }), "scan");
   assert.equal(setupPhase({ fresh: false, expertSetup: { done: false } }), "expert");
   assert.deepEqual(TEXT_SIZES.map(([id]) => id), ["default", "large", "xlarge"]);
@@ -176,4 +182,32 @@ test("server: an install that already finished setup keeps its desktop card choi
     const t = await s.api("/tour");
     assert.equal(t.json.desktopPrompt?.title, "New: let Meldmind use your desktop");
   } finally { await s.stop(); }
+});
+
+test("Run the whole setup again reopens the welcome screen after first run is done and walks welcome -> Find my AIs -> connections without overwriting saved items", () => {
+  const app = read("web", "app.js");
+  const cs = read("web", "features", "connect-setup.js");
+  const restart = slice(app, "function restartFullSetup", "async function advanceFromScanToConnections");
+  assert.match(restart, /S\.connectWizard = false/);
+  assert.match(restart, /phase: setupPhase\(\{ fresh: false, fullRestart: true \}\)/);
+  assert.match(restart, /fullFlow: true/);
+  assert.match(restart, /S\.firstRunDone = true/);
+  assert.equal(setupPhase({ fresh: false, fullRestart: true }), "welcome");
+  const finishWelcome = slice(app, "async function finishWelcome", "function applyTextSize");
+  assert.match(finishWelcome, /if \(S\.setup\?\.fullFlow\)/);
+  assert.match(finishWelcome, /nextRestartPhase\("welcome"\)/);
+  const advance = slice(app, "async function advanceFromScanToConnections", "async function saveShareChoice");
+  assert.match(advance, /S\.setup\.fullFlow = false/);
+  assert.match(advance, /window\.CC\.connectSetup\.open\(\)/);
+  const setupFn = slice(app, "function renderSetup", "async function finishAiSetup");
+  assert.match(setupFn, /if \(st\.fullFlow\) \{ await advanceFromScanToConnections\(\); return; \}/);
+  assert.match(setupFn, /if \(st\.fullFlow\) \{\s*await advanceFromScanToConnections\(\);/);
+  // Saved items are not overwritten without asking.
+  assert.match(app, /if \(P\("openrouter"\)\?\.keyed && !confirm\(/);
+  assert.match(app, /if \(P\(b\.dataset\.savek\)\?\.keyed && !confirm\(/);
+  assert.match(app, /Change your saved username from/);
+  // Separate direct entries remain for Find my AIs and Get everything connected.
+  assert.match(app, /id="s-setup">\$\{esc\(RESTART_SETUP_LABEL\)\}</);
+  assert.match(app, /id="s-find-ais">Find my AIs</);
+  assert.match(cs, /id="cs-restart-all">Run the whole setup again</);
 });
