@@ -145,8 +145,10 @@ function patch(id, fields) {
 
 // The waiting box's own words. step is where in CHAIN the job is.
 export function headline(job) {
-  if (job.step === "apps" && job.trying) return `Out of API credits. Answering through ${job.trying} on this PC.`;
-  return `Out of API credits. Answering through your ${job.aiName} subscription.`;
+  const n = CHAIN.findIndex((c) => c.id === job.step) + 1;
+  const where = n > 0 ? ` Step ${n} of ${CHAIN.length}.` : "";
+  if (job.step === "apps" && job.trying) return `Out of API credits. Answering through ${job.trying} on this PC.${where}`;
+  return `Out of API credits. Answering through your ${job.aiName} subscription.${where}`;
 }
 export function publicJob(j) {
   if (!j) return null;

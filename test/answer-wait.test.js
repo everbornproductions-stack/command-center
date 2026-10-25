@@ -173,7 +173,7 @@ test("official app: not signed in, out of quota, or failing falls through to cop
   let info = AW.openWait({ kind: "single", runId: "s-test4", provider: "anthropic", model: "claude-x", ask: "Q4" });
   let job = await until(() => AW.findJob(info.jobId)?.step === "copy" && AW.findJob(info.jobId));
   assert.deepEqual(job.tried, [], "not tried at all");
-  assert.equal(AW.publicJob(job).headline, "Out of API credits. Answering through your Claude subscription.");
+  assert.match(AW.publicJob(job).headline, /^Out of API credits\. Answering through your Claude subscription\. Step \d of 3\.$/);
   await AW.stopWait(info.jobId);
 
   // signed in but the app says it is not: tried, then it sits out until its sign-in file changes

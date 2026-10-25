@@ -47,6 +47,7 @@ import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
 import { streamChat, complete } from "./providers.js";
 import { localRouteName } from "./local-routes.js";
+import { freeSettings, modeUsesFree, jobKind, tryFree, stepLine, savedFor, noteFreeJob } from "./free-first.js";
 import { netTrace } from "./loopback-fetch.js";
 import { startDemo, stopDemo, demoActive, demoListenPort } from "./mock.js";
 import { realAiConnected, demosHidden, demoBanner, realJobSkipsDemo, refreshCli, refreshWindowsEnv, cliNames } from "./demo-visibility.js";
@@ -571,15 +572,20 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
   const who = PROVIDERS[provider]?.name || localRouteName(provider) || provider;
-  if (!sittingOut) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
+  // Free first (0.4.18): a light job the router picked (not a pinned model, not private, no tools) tries the
+  // free routes in order; a free answer that fails the quick check is redone below by the paid route.
+  let freeHit = null;
+  try { freeHit = await freeFirstAnswer({ id, m, title, prompt, ask, cls: taskType(), priority, pinned: pinnedModel, isPrivate, tools, provider, model, system: toneAdd(system || "", tone) }); } catch { freeHit = null; }
+  if (!sittingOut && !freeHit) emit("agent.start", { agent, provider, model, role: "answer", missionId: id, label: `${customAgent ? `${customAgent.name} (${who})` : who} answering${web?.native ? " (with its own web search)" : web?.sources?.length ? ` (with ${web.sources.length} web sources)` : ""}${lib?.sources?.length ? ` (with ${lib.sources.length} library excerpts)` : ""}` });
   const s = Date.now();
   const asked = { provider, model };
-  let text = "";
+  let text = freeHit ? freeHit.text : "";
+  if (freeHit) { provider = m.provider; model = m.model; }
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    if (!freeHit) for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -634,6 +640,36 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
   }
+}
+
+// Free first (0.4.18): returns the free answer (and fills the run) or null for the paid route.
+async function freeFirstAnswer({ id, m, title, prompt, ask, cls, priority, pinned, isPrivate, tools, provider, model, system }) {
+  if (pinned || isPrivate || PROVIDERS[provider]?.demo) return null;
+  if (Array.isArray(tools) ? tools.length : tools === true) return null;
+  const s = freeSettings();
+  if (!s.on || !modeUsesFree(priority, s) || !jobKind(prompt, cls).light) return null;
+  const t0 = Date.now();
+  let r;
+  try {
+    r = await tryFree({ prompt: ask, system, onStep: (st) => { m.statusLine = stepLine(st); emit("log", { text: `${m.statusLine}.`, missionId: id }); emit("mission.update", { mission: { ...m, title, tasks: [] } }); } });
+  } catch { r = { ok: false }; }
+  m.statusLine = null;
+  if (!r?.ok) {
+    if (r?.tried?.length) emit("log", { text: "The free AIs could not take this job, so the paid AI is answering.", missionId: id });
+    return null;
+  }
+  const saved = savedFor(model, ask, r.text);
+  const fp = r.route === "openrouter-free" ? "openrouter" : r.route;
+  const e = recordCall({ provider: fp, model: r.model, usage: { input: r.usage?.input || Math.ceil(ask.length / 4), output: r.usage?.output || Math.ceil(r.text.length / 4), free: true }, missionId: id, role: "answer", ms: Date.now() - t0 });
+  noteFreeJob(r.route, saved);
+  m.provider = fp; m.model = r.model; m.via = "free";
+  m.free = { route: r.route, name: r.name, savedUsd: saved, instead: { provider, model } };
+  m.cost = +(m.cost + (e?.cost || 0)).toFixed(6);
+  emit("agent.start", { agent: `${id}:${fp}`, provider: fp, model: r.model, role: "answer", missionId: id, label: `${r.name} answering (free)` });
+  emit("agent.delta", { agent: `${id}:${fp}`, missionId: id, text: r.text });
+  emit("agent.done", { agent: `${id}:${fp}`, provider: fp, model: r.model, missionId: id, ms: Date.now() - t0, cost: 0 });
+  emit("log", { text: `Answered for free by ${r.name}. About $${saved.toFixed(4)} saved.`, missionId: id });
+  return r;
 }
 
 // ---------- routes (run inside the signed-in user's context) ----------

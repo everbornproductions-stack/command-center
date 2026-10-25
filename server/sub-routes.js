@@ -43,19 +43,19 @@ export const READ_ONLY_LINE = "You are answering a question only. Do not edit, c
 //  - Gemini CLI: -p is appended to stdin; without a yes-to-all flag, tools that change things are not run.
 //  - Antigravity: the existing agy route (server/antigravity-cli.js) where it is already set up.
 export const ROUTES = [
-  { id: "claude-code", name: "Claude Code", ai: "Claude", providers: ["anthropic"], bin: "claude", envBin: "CC_CLAUDE_BIN",
+  { id: "claude-code", name: "Claude Code", plain: "The Claude app on this computer (Claude Code)", ai: "Claude", providers: ["anthropic"], bin: "claude", envBin: "CC_CLAUDE_BIN",
     args: ["-p", "--output-format", "text", "--permission-mode", "plan"],
     signin: { all: [[".claude", ".credentials.json"]], darwin: [[".claude.json"]] },
     setupUrl: "https://docs.anthropic.com/en/docs/claude-code/setup" },
-  { id: "codex", name: "Codex", ai: "ChatGPT", providers: ["openai"], bin: "codex", envBin: "CC_CODEX_BIN",
+  { id: "codex", name: "Codex", plain: "The ChatGPT app on this computer (Codex)", ai: "ChatGPT", providers: ["openai"], bin: "codex", envBin: "CC_CODEX_BIN",
     args: ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never", "-"],
     signin: { all: [[".codex", "auth.json"]] },
     setupUrl: "https://developers.openai.com/codex/cli" },
-  { id: "gemini-cli", name: "Gemini CLI", ai: "Gemini", providers: ["google"], bin: "gemini", envBin: "CC_GEMINI_BIN",
+  { id: "gemini-cli", name: "Gemini CLI", plain: "The Gemini app on this computer", ai: "Gemini", providers: ["google"], bin: "gemini", envBin: "CC_GEMINI_BIN",
     args: ["-p", "Answer the question you were given on standard input. Do not edit files or run commands."],
     signin: { all: [[".gemini", "oauth_creds.json"]] },
     setupUrl: "https://github.com/google-gemini/gemini-cli" },
-  { id: "antigravity", name: "Antigravity", ai: "Gemini", providers: ["google"], agy: true,
+  { id: "antigravity", name: "Antigravity", plain: "The Antigravity app on this computer", ai: "Gemini", providers: ["google"], agy: true,
     setupUrl: "https://antigravity.google/" },
 ];
 export const routeById = (id) => ROUTES.find((r) => r.id === id) || null;
@@ -68,11 +68,25 @@ export function routeSettings() {
   const raw = d && typeof d === "object" ? d : {};
   const routes = {};
   for (const r of ROUTES) if (typeof raw.routes?.[r.id] === "boolean") routes[r.id] = raw.routes[r.id];
-  return { routes, website: raw.website === true, websiteAt: raw.websiteAt || null, signedOut: raw.signedOut && typeof raw.signedOut === "object" ? raw.signedOut : {} };
+  const paths = {};
+  for (const r of ROUTES) if (!r.agy && typeof raw.paths?.[r.id] === "string" && raw.paths[r.id]) paths[r.id] = raw.paths[r.id];
+  return { routes, paths, website: raw.website === true, websiteAt: raw.websiteAt || null, signedOut: raw.signedOut && typeof raw.signedOut === "object" ? raw.signedOut : {} };
 }
 export function saveRouteSettings(patch = {}) {
   const cur = routeSettings();
-  const next = { ...cur, routes: { ...cur.routes } };
+  const next = { ...cur, routes: { ...cur.routes }, paths: { ...cur.paths } };
+  // A program the person points to by hand (0.4.18): a full path to an existing file named after that app.
+  if (patch.paths && typeof patch.paths === "object") {
+    for (const [id, p] of Object.entries(patch.paths)) {
+      const r = routeById(id);
+      if (!r || r.agy) continue;
+      if (!p) { delete next.paths[id]; continue; }
+      const err = checkCustomPath(r, String(p));
+      if (err) throw Object.assign(new Error(err), { status: 400, code: "path" });
+      next.paths[id] = path.resolve(String(p));
+    }
+    clearStatusCache();
+  }
   if (patch.routes && typeof patch.routes === "object") {
     for (const [id, on] of Object.entries(patch.routes)) if (routeById(id) && typeof on === "boolean") next.routes[id] = on;
   }
@@ -131,10 +145,24 @@ export function installCandidates(route, { env = process.env, platform = process
   return list;
 }
 
+export function checkCustomPath(route, p, { platform = process.platform } = {}) {
+  if (!path.isAbsolute(p)) return "Use the full location of the program, for example C:\Users\you\AppData\Roaming\npm\gemini.cmd.";
+  let st = null;
+  try { st = fs.statSync(p); } catch {}
+  if (!st || !st.isFile()) return "No program was found at that location.";
+  const base = path.basename(p).toLowerCase();
+  const ok = platform === "win32" ? new RegExp(`^${route.bin}\.(exe|cmd|bat)$`, "i").test(base) : base === route.bin;
+  if (!ok) return `That file is not ${route.name}. Its name should be ${route.bin}${platform === "win32" ? ".exe or " + route.bin + ".cmd" : ""}.`;
+  return "";
+}
+
 export async function findBin(route, opts = {}) {
   const env = opts.env || process.env;
   const given = env[route.envBin];
   if (given) return exists(given) ? given : "";
+  let custom = "";
+  try { custom = routeSettings().paths[route.id] || ""; } catch {}
+  if (custom && exists(custom)) return custom;
   if (env.CC_SUBCLI_NO_PATH === "1") return "";
   try { const p = await (opts.which || which)(route.bin); if (p && exists(p)) return p; } catch {}
   for (const c of installCandidates(route, opts)) if (exists(c)) return c;
@@ -182,7 +210,7 @@ export async function routesView({ refresh = false } = {}) {
   const s = routeSettings();
   const rows = (await allStatus({ refresh })).map((row) => {
     const r = routeById(row.id);
-    return { id: row.id, name: row.name, ai: row.ai, status: row.status, label: row.label, on: routeOn(row.id, s), setupUrl: r.setupUrl };
+    return { id: row.id, name: row.name, plain: r.plain || row.name, ai: row.ai, status: row.status, label: row.label, on: routeOn(row.id, s), setupUrl: r.setupUrl, customPath: s.paths[row.id] || "", canSetPath: !r.agy };
   });
   return {
     routes: rows, website: s.website, chain: CHAIN, chainLine: CHAIN_LINE, appsNote: APPS_NOTE,

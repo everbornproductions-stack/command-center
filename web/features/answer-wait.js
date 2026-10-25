@@ -123,10 +123,15 @@ window.addEventListener("focus", () => { checkClipboard(); });
 async function renderPanel(el, { setup = false } = {}) {
   if (!el) return;
   if (!view) await load(true);
-  el.innerHTML = panelHtml(view || {}, { esc, setup });
+  el.innerHTML = panelHtml(view || {}, { esc, setup, mode: S.uiMode });
   const post = async (body) => { view = await api("/answerwait/settings", { method: "POST", body }); renderPanel(el, { setup }); };
   el.querySelector("#cc-aw-on")?.addEventListener("change", (e) => post({ on: e.target.checked }).catch((x) => toast(x.message, true)));
   el.querySelectorAll("[data-aw-route-on]").forEach((b) => b.addEventListener("change", () => post({ routes: { [b.dataset.awRouteOn]: b.checked } }).catch((x) => toast(x.message, true))));
+  el.querySelectorAll("[data-aw-path-save]").forEach((b) => b.addEventListener("click", () => {
+    const id = b.dataset.awPathSave;
+    const v = el.querySelector(`[data-aw-path="${CSS.escape(id)}"]`)?.value.trim() || "";
+    post({ paths: { [id]: v } }).then(() => toast(v ? "Saved. Meldmind will use that program." : "Cleared.")).catch((x) => toast(x.message, true));
+  }));
   el.querySelectorAll("[data-aw-setup]").forEach((b) => b.addEventListener("click", () => openPage(b.dataset.awSetup).catch(() => {})));
   el.querySelector("#cc-aw-check")?.addEventListener("click", async () => { try { view = await api("/answerwait/check", { method: "POST" }); renderPanel(el, { setup }); } catch (x) { toast(x.message, true); } });
   el.querySelector("#cc-aw-website")?.addEventListener("change", async (e) => {

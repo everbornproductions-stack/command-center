@@ -52,6 +52,7 @@ export const FEATURES = [
   { id: "grokbot", home: true, deliverable: true, settings: true, listen: true },
   { id: "browser", home: true, deliverable: true, settings: true, listen: true },
   { id: "bookmarks", settings: true, setup: true },
+  { id: "free-first", settings: true, welcome: true, credits: true },
   { id: "compare", views: ["compare"] },
   { id: "projectfiles", home: true, listen: true },
   { id: "libraries", views: ["libraries"], home: true, deliverable: true, settings: true },

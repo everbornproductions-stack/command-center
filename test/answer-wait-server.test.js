@@ -42,7 +42,7 @@ test("a council with one out-of-credit member shows it waiting and fills it afte
     const seat = c.answers["sage-mini"];
     assert.ok(seat.waiting?.jobId, `sage's seat is waiting, not failed: ${JSON.stringify(seat)}`);
     assert.equal(seat.error, undefined);
-    assert.equal(seat.waiting.headline, `Out of API credits. Answering through your ${seat.waiting.ai} subscription.`);
+    assert.equal(seat.waiting.headline, `Out of API credits. Answering through your ${seat.waiting.ai} subscription. Step 3 of 3.`);
     assert.ok(c.answers["nova-ultra"].text && c.answers["atlas-pro"].text);
     const jobId = seat.waiting.jobId;
     await until(async () => (await s.api("/answerwait")).json.jobs.find((j) => j.id === jobId && j.step === "copy"));

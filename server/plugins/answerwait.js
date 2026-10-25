@@ -26,7 +26,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "POST" && seg[0] === "settings" && !seg[1]) {
       const b = body || {};
       if (b.on !== undefined) saveFallbackSettings({ subscriptions: b.on === true });
-      if (b.routes !== undefined || b.website !== undefined) saveRouteSettings({ routes: b.routes, website: b.website, confirm: b.confirm === true });
+      if (b.routes !== undefined || b.website !== undefined || b.paths !== undefined) saveRouteSettings({ routes: b.routes, website: b.website, paths: b.paths, confirm: b.confirm === true });
       h.emit("log", { text: "Backup when API credits run out: settings saved." });
       return h.json(res, 200, await view());
     }

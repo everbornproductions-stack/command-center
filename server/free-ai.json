@@ -1,0 +1,24 @@
+{
+  "_note": "Free first (0.4.18). The one place for the order of free routes, their daily limits, the free OpenRouter models, and the graphics card model table. Limits are conservative guesses from the providers' public pages on 2026-10-22; a person can change them in Settings.",
+  "order": ["openrouter-free", "gemini-cli", "antigravity", "ollama"],
+  "routes": {
+    "openrouter-free": { "name": "Free OpenRouter models", "plain": "free models through your OpenRouter key", "perDay": 50 },
+    "gemini-cli": { "name": "Gemini on this computer", "plain": "the Gemini app on this computer (free with a Google account)", "perDay": 1000 },
+    "antigravity": { "name": "Google Antigravity", "plain": "the Antigravity app on this computer", "perDay": 200 },
+    "ollama": { "name": "Local AI on this computer", "plain": "a local AI model that runs on this computer (Ollama)", "perDay": 0 }
+  },
+  "openrouterModels": ["openrouter/free", "meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-chat-v3-0324:free"],
+  "gpuTiers": [
+    { "minGb": 8, "label": "8 GB", "general": { "model": "llama3.1:8b", "size": "about 5 GB", "licence": "Llama 3.1 Community License (free for most uses; read it for very large companies)" }, "coding": { "model": "qwen2.5-coder:7b", "size": "about 5 GB", "licence": "Apache 2.0" } },
+    { "minGb": 12, "label": "12 GB", "general": { "model": "gemma2:9b", "size": "about 6 GB", "licence": "Gemma Terms of Use" }, "coding": { "model": "qwen2.5-coder:14b", "size": "about 9 GB", "licence": "Apache 2.0" } },
+    { "minGb": 16, "label": "16 GB", "general": { "model": "mistral-small:24b", "size": "about 14 GB", "licence": "Apache 2.0" }, "coding": { "model": "qwen2.5-coder:14b", "size": "about 9 GB", "licence": "Apache 2.0" } },
+    { "minGb": 24, "label": "24 GB or more", "general": { "model": "qwen2.5:32b", "size": "about 20 GB", "licence": "Apache 2.0" }, "coding": { "model": "qwen2.5-coder:32b", "size": "about 20 GB", "licence": "Apache 2.0" } }
+  ],
+  "links": {
+    "node": "https://nodejs.org/en/download",
+    "geminiCli": "https://github.com/google-gemini/gemini-cli",
+    "antigravity": "https://antigravity.google/",
+    "ollama": "https://ollama.com/download",
+    "openrouterKeys": "https://openrouter.ai/settings/keys"
+  }
+}

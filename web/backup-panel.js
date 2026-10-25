@@ -7,6 +7,20 @@ export const ORDER_LINE = "1. Official apps on this PC, 2. Website (if you turne
 export const STEP_LABEL = { apps: "Official apps on this PC", website: "Website (if you turned it on)", copy: "You copy it over" };
 export const WAIT_NOTE = "Meldmind checks for the answer on its own. Nothing is sent anywhere for you.";
 
+// Words that change with the mode, in one place (0.4.18, Chris): Simple uses plain words, Expert (and the later
+// Developer mode) keep the real technical names, with the plain words as a tooltip.
+export const TERMS = {
+  simple: { appsStep: "Apps on this computer", customPath: "Installed but not found? Show Meldmind where the program is", pathHint: "The full location of the program file" },
+  expert: { appsStep: "Official CLI apps on this PC", customPath: "Custom program path", pathHint: "Full path to the executable (.exe or .cmd)" },
+};
+export const termMode = (mode) => (mode === "expert" || mode === "developer" ? "expert" : "simple");
+export const term = (key, mode) => TERMS[termMode(mode)][key] ?? TERMS.simple[key];
+// A route's name: plain words in Simple, the product name in Expert (plain words as the tooltip).
+export function routeName(r = {}, mode, esc = plainEsc) {
+  if (termMode(mode) === "simple") return esc(r.plain || r.name || "");
+  return r.plain && r.plain !== r.name ? `<span title="${esc(r.plain)}">${esc(r.name)}</span>` : esc(r.name || "");
+}
+
 const plainEsc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 export function elapsed(ms) {
@@ -19,21 +33,24 @@ export function elapsed(ms) {
 }
 
 // The Settings and Setup panel. view is GET /api/answerwait.
-export function panelHtml(view = {}, { esc = plainEsc, setup = false } = {}) {
+export function panelHtml(view = {}, { esc = plainEsc, setup = false, mode = "simple" } = {}) {
   const rows = (view.routes || []).map((r) => {
     const tone = r.status === "ready" ? "green" : r.status === "signin" ? "amber" : "";
     return `<div class="row small cc-aw-route" data-aw-route="${esc(r.id)}" style="gap:8px;padding:6px 0;flex-wrap:wrap;align-items:center">
-      <b style="min-width:120px">${esc(r.name)}</b><span class="dim">for ${esc(r.ai)}</span>
+      <b style="min-width:120px">${routeName(r, mode, esc)}</b><span class="dim">for ${esc(r.ai)}</span>
       <span class="chip ${tone}" data-aw-status="${esc(r.status)}">${esc(r.label)}</span>
       <label class="row" style="gap:4px;margin-left:auto"><input type="checkbox" data-aw-route-on="${esc(r.id)}" ${r.on ? "checked" : ""} ${r.status === "ready" ? "" : "disabled"}> Use it</label>
       ${r.status === "ready" ? "" : `<button type="button" class="btn sm" data-aw-setup="${esc(r.setupUrl || "")}">How to set it up</button>`}
+      ${r.canSetPath && (r.status === "missing" || r.customPath) ? `<details class="small" style="flex-basis:100%"><summary>${esc(term("customPath", mode))}</summary>
+        <div class="row" style="gap:6px;margin-top:4px"><input type="text" data-aw-path="${esc(r.id)}" value="${esc(r.customPath || "")}" placeholder="${esc(term("pathHint", mode))}" aria-label="${esc(term("pathHint", mode))}" style="flex:1;min-width:200px">
+        <button type="button" class="btn sm" data-aw-path-save="${esc(r.id)}">Save</button></div></details>` : ""}
     </div>`;
   }).join("");
   return `<div class="panel" id="cc-aw-settings"><h3>${esc(TITLE)}</h3>
     <div class="hint">${esc(INTRO)}</div>
     <label class="row small" style="gap:6px;margin-top:8px"><input type="checkbox" id="cc-aw-on" ${view.on !== false ? "checked" : ""}> ${esc(SWITCH)}</label>
     <div class="small" style="margin-top:8px">The order Meldmind tries: ${esc(view.chainLine || ORDER_LINE)}</div>
-    <div class="cat-h" style="margin-top:12px">1. Official apps on this PC</div>
+    <div class="cat-h" style="margin-top:12px">1. ${esc(term("appsStep", mode))}</div>
     <div class="small dim">${esc(view.appsNote || "Uses the official app for each AI, signed in with your own plan.")} Meldmind never signs in for you and never sees a password. Grok has no official app for this, so it uses step 3.</div>
     ${rows || `<div class="dim small">Checking this PC...</div>`}
     <div class="row" style="margin-top:6px"><button type="button" class="btn sm" id="cc-aw-check">Check again</button></div>

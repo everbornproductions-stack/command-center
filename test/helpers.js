@@ -229,6 +229,8 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
     // The official AI apps on the machine running the tests (Claude Code, Codex, Gemini CLI) are never
     // found or run. A test that wants one passes a fake in env.
     CC_SUBCLI_NO_PATH: "1", CC_SUBCLI_HOME: path.join(dir, "no-subcli-home"),
+    // Free first (0.4.18) is off in test servers unless a test turns it on, and a real Ollama is never reached.
+    CC_FREE_FIRST: env.CC_FREE_FIRST || "off", CC_OLLAMA_URL: env.CC_OLLAMA_URL || "http://127.0.0.1:9", CC_GPU_DETECT: env.CC_GPU_DETECT || "off",
     // Refocus never walks the real home folder or real drives during the suite.
     CC_REFOCUS_HOME: path.join(dir, "no-home-here"), CC_REFOCUS_DRIVES: path.join(dir, "no-drives-here"), CC_REFOCUS_ROOTS: "", OneDrive: "", OneDriveConsumer: "", OneDriveCommercial: "",
     ...env,
