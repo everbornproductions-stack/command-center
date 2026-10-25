@@ -123,13 +123,13 @@ Effort: S = days, M = 1 to 2 weeks, L = 3+ weeks. Tier: Free or Pro (suggestion)
 | Reorder usual (browser) | "Reorder my usual from Chipotle" | L | Pro | Stops before payment |
 | Restaurant reservation (OpenTable/Resy links) | "Table for 4 Friday 7pm near me" | M | Pro | Booking needs click |
 
-### Finances and invoices (Square API free; QuickBooks Online API free dev; Stripe API; Plaid for read-only balances, paid)
+### Finances and invoices (QuickBooks Online API free dev; Stripe API; Plaid for read-only balances, paid)
 | Action | Example | Effort | Tier | Safety |
 |---|---|---|---|---|
 | Find/organize receipts in email | "Pull all receipts from October into a sheet" | M | Free | Read; sheet create needs click |
 | Create invoice draft | "Invoice Acme $1,200 for October design work" | M | Pro | Draft only; send needs click with amount shown |
 | Unpaid invoice nudge | "Who owes me money?" then reminder drafts | M | Pro | Send needs click |
-| Sales summary (Square) | "How did sales do this week?" | S | Pro | Read only |
+| Sales summary (Stripe) | "How did sales do this week?" | S | Pro | Read only |
 | Bill reminders | "Remind me 3 days before each bill is due" | S | Free | Never pays |
 
 ### Files (local Windows file system, OneDrive/Drive)
@@ -142,7 +142,7 @@ Effort: S = days, M = 1 to 2 weeks, L = 3+ weeks. Tier: Free or Pro (suggestion)
 ### Research and news digests (web search, RSS, X API, Hacker News API free)
 | Action | Example | Effort | Tier | Safety |
 |---|---|---|---|---|
-| Quick researched answer with sources | "Compare Square vs Stripe fees" | S | Free | None |
+| Quick researched answer with sources | "Compare Stripe vs PayPal fees" | S | Free | None |
 | Deep research report (multi-model) | "Research best CRMs for a 3 person agency" | M | Pro | None |
 | Daily topic digest | "Daily AI news digest at 7am" | M | Free (1), Pro (more) | None |
 
@@ -199,4 +199,4 @@ Effort: S = days, M = 1 to 2 weeks, L = 3+ weeks. Tier: Free or Pro (suggestion)
 9. Meeting prep brief and transcript summary with action items (Calendar + Gmail + Drive/Meet transcripts). M, Free basic, Pro local recording.
 10. Small-business lead follow-up: new HighLevel lead triggers drafted email and Twilio SMS, sent on one click. M, Pro.
 
-Next wave: Slack catch-up and drafts, follow-up nudges, price watch, invoice drafts (Square/QuickBooks), social posting via Zernio, appointment booking, browser form filling.
+Next wave: Slack catch-up and drafts, follow-up nudges, price watch, invoice drafts (Stripe/QuickBooks), social posting via Zernio, appointment booking, browser form filling.

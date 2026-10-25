@@ -1,7 +1,7 @@
 // Owner report. Prints JSON and nothing else on stdout.
 // Prefer the hub (CC_HUB_URL + CC_METRICS_SECRET) so the service key stays on the server.
 // Otherwise read Supabase directly with CC_SUPABASE_URL + CC_SUPABASE_SERVICE_KEY.
-// Does not call Square. Does not print emails, licence keys, or install ids.
+// Does not call Stripe. Does not print emails, licence keys, or install ids.
 import { fetchReport, utcDay } from "../server/usage.js";
 
 const asOf = process.env.CC_METRICS_AS_OF || utcDay();

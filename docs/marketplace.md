@@ -17,14 +17,14 @@ Users publish the pipelines they have proven (steps, assignments, inputs, exampl
 ## Trust
 
 - Pipelines are data (steps and prompts), never code; nothing runs on install except what the buyer's own hub runs through its own router with its own keys.
-- Sellers verify identity through their Everborn account and Square payout (Stripe Connect or Square payouts later).
+- Sellers verify identity through their Everborn account and Stripe payout (Stripe Connect).
 - Report button; listings pulled on complaint pending review; prompt injection scan on publish (steps that try to exfiltrate keys or disable QA are rejected).
 
 ## Mechanics
 
 - Supabase tables: `market_listings` (seller_id, pipeline json, price, version, stats), `market_installs` (user_id, listing_id, version), `market_reviews`.
 - Install = copy the listing's pipeline json into the buyer's `pipelines.saved` doc with `sourceListing` set, so updates can be offered.
-- Payments: Square checkout links per listing at first (manual payouts weekly), then automated payouts.
+- Payments: Stripe Payment Links per listing at first (manual payouts weekly), then automated payouts.
 - Discovery: Pipelines tab gets a "Marketplace" section; sort by installs, rating, "saved the most".
 
 ## Metrics that matter

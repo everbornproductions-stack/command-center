@@ -21,8 +21,8 @@ A 14-day Pro trial can be started in the app. The trial is not started for you, 
 
 Extreme joins Pro. Pro is $18.99 a month or $189 a year. Extreme is $29.99 a month or $299 a year. Lifetime for the first 100 founders is $349, then $499, and it closes after 500. Lifetime is Pro for life. Yearly prices changed from the earlier unpublished $159 figure.
 
-Extreme adds early access, Max quality, and five team seats. Five team seats means 5 people total, counting the owner. That is the owner plus 4 invited. Early access means new features reach Extreme first, behind a flag. Max quality uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap. Pro, Extreme, and lifetime pay links are published. A click opens the Square pay page for the $349 founder price. After the first 100, the $499 button stays on the page.
+Extreme adds early access, Max quality, and five team seats. Five team seats means 5 people total, counting the owner. That is the owner plus 4 invited. Early access means new features reach Extreme first, behind a flag. Max quality uses the best model each connected AI offers, with more reasoning and a longer context, inside the budget cap. Pro, Extreme, Developer, and lifetime pay links are published. A click opens a secure Stripe checkout with your sign-in email filled in. After the first 100, the $499 button stays on the page.
 
-If you already pay $15.99 a month, that price stays. The old Square plan is not edited.
+To unlock after you pay, sign in with Google or Microsoft using the same email you paid with. Meldmind finds your plan by that email, so there is no key to type. Press I paid, check now if it has not unlocked yet. The licence key and promo box still work.
 
 Before 40 founders have bought, the lifetime line says "Limited to the first 100 founders". After that it shows the spots left.

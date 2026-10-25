@@ -60,7 +60,7 @@ This note shows once after an update. Take the tour any time from the Help menu.
 
 Settings, Desktop doors, is the list after Google Antigravity. Add a website, a Windows program, or an MCP server, then tick Allow. The app stays a draft until you do. Revoke hides it from the planner.
 
-Send, buy, and delete wait for a second click. A banner says Meldmind is using that app, and Stop ends the step. Passwords are not stored. A password field is refused. Square and billing screens are refused.
+Send, buy, and delete wait for a second click. A banner says Meldmind is using that app, and Stop ends the step. Passwords are not stored. A password field is refused. Stripe, payment and billing screens are refused.
 
 A signed-in Edge or Chrome profile stays off until you opt in, and it does not start while that browser is open. The screenshot fallback stays off until you turn it on for that app, and it stops at its spend cap.
 
