@@ -16,7 +16,7 @@ const G = await import("../server/google.js");
 
 const SHOP = `<!doctype html><html><head><title>Acme &amp; Co</title><script>var x = "<a href='/no'>no</a>";</script><style>a{}</style></head><body>
 <h1>Acme Supplies</h1><p>Today's special: blue widgets at $12.</p>
-<a href="/site/contact">Contact</a> <a href="/site/account" aria-label="Your account">Account</a> <a href="https://squareup.com/pay">Pay with Square</a>
+<a href="/site/contact">Contact</a> <a href="/site/account" aria-label="Your account">Account</a> <a href="https://checkout.stripe.com/pay">Pay with Stripe</a>
 <form method="post" action="/site/contact-send" aria-label="Contact form"><input type="hidden" name="csrf" value="abc123">
 <label for="nm">Your name</label><input id="nm" name="name" type="text">
 <label>Message <textarea name="message">Hi</textarea></label>
@@ -48,11 +48,11 @@ test("reader: title, text, links, buttons, fields and forms; scripts and comment
   assert.equal(R.decode("a &lt;b&gt; &#39;c&#x27; &amp;amp;"), "a <b> 'c' &amp;");
 });
 
-test("assess: refuses Square, billing, this app, non-web addresses, passwords and card fields; asks before submits, sends, deletes and buys", () => {
+test("assess: refuses Stripe, billing, this app, non-web addresses, passwords and card fields; asks before submits, sends, deletes and buys", () => {
   const p = R.parsePage(SHOP, "http://shop.test/site/");
   const snap = { url: "http://shop.test/site/", title: p.title, elements: p.elements, forms: p.forms.map((f) => ({ ...f, fields: f.fields.map((x) => ({ name: x.name, type: x.type, hidden: !!x.hidden, ref: x.ref || null, value: x.el ? (x.type === "checkbox" ? (x.el.checked ? x.el.value : null) : x.el.value) : x.value })) })) };
   const ref = (label) => p.elements.find((e) => e.label === label).ref;
-  assert.match(BH.assess({ action: "open", url: "https://squareup.com/dashboard" }, snap).refuse, /Square/);
+  assert.match(BH.assess({ action: "open", url: "https://billing.stripe.com/session/x" }, snap).refuse, /Stripe/);
   assert.match(BH.assess({ action: "open", url: "https://app.example.com/settings/billing" }, snap).refuse, /billing/);
   assert.match(BH.assess({ action: "open", url: "file:///C:/Windows/win.ini" }, snap).refuse, /http/);
   assert.match(BH.assess({ action: "open", url: "javascript:alert(1)" }, snap).refuse, /http/);
@@ -60,7 +60,7 @@ test("assess: refuses Square, billing, this app, non-web addresses, passwords an
   assert.deepEqual(BH.assess({ action: "open", url: "http://127.0.0.1:4747/browser-demo.html" }, snap), {}, "the built-in demo page is fine");
   assert.deepEqual(BH.assess({ action: "open", url: "https://news.example.com/today" }, snap), {});
   assert.equal(BH.assess({ action: "open", url: "https://shop.example.com/account/delete" }, snap).ask.kind, "delete");
-  assert.match(BH.assess({ action: "click", ref: p.elements.find((e) => /squareup/.test(e.href || "")).ref }, snap).refuse, /Square/);
+  assert.match(BH.assess({ action: "click", ref: p.elements.find((e) => /stripe\.com/.test(e.href || "")).ref }, snap).refuse, /Stripe/);
   assert.deepEqual(BH.assess({ action: "click", ref: ref("Contact") }, snap), {}, "a plain link just opens");
   const sub = BH.assess({ action: "click", ref: ref("Send") }, snap).ask;
   assert.equal(sub.kind, "send"); assert.match(sub.title, /Submit the form "Contact form" on shop\.test/);
@@ -136,7 +136,7 @@ async function mocks() {
     // ---- the website ----
     if (url.pathname.startsWith("/site")) {
       m.site.hits.push({ method: req.method, path: url.pathname, search: url.search, cookie: req.headers.cookie || "" });
-      if (url.pathname === "/site/" || url.pathname === "/site") { res.setHeader("set-cookie", "sid=abc; Path=/"); return html(page("Acme Supplies", `<h1>Acme Supplies</h1><p>Today's special: blue widgets at $12.</p><a href="/site/contact">Contact</a> <a href="/site/login">Sign in</a> <a href="/site/billing">Billing</a> <a href="https://squareup.com/pay/acme">Pay with Square</a>`)); }
+      if (url.pathname === "/site/" || url.pathname === "/site") { res.setHeader("set-cookie", "sid=abc; Path=/"); return html(page("Acme Supplies", `<h1>Acme Supplies</h1><p>Today's special: blue widgets at $12.</p><a href="/site/contact">Contact</a> <a href="/site/login">Sign in</a> <a href="/site/billing">Billing</a> <a href="https://checkout.stripe.com/pay/acme">Pay with Stripe</a>`)); }
       if (url.pathname === "/site/contact") return html(page("Contact Acme", `<form method="post" action="/site/contact-send" aria-label="Contact Acme"><input type="hidden" name="csrf" value="tok-77"><label for="n">Your name</label><input id="n" name="name"><label for="msg">Message</label><textarea id="msg" name="message"></textarea><button>Send</button></form>`));
       if (url.pathname === "/site/contact-send" && req.method === "POST") { m.site.posts.push(Object.fromEntries(new URLSearchParams(body))); return html(page("Thanks", `<p>Thanks, your message was received.</p>`)); }
       if (url.pathname === "/site/login") return html(page("Sign in", `<form method="post" action="/site/session"><input name="user" placeholder="User name"><input type="password" name="pw" placeholder="Password"><button>Sign in</button></form><input name="card" autocomplete="cc-number" placeholder="Card number">`));
@@ -271,13 +271,13 @@ test("server: jobs on a click, the OK prompt, no, stop, refusals, limits, Google
     assert.equal(jd.status, "done"); assert.equal(jd.text, "Not sent, as you asked."); assert.equal(m.site.posts.length, 1, "nothing more was sent");
     assert.ok(jd.log.some((l) => l.kind === "no"));
 
-    // ---- refusals: passwords, card fields, Square and billing; nothing reaches those pages ----
+    // ---- refusals: passwords, card fields, Stripe and billing; nothing reaches those pages ----
     const hits0 = m.site.hits.length;
     m.script.push(
       { action: "open", url: `${m.base}/site/login` },
       (u) => { assert.match(u, /password field \(never type here\)/); return { action: "type", ref: refOf(u, /password field/), text: "hunter2" }; },
       (u) => { assert.match(u, /REFUSED: the helper never types passwords/); return { action: "type", ref: refOf(u, /card field/), text: "4111111111111111" }; },
-      { action: "open", url: "https://squareup.com/dashboard" },
+      { action: "open", url: "https://dashboard.stripe.com/payments" },
       { action: "open", url: `${m.base}/site/billing` },
       { action: "open", url: `http://127.0.0.1:${s.port}/api/state` },
       (u) => { assert.equal((u.match(/REFUSED/g) || []).length, 5); return { action: "fail", answer: "It needs your password; please sign in yourself." }; },

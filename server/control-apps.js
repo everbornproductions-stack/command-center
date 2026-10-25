@@ -10,7 +10,7 @@
 
 import { capsFor } from "./added-caps.js";
 import {
-  askComputer, blockedScreen, blockedUrl, browserRunning, clickAt, computerRequest,
+  askComputer, blockedScreen, blockedUrl, PAYMENT_REFUSAL, PAYMENT_SCREEN, browserRunning, clickAt, computerRequest,
   computerTarget, grabScreen, invokeControl, openBrowser, profilePlan, readWindow,
 } from "./app-drivers.js";
 import { observe, bestAtWhat } from "./brain.js";
@@ -30,7 +30,7 @@ const STEP_CAP = 12;
 const PAGE_CAP = 0.25;
 const SHOT_USD = 0.4;
 const RISKY = /\b(send|submit|post|publish|buy|purchase|pay|delete|remove)\b/i;
-const SECRET = /password|billing|square|checkout/i;
+const SECRET = /password|billing|stripe|payment|checkout/i;
 const RELAY_HOST = /(^|\.)((chatgpt|claude)\.com|chat\.openai\.com)$/i;
 
 function empty() {
@@ -428,7 +428,7 @@ export function downscale(image) {
 }
 
 function shotBlocked(image) {
-  return /square|billing|checkout/i.test(`${image?.title || ""} ${image?.name || ""}`);
+  return PAYMENT_SCREEN.test(`${image?.title || ""} ${image?.name || ""}`);
 }
 
 function runShots(app, body) {
@@ -445,7 +445,7 @@ function runShots(app, body) {
   let sent = [];
   for (const image of shots) {
     if (shotBlocked(image)) {
-      return { status: "refused", reason: "Square and billing screens are refused.", steps, log, sentImages: sent, cost: spent, estimate, cap };
+      return { status: "refused", reason: PAYMENT_REFUSAL, steps, log, sentImages: sent, cost: spent, estimate, cap };
     }
     if (spent + SHOT_USD > cap) {
       return { status: "stopped", reason: "Screenshot cap reached.", steps, log, sentImages: sent, cost: spent, estimate, cap };
@@ -686,7 +686,7 @@ async function runShotsLive(app, body) {
     }
     const image = supplied ? supplied[i] : await grabScreen();
     if (shotBlocked(image) || blockedScreen(image?.title)) {
-      return { status: "refused", reason: "Square and billing screens are refused.", steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+      return { status: "refused", reason: PAYMENT_REFUSAL, steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
     }
     const picture = downscale(image);
     const req = computerRequest({

@@ -11,8 +11,12 @@ import { DATA_DIR } from "./paths.js";
 import { PROVIDERS } from "./registry.js";
 import { hasSecret, getSecret } from "./vault.js";
 
-const SQUARE_HOST = /(^|\.)(squareup\.com|squareupsandbox\.com|square\.site|square\.link|squarecdn\.com|cash\.app)$/i;
+// Payment pages: Stripe (stripe.com, buy.stripe.com, checkout.stripe.com, billing.stripe.com) and other
+// payment services, plus any billing or checkout path or screen title. Refused whatever the task says.
+const PAYMENT_HOST = /(^|\.)(stripe\.com|stripe\.network|paypal\.com|paypal\.me|venmo\.com|cash\.app)$/i
 const BILLING_PATH = /\/(billing|checkout|payment-methods?|payment_methods?)(\/|$)/i;
+export const PAYMENT_SCREEN = /stripe|billing|checkout|payment/i;
+export const PAYMENT_REFUSAL = "Stripe, payment and billing screens are refused.";
 
 let hooks = {};
 
@@ -46,13 +50,13 @@ export function scrub(text) {
 export function blockedUrl(raw) {
   let u;
   try { u = new URL(String(raw || "")); } catch { return ""; }
-  if (SQUARE_HOST.test(u.hostname)) return "Square and billing screens are refused.";
-  if (BILLING_PATH.test(u.pathname)) return "Square and billing screens are refused.";
+  if (PAYMENT_HOST.test(u.hostname)) return PAYMENT_REFUSAL;
+  if (BILLING_PATH.test(u.pathname)) return PAYMENT_REFUSAL;
   return "";
 }
 
 export function blockedScreen(title) {
-  return /square|billing|checkout/i.test(String(title || "")) ? "Square and billing screens are refused." : "";
+  return PAYMENT_SCREEN.test(String(title || "")) ? PAYMENT_REFUSAL : "";
 }
 
 // Owned profile unless the person opted in to their own Edge or Chrome profile.

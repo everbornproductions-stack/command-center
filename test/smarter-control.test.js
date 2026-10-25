@@ -175,9 +175,9 @@ test("app cards, scores, MCP, website, profile, window tree, and the $1 screensh
   assert.equal(pictures.steps[0].width, 1280);
   assert.deepEqual(pictures.sentImages, ["two"]);
   assert.match(pictures.reason, /cap/);
-  const square = Apps.runJob(shot.id, { seenEstimate: true, shots: [{ id: "pay", title: "Square checkout", width: 800, height: 600 }] });
-  assert.equal(square.status, "refused");
-  assert.match(square.reason, /Square/);
+  const stripe = Apps.runJob(shot.id, { seenEstimate: true, shots: [{ id: "pay", title: "Stripe checkout", width: 800, height: 600 }] });
+  assert.equal(stripe.status, "refused");
+  assert.match(stripe.reason, /Stripe/);
 
   const mcp = Apps.addApp({ name: "Tools", kind: "mcp", capabilities: ["analysis"], mcpServerId: "demo-tools" });
   Apps.setAllowed(mcp.id, true);
