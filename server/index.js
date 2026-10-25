@@ -143,7 +143,6 @@ const originOk = (req) => {
   if (o.includes("trycloudflare.com")) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
 };
-};
 function phonePair() {
   const p = settings().phonePair;
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
