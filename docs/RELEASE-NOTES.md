@@ -2,6 +2,13 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## 0.4.18
+
+- Pay on the website with Stripe and unlock in the app: sign in with the same email and your plan turns on. Upgrade in the app opens checkout with your email filled in.
+- Get everything connected now has a Run the whole setup again button, so you can redo setup from one place.
+- Helping Meldmind get smarter: anonymous results (counts only, never your text) are on by default with a note on the welcome screen, and off by default in the EU and UK. Sharing your own prompts and answers stays opt-in. Settings, Privacy lists everything that leaves this computer.
+- New helper persona Rin tests how the menus and buttons feel, and the Missions, Councils and Research menus now open correctly on large screens.
+
 ## 0.4.17
 
 - One welcome screen replaces the first-run pop-ups: pick Simple or Expert, text size, try it now or add a key, and sign in with Google or Microsoft in one click. Skip setup any time.

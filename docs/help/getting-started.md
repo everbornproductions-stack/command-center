@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.17
+lastUpdatedVersion: 0.4.18
 ---
 
 # Getting started
@@ -134,6 +134,16 @@ Remove, Good, and Not good are written on those buttons.
 A practice answer says it is from a pretend AI. Nothing was spent. Get real answers sits on that note.
 
 On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
+## New in 0.4.18
+
+Pay on the website with Stripe and your plan unlocks in the app. Sign in with the same email you paid with, and the plan turns on. Upgrade in the app opens checkout with your email filled in.
+
+Get everything connected has a Run the whole setup again button, so you can redo setup from one place.
+
+Helping Meldmind get smarter: anonymous results (counts only, never your text) are on by default with a note on the welcome screen, and off by default in the EU and UK. Sharing your own prompts and answers stays opt-in. Settings, Privacy lists everything that leaves this computer.
+
+A new helper persona, Rin, tests how the menus and buttons feel. The Missions, Councils and Research menus now open correctly on large screens.
 
 ## New in 0.4.17
 
