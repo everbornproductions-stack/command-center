@@ -30,8 +30,8 @@ test("the feature map matches the Free vs Pro table", () => {
   const billing = fs.readFileSync(path.join(ROOT, "docs", "billing.md"), "utf8");
   assert.match(billing, /server\/feature-gate\.js/);
   assert.equal(billing.includes("\u2014"), false);
-  assert.match(billing, /\$15\.99/);
-  assert.match(billing, /square\.link\/u\/dbU38mQC/);
+  assert.match(billing, /\$18\.99/);
+  assert.match(billing, /buy\.stripe\.com/);
 });
 
 test("free tier is refused on share links and schedules; owner is not", async () => {

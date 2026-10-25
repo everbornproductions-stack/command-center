@@ -122,7 +122,7 @@ export function licenseState() {
     compare: compareRows(),
     plan: l.plan || null,
     canUnlockByEmail: !!signedInEmail(),
-    unlockEmail: l.via === "email" ? (l.email || null) : null,
+    unlockEmail: l.via === "email" && r.tier !== "free" ? (l.email || null) : null,
     lifetime: !!r.lifetime,
   };
 }
@@ -185,7 +185,7 @@ export async function activate(key) {
     const patch = { key: k, via: null, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
     if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
     saveLic(patch);
-    emit("log", { text: `Licence active: ${r.tier} (${r.email})` });
+    emit("log", { text: `Licence active: ${r.tier}` });
     try {
       const { queueWelcome } = await import("./welcome-mail.js");
       const source = String(r.tier || "").toLowerCase() === "pro" ? "pro-purchase" : "license";
