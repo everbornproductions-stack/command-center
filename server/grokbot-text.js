@@ -5,7 +5,8 @@
 import { registerLocalRoute } from "./local-routes.js";
 import * as GB from "./grokbot.js";
 
-export const GROKBOT_TEXT = "grokbot-text";
+import { GROKBOT_TEXT } from "./free-first.js";
+export { GROKBOT_TEXT };
 
 async function* grokbotText(opts = {}) {
   const text = (opts.messages || []).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean).join("\n\n");

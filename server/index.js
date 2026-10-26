@@ -68,6 +68,7 @@ import { augment as libraryAugment, publicSources as publicLibrarySources } from
 import { sendCheck } from "./send-check.js";
 import { freeOnlyOn, hasPaidKey, freeOnlyError, costText, whyHandoff, ensureLocalProviders, creditCheck, freeOnlyView, FREE_PAGES } from "./free-first.js";
 import { readiness as grokReadiness } from "./grokbot.js";
+import "./free-first-wire.js";
 import { nothingCameBack, fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe, markPrivateRun, freshBrainDoc } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";

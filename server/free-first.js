@@ -15,15 +15,22 @@ import { hasSecret, getSecret } from "./vault.js";
 import { doc, putDoc, currentUserId } from "./store.js";
 import { FREE_TIERS, fallbackSettings, trouble, markTrouble } from "./fallback.js";
 import { localFetch } from "./loopback-fetch.js";
-import { readyPlanRoutes, outOfQuota, planId } from "./plan-first.js";
-import { routeModels as agyRouteModels } from "./antigravity-cli.js";
-import { GROKBOT_TEXT, grokbotReady } from "./grokbot-text.js";
+export const GROKBOT_TEXT = "grokbot-text";
+// The subscription apps, Antigravity and Grok Bot are wired in by server/free-first-wire.js (loaded by the server).
+// They are looked up through these hooks so this module has no import cycle with the agents; with no hooks there are no apps.
+const hooks = { readyPlanRoutes: () => [], outOfQuota: () => false, planId: (id) => `plan-${id}`, agyRouteModels: () => [], grokbotReady: () => false };
+export function setAppHooks(h = {}) { Object.assign(hooks, h); }
+const readyPlanRoutes = () => hooks.readyPlanRoutes();
+const outOfQuota = (id) => hooks.outOfQuota(id);
+const planId = (id) => hooks.planId(id);
+const agyRouteModels = () => hooks.agyRouteModels();
+const grokbotReady = () => hooks.grokbotReady();
 import { cachedLive } from "./provider-balance.js";
 import { describePause } from "./pause.js";
 
 // ---------- who counts as free ----------
 // Keys for these services normally sit on a free tier, so saving one does not turn Free only off.
-export const FREE_KEY_PROVIDERS = new Set(["google", "groq", "openrouter", "mistral"]);
+export const FREE_KEY_PROVIDERS = new Set(["google", "groq"]); // OpenRouter and Mistral keys may carry credit, so they count as paid
 export const FREE_PAGES = [
   { id: "groq", name: "Groq", url: "https://console.groq.com/keys", provider: "groq", what: "Fast, free tier. Works well as a helper.", needs: "key" },
   { id: "google", name: "Google AI Studio (Gemini)", url: "https://aistudio.google.com/apikey", provider: "google", what: "Free Gemini Flash models. No card.", needs: "key" },
@@ -63,7 +70,7 @@ export const TIER_WORD = ["this PC", "free", "your plan", "paid"];
 // ---------- Free only ----------
 export function hasPaidKey() {
   for (const p of Object.values(PROVIDERS)) {
-    if (p.kind !== "text" || p.demo || p.custom || p.noKey) continue;
+    if (p.kind !== "text" || p.demo || p.noKey) continue; // a custom gateway with a key may charge, so it counts as paid
     if (FREE_KEY_PROVIDERS.has(p.id)) continue;
     try { if (hasSecret(p.id, p.keyEnv)) return true; } catch { /* a vault that cannot be read counts as no key */ }
   }
@@ -81,7 +88,7 @@ export function freeOnlyView() {
 }
 export const FREE_ONLY_BLOCK = "This needs a paid AI. Turn off Free only to run it.";
 export function freeOnlyError() {
-  return Object.assign(new Error(FREE_ONLY_BLOCK), { code: "free_only", status: 402, plain: FREE_ONLY_BLOCK });
+  return Object.assign(new Error(FREE_ONLY_BLOCK), { code: "free_only", status: 409, plain: FREE_ONLY_BLOCK }); // not 402: that would send the job to the copy-over wait
 }
 
 // ---------- this PC: Ollama and LM Studio ----------

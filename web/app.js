@@ -1371,7 +1371,7 @@ function renderSimpleChat(v) {
           <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
           <div class="row simple-send-row">
             <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it (Single, Mission or Council) for you. Open More options to change it.">${teamLabel()}</button>
+            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it for you. Open More options to change it.">Auto team</button>
             <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
             <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
             <span style="margin-left:auto">${freeOnlyHtml()}</span>
