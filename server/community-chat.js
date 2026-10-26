@@ -307,8 +307,11 @@ export function publicMessage(message, room, actor) {
 
 export function listMessages(room, channel, actor) {
   const next = normalizeRoom(room);
+  // Oldest first by time (the shared room and this computer add messages in different orders), one row per id.
+  const seen = new Set();
   return next.messages
-    .filter((item) => item.channel === channel && !item.deleted)
+    .filter((item) => item.channel === channel && !item.deleted && !seen.has(item.id) && seen.add(item.id))
+    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.id).localeCompare(String(b.id)))
     .slice(-100)
     .map((item) => publicMessage(item, next, actor));
 }

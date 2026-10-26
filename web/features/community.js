@@ -33,16 +33,70 @@ if (!document.getElementById("cc-community-style")) {
   document.head.appendChild(style);
 }
 
+// The Community menu shows "New" for a fresh AI News issue, or a number for chat messages you have not seen.
+let unreadChat = 0;
 function paintNavBadge(on) {
+  const text = unreadChat > 0 ? (unreadChat > 99 ? "99+" : String(unreadChat)) : "New";
   document.querySelectorAll('button[data-view="community"]').forEach((btn) => {
     let mark = btn.querySelector(".cc-new");
-    if (!on) { mark?.remove(); return; }
-    if (mark) return;
-    mark = document.createElement("span");
-    mark.className = "chip cc-new";
-    mark.textContent = "New";
-    btn.appendChild(mark);
+    if (!on && !unreadChat) { mark?.remove(); return; }
+    if (!mark) {
+      mark = document.createElement("span");
+      mark.className = "chip cc-new";
+      btn.appendChild(mark);
+    }
+    if (mark.textContent !== text) mark.textContent = text;
+    mark.setAttribute("aria-label", unreadChat > 0 ? `${text} unread chat messages` : "New AI News issue");
   });
+}
+
+// What this person has seen, per channel, kept on this computer. Opening a channel marks it seen.
+const SEEN_KEY = "cc.community.seen";
+function readSeen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}") || {}; } catch { return {}; } }
+function markSeen(id, at) {
+  const seen = readSeen();
+  seen[id] = Math.max(Number(seen[id]) || 0, Number(at) || Date.now());
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* unread counts reset next visit */ }
+}
+let unreadTimer = null;
+async function pollUnread() {
+  if (document.hidden) return;
+  const seen = readSeen();
+  // First visit ever: start counting from now instead of showing the whole history as unread.
+  const ids = ["general", "prompts", "builders", "help", "show"];
+  for (const id of ids) if (!seen[id]) markSeen(id, Date.now());
+  const since = ids.map((id) => `${id}:${readSeen()[id]}`).join(",");
+  try {
+    const out = await api(`/community/unread?since=${encodeURIComponent(since)}`);
+    // The channel on screen is always read.
+    const onScreen = window.CC.S.view === "community" ? channel : "";
+    unreadChat = Object.entries(out.channels || {}).reduce((n, [id, c]) => n + (id === onScreen ? 0 : Number(c) || 0), 0);
+    if (out.news) unread = true;
+    paintNavBadge(unread);
+  } catch { /* the badge keeps its last value */ }
+}
+function startUnread() {
+  if (unreadTimer) return;
+  unreadTimer = setInterval(pollUnread, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollUnread(); });
+  pollUnread();
+}
+
+// "Updated just now" or "Offline", and the sharing note, shown above the message box.
+function syncChip(sync) {
+  if (!sync) return "";
+  if (sync.online === false) return `<span class="chip" id="cc-sync" data-state="offline">Offline. Showing what is saved on this computer.</span>`;
+  const secs = Math.max(0, Math.round((Date.now() - (sync.at || Date.now())) / 1000));
+  return `<span class="chip" id="cc-sync" data-state="online" data-at="${Number(sync.at) || Date.now()}">${secs < 10 ? "Updated just now" : `Updated ${secs} seconds ago`}</span>`;
+}
+function tickSync() {
+  const el = document.getElementById("cc-sync");
+  if (!el || el.dataset.state !== "online") return;
+  const secs = Math.max(0, Math.round((Date.now() - Number(el.dataset.at)) / 1000));
+  el.textContent = secs < 10 ? "Updated just now" : secs < 90 ? `Updated ${secs} seconds ago` : `Updated ${Math.round(secs / 60)} minutes ago`;
+}
+function shareNote(sync) {
+  return sync && sync.canShare === false && sync.note ? `<div class="small cc-readonly" role="note" style="margin-top:8px;padding:8px 10px;border:1px solid var(--line-2,#2a3a52);border-radius:8px">${esc(sync.note)}</div>` : "";
 }
 
 async function shareInChat(input = {}) {
@@ -76,6 +130,12 @@ async function shareInChat(input = {}) {
   }
 }
 window.CC.shareInChat = shareInChat;
+// Other panels (the AI News side panel) open the Community page on a channel, News included.
+window.CC.openCommunity = (ch) => {
+  if (ch) channel = String(ch);
+  if (window.CC.S.view === "community") { const view = document.getElementById("view"); if (view) { render(view); return; } }
+  go("community");
+};
 
 function kindLabel(kind) {
   if (kind === "price") return "Price change";
@@ -229,12 +289,27 @@ function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = nul
 function startLive(view) {
   stopLive();
   if (channel === "news" || !room?.joined) return;
+  if (!startLive.wired) {
+    startLive.wired = true;
+    // Poll only while the Community tab is visible: stop when hidden, catch up the moment it is shown again.
+    document.addEventListener("visibilitychange", () => {
+      const v = document.getElementById("view");
+      if (document.hidden) stopLive();
+      else if (v && v.querySelector("#cc-community") && window.CC.S.view === "community") startLive(v);
+    });
+    setInterval(tickSync, 5000);
+  }
+  if (document.hidden) return;
   liveTimer = setInterval(async () => {
     const feed = view.querySelector("#cc-feed");
     if (!feed || !view.isConnected || document.hidden || channel === "news") { if (!feed || !view.isConnected) stopLive(); return; }
     try {
-      const next = await api(`/community?channel=${encodeURIComponent(channel)}`);
+      const next = await api(`/community?channel=${encodeURIComponent(channel)}&lite=1`);
       if (next.channel !== channel) return;
+      const chip = view.querySelector("#cc-sync");
+      if (chip) { chip.outerHTML = syncChip(next.sync); }
+      if (next.messages?.length) markSeen(channel, Math.max(...next.messages.map((m) => Number(m.createdAt) || 0), Date.now()));
+      next.news = room.news;
       const html = (next.messages || []).map((m) => messageHtml(m, next.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>`;
       if (html === feed.dataset.html) return;
       const atEnd = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
@@ -283,6 +358,10 @@ async function render(view) {
   try { room = await api(`/community?channel=${encodeURIComponent(channel)}`); }
   catch (e) { root.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   unread = !!room.news?.unread;
+  if (channel === "news" && unread && room.news?.issue?.id) {
+    // Opened from the side panel or the menu straight onto News: that counts as read.
+    api("/community/news/seen", { method: "POST", body: { id: room.news.issue.id } }).then(() => { unread = false; paintNavBadge(false); }).catch(() => {});
+  }
   paintNavBadge(unread);
   const channels = room.channels || [];
   const onNews = channel === "news";
@@ -300,11 +379,12 @@ async function render(view) {
           <div><button class="btn sm primary" type="submit">Save username</button></div>
         </form>`)}
         <div class="dim small">${esc(SHORT)}</div>
+        ${onNews ? "" : `<div class="row" style="gap:8px;margin-top:6px;align-items:center">${syncChip(room.sync)}<button class="btn sm" type="button" id="cc-refresh">Refresh</button></div>${joined ? shareNote(room.sync) : ""}`}
         ${onNews ? newsHtml(room.news) : `
           <div id="cc-feed" style="max-height:60vh;overflow-y:auto">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
             <textarea id="cc-body" rows="3" maxlength="2000" placeholder="Write a message. Nothing is posted until you click Send." aria-label="Message"></textarea>
-            <div><button class="btn sm primary" type="submit" id="cc-send-go">Send</button></div>
+            <div><button class="btn sm primary" type="submit" id="cc-send-go">${room.sync && room.sync.canShare === false ? "Save on this computer" : "Send"}</button></div>
           </form>` : ""}`}
         ${mailBox(!!room.newsletter?.optedIn)}
       </div>
@@ -350,6 +430,9 @@ async function render(view) {
   });
 
   wireFeed(view, root);
+  root.querySelector("#cc-refresh")?.addEventListener("click", () => render(view));
+  if (!onNews) markSeen(channel, Date.now());
+  if (!onNews && unreadChat) pollUnread();
   root.querySelectorAll("[data-react]").forEach((btn) => btn.addEventListener("click", async () => {
     try {
       await api("/community/news/react", { method: "POST", body: { issueId: room.news.issue.id, itemId: btn.dataset.item, reaction: btn.dataset.react } });
@@ -479,6 +562,7 @@ window.CC.register({
     paintNavBadge(unread);
     if (primed) return;
     primed = true;
-    api("/community/news").then((news) => { unread = !!news.unread; paintNavBadge(unread); }).catch(() => {});
+    // One pull answers both the New AI News mark and the unread chat count.
+    startUnread();
   },
 });

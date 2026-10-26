@@ -31,7 +31,7 @@ test("a free, signed-in person can pick a name and post; nothing is claimed as s
     const sent = await s.api("/community/messages", { method: "POST", body: { channel: "general", body: "Hello from a free account" } });
     assert.equal(sent.status, 200);
     assert.equal(sent.json.delivered, false, "no licence key and no hub: not shared with anyone");
-    assert.match(sent.json.note, /this computer only/);
+    assert.match(sent.json.note, /stays on this computer/);
     assert.ok(sent.json.message.unsent);
     const list = await s.api("/community?channel=general");
     const mine = list.json.messages.find((m) => m.body === "Hello from a free account");

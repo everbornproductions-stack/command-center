@@ -183,7 +183,9 @@ test("chat needs the licence email, hides drafts, and enforces conduct", async (
     assert.equal(on.json.optedIn, true);
     assert.match(on.json.note, /Nothing is sent/);
     const preview = await s.api("/community/newsletter/preview", { method: "POST", body: {} });
-    assert.equal(preview.status, 404);
+    assert.equal(preview.status, 200, "no issue yet is a normal state, not a 404");
+    assert.equal(preview.json.empty, true);
+    assert.match(preview.json.note, /no published issue yet/);
     const token = (await s.api("/community/newsletter")).json.token;
     const off = await s.api("/community/newsletter/unsubscribe", { method: "POST", body: { token } });
     assert.equal(off.json.optedIn, false);
