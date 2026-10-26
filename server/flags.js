@@ -8,6 +8,7 @@ const DEFAULTS = {
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
   finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
+  takeover: false, // Review and Take Over Tasks panel, project mirroring, Owner tools
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -27,5 +28,12 @@ export function projectmediaOn(settings = {}) {
   if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("projectmedia");
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
+}
+// The saved setting (flag_takeover) is used only when no env var forces the flag.
+export function takeoverOn(settings = {}) {
+  const v = process.env.CC_FLAG_TAKEOVER;
+  if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("takeover");
+  if (settings && typeof settings.flag_takeover === "boolean") return settings.flag_takeover;
+  return flagOn("takeover");
 }
 export const flagView = () => Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, flagOn(k)]));

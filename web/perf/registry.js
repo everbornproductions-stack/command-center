@@ -130,6 +130,7 @@ export const FEATURES = [
 // loads it even if the page forgot to ask.
 export const SERVER_DEMAND = [
   { id: "perf", file: "perf.js", views: ["settings"] },
+  { id: "takeover", file: "takeover.js", views: ["schedules"] },
   { id: "projectmedia", file: "projectmedia.js", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"] },
 ];
 
