@@ -154,6 +154,8 @@ export function troubleKind(e) {
   const s = Number(e.status) || 0;
   const m = String(e.message || "").toLowerCase();
   if (e.name === "AbortError" || /mission aborted|aborted/.test(m) && !s) return null;
+  // the app's own monthly budget stop is not a provider problem: never bench a provider for it
+  if (e.code === "budget_cap" || /this month's budget is used up|monthly budget/.test(m)) return null;
   if (/no api key saved/.test(m)) return "key";
   if (s === 402 || /credit|spending limit|spend limit|insufficient_quota|insufficient quota|exceeded your current quota|billing|balance is too low|payment required|out of credits/.test(m)) return "credits";
   if (s === 429 || /rate limit|rate_limit|too many requests|resource_exhausted|quota/.test(m)) return "rate";

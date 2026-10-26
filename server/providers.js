@@ -318,12 +318,12 @@ export function streamChat(opts) {
   if (!provider || provider.kind !== "text") throw new ProviderError(opts.provider?.id || opts.provider, 400, "Unknown text provider");
   if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
   // The account's monthly budget (Settings > Budget) stops every paid call, not only council and research.
-  try { assertSpendAllowed({ provider: provider.id }); }
-  catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; throw e; }
+  let release = () => {};
+  try { release = assertSpendAllowed({ provider: provider.id, hold: true }).release || release; }
+  catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; e.budget = true; throw e; }
   const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
-  if (provider.api === "anthropic") return anthropicStream(o);
-  if (provider.api === "gemini" || provider.id === "google") return geminiStream(o);
-  return openaiCompatStream(o);
+  const inner = provider.api === "anthropic" ? anthropicStream(o) : (provider.api === "gemini" || provider.id === "google") ? geminiStream(o) : openaiCompatStream(o);
+  return (async function* held() { try { yield* inner; } finally { release(); } })();
 }
 
 // Non-streaming convenience: collects the whole answer.

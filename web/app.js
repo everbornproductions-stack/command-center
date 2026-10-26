@@ -546,7 +546,9 @@ function onMission(m) {
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
-        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${noun} ${stateWord} · ${money(m.cost, 4)}`;
+        const practice = String(m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "").startsWith("demo-");
+        const costWord = practice || !(cost > 0) ? "Free" : money(m.cost, 4);
+        const base = replyTurns(m) > 0 ? `Reply in · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
         toast(failed && m.error ? m.error : base, failed);
       }
       maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
@@ -669,8 +671,10 @@ function renderStripAfter() {
   renderComposerAis();
 }
 function renderBudget() {
-  const b = S.settings.budgetMonthly || 0, m = S.ledger?.month || 0;
-  $("#budget-val").textContent = `${money(m)} / ${money(b, 0)}`;
+  // the header shows the cap the stop really uses (saved in Settings > Budget), not an older label
+  if (S.guardCap === undefined && !S.guardCapLoading) { S.guardCapLoading = true; api("/cost-guard").then((g) => { S.guardCap = g.cap ?? null; renderBudget(); }).catch(() => { S.guardCap = null; }); }
+  const b = Number(S.guardCap) > 0 ? Number(S.guardCap) : (S.settings.budgetMonthly || 0), m = S.ledger?.month || 0;
+  $("#budget-val").textContent = `${money(m)} / ${money(b, b < 10 && b % 1 ? 2 : 0)}`;
   $("#budget-pill").style.borderColor = m > b ? "var(--red)" : m > b * 0.8 ? "var(--amber)" : "var(--line)";
   const spend = $("#cc-spend");
   if (spend) spend.textContent = spendLine(m);
@@ -1771,6 +1775,14 @@ function subWaitingHtml(l) {
 function paintFailure() {
   const slot = $("#cc-fail-slot");
   if (!slot) return;
+  // 0.4.21: an Expert run that stopped at its spending limit gets the same Continue buttons as Simple
+  const lm = S.live?.mission;
+  const limitHit = S.uiMode === "expert" && lm && (lm.limitReached || /spending limit|run reached/i.test(lm.error || ""));
+  if (limitHit) {
+    slot.innerHTML = failureHtml({ text: lm.error || "This run reached its spending limit.", esc, retry: FAILURE.retry, other: FAILURE.other });
+    wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
+    return;
+  }
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
   slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
@@ -2721,9 +2733,10 @@ function renderSettings(v) {
     };
     try {
       const budgetChanged = Number.isFinite(body.budgetMonthly) && body.budgetMonthly > 0 && body.budgetMonthly !== S.settings.budgetMonthly;
+      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label.
+      // The stop saves first: a number it refuses (under $0.01) must not be kept as the label either.
+      if (budgetChanged) { const g = await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } }); S.guardCap = g.cap; }
       S.settings = await api("/settings", { method: "POST", body });
-      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label
-      if (budgetChanged) await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } });
       renderBudget(); toast("Saved");
     } catch (e) { toast(e.message, true); }
   });
@@ -3143,7 +3156,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
