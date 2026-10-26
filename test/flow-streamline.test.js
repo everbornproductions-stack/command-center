@@ -34,3 +34,45 @@ test("N11: the Projects grid wraps to one column under 1500 px", () => {
   assert.doesNotMatch(APP, /grid-template-columns: 1fr 360px/);
   assert.match(CSS, /@media \(min-width: 1500px\) \{ \.projects-grid \{ grid-template-columns: minmax\(0, 1fr\) 360px; \} \}/);
 });
+
+test("N12: Simple shows three plain steps and hides the stage editor behind Customize steps", () => {
+  assert.match(WALK, /const PLAIN_STEPS = \[\["Idea"/);
+  assert.match(WALK, /\["Plan", \["plan", "build"\]\]/);
+  assert.match(WALK, /\["Result", \["review", "done"\]\]/);
+  assert.match(WALK, /<summary class="small"><b>Customize steps<\/b>/);
+  assert.match(WALK, /\$\{stepsHtml\(w, expert\)\}/);
+  // Expert keeps the stage editor and the flow controls open.
+  assert.match(WALK, /if \(expert\) return `\$\{rail\(w\)\}\$\{flowControlsHtml\(w\)\}`/);
+});
+
+test("projects: one status vocabulary, saved by the server, shown as chips", async () => {
+  const { startServer } = await import("./helpers.js");
+  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
+  try {
+    const made = await s.api("/projects", { method: "POST", body: { name: "Chip test", color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [{ name: "a", url: "https://a.example" }] }] } });
+    assert.equal(made.status, 200);
+    const set = await s.api("/projects", { method: "POST", body: { id: made.json.id, status: "review" } });
+    assert.equal(set.json.status, "Review");
+    const bad = await s.api("/projects", { method: "POST", body: { id: made.json.id, status: "Banana" } });
+    assert.equal(bad.json.status, "Review", "an unknown word does not replace the status");
+    const sum = await s.api("/projects/summary");
+    assert.equal(sum.status, 200);
+    assert.equal(sum.json.summary[made.json.id].links, 1);
+    assert.equal(typeof sum.json.summary[made.json.id].media, "number");
+  } finally { await s.stop(); }
+  for (const w of ["Draft", "Review", "Approved", "Scheduled", "Published"]) assert.ok(APP.includes(`${w}:`), w);
+  assert.match(APP, /id="proj-status"/);
+  assert.match(APP, /data-inside=/);
+});
+
+test("I13: Chat shows a Continue where I left off card for the last unfinished build", () => {
+  assert.match(APP, /Continue where I left off/);
+  assert.match(APP, /id="simple-continue"/);
+  assert.match(WALK, /openWalk: async \(id\)/);
+});
+
+test("project detail opens on Media, with Overview second", () => {
+  const pm = read("web/features/projectmedia.js");
+  assert.ok(pm.indexOf('data-proj-subtab="media"') < pm.indexOf('data-proj-subtab="overview"'));
+  assert.match(pm, /ui\.subTabByProject\[p\.id\] \|\| "media"/);
+});

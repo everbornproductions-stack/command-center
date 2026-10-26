@@ -760,7 +760,7 @@ window.CC.mountProjectMedia = (v, p) => {
   const overviewGrid = v.querySelector(".grid");
   if (!headerRow || !overviewGrid) return;
 
-  const activeTab = ui.subTabByProject[p.id] || "overview";
+  const activeTab = ui.subTabByProject[p.id] || "media"; // 0.4.20: Media opens first
   delete ui.cacheByProject[p.id]; // always show fresh files when the project opens
 
   let tabBar = v.querySelector(".pm-subtabs");
@@ -777,10 +777,10 @@ window.CC.mountProjectMedia = (v, p) => {
   }
 
   const paintSubTabs = () => {
-    const cur = ui.subTabByProject[p.id] || "overview";
+    const cur = ui.subTabByProject[p.id] || "media";
     tabBar.innerHTML = `
-      <button type="button" class="pm-subtab ${cur === "overview" ? "active" : ""}" data-proj-subtab="overview">Overview</button>
       <button type="button" class="pm-subtab ${cur === "media" ? "active" : ""}" data-proj-subtab="media">Media</button>
+      <button type="button" class="pm-subtab ${cur === "overview" ? "active" : ""}" data-proj-subtab="overview">Overview</button>
     `;
     overviewGrid.style.display = cur === "overview" ? "" : "none";
     mediaContainer.style.display = cur === "media" ? "" : "none";

@@ -61,10 +61,16 @@ function wouldCycle(projects, id, parentId) {
   return false;
 }
 
+// One status vocabulary for projects (0.4.20, I12): shown as colored chips on cards and on the detail page.
+export const PROJECT_STATUSES = ["Draft", "Review", "Approved", "Scheduled", "Published"];
 export function saveProject(p) {
   const d = data();
   const id = p.id || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const patch = { ...p };
+  if (patch.status !== undefined) {
+    const hit = PROJECT_STATUSES.find((x) => x.toLowerCase() === String(patch.status || "").trim().toLowerCase());
+    if (hit) patch.status = hit; else delete patch.status;
+  }
   if (patch.parentId !== undefined) {
     const pid = patch.parentId ? String(patch.parentId).trim() : null;
     if (pid && wouldCycle(d.projects, id, pid)) {

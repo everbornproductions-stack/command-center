@@ -1351,9 +1351,10 @@ function renderSimpleChat(v) {
       <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
-    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
+    <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
   </div>`;
   wireProjectPicker();
+  paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
@@ -1395,6 +1396,20 @@ function simpleDayHtml() {
   const items = DAY_VIEWS.filter((view) => have.has(view));
   if (!items.length) return "";
   return `<div class="panel" id="simple-day"><h3>My day</h3><div class="row" style="flex-wrap:wrap;gap:6px">${items.map((view) => `<button type="button" class="btn sm" data-day="${esc(view)}">${esc(labels[view])}</button>`).join("")}</div></div>`;
+}
+// "Continue where I left off" (0.4.20, I13): the newest Start a project build that is not finished.
+const PLAIN_STEP_OF = { idea: "Idea", questions: "Idea", plan: "Plan", build: "Plan", review: "Result" };
+async function paintContinueCard() {
+  const slot = $("#simple-continue");
+  if (!slot || S.uiMode !== "simple") return;
+  let walks = [];
+  try { walks = (await api("/walkthrough?experience=simple")).walks || []; } catch { return; }
+  const w = walks.filter((x) => !x.example && x.stage && x.stage !== "done" && x.idea).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0];
+  const again = $("#simple-continue");
+  if (!w || !again) return;
+  const title = w.plan?.title || w.idea;
+  again.innerHTML = `<div class="panel" id="cc-continue"><h3>Continue where I left off</h3><div class="row" style="gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:180px">${esc(w.typeName || "Project")}: ${esc(String(title).slice(0, 80))} <span class="chip">${esc(PLAIN_STEP_OF[w.stage] || "Idea")}</span></span><button type="button" class="btn sm primary" id="cc-continue-go">Continue</button></div></div>`;
+  $("#cc-continue-go")?.addEventListener("click", () => { if (window.CC?.startProject?.openWalk) window.CC.startProject.openWalk(w.id); else { S.view = "start"; render(); } });
 }
 function paintStarters() {
   const box = $("#cc-starters");
@@ -2023,6 +2038,30 @@ function visibleRuns(rows) {
   for (const g of groups.values()) { g.status = g._failed ? "failed" : g._running ? "running" : "done"; g.title = `${g.title} (${g.steps} step${g.steps === 1 ? "" : "s"})`; }
   return out;
 }
+// One status vocabulary for projects, shown as colored chips (0.4.20, I12).
+const PROJECT_STATUS_CLASS = { Draft: "", Review: "amber", Approved: "green", Scheduled: "violet", Published: "green" };
+const PROJECT_STATUSES = Object.keys(PROJECT_STATUS_CLASS);
+function projectStatus(p) { return PROJECT_STATUSES.includes(p?.status) ? p.status : "Draft"; }
+function statusChip(p) { const st = projectStatus(p); return `<span class="chip ${PROJECT_STATUS_CLASS[st]}" data-pstatus="${st}" title="Project status">${st}</span>`; }
+// "What is inside": runs, media (from the media index), links. Media fills in after /projects/summary answers.
+function insideLine(p, runs) {
+  const sum = S.projectSummary?.[p.id];
+  const links = sum ? sum.links : (p.categories || []).reduce((n, c) => n + (c.links || []).length, 0);
+  const parts = [`${runs.length} run${runs.length === 1 ? "" : "s"}`];
+  if (sum) parts.push(`${sum.media} media`);
+  parts.push(`${links} link${links === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+async function loadProjectSummary(v) {
+  try {
+    const r = await api("/projects/summary");
+    S.projectSummary = r.summary || {};
+    for (const el of $$("[data-inside]", v)) {
+      const p = (S.projects || []).find((x) => x.id === el.dataset.inside);
+      if (p) el.textContent = insideLine(p, visibleRuns((S.missions || []).filter((m) => m.projectId === p.id)));
+    }
+  } catch { /* the card keeps its runs and links line */ }
+}
 function recentRunRows(rows) {
   return visibleRuns(rows).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
 }
@@ -2055,7 +2094,8 @@ function renderProjects(v) {
         const expanded = flowOn && S.expandedProjects?.has?.(p.id);
         const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
-          <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <h4>${esc(p.name)} ${statusChip(p)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
           ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
@@ -2081,6 +2121,7 @@ function renderProjects(v) {
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);
+  loadProjectSummary(v);
   $$("[data-pcard-expand]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     const pid = b.dataset.pcardExpand;
@@ -2137,14 +2178,14 @@ function renderProjects(v) {
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
-  const runs = S.missions.filter((m) => m.projectId === p.id);
+  const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
   const tasks = (S.hq?.tasks || []).filter((t) => t.client === p.hqClient);
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
   const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
   const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
   const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
-  v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
+  v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2>${statusChip(p)}<select id="proj-status" aria-label="Project status" style="width:auto">${PROJECT_STATUSES.map((st) => `<option value="${st}" ${st === projectStatus(p) ? "selected" : ""}>${st}</option>`).join("")}</select><span class="muted">${esc(p.summary || "")}</span>
     <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
@@ -2164,6 +2205,10 @@ function renderProjectDetail(v, p) {
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
+  $("#proj-status")?.addEventListener("change", async (e) => {
+    try { await api("/projects", { method: "POST", body: { id: p.id, status: e.target.value } }); p.status = e.target.value; toast(`Status: ${e.target.value}.`); await refresh(); }
+    catch (err) { toast(err.message, true); }
+  });
   renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
   $("#pcont")?.addEventListener("click", () => continueProject(p.id));
