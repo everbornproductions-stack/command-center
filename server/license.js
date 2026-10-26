@@ -17,6 +17,7 @@ import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-g
 import { LIFETIME_PLAN_ID } from "./price-config.js";
 import { signedInEmail } from "./signed-in-email.js";
 import { scheduler } from "./perf/scheduler.js";
+import { isTrusted, sealOf, sealOnce, strictMode, verifyServerSig } from "./license-seal.js";
 
 // One table. Studio is Pro. Owner is Extreme. Remix is unlimited on Extreme and Owner.
 // See server/feature-gate.js. This does not call Stripe.
@@ -30,7 +31,23 @@ export const PACKAGED = process.env.CC_PACKAGED === "1";
 const DEFAULTS_FILE = process.env.CC_CLOUD_DEFAULTS_FILE || path.join(ROOT, "server", "cloud-defaults.json");
 
 const lic = () => doc("license", () => ({ key: null, deviceId: crypto.randomBytes(8).toString("hex"), tier: null, status: null, email: null, checkedAt: 0, lastOkAt: 0, lastError: null, periodEnd: null, message: null }));
-const saveLic = (patch) => putDoc("license", { ...lic(), ...patch });
+// A record whose seal does not hold is cleared of its paid fields first, so a later save cannot seal a hand edit.
+const untrustedBase = (l) => ({ ...l, tier: null, status: null, plan: null, periodEnd: null, lastOkAt: 0, via: null, seal: undefined, sig: undefined });
+const saveLic = (patch) => {
+  const cur = lic();
+  const next = { ...(isTrusted(cur) ? cur : untrustedBase(cur)), ...patch };
+  if (next.sig && !verifyServerSig(next)) delete next.sig;
+  delete next.seal;
+  if (strictMode()) next.seal = sealOf(next);
+  putDoc("license", next);
+};
+export const __saveForTest = (patch) => saveLic(patch);
+// Existing installs keep their tier once, when the seal key is created for the first time.
+export function sealExistingInstall() {
+  const cur = lic();
+  const seal = sealOnce(cur);
+  if (seal) putDoc("license", { ...cur, seal });
+}
 
 const trim = (v) => String(v ?? "").trim();
 const complete = (c) => !!(c && trim(c.url) && trim(c.anonKey));
@@ -97,7 +114,9 @@ export function licenseState() {
   const c = cloud();
   const configured = complete(c);
   const l = lic();
-  const r = withTrial(resolveTier({ lic: l, ownerEmail: isOwnerEmail(), devOwner: devOwnerAllowed() }));
+  const trusted = isTrusted(l);
+  const r = withTrial(trusted ? resolveTier({ lic: l, ownerEmail: isOwnerEmail(), devOwner: devOwnerAllowed() }) : resolveTier({ lic: untrustedBase(l), ownerEmail: isOwnerEmail(), devOwner: devOwnerAllowed() }));
+  if (!trusted && r.reason === "no_licence") r.reason = "licence_unverified";
   const T = TIERS[r.tier];
   let message = l.message;
   if (r.reason === "owner_email") message = "Owner account";
@@ -106,6 +125,7 @@ export function licenseState() {
   else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
   else if (r.lifetime && r.reason === "active") message = "Lifetime founder: Pro for life.";
   else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
+  else if (r.reason === "licence_unverified") message = "This licence file was changed outside Meldmind, so it was not trusted. It is checked again online and comes back on its own if it is real.";
   else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
   return {
     configured, cloudSource: c.source, cloudUrl: c.url || null,
@@ -182,7 +202,7 @@ export async function activate(key) {
   const now = Date.now();
   const maxDevices = capOf(r);
   if (r?.ok) {
-    const patch = { key: k, via: null, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) };
+    const patch = { key: k, via: null, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}), ...(r.sig ? { sig: r.sig, issuedAt: r.issued_at ?? null } : { sig: undefined }) };
     if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
     saveLic(patch);
     emit("log", { text: `Licence active: ${r.tier}` });
@@ -317,6 +337,7 @@ export async function recheck() {
 }
 
 export function startLicenseLoop() {
+  try { for (const c of allContexts()) runAs(c, () => sealExistingInstall()); } catch { /* sealing is best effort */ }
   const tick = () => { for (const c of allContexts()) runAs(c, () => recheck().catch(() => {})); };
   tick();
   scheduler.register({
