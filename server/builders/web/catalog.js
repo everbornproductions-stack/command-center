@@ -18,7 +18,7 @@ const CATALOG = [
     title: "Site Builder",
     group: "web",
     tier: "pro",
-    summary: "A few pages for your business, laid out as blocks. Publish when you click.",
+    summary: "A few pages for your business, laid out as blocks, plus an editable block file, a sitemap and robots.txt. Publish when you click.",
     detect: WEB,
     tools: [
       { name: "GrapesJS", license: "BSD-3", how: "Named here. Not started in this build." },
@@ -43,7 +43,7 @@ const CATALOG = [
     title: "Static export",
     group: "web",
     tier: "free",
-    summary: "Plain pages saved on this computer. Astro is named and is not downloaded.",
+    summary: "Plain pages saved on this computer, without the block file or sitemap that Site Builder adds. Astro is named and is not downloaded.",
     detect: {
       ...WEB,
       words: [...WEB.words, "static site", "static export"],

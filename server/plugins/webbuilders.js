@@ -116,6 +116,25 @@ function keepSite(h, draft) {
   } catch { return null; }
 }
 
+// Text builders (ad copy, reel plan, social calendar, email sequences) are filed in MindMedia as soon as they are built.
+const TEXT_BUILDERS = new Set(["ad-copy", "reel-maker", "social-calendar", "email-sequences"]);
+function textOf(draft) {
+  const a = draft.artifact || {};
+  if (a.lines) return a.lines.map((l) => `${l.part} (${l.max}): ${l.text}`).join("\n");
+  if (a.posts) return a.posts.map((p) => `${p.day} (${p.angle || "Post"}): ${p.text}`).join("\n\n");
+  if (a.emails) return a.emails.map((e, i) => `Email ${i + 1}, day ${e.day ?? i * 3}: ${e.subject}\n${e.body}`).join("\n\n---\n\n");
+  if (a.captions) return [`Reel plan, ${a.seconds} seconds`, ...a.captions.map((c) => `${c.at} caption: ${c.text}`), ...a.cuts.map((c) => `Cut ${c.start}-${c.end}s: ${c.reason}`)].join("\n");
+  return "";
+}
+function keepText(h, draft) {
+  try {
+    if (!TEXT_BUILDERS.has(draft.builderId)) return null;
+    const text = textOf(draft);
+    if (!text.trim()) return null;
+    return saveToMindMedia({ kind: "text", projectId: draft.projectId || "", source: "Web builder", name: `${draft.title || "Builder"}: ${draft.name || "draft"}`.slice(0, 120), text, dedupeKey: `webtext:${draft.id}` });
+  } catch { return null; }
+}
+
 function rememberProject(h, draft) {
   const builder = getBuilder(draft.builderId);
   const projectId = newId("bld-");
@@ -257,6 +276,8 @@ export async function routes(req, res, url, body, h) {
     const draft = { ...out.draft, id: newId("bd-"), createdAt: Date.now() };
     draft.projectId = rememberProject(h, draft);
     draft.written = writeFiles(h, draft);
+    const keptText = keepText(h, draft);
+    if (keptText) draft.mindmedia = { projectId: keptText.projectId, assetId: keptText.items?.[0]?.id, where: keptText.where };
     saveDraft(h, draft);
     h.emit("log", { text: `Builders: ${builder.title} saved on this computer.` });
     return send(h, res, 200, { ...out, draft: publicDraft(draft) });
@@ -288,7 +309,7 @@ export async function routes(req, res, url, body, h) {
     if (!out.ok) return send(h, res, out.status, { error: out.error, code: out.code, issues: out.issues || null });
     draft.published = { status: out.status, target: out.target, dryRun: !!out.dryRun, note: out.note, link: out.link || null, at: Date.now() };
     if (out.status === "saved") draft.written = writeFiles(h, draft);
-    const kept = draft.written?.length ? keepSite(h, draft) : null;
+    const kept = TEXT_BUILDERS.has(draft.builderId) ? keepText(h, draft) : draft.written?.length ? keepSite(h, draft) : null;
     if (kept) draft.mindmedia = { projectId: kept.projectId, assetId: kept.items?.[0]?.id, where: kept.where };
     saveDraft(h, draft);
     try {
