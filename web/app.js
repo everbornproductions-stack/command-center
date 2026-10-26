@@ -347,6 +347,7 @@ function applyState(st) {
   syncUiMode();
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
+  if (S.flags?.finishpath) syncFinishBar();
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
 function handle(ev) {
@@ -1166,7 +1167,13 @@ function setWorkingProject(id) {
   syncOtherPickers();
   syncProjectBar();
 }
+// Finish path (flag finishpath): the always-visible Finish button and the progress pill. Loaded only when on.
+function syncFinishBar() {
+  if (!S.flags?.finishpath) { $("#fpbar")?.remove(); return; }
+  import("./finishpath-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[finishpath]", e));
+}
 function syncProjectBar() {
+  syncFinishBar();
   let bar = $("#projbar");
   if (!barShows(S.view, S.flags?.projectbar) || S.openProject) { bar?.remove(); return; }
   if (!bar) {

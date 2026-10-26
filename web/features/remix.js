@@ -122,6 +122,7 @@ function builtExtras(root, data) {
     catch (e) { toast(e.message, true); }
   });
   root.querySelector("#remix-add-btn")?.addEventListener("click", () => addToProject(root, data.projectId, root.querySelector("#remix-add-proj")?.value));
+  if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair(root.querySelector("#remix-na"), { kind: "remix", text: fieldValue(root, "#remix-idea") || data.description?.looks || data.projectName, name: data.projectName || "Remix", onEdit: () => root.querySelector("#remix-idea")?.focus() })).catch(() => {});
   mountBar(root.querySelector("#remix-na"), {
     kind: "remix", text: fieldValue(root, "#remix-idea") || data.description?.looks || data.projectName, ref: data.projectId, name: data.projectName || "Remix",
     addTo: (pid) => addToProject(root, data.projectId, pid),
