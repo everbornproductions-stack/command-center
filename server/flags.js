@@ -13,6 +13,7 @@ const DEFAULTS = {
   templates: true, // Custom project templates: Save as template, Start from a template
   momentum: true, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
   photoeditor: true, // Photo editor: non-destructive sliders, before/after, versions in the project, enhancement prompts
+  videoeditor: true, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
   signalsend: false, // Sending anonymous quality signals. OFF: this repo has no receiver for /api/metrics/signals. Turn on with CC_FLAG_SIGNALSEND=1 once the metrics service has one.
 };
 export function flagOn(name) {
