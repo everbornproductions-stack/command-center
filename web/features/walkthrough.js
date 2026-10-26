@@ -27,7 +27,7 @@ const css = `
 .sp-flow-node.skipped { opacity: 0.6; }
 .sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
 .sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
-.sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
+.sp-banner { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, #f59e0b 16%, var(--card-bg, #3a2a12)); border: 1px solid #a16207; color: color-mix(in srgb, #b45309 60%, var(--text, #fde68a)); }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #sp-root textarea, #sp-root input[type="text"] { width: 100%; }

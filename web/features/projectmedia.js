@@ -46,13 +46,13 @@ function injectStyles() {
   st.textContent = `
     .pm-subtabs { display:flex; gap:8px; margin-bottom:14px; border-bottom:1px solid var(--line); padding-bottom:8px; align-items:center; }
     .pm-subtab { padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; border:1px solid transparent; background:transparent; color:var(--muted); }
-    .pm-subtab.active { background:#112236; color:var(--fg); border-color:var(--accent, #22d3ee); font-weight:600; }
+    .pm-subtab.active { background:var(--card-hover, #112236); color:var(--text); border-color:var(--accent, #22d3ee); font-weight:600; }
     .pm-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
     .pm-dropzone { border:1px dashed var(--line); border-radius:8px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card-bg, #0b111b); transition:border-color .15s, background .15s; }
-    .pm-dropzone.dragover { border-color:var(--green, #22c55e); background:#0f241d; }
+    .pm-dropzone.dragover { border-color:var(--green, #22c55e); background:color-mix(in srgb, var(--green, #22c55e) 14%, var(--card-bg, #0f241d)); }
     .pm-filter-pills { display:flex; gap:4px; flex-wrap:wrap; }
     .pm-pill { padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:var(--card-bg, #0d1420); color:var(--muted); cursor:pointer; }
-    .pm-pill.active { background:#142d4c; color:#fff; border-color:#38bdf8; }
+    .pm-pill.active { background:color-mix(in srgb, #38bdf8 18%, var(--card-bg, #142d4c)); color:var(--text); border-color:#38bdf8; }
     .pm-bulkbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-radius:8px; background:var(--card-hover, #132032); border:1px solid #2b4c7e; margin-bottom:12px; }
     .pm-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
     .pm-card { background:var(--card-bg, #0d1420); border:1px solid var(--line); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; position:relative; }
@@ -62,12 +62,12 @@ function injectStyles() {
     .pm-card { min-width:0; overflow-wrap:anywhere; }
     .pm-dropzone span, .pm-bulkbar span, .tray-body .dim { overflow-wrap:anywhere; min-width:0; }
     .pm-badges { display:flex; gap:4px; flex-wrap:wrap; }
-    .pm-badge { font-size:10px; padding:2px 6px; border-radius:4px; background:#17253a; color:#93c5fd; border:1px solid #1e3a5f; }
-    .pm-badge.link { background:#2a1b3d; color:#d8b4fe; border-color:#581c87; }
-    .pm-badge.usage { background:#122d24; color:#6ee7b7; border-color:#065f46; }
-    .pm-badge.stack { background:#312514; color:#fcd34d; border-color:#78350f; cursor:pointer; }
+    .pm-badge { font-size:10px; padding:2px 6px; border-radius:4px; background:color-mix(in srgb, #3b82f6 16%, var(--card-bg, #17253a)); color:color-mix(in srgb, #3b82f6 62%, var(--text, #e5e7eb)); border:1px solid color-mix(in srgb, #3b82f6 40%, var(--card-bg, #1e3a5f)); }
+    .pm-badge.link { background:color-mix(in srgb, #a855f7 16%, var(--card-bg, #2a1b3d)); color:color-mix(in srgb, #a855f7 62%, var(--text, #e5e7eb)); border-color:color-mix(in srgb, #a855f7 40%, var(--card-bg, #581c87)); }
+    .pm-badge.usage { background:color-mix(in srgb, #10b981 16%, var(--card-bg, #122d24)); color:color-mix(in srgb, #059669 62%, var(--text, #e5e7eb)); border-color:color-mix(in srgb, #10b981 40%, var(--card-bg, #065f46)); }
+    .pm-badge.stack { background:color-mix(in srgb, #f59e0b 16%, var(--card-bg, #312514)); color:color-mix(in srgb, #b45309 62%, var(--text, #e5e7eb)); border-color:color-mix(in srgb, #f59e0b 40%, var(--card-bg, #78350f)); cursor:pointer; }
     .pm-tags { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
-    .pm-tag { font-size:11px; padding:1px 6px; border-radius:4px; background:#1e293b; color:#cbd5e1; display:inline-flex; align-items:center; gap:4px; }
+    .pm-tag { font-size:11px; padding:1px 6px; border-radius:4px; background:var(--sunk-bg, #1e293b); color:var(--text, #cbd5e1); display:inline-flex; align-items:center; gap:4px; }
     .pm-lineage { border-top:1px dashed var(--line); padding-top:8px; margin-top:4px; display:flex; flex-direction:column; gap:6px; }
     .pm-lineage-row { display:flex; align-items:center; gap:6px; font-size:11px; background:var(--card-bg, #090e17); padding:4px 6px; border-radius:4px; }
     .pm-send-sheet { border-top:1px solid var(--line); padding-top:8px; display:flex; flex-wrap:wrap; gap:6px; }

@@ -40,3 +40,23 @@ test("toasts sit above every dialog", () => {
   const m = css.match(/\.toasts\s*\{[^}]*z-index:\s*(\d+)/);
   assert.ok(m && Number(m[1]) >= 9500);
 });
+
+test("feature stylesheets paint no hard-coded dark background and use no undefined --fg (N9)", () => {
+  const bad = [];
+  const skip = new Set(["styles.css", "quick.html", "liveview.js", "themes.js"]);
+  for (const f of walk(root)) {
+    if (skip.has(path.basename(f))) continue;
+    const src = fs.readFileSync(f, "utf8").replace(/\r\n/g, "\n");
+    src.split("\n").forEach((line, i) => {
+      if (/(^|[^-\w])background:\s*#[0-3](?:[0-9a-f]{2}|[0-9a-f]{5})\b/i.test(line) && !/dragover/.test(line)) bad.push(`${path.relative(root, f)}:${i + 1}`);
+      if (/var\(--fg\b/.test(line)) bad.push(`${path.relative(root, f)}:${i + 1} --fg`);
+    });
+  }
+  assert.deepEqual(bad, []);
+});
+
+test("light theme gives Send strong contrast and raises faint grey text", () => {
+  const src = fs.readFileSync(path.join(root, "features", "themes.js"), "utf8").replace(/\r\n/g, "\n");
+  assert.match(src, /html\[data-theme="light"\] #go[^{]*\{[^}]*color:\s*#ffffff/);
+  assert.match(src, /html\[data-theme="light"\]\[data-text="large"\] \.dim/);
+});

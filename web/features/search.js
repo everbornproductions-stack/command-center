@@ -10,8 +10,8 @@ const css = `
 .cc-src a.chip { text-decoration: none; max-width: 100%; }
 .cc-src a.chip .n { color: var(--accent, #22d3ee); font-weight: 600; }
 .cc-src a.chip .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
-.md a.cc-cite { text-decoration: none; font-size: .78em; vertical-align: super; padding: 0 3px; border-radius: 4px; background: #16202f; border: 1px solid #243044; color: var(--accent, #22d3ee); margin-left: 1px; }
-.md a.cc-cite:hover { background: #1f2d40; }
+.md a.cc-cite { text-decoration: none; font-size: .78em; vertical-align: super; padding: 0 3px; border-radius: 4px; background: var(--sunk-bg, #16202f); border: 1px solid var(--line, #243044); color: var(--accent, #22d3ee); margin-left: 1px; }
+.md a.cc-cite:hover { background: var(--card-hover, #1f2d40); }
 #cc-search-cmd label { cursor: pointer; }
 `;
 const style = document.createElement("style"); style.id = "cc-search-style"; style.textContent = css; document.head.appendChild(style);

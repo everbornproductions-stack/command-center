@@ -31,7 +31,7 @@ const css = `
 #cc-desktop-prompt .card { position: relative; }
 #cc-desktop-prompt h4 { padding-right: 72px; }
 #cc-desktop-prompt .x { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.8125rem; line-height: 1.2; cursor: pointer; }
-#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: #1a2436; color: var(--text); }
+#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: var(--card-hover, #1a2436); color: var(--text); }
 #cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
 #cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }

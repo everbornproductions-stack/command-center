@@ -18,7 +18,7 @@ const css = `
 .cc-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; align-items: start; }
 .cc-channels { display: flex; flex-direction: column; gap: 4px; }
 .cc-channels button { text-align: left; }
-.cc-channels button.active { background: #1a2436; color: #fff; }
+.cc-channels button.active { background: var(--card-hover, #1a2436); color: var(--text, #fff); }
 .cc-msg { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .cc-msg .who { font-weight: 650; }
 .cc-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
