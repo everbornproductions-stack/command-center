@@ -186,6 +186,8 @@ function start() {
   if (start.done) return;
   start.done = true;
   if (!state.hidden) load();
+  // Switching Simple/Expert repaints the panel at once instead of waiting for the next state tick.
+  try { new MutationObserver(() => { const ex = isExpert(); if (lastExpert !== ex && !state.hidden) mount(); lastExpert = ex; }).observe(document.body, { attributes: true, attributeFilter: ["data-ui"] }); } catch { /* no observer */ }
   window.addEventListener("resize", () => {
     clearTimeout(start.t);
     start.t = setTimeout(() => { if (!state.hidden) mount(); }, 150);

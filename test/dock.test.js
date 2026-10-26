@@ -76,7 +76,7 @@ test("the dock is on Projects, Images, a project page and Builders, and not on t
   try {
     for (const view of ["projects", "images", "builders"]) {
       await t.page.evaluate((v) => window.CC.go(v), view);
-      await t.page.waitForSelector("#cc-dock:not([hidden]) #cc-dock-input", { timeout: WAIT() });
+      await t.page.waitForFunction((v) => document.querySelector("#cc-dock:not([hidden]) #cc-dock-input") && document.querySelector("#cc-dock").dataset.view === v, view, { timeout: WAIT() });
       assert.equal(await t.page.getAttribute("#cc-dock", "data-view"), view);
     }
     await t.page.evaluate(() => { const s = window.CC.S; s.openProject = s.projects[0].id; s.view = "projects"; window.CC.render(); });

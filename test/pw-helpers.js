@@ -46,6 +46,8 @@ export async function bootPage(opts = {}) {
     await page.goto(base + "/?nosplash");
     if (opts.hidePopups !== false) await page.addStyleTag({ content: HIDE });
     await page.waitForFunction(() => window.CC && window.CC.S && window.CC.go, null, { timeout: 15000 });
+    // Shell modules and the first state load arrive after first paint, and a slow Windows runner shows it: wait for them (best effort).
+    await page.waitForFunction(() => window.CC.S.settingsLoaded && typeof window.CC.saveToMindMedia === "function" && !!window.CC.makeChat, null, { timeout: 30000 }).catch(() => {});
     const close = async () => { try { await browser.close(); } catch {} try { await s.stop(); } catch {} };
     return { s, base, api, page, browser, errors, close };
   } catch (e) {
