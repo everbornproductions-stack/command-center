@@ -11,7 +11,7 @@
 import * as G from "../google.js";
 import * as MS from "../microsoft.js";
 import { mailStart, mailFinish, mailView } from "../services.js";
-import { openLoopback, COMING_SOON } from "../oauth-signin.js";
+import { openLoopback, COMING_SOON, TESTING_NOTE, googleInTesting } from "../oauth-signin.js";
 import { assertServiceSlots } from "../service-limit.js";
 import { openUrl } from "../discover.js";
 import { unlockByEmail } from "../license.js";
@@ -36,6 +36,8 @@ function status() {
       inbox: { granted: !!g.oneClick?.inboxGranted, scopes: g.oneClick?.inbox || [] },
       waiting: open.has("google"),
       comingSoon: COMING_SOON.google,
+      testing: googleInTesting(),
+      testingNote: googleInTesting() ? TESTING_NOTE : "",
     },
     microsoft: {
       ready: !!m.oneClick?.ready,
@@ -104,7 +106,9 @@ async function begin(provider, step, h) {
     ...flow,
     onDone: ({ ok, result }) => {
       open.delete(provider);
-      const error = ok ? null : String(result?.error || "Sign-in did not finish");
+      let error = ok ? null : String(result?.error || "Sign-in did not finish");
+      // While Google's consent screen is in testing, a refusal almost always means the email is not on the test list.
+      if (!ok && provider === "google" && googleInTesting() && error !== "timeout") error = TESTING_NOTE;
       h.emit("signin.done", { provider, step: inbox ? "inbox" : "first", ok, error: error === "timeout" ? "The sign-in page was not finished in time. Try again." : error });
       if (ok) h.emit("log", { text: `${provider === "google" ? "Google" : "Microsoft"} sign-in finished. The token is in the vault.` });
       // A paid licence on this verified email unlocks now, with no key to type.

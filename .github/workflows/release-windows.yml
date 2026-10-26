@@ -76,6 +76,14 @@ jobs:
             echo "Publishable key source: SUPABASE_PUBLISHABLE_KEY"
           fi
 
+      - name: Report the Google sign-in secret
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          # One plain line for the release log. The value is never printed.
+          node scripts/inject-oauth-secret.mjs --check
+
       # Code signing with Azure Artifact Signing turns on by itself once all seven values
       # exist. Until then this step builds unsigned, as before, and says so in one line.
       # The signing secrets are given to this step only, and no value is printed.
