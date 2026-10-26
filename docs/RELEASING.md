@@ -145,7 +145,7 @@ This is the one list of things only Everborn can do. The same list shows in the 
 2. **Turn on Google and Azure sign-in in Supabase.** Authentication > Providers, with Everborn's own client id and secret. This is how the app proves a buyer's email.
 3. **Set STRIPE_READ_KEY.** A restricted Stripe key that can only read Checkout Sessions, saved as the function secret on `stripe-webhook`.
 4. **Fill in the price-tiers.js maps.** The seven Stripe price ids (and the lifetime product or Payment Link id) in `supabase/functions/stripe-webhook/price-tiers.js`, then deploy that function.
-5. **Set the licence signing key (H10).** The licence server's Ed25519 public key goes in `server/license-pubkey.json` (`publicKey`). Ship a build with it before **2026-12-31**, or installs from before the seal drop to Free on that date.
+5. **Set the license signing key (H10).** The license server's Ed25519 public key goes in `server/license-pubkey.json` (`publicKey`). Ship a build with it before **2026-12-31**, or installs from before the seal drop to Free on that date.
 6. **Run the free Community posting SQL.** `supabase/community.sql`, then `supabase/community_free_posting.sql`.
 7. **Run the report-back and Teams SQL.** `supabase/hub_reportback_teams.sql`. After it, report-back from another AI and Teams invite codes work across two computers. Hosted runs and phone use with the PC off still need the Meldmind hub (paid hosting, coming soon); ask Chris before any hosting spend.
 8. **Run the Marketplace catalog SQL.** `supabase/marketplace_catalog.sql`, then add free rows to `market_listings`. Optional: put a catalog signing key in `server/catalog-pubkey.json` so rows are checked.
