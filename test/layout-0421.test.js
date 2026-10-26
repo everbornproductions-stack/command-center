@@ -239,6 +239,20 @@ test("4c. phones: the sidebar becomes the bottom tab bar and nothing scrolls sid
   } finally { await t.close(); }
 });
 
+test("4d. the first-run welcome screen has no sidebar; it comes back after setup", { skip }, async () => {
+  const t = await bootPage({ mode: "simple", width: 1280, height: 800 });
+  try {
+    await goChat(t.page);
+    await t.page.waitForFunction(() => window.CC.layout && window.CC.restartFullSetup, null, { timeout: WAIT });
+    assert.equal(await vis(t.page, "#cc-side"), true);
+    await t.page.evaluate(() => window.CC.restartFullSetup());
+    await t.page.waitForFunction(() => window.CC.S.view === "setup" && window.CC.S.setup?.phase === "welcome", null, { timeout: WAIT });
+    await t.page.waitForFunction(() => { const s = document.querySelector("#cc-side"); return !s || getComputedStyle(s).display === "none"; }, null, { timeout: WAIT });
+    await t.page.evaluate(() => window.CC.go("command"));
+    await t.page.waitForFunction(() => { const s = document.querySelector("#cc-side"); return s && getComputedStyle(s).display !== "none"; }, null, { timeout: WAIT });
+  } finally { await t.close(); }
+});
+
 // ---------- 6. Live Ops is one line ----------
 test("6. Live Ops: one status line with See live; the full map is an overlay (Simple and Expert)", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });

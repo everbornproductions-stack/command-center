@@ -43,7 +43,8 @@ const busy = () => { const s = S(); return !!(s.awaitingRun || (s.live?.id && BU
 const workingCount = () => Object.values(S().activeByProvider || {}).filter((n) => n > 0).length;
 
 // ---------- the sidebar ----------
-function sideWanted() { return simple() && wide() && !document.querySelector("#gate[style*='block']"); }
+// The first-run welcome screen has its own steps, so the sidebar waits until it is done.
+function sideWanted() { return simple() && wide() && !document.querySelector("#gate[style*='block']") && !(S().view === "setup" && S().setup?.phase === "welcome"); }
 
 function buildSide() {
   let side = document.getElementById("cc-side");
@@ -555,6 +556,8 @@ document.addEventListener("click", onDocClick);
 window.addEventListener("resize", () => { clearTimeout(onRender.t); onRender.t = setTimeout(() => { applySide(); queuePanel(); }, 120); });
 
 CC.layout = { onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
+// The first page is drawn before this module loads (and is not drawn again when no AI is connected yet), so catch up now.
+setTimeout(() => { try { onRender(S().view); } catch { /* the next render does it */ } }, 0);
 CC.register({
   id: "layout",
   onEvent() { if (simple()) { syncChat(); queuePanel(); } },
