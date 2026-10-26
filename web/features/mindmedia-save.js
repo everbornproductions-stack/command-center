@@ -7,6 +7,7 @@
 //   provenance: { prompt, model, provider, cost }.
 // Returns { ok, projectId, where, count, items, savedWhere, link } and shows a "Saved in MindMedia" toast
 // with an Open link, unless opts.quiet. Throws with a plain message when the server refuses.
+import { parseMindMediaHash } from "/mm-hash.js";
 const { api, toast, S } = window.CC;
 
 window.CC.openMindMedia = (projectId, assetId) => {
@@ -30,3 +31,15 @@ window.CC.saveToMindMedia = async function saveToMindMedia(opts = {}) {
     throw e;
   }
 };
+
+// Links into the hub (0.4.21, F27). #mindmedia opens it, #mindmedia/<project>/<item> opens that item,
+// #mindmedia?view=needs-ending (or needs-ok, trash ...) opens a saved view. The hash is cleared after.
+function applyHash() {
+  const h = parseMindMediaHash(location.hash);
+  if (!h) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  if (h.assetId) window.CC.openMindMedia(h.projectId, h.assetId);
+  else { S.mmView = h.view || "all"; window.CC.go("mindmedia"); }
+}
+window.addEventListener("hashchange", applyHash);
+if (parseMindMediaHash(location.hash)) setTimeout(applyHash, 0);
