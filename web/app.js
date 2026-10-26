@@ -2644,7 +2644,7 @@ function renderSettings(v) {
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); restartFullSetup(); });
   $("#s-find-ais")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
-  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
+  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); toast("Checking the hub..."); fetch(v + "/api/config", { redirect: "manual" }).then((r) => { if (!r.ok) throw new Error("no hub"); localStorage.setItem("cc.hub", v); location.reload(); }).catch(() => toast("Meldmind could not reach a hub at that address, so nothing was changed. Check the address and try again.", true)); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
   $("#hub-copy")?.addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
   if ($("#hub-qr")) apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
