@@ -44,8 +44,8 @@ function wireForm(root, after) {
   const $ = (s) => root.querySelector(s);
   let op = $("#im-op button.on")?.dataset.op || "generate";
   const stale = () => {
-    st.est = null; $("#im-go").disabled = true; $("#im-go").title = "Press Estimate first";
-    $("#im-est-out").textContent = "Press Estimate first. Generate wakes up when the price is on screen.";
+    st.est = null; $("#im-go").disabled = false; $("#im-go").textContent = "Generate"; $("#im-go").title = "Shows the price first. Press Estimate first, or just press Generate.";
+    $("#im-est-out").textContent = "Working out the price. Press Generate and it shows the price first, then makes the picture on your next press.";
     // 0.4.20: the price is worked out for you a moment after you stop changing choices
     clearTimeout(st.autoEst);
     st.autoEst = setTimeout(() => { if (root.isConnected && !st.est) $("#im-est")?.click(); }, 600);
@@ -74,20 +74,29 @@ function wireForm(root, after) {
     r.readAsDataURL(f);
   });
   const choice = () => ({ provider: $("#im-prov").value, model: $("#im-model").value || undefined, op, size: $("#im-size").value, quality: $("#im-quality").value, n: Number($("#im-n").value) || 1 });
-  $("#im-est").addEventListener("click", async () => {
+  const estimate = async () => {
     try {
       const e = await api("/images/estimate", { method: "POST", body: choice() });
       st.est = e;
       const can = e.ready != null ? e.ready : e.keyed;
       const warn = !can ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
       $("#im-est-out").innerHTML = `about <b>${money(e.usd, 3)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
-      $("#im-go").disabled = !(e.ready != null ? e.ready : e.keyed) || e.capped || e.wouldExceed;
+      $("#im-go").disabled = !can || e.capped || e.wouldExceed;
       $("#im-go").title = $("#im-go").disabled ? (!can ? (e.keyMessage || "Add a key first") : "Over the spend cap") : "";
-    } catch (er) { toast(er.message, true); }
-  });
+      $("#im-go").textContent = can && !e.capped && !e.wouldExceed ? `Generate (about ${money(e.usd, 3)})` : "Generate";
+      return e;
+    } catch (er) { toast(er.message, true); return null; }
+  };
+  $("#im-est").addEventListener("click", estimate);
   $("#im-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
   $("#im-go").addEventListener("click", async () => {
-    if (!st.est) return;
+    // One step (0.4.21): the first press shows the price, the next press makes the picture. Nothing is spent unseen.
+    if (!st.est) {
+      if (!$("#im-prompt").value.trim()) return toast("Write what the image should show first.", true);
+      const e = await estimate();
+      if (e && !$("#im-go").disabled) toast("That is the price. Press Generate again to make it.");
+      return;
+    }
     if (op !== "generate" && !st.source) return toast("Pick a source image first: Edit or Variation on a gallery image, or Upload.", true);
     const b = $("#im-go"); b.disabled = true; b.textContent = "Generating...";
     try {
@@ -104,7 +113,7 @@ function wireForm(root, after) {
       if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair($("#im-na"), { kind: "image", text: $("#im-prompt").value, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`, onEdit: () => $("#im-prompt").focus() })).catch(() => {});
       after?.(row);
     } catch (er) { toast(er.message, true); }
-    finally { b.textContent = "Generate"; b.disabled = false; }
+    finally { b.textContent = st.est ? `Generate (about ${money(st.est.usd, 3)})` : "Generate"; b.disabled = false; }
   });
   showSrc();
   return { setOp };
