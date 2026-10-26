@@ -42,6 +42,7 @@ export const FEATURES = [
   { id: "privacy", shell: true },
   { id: "prompt-suggest", shell: true },
 
+  { id: "prompt-drop", views: ["images", "media", "remix", "builders", "webbuilders"], home: true },
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
   { id: "mcp", home: true, deliverable: true, settings: true },

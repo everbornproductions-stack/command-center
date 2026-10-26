@@ -19,6 +19,8 @@ import { fetchCloudPacks, fetchCloudTotals, pushCloudVote } from "../prompts/clo
 import { cheapest } from "../router.js";
 import { completeFallback } from "../fallback.js";
 import { subscriptionView } from "../subscriptions.js";
+import { promptdropOn } from "../flags.js";
+import { buildDrop, stageFor, videoTips } from "../prompts/drop.js";
 
 export const id = "prompts";
 const SHELF_KIND = "prompts.customShelves";
@@ -166,6 +168,17 @@ export async function routes(req, res, url, body, h) {
       relevance: row.relevance,
     }));
     return h.json(res, 200, { items, intent: found.intent, subject: found.subject, action: found.action });
+  }
+  // The Prompts dropdown and the video tips (flag_promptdrop). Off: 404 flag_off, nothing else changes.
+  if (method === "GET" && (p === "/drop" || p === "/video-tips")) {
+    if (!promptdropOn()) return h.json(res, 404, { error: "The Prompts dropdown is turned off on this install.", code: "flag_off" });
+    if (p === "/video-tips") return h.json(res, 200, videoTips());
+    const now = Date.now();
+    const state = voteState(h);
+    const packs = await fetchCloudPacks();
+    const weekly = rankPrompts(mergePacks(readPackDir(), packs.rows).map((row) => decorate(row, state, now)), now);
+    const saved = customRows(h).map((row) => ({ id: row.id, title: row.name, prompt: row.text || row.name }));
+    return h.json(res, 200, buildDrop({ stage: stageFor(url.searchParams.get("stage")), weekly, saved }));
   }
   if (method === "POST" && p === "/vote") {
     const id = String(body?.id || "").trim();
