@@ -180,7 +180,7 @@ export function deleteImage(id) {
   const d = jobs(); d.items = d.items.filter((x) => x.id !== id); putDoc(JOBS, d);
   return { ok: true };
 }
-function mediaDir(projectId) {
+export function mediaDir(projectId) {
   const d = path.join(DATA_DIR, "projects", String(projectId || "unfiled").replace(/[^a-z0-9-_]/gi, "_"), "media");
   fs.mkdirSync(d, { recursive: true });
   return d;
