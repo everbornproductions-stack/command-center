@@ -180,6 +180,8 @@ test("the bottom bar lights an AI while a run is going and goes dark after", { s
 test("the bottom bar hides AIs that are not connected and keeps + Add an AI", { skip }, async () => {
   const t = await bootPage({ width: 1366, height: 900, mode: "expert" });
   try {
+    await t.page.click("#mode-expert"); // the sample project keeps its own mode; the switch sets Expert for it
+    await t.page.waitForFunction(() => window.CC.S.uiMode === "expert", null, { timeout: WAIT() });
     await t.page.waitForSelector("#strip .tile", { timeout: WAIT() });
     const none = await t.page.evaluate(() => [...document.querySelectorAll("#strip .tile:not(.add-ai)")].map((e) => e.dataset.p));
     assert.deepEqual(none, [], "nothing is connected, so no AI tiles");
@@ -198,6 +200,8 @@ test("the bottom bar hides AIs that are not connected and keeps + Add an AI", { 
 test("Expert opens in Single and the news rail starts minimized under 1500px", { skip }, async () => {
   const t = await bootPage({ width: 1366, height: 800, mode: "expert" });
   try {
+    await t.page.click("#mode-expert");
+    await t.page.waitForFunction(() => window.CC.S.uiMode === "expert", null, { timeout: WAIT() });
     await t.page.evaluate(() => window.CC.go("command"));
     await t.page.waitForSelector("#run-mode", { timeout: WAIT() });
     assert.equal(await t.page.getAttribute("#run-mode button.on", "data-m"), "single");

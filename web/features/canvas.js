@@ -59,7 +59,7 @@ function build() {
     <form class="cv-prompt" id="cv-prompt">
       <label class="mm-sr" for="cv-input">Tell Meldmind what to make or change</label>
       <textarea id="cv-input" rows="1" placeholder="Tell Meldmind what to make or change. It appears above as it is made."></textarea>
-      <button type="submit" class="btn primary" id="cv-send">Send</button>
+      <button type="submit" class="btn primary" data-cv="send">Send</button>
     </form>`;
   (document.getElementById("app") || document.body).appendChild(el);
   cv.el = el;

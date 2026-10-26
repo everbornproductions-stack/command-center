@@ -54,19 +54,19 @@ function tileHtml(t, isLast) {
   const head = t.change ? `Change: ${t.change}` : t.another ? `Another ${LABEL[t.kind].toLowerCase()}` : `${LABEL[t.kind]}: ${t.request}`;
   let body = "";
   if (t.state === "planning") body = `<div class="mk-progress" role="status">Getting ready...</div>`;
-  else if (t.state === "ask") body = `<div class="mk-price" role="status">This one costs about $${Number(t.usd).toFixed(2)}. Make it?</div><div class="mk-row"><button type="button" class="btn sm primary mk-ask-yes">Yes, make it</button><button type="button" class="btn sm mk-ask-no">No thanks</button></div>`;
-  else if (t.state === "working") body = `<div class="mk-price">${esc(t.priceLine)}</div><div class="mk-progress" role="status" aria-live="polite">${esc(t.progress || MAKING[t.kind])}</div><div class="mk-row"><button type="button" class="btn sm mk-stop" title="Stop waiting for this">Stop</button></div>`;
+  else if (t.state === "ask") body = `<div class="mk-price" role="status">This one costs about $${Number(t.usd).toFixed(2)}. Make it?</div><div class="mk-row"><button type="button" data-mk="ask-yes" class="btn sm primary mk-ask-yes">Yes, make it</button><button type="button" data-mk="ask-no" class="btn sm mk-ask-no">No thanks</button></div>`;
+  else if (t.state === "working") body = `<div class="mk-price">${esc(t.priceLine)}</div><div class="mk-progress" role="status" aria-live="polite">${esc(t.progress || MAKING[t.kind])}</div><div class="mk-row"><button type="button" data-mk="stop" class="btn sm mk-stop" title="Stop waiting for this">Stop</button></div>`;
   else if (t.state === "done") {
     const media = t.src ? (isStill(t) ? `<img class="mk-img" alt="${esc(t.request)}" src="${esc(t.src)}">` : t.kind === "video" ? `<video class="mk-video" controls playsinline src="${esc(t.src)}"></video>` : `<audio class="mk-audio" controls src="${esc(t.src)}"></audio>`) : `<span class="mk-note">Loading...</span>`;
     const practiceNote = t.practice ? `<div class="mk-note">${t.kind === "image" ? "Practice picture: free, and drawn on your computer. Connect a picture maker for a real one." : t.kind === "video" ? "Practice video: a still frame, nothing was spent. Connect a video maker for a real clip." : "Practice voice: a silent clip, nothing was spent. Connect a voice maker for a real voice."}</div>` : "";
     body = `<div class="mk-media">${media}</div>${practiceNote}
-      <div class="mk-actions"><button type="button" class="btn sm primary mk-dl">Download</button><button type="button" class="btn sm mk-again">Make another</button><button type="button" class="btn sm mk-open">Open in MindMedia</button></div>
-      ${`<div class="mk-change"><input class="mk-change-input" type="text" aria-label="Change it" placeholder="${t.kind === "image" ? "Change it: make the sky darker" : t.kind === "video" ? "Change it: make it slower" : "Change it: warmer voice"}"><button type="button" class="btn sm mk-change-go">Change it</button></div>`}
+      <div class="mk-actions"><button type="button" data-mk="dl" class="btn sm primary mk-dl">Download</button><button type="button" data-mk="again" class="btn sm mk-again">Make another</button><button type="button" data-mk="open" class="btn sm mk-open">Open in MindMedia</button></div>
+      ${`<div class="mk-change"><input class="mk-change-input" type="text" aria-label="Change it" placeholder="${t.kind === "image" ? "Change it: make the sky darker" : t.kind === "video" ? "Change it: make it slower" : "Change it: warmer voice"}"><button type="button" data-mk="change-go" class="btn sm mk-change-go">Change it</button></div>`}
       <details class="mk-how"><summary>How it was made</summary><p>${esc(t.providerName || "")}${t.practice ? " (practice)" : t.usd ? `, about $${Number(t.usd).toFixed(2)}` : ""}.</p>${t.kind !== "audio" ? `<p><b>Prompt used:</b> ${esc(t.generatorPrompt || "")}</p>` : ""}<p class="mk-note">Saved in MindMedia as "${esc(t.name || "")}".</p></details>`;
   } else if (t.state === "error") {
-    body = `<div class="mk-fail" role="alert">${esc(t.error || "That did not work.")}</div>${t.next ? `<div class="mk-row"><button type="button" class="btn sm primary mk-next">${esc(t.next.label)}</button></div>` : ""}`;
+    body = `<div class="mk-fail" role="alert">${esc(t.error || "That did not work.")}</div>${t.next ? `<div class="mk-row"><button type="button" data-mk="next" class="btn sm primary mk-next">${esc(t.next.label)}</button></div>` : ""}`;
   } else if (t.state === "stopped") body = `<div class="mk-note" role="status">Stopped. If it had already started, it still shows up in MindMedia.</div>`;
-  const foot = isLast && t.state !== "planning" ? `<div><button type="button" class="mk-link mk-chat-instead">I wanted an answer in words</button></div>` : "";
+  const foot = isLast && t.state !== "planning" ? `<div><button type="button" data-mk="chat-instead" class="mk-link mk-chat-instead">I wanted an answer in words</button></div>` : "";
   return `<section class="mk-tile" data-id="${esc(t.id)}" data-kind="${t.kind}" data-state="${t.state}"><div class="mk-head">${esc(head)}</div>${body}${foot}</section>`;
 }
 
