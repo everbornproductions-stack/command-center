@@ -602,6 +602,7 @@ export function publicRun(r = {}) {
     missionStarted: !!r.missionStarted,
     rating: r.rating === "up" || r.rating === "down" ? r.rating : null,
     fix: !!r.fix,
+    ...(/^[a-z0-9][a-z0-9-]{0,80}$/.test(String(r.workingProjectId || "")) ? { workingProjectId: String(r.workingProjectId) } : {}),
   };
 }
 

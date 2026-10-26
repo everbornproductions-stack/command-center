@@ -359,6 +359,7 @@ function tabInner(view) {
   const cards = view.projects.map((p) => `<div class="panel" data-open="${esc(p.id)}" style="cursor:pointer;border-left:3px solid ${safeColor(p.color)}">
       <div class="row"><b>${esc(p.name)}</b><span class="dim small" style="margin-left:auto">${badge(p)}</span></div>
       <div class="small" style="margin-top:6px">${esc(p.step || "Idle")}</div>
+      ${S.flags?.projectbar ? `<div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button></div>` : ""}
     </div>`).join("");
   const runRows = (runs || []).slice(0, 12).map((r) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px">
       <span class="chip ${r.working ? "green" : ""}">${esc(r.kind || "")}</span>
@@ -420,6 +421,7 @@ function wire(root) {
   }));
   root.querySelectorAll("[data-begin]").forEach((b) => b.addEventListener("click", () => window.CC.startProject?.begin?.(b.dataset.begin)));
   root.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.proj === "*" ? "*" : b.dataset.proj; paint(); }));
+  root.querySelectorAll("[data-continue]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); window.CC.continueProject?.(b.dataset.continue); }));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { S.view = "projects"; S.openProject = b.dataset.open; window.CC.render(); }));
   mountOpsButton();
 }

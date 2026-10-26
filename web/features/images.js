@@ -77,6 +77,7 @@ function wireForm(root, after) {
       $("#im-go").disabled = !(e.ready != null ? e.ready : e.keyed) || e.capped || e.wouldExceed;
     } catch (er) { toast(er.message, true); }
   });
+  $("#im-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
   $("#im-go").addEventListener("click", async () => {
     if (!st.est) return;
     if (op !== "generate" && !st.source) return toast("Pick a source image first: Edit or Variation on a gallery image, or Upload.", true);

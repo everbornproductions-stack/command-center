@@ -518,3 +518,10 @@ body[data-ui="simple"] .settings-basics .basics-card h3 { font-size: max(1.125re
 /* Simple names the AI in one line under the answer (0.4.17), so the extra copies hide. */
 body[data-ui="simple"] #simple-answer h3 #copy,
 body[data-ui="simple"] #deliv-extras .cc-written { display: none; }
+
+/* Working-in project bar (flag: projectbar) */
+.projbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; margin: 0 0 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.projbar .pb-lbl { color: var(--muted); font-size: 0.8125rem; }
+.projbar select { width: auto; min-width: 160px; max-width: 100%; }
+.projbar .pb-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.projbar .pb-tools .btn.on { border-color: var(--accent); }

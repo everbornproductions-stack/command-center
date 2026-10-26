@@ -301,7 +301,7 @@ async function build(root) {
   const body = payload(root);
   if (formKey(body) !== previewKey) return toast("Look at the preview again before you build.", true);
   try {
-    built = await api("/remix/run", { method: "POST", body: { ...body, confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked } });
+    built = await api("/remix/run", { method: "POST", body: { ...body, ...(window.CC.S?.flags?.projectbar && window.CC.S.project ? { workingProjectId: window.CC.S.project } : {}), confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked } });
     const box = root.querySelector("#remix-built");
     if (box) box.innerHTML = `<p><b>${esc(built.projectName || "Project")}</b> is saved on this computer.</p><p class="small">${esc(built.ai?.reason || "")}</p>`;
     step = "built";

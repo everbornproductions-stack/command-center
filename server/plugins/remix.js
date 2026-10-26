@@ -8,6 +8,7 @@ import { rate as rateBrain, brainSettings } from "../brain.js";
 import { STARTS, PART_PLAIN, publishPlan, publishVaultId, runTool, voiceCommand, clearArt, applyReuseReport, accessReport, externalCommandAllowed } from "../remix-abilities.js";
 import { projectFiles, safeRel, freshPage } from "../remix-build.js";
 import { commitVersion } from "../remix-git.js";
+import { flagOn } from "../flags.js";
 import { setSecret, hasSecret, getSecret } from "../vault.js";
 
 export const id = "remix";
@@ -146,11 +147,14 @@ export async function routes(req, res, url, body, h) {
 
     const projectId = newId("remix-");
     const runId = newId("rx");
+    // Working-in bar: the remix stays its own project folder, but remembers which project it was made for.
+    const workingProjectId = flagOn("projectbar") && typeof body?.workingProjectId === "string" && h.listProjects().some((x) => x.id === body.workingProjectId) ? body.workingProjectId : "";
     h.saveProject({
       id: projectId,
       name: plan.projectName,
       color: "#22d3ee",
       kind: "remix",
+      ...(workingProjectId ? { parentId: workingProjectId } : {}),
       summary: plan.summary,
       categories: [{ id: "remix", name: "Remix", links: [] }],
     });
@@ -205,6 +209,7 @@ export async function routes(req, res, url, body, h) {
       missionStarted,
       rating: null,
       fix: false,
+      workingProjectId,
     });
     const doc = runsOf(h);
     doc.items.unshift(row);
