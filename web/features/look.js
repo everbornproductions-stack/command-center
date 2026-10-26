@@ -143,6 +143,9 @@ async function runCheck() {
 
 function offerBar(text, buttons) {
   document.getElementById("cc-look-offer")?.remove();
+  // 0.4.21 (F15, M23): no tip on a phone, and on a computer it is docked in the notices row above the page, in
+  // normal flow, so it pushes the page down a little and can never sit over Send or any other control.
+  if (window.innerWidth <= 760) return;
   const bar = document.createElement("div");
   bar.id = "cc-look-offer";
   bar.setAttribute("role", "group");
@@ -156,7 +159,8 @@ function offerBar(text, buttons) {
     el.addEventListener("click", () => { bar.remove(); b.run(); });
     bar.append(el);
   }
-  document.body.appendChild(bar);
+  const dock = document.getElementById("notices");
+  if (dock) dock.appendChild(bar); else document.body.appendChild(bar);
   // One quiet line: it goes away by itself so it can never sit over a button for long.
   setTimeout(() => { try { bar.remove(); } catch {} }, 20000);
 }
