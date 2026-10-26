@@ -268,7 +268,7 @@ export function syncBar() {
     if (resume) {
       const r = document.createElement("div");
       r.className = "mm-resume";
-      r.innerHTML = `<span>Resume Momentum? You stopped${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : " part way"}.</span><button type="button" class="btn sm primary" data-mm-resume>Resume Momentum</button><button type="button" class="btn sm" data-mm-fresh>Start fresh</button>`;
+      r.innerHTML = `<span>Pick up where you left off? You stopped${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : " part way"}.</span><button type="button" class="btn sm primary" data-mm-resume>Pick up where I left off</button><button type="button" class="btn sm" data-mm-fresh>Start fresh</button>`;
       bar.prepend(r);
     }
     if (open) bar.appendChild(open);
