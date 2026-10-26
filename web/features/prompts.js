@@ -418,6 +418,9 @@ async function renderTab(view) {
     try { const r = await api("/prompts/pipelines", { method: "POST", body: { id: "ai-leverage" } }); toast(`Pipelines: ${r.pipelines.map((p) => p.name).join(", ")}.`); } catch (e) { toast(e.message, true); }
   });
   mountInterview(view.querySelector("#pp-interview"));
+  // A News rail row can open one template (0.4.21).
+  const wantTemplate = window.CC.S?.openTemplateId;
+  if (wantTemplate) { window.CC.S.openTemplateId = null; openTemplate(data, wantTemplate); }
 }
 
 async function openTemplate(data, id) {

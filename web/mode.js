@@ -19,7 +19,8 @@ export const SIMPLE_COMMAND = new Set(["voice", "desk"]);
 // Starter buttons shown under the Simple chat box.
 export const SIMPLE_STARTER_COUNT = 3;
 
-export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
+// 0.4.21: the Grok Bot panel is in Simple too (Connect > Grok Bot assistant). Only MCP stays Expert.
+export const EXPERT_SETTINGS = new Set(["mcp"]);
 
 export const ASK = {
   title: "Which mode do you want to start in?",

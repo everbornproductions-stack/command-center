@@ -119,6 +119,7 @@ async function geminiTranscribe(target, audio, key, fetchImpl) {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
+      store: false,
       contents: [{ parts: [
         { inlineData: { mimeType: audio.mime, data: audio.buf.toString("base64") } },
         { text: "Transcribe this audio. Return only the words spoken." },

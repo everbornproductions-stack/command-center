@@ -1011,6 +1011,8 @@ async function api(req, res, url) {
     // First run ends here. A new install does not get the desktop card on its own after it (0.4.17).
     const firstRun = !readOnboarding().completed;
     if (firstRun) putDoc("desktop.prompt", applyDesktopPrompt(doc("desktop.prompt", () => ({ status: "pending", laterCount: 0 })), "quiet"));
+    // A new install saw the sharing notice on the welcome screen, so only older installs get the "Sharing changed" card (0.4.21).
+    if (firstRun) { try { putDoc("privacy", { ...doc("privacy", () => ({ contentOptIn: false, noticeSeen: false })), noticeSeen: true }); } catch { /* the card may show once */ } }
     writeOnboarding(completeRecord(readOnboarding(), Date.now()));
     const s = saveSettings({ ...settings(), onboarded: true });
     let sampleProject = null;

@@ -457,10 +457,10 @@ export const CONNECT_LINKS = [
 ];
 
 // Simple: More > Connections. Same Settings panels, opened past the basics.
-// MCP and Integrations stay in Expert (their panels are Expert only).
+// MCP stays in Expert (its panel is Expert only). Grok Bot shows in Simple too, in plain words.
 export const SIMPLE_CONNECT_LINKS = [
   { id: "zapier", label: "Zapier and Make", view: "settings", focus: "[data-feature='zapier']" },
-  ...CONNECT_LINKS.filter((l) => l.id !== "mcp" && l.id !== "integrations"),
+  ...CONNECT_LINKS.filter((l) => l.id !== "mcp").map((l) => (l.id === "integrations" ? { ...l, label: "Grok Bot assistant" } : l)),
 ].map((l) => ({ ...l, section: "Connections" }));
 
 export function groupFor(view) {

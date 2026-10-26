@@ -83,8 +83,11 @@ function startUnread() {
 }
 
 // "Updated just now" or "Offline", and the sharing note, shown above the message box.
-function syncChip(sync) {
+function syncChip(sync, messages) {
   if (!sync) return "";
+  // Honest chip (0.4.21): the room can be reachable while your own posts were not shared.
+  const unsent = (messages || []).filter((m) => m.unsent && m.mine).length;
+  if (unsent && sync.online !== false) return `<span class="chip" id="cc-sync" data-state="unsent" style="color:var(--warn,#f59e0b)">${unsent === 1 ? "1 of your posts was not shared" : `${unsent} of your posts were not shared`}. Only you can see ${unsent === 1 ? "it" : "them"}.</span>`;
   if (sync.online === false) return `<span class="chip" id="cc-sync" data-state="offline">Offline. Showing what is saved on this computer.</span>`;
   const secs = Math.max(0, Math.round((Date.now() - (sync.at || Date.now())) / 1000));
   return `<span class="chip" id="cc-sync" data-state="online" data-at="${Number(sync.at) || Date.now()}">${secs < 10 ? "Updated just now" : `Updated ${secs} seconds ago`}</span>`;
@@ -317,16 +320,21 @@ function startLive(view) {
       const next = await api(`/community?channel=${encodeURIComponent(channel)}&lite=1`);
       if (next.channel !== channel) return;
       const chip = view.querySelector("#cc-sync");
-      if (chip) { chip.outerHTML = syncChip(next.sync); }
+      if (chip) { chip.outerHTML = syncChip(next.sync, next.messages); }
       if (next.messages?.length) markSeen(channel, Math.max(...next.messages.map((m) => Number(m.createdAt) || 0), Date.now()));
       next.news = room.news;
       const html = (next.messages || []).map((m) => messageHtml(m, next.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>`;
       if (html === feed.dataset.html) return;
       const atEnd = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
-      const open = new Set([...feed.querySelectorAll(".cc-report:not([hidden])")].map((el) => el.closest(".cc-msg")?.dataset.mid));
+      const open = new Map([...feed.querySelectorAll(".cc-report:not([hidden])")].map((el) => [el.closest(".cc-msg")?.dataset.mid, el.querySelector("input")?.value || ""]));
+      const focusedMid = document.activeElement?.closest?.(".cc-report") ? document.activeElement.closest(".cc-msg")?.dataset.mid : null;
       feed.innerHTML = html;
       feed.dataset.html = html;
-      feed.querySelectorAll(".cc-msg").forEach((el) => { if (open.has(el.dataset.mid)) el.querySelector(".cc-report")?.removeAttribute("hidden"); });
+      feed.querySelectorAll(".cc-msg").forEach((el) => {
+        if (!open.has(el.dataset.mid)) return;
+        const box = el.querySelector(".cc-report"); box?.removeAttribute("hidden");
+        const input = box?.querySelector("input"); if (input) { input.value = open.get(el.dataset.mid); if (el.dataset.mid === focusedMid) input.focus(); }
+      });
       if (atEnd) feed.scrollTop = feed.scrollHeight;
       room = next;
       wireFeed(view, feed);
@@ -393,14 +401,15 @@ async function render(view) {
     </div>
     <div>
       <div class="panel">
-        ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your license.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
+        ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your license.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div><div class="row" style="gap:8px;margin-top:6px"><button class="btn sm primary" type="button" id="cc-signin">Sign in</button><span class="dim small">Opens Settings where you add your email. This works even when the shared room is offline.</span></div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
           <div class="small">Pick a public username for your account. A friendly one is suggested. Your email is not shown.</div>
           <label>Username <input id="cc-name" name="cc-name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="off" value="${esc(room.suggestion || "")}" aria-label="Username"></label>
           <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News.</div>
           <div><button class="btn sm primary" type="submit">Save username</button></div>
         </form>`)}
         <div class="dim small">${esc(SHORT)}</div>
-        ${onNews ? "" : `<div class="row" style="gap:8px;margin-top:6px;align-items:center">${syncChip(room.sync)}<button class="btn sm" type="button" id="cc-refresh">Refresh</button></div>${joined ? shareNote(room.sync) : ""}`}
+        <div class="dim small" id="cc-online-note">Who is online: Meldmind does not show who is online or when someone was last here. The chip below tells you if the shared room can be reached.</div>
+        ${onNews ? "" : `<div class="row" style="gap:8px;margin-top:6px;align-items:center">${syncChip(room.sync, room.messages)}<button class="btn sm" type="button" id="cc-refresh">Refresh</button></div>${joined ? shareNote(room.sync) : ""}`}
         ${onNews ? newsHtml(room.news) : `
           <div id="cc-feed" style="max-height:60vh;overflow-y:auto">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
@@ -421,6 +430,8 @@ async function render(view) {
     }
     render(view);
   }));
+
+  root.querySelector("#cc-signin")?.addEventListener("click", () => { if (window.CC.openSettings) window.CC.openSettings("#settings-plan"); else go("settings"); });
 
   root.querySelector("#cc-join")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -561,6 +572,9 @@ function renderSettings(el) {
     wireMail(el, row);
   }).catch(() => {});
 }
+
+// 0.4.21: start the unread check as soon as this file loads (one request), not only after the first state push.
+setTimeout(() => { try { startUnread(); } catch { /* onState starts it later */ } }, 0);
 
 window.CC.register({
   id: "community",
