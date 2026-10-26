@@ -4,6 +4,7 @@ import { abortResearch, beginDeep, loadResearch, exportReport, resumeDeep, readE
 import { safeFileName } from "../research-export.js";
 import { researchSnapshot } from "../feature-gate.js";
 import { normalizeFilter } from "../search.js";
+import { searchPreflight } from "../page-reader.js";
 
 export const id = "research";
 
@@ -11,12 +12,13 @@ export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/research/, "");
   if (req.method === "GET" && (p === "" || p === "/")) return h.json(res, 200, { research: { ...researchSnapshot(), flag_agents: agentsFlagOn(), costWarning: costWarning() } });
   if (req.method === "GET" && p === "/plan") { const ef = scaleEffort(url.searchParams.get("prompt") || "", { effort: url.searchParams.get("effort") || undefined }); return h.json(res, 200, { effort: ef, costWarning: costWarning(ef), flag_agents: agentsFlagOn() }); }
+  if (req.method === "GET" && p === "/preflight") return h.json(res, 200, searchPreflight({}));
   if (req.method === "POST" && p === "/flag") return h.json(res, 200, { ok: true, flag_agents: setAgentsFlag(!!body?.flag_agents) });
 
   if (req.method === "POST" && p === "/deep") {
     try {
       const job = beginDeep({ prompt: body.prompt || body.goal, filter: body.filter, projectId: body.projectId, effort: body.effort, facets: body.facets, maxCostUsd: body.maxCostUsd });
-      return h.json(res, 202, { ok: true, id: job.id, runId: job.id, ...(job.effort ? { effort: job.effort } : {}), ...(job.costWarning ? { costWarning: job.costWarning } : {}) });
+      return h.json(res, 202, { ok: true, id: job.id, runId: job.id, ...(job.effort ? { effort: job.effort } : {}), ...(job.costWarning ? { costWarning: job.costWarning } : {}), ...(job.searchWarning ? { searchWarning: job.searchWarning } : {}) });
 
     } catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
   }
