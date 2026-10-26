@@ -40,7 +40,7 @@ test("invite message is plain, has the code, and no dashes", () => {
   const m = inviteMessage({ space: "Crew", code: "CODE1234", link: "", role: "member" });
   assert.match(m, /CODE1234/);
   assert.match(m, /Together, then Team spaces/);
-  assert.doesNotMatch(m, /[–—]|http/);
+  assert.doesNotMatch(m, /[\u2013\u2014]|http/);
 });
 
 test("Teams page source names the plan and drops the docs path", () => {

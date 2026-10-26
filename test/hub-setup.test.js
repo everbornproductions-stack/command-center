@@ -16,7 +16,7 @@ test("a bad address is refused in plain words and nothing is saved", async () =>
   for (const bad of ["not a url", "ftp://x.example.com", "http://example.com", "https://u:p@example.com"]) {
     const r = await setHub(bad, { fetchImpl: async () => ({ status: 200 }) });
     assert.equal(r.ok, false, bad);
-    assert.ok(r.message && !/[–—]/.test(r.message));
+    assert.ok(r.message && !/[\u2013\u2014]/.test(r.message));
   }
   assert.equal(hubTarget().configured, false);
 });

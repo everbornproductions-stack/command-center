@@ -47,7 +47,7 @@ test("warnings: guarantee, fair housing, Reg Z, markers, score points, consent",
   assert.ok(ids(noConsent).includes("missing_consent"));
   assert.equal(noConsent.ok, true);
   assert.equal(noConsent.needsAck, true);
-  for (const w of noConsent.warnings) assert.ok(w.plain && w.why && !/[–—]/.test(w.plain + w.why));
+  for (const w of noConsent.warnings) assert.ok(w.plain && w.why && !/[\u2013\u2014]/.test(w.plain + w.why));
 });
 
 test("a credit-only rule does not fire on a plain real estate message", () => {
