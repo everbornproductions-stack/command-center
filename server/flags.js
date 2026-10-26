@@ -4,6 +4,7 @@ const DEFAULTS = {
   projectbar: false, // Working-in project bar, Continue this project, soft delete with Recently Deleted
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
+  projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -17,4 +18,11 @@ export function promptdropOn(env = process.env) {
   if (v === "0" || v === "off") return false;
   return !!DEFAULTS.promptdrop;
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions") });
+// The saved setting (flag_projectmedia) is used only when no env var forces the flag.
+export function projectmediaOn(settings = {}) {
+  const v = process.env.CC_FLAG_PROJECTMEDIA;
+  if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("projectmedia");
+  if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
+  return flagOn("projectmedia");
+}
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia") });
