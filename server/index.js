@@ -501,7 +501,7 @@ function fullState() {
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
-    flags: { flag_navstate: isNavStateEnabled(s) },
+    flags: { ...flagView(), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
