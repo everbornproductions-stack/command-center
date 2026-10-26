@@ -125,6 +125,7 @@ export const FEATURES = [
   { id: "everyday-news", settings: true },
   { id: "everyday-work", views: ["everyday-work"] },
   { id: "desk", home: true, deliverable: true, credits: true, settings: true },
+  { id: "chat-history", home: true, deliverable: true },
   { id: "hosted-runs", settings: true },
   { id: "smarter-control", home: true, settings: true },
   { id: "modelwatch", settings: true },
