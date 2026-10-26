@@ -1857,6 +1857,17 @@ function recentRunRows(rows) {
 }
 function wireRunRows(v) {
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const name = prompt("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
 }
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
@@ -1867,11 +1878,21 @@ function renderProjects(v) {
       <div class="pcards">${S.projects.map((p) => {
         const runs = S.missions.filter((m) => m.projectId === p.id);
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
+        const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
+        const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
+        const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
+        const expanded = flowOn && S.expandedProjects?.has?.(p.id);
+        const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
           <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
-          <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
+          <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
           ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
+          ${flowOn ? `<div class="row small" style="margin-top:8px;gap:6px"><button type="button" class="btn sm" data-pcard-expand="${esc(p.id)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Collapse" : "Expand"}</button><button type="button" class="btn sm" data-subproject-add="${esc(p.id)}">+ Sub-project</button></div>` : ""}
+          ${expanded ? `<div class="pcard-expand small" data-pcard-details="${esc(p.id)}" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+            <div><b>Prompts:</b> ${(expData?.prompts || runs).length} · <b>Images:</b> ${(expData?.images || []).length} · <b>Videos:</b> ${(expData?.videos || []).length} · <b>Automations:</b> ${(expData?.automations || []).length} · <b>Documents:</b> ${(expData?.documents || []).length}</div>
+            ${subProjects.length ? `<div style="margin-top:6px"><b>Sub-projects:</b> ${subProjects.map((sp) => `<button type="button" class="btn sm" data-subproject-open="${esc(sp.id)}" style="margin-left:4px">${esc(sp.name)}</button>`).join("")}</div>` : `<div class="dim" style="margin-top:4px">No sub-projects yet.</div>`}
+          </div>` : ""}
         </div>`; }).join("") || `<div class="empty">No projects yet. Click + New project to group links, runs and files for one client or campaign.</div>`}</div>
     </div>
     <div class="grid">
@@ -1885,10 +1906,40 @@ function renderProjects(v) {
         <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
-  $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
+  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del]")) return; S.openProject = c.dataset.id; render(); }));
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);
+  $$("[data-pcard-expand]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const pid = b.dataset.pcardExpand;
+    if (!S.expandedProjects) S.expandedProjects = new Set();
+    if (!S.projectExpansions) S.projectExpansions = {};
+    if (S.expandedProjects.has(pid)) {
+      S.expandedProjects.delete(pid);
+      render();
+      return;
+    }
+    S.expandedProjects.add(pid);
+    try { S.projectExpansions[pid] = await api(`/projects/${encodeURIComponent(pid)}/expand`); } catch { /* fallback counts used */ }
+    render();
+  }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const parentId = b.dataset.subprojectAdd;
+    const name = prompt("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    S.openProject = b.dataset.subprojectOpen;
+    render();
+  }));
   wireRunRows(v);
   $("#run-search")?.addEventListener("input", async (e) => {
     const q = e.target.value;
@@ -1919,6 +1970,9 @@ function renderProjectDetail(v, p) {
   const tasks = (S.hq?.tasks || []).filter((t) => t.client === p.hqClient);
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
+  const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
+  const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
+  const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
   v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
     <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
@@ -1929,6 +1983,11 @@ function renderProjectDetail(v, p) {
     </div>
     <div class="grid">
       <div class="panel" id="proj-team"></div>
+      ${flowOn ? `<div class="panel" id="proj-subprojects"><h3>Sub-projects <span class="right">${subProjects.length}</span></h3>
+        ${parentProj ? `<div class="small dim" style="margin-bottom:6px">Parent: <button type="button" class="btn sm" data-subproject-open="${esc(parentProj.id)}">${esc(parentProj.name)}</button></div>` : ""}
+        ${subProjects.map((sp) => `<div class="row small" style="padding:4px 0;border-bottom:1px solid var(--line)"><button type="button" class="btn sm" data-subproject-open="${esc(sp.id)}">${esc(sp.name)}</button><span class="dim">${esc(sp.summary || "")}</span></div>`).join("") || `<div class="dim small">No sub-projects yet.</div>`}
+        <div style="margin-top:8px"><button type="button" class="btn sm" data-subproject-add="${esc(p.id)}">+ Sub-project</button></div>
+      </div>` : ""}
       <div class="panel"><h3>Open HQ tasks <span class="right">${tasks.length}</span></h3>${tasks.slice(0, 15).map((t) => `<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="mono dim">${t.id}</span> ${esc(t.title)} <span class="chip">${t.status.replace(/_/g, " ")}</span>${t.owner ? ` <span class="dim">${t.owner}</span>` : ""}</div>`).join("") || `<div class="dim small">None.</div>`}</div>
       ${projCredits.length ? `<div class="panel"><h3>Media credits (HQ log)</h3>${projCredits.map(([k, val]) => `<div class="row small"><span>${esc(k)}</span><span class="mono" style="margin-left:auto">${fmtN(val)}</span></div>`).join("")}</div>` : ""}
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
@@ -1965,6 +2024,17 @@ function renderProjectDetail(v, p) {
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
   $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const name = prompt("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
 }
 async function openRun(id) {
   try {

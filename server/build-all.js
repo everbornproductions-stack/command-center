@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { AUTO_LINE, SEND_LINE } from "./getdone.js";
 
 export const PREF_DOC = "buildall.prefs";
+export const SAVED_JOBS_DOC = "buildall.saved";
 export const DEFAULT_PREFS = Object.freeze({ on: false, allowPost: false });
 export const SURFACES = ["start", "builder", "webbuilder", "remix"];
 export const STEP_LABELS = {
@@ -18,6 +19,55 @@ export const STEP_LABELS = {
   test: "Test",
   publish: "Publish",
 };
+
+export const FLOW_STEP_LABELS = {
+  simple: {
+    idea: "Creative",
+    questions: "Planning",
+    plan: "AI Movement",
+    build: "Build",
+    test: "Testing and Tweaks",
+    publish: "Finish",
+  },
+  expert: {
+    idea: "Creative",
+    questions: "Planning",
+    plan: "AI Movement",
+    build: "Build Mode",
+    test: "Testing & Tweaks",
+    publish: "Finished Project",
+  },
+};
+
+export const STEP_ALIASES = Object.freeze({
+  idea: "idea",
+  creative: "idea",
+  describe: "idea",
+  questions: "questions",
+  planning: "questions",
+  plan: "plan",
+  "ai-movement": "plan",
+  movement: "plan",
+  build: "build",
+  "build-mode": "build",
+  test: "test",
+  review: "test",
+  testing: "test",
+  "testing-and-tweaks": "test",
+  "testing-tweaks": "test",
+  publish: "publish",
+  done: "publish",
+  finish: "publish",
+  "finished-project": "publish",
+});
+
+export function resolveStepId(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+  if (STEP_ALIASES[raw]) return STEP_ALIASES[raw];
+  const slug = raw.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return STEP_ALIASES[slug] || raw;
+}
 
 // What makes the run stop and wait for the person. Same three as Get it done.
 export const STOP_REASON = {
@@ -166,8 +216,9 @@ function newId() {
   return "ba-" + crypto.randomBytes(6).toString("base64url");
 }
 
-export function createJob({ surface, title, steps, allowPost = false, owner = null } = {}) {
+export function createJob({ surface, title, steps, allowPost = false, owner = null, flowStages = false, experience = "simple" } = {}) {
   const id = newId();
+  const labelMap = flowStages ? (FLOW_STEP_LABELS[experience === "expert" ? "expert" : "simple"] || STEP_LABELS) : STEP_LABELS;
   const job = {
     id,
     surface: SURFACES.includes(surface) ? surface : "start",
@@ -175,13 +226,27 @@ export function createJob({ surface, title, steps, allowPost = false, owner = nu
     status: "running",
     allowPost: allowPost === true,
     permission: permissionLine({ allowPost }),
-    steps: (steps || []).map((s) => ({ id: s.id, label: s.label || STEP_LABELS[s.id] || s.id, status: "queued", note: "" })),
+    steps: (steps || []).map((s) => {
+      const canonical = resolveStepId(s.id) || s.id;
+      return {
+        id: s.id,
+        label: s.label || labelMap[canonical] || STEP_LABELS[canonical] || s.id,
+        status: s.status || "queued",
+        note: s.note || "",
+      };
+    }),
     current: null,
     waiting: null,
     assumed: [],
     result: null,
     error: null,
     stopRequested: false,
+    pauseRequested: false,
+    paused: false,
+    savedAt: null,
+    flowStages: !!flowStages,
+    savedResults: {},
+    _steps: null,
     owner,
     startedAt: Date.now(),
     finishedAt: null,
@@ -206,15 +271,83 @@ export function stopJob(id) {
   const job = getJob(id);
   if (!job) return null;
   job.stopRequested = true;
-  if (job.status === "running") {
-    for (const s of job.steps) if (s.status === "queued") s.status = "skipped";
+  job.pauseRequested = false;
+  job.paused = false;
+  if (job.status === "running" || job.status === "paused") {
+    for (const s of job.steps) if (s.status === "queued" || s.status === "paused") s.status = "skipped";
+    if (job.status === "paused") {
+      job.status = "stopped";
+      job.current = null;
+      job.finishedAt = Date.now();
+    }
   }
   return job;
 }
 
+export function pauseJob(id) {
+  const job = getJob(id);
+  if (!job) return null;
+  job.pauseRequested = true;
+  job.paused = true;
+  if (job.status === "waiting") {
+    job.status = "paused";
+  }
+  return job;
+}
+
+export async function resumeJob(id, { steps, onProgress = () => {} } = {}) {
+  const job = getJob(id);
+  if (!job) return null;
+  if (job.status === "done" || job.status === "stopped") return publicJob(job);
+  const runList = steps || job._steps || [];
+  job.pauseRequested = false;
+  job.paused = false;
+  job.stopRequested = false;
+  job.waiting = null;
+  job.error = null;
+  job.status = "running";
+  job.finishedAt = null;
+  for (const s of job.steps) {
+    if (s.status === "paused" || s.status === "waiting") s.status = "queued";
+  }
+  if (!runList.length) {
+    return publicJob(job);
+  }
+  return runSteps(job, runList, { onProgress, resume: true });
+}
+
+export function saveJob(docFn, putDocFn, jobOrId) {
+  const job = typeof jobOrId === "string" ? getJob(jobOrId) : jobOrId;
+  if (!job) return null;
+  job.savedAt = Date.now();
+  const snap = publicJob(job);
+  try {
+    if (typeof docFn === "function" && typeof putDocFn === "function") {
+      const store = docFn(SAVED_JOBS_DOC, () => ({ items: [] }));
+      if (!Array.isArray(store.items)) store.items = [];
+      const idx = store.items.findIndex((x) => x.id === snap.id);
+      if (idx >= 0) store.items[idx] = snap;
+      else store.items.unshift(snap);
+      store.items = store.items.slice(0, 40);
+      putDocFn(SAVED_JOBS_DOC, store);
+    }
+  } catch { /* saving to store is optional in memory-only unit tests */ }
+  return snap;
+}
+
+export function loadSavedJobs(docFn, owner = null) {
+  try {
+    const store = docFn(SAVED_JOBS_DOC, () => ({ items: [] }));
+    const list = Array.isArray(store?.items) ? store.items : [];
+    return list.filter((j) => owner === null || !j.owner || j.owner === owner);
+  } catch {
+    return [];
+  }
+}
+
 export function publicJob(job) {
   if (!job) return null;
-  return {
+  const out = {
     id: job.id,
     surface: job.surface,
     title: job.title,
@@ -230,6 +363,11 @@ export function publicJob(job) {
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
   };
+  if (job.paused || job.pauseRequested || job.status === "paused" || job.savedAt || job.flowStages) {
+    out.paused = !!(job.paused || job.status === "paused");
+    out.savedAt = job.savedAt || null;
+  }
+  return out;
 }
 
 // The runner. steps = [{ id, label, risk?, why?, run(ctx) }]. Each run gets
@@ -237,22 +375,33 @@ export function publicJob(job) {
 // when it finds out mid-step that it has to wait (a post, a needed tick).
 // It never asks between ordinary steps. Stop ends it before the next step and
 // is checked again by long steps through ctx.stopped().
-export async function runSteps(job, steps, { onProgress = () => {} } = {}) {
-  const results = {};
+// Pause cleanly suspends the job before the next step so resumeJob() can continue.
+export async function runSteps(job, steps, { onProgress = () => {}, resume = false } = {}) {
+  job._steps = steps;
+  const results = resume && job.savedResults ? { ...job.savedResults } : {};
+  job.savedResults = results;
   const tell = () => { try { onProgress(publicJob(job)); } catch { /* progress is optional */ } };
   const finish = (status) => {
     job.status = status;
     job.current = null;
-    job.finishedAt = Date.now();
+    job.finishedAt = status === "paused" ? null : Date.now();
     tell();
     return publicJob(job);
   };
   tell();
   for (const step of steps) {
     const row = job.steps.find((s) => s.id === step.id);
+    if (resume && row && (row.status === "done" || row.status === "skipped")) {
+      continue;
+    }
     if (job.stopRequested) {
       for (const s of job.steps) if (s.status === "queued") s.status = "skipped";
       return finish("stopped");
+    }
+    if (job.pauseRequested) {
+      job.paused = true;
+      if (row && row.status === "running") row.status = "queued";
+      return finish("paused");
     }
     const wait = mustStop(step, { allowPost: job.allowPost });
     if (wait) {
@@ -265,7 +414,7 @@ export async function runSteps(job, steps, { onProgress = () => {} } = {}) {
     tell();
     let out;
     try {
-      out = await step.run({ job, results, stopped: () => job.stopRequested === true });
+      out = await step.run({ job, results, stopped: () => job.stopRequested === true || job.pauseRequested === true });
     } catch (e) {
       if (row) { row.status = "failed"; row.note = String(e?.message || "This step did not finish.").slice(0, 300); }
       job.error = row?.note || "This step did not finish.";
@@ -282,9 +431,26 @@ export async function runSteps(job, steps, { onProgress = () => {} } = {}) {
       for (const s of job.steps) if (s.status === "queued") s.status = "skipped";
       return finish("stopped");
     }
+    if (job.pauseRequested && !(out && out.done)) {
+      job.paused = true;
+      if (out !== undefined) {
+        results[step.id] = out;
+        job.savedResults = results;
+        if (row) { row.status = out && out.skipped ? "skipped" : "done"; row.note = String(out?.note || "").slice(0, 300); }
+      } else if (row) {
+        row.status = "paused";
+        row.note = "Paused by you.";
+      }
+      return finish("paused");
+    }
     results[step.id] = out;
+    job.savedResults = results;
     if (row) { row.status = out && out.skipped ? "skipped" : "done"; row.note = String(out?.note || "").slice(0, 300); }
     tell();
+    if (job.pauseRequested) {
+      job.paused = true;
+      return finish("paused");
+    }
   }
   job.result = results[steps[steps.length - 1]?.id] ?? null;
   return finish("done");

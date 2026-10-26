@@ -41,7 +41,7 @@ import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
-import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted } from "./projects.js";
+import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
 import { flagOn, flagView } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
@@ -870,7 +870,14 @@ async function api(req, res, url) {
     }
     const id = body.id || projectSlug(name);
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
-    return json(res, 200, saveProject(body));
+    try { return json(res, 200, saveProject(body)); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  if (method === "GET" && p === "/projects/tree") return json(res, 200, { tree: projectTree() });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "subprojects") return json(res, 200, { subProjects: listSubProjects(seg[1]) });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "expand") {
+    const expanded = expandProject(seg[1], { missions: missionList() });
+    if (!expanded) return json(res, 404, { error: "project not found" });
+    return json(res, 200, expanded);
   }
   if (seg[0] === "projects-deleted") {
     if (!flagOn("projectbar")) return json(res, 404, { error: "Recently Deleted is turned off on this install.", code: "flag_off" });

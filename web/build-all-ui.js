@@ -14,9 +14,20 @@ const STATUS_WORD = {
   done: "Done",
   skipped: "Skipped",
   waiting: "Waiting for you",
+  paused: "Paused",
   failed: "Did not finish",
   stopped: "Stopped",
 };
+
+const cc = () => (typeof window !== "undefined" ? window.CC : null);
+
+function flowStagesOn(job, opts = {}) {
+  if (opts.flowStages === true) return true;
+  if (opts.flowStages === false) return false;
+  if (job?.paused || job?.status === "paused" || job?.savedAt || job?.flowStages) return true;
+  const s = cc()?.S?.settings || {};
+  return !!(s.flag_flowstages || s.flags?.flag_flowstages);
+}
 
 export function switchHtml(prefs = {}, idp = "ba") {
   const on = prefs.on === true;
@@ -29,23 +40,34 @@ export function switchHtml(prefs = {}, idp = "ba") {
   </div>`;
 }
 
-export function progressHtml(job) {
+export function progressHtml(job, opts = {}) {
   if (!job) return "";
   const running = job.status === "running";
-  const head = running ? "Building it all" : job.status === "done" ? "Built" : job.status === "waiting" ? "Waiting for you" : job.status === "stopped" ? "Stopped" : "Did not finish";
+  const paused = job.status === "paused";
+  const flowOn = flowStagesOn(job, opts);
+  const head = running ? "Building it all" : job.status === "done" ? "Built" : job.status === "waiting" ? "Waiting for you" : paused ? "Paused" : job.status === "stopped" ? "Stopped" : "Did not finish";
   const rows = (job.steps || []).map((s) => `<li data-ba-step="${esc(s.id)}" data-status="${esc(s.status)}"><b>${esc(s.label)}</b> <span class="dim small">${esc(STATUS_WORD[s.status] || s.status)}${s.note ? `. ${esc(s.note)}` : ""}</span></li>`).join("");
   const assumed = (job.assumed || []).length
     ? `<div class="small" style="margin-top:6px"><b>Assumed</b> (change these any time):<ul>${job.assumed.map((a) => `<li>${esc(a.label)}: ${esc(a.value)}</li>`).join("")}</ul></div>`
     : "";
   const wait = job.waiting ? `<div class="small" role="status" style="margin-top:6px">${esc(job.waiting.reason)}</div>` : "";
   const err = job.error ? `<div class="small" role="alert" style="margin-top:6px">${esc(job.error)}</div>` : "";
+  let controls = "";
+  if (flowOn) {
+    const btns = [];
+    if (running) btns.push(`<button class="btn sm" type="button" data-ba-pause>Pause</button>`);
+    if (paused) btns.push(`<button class="btn sm primary" type="button" data-ba-resume>Resume</button>`);
+    if (running || paused || job.status === "waiting") btns.push(`<button class="btn sm" type="button" data-ba-save>Save</button>`);
+    if (running || paused) btns.push(`<button class="btn sm" type="button" data-ba-stop>Stop</button>`);
+    controls = btns.length ? `<div class="row" style="gap:6px;margin-left:auto">${btns.join("")}</div>` : "";
+  } else {
+    controls = running ? `<button class="btn sm" type="button" data-ba-stop style="margin-left:auto">Stop</button>` : "";
+  }
   return `<div class="panel" data-ba-job="${esc(job.id)}" style="margin-top:8px">
-    <div class="row" style="gap:8px"><b>${esc(head)}</b>${running ? `<button class="btn sm" type="button" data-ba-stop style="margin-left:auto">Stop</button>` : ""}</div>
+    <div class="row" style="gap:8px"><b>${esc(head)}</b>${controls}</div>
     <ol class="small" style="margin:6px 0 0 18px;padding:0">${rows}</ol>${assumed}${wait}${err}
   </div>`;
 }
-
-const cc = () => (typeof window !== "undefined" ? window.CC : null);
 
 let prefsCache = null;
 export async function loadPrefs() {
@@ -88,6 +110,15 @@ export async function mountBuildAll(el, { surface, payload, onEnd } = {}) {
 }
 
 function follow(box, job, onEnd) {
+  const tick = async () => {
+    let j;
+    try { j = await cc().api(`/buildall/${encodeURIComponent(job.id)}`); }
+    catch { return; }
+    if (!paint(j)) return;
+    if (j.status === "running") { setTimeout(tick, 900); return; }
+    if (j.status === "paused") return;
+    try { onEnd?.(j); } catch { /* the list above already shows the result */ }
+  };
   const paint = (j) => {
     if (!box.isConnected) return false;
     box.innerHTML = progressHtml(j);
@@ -95,16 +126,24 @@ function follow(box, job, onEnd) {
       try { paint(await cc().api(`/buildall/${encodeURIComponent(j.id)}/stop`, { method: "POST" })); }
       catch (e) { cc()?.toast?.(e.message, true); }
     });
+    box.querySelector("[data-ba-pause]")?.addEventListener("click", async () => {
+      try { paint(await cc().api(`/buildall/${encodeURIComponent(j.id)}/pause`, { method: "POST" })); }
+      catch (e) { cc()?.toast?.(e.message, true); }
+    });
+    box.querySelector("[data-ba-resume]")?.addEventListener("click", async () => {
+      try {
+        paint(await cc().api(`/buildall/${encodeURIComponent(j.id)}/resume`, { method: "POST" }));
+        setTimeout(tick, 400);
+      } catch (e) { cc()?.toast?.(e.message, true); }
+    });
+    box.querySelector("[data-ba-save]")?.addEventListener("click", async () => {
+      try {
+        paint(await cc().api(`/buildall/${encodeURIComponent(j.id)}/save`, { method: "POST" }));
+        cc()?.toast?.("Run saved on this computer.");
+      } catch (e) { cc()?.toast?.(e.message, true); }
+    });
     return true;
   };
   paint(job);
-  const tick = async () => {
-    let j;
-    try { j = await cc().api(`/buildall/${encodeURIComponent(job.id)}`); }
-    catch { return; }
-    if (!paint(j)) return;
-    if (j.status === "running") { setTimeout(tick, 900); return; }
-    try { onEnd?.(j); } catch { /* the list above already shows the result */ }
-  };
   setTimeout(tick, 900);
 }
