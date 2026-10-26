@@ -55,7 +55,7 @@ function readerLine(pack) {
 }
 
 function page(view) {
-  const g = st.gate || { find: false, rebuild: false, upgrade: "Refocus is part of Pro. Add a licence key in Settings." };
+  const g = st.gate || { find: false, rebuild: false, upgrade: "Refocus is part of Pro. Add a license key in Settings." };
   const f = st.found;
   if (!g.find) {
     view.innerHTML = `<div class="panel" id="rf-root"><h3>Refocus</h3>

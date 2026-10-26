@@ -212,7 +212,7 @@ export const MENU_ACTIONS = {
 };
 
 // Pages that need a paid plan. The menu item still opens the page, which explains
-// the plan. The note is only a label. cap is the licence limit that unlocks it.
+// the plan. The note is only a label. cap is the license limit that unlocks it.
 export const VIEW_LOCKS = {
   pipelines: { cap: "missions", plan: "Pro" },
   schedules: { cap: "scheduler", plan: "Pro" },
@@ -222,7 +222,7 @@ export const VIEW_LOCKS = {
 };
 
 // The plan a view needs on these limits, or "" when it is open. No limits means
-// the licence has not loaded yet, so nothing is marked.
+// the license has not loaded yet, so nothing is marked.
 export function lockFor(view, limits) {
   const lock = VIEW_LOCKS[view];
   if (!lock || !limits || typeof limits !== "object") return "";
@@ -232,7 +232,7 @@ export function lockFor(view, limits) {
 }
 
 export function lockNote(plan) {
-  return plan ? `Part of ${plan}. The page explains the plan. Add a licence key in Settings.` : "";
+  return plan ? `Part of ${plan}. The page explains the plan. Add a license key in Settings.` : "";
 }
 
 // What the Settings menu is allowed to hold, in every layout: settings pages only.
@@ -634,11 +634,11 @@ const CSS = `
 .tabs.nav-ready.nav-promoted .nav-trigger, .tabs.nav-ready.nav-promoted button.nav-direct { padding-left: 8px; padding-right: 8px; }
 .nav-trigger { background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; }
 .nav-trigger:hover, .nav-trigger[aria-expanded="true"] { color: var(--text); }
-.nav-trigger.active { background: #1a2436; color: #fff; box-shadow: inset 0 0 0 1px #2b3a52; }
+.nav-trigger.active { background: var(--card-hover, #1a2436); color: var(--text, #fff); box-shadow: inset 0 0 0 1px #2b3a52; }
 .nav-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 220px; max-height: 70vh; overflow: auto; padding: 6px; background: var(--card-bg, #0d1420); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; display: none; }
 .nav-menu.open .nav-panel { display: flex; flex-direction: column; gap: 2px; }
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
-.nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }
+.nav-panel button:hover, .nav-panel button:focus { background: var(--card-hover, #1a2436); outline: none; }
 .nav-panel button.active { color: var(--accent-2); }
 .nav-section { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 2px; border-top: 1px solid var(--line-2); margin-top: 4px; }
 .nav-lock { color: var(--amber, #f59e0b); font-size: 12px; margin-left: 4px; }
@@ -1035,7 +1035,7 @@ export function placeNavItem(root, view, label) {
   else panel.appendChild(btn);
 }
 
-// Adds or clears the plan note on locked pages. Called after each licence load.
+// Adds or clears the plan note on locked pages. Called after each license load.
 export function markLocks(root, limits) {
   if (!root) return;
   root.querySelectorAll("button[data-view]").forEach((b) => {

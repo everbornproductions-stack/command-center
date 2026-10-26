@@ -123,11 +123,11 @@ export function licenseState() {
   if (r.reason === "owner_email") message = "Owner account";
   else if (r.reason === "dev_override") message = "Developer override (CC_DEV_OWNER=1, unpackaged run)";
   else if (r.reason === "trial") message = `Free trial: Pro for ${r.daysLeft} more day${r.daysLeft === 1 ? "" : "s"}. Nothing is charged.`;
-  else if (!configured) message = "No licence server configured: this copy runs on the Free tier.";
+  else if (!configured) message = "No license server configured: this copy runs on the Free tier.";
   else if (r.lifetime && r.reason === "active") message = "Lifetime founder: Pro for life.";
-  else if (r.reason === "grace") message = `Licence server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
-  else if (r.reason === "licence_unverified") message = "This licence file was changed outside Meldmind, so it was not trusted. It is checked again online and comes back on its own if it is real.";
-  else if (r.reason === "grace_expired") message = `Licence could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
+  else if (r.reason === "grace") message = `License server unreachable (${l.lastError}); keeping ${T.label} until ${new Date(r.graceUntil).toLocaleString()}.`;
+  else if (r.reason === "licence_unverified") message = "This license file was changed outside Meldmind, so it was not trusted. It is checked again online and comes back on its own if it is real.";
+  else if (r.reason === "grace_expired") message = `License could not be re-checked for ${Math.round(GRACE_MS / 86400000)} days (${l.lastError || "offline"}); back on Free until a check succeeds.`;
   return {
     configured, cloudSource: c.source, cloudUrl: c.url || null,
     tier: r.tier, reason: r.reason,
@@ -157,9 +157,9 @@ export function deviceLimitMessage(maxDevices = 2) {
 export function deviceRpcMessage(err) {
   const m = String(err?.message || "");
   if (/schema cache|could not find the function|PGRST202|404/i.test(m)) {
-    return "The computer list is not available on the licence server yet.";
+    return "The computer list is not available on the license server yet.";
   }
-  return m || "Could not reach the licence server.";
+  return m || "Could not reach the license server.";
 }
 
 // Growth (Phase 9) asks the same licence server about referrals.
@@ -193,10 +193,10 @@ const capOf = (row) => {
 };
 
 export async function activate(key) {
-  if (!cloudConfigured()) throw new Error("No licence server configured (Settings → Cloud).");
+  if (!cloudConfigured()) throw new Error("No license server configured (Settings → Cloud).");
   const l = lic();
   const k = trim(key).toUpperCase();
-  if (!k) throw new Error("Licence key required.");
+  if (!k) throw new Error("License key required.");
   const stamp = l.stamp || 0;
   const r = await rpc("verify_license", { p_key: k, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
   // A remove of this computer while the check was in flight must not put the key back.
@@ -207,7 +207,7 @@ export async function activate(key) {
     const patch = { key: k, via: null, tier: r.tier, status: r.status, email: r.email, periodEnd: r.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}), ...(r.sig ? { sig: r.sig, issuedAt: r.issued_at ?? null } : { sig: undefined }) };
     if (Object.prototype.hasOwnProperty.call(r, "plan")) patch.plan = r.plan || null;
     saveLic(patch);
-    emit("log", { text: `Licence active: ${r.tier}` });
+    emit("log", { text: `License active: ${r.tier}` });
     try {
       const { queueWelcome } = await import("./welcome-mail.js");
       const source = String(r.tier || "").toLowerCase() === "pro" ? "pro-purchase" : "license";
@@ -218,14 +218,14 @@ export async function activate(key) {
     return licenseState();
   }
   // a different key that fails leaves the stored licence alone; the stored key failing means it really is not active
-  if (l.key && k !== l.key) throw new Error(r?.message || "Licence key not accepted");
-  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "Licence not active", ...(maxDevices ? { maxDevices } : {}) });
-  emit("log", { text: `Licence problem: ${r?.message || "not active"}`, level: "error" });
+  if (l.key && k !== l.key) throw new Error(r?.message || "License key not accepted");
+  saveLic({ key: l.key || k, tier: null, status: r?.status || "unknown", email: r?.email || l.email, periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "License not active", ...(maxDevices ? { maxDevices } : {}) });
+  emit("log", { text: `License problem: ${r?.message || "not active"}`, level: "error" });
   return licenseState();
 }
 
 export async function redeem(code, email) {
-  if (!cloudConfigured()) throw new Error("No licence server configured (Settings → Cloud).");
+  if (!cloudConfigured()) throw new Error("No license server configured (Settings → Cloud).");
   const r = await rpc("redeem_promo", { p_code: code, p_email: HOSTED ? ctx().email : email });
   if (!r?.key) throw new Error(r?.message || "Could not redeem");
   return activate(r.key);
@@ -243,8 +243,8 @@ export function plainLicenceError(message, kind = "key") {
   if (/used up|invalid, used|expired/i.test(m) && kind === "code") return "This code was already used, has expired, or was typed wrong. Check the spelling, or ask Everborn for a new code.";
   if (/different email/i.test(m)) return "This code belongs to a different email. Type the email the code was sent to.";
   if (/email this code is for/i.test(m)) return "Enter your email so the code can be linked to you.";
-  if (/not found|not accepted|unknown key/i.test(m) && kind === "key") return "That licence key was not found. Check it, or if you have a promo code, type it in the same box.";
-  return m || (kind === "code" ? "Could not redeem that code." : "Could not check that licence key.");
+  if (/not found|not accepted|unknown key/i.test(m) && kind === "key") return "That license key was not found. Check it, or if you have a promo code, type it in the same box.";
+  return m || (kind === "code" ? "Could not redeem that code." : "Could not check that license key.");
 }
 
 // One box: a licence key activates, anything else is redeemed as a promo code.
@@ -261,7 +261,7 @@ export async function submitLicence({ key, code, email, action } = {}) {
     try { return await redeem(c.toUpperCase(), mail); }
     catch (e) { throw fail(plainLicenceError(e.message, "code")); }
   }
-  if (!k) throw fail("Enter your licence key or promo code.");
+  if (!k) throw fail("Enter your license key or promo code.");
   let st;
   try { st = await activate(k); }
   catch (e) { throw fail(plainLicenceError(e.message, "key")); }
@@ -281,8 +281,8 @@ export async function loadHostedLicense() {
       if (maxDevices) saveLic({ maxDevices });
       return await activate(best.key);
     }
-    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: `Licence is ${best.status}`, ...(capOf(best) ? { maxDevices: capOf(best) } : {}) });
-    else saveLic({ tier: null, status: null, checkedAt: now, lastOkAt: now, lastError: null, message: "No licence on this email" });
+    if (best) saveLic({ key: best.key, tier: best.tier, status: best.status, email: best.email, periodEnd: best.current_period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: `License is ${best.status}`, ...(capOf(best) ? { maxDevices: capOf(best) } : {}) });
+    else saveLic({ tier: null, status: null, checkedAt: now, lastOkAt: now, lastError: null, message: "No license on this email" });
   } catch (e) { saveLic({ lastError: e.message, checkedAt: now }); }
   return licenseState();
 }
@@ -313,7 +313,7 @@ export async function unlockByEmail() {
   // one nothing is asked (no plan lookup by a typed or remembered address), and a key still works.
   const token = await sessionToken({ cloud: cloud() });
   if (!token) {
-    if (!(l.key && l.via !== "email")) saveLic({ message: "Sign in again to confirm your email, or enter your licence key." });
+    if (!(l.key && l.via !== "email")) saveLic({ message: "Sign in again to confirm your email, or enter your license key." });
     return licenseState();
   }
   let r;
@@ -331,12 +331,12 @@ export async function unlockByEmail() {
   if (r?.ok) {
     if (keyedActive && (TIER_RANK[r.tier] || 0) <= (TIER_RANK[l.tier] || 0)) return licenseState();
     saveLic({ key: null, via: "email", tier: r.tier, status: r.status, email: r.email || email, periodEnd: r.period_end || null, plan: r.plan || null, checkedAt: now, lastOkAt: now, lastError: null, message: r.message || "ok", ...(maxDevices ? { maxDevices } : {}) });
-    emit("log", { text: `Licence active by sign-in: ${r.tier}` });
+    emit("log", { text: `License active by sign-in: ${r.tier}` });
     return licenseState();
   }
   // Not active on this email. Only a licence that came from the email is changed.
-  if (l.via === "email") saveLic({ tier: null, status: r?.status || "unknown", periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "No active licence on this email" });
-  else if (!keyed) saveLic({ message: r?.message || "No active licence on this email yet" });
+  if (l.via === "email") saveLic({ tier: null, status: r?.status || "unknown", periodEnd: r?.period_end || null, checkedAt: now, lastOkAt: now, lastError: null, message: r?.message || "No active license on this email" });
+  else if (!keyed) saveLic({ message: r?.message || "No active license on this email yet" });
   return licenseState();
 }
 
@@ -373,7 +373,7 @@ export function validateCloudChange({ url, anonKey }) {
   if (!url || !anonKey) throw bad("Both the project URL and the publishable key are required.");
   if (!/^https?:\/\/[^\s/]+(\/.*)?$/.test(url)) throw bad("The project URL must be an http(s) address.");
   const shipped = shippedCloud();
-  if (PACKAGED && complete(shipped) && !sameUrl(url, shipped.url)) throw bad("This build checks licences against its own licence server; the project cannot be changed.");
+  if (PACKAGED && complete(shipped) && !sameUrl(url, shipped.url)) throw bad("This build checks licences against its own license server; the project cannot be changed.");
   const current = cloud();
   return { url: url.replace(/\/$/, ""), anonKey, changed: !sameUrl(url, current.url) || anonKey !== current.anonKey };
 }
@@ -399,8 +399,8 @@ export async function listDevices() {
   const l = lic();
   const maxDevices = Number(l.maxDevices) > 0 ? Number(l.maxDevices) : 2;
   const base = { configured: cloudConfigured(), hasKey: !!l.key, maxDevices, deviceId: l.deviceId, devices: [], message: null };
-  if (!base.configured) return { ...base, message: "No licence server is configured, so there is no computer list." };
-  if (!l.key) return { ...base, message: "Activate a licence key to see the computers on it." };
+  if (!base.configured) return { ...base, message: "No license server is configured, so there is no computer list." };
+  if (!l.key) return { ...base, message: "Activate a license key to see the computers on it." };
   try {
     const rows = await rpc("list_license_devices", { p_key: l.key, p_device_id: l.deviceId }, { all: true });
     return { ...base, devices: (rows || []).filter((r) => r && (r.device_id || r.deviceId)).map((r) => viewDevice(r, l.deviceId)) };
@@ -411,9 +411,9 @@ export async function listDevices() {
 
 // Remove one computer. Removing this computer also drops the key here so the next check does not take the spot again.
 export async function removeDevice(deviceId) {
-  if (!cloudConfigured()) throw Object.assign(new Error("No licence server configured (Settings → Cloud)."), { status: 400 });
+  if (!cloudConfigured()) throw Object.assign(new Error("No license server configured (Settings → Cloud)."), { status: 400 });
   const l = lic();
-  if (!l.key) throw Object.assign(new Error("Activate a licence key first."), { status: 400 });
+  if (!l.key) throw Object.assign(new Error("Activate a license key first."), { status: 400 });
   const id = trim(deviceId);
   if (!id || id.length > 128 || /[\u0000-\u001f]/.test(id)) throw Object.assign(new Error("Choose a computer to remove."), { status: 400 });
   let r;

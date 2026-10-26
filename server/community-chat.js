@@ -17,7 +17,7 @@ export const CHAT_IDS = new Set(["general", "prompts", "builders", "help", "show
 export const SHARE_KINDS = new Set(["prompt", "builder", "mission", "news"]);
 export const SHARE_CHANNEL = { prompt: "prompts", builder: "builders", mission: "show", news: "general" };
 
-export const SIGN_IN_FIRST = "Sign in first. Community chat uses the email you signed in with (Google or Microsoft) or the email on your licence.";
+export const SIGN_IN_FIRST = "Sign in first. Community chat uses the email you signed in with (Google or Microsoft) or the email on your license.";
 export const BURST_MAX = 5;
 export const BURST_MS = 8000;
 export const HOUR_MAX = 40;

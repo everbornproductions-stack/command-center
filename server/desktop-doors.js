@@ -66,7 +66,7 @@ export function publicState() {
     pro: isProFeature("desktop"),
     apps: state.apps.map(publicApp),
     using: state.using,
-    note: isProFeature("desktop") ? "" : "Desktop control is part of Pro. Add a licence key in Settings.",
+    note: isProFeature("desktop") ? "" : "Desktop control is part of Pro. Add a license key in Settings.",
   };
 }
 

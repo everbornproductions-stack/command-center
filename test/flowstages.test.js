@@ -430,7 +430,7 @@ test("Flow stages UI files contain breadcrumb, flowchart, expandable project hoo
   assert.ok(walkUi.includes("sp-flowchart"));
   assert.ok(walkUi.includes("data-stage-jump"));
   assert.ok(walkUi.includes("Let AI fill"));
-  assert.ok(walkUi.includes("Stacked steps"));
+  assert.ok(walkUi.includes("Queued steps"));
 
   const appUi = fs.readFileSync("web/app.js", "utf8");
   assert.ok(appUi.includes("data-pcard-expand"));

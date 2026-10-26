@@ -40,12 +40,12 @@ function mock() {
   });
 }
 
-test("simple licence copy hides the setup form, and Your apps posts only from a click", () => {
+test("simple license copy hides the setup form, and Your apps posts only from a click", () => {
   const app = read("web", "app.js");
   const fn = app.slice(app.indexOf("function licenceCloudFields"), app.indexOf("function renderSettings"));
   assert.match(fn, /S\.uiMode !== "expert"/);
   assert.match(fn, /id="cl-url"/);
-  assert.match(fn, /Licence server connection/);
+  assert.match(fn, /License server connection/);
   assert.equal(fn.includes("supabase.co"), false);
   assert.equal(fn.includes("\u2014"), false);
   const byo = read("web", "features", "byo.js");

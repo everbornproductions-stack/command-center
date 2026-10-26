@@ -15,7 +15,7 @@ document.head.appendChild(style);
 async function renderSettings(el) {
   settingsEl = el;
   if (window.CC.S?.license?.limits?.desktop !== true) {
-    el.innerHTML = `<div class="panel" id="prov-antigravity"><h3>Google Antigravity</h3><div class="dim small">Desktop control is part of Pro. Add a licence key in Settings.</div></div>`;
+    el.innerHTML = `<div class="panel" id="prov-antigravity"><h3>Google Antigravity</h3><div class="dim small">Desktop control is part of Pro. Add a license key in Settings.</div></div>`;
     return;
   }
   el.innerHTML = `<div class="panel" id="prov-antigravity"><h3>Google Antigravity</h3><div class="dim small">Checking this PC...</div></div>`;

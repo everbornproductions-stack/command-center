@@ -30,3 +30,5 @@ Meldmind does not ask you to re-enter an old balance. It shows a soft "possibly 
 ## When the credits run out
 
 When an AI's API credits run out, Meldmind tries another way first, then can answer through your own plan for that AI: the official app on this PC (Claude Code, Codex, Gemini CLI, Antigravity), or a question you copy into that AI's page that asks it to send the answer back. Those answers cost no API credits. See Two-click handoff for how it works, and Settings, Backup when API credits run out, to turn it off.
+
+Some AIs never report a balance. For those, Credits says This AI does not tell Meldmind its balance. That is not an error. Type the balance yourself in Update balance if you want a number.

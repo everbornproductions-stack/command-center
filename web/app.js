@@ -170,7 +170,7 @@ function showUpgrade(message) {
   if (document.getElementById("cc-upgrade")) return;
   const box = document.createElement("div");
   box.id = "cc-upgrade";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a licence key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
   document.body.appendChild(box);
   box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
   box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
@@ -197,7 +197,7 @@ function toastNeedKey() {
   $("#toasts").appendChild(t);
   setTimeout(() => t.remove(), 8000);
 }
-function toast(msg, err = false, link = null) {
+function toast(msg, err = false, link = null, ttl = 0) {
   noteToast();
   if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
@@ -211,7 +211,7 @@ function toast(msg, err = false, link = null) {
     t.append(a);
   }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
-  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), ttl || (err ? 6000 : 3500));
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
@@ -765,7 +765,8 @@ function setUiMode(mode, opts = {}) {
   S.askMode = false;
   const patch = { uiMode: mode, uiModeChosen: true };
   if (mode === "expert") patch.expertConfirmed = true;
-  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done;
+  // Switching while on Settings keeps Settings in view: no "Expert setup 1 of 5" over it (bug 7).
+  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
   S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
@@ -785,6 +786,7 @@ function setUiMode(mode, opts = {}) {
   if (root) root.dataset.nav = "";
   render();
   window.CC?.tour?.onMode?.();
+  if (mode === "expert" && prev === "simple" && !opts.fromSetup) toast("You are in Expert. Back to Simple any time.");
   api("/settings", { method: "POST", body: patch })
     .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
@@ -1194,9 +1196,10 @@ function syncProjectBar() {
     bar.id = "projbar";
     bar.className = "projbar";
     bar.setAttribute("role", "region");
-    bar.setAttribute("aria-label", "Working in");
+    bar.setAttribute("aria-label", "Project");
     $("#view").before(bar);
   }
+  bar.dataset.view = S.view; // on Chat the picker lives in the chat card, so the bar shows one picker only
   const hadFocus = document.activeElement?.id === "pb-select";
   bar.innerHTML = barHtml({ projects: S.projects || [], selected: S.project, view: S.view });
   const sel = $("#pb-select", bar);
@@ -1339,12 +1342,13 @@ function renderSimpleChat(v) {
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
         <div id="cc-emp-hint" aria-live="polite"></div>
         <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
-        <div class="row" style="padding-top:4px">
+        <div class="row simple-send-row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
@@ -1423,6 +1427,7 @@ function renderCommand(v) {
         <h3 id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))} <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
         <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
@@ -1913,15 +1918,20 @@ async function sendOrders() {
   if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
     const kind = projectIntent(prompt);
     if (kind) {
+      // The chat box is cleared first: the Start screen replaces the chat view, so #orders may no longer exist afterwards.
+      const draftBox = $("#orders");
+      if (draftBox) draftBox.value = "";
+      S.lastOrders = "";
       try {
         await window.CC.ensureView?.("start");
         if (window.CC.startProject?.startFromChat) {
           await window.CC.startProject.startFromChat(kind, prompt);
-          $("#orders").value = "";
           toast("Started a project for this. Answer a few questions to go on.");
           return;
         }
-      } catch (e) { toast(e.message, true); return; }
+      } catch (e) { S.lastOrders = prompt; toast(e.message, true); return; }
+      S.lastOrders = prompt;
+      if (draftBox && draftBox.isConnected) draftBox.value = prompt;
     }
   }
   S.skipProjectStart = false;
@@ -2287,7 +2297,7 @@ function chooseProPlan(which) {
   const name = plan.button || plan.label || "This plan";
   toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
-// After an Upgrade link opens, re-check the licence every few seconds for two minutes, and on focus.
+// After an Upgrade link opens, re-check the license every few seconds for two minutes, and on focus.
 const paidWatch = createPaidWatch({
   current: () => S.license,
   check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
@@ -2300,15 +2310,15 @@ function bindProPlans(root) {
   $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
     const before = S.license?.tier || "free";
     const lic = await paidWatch.check();
-    if (!lic) { toast("Could not reach the licence server. Try again in a moment.", true); return; }
+    if (!lic) { toast("Could not reach the license server. Try again in a moment.", true); return; }
     if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
-    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your licence key.", true);
+    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your license key.", true);
   }));
 }
 function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a licence key</button></div>
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a license key</button></div>
       ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
       <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
@@ -2341,7 +2351,7 @@ function renderSubscriptions(v) {
     <td><input type="text" data-f="plan" aria-label="${esc(s.name)} plan" value="${esc(s.plan || "")}" style="width:150px;padding:4px 6px"></td>
     <td><input type="number" data-f="monthly" aria-label="${esc(s.name)} dollars per month" value="${s.monthly ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px;padding:4px 6px"></td>
     <td><input type="date" data-f="renews" aria-label="${esc(s.name)} renews on" value="${s.renews || ""}" style="width:140px;padding:4px 6px"></td>
-    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
+    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:var(--sunk-bg,#1a2333);border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
     <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
     <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">Remove</button></td>
@@ -2394,12 +2404,12 @@ function phonePanel() {
 function licenceCloudFields() {
   if (S.mode === "hosted") return "";
   if (S.uiMode !== "expert") {
-    return `<div class="dim small" style="margin-top:8px">The licence connection ships with the app. The setup fields stay in Expert.</div>`;
+    return `<div class="dim small" style="margin-top:8px">The license connection ships with the app. The setup fields stay in Expert.</div>`;
   }
-  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
-  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
+  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No license server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
+  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">License server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
     <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
-    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
+    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the license is re-checked against the new server.</div></details>`;
 }
 function openSettingsMore(focus) {
   S.settingsMore = true;
@@ -2547,13 +2557,13 @@ function renderSettings(v) {
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
       ${phonePanel()}
-      <div class="panel" id="settings-plan"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
-        <label class="small" for="lic-key"><b>Licence key or promo code</b></label>
+      <div class="panel" id="settings-plan"><h3>License &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no license server"}</span></h3>
+        <label class="small" for="lic-key"><b>License key or promo code</b></label>
         <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
         <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}</div>`}
-        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my license</button></div>
         ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
@@ -2675,14 +2685,14 @@ function renderSettings(v) {
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
   $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
-  // One box: the server tells a licence key from a promo code (EVERBORN-OWNER, TEST-...).
+  // One box: the server tells a license key from a promo code (EVERBORN-OWNER, TEST-...).
   $("#lic-go")?.addEventListener("click", async () => {
     const value = $("#lic-key").value.trim();
-    if (!value) { toast("Enter your licence key or promo code.", true); $("#lic-key").focus(); return; }
-    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `Licence active: ${S.license.tier}` : (S.license.message || "Licence checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
+    if (!value) { toast("Enter your license key or promo code.", true); $("#lic-key").focus(); return; }
+    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `License active: ${S.license.tier}` : (S.license.message || "License checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
   });
   $("#lic-re")?.addEventListener("click", async () => { try { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); } catch (e) { toast(e.message, true); } });
-  $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
+  $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("License server saved; re-checking the license"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
   wireOpenRouterStart(v);
@@ -2700,7 +2710,28 @@ function renderSettings(v) {
     });
   });
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); el?.querySelector?.('[data-key], input:not([type="hidden"]):not([disabled])')?.focus?.(); S.focusProvider = null; }
-  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => { const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  // Section chips filter the long page: pick one and only that section shows; "Show all" brings the rest back (bug 12).
+  const groupIds = ["settings-group-my-ais", "settings-group-projects-media", "settings-group-privacy", "settings-group-notifications", "settings-group-advanced"];
+  const groupOf = new Map();
+  const first = $("#settings-keys", v);
+  if (first?.parentElement) {
+    let cur = "";
+    for (const child of first.parentElement.children) {
+      if (child.id === "settings-groups-bar") continue;
+      const hit = groupIds.find((g) => child.id === g || child.querySelector?.(`#${g}`));
+      if (hit) cur = hit;
+      groupOf.set(child, cur);
+    }
+  }
+  const showGroup = (g) => { for (const [el, grp] of groupOf) el.hidden = !!g && grp !== g; $("#settings-show-all", v)?.toggleAttribute("hidden", !g); };
+  const chipBar = $("#settings-groups-bar .row", v);
+  if (chipBar && groupOf.size) chipBar.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm" id="settings-show-all" hidden>Show all</button>`);
+  $("#settings-show-all", v)?.addEventListener("click", () => showGroup(""));
+  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => {
+    const g = b.dataset.settingsJump.slice(1);
+    if (groupOf.size && groupIds.includes(g)) showGroup(g);
+    const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   $("#s-proj-uimode", v)?.addEventListener("change", async (e) => {
     const pid = e.target.dataset.projUimode;
     const modeVal = e.target.value || null;
@@ -3407,7 +3438,7 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
-          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a licence key in Settings. Nothing is installed or bought."}</div></div></label>
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a license key in Settings. Nothing is installed or bought."}</div></div></label>
         </div>
         <div class="panel" id="su-desktop-card" style="margin-top:16px">
           <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
@@ -3415,7 +3446,7 @@ function renderSetup(v) {
           ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
             <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
             ${(S.cli || []).some((x) => /antigravity|agy/i.test(x)) || P("antigravity")?.status?.status === "green" ? `<span class="chip green" id="su-agy-connected">Antigravity connected</span>` : `<button class="btn sm" id="su-agy-install" type="button">Install and connect</button>`}
-          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
+          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a license key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
@@ -3573,7 +3604,7 @@ async function finishAiSetup(nextView, { quiet = false } = {}) {
     // After the welcome screen: no desktop card and no tour this session (0.4.17).
     if (S.setup?.phase === "welcome") { S.setup.phase = ""; S.firstRunDone = true; window.CC?.tour?.sync?.(); }
     S.view = nextView;
-    if (nextView === "command" && !quiet) toast("Setup complete");
+    if (nextView === "command" && !quiet) toast("Setup complete. You are in Chat. Type below.", false, null, 6000);
     render();
   } catch (e) { toast(e.message, true); }
 }

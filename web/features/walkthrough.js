@@ -27,7 +27,7 @@ const css = `
 .sp-flow-node.skipped { opacity: 0.6; }
 .sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
 .sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
-.sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
+.sp-banner { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, #f59e0b 16%, var(--card-bg, #3a2a12)); border: 1px solid #a16207; color: color-mix(in srgb, #b45309 60%, var(--text, #fde68a)); }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #sp-root textarea, #sp-root input[type="text"] { width: 100%; }
@@ -165,12 +165,12 @@ function flowControlsHtml(w) {
     </span>
   </div>
   <details class="panel" id="sp-stack-panel" ${stacked.length ? "open" : ""}>
-    <summary class="small"><b>Stacked steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
+    <summary class="small"><b>Queued steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
     <div class="sp-actions" style="margin-top:8px">
       <select id="sp-stack-stage" aria-label="Stage for stacked step" style="width:auto">${stageOptions}</select>
       <input id="sp-stack-input" type="text" placeholder="Prompt or instruction for this stage" style="flex:1;min-width:180px">
       <button class="btn sm" type="button" data-stack-add>Stack step</button>
-      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run stacked steps</button>` : ""}
+      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run queued steps</button>` : ""}
     </div>
     ${stacked.length ? `<ol class="small" style="margin:8px 0 0 18px;padding:0">${stacked.map((st) => `<li><b>${esc(st.flowStage || st.stage)}</b>: ${esc(st.prompt || st.title)} <span class="chip">${esc(st.status || "queued")}</span></li>`).join("")}</ol>` : ""}
   </details>`;

@@ -17,7 +17,7 @@ function priceChip(price) {
   return "";
 }
 
-const PRO_LINE = "Program scan is part of Pro. Add a licence key in Settings.";
+const PRO_LINE = "Program scan is part of Pro. Add a license key in Settings.";
 
 function lockedPanel(title) {
   return `<div class="panel" id="app-discovery"><h3>${title}</h3><div class="dim small">${PRO_LINE} Nothing is installed or bought.</div></div>`;

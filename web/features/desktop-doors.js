@@ -1,7 +1,7 @@
 // Settings list for an app Meldmind may use after Antigravity. Allow is per app.
 const { api, toast, esc } = window.CC;
 
-const PRO_LINE = "Desktop control is part of Pro. Add a licence key in Settings.";
+const PRO_LINE = "Desktop control is part of Pro. Add a license key in Settings.";
 
 function row(app) {
   return `<label class="row small" style="gap:8px;padding:4px 0">

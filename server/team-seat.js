@@ -32,7 +32,7 @@ function fallback(tier, occupied) {
     code: topped ? "pro_required" : "extreme_required",
     message: topped
       ? `Extreme includes ${EXTREME_TEAM_SEATS} seats. This team is full.`
-      : `Team spaces are part of Extreme. Extreme includes ${EXTREME_TEAM_SEATS} seats. Add a licence key in Settings.`,
+      : `Team spaces are part of Extreme. Extreme includes ${EXTREME_TEAM_SEATS} seats. Add a license key in Settings.`,
   };
 }
 

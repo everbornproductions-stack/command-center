@@ -44,7 +44,7 @@ After you update to 0.4.9, the first launch shows New: let Meldmind use your des
 
 ## Programs on this PC
 
-Program scan is part of Pro. On Free the list stays off. Add a licence key in Settings.
+Program scan is part of Pro. On Free the list stays off. Add a license key in Settings.
 
 Desktop control lists programs on this PC. On Windows it reads the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. The same PATH list is used on other computers. Turn it on in Setup, or later in Settings under Programs on this PC. It stays off until you opt in.
 

@@ -69,7 +69,7 @@ test("the verified email comes from the id_token: Google needs email_verified, M
   assert.equal(emailFromIdToken(jwt({ email: "pat@example.com", email_verified: true }), "github"), null);
 });
 
-test("a paid licence on the signed-in email unlocks with no key, never sends or logs the key, and the pay links carry the email", async () => {
+test("a paid license on the signed-in email unlocks with no key, never sends or logs the key, and the pay links carry the email", async () => {
   const box = { ok: true, tier: "extreme", plan: "extreme-monthly" };
   const s = await startServer({
     cloud: { rpc: (fn, body) => (fn === "activate_license_by_email"
@@ -85,7 +85,7 @@ test("a paid licence on the signed-in email unlocks with no key, never sends or 
     assert.equal(lic.unlockEmail, EMAIL);
     assert.equal(lic.canUnlockByEmail, true);
     const call = s.stub.hits.find((h) => h.path.endsWith("/rpc/activate_license_by_email"));
-    assert.ok(call, "the licence server was asked by email");
+    assert.ok(call, "the license server was asked by email");
     assert.equal(call.body.p_email, EMAIL);
     assert.equal(call.headers.authorization, "Bearer tok_live", "the call carries the signed session, not just the publishable key");
     assert.ok(call.body.p_device_id);
@@ -104,7 +104,7 @@ test("a paid licence on the signed-in email unlocks with no key, never sends or 
   } finally { await s.stop(); }
 });
 
-test("a licence server that is down keeps the unlocked tier for the grace period", async () => {
+test("a license server that is down keeps the unlocked tier for the grace period", async () => {
   const box = { down: false };
   const s = await startServer({
     cloud: { rpc: (fn, body) => (box.down ? { httpStatus: 500, rows: [{ message: "down" }] }
@@ -122,7 +122,7 @@ test("a licence server that is down keeps the unlocked tier for the grace period
   } finally { await s.stop(); }
 });
 
-test("a key stays unless the email licence is a higher tier", async () => {
+test("a key stays unless the email license is a higher tier", async () => {
   const email = { tier: "pro" };
   const s = await startServer({
     cloud: { rpc: (fn, body) => (fn === "verify_license"
@@ -132,7 +132,7 @@ test("a key stays unless the email licence is a higher tier", async () => {
   });
   try {
     const first = await waitFor(s, (l) => l.tier === "pro" && l.key);
-    assert.ok(first.key, "the key licence is kept when the email licence is not higher");
+    assert.ok(first.key, "the key license is kept when the email license is not higher");
     assert.equal(first.unlockEmail, null);
     email.tier = "extreme";
     await s.api("/license/recheck", { method: "POST" });

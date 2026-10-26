@@ -21,3 +21,5 @@ To replay the tour later:
 Try it opens the page for that step. Next moves on. Skip tour closes it. Your chats, projects, and keys stay put. Nothing is sent or spent from the tour itself.
 
 Start a project is the walk for one kind of work, such as a website or reels. Take the tour when you want the short overview of what Meldmind can do.
+
+If the tour step for your answer comes before you have sent anything, it says Send a question and your answer will show here. The tour card always stays inside the window, so the Next button is never cut off.

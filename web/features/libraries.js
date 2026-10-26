@@ -18,7 +18,7 @@ const css = `
 .lib-src .n { color: var(--violet, #a78bfa); font-weight: 600; }
 .lib-src .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
 .lib-ex { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-.md a.lib-cite { text-decoration: none; font-size: .78em; vertical-align: super; padding: 0 3px; border-radius: 4px; background: #1d1830; border: 1px solid #3b3160; color: var(--violet, #a78bfa); margin-left: 1px; cursor: pointer; }
+.md a.lib-cite { text-decoration: none; font-size: .78em; vertical-align: super; padding: 0 3px; border-radius: 4px; background: var(--sunk-bg, #1d1830); border: 1px solid var(--line, #3b3160); color: var(--violet, #a78bfa); margin-left: 1px; cursor: pointer; }
 `;
 const style = document.createElement("style"); style.id = "cc-libraries-style"; style.textContent = css; document.head.appendChild(style);
 

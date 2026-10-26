@@ -69,7 +69,7 @@ function syncPanel() {
   if (s.hosted) return phonePanel(s);
   const head = `<h3>Sync chats with your phone <span class="right small ${s.enabled ? "green" : "dim"}">${s.enabled ? "On" : "Off"}</span></h3>`;
   const what = `<div class="small dim">Off unless you turn it on. Chats are locked with a key made from your passphrase before they leave this PC; the built-in cloud stores only the locked copies, never the text, the titles or the passphrase. Lose the passphrase and the copies cannot be opened by anyone, us included. Chats (single answers and imported chats) are synced; councils and missions stay on this PC.</div>`;
-  if (!s.cloud?.configured) return `<div class="panel">${head}${what}<div class="small" style="margin-top:8px">Sync needs the built-in cloud connection. In Expert, open Settings, Licence. The sync setup has to be applied on that project once.</div></div>`;
+  if (!s.cloud?.configured) return `<div class="panel">${head}${what}<div class="small" style="margin-top:8px">Sync needs the built-in cloud connection. In Expert, open Settings, License. The sync setup has to be applied on that project once.</div></div>`;
   if (s.enabled) return `<div class="panel">${head}${what}
     <div style="margin-top:8px">Sync code: <span class="mono">${esc(s.code)}</span> <span class="small dim">(type it with the same passphrase on your phone; the code alone opens nothing)</span></div>
     <div class="small" style="margin-top:4px">${s.lastSyncAt ? `Last sync ${ago(s.lastSyncAt)}${s.last ? `: ${s.last.pushed} sent, ${s.last.pulled} received` : ""}` : "Not synced yet."}${s.lastError ? ` <span class="red">${esc(s.lastError)}</span>` : ""}${s.keyOnDevice ? "" : ` <span class="amber">The key is not on this device any more; set sync up again.</span>`}</div>

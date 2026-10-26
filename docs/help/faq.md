@@ -1,7 +1,7 @@
 ---
 id: faq
 title: FAQ
-summary: Short answers on Simple, keys, council, approvals, handoff, licence, updates, and SmartScreen.
+summary: Short answers on Simple, keys, council, approvals, handoff, license, updates, and SmartScreen.
 lastUpdatedVersion: 0.4.3
 ---
 

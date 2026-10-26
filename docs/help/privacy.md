@@ -27,7 +27,7 @@ Both Level 2 switches can be changed any time in Settings:
 Settings has a page called Privacy: what leaves this computer. The welcome screen links to it too. It lists every item below, with what is sent, where it goes, when, whether it is on, and how to turn it off.
 
 - **AI companies you connect.** Your prompt, the chat so far, files you attach, and your key go to that one company (for example OpenAI, Anthropic, Google, xAI, OpenRouter). Model lists, health checks, model watch, and credit balances use the same key at the same company. Remove the key to stop it.
-- **Licence check.** Only after you add a licence key: the key, a random device id, the computer name, the operating system, and the version go to Everborn's licence server, about every 12 hours.
+- **License check.** Only after you add a license key: the key, a random device id, the computer name, the operating system, and the version go to Everborn's license server, about every 12 hours.
 - **Update checks.** The desktop app asks GitHub for the newest version on launch and about every hour. Nothing about you is sent, and nothing downloads until you click Install now.
 - **Anonymous usage counts.** Only while the switch is on: once a day, a random install id, the app version, the operating system, your plan, and how many times each feature was used go to Everborn's hub. No prompts, answers, file names, emails, keys, or identifying ids.
 - **Anonymous quality signals and track records.** Counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id (the task type, which AI, and the score). No prompts, answers, file names, emails, keys, or identifying ids. Show what would be shared lists them.
