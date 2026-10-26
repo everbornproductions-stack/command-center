@@ -280,7 +280,17 @@ function remixPlan(body) {
         if (r.status === 409 && r.json?.code === "too_close") return needs(r.json.error);
         if (r.status >= 400) return needs(r.json?.error || "The build needs you.");
         payload.projectId = r.json.projectId;
-        return { projectId: r.json.projectId, note: r.json?.ai?.reason || "Saved." };
+        // 0.4.20: wait for the AIs to finish writing into the folder, so the test checks what they made
+        let waited = 0;
+        if (r.json?.ai?.started) {
+          const deadline = Date.now() + 5 * 60 * 1000;
+          while (Date.now() < deadline) {
+            const st = await callRoute("GET", `/api/remix/result/${r.json.projectId}`, {});
+            if (st.status >= 400 || st.json?.state !== "working") { waited = st.json?.hasOutput ? 1 : 0; break; }
+            await new Promise((ok) => setTimeout(ok, 1500));
+          }
+        }
+        return { projectId: r.json.projectId, note: waited ? "Built. The AIs wrote their files into the project folder." : (r.json?.ai?.reason || "Saved.") };
       } },
       { id: "test", label: STEP_LABELS.test, run: async () => {
         const r = await callRoute("POST", "/api/remix/test", { projectId: payload.projectId, confirm: true });
