@@ -2578,6 +2578,7 @@ function renderSimpleBasics(v) {
       <p class="dim small" style="margin:6px 0">Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded.</p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
+    <div id="basics-memories-body"></div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
       <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
       <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
@@ -2592,6 +2593,7 @@ function renderSimpleBasics(v) {
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
+  renderFeature("settings", "memories", "#basics-memories-body");
   $("#basics-private").addEventListener("change", async (e) => {
     const next = !!e.target.checked;
     try {
