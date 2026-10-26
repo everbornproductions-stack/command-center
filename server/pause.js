@@ -3,7 +3,7 @@
 // A paused provider is left out of auto-picks. A health recheck for that provider waits 15 minutes.
 // Saving the key again checks immediately. The provider is not shown as working while it is paused.
 import { PROVIDERS } from "./registry.js";
-import { getStatus, checkProvider } from "./health.js";
+import { getStatus, checkProvider, clearRealFailure } from "./health.js";
 import { allContexts, runAs, currentUserId } from "./store.js";
 import { scheduler } from "./perf/scheduler.js";
 
@@ -57,6 +57,7 @@ export function pauseNotice(hop) {
 }
 
 export function noteKeySaved(id) {
+  clearRealFailure(id);
   const key = stampKey(id);
   lastPaused.delete(key);
   lastHealthy.delete(key);
@@ -78,13 +79,13 @@ export async function checkRespectingPause() {
     if (describePause(id)) {
       const prev = lastPaused.get(key) || 0;
       if (prev && now - prev < RECHECK_MS) continue;
-      await checkProvider(id);
+      await checkProvider(id, { auto: true });
       if (describePause(id)) lastPaused.set(key, now);
       else lastPaused.delete(key);
     } else {
       const prev = lastHealthy.get(key) || 0;
       if (prev && now - prev < HEALTH_MS) continue;
-      await checkProvider(id);
+      await checkProvider(id, { auto: true });
       lastHealthy.set(key, now);
       if (describePause(id)) lastPaused.set(key, now);
     }

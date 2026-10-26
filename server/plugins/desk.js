@@ -5,7 +5,7 @@ import { PROVIDERS } from "../registry.js";
 import { completeFallback } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
-import { allStatus } from "../health.js";
+import { allStatus, isDeadNow } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
 import { searchSettings } from "../search.js";
@@ -35,7 +35,9 @@ function namesFor(mode, prompt) {
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
   const ranked = rank({ ...cls, mode: priority });
-  const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
+  // never name an AI that is out of credit or refused as planner or reader (0.4.21)
+  const ready = ranked.filter((m) => { try { return !isDeadNow(m.provider); } catch { return true; } });
+  const members = takeMembers(ready.length ? ready : ranked, { limit: mode === "mission" ? 4 : plan.members });
   const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
   return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "" };
 }

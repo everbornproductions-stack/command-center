@@ -8,7 +8,7 @@ function contributors(run) {
     for (const a of Object.values(run.council.answers || {})) if (a.text) out.push({ provider: a.provider, model: a.model, label: `${pname(a.provider)} (answer ${a.letter})` });
     if (run.council.verdict?.model) out.push({ provider: run.council.verdict.provider, model: run.council.verdict.model, label: `${pname(run.council.verdict.provider)} (verdict)` });
   } else if (run.kind === "mission" && run.mission) {
-    for (const t of run.mission.tasks || []) if (t.output || t.status === "done") out.push({ provider: t.provider, model: t.model, label: `${pname(t.provider)} · ${t.title}`, capability: t.capability });
+    for (const t of run.mission.tasks || []) if ((t.output || t.status === "done") && t.status !== "failed" && !t.notDone) out.push({ provider: t.provider, model: t.model, label: `${pname(t.provider)} · ${t.title}`, capability: t.capability });
     if (run.mission.assembler) out.push({ provider: run.mission.assembler.provider, model: run.mission.assembler.model, label: `${pname(run.mission.assembler.provider)} (assembly)`, capability: "writing" });
   } else {
     const a = run.primary ? run.agents[run.primary] : null;
@@ -18,7 +18,7 @@ function contributors(run) {
   const seen = new Set(); return out.filter((c) => c.model && !seen.has(c.model) && seen.add(c.model));
 }
 
-async function showPreference(el, cap) {
+async function showPreference(el, cap, ran = []) {
   const box = el.querySelector("#rt-prefer");
   if (!box) return;
   try {
@@ -26,7 +26,9 @@ async function showPreference(el, cap) {
     if ((sum.count || 0) < 5) { box.textContent = ""; return; }
     const pick = await api(`/brain/pick?capability=${encodeURIComponent(cap || "writing")}`);
     const top = pick.ranked?.[0];
-    box.textContent = top?.name ? `Meldmind now prefers ${top.name} for this kind of work.` : "";
+    // only an AI that ran in this job and finished it can be named; never one that failed or never ran
+    const didRun = top && ran.some((c) => c.provider === top.provider && (!top.model || c.model === top.model));
+    box.textContent = top?.name && didRun ? `Meldmind now prefers ${top.name} for this kind of work.` : "";
   } catch { box.textContent = ""; }
 }
 async function render(el, run) {
@@ -50,7 +52,7 @@ async function render(el, run) {
     const text = `"${(run.mission?.title || run.mission?.prompt || run.council?.prompt || "this result").slice(0, 90)}" by ${good.join(", ")}${note ? `: ${note}` : ""}`;
     try { await api("/memory/winner", { method: "POST", body: { projectId: pid, text } }); toast("Saved to this project's past winners"); } catch (e) { toast(e.message, true); }
   });
-  showPreference(el, cap);
+  showPreference(el, cap, list);
   el.querySelectorAll("[data-model]").forEach((row) => {
     const send = async (up) => { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: row.dataset.provider, model: row.dataset.model, capability: row.dataset.cap, up, note: el.querySelector("#rt-note").value } }); toast(up ? "Thanks. The router will favour it for this kind of work." : "Noted. The router will lean away from it for this."); render(el, run); } catch (e) { toast(e.message, true); } };
     row.querySelector("[data-up]").addEventListener("click", () => send(true));
