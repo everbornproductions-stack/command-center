@@ -95,7 +95,8 @@ export function summary() {
   for (const e of entries) {
     if (isDemo(e) && !PROVIDERS[e.provider]) { demoCalls++; continue; }
     const b = byProvider[e.provider] || (byProvider[e.provider] = { month: 0, today: 0, calls: 0, calls30: 0, inTok: 0, outTok: 0, units: 0, unitsMonth: 0 });
-    const c = e.cost || 0;
+    // 0.4.20: practice AIs are pretend money, so demo runs always add $0 (the app says "Nothing was spent")
+    const c = isDemo(e) ? 0 : (e.cost || 0);
     if (e.kind === "call") {
       b.calls++; b.inTok += e.inTok || 0; b.outTok += e.outTok || 0;
     }

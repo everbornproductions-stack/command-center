@@ -1018,6 +1018,8 @@ export function webBuilderGate(need, tier = currentTier()) {
   return {
     ok: false, status: 402, code: "plan_required", tier: have, need: want,
     message: `This is part of ${needLabel}. You are on ${haveLabel}.`,
+    // 0.4.20: the page shows the plan and price before the form, not after the work
+    priceNote: `${needLabel} is ${proMonthlyLabel} or ${proYearlyLabel}. You can fill this in and look first; building needs ${needLabel}.`,
   };
 }
 

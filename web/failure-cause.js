@@ -7,7 +7,7 @@ export function failureKind(text) {
   if (!t) return "other";
   if (/spending limit|spend cap|monthly (spend )?cap|budget is used up|reached its \$|run reached|raise the cap|raise the limit/.test(t) && !/provider|team has either/.test(t)) return "budget";
   if (/\b429\b|rate.?limit|too many requests|busy right now|overloaded/.test(t)) return "rate";
-  if (/\b402\b|out of credits|insufficient|credit balance|billing|payment required|quota/.test(t)) return "credit";
+  if (/\b402\b|out of credits|used all available credits|insufficient|credit balance|billing|payment required|quota/.test(t)) return "credit";
   if (/\b401\b|\b403\b|invalid.{0,12}key|incorrect api key|unauthori[sz]ed|bad key|key was rejected/.test(t)) return "key";
   return "other";
 }
@@ -37,7 +37,7 @@ export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try ag
   const buttons = c.kind === "budget"
     ? `<button class="btn sm primary" type="button" id="cc-limit-free">Continue free</button><button class="btn sm" type="button" id="cc-limit-plus">Add $1 and continue</button>`
     : `<button class="btn sm primary" type="button" id="cc-fail-retry">${esc(retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(other)}</button>`;
-  return `<div class="route" id="cc-fail" data-cause="${c.kind}" style="margin-top:10px"><b>${esc(c.title)}</b><div class="small dim" style="margin-top:4px">${esc(c.hint)}</div><div class="row" style="margin-top:8px;gap:8px">${buttons}</div></div>`;
+  return `<div class="route" id="cc-fail" data-cause="${c.kind}" style="margin-top:10px"><b>${esc(c.title)}</b><div class="small dim" style="margin-top:4px">${esc(c.hint)}</div>${c.kind === "budget" ? `<div class="small" id="cc-still-works" style="margin-top:6px"><b>Still works when the budget is used up:</b> practice AIs, AIs running on this computer, your saved projects, files and notes, and everything you already made. Paid AI answers wait until next month or until you add to the limit.</div>` : ""}<div class="row" style="margin-top:8px;gap:8px">${buttons}</div></div>`;
 }
 
 // Continue free: re-send to a free or practice AI. Add $1: raise the local limit by a dollar, then re-send.

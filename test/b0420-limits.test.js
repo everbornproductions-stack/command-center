@@ -38,14 +38,16 @@ test("the cost-guard routes raise the local limit and list free AIs, with no bil
   try {
     await s.api("/demo", { method: "POST", body: { on: true } });
     const c = await s.api("/cost-guard/choices");
-    assert.ok(Array.isArray(c.free) && c.free.length >= 1, "the practice AIs are offered");
-    assert.ok(c.free.every((f) => f.provider && f.model));
-    await s.api("/cost-guard", { method: "POST", body: { cap: 5 } }).catch(() => null);
+    assert.equal(c.status, 200);
+    assert.ok(Array.isArray(c.json.free) && c.json.free.length >= 1, "the practice AIs are offered");
+    assert.ok(c.json.free.every((f) => f.provider && f.model));
     const before = await s.api("/cost-guard");
     const after = await s.api("/cost-guard/continue", { method: "POST", body: { amount: 1 } });
-    assert.ok(after.cap >= (before.cap || 0) + 1 - 0.001 || after.cap >= 1, "the cap moved up by a dollar");
-    await assert.rejects(() => s.api("/cost-guard/continue", { method: "POST", body: { amount: -3 } }));
-  } finally { await s.close(); }
+    assert.equal(after.status, 200);
+    assert.ok(after.json.cap >= 1 && after.json.cap >= (before.json.cap || 0), "the cap moved up");
+    const bad = await s.api("/cost-guard/continue", { method: "POST", body: { amount: -3 } });
+    assert.equal(bad.status, 400);
+  } finally { await s.stop(); }
 });
 
 test("the chat wires the limit card and sends the free pick", () => {
@@ -58,4 +60,17 @@ test("the chat wires the limit card and sends the free pick", () => {
 test("a mission at its limit hands back what is finished (source)", () => {
   assert.match(read("server", "mission.js"), /limitReached = true; break;/);
   assert.doesNotMatch(read("server", "mission.js"), /if \(false\) \{/);
+});
+
+test("practice AI calls add $0 to the month's spend", () => {
+  const src = read("server", "ledger.js");
+  assert.match(src, /const c = isDemo\(e\) \? 0 : \(e\.cost \|\| 0\);/);
+});
+
+test("the budget card says what still works; the Pro note shows before the form; every call has a table", () => {
+  assert.match(failureHtml({ text: "spending limit" }), /id="cc-still-works"/);
+  assert.doesNotMatch(failureHtml({ text: "HTTP 429" }), /cc-still-works/);
+  assert.match(read("web", "features", "webbuilders.js"), /id="bd-pro-note"/);
+  assert.match(read("server", "feature-gate.js"), /priceNote:/);
+  assert.match(read("web", "app.js"), /id="cc-call-table"/);
 });

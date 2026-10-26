@@ -316,7 +316,8 @@ function boot(view, openId) {
       const tools = (detail.builder?.tools || []).map((tool) => `${tool.name} (${tool.license})`).join(", ");
       root.querySelector("#bd-form").innerHTML = `<h3 style="margin-top:0">${esc(detail.builder.title)}</h3>
         <p class="small" style="margin-top:0">${esc(detail.builder.summary)}</p>
-        <p class="dim small">${esc(detail.gate?.message || "")} ${esc(tools)}</p>
+        ${detail.gate && detail.gate.ok === false ? `<p class="small" id="bd-pro-note" role="status" style="margin:6px 0;padding:8px;border:1px solid var(--line);border-radius:8px"><b>${esc(String(detail.gate.need || "pro").replace(/^./, (c) => c.toUpperCase()))}</b> ${esc(detail.gate.message || "")} ${esc(detail.gate.priceNote || "")}</p>` : ""}
+        <p class="dim small">${detail.gate && detail.gate.ok === false ? "" : esc(detail.gate?.message || "") + " "}${esc(tools)}</p>
         ${fields.main.map((field) => fieldHtml(field, defaults)).join("")}
         <div id="bd-boxes" hidden>
           <p class="small">Meldmind does not give legal, credit, or insurance advice. These boxes are a reminder, not a review.</p>
