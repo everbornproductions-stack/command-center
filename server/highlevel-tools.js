@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { API, fresh } from "./publish/oauth.js";
 import { getSecret } from "./vault.js";
 import { checkOutgoing } from "./compliance-guard.js";
+import { recordSend } from "./send-log.js";
 
 const VAULT = "ghl-crm";
 const VERSION = "2021-07-28";
@@ -225,6 +226,7 @@ export async function runHighlevelPlan(planId, confirmed, sendAnyway = false) {
   if (plan.warnings?.length && sendAnyway !== true) throw err(409, "Review the warnings first. Press Fix it, or Send anyway if you are sure. Nothing was sent.", "compliance_review");
   plans.delete(String(planId));
   const result = await perform(plan.name, plan.args);
+  recordSend({ channel: "highlevel", kind: plan.name, to: plan.args.contactId || plan.args.to || "", title: ACTIONS[plan.name].summary(plan.args), text: plan.args.text || "", rules: (plan.warnings || []).map((w) => w.rule), sendAnyway: sendAnyway === true });
   return { summary: ACTIONS[plan.name].summary(plan.args), result, sent: plan.name === "send_message" };
 }
 

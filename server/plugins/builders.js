@@ -10,6 +10,7 @@ import {
 } from "../builders/drafts.js";
 import { builderGate } from "../feature-gate.js";
 import { checkOutgoing } from "../compliance-guard.js";
+import { recordSend } from "../send-log.js";
 import { readReceipt, readInvoiceText, readWhisper, readPipeline, publishExternal } from "../builders/adapters.js";
 
 export const id = "builders";
@@ -277,6 +278,10 @@ export async function routes(req, res, url, body, h) {
   }
   job.step = "published";
   job.posted = !!result.posted;
+  if (result.posted) {
+    const warnRules = builderId === "hl-campaign" ? checkOutgoing({ text: input.text, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime }).warnings.map((w) => w.rule) : [];
+    recordSend({ channel: builderId.startsWith("hl-") ? "highlevel" : builderId, kind: builderId, to: Array.isArray(input.recipients) ? `${input.recipients.length} people` : "", title: job.draft?.title || builderId, text: input.text || job.draft?.message || "", rules: warnRules, sendAnyway: body?.sendAnyway === true });
+  }
   job.approved = true;
   job.resultReason = result.reason;
   saveJobs(h, doc);
