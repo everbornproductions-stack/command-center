@@ -12,12 +12,12 @@ Free tier: Postgres, Auth, Row Level Security, Edge Functions, 500 MB, no card. 
 
 | Table / function | Purpose |
 |---|---|
-| `licenses` | key, email, tier (free/pro/extreme/studio/owner), status, Square customer + subscription ids, period end, max devices |
+| `licenses` | key, email, tier (free/pro/extreme/studio/owner), status, Stripe customer + subscription ids, period end, max devices |
 | `devices` | each PC/phone that activated a key (device id, name, platform, app version, last seen) |
 | `releases` | the update feed the app polls (version, notes, URL, published) |
 | `user_sync` | optional phone ↔ desktop sync of projects/subscriptions/settings per signed-in user |
 | `promo_codes` | owner key, friends, launch deals (code, tier, max uses, optional email lock) |
-| `square_events` | webhook idempotency log |
+| `stripe_events` | webhook idempotency log (event id only) |
 | `verify_license(key, device…)` | what the app calls with the anon key: returns tier/status and registers the device. After `20261021_per_person_licences.sql`, the cap is `max_devices` (default 2) and a new computer past the cap is not stored |
 | `redeem_promo(code, email)` | turns a promo code into a licence for that email and returns the key. A code with `email` set redeems only for that address |
 | `list_license_devices` / `remove_license_device` | Settings > Devices. Added by the per-person migration, not in the original schema |
@@ -27,9 +27,11 @@ RLS: anon can only call the two functions and read published releases; signed-in
 
 Seeded: promo code **EVERBORN-OWNER** (tier owner, one use) so Chris's own copy never pays, and release 0.1.0.
 
-## Square → licence (Edge Function `square-webhook`)
+## Stripe → licence (Edge Function `stripe-webhook`)
 
-`supabase/functions/square-webhook/index.ts`: receives Square webhooks (subscription.created / updated, invoice.payment_made / payment_failed), verifies the HMAC signature (constant-time, over the registered notification URL + raw body), creates a licence with a fresh key on first sight of a subscription, flips status on cancellation or failed payment, and emails the key (Resend) if an API key is set. Square `ACTIVE` → `active`, `PENDING` → `pending` (not paid yet, unlocks nothing), `PAUSED` → `past_due`, everything else → `cancelled`. If `SQUARE_WEBHOOK_SIGNATURE_KEY` or `SQUARE_WEBHOOK_URL` is missing, every POST is rejected with 500 "not configured" (no allow-during-setup). The pure logic (signature check, status mapping, CSPRNG key generation) is in `square-webhook/logic.js`, which the Node tests import directly. Secrets: `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_WEBHOOK_URL` (the exact URL registered in Square), `SQUARE_ACCESS_TOKEN` (to look up the buyer email), `RESEND_API_KEY`.
+`supabase/functions/stripe-webhook/index.ts`: receives Stripe webhooks (`checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`), verifies the `Stripe-Signature` header (HMAC SHA256 over `timestamp.rawBody`, constant-time compare, 5 minute tolerance), ignores an event id it has already seen (`stripe_events`), and creates or updates the licence by buyer email. A paid subscription invoice creates the licence with a fresh key. An upgrade from Pro to Extreme changes the tier on the same licence. `customer.subscription.deleted` sets `cancelled` and keeps the period end. A full refund sets `cancelled` now. A one-time $349 payment is a lifetime founder licence with no end date. Stripe `active` and `trialing` give `active`, `past_due` and `unpaid` give `past_due`, `incomplete` gives `pending` (unlocks nothing), everything else gives `cancelled`. If `STRIPE_WEBHOOK_SECRET` is missing, every POST is rejected with 500 "not configured". The pure logic (signature check, price-to-plan, event handling, key generation) is in `stripe-webhook/logic.js`, which the Node tests import directly. The price-to-plan map is `stripe-webhook/price-tiers.js` (amount plus interval until the price ids are pasted in). The only secret is `STRIPE_WEBHOOK_SECRET`; the function never stores card data and never logs an email or a key.
+
+The app unlocks by the signed-in email through `activate_license_by_email(p_email, ...)` (anon callable, returns tier, status, period end and plan, never the key). `find_active_license_by_email` is service role only.
 
 ## Migrations (`supabase/migrations/`)
 
@@ -72,11 +74,11 @@ Free-tier note: the project pauses after 7 days without activity; the app's 12-h
 2. SQL editor → paste `supabase/schema.sql` → Run.
 3. Project Settings → API: the project URL stays in `server/cloud-defaults.json`. For a release build, set `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` to the publishable key (do not commit it). From source you can paste both fields in Settings → Cloud or set `CC_SUPABASE_URL` / `CC_SUPABASE_ANON_KEY`.
 4. Redeem `EVERBORN-OWNER` in Settings with your email → owner licence.
-5. Later, for customers: `supabase functions deploy square-webhook --no-verify-jwt`, set the secrets, paste the function URL into Square Developer → Webhooks, subscribe to the four event types.
+5. Later, for customers: apply `supabase/migrations/20261025_stripe.sql`, run `supabase functions deploy stripe-webhook --no-verify-jwt`, set `STRIPE_WEBHOOK_SECRET` with `supabase secrets set`, and register the function URL in Stripe → Developers → Webhooks with the five event types.
 
 ## Per-person licences (not applied)
 
-`supabase/migrations/20261021_per_person_licences.sql` is a file only. The app does not run it. Chris approves it, then runs it once in the SQL editor. Square and billing are unchanged.
+`supabase/migrations/20261021_per_person_licences.sql` is a file only. The app does not run it. Chris approves it, then runs it once in the SQL editor. Billing is unchanged.
 
 1. Open the Supabase SQL editor for project everborn-command.
 2. Confirm `schema.sql` and `supabase/migrations/20261018_license_pending.sql` have already been applied. If the pending migration has not, review and run that one first.

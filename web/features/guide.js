@@ -2,7 +2,7 @@
 // A step or a list row is shown only when its page is in this app.
 // Missing features (open pull requests, in-progress builders, Remix 2) stay hidden.
 // Prices here are the plan: Pro $18.99 a month, Extreme $29.99 a month.
-// The Subscriptions page and the Square link are unchanged.
+// The Subscriptions page and the Stripe pay links are unchanged.
 
 import { FEATURES as REGISTRY } from "../perf/registry.js";
 

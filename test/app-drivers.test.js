@@ -38,7 +38,7 @@ function pageSession(page, calls) {
   };
 }
 
-test("Edge through Playwright refuses a password and a Square screen, shows the banner, and Stop halts the next step", async () => {
+test("Edge through Playwright refuses a password and a Stripe screen, shows the banner, and Stop halts the next step", async () => {
   reset();
   setTier();
   const calls = { goto: [], click: [], type: [], opened: null, closed: 0 };
@@ -82,11 +82,12 @@ test("Edge through Playwright refuses a password and a Square screen, shows the 
   assert.match(send.reason, /send/);
   assert.equal(calls.click.includes("b1"), false);
   assert.match(Apps.publicState().using.text, /Meldmind is using Driver Invoices/);
-  title = "Square checkout";
+  title = "Stripe checkout";
   const before = calls.click.length;
   const billed = await Apps.runLive(app.id, { actions: [{ action: "click", ref: "b0" }] });
   assert.equal(billed.status, "refused");
-  assert.match(billed.reason, /Square/);
+  assert.match(billed.reason, /Stripe/);
+  assert.doesNotMatch(billed.reason, /Square/);
   assert.equal(calls.click.length, before);
   title = "Invoices";
   const stopped = await Apps.runLive(app.id, {
@@ -95,11 +96,11 @@ test("Edge through Playwright refuses a password and a Square screen, shows the 
   });
   assert.equal(stopped.status, "stopped");
   assert.equal(stopped.steps.length, 1);
-  const pay = Apps.addApp({ name: "Driver Pay", kind: "website", capabilities: ["analysis"], origin: "https://squareup.com/pay" });
+  const pay = Apps.addApp({ name: "Driver Pay", kind: "website", capabilities: ["analysis"], origin: "https://buy.stripe.com/pay" });
   Apps.setAllowed(pay.id, true);
   const refused = await Apps.runLive(pay.id, { actions: [{ action: "click", ref: "b0" }] });
   assert.equal(refused.status, "refused");
-  assert.match(refused.reason, /Square/);
+  assert.match(refused.reason, /Stripe/);
   dropAgents();
 });
 
@@ -239,12 +240,12 @@ test("screenshot control asks first, drops the older picture, and refuses a bill
   assert.equal(seen[1].includes("shot-aaa"), false);
   assert.equal(seen[1].includes("shot-bbb"), true);
   assert.equal(clicks.length, 2);
-  const square = await Apps.runLive(app.id, {
+  const stripe = await Apps.runLive(app.id, {
     seenEstimate: true,
-    shots: [{ id: "shot-pay", title: "Square checkout", width: 800, height: 600, data: "shot-pay" }],
+    shots: [{ id: "shot-pay", title: "Stripe checkout", width: 800, height: 600, data: "shot-pay" }],
   });
-  assert.equal(square.status, "refused");
-  assert.match(square.reason, /Square/);
+  assert.equal(stripe.status, "refused");
+  assert.match(stripe.reason, /Stripe/);
   assert.equal(seen.length, 2);
   assert.equal(clicks.length, 2);
   const send = await Apps.runLive(app.id, {
@@ -279,7 +280,7 @@ test("suggestApp is how the planner assigns an app step, and writing stays with 
   assert.match(drivers, /UIAutomationClient/);
   assert.match(drivers, /IsPasswordProperty/);
   assert.equal(drivers.includes("\u2014"), false);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.17");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.18");
   dropAgents();
 });
 

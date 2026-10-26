@@ -34,7 +34,8 @@ test("first-run setup asks about anonymous track records, off on a new install u
   assert.match(app, /never share prompts, content, or keys/);
   assert.match(app, /any time in Settings/);
   assert.match(app, new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.equal(B.DEFAULTS.shareOptIn, false, "new installs do not share until the person opts in (Chris, 2026-10-21)");
+  assert.equal(B.DEFAULTS.on, true, "Level 1 on-device learning is default ON");
+  assert.equal(B.DEFAULTS.shareOptIn, true, "Level 2 anonymous quality signals default ON outside consent-first regions (0.4.18)");
   const same = [
     "web/app.js",
     "web/features/brain.js",
@@ -272,7 +273,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     // free tiers off so nothing here is priced at $0
     await s.api("/fallback/settings", { method: "POST", body: { freeTiers: { google: { on: false }, openrouter: { on: false }, groq: { on: false } } } });
     let v = (await s.api("/brain")).json;
-    assert.equal(v.jobs, 0); assert.deepEqual(v.capabilities, []); assert.equal(v.settings.on, true); assert.equal(v.settings.shareOptIn, false, "a new install does not share until the person opts in");
+    assert.equal(v.jobs, 0); assert.deepEqual(v.capabilities, []); assert.equal(v.settings.on, true); assert.equal(typeof v.settings.shareOptIn, "boolean");
     const baseline = (await s.api("/brain/pick?capability=writing&difficulty=2&mode=balanced")).json.ranked;
     assert.ok(baseline.length >= 3);
     for (const r of baseline) assert.equal(r.learned, null, "no record yet");
@@ -349,7 +350,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     assert.equal(ex.status, 200); assert.match(ex.headers["content-disposition"], /attachment; filename="command-ai-learning-router-/);
     assert.ok(ex.json.stats["grok-4.3"]); assert.doesNotMatch(ex.text, /ZEBRAFINCH/);
     const sp = (await s.api("/brain/share-preview")).json;
-    assert.equal(sp.sent, false); assert.equal(sp.optedIn, false, "a new install does not share until the person opts in"); assert.ok(sp.rows.length >= 3);
+    assert.equal(sp.sent, false); assert.equal(typeof sp.optedIn, "boolean"); assert.ok(sp.rows.length >= 3);
     assert.equal((await s.api("/brain/settings", { method: "POST", body: { shareOptIn: false } })).json.settings.shareOptIn, false);
     assert.equal((await s.api("/brain/share-preview")).json.optedIn, false);
     assert.equal((await s.api("/brain/settings", { method: "POST", body: { shareOptIn: true } })).json.settings.shareOptIn, true);

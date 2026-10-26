@@ -134,8 +134,9 @@ test("the Help page has every Help target, and Settings has no help duplicates",
   assert.match(help, /mailto:/);
   const basics = app.slice(app.indexOf('id="basics-help"'), app.indexOf('id="basics-more"'));
   for (const gone of ["basics-tour", "basics-upd", "basics-more-tour"]) assert.equal(basics.includes(gone), false, gone);
-  // Decision 20: Settings keeps a manual Run setup again (its menu name is Find my AIs, 0.4.17).
-  assert.match(app, /id="s-setup">Run setup again \(Find my AIs\)</);
+  // Decision 20 + 0.4.18: Settings has Run the whole setup again and Find my AIs as a direct entry.
+  assert.match(app, /id="s-setup">/);
+  assert.match(app, /id="s-find-ais">Find my AIs</);
 });
 
 test("Pro-locked pages carry a lock note in the menu", () => {

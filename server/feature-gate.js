@@ -1,5 +1,5 @@
 // Free, Pro, and Extreme limits. One place for the comparison table and the server gates.
-// A Studio licence uses Pro limits. Owner uses Extreme limits. Nothing here calls Square.
+// A Studio licence uses Pro limits. Owner uses Extreme limits. Nothing here calls Stripe.
 // Features marked built: false have a gate and no screen yet.
 import {
   extremeMonthlyLabel, extremeYearlyLabel, proMonthlyLabel, proYearlyLabel,
@@ -460,7 +460,7 @@ export function requirePro(id) {
   throw err;
 }
 
-// Research limits. This is not billing and it does not call Square.
+// Research limits. This is not billing and it does not call Stripe.
 // Free: live web search, with a daily limit.
 // Pro and Studio: Pro search, and Deep Research up to the Pro monthly cap.
 // Extreme and Owner: Deep Research with no monthly limit.
@@ -604,7 +604,7 @@ export function assertGate(tier, name) {
 
 // Refocus. Find, the timeline, and the status labels are Pro (Studio counts as Pro).
 // The rebuild mission is Extreme and has no cap. Owner can do both.
-// Nothing here calls Square.
+// Nothing here calls Stripe.
 export const FIND = "refocus";
 export const REBUILD = "refocusRebuild";
 
@@ -790,7 +790,7 @@ export function gateView(used) {
 }
 
 // Extreme and Owner only. Free, Pro, and Studio stay on this computer.
-// This does not set a price and it does not call Square. It does not import license.js.
+// This does not set a price and it does not call Stripe. It does not import license.js.
 export const HOSTED_RUNS = "hostedRuns";
 
 export function hostedRunsAllowed(tier) {

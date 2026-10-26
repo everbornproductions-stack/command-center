@@ -1,9 +1,10 @@
 // GET /api/billing-plans: the monthly, yearly, and lifetime founder choices.
 // Reads an optional founder-seats.json count from this install's data folder.
-// Never calls Square and never charges.
+// Never calls Stripe and never charges.
 import { ctx } from "../store.js";
 import { proPlanCatalog } from "../billing-plans.js";
 import { featureBuilt } from "../feature-gate.js";
+import { signedInEmail } from "../signed-in-email.js";
 
 export const id = "billing-plans";
 
@@ -20,7 +21,7 @@ export function founderSold() {
 }
 
 export function currentPlans() {
-  return proPlanCatalog(founderSold());
+  return proPlanCatalog(founderSold(), { email: signedInEmail() });
 }
 
 export async function routes(req, res, url, body, h) {
@@ -29,7 +30,7 @@ export async function routes(req, res, url, body, h) {
     h.json(res, 200, currentPlans());
     return true;
   }
-  // Gate check only. No screen, no Square call, no charge.
+  // Gate check only. No screen, no Stripe call, no charge.
   if (req.method === "POST" && seg[0] === "check") {
     const feature = body?.feature;
     if (!feature) return h.json(res, 400, { error: "feature required" });

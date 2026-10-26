@@ -20,7 +20,7 @@
           { "name": "Capital City Life (site)", "url": "https://capitalcitylife.com" }
         ] },
         { "id": "money", "name": "Money", "links": [
-          { "name": "Square", "url": "https://app.squareup.com/dashboard" },
+          { "name": "Stripe", "url": "https://dashboard.stripe.com" },
           { "name": "Stripe", "url": "https://dashboard.stripe.com" }
         ] }
       ]

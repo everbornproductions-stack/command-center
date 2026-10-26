@@ -1,5 +1,5 @@
 // Settings switch and the daily anonymous ping. Counts come from event ids only.
-// The ping is not sent when the switch is off, and nothing here calls Square.
+// The ping is not sent when the switch is off, and nothing here calls Stripe.
 import { HOSTED, allContexts, runAs } from "../store.js";
 import { localFetch } from "../loopback-fetch.js";
 import {

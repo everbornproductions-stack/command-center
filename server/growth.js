@@ -6,7 +6,7 @@
 //   CC_MANAGED=1     managed plan: calls go through an Everborn-managed key pool, metered per user
 //   CC_REFERRALS=1   referral codes and links, a credit ledger and a rewards view
 // Every price and amount below is a PLACEHOLDER. Chris decides real pricing. Nothing here charges money,
-// talks to Square or any payment service, or sends anything on its own.
+// talks to Stripe or any payment service, or sends anything on its own.
 //
 // The key pool lives only in the host's environment (its secret store), never in a file, the vault or git:
 //   CC_MANAGED_POOL='[{"provider":"openai","keyEnv":"CC_POOL_OPENAI"}]'   which providers, and the env var
@@ -291,5 +291,5 @@ export function overview() {
 function withPlans(upgrade) {
   let plans = null;
   try { plans = currentPlans(); } catch { plans = null; }
-  return { ...upgrade, compare: plans?.compare || null, spotsLine: plans?.lifetime?.spotsLine || null, grandfatherNote: plans?.grandfather?.note || null };
+  return { ...upgrade, compare: plans?.compare || null, spotsLine: plans?.lifetime?.spotsLine || null };
 }

@@ -14,6 +14,7 @@ import { mailStart, mailFinish, mailView } from "../services.js";
 import { openLoopback, COMING_SOON } from "../oauth-signin.js";
 import { assertServiceSlots } from "../service-limit.js";
 import { openUrl } from "../discover.js";
+import { unlockByEmail } from "../license.js";
 
 export const id = "signin";
 
@@ -106,6 +107,8 @@ async function begin(provider, step, h) {
       const error = ok ? null : String(result?.error || "Sign-in did not finish");
       h.emit("signin.done", { provider, step: inbox ? "inbox" : "first", ok, error: error === "timeout" ? "The sign-in page was not finished in time. Try again." : error });
       if (ok) h.emit("log", { text: `${provider === "google" ? "Google" : "Microsoft"} sign-in finished. The token is in the vault.` });
+      // A paid licence on this verified email unlocks now, with no key to type.
+      if (ok && !inbox) unlockByEmail().catch(() => {}).finally(() => h.emit("license.changed", {}));
     },
   });
   open.set(provider, run.handle);

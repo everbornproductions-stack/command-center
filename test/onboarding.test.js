@@ -126,7 +126,7 @@ test("the hub skips setup from the server flag, and bookmarks are not part of th
   const server = read("server", "index.js");
   const mod = read("server", "onboarding.js");
   assert.match(app, /S\.mode !== "hosted" && !S\.visitedSetup && \(S\.onboarding \? S\.onboarding\.show === true : !S\.settings\?\.onboarded\)/);
-  assert.match(app, /Run setup again/);
+  assert.match(app, /id="s-setup">\$\{esc\(RESTART_SETUP_LABEL\)\}/);
   assert.doesNotMatch(app, /localStorage\.setItem\(["']cc\.onboard/);
   assert.match(main, /onboarding\.json/);
   assert.match(main, /storages: \["serviceworkers", "cachestorage"\]/);

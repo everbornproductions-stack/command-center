@@ -143,7 +143,6 @@ const originOk = (req) => {
   if (o.includes("trycloudflare.com")) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
 };
-};
 function phonePair() {
   const p = settings().phonePair;
   if (!p || p.on !== true || !/^[a-f0-9]{64}$/.test(String(p.token || ""))) return { on: false, token: "" };
@@ -206,9 +205,21 @@ function chatPriority(requested) {
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon", ".pdf": "application/pdf", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
 
 function json(res, status, body) {
-  const b = JSON.stringify(body);
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(b) });
-  res.end(b);
+  const buf = Buffer.from(JSON.stringify(body), "utf8");
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": buf.length });
+  if (buf.length <= 60000) {
+    res.end(buf);
+    return;
+  }
+  let off = 0;
+  const step = () => {
+    if (res.writableEnded || res.destroyed) return;
+    const chunk = buf.subarray(off, off + 32768);
+    off += chunk.length;
+    if (off >= buf.length) res.end(chunk);
+    else { res.write(chunk); setTimeout(step, 2); }
+  };
+  step();
 }
 function readBody(req) {
   return new Promise((resolve, reject) => {

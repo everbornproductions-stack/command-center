@@ -164,7 +164,7 @@ test("the desktop tree clicks the allowed button and refuses a password and a de
   assert.equal(held.lines.some((line) => /Delete/.test(line) && /clicked/.test(line)), false);
 });
 
-test("screenshot steps drop the previous image, stop at the cap, and refuse Square", () => {
+test("screenshot steps drop the previous image, stop at the cap, and refuse Stripe", () => {
   process.env.CC_DEV_OWNER = "1";
   const app = doors.addApp({ name: "Canvas", kind: "desktop", exe: "Canvas.exe", screenshot: true });
   doors.setAllowed(app.id, true);
@@ -186,7 +186,7 @@ test("screenshot steps drop the previous image, stop at the cap, and refuse Squa
   });
   assert.equal(capped.stopped, true);
   assert.equal(capped.sent.length, 1);
-  const refused = doors.runScreenshot({ id: app.id, steps: [{ images: ["d"], target: "Square checkout", click: { x: 9, y: 9 } }] });
+  const refused = doors.runScreenshot({ id: app.id, steps: [{ images: ["d"], target: "Stripe checkout", click: { x: 9, y: 9 } }] });
   assert.equal(refused.refused, true);
   assert.equal(refused.clicks.length, 0);
 });

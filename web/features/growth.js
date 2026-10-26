@@ -16,8 +16,7 @@ function upgradeBox(g) {
   if (!g.upgrade?.show) return "";
   const table = planCompareHtml(g.upgrade.compare);
   const spots = g.upgrade.spotsLine ? `<div class="dim small" data-founder-spots>${esc(g.upgrade.spotsLine)}</div>` : "";
-  const note = g.upgrade.grandfatherNote ? `<div class="dim small" data-grandfather>${esc(g.upgrade.grandfatherNote)}</div>` : "";
-  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}${note}<div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
+  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}<div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
 }
 
 function trialLine(g) {

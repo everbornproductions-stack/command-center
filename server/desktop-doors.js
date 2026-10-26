@@ -355,8 +355,8 @@ export function runScreenshot({ id, steps = [], capUsd = DEFAULT_CAP } = {}) {
     spent = next;
     sent.push(fresh);
     const target = String(step.target || "");
-    if (/square|billing|checkout/i.test(target)) {
-      return { refused: true, reason: "Square and billing stay out of this door.", sent, clicks, spent };
+    if (/stripe|billing|checkout|payment/i.test(target)) {
+      return { refused: true, reason: "Stripe, payment and billing stay out of this door.", sent, clicks, spent };
     }
     if (step.click) clicks.push(step.click);
   }
