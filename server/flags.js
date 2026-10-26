@@ -5,6 +5,7 @@ const DEFAULTS = {
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
+  photoeditor: false, // Photo editor: non-destructive sliders, before/after, versions in the project, enhancement prompts
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
 };
 export function flagOn(name) {
@@ -26,4 +27,4 @@ export function projectmediaOn(settings = {}) {
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), finishrouter: flagOn("finishrouter") });
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), finishrouter: flagOn("finishrouter"), photoeditor: flagOn("photoeditor") });

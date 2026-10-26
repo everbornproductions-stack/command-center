@@ -45,6 +45,7 @@ export const FEATURES = [
 
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
+  { id: "photo-editor", views: ["images"] },
   { id: "prompt-drop", views: ["images", "media", "remix", "builders", "webbuilders"], home: true },
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
@@ -130,6 +131,7 @@ export const FEATURES = [
 export const SERVER_DEMAND = [
   { id: "perf", file: "perf.js", views: ["settings"] },
   { id: "projectmedia", file: "projectmedia.js", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"] },
+  { id: "photoeditor", file: "photoeditor.js", views: ["images"] },
 ];
 
 // Sizes are the download size shown before a click. These tools are not in
