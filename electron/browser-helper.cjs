@@ -27,7 +27,7 @@ function inPage(op, arg, max) {
   const labelOf = (el) => sq(el.getAttribute("aria-label") || (el.labels && el.labels[0] && el.labels[0].innerText) || (["submit", "button", "reset"].includes(el.type) ? el.value : "") || el.innerText || el.placeholder || el.title || el.alt || el.name || "").slice(0, 120);
   if (op === "snapshot") {
     const out = [];
-    const q = 'a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="checkbox"], [contenteditable=""], [contenteditable="true"]';
+    const q = 'a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="tab"], [role="option"], [role="switch"], [role="combobox"], [role="searchbox"], [role="textbox"], [contenteditable=""], [contenteditable="true"]';
     for (const el of document.querySelectorAll(q)) {
       if (out.length >= max) break;
       if (el.type === "hidden" || !visible(el)) continue;
@@ -54,7 +54,7 @@ function inPage(op, arg, max) {
         value: x.type === "password" || isPay(x) ? "" : x.type === "checkbox" || x.type === "radio" ? (x.checked ? x.value : null) : String(x.value || "").slice(0, 300),
       })),
     }));
-    return { url: location.href, title: document.title, text: (document.body ? document.body.innerText : "").slice(0, 12000), elements: out, forms };
+    return { url: location.href, title: document.title, text: (document.body ? document.body.innerText : "").slice(0, 12000), elements: out, forms, hasCanvas: document.querySelectorAll("canvas").length > 0, shadowRoots: [...document.querySelectorAll("*")].filter((e) => e.shadowRoot).length };
   }
   if (op === "point") {
     const el = get(arg);
@@ -208,6 +208,7 @@ function createBrowserHelper({ log = () => {}, icon } = {}) {
       return settle();
     },
     async scroll(dir) { check(await run("scroll", dir)); return { note: `scrolled ${dir === "up" ? "up" : "down"}` }; },
+    async screenshot() { const w = wc(); const img = await w.capturePage(); const sz = img.getSize(); return { kind: "screenshot", driver: "window", url: w.getURL(), title: w.getTitle(), width: sz.width, height: sz.height, dataUrl: img.toDataURL() }; },
     close() {},
   };
 }

@@ -136,7 +136,7 @@ export function parsePage(html, baseUrl) {
     if (!f.label) { const sub = elements.find((e) => e.form === f.ref && e.submits); f.label = sub?.label || f.ref; }
   }
   text = text.replace(/[ \t\f\v\r]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_TEXT);
-  return { title, text, elements, forms };
+  return { title, text, elements, forms, hasCanvas: /<canvas\b/i.test(body) };
 }
 
 // A snapshot in the shape both drivers return. Field values the helper typed are shown; password and
@@ -145,7 +145,7 @@ function view(state) {
   const p = state.page;
   const field = (el) => ({ ...el, value: el.password || el.payment ? "" : el.value });
   return {
-    url: state.url, title: p.title, text: p.text, driver: "reader",
+    url: state.url, title: p.title, text: p.text, driver: "reader", hasCanvas: !!p.hasCanvas,
     elements: p.elements.map(({ options, ...el }) => ({ ...field(el), options: options ? options.map((o) => o.label).slice(0, 12) : undefined })),
     forms: p.forms.map((f) => ({ ref: f.ref, method: f.method, action: f.action, label: f.label, fields: f.fields.map((x) => ({ name: x.name, type: x.type, hidden: !!x.hidden, ref: x.ref || null, value: x.el ? (x.el.password || x.el.payment ? "" : x.type === "checkbox" || x.type === "radio" ? (x.el.checked ? x.el.value : null) : x.el.value ?? "") : x.value })) })),
   };
@@ -244,6 +244,7 @@ export function createReader({ userAgent = "CommandAI-BrowserHelper/1.0 (text re
     async submit(formRef) { return submitForm(formRef, null); },
     async back() { const prev = state.history.pop(); if (!prev) throw new Error("there is no page to go back to"); return load(prev, { push: false }); },
     async scroll() { return { url: state.url, note: "the text reader already sees the whole page" }; },
+    async screenshot() { return { kind: "screenshot", driver: "reader", fallback: true, url: state.url, title: state.page.title, width: 0, height: 0, dataUrl: null, note: "text reader: DOM snapshot used (no window screenshot)" }; },
     show() {}, update() {}, close() {},
   };
 }

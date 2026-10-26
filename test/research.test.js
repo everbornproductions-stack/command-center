@@ -407,6 +407,76 @@ test("server: Stop aborts a deep research run before the report is written", asy
     assert.equal(done.status, "done", done.error || done.deliverable || "");
     assert.match(done.deliverable, /Cross-check/);
     assert.equal((await getBuf(s, `/api/research/${second.json.id}/export?format=pdf`)).status, 200);
+
+    // ---- Slice D1: flag_agents (default OFF), LeadResearcher 2-5 facets, parallel sub-agents, external memory, CitationAgent, effort scaling, cost warning ----
+    const resMod = await import("../server/research.js");
+    assert.equal(resMod.FLAG_AGENTS, "flag_agents");
+    assert.equal(resMod.COST_MULTIPLIER, 15);
+    assert.match(resMod.COST_WARNING, /15 times the tokens/);
+    assert.doesNotMatch(resMod.COST_WARNING, /—/);
+
+    const efSimple = resMod.scaleEffort("solar price today");
+    assert.equal(efSimple.level, "simple");
+    assert.equal(efSimple.subAgents, 1);
+    assert.equal(efSimple.facets, 2);
+
+    const efStandard = resMod.scaleEffort("How did solar panel efficiency and residential installation costs change this year?");
+    assert.equal(efStandard.level, "standard");
+    assert.equal(efStandard.subAgents, 3);
+    assert.equal(efStandard.facets, 3);
+
+    const efComplex = resMod.scaleEffort("Compare utility-scale solar versus distributed rooftop solar across cost, grid storage trade-offs, market competition, regulatory incentives, and 2030 forecast.");
+    assert.equal(efComplex.level, "complex");
+    assert.ok(efComplex.subAgents >= 4 && efComplex.subAgents <= 5);
+    assert.ok(efComplex.facets >= 4 && efComplex.facets <= 5);
+
+    const plan2 = resMod.planFacets("short query", { facets: 1 });
+    assert.equal(plan2.facets.length, 2, "clamped to minimum 2 facets");
+    const plan5 = resMod.planFacets("complex query", { facets: 9 });
+    assert.equal(plan5.facets.length, 5, "clamped to maximum 5 facets");
+    assert.equal(plan5.leadRole, "LeadResearcher");
+
+    const citeCheck = resMod.citationPass(
+      "Solar report\n\nSolar capacity grew rapidly in utility markets.\nInvented claim [99] and grounded claim [1].\n\n## Cross-check\n\nChecked by XAI.",
+      [{ n: 1, title: "Utility Solar Report", url: "http://127.0.0.1/1", snippet: "Solar capacity grew rapidly in utility markets" }, { n: 2, title: "Grid Study", url: "http://127.0.0.1/2", snippet: "Grid storage" }],
+      [{ n: 1, url: "http://127.0.0.1/1", title: "Utility Solar Report", text: "Solar capacity grew rapidly in utility markets." }],
+    );
+    assert.equal(citeCheck.role, "CitationAgent");
+    assert.equal(citeCheck.invalidRemoved, 1, "stripped invented [99] citation");
+    assert.ok(citeCheck.citationsAdded >= 1, "attached citation to ungrounded claim");
+    assert.doesNotMatch(citeCheck.text, /\[99\]/);
+    assert.match(citeCheck.text, /Solar capacity grew rapidly in utility markets \[1\]\./);
+
+    assert.equal((await s.api("/research")).json.research.flag_agents, false, "flag_agents defaults to OFF");
+    const flagRes = await s.api("/research/flag", { method: "POST", body: { flag_agents: true } });
+    assert.equal(flagRes.status, 200);
+    assert.equal(flagRes.json.flag_agents, true);
+
+    const planApi = await s.api("/research/plan?prompt=Compare%20solar%20and%20wind%20costs%20and%20storage");
+    assert.equal(planApi.status, 200);
+    assert.equal(planApi.json.costWarning.multiplier, 15);
+
+    const third = await s.api("/research/deep", { method: "POST", body: { prompt: "How did solar capacity and battery storage costs change this year?" } });
+    assert.equal(third.status, 202);
+    assert.equal(third.json.costWarning.multiplier, 15);
+    assert.ok(third.json.effort.facets >= 2 && third.json.effort.facets <= 5);
+    const done3 = await waitResearch(s, third.json.id, (row) => ["done", "failed", "aborted"].includes(row.status), "orchestrated deep", 120000);
+    assert.equal(done3.status, "done", done3.error || done3.deliverable || "");
+    assert.ok(done3.facets?.length >= 2 && done3.facets?.length <= 5, "2 to 5 facets planned");
+    assert.ok(done3.subAgents?.every((sa) => sa.isolatedContext === true), "sub-agents ran in isolated contexts");
+    assert.equal(done3.citationAudit?.role, "CitationAgent");
+    assert.match(done3.deliverable, /\[1\]/);
+    assert.match(done3.deliverable, /Cross-check/);
+
+    const memRes = await s.api(`/research/${third.json.id}/memory`);
+    assert.equal(memRes.status, 200);
+    assert.equal(memRes.json.phase, "done");
+    assert.ok(memRes.json.checkpoints?.some((c) => c.phase === "planned"));
+    assert.ok(memRes.json.checkpoints?.some((c) => c.phase === "subagents"));
+    assert.ok(memRes.json.checkpoints?.some((c) => c.phase === "cited"));
+    assert.ok(fs.existsSync(path.join(s.dir, "research", `${third.json.id}.json`)), "external memory written to data/research/<id>.json");
+
+    await s.api("/research/flag", { method: "POST", body: { flag_agents: false } });
     const dumped = JSON.stringify(await s.api("/state")) + s.log;
     for (const k of Object.values(KEYS)) assert.ok(!dumped.includes(k), "key never in a response or the log");
   } finally {

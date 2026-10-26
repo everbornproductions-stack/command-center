@@ -538,6 +538,8 @@ export function researchSnapshot(now = Date.now()) {
     leftToday: plan.dailySearches == null ? null : Math.max(0, plan.dailySearches - usedToday),
     deepUsed,
     deepLeft: plan.deepMonthly == null ? null : Math.max(0, plan.deepMonthly - deepUsed),
+    flag_agents: Boolean((() => { try { const s = doc("settings", () => ({})) || {}; if (typeof s.flag_agents === "boolean") return s.flag_agents; } catch {} return process.env.CC_FLAG_AGENTS === "1" || process.env.flag_agents === "1"; })()),
+    costWarning: "Deep research runs parallel agents and uses about 15 times the tokens of a normal chat.",
   };
 }
 
