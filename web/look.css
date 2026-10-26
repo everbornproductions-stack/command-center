@@ -1,0 +1,107 @@
+/* Glass look (0.4.19, flag_look). Rules are scoped to html[data-look] (or the look's own ids) so with the flag
+   off, or on Classic, nothing here changes the app. Tokens live in look-tokens.css. */
+@property --mm-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes mm-roll { to { --mm-angle: 360deg; } }
+@keyframes mm-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes mm-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Frosted panes: panels, dialogs, menus, suggestion lists. "body" lifts these above the wallpaper rules in themes.js. */
+html[data-look="glass"] body .panel,
+html[data-look="glass"] body #cc-mode-ask .card,
+html[data-look="glass"] body #cc-upgrade .card,
+html[data-look="glass"] body .gate-card,
+html[data-look="glass"] body #cc-tour .card,
+html[data-look="glass"] body #cc-keysetup .box,
+html[data-look="glass"] body .nav-panel,
+html[data-look="glass"] body #cc-suggest .psg {
+  background: var(--mm-glass-fill);
+  border-color: var(--mm-glass-line);
+  box-shadow: var(--mm-glass-shadow);
+  -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--mm-blur)) saturate(1.15);
+}
+html[data-look="glass"] body .topbar { background: var(--mm-grad-calm); }
+html[data-look="glass"] .mm-grad-calm { background: var(--mm-grad-calm); }
+html[data-look="glass"] .mm-grad-working { background: var(--mm-grad-working); }
+html[data-look="glass"] .mm-grad-success { background: var(--mm-grad-success); }
+html[data-look="glass"] .mm-grad-attention { background: var(--mm-grad-attention); }
+/* Simple mode is calmer: slower light, softer shadow. */
+html[data-look="glass"] body[data-ui="simple"] { --mm-glow-speed: 6s; --mm-glass-shadow: 0 10px 28px rgba(0, 0, 0, .28); }
+
+/* Rolling light: a conic gradient travels around the border of a piece that is working.
+   CSS only. The ring is masked to the outline. It is still unless the piece is working and has .mm-live
+   (look.js gives .mm-live to at most three at a time). */
+html[data-look="glass"] .rolling-light { position: relative; --mm-light: var(--mm-light-working); }
+html[data-look="glass"] .rolling-light::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--mm-angle), transparent 0 55%, var(--mm-light) 82%, #fff 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; animation: none;
+}
+html[data-look="glass"] .rolling-light[data-state="working"]::before { opacity: 1; }
+html[data-look="glass"] .rolling-light[data-state="working"].mm-live::before { animation: mm-roll var(--mm-glow-speed) linear infinite; }
+html[data-look="glass"] .rolling-light[data-state="done"] { --mm-light: var(--mm-light-done); }
+html[data-look="glass"] .rolling-light[data-state="done"]::before { opacity: 1; animation: mm-flash 1.2s ease-out forwards; }
+html[data-look="glass"] .rolling-light[data-state="waiting"] { --mm-light: var(--mm-light-waiting); }
+html[data-look="glass"] .rolling-light[data-state="waiting"]::before { opacity: 1; }
+html[data-look="glass"] .rolling-light[data-state="error"] { --mm-light: var(--mm-light-error); }
+html[data-look="glass"] .rolling-light[data-state="error"]::before { opacity: 1; }
+
+/* Quiet rules: hidden window, reduce motion, Low Power (Light mode), weak graphics. */
+html[data-look="glass"][data-hidden="1"] .rolling-light::before { animation-play-state: paused; }
+html[data-look="glass"][data-motion="still"] .rolling-light::before { animation: none; }
+html[data-look="glass"] body.light-mode .rolling-light::before { animation: none; }
+html[data-look="glass"] body.light-mode .panel,
+html[data-look="glass"] body.light-mode #cc-mode-ask .card,
+html[data-look="glass"] body.light-mode #cc-upgrade .card,
+html[data-look="glass"] body.light-mode .gate-card,
+html[data-look="glass"] body.light-mode #cc-tour .card,
+html[data-look="glass"] body.light-mode #cc-keysetup .box,
+html[data-look="glass"] body.light-mode .nav-panel,
+html[data-look="glass"] body.light-mode #cc-suggest .psg,
+html[data-look="glass"][data-blur="off"] .panel,
+html[data-look="glass"][data-blur="off"] #cc-mode-ask .card,
+html[data-look="glass"][data-blur="off"] #cc-upgrade .card,
+html[data-look="glass"][data-blur="off"] .gate-card,
+html[data-look="glass"][data-blur="off"] #cc-tour .card,
+html[data-look="glass"][data-blur="off"] #cc-keysetup .box,
+html[data-look="glass"][data-blur="off"] .nav-panel,
+html[data-look="glass"][data-blur="off"] #cc-suggest .psg {
+  -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--mm-glass-fill-solid);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] .rolling-light::before { animation: none !important; }
+}
+
+/* Classic: today's look. Solid panels, no blur, no moving light. */
+html[data-look="classic"] .rolling-light::before { display: none; }
+
+/* Startup screen: Meldmind.ai and the tagline over a slow gradient. */
+#cc-startup {
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(900px 500px at 20% 10%, #12304f 0%, transparent 60%), radial-gradient(800px 500px at 90% 90%, #2a1850 0%, transparent 60%), #070b12;
+  color: #fff; cursor: pointer; transition: opacity .5s ease; text-align: center; padding: 24px;
+}
+#cc-startup.mm-out { opacity: 0; pointer-events: none; }
+#cc-startup .mm-name { font-size: clamp(2rem, 7vw, 3.75rem); font-weight: 800; letter-spacing: -.02em; animation: mm-fade-in .7s ease both; }
+#cc-startup .mm-tag { font-size: clamp(1.25rem, 4vw, 2rem); font-weight: 600; margin: 0; animation: mm-fade-in .7s .35s ease both; }
+#cc-startup .mm-sub { font-size: .9375rem; color: #c3cad6; margin: 0; animation: mm-fade-in .7s .7s ease both; }
+#cc-startup .mm-gold { color: #f5c542; position: relative; display: inline-block; padding: 0 .12em; border-radius: .22em; --mm-light: #f5c542; }
+#cc-startup .mm-gold::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--mm-angle), transparent 0 55%, var(--mm-light) 82%, #fff 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: mm-roll 2.4s linear infinite;
+}
+#cc-startup[data-still="1"] * { animation: none !important; }
+#cc-startup[data-still="1"] .mm-gold::before { background: linear-gradient(90deg, transparent, var(--mm-light)); }
+@media (prefers-reduced-motion: reduce) { #cc-startup * { animation: none !important; } }
+.mm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Frame test stage: a blurred pane with one rolling light, under the startup screen, for about one second. */
+#cc-look-probe { position: fixed; left: 0; top: 0; width: 50vw; height: 50vh; z-index: 150; opacity: .03; pointer-events: none; border-radius: 14px; background: var(--mm-glass-fill); -webkit-backdrop-filter: blur(var(--mm-blur)); backdrop-filter: blur(var(--mm-blur)); }
+#cc-look-probe::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; background: conic-gradient(from var(--mm-angle), transparent 0 55%, var(--mm-light-working) 82%, #fff 100%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: mm-roll 1.2s linear infinite; }
+/* Offer bar. */
+#cc-look-offer { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 120; max-width: min(560px, calc(100vw - 32px)); background: var(--panel-solid, #111827); color: var(--text, #e5e7eb); border: 1px solid var(--line-2, #273449); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; box-shadow: 0 16px 40px rgba(0, 0, 0, .4); }

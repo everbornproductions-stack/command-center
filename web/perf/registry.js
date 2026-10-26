@@ -41,6 +41,7 @@ export const FEATURES = [
   { id: "app-signin", shell: true },
   { id: "privacy", shell: true },
   { id: "prompt-suggest", shell: true },
+  { id: "look", shell: true },
 
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
