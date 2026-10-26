@@ -50,9 +50,7 @@ html[data-look="glass"] body .topbar {
   backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
 }
 html[data-look="glass"] body #cc-rail,
-html[data-look="glass"] body #cc-canvas-rail,
-html[data-look="glass"] body #cc-canvas-props,
-html[data-look="glass"] body #cc-canvas-prompt {
+html[data-look="glass"] body #cc-canvas .cv-frame {
   background: var(--mm-glass-see); border-color: var(--mm-glass-line); box-shadow: var(--mm-glass-edge), var(--mm-glass-shadow);
   -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
   backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
