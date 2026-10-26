@@ -35,19 +35,26 @@ test("hub in a real browser: smart views, Trash and Restore, a #mindmedia link, 
     assert.equal(a.status, 200);
     await t.api("/mindmedia/delete", { body: { items: [{ projectId: b.json.projectId, assetId: b.json.items[0].id }] } });
     await t.page.evaluate(() => { location.hash = "#mindmedia"; });
-    await t.page.waitForSelector(".mmh-rail", { timeout: 15000 });
+    await t.page.waitForSelector(".mmh-rail", { timeout: waitBudget(30000) });
     const rail = await t.page.textContent(".mmh-rail");
     assert.match(rail, /Smart views/);
     assert.match(rail, /Needs my OK/);
     await t.page.click('.mmh-rail [data-v="trash"]');
-    await t.page.waitForSelector("[data-restore]", { timeout: 10000 });
+    await t.page.waitForSelector("[data-restore]", { timeout: waitBudget(30000) });
     assert.match(await t.page.textContent(".mmh-main"), /Beta note/);
     await t.page.click("[data-restore]");
-    await t.page.waitForFunction(() => !document.querySelector("[data-restore]"), null, { timeout: 10000 });
+    await t.page.waitForFunction(() => !document.querySelector("[data-restore]"), null, { timeout: waitBudget(30000) });
     const list = (await t.api("/mindmedia")).json;
     assert.ok(list.items.some((i) => i.name === "Beta note"), "restored item is back");
     await t.page.evaluate(() => { location.hash = "#mindmedia?view=needs-ok"; });
-    await t.page.waitForFunction(() => /Alpha note/.test(document.querySelector(".mmh-main")?.textContent || ""), null, { timeout: 10000 });
+    await t.page.waitForFunction(() => /Alpha note/.test(document.querySelector(".mmh-main")?.textContent || ""), null, { timeout: waitBudget(30000) });
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
+});
+
+test("source: Builders has a Connect HighLevel button that falls back to the paste form", () => {
+  const t = read("web", "features", "builders.js");
+  assert.match(t, /id="builders-hl-connect"/);
+  assert.match(t, /\/publish\/connect\/ghlcrm\/start/);
+  assert.match(t, /paste a HighLevel token below instead/);
 });

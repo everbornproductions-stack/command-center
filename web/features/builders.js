@@ -73,6 +73,7 @@ function shell() {
       <textarea id="builders-need" style="min-height:72px;width:100%" placeholder="For example: a HighLevel lead form, a receipt, or a booking page"></textarea>
       <div class="row" style="margin-top:8px">
         <button type="button" class="btn sm primary" id="builders-show">Show builders</button>
+        ${connected.highlevel ? "" : `<button type="button" class="btn sm" id="builders-hl-connect" title="Signs in to HighLevel in your browser. Nothing is sent.">Connect HighLevel</button>`}
       </div>
       <details style="margin-top:10px">
         <summary class="small">Connections and more options</summary>
@@ -359,6 +360,19 @@ async function render(view) {
       lastChecks = {};
       paint();
     } catch (e) { toast(e.message, true); }
+  });
+  // One tap to connect HighLevel (0.4.21): the sign-in page opens in the browser. Without the app's client id it
+  // says so and opens the paste form instead, so the person is never stuck.
+  root.querySelector("#builders-hl-connect")?.addEventListener("click", async () => {
+    try {
+      const r = await api("/publish/connect/ghlcrm/start", { method: "POST", body: { origin: location.origin } });
+      window.open(r.url, "_blank", "noopener");
+      toast("Sign in to HighLevel and allow the access asked for. Come back here when you are done.");
+    } catch (e) {
+      const d = root.querySelector("#builders-service")?.closest("details");
+      if (d) d.open = true;
+      toast(`${e.message} You can paste a HighLevel token below instead.`, true);
+    }
   });
   root.querySelector("#builders-connect").addEventListener("click", async () => {
     const service = root.querySelector("#builders-service").value;
