@@ -115,20 +115,40 @@ function inferKind(mime, jobKind, isUpload = false) {
   return "upload";
 }
 
+// True when `candidate` (already resolved) is the same as, or inside, `root` after following links on BOTH sides.
+function realInside(candidate, root) {
+  try {
+    const rc = fs.realpathSync(candidate);
+    const rr = fs.realpathSync(root);
+    return rc === rr || rc.startsWith(rr + path.sep);
+  } catch { return false; }
+}
+
+// Refuses symlinks (the file itself or any folder on the way) so a link cannot lead out of the data folder.
 function safeStat(filePath) {
   if (!filePath || typeof filePath !== "string") return null;
   try {
     const resolved = path.resolve(DATA_DIR, filePath);
     const root = path.resolve(DATA_DIR);
     if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
-    if (!fs.existsSync(resolved)) return null;
-    const st = fs.statSync(resolved);
-    if (!st.isFile()) return null;
-    return { path: resolved, sizeBytes: st.size, mtimeMs: Math.round(st.mtimeMs) };
+    const lst = fs.lstatSync(resolved);
+    if (lst.isSymbolicLink()) return null;
+    if (!lst.isFile()) return null;
+    if (!realInside(resolved, root)) return null;
+    // Every folder between the data folder and the file must be a real folder too.
+    const rel = path.relative(root, resolved);
+    let cur = root;
+    for (const part of rel.split(path.sep).slice(0, -1)) {
+      cur = path.join(cur, part);
+      if (fs.lstatSync(cur).isSymbolicLink()) return null;
+    }
+    return { path: resolved, sizeBytes: lst.size, mtimeMs: Math.round(lst.mtimeMs) };
   } catch {
     return null;
   }
 }
+
+export function isInsideDataDir(filePath) { return Boolean(safeStat(filePath)); }
 
 function metaKey(projectId, assetId) {
   return `${safeProjectId(projectId)}::${assetId}`;
@@ -1287,6 +1307,11 @@ export function saveToMindMedia(opts = {}) {
   }
   const state = mediaDoc();
   const dir = projectMediaDir(pid);
+  if (fs.lstatSync(dir).isSymbolicLink() || !realInside(dir, path.resolve(DATA_DIR))) {
+    const err = new Error("That project folder is a link to somewhere else, so nothing can be saved into it.");
+    err.status = 400;
+    throw err;
+  }
   const provenance = cleanProvenance(opts.provenance);
   const baseName = String(opts.name || opts.title || "").trim().slice(0, 140);
   const created = [];

@@ -451,7 +451,7 @@ async function showMade(root, projectId, name) {
   // the MindMedia hub (built by another worker) keeps a copy when it is there
   try {
     if (window.CC.saveToMindMedia && res.files?.includes("index.html")) {
-      window.CC.saveToMindMedia({ source: "Remix", kind: "site", name: name || projectId, files: [{ name: "index.html", path: `projects/${projectId}/index.html` }], dedupeKey: projectId, status: "Draft", quiet: false }).catch(() => {});
+      window.CC.saveToMindMedia({ source: "Remix", kind: "site", name: name || projectId, files: [{ name: "index.html", path: `projects/${projectId}/index.html` }], dedupeKey: projectId, status: "Draft", quiet: false }).catch((e) => { console.warn("Remix: could not keep in MindMedia", e && e.message); });
     }
   } catch { /* the hub is optional */ }
 }

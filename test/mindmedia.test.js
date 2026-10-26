@@ -124,3 +124,25 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
     await srv.stop();
   }
 });
+
+test("save: the exact relative path the page sends works, and a symlink in the data folder is refused", async () => {
+  let linked = true;
+  const srv = await startServer({
+    seed(dir) {
+      fs.writeFileSync(path.join(dir, "projects.json"), JSON.stringify({ projects: [{ id: "rx-proj", name: "Remix", color: "#22d3ee", categories: [] }] }));
+      const pdir = path.join(dir, "projects", "rx-proj");
+      fs.mkdirSync(pdir, { recursive: true });
+      fs.writeFileSync(path.join(pdir, "index.html"), "<h1>Remix</h1>");
+      const outside = path.join(path.dirname(dir), `outside-${path.basename(dir)}.txt`);
+      fs.writeFileSync(outside, "outside secret");
+      try { fs.symlinkSync(outside, path.join(pdir, "link.txt")); } catch { linked = false; }
+    },
+  });
+  const post = (p, body) => srv.api(p, { method: "POST", body });
+  try {
+    const ok = await post("/mindmedia/save", { source: "Remix", kind: "site", name: "rx", files: [{ name: "index.html", path: "projects/rx-proj/index.html" }], projectId: "rx-proj" });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    const bad = await post("/mindmedia/save", { kind: "file", name: "x", files: [{ name: "link.txt", path: "projects/rx-proj/link.txt" }], projectId: "rx-proj" });
+    if (linked) assert.equal(bad.status, 400, JSON.stringify(bad.json));
+  } finally { await srv.stop(); }
+});

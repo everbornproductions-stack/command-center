@@ -11,16 +11,18 @@
 import path from "node:path";
 import { DATA_DIR } from "../paths.js";
 import { exportReport } from "../research.js";
-import { listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, STATUSES } from "../project-media.js";
+import { isInsideDataDir, listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, STATUSES } from "../project-media.js";
 
 export const id = "mindmedia";
 
 // A request may point at a file that already lives in a project folder (a builder's site). Nothing else in the
 // data folder (keys, settings, other people's files) can be filed this way.
 function pathAllowed(p) {
-  const full = path.resolve(String(p || ""));
+  if (!p || typeof p !== "string") return false;
+  const full = path.resolve(DATA_DIR, p);
   const root = path.resolve(DATA_DIR, "projects") + path.sep;
-  return full.startsWith(root);
+  if (!full.startsWith(root)) return false;
+  return isInsideDataDir(p);
 }
 
 export async function routes(req, res, url, body, h) {
