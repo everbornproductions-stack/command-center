@@ -1,5 +1,6 @@
 // Describe, preview, build, test, and publish. Preview names the AIs and does not send.
 // Build writes a draft on this computer. Publish sends only after a click.
+import { checkOutgoing } from "../../compliance-guard.js";
 import { getBuilder } from "./registry.js";
 import { webBuilderGate, publishGate, tierRank } from "../../feature-gate.js";
 import {
@@ -366,6 +367,25 @@ function makeArtifact(builder, input) {
   return siteArtifact(builder, input);
 }
 
+// 0.4.21 (M11 M38): the same words check texts and emails get, run over everything a builder wrote (ad lines, posts,
+// emails, pages), so a promise or a leftover [CROA] marker is caught at Build and Test, not only at Publish.
+export function wordsIssues(artifact, input) {
+  const parts = [];
+  for (const f of artifact?.files || []) {
+    if (/TOOLS\.txt$/i.test(f.path) || typeof f.text !== "string") continue;
+    parts.push(/\.html?$/i.test(f.path) ? f.text.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ") : f.text);
+  }
+  const text = parts.join("\n").replace(/[ \t]+/g, " ");
+  if (!text.trim()) return [];
+  const g = checkOutgoing({ text, channel: "post", consent: true, creditRepair: /credit repair/i.test(`${input?.about || ""} ${input?.topic || ""}`) || undefined });
+  const out = [];
+  for (const w of g.warnings) {
+    if (w.level === "info") continue;
+    out.push({ id: `words-${w.rule}`, kind: "words", title: w.plain, detail: w.why, blocking: w.level === "block", fixable: false });
+  }
+  return out;
+}
+
 export function issuesFor(builderId, artifact, input) {
   const issues = [];
   if (builderId === "site-builder" || builderId === "client-page" || builderId === "astro-export") {
@@ -387,6 +407,7 @@ export function issuesFor(builderId, artifact, input) {
   }
   const claim = claimIssue(`${input.topic} ${input.about} ${input.copy} ${(artifact.lines || []).map((line) => line.text).join(" ")}`);
   if (claim && REGULATED_BUILDERS.has(builderId)) issues.push(claim);
+  if (["ad-copy", "social-calendar", "email-sequences", "reel-maker", "site-builder", "client-page", "astro-export"].includes(builderId)) issues.push(...wordsIssues(artifact, input));
   if (artifact.scores) artifact.scores = scoresFor(issues);
   return issues;
 }

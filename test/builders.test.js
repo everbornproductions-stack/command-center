@@ -78,7 +78,7 @@ test("drafts organize money, refuse tax advice, and hold sends", () => {
   assert.equal(tax.merchant, "North Bakery");
   const campaign = makeDraft("hl-campaign", cleanInput({ text: `Your credit score will jump. SSN ${SSN}`, channel: "sms", sendTime: "10:00" }).input);
   assert.equal(campaign.message.includes(SSN), false);
-  assert.match(campaign.message, /\[CROA\]/);
+  assert.match(campaign.message, /Credit repair note:/);
   assert.match(campaign.message, /STOP/);
   assert.equal(missingChecks("hl-campaign", { text: "credit score" }, { tcpa: true, stop: true, quiet: true, a2p: true, canspam: true }).some((c) => c.id === "croa"), true);
   assert.equal(makeDraft("biz-contract", cleanInput({ text: "write me a contract that is binding" }).input).legalBlocked, true);
@@ -217,7 +217,7 @@ test("publish waits for a click, and mocks never see a call before that", async 
     assert.equal(noCheck.published.json.code, "checks");
     assert.ok(noCheck.published.json.missing.includes("croa"));
     assert.equal(count("POST", "/conversations/messages"), 2);
-    assert.match(noCheck.preview.json.draft.message, /\[CROA\]/);
+    assert.match(noCheck.preview.json.draft.message, /Credit repair note:/);
     assert.equal(noCheck.preview.json.draft.message.includes(SSN), false);
 
     const ssn = await owner.api("/builders/hl-campaign/preview", { method: "POST", body: { text: `Hello ${SSN}`, recipients: "c-1", sendTime: "10:00" } });
