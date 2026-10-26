@@ -22,3 +22,7 @@ Make text bigger in Settings, under Text and reading. Pick Large or Extra large.
 Asking inside Meldmind does not cost extra money. You pay the AI company only after you add your own key. A practice answer costs nothing.
 
 Want a whole project built without stopping? Turn on Build it all for me in Start a project, a builder, or Remix. It still stops to spend money, delete for good, or post in public.
+
+Press Ctrl+Enter (Cmd+Enter on a Mac) to send without reaching for the button. The hint sits under the box. Before you add an AI key, answers say Sample answer: add a key for real answers, and nothing is spent. When setup ends, a note stays on screen for a few seconds and says you are in Chat and can type below.
+
+There is one Project picker on Chat. Pick a project there, and its tools (Images, Media, Remix, Builders, Publish) sit in the bar under the menu.

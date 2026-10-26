@@ -25,3 +25,5 @@ If the phone says "This pairing link is not valid", scan the code on the PC agai
 If the phone says "This phone cannot reach the PC", the phone is not on the same Wi-Fi, pairing is off, or the firewall is blocking Meldmind.
 
 Turn phone pairing off and this PC answers only on this computer again.
+
+Not sure where to find it? Search Help for phone, then choose Settings > Phone companion. It is under More options, Advanced in Settings.
