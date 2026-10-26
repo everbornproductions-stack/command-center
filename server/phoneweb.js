@@ -469,7 +469,7 @@ export function runQuickAction(body = {}, { emit } = {}) {
     });
     entry.status = "needs-approval";
     entry.approvalId = ap.id;
-    entry.summary = `Booking held for approval: ${item} (${when})`;
+    entry.summary = `Booking drafted, not booked: ${item} (${when})`;
     entry.detail = { item, when, amount, approval: ap };
   } else if (action === "email") {
     const to = String(body.to || "").trim().slice(0, 160);
@@ -482,7 +482,7 @@ export function runQuickAction(body = {}, { emit } = {}) {
     });
     entry.status = "needs-approval";
     entry.approvalId = ap.id;
-    entry.summary = `Email draft held for approval: ${subject}`;
+    entry.summary = `Email draft saved, not sent: ${subject}`;
     entry.detail = { to, subject, body: draftBody, approval: ap };
   } else if (action === "post") {
     const platId = String(body.platform || "instagram").trim().toLowerCase();
@@ -495,7 +495,7 @@ export function runQuickAction(body = {}, { emit } = {}) {
     });
     entry.status = "needs-approval";
     entry.approvalId = ap.id;
-    entry.summary = `Post to ${plat.label} held for approval`;
+    entry.summary = `Post to ${plat.label} drafted, not posted`;
     entry.detail = { platform: plat.id, platformLabel: plat.label, caption, approval: ap };
   } else if (action === "image") {
     const lightId = String(body.lighting || "golden-hour").trim().toLowerCase();
@@ -556,6 +556,10 @@ export function resolvePhoneApproval({ id, decision, emit } = {}) {
     if (item.approvalId === id) {
       item.status = result.status === "approved" ? "approved" : "declined";
       item.decidedAt = result.decidedAt;
+      // An approval is a yes on this computer. A quick action does not send, post or book anything by itself.
+      item.summary = result.status === "approved"
+        ? `${item.label || "This"}: your yes is saved. Nothing was sent or posted from the phone. Finish it on your computer.`
+        : `${item.label || "This"}: declined. Nothing was sent.`;
       if (item.detail?.approval) item.detail.approval = result;
       updatedQuick = item;
     }
