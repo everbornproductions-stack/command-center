@@ -1,6 +1,7 @@
 // Media tab + "Make media from this" and a mission's media steps under deliverables + key fields in Settings.
 // The estimate always comes first: Generate stays off until the estimate for the current choices is on screen,
 // and it sends that estimate back. A mission's paid media step waits here (and under its deliverable) for Approve.
+import { mountBar } from "../next-actions-ui.js";
 const { S, api, apiBlobUrl, toast, esc, money, pname, pcolor, go } = window.CC;
 
 let providers = [];
@@ -62,9 +63,10 @@ async function renderTab(view, prefill) {
   let jobs = []; try { jobs = await api("/media/jobs"); } catch {}
   const waiting = jobs.filter((j) => j.status === "awaiting_ok");
   view.innerHTML = `<div class="grid" style="grid-template-columns: minmax(0,1fr) 380px">${form(prefill || {})}
-    <div class="panel" id="md-jobs"><h3>Jobs <span class="right">${waiting.length ? `${waiting.length} waiting for your OK · ` : ""}${jobs.length}</span></h3>${[...waiting, ...jobs.filter((j) => j.status !== "awaiting_ok")].slice(0, 30).map(jobRow).join("") || `<div class="dim small">No jobs yet. Try a dry run: it costs nothing.</div>`}</div></div>`;
+    <div class="panel" id="md-jobs"><h3>Jobs <span class="right">${waiting.length ? `${waiting.length} waiting for your OK · ` : ""}${jobs.length}</span></h3><div id="md-na"></div><div id="md-va"></div>${[...waiting, ...jobs.filter((j) => j.status !== "awaiting_ok")].slice(0, 30).map(jobRow).join("") || `<div class="dim small">No jobs yet. Try a dry run: it costs nothing.</div>`}</div></div>`;
   wireForm(view, () => renderTab(view));
   wireJobs(view, () => renderTab(view));
+  mediaNextActions(view, jobs);
 }
 
 CC.register({
@@ -87,6 +89,29 @@ async function renderDeliverable(el, run) {
     el.innerHTML = `${jobs.length ? `<div class="panel" style="margin-top:8px"><h3>Media from this mission <span class="right">estimate first · a paid file waits for your OK</span></h3>${jobs.map(jobRow).join("")}</div>` : ""}<div class="row small" style="margin-top:8px"><button class="btn sm" id="md-from">Make media from this</button><span class="dim">opens Media with the prompt pre-filled</span></div>`;
     wireJobs(el, () => renderDeliverable(el, run));
     el.querySelector("#md-from").addEventListener("click", () => { CC._mediaPrefill = { kind: "video", prompt: text }; go("media"); setTimeout(() => { CC._mediaPrefill = null; }, 1000); });
+}
+// Next actions (flag): under the newest finished job. Variations are three prompt tries to pick from; none runs by itself.
+function mediaNextActions(view, jobs) {
+  const job = jobs.find((j) => j.status === "done" && (j.params?.prompt || j.params?.text));
+  const box = view.querySelector("#md-na");
+  if (!job || !box) return;
+  const text = job.params.prompt || job.params.text;
+  mountBar(box, {
+    kind: "media", text, ref: job.id, name: `${job.kind}: ${String(text).slice(0, 50)}`,
+    onVariations: async (t) => {
+      try {
+        const r = await api("/nextactions/variations", { method: "POST", body: { text: t } });
+        const va = view.querySelector("#md-va");
+        va.innerHTML = `<div class="small dim" style="margin-top:8px">Pick one to put in the prompt box. Nothing runs until you press Estimate and Generate.</div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">${r.prompts.map((p, i) => `<button type="button" class="btn sm" data-va="${i}" style="overflow-wrap:anywhere;white-space:normal;text-align:left;max-width:100%">Try ${i + 1}</button>`).join("")}</div>`;
+        va.querySelectorAll("[data-va]").forEach((b) => b.addEventListener("click", () => {
+          const ta = view.querySelector("#md-prompt");
+          ta.value = r.prompts[Number(b.dataset.va)];
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          ta.focus();
+        }));
+      } catch (e) { toast(e.message, true); }
+    },
+  });
 }
 let evTimer = null;
 function onEvent(ev) {
