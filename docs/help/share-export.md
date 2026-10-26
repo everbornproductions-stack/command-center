@@ -1,7 +1,7 @@
 ---
 id: share-export
 title: Share, export, industry packs, and reading
-summary: Make text bigger, public share links, PDF and Word export, industry packs, text size, high contrast, read aloud, and imported chats.
+summary: Public share links, PDF and Word export, industry packs, text size, high contrast, read aloud, and imported chats.
 lastUpdatedVersion: 0.4.9
 ---
 

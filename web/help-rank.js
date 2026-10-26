@@ -278,7 +278,9 @@ export function doThisNextForState(state = {}) {
 }
 
 export const SCREEN_JUMP_TARGETS = [
-  { view: "command", label: "Chat", keywords: ["chat", "command", "ask", "orders", "council", "mission", "research"], summary: "Ask questions, run councils, or launch missions." },
+  { view: "command", label: "Chat", keywords: ["chat", "command", "ask", "orders", "council", "mission", "research", "stop", "cancel"], summary: "Ask questions, run councils, or launch missions." },
+  { view: "mindmedia", label: "MindMedia (where your results are saved)", keywords: ["mindmedia", "results", "result", "saved", "files", "file", "finished", "hub", "find", "downloads", "trash"], summary: "Find everything you made and kept." },
+  { view: "settings", label: "Settings > Text size", focus: "#a11y-panel", keywords: ["text", "size", "bigger", "larger", "font", "contrast", "reading", "read"], summary: "Make the text bigger or turn on high contrast." },
   { view: "projects", label: "Projects", keywords: ["project", "links", "workspace", "folder", "memory"], summary: "Manage projects, links, and per-project Simple/Expert mode." },
   { view: "settings", label: "Settings > My AIs", focus: "#settings-group-my-ais", keywords: ["key", "api", "openrouter", "claude", "gemini", "gpt", "grok", "provider", "ai"], summary: "Add or test API keys and local AIs." },
   { view: "settings", label: "Settings > Programs on this PC", focus: "#app-discovery", keywords: ["program", "app", "desktop", "installed", "toggle", "select all", "allow"], summary: "Allow installed programs on this PC." },
