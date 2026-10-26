@@ -73,7 +73,11 @@ test("weekly report: run now lists what shipped; draft and export; nothing sent"
 
 test("reports code: no automatic sending, draft / export / copy buttons, no em-dashes", () => {
   const srv = fs.readFileSync(path.join(ROOT, "server/plugins/reports.js"), "utf8");
-  assert.doesNotMatch(srv, /fetch\(|resend|getSecret/i, "the report plugin never sends anything");
+  assert.doesNotMatch(srv, /fetch\(|api\.resend|getSecret/i, "the report plugin makes no network call of its own");
+  // 0.4.21: sending exists, but only behind the Send click (POST /send); the Monday run and Run now never send
+  assert.equal((srv.match(/sendOwnMail\(/g) || []).length, 1, "one send call");
+  assert.ok(srv.indexOf("sendOwnMail(") > srv.indexOf('p === "/send"'), "the send call sits in the click route");
+  assert.ok(srv.indexOf("sendOwnMail(") < srv.indexOf('p === "/draft"'));
   const ui = fs.readFileSync(path.join(ROOT, "web/features/reports.js"), "utf8");
   for (const id of ["rp-draft", "rp-export", "rp-copy", "rp-run"]) assert.ok(ui.includes(`id="${id}"`), id);
   assert.doesNotMatch(ui, /emailOn/);

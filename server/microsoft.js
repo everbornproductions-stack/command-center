@@ -139,3 +139,29 @@ export async function disconnect() {
   emit("log", { text: "Microsoft disconnected. Its tokens were removed from the vault." });
   return view();
 }
+
+// Send one plain-text email from the signed-in Outlook (Graph sendMail). Only called after a click, or by an alert
+// the person turned on. A hard compliance block never goes out.
+export const canSend = () => connected() && granted().includes("send");
+export async function outlookSend({ to, subject, body } = {}, fetchImpl = fetch) {
+  if (!canSend()) throw fail(400, "Outlook cannot send yet. Sign in with Microsoft in Settings and allow send email.", { code: "not_connected" });
+  const list = String(to || "").split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+  if (!list.length || list.length > 10 || !list.every((x) => /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(x))) throw fail(400, "The email needs one to ten plain addresses in To.");
+  const subj = String(subject || "").trim();
+  if (/[\r\n]/.test(subj) || subj.length > 300) throw fail(400, "The subject must be one line.");
+  const text = String(body || "");
+  if (!text.trim() || text.length > 20000) throw fail(400, "The email needs a body (up to 20,000 characters).");
+  const { assertOutgoingOk } = await import("./compliance-guard.js");
+  assertOutgoingOk({ text: `${subj}\n${text}`, channel: "email" });
+  const token = await accessToken();
+  const r = await fetchImpl(`${env("CC_MS_GRAPH_URL", "https://graph.microsoft.com")}/v1.0/me/sendMail`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ message: { subject: subj, body: { contentType: "Text", content: text }, toRecipients: list.map((a) => ({ emailAddress: { address: a } })) }, saveToSentItems: true }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) throw fail(502, `Outlook said no (${r.status}).`);
+  const { recordSend } = await import("./send-log.js");
+  recordSend({ channel: "email", kind: "outlook", to: list.join(", "), title: subj, text });
+  return { to: list, subject: subj };
+}

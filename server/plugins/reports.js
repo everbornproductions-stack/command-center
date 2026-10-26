@@ -2,6 +2,7 @@
 // and keep/downgrade/cancel suggestions. Generated in-app every Monday from 07:00 local (or the next
 // time the app runs after that), or on demand. Nothing is sent automatically: the person gets an
 // email draft (opens their own mail app) and a Markdown export, and sends it themselves if they want.
+import { send as sendOwnMail, mailView } from "../report-mail-live.js";
 import { allEntries } from "../ledger.js";
 import { PROVIDERS } from "../registry.js";
 import { scheduler } from "../perf/scheduler.js";
@@ -99,7 +100,7 @@ function hasJob(h) {
   } catch { return false; }
 }
 
-// In-app only: the report is stored and announced in the live feed. No email, no push, no network.
+// In-app only: the report is stored and announced in the live feed. Nothing is sent until the person clicks Send.
 function store(h, rep, reason) {
   if (!shouldAnnounceReport(reason, hasJob(h))) return;
   h.putDoc(LATEST, rep);
@@ -125,11 +126,26 @@ export function draftOf(rep, to = "") {
   return { to, subject, body, mailto: `mailto:${encodeURIComponent(to)}?subject=${enc(subject)}&body=${enc(short)}` };
 }
 
+// The sender (Resend From, Gmail or Outlook) is chosen once, with the alerts, and shared here.
+const senderPrefs = (h) => ({ from: "", via: "auto", ...h.doc("alerts.prefs", () => ({})) });
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/reports/, "");
-  if (req.method === "GET" && p === "/latest") return h.json(res, 200, { latest: h.doc(LATEST, () => null), history: h.doc(HIST, () => ({ items: [] })).items, prefs: prefsOf(h), nextRun: lastMonday7() + 7 * 86400000 });
+  if (req.method === "GET" && p === "/latest") return h.json(res, 200, { latest: h.doc(LATEST, () => null), history: h.doc(HIST, () => ({ items: [] })).items, prefs: prefsOf(h), mail: mailView(senderPrefs(h)), nextRun: lastMonday7() + 7 * 86400000 });
   if (req.method === "POST" && p === "/run-now") { const rep = buildReport(h); store(h, rep, "run now"); return h.json(res, 200, rep); }
   if (req.method === "POST" && p === "/prefs") { const prefs = { email: body.email !== undefined ? String(body.email).trim().slice(0, 200) : prefsOf(h).email }; h.putDoc(PREFS, prefs); return h.json(res, 200, prefs); }
+  if (req.method === "POST" && p === "/send") {
+    // Only on a click. Sends the latest report from the person's own sender to their own address.
+    const rep = h.doc(LATEST, () => null);
+    if (!rep) return h.json(res, 404, { error: "no report yet: click Run now" });
+    const to = String(body.to || prefsOf(h).email || "").trim();
+    const d = draftOf(rep, to);
+    try {
+      const r = await sendOwnMail({ to, subject: d.subject, text: d.body }, senderPrefs(h));
+      h.emit("log", { text: `Weekly report emailed to ${to} (${r.via}).` });
+      return h.json(res, 200, { ...r, to });
+    } catch (e) { return h.json(res, e.status || 500, { error: e.message, code: e.code || null }); }
+  }
   if (req.method === "GET" && (p === "/draft" || p === "/export")) {
     const rep = h.doc(LATEST, () => null);
     if (!rep) return h.json(res, 404, { error: "no report yet: click Run now" });
