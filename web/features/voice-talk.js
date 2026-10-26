@@ -26,6 +26,7 @@ const css = `
 #vt-bar .vt-line { flex: 1 0 100%; color: var(--amber, #fbbf24); }
 #vt-bar .vt-line[hidden], #vt-bar [hidden] { display: none !important; }
 #vt-bar label { display: inline-flex; gap: 4px; align-items: center; }
+@media (max-width: 760px) { #vt-bar.vt-float { bottom: 70px; left: 8px; right: 8px; } }
 #vt-help { position: fixed; right: 16px; bottom: 64px; z-index: 70; width: min(420px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; background: var(--card-bg, #0b111b); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
 #vt-help h3 { margin: 0 0 6px; font-size: .95rem; }
 #vt-help ul { margin: 0; padding-left: 18px; }
@@ -540,8 +541,8 @@ function closeHelp() { document.getElementById("vt-help")?.remove(); }
 
 // ---------------------------------------------------------------- the bar
 function stateName() {
+  if (controller?.pending) return "waiting"; // a typed or spoken question can wait even with Talk off
   if (!talkOn) return "off";
-  if (controller?.pending) return "waiting";
   if (speaking || instantState === "speaking") return "speaking";
   if (transcribing || instantState === "thinking" || ["heard", "doing"].includes(controller?.strip.phase)) return "thinking";
   if (micState === "listening" || instantState === "listening") return "listening";
@@ -658,6 +659,7 @@ window.CC.voice = {
   get settings() { return cfg; },
   get status() { return status; },
   get state() { return stateName(); },
+  get ptt() { return pttHeld; },
   get hotkey() { return cfg.hotkey; },
   setSettings: (p) => setCfg(p),
   talk: () => toggleTalk(),
