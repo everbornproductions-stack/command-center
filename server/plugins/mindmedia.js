@@ -3,12 +3,14 @@
 //   POST /api/mindmedia/save        { kind, text|files, projectId, source, status, provenance, name, tags }
 //   POST /api/mindmedia/meta        { projectId, assetId, name?, tags?, status?, prompt? }
 //   POST /api/mindmedia/move        { projectId, assetId, targetProjectId }
+//   POST /api/mindmedia/export      { text, title, format: pdf|docx } -> { name, mime, data (base64) }
 //   POST /api/mindmedia/ending      { projectId, assetId, action: keep|discard }
 //   POST /api/mindmedia/delete      { items: [{ projectId, assetId }] }
 //   GET  /api/mindmedia/item?projectId=&assetId=     one item with its text (text items)
 // Files are served by GET /api/projectmedia/file. Nothing here posts anywhere; publishing stays in /api/publish.
 import path from "node:path";
 import { DATA_DIR } from "../paths.js";
+import { exportReport } from "../research.js";
 import { listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, STATUSES } from "../project-media.js";
 
 export const id = "mindmedia";
@@ -54,6 +56,15 @@ export async function routes(req, res, url, body, h) {
       const out = moveToProject(body?.projectId, body?.assetId, body?.targetProjectId);
       h.emit?.("projectmedia.update", { projectId: out.projectId, action: "move" });
       return h.json(res, 200, out);
+    }
+    if (m === "POST" && sub === "export") {
+      const text = String(body?.text || "").slice(0, 200000);
+      if (!text.trim()) return h.json(res, 400, { error: "There is nothing to save yet." });
+      const format = body?.format === "docx" ? "docx" : "pdf";
+      const title = String(body?.title || "Meldmind").slice(0, 120);
+      const file = exportReport({ title, deliverable: text, sources: [] }, format);
+      const safe = title.replace(/[^a-z0-9 _-]/gi, "").trim().replace(/\s+/g, "-").slice(0, 60) || "meldmind";
+      return h.json(res, 200, { name: `${safe}.${file.ext}`, mime: file.type, data: Buffer.from(file.bytes).toString("base64") });
     }
     if (m === "POST" && sub === "ending") {
       return h.json(res, 200, endingAction(body?.projectId, body?.assetId, String(body?.action || "")));

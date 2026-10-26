@@ -208,7 +208,7 @@ function renderCardHtml(item, p) {
   const sendMenuHtml = sendOpen
     ? `<div class="pm-send-sheet" role="menu" aria-label="Send to menu">
         <button type="button" class="btn sm" data-pm-send="remix" data-pm-asset="${esc(item.id)}">Send to Remix</button>
-        <button type="button" class="btn sm" data-pm-send="finish" data-pm-asset="${esc(item.id)}">Send to Finish</button>
+        <button type="button" class="btn sm" data-pm-send="finish" data-pm-asset="${esc(item.id)}">Finish</button>
         <button type="button" class="btn sm" data-pm-send="copy-prompt" data-pm-asset="${esc(item.id)}">Copy prompt</button>
         ${
           otherProjects.length
@@ -382,7 +382,7 @@ async function renderProjectMediaPanel(box, p) {
             <button type="button" class="btn sm" data-pm-bulk="collection">Add to collection...</button>
             <button type="button" class="btn sm" data-pm-bulk="stack">Group as version stack</button>
             <button type="button" class="btn sm" data-pm-bulk="remix">Send to Remix</button>
-            <button type="button" class="btn sm" data-pm-bulk="finish">Send to Finish</button>
+            <button type="button" class="btn sm" data-pm-bulk="finish">Finish</button>
             ${
               otherProjects.length
                 ? `<select id="pm-bulk-proj" aria-label="Bulk target project" style="width:auto;padding:3px 6px;font-size:12px">

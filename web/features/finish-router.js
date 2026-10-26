@@ -74,7 +74,7 @@ export function mountFinishRouter(view) {
     if (!r) return;
     const chip = r.decision === "confirm" && !r.confirmed
       ? `<div class="fr-row"><span class="chip amber">${esc(wordsFor(r))}: ${esc(r.label)}</span><span>Is this right?</span><button type="button" class="btn sm primary" data-yes>Yes</button></div>`
-      : `<div class="fr-row"><span class="chip ${r.decision === "general" ? "" : "green"}">${esc(r.decision === "general" ? "General" : r.label)}</span><span class="dim">${r.decision === "general" ? "Not sure, so it opens in the General workspace." : "Opens in the " + esc(r.editor || r.label) + " editor."}</span></div>`;
+      : `<div class="fr-row"><span class="chip ${r.decision === "general" ? "" : "green"}">${esc(r.decision === "general" ? "General" : r.label)}</span><span class="dim">${r.decision === "general" ? "Not sure, so it is treated as general work." : "Best fit: " + esc(r.editor || r.label) + "."}</span></div>`;
     out.innerHTML = `${chip}
       <div class="fr-row"><label for="fr-pick">Change it</label><select id="fr-pick">${cats.map((c) => `<option value="${esc(c.id)}" ${c.id === r.category ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select></div>
       <details class="fr-why"><summary>Why this editor?</summary>

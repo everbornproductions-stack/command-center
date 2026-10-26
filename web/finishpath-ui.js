@@ -37,10 +37,11 @@ function projectName() {
   return (S.projects || []).find((p) => p.id === S.project)?.name || "";
 }
 
-// One confirm. Opens Publish with the result. Remembers it the same way Send to Finish does.
+// One confirm. Opens the Finish drawer with the result. Remembers it the same way Send to Finish does.
 export function confirmFinish(result) {
   const cc = CC();
   cc._finishText = { kind: result.kind, text: result.text };
+  if (cc.openFinishDrawer) { cc.openFinishDrawer({ kind: result.kind, text: result.text, name: result.name, source: "Finish" }); return; }
   cc.toast("Finish is ready. Pick where it goes, then press the button there.");
   cc.go("publish");
 }
