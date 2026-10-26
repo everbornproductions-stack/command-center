@@ -12,8 +12,9 @@ const css = `
 #cc-rail[data-side="right"] { right: 14px; }
 #cc-rail[data-side="left"] { left: 14px; }
 #cc-rail[data-min="1"] { width: auto; max-height: none; }
-#cc-rail .rail-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; }
-#cc-rail .rail-title { flex: 1; font-weight: 650; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
+#cc-rail .rail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
+#cc-rail .rail-head .btn { white-space: nowrap; padding: 4px 8px; }
+#cc-rail .rail-title { flex: 1 1 100%; white-space: nowrap; font-weight: 650; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
 #cc-rail .rail-body { overflow: auto; padding: 0 12px 10px; }
 #cc-rail .rail-body a { display: block; padding: 6px 0; border-top: 1px solid var(--line, #1f2b3d); color: var(--accent, #22d3ee); text-decoration: none; }
 #cc-rail .rail-body a:hover { text-decoration: underline; }
@@ -87,3 +88,5 @@ window.CC.register({
   settings: { order: 47, render: renderSettings },
   onState() { if (!document.getElementById("cc-rail") && !state.hidden && !load.started) { load.started = true; load(); } },
 });
+// Shell modules load after the first state arrives, so start here too.
+if (!state.hidden && !load.started) { load.started = true; load(); }
