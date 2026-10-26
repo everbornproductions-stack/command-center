@@ -895,6 +895,22 @@ async function api(req, res, url) {
     });
     return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
   }
+  // 0.4.21 Melius ideas: older versions of a result, and the cost line before a run
+  if (p === "/versions" && (method === "GET" || method === "POST")) {
+    try {
+      const v = await import("./versions.js");
+      if (method === "GET") return json(res, 200, (() => { const q = new URL(req.url, "http://x").searchParams; return v.listVersions(q.get("key"), q.get("run")); })());
+      return json(res, 200, v.addVersion(body));
+    } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
+  if (method === "POST" && p === "/versions/change-prompt") {
+    try { const v = await import("./versions.js"); return json(res, 200, { prompt: v.changePartPrompt(body) }); }
+    catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
+  if (method === "POST" && p === "/precost") {
+    try { const m = await import("./precost.js"); return json(res, 200, m.preRunLine({ prompt: String(body.prompt || ""), mode: body.mode })); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
   if (method === "POST" && p === "/send-check") {
     try { return json(res, 200, sendCheck({ prompt: String(body.prompt || ""), explicit: body.explicit === true, priority: body.mode })); }
     catch (e) { return json(res, e.status || 500, { error: e.message }); }
