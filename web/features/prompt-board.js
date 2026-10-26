@@ -250,7 +250,9 @@ export function mountPromptBoard(view, model, actions = {}) {
   const draw = () => {
     const mode = pageExperience();
     const controls = boardControls(mode);
-    if (tools) tools.hidden = !controls.sort;
+    // 0.4.20: .row sets display:flex, which beats the hidden attribute, so Sort and Filter
+    // showed in Simple mode and did nothing. Hide with display as well.
+    if (tools) { tools.hidden = !controls.sort; tools.style.display = controls.sort ? "" : "none"; }
     const query = search.value || "";
     const groups = buildBoard({
       templates: model.templates || [],

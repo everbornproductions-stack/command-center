@@ -3,6 +3,7 @@ import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
+import { failureHtml, wireLimitButtons } from "./failure-cause.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
@@ -541,7 +542,7 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "" };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
@@ -1388,7 +1389,7 @@ function renderSimpleChat(v) {
     catch (e) { toast(e.message, true); }
   });
   // AI employees: the best helper for what was typed, one click to use it for this chat
-  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
+  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
@@ -1751,8 +1752,9 @@ function paintFailure() {
   const slot = $("#cc-fail-slot");
   if (!slot) return;
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = `<div class="route" id="cc-fail" style="margin-top:10px"><b>${esc(FAILURE.title)}</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" type="button" id="cc-fail-retry">${esc(FAILURE.retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(FAILURE.other)}</button></div></div>`;
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
+  wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
   $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
 }
 function outputFollowHtml() {
@@ -1972,6 +1974,8 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
+      // "Continue free" after a spending limit: this one answer goes to a free AI
+      if (S.forceFree?.provider) { packBody.provider = S.forceFree.provider; packBody.model = S.forceFree.model; S.forceFree = null; }
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
@@ -2256,7 +2260,7 @@ function renderCredits(v) {
       <div class="panel"><h3>Discount windows <span class="right">time-of-day pricing</span></h3>
         ${(S.rules || []).map((r) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="gap:6px"><input type="checkbox" data-rule="${r.id}" ${r.enabled ? "checked" : ""}></label><span class="dot" style="background:${r.color || "#4b5563"}"></span><span><b>${esc(r.providerName)}</b> · ${esc(r.name)} · ${r.pct}% off</span><span style="margin-left:auto" class="${r.activeNow ? "chip green" : "chip"}">${r.activeNow ? "active now" : r.nextStart ? "next " + new Date(r.nextStart).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) : r.enabled ? "no window in 48h" : "off"}</span></div><div class="dim small" style="margin-left:26px">${esc(r.note || "")}</div>`).join("") || `<div class="dim small">No rules.</div>`}
         <div class="dim small" style="margin-top:6px">Rules live in data/pricing-rules.json (provider, % off, peak hours, time zone). Pick "Off-peak" under When in Command to queue a mission for the next window.${(S.scheduled || []).length ? ` <b>${S.scheduled.length} mission${S.scheduled.length === 1 ? "" : "s"} queued.</b>` : ""}</div></div>
-      <div class="panel"><h3>Recent calls <span class="right">✓ = exact billed amount</span></h3><table class="tbl"><tbody>${L.recent.filter((e) => e.kind === "call").slice(0, 12).map((e) => `<tr><td class="dim mono small">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td><span class="dot" style="background:${pcolor(e.provider)}"></span> ${esc(e.model)}</td><td class="dim small">${e.role || ""}</td><td class="right mono dim">${fmtN(e.inTok)}/${fmtN(e.outTok)}</td><td class="right mono">${money(e.cost, 4)}${e.exact ? " ✓" : e.estimated ? "~" : ""}</td></tr>`).join("") || `<tr><td class="dim">No calls yet.</td></tr>`}</tbody></table></div>
+      <div class="panel"><h3>Every call <span class="right">✓ = exact billed amount</span></h3><div class="dim small" style="margin-bottom:6px">Each time an AI was asked: when, which AI, its job in the run, which run, and what it cost. Practice AIs always show $0.</div><table class="tbl" id="cc-call-table"><thead><tr><th>When</th><th>AI</th><th>Job</th><th>Run</th><th class="right">Tokens in / out</th><th class="right">Cost</th></tr></thead><tbody>${L.recent.filter((e) => e.kind === "call").slice(0, 40).map((e) => `<tr><td class="dim mono small">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td><span class="dot" style="background:${pcolor(e.provider)}"></span> ${esc(e.model)}${e.demo ? " (practice)" : ""}</td><td class="dim small">${e.role || ""}</td><td class="dim mono small">${e.missionId ? esc(String(e.missionId).slice(-6)) : ""}</td><td class="right mono dim">${fmtN(e.inTok)}/${fmtN(e.outTok)}</td><td class="right mono">${money(e.demo ? 0 : e.cost, 4)}${e.exact ? " ✓" : e.estimated ? "~" : ""}</td></tr>`).join("") || `<tr><td class="dim">No calls yet.</td></tr>`}</tbody></table></div>
     </div>
   </div>`;
   renderExtras("credits", "#credits-extras");

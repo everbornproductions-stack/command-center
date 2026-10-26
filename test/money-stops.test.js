@@ -35,7 +35,7 @@ test("a used-up monthly budget stops a paid call even with no estimate, and neve
 test("a mission stops when its own limit is reached, and Build it all halts the project on Stop", () => {
   const m = read("server", "mission.js");
   assert.match(m, /const runLimit = \(\) =>/);
-  assert.match(m, /while \(done\.size < mission\.tasks\.length\) \{\s*runLimit\(\);/);
+  assert.match(m, /while \(done\.size < mission\.tasks\.length\) \{[\s\S]{0,300}limitReached = true; break;[^\n]*\n\s*runLimit\(\);/);
   assert.match(m, /else if \(limitNote\(\)\)/);
   const b = read("server", "plugins", "buildall.js");
   assert.equal((b.match(/if \(stopped\(\)\) await halt\(\);/g) || []).length, 2, "plan and build both halt");

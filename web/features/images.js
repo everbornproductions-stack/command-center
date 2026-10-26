@@ -43,7 +43,13 @@ function formHtml(pre = {}) {
 function wireForm(root, after) {
   const $ = (s) => root.querySelector(s);
   let op = $("#im-op button.on")?.dataset.op || "generate";
-  const stale = () => { st.est = null; $("#im-go").disabled = true; $("#im-est-out").textContent = ""; };
+  const stale = () => {
+    st.est = null; $("#im-go").disabled = true; $("#im-go").title = "Press Estimate first";
+    $("#im-est-out").textContent = "Press Estimate first. Generate wakes up when the price is on screen.";
+    // 0.4.20: the price is worked out for you a moment after you stop changing choices
+    clearTimeout(st.autoEst);
+    st.autoEst = setTimeout(() => { if (root.isConnected && !st.est) $("#im-est")?.click(); }, 600);
+  };
   const showSrc = () => {
     $("#im-src-row").style.display = op === "generate" ? "none" : "";
     $("#im-src").textContent = st.source ? (st.source.imageId ? `gallery image ${st.source.label || st.source.imageId}` : `upload: ${st.source.name}`) : "none yet: click Edit or Variation on a gallery image, or upload one";
@@ -76,6 +82,7 @@ function wireForm(root, after) {
       const warn = !can ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
       $("#im-est-out").innerHTML = `about <b>${money(e.usd, 3)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
       $("#im-go").disabled = !(e.ready != null ? e.ready : e.keyed) || e.capped || e.wouldExceed;
+      $("#im-go").title = $("#im-go").disabled ? (!can ? (e.keyMessage || "Add a key first") : "Over the spend cap") : "";
     } catch (er) { toast(er.message, true); }
   });
   $("#im-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
@@ -117,7 +124,7 @@ async function renderTab(view) {
   await Promise.all([loadProviders(), loadGallery()]);
   // CC._imagePrefill: "Make an image: ..." from the chat box suggestions (0.4.17). Price still shows first.
   const pre = st.prefill || window.CC._imagePrefill || {}; st.prefill = null; window.CC._imagePrefill = null;
-  view.innerHTML = `${formHtml(pre)}<div class="panel" style="margin-top:12px"><h3>Gallery <span class="right">${st.items.length} batch${st.items.length === 1 ? "" : "es"} · also listed on the Media tab</span></h3><div id="im-gal">${galleryHtml()}</div></div>`;
+  view.innerHTML = `${formHtml(pre)}<div class="panel" style="margin-top:12px"><h3>Gallery <span class="right">${st.items.length ? `${st.items.length} batch${st.items.length === 1 ? "" : "es"}` : "No images yet"} · also listed on the Media tab</span></h3><div id="im-gal">${galleryHtml()}</div></div>`;
   const form = wireForm(view, () => renderGallery(view));
   if (pre.op) form.setOp(pre.op);
   wireGallery(view, form);

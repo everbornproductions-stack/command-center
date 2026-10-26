@@ -28,6 +28,8 @@ Free art is CC0 only, from Kenney or OpenGameArt. Anything else is rejected. Eve
 
 A voice uses Piper or Coqui, and only after you approve it. Piper runs as its own program. It is not part of Meldmind.
 
+When the AIs finish, what they made is written into the project folder next to the starter page, with a package.json, a Playwright config, a README, a LICENSE, a .gitignore and a characters file. Test runs a real check on those files (the page opens, every file it uses is there, the scripts read) as well as the page check, and saves the result as TESTRUN.json. The last step says where it was saved, with Open folder and Download zip. Paid choices are named in the preview, before you press Build. Long license names such as "Apache License 2.0" are accepted. If the no-copy guard stops your words, it tells you which words.
+
 Test writes a page check and a short report. The extra checkers are not included and are not started from here.
 
 Publish can stay on this computer, go to a website, go to itch.io, or make a phone build. The phone build is on Extreme. Your token is stored with your keys. Nothing is posted until you press Publish.

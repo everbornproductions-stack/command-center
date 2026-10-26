@@ -12,13 +12,13 @@ export function employeeHintHtml({ chosen = null, suggestion = null, esc }) {
 }
 
 // Debounced suggestions while the person types. state holds { employee } (the chosen one).
-export function wireEmployeeHint({ box, input, state, api, esc, delay = 450 }) {
+export function wireEmployeeHint({ box, input, state, api, esc, delay = 450, onPick = null }) {
   if (!box || !input) return () => {};
   let timer = null, seq = 0, last = null;
   const paint = () => {
     box.innerHTML = employeeHintHtml({ chosen: state.employee || null, suggestion: state.employee ? null : last, esc });
     box.querySelector("[data-emp-stop]")?.addEventListener("click", () => { state.employee = null; paint(); });
-    box.querySelector("[data-emp-pick]")?.addEventListener("click", () => { if (last) state.employee = { id: last.id, name: last.name }; paint(); });
+    box.querySelector("[data-emp-pick]")?.addEventListener("click", () => { if (last) state.employee = { id: last.id, name: last.name }; paint(); if (last && onPick) onPick(state.employee); });
   };
   const look = async () => {
     const text = input.value.trim();
