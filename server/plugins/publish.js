@@ -28,6 +28,8 @@ import * as drive from "../publish/drive.js";
 import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
 import { holdOutbound } from "../phone-approvals.js";
+import { flagOn } from "../flags.js";
+import { checkCalendarApproval, recordCalendarResult } from "../publish/plus.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -141,6 +143,9 @@ export async function routes(req, res, url, body, h) {
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
+    // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.
+    const calId = flagOn("publish") && body.calendarId ? String(body.calendarId) : null;
+    if (calId) { const g = checkCalendarApproval(h, calId, pv.payload); if (!g.ok) return h.json(res, g.status, { error: g.error, code: g.code }); }
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
     const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
@@ -156,6 +161,7 @@ export async function routes(req, res, url, body, h) {
     } catch (e) { entry.status = "failed"; entry.error = e.message; }
     const d = h.doc(HIST, () => ({ items: [] })); d.items.unshift(entry); d.items = d.items.slice(0, 500); h.putDoc(HIST, d);
     logPost(h, entry);
+    if (calId) { try { recordCalendarResult(h, calId, entry); } catch (e) { console.error("[publish] calendar", e.message); } }
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));

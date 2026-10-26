@@ -7,6 +7,7 @@ const DEFAULTS = {
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
   photoeditor: false, // Photo editor: non-destructive sliders, before/after, versions in the project, enhancement prompts
+  publish: false, // Publish plus: caption variations, content calendar with approval, website publish with preview and rollback
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
   finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
   momentum: false, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
