@@ -137,6 +137,7 @@ function channelList(h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
   const seg = p.split("/").filter(Boolean);
+  if (req.method === "GET" && p === "/connect-doctor") return h.json(res, 200, { checks: OA.doctor() });
   if (req.method === "GET" && p === "/send-log") return h.json(res, 200, { items: sendLog(Number(url.searchParams.get("limit")) || 100) });
   if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h).map((c) => ({ ...c, accepts: ACCEPTS[c.id] || [] })));
   if (req.method === "POST" && p === "/preview") {

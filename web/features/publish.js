@@ -71,6 +71,7 @@ async function renderSettings(el) {
   const dr = chans.find((c) => c.id === "drive");
   el.innerHTML = `<div class="panel"><h3>Publishing <span class="right">every post needs a preview and a click</span></h3>
     <div class="hint">Connect each service with ${esc(plainLabel("oauth"))}. ${esc(plainExplain("oauth"))} The token stays in the vault on this computer and is never shown again. Connecting posts nothing.</div>
+    <div class="row small" style="margin:6px 0"><button class="btn sm" id="pb-doctor">Check my connections</button><span id="pb-doctor-out" role="status" aria-live="polite"></span></div>
     ${cons.map(connectorRow).join("")}
     <details style="margin-top:8px"><summary class="small" style="cursor:pointer">Paste a token instead</summary>
     <div class="row" style="margin-top:6px"><span style="width:110px">Instagram</span><input type="password" id="pb-ig-tok" placeholder="Page access token (long-lived)" style="flex:1"><input type="text" id="pb-ig-id" placeholder="IG user id" style="width:160px"><button class="btn sm" id="pb-ig-save">Save</button></div>
@@ -84,6 +85,13 @@ async function renderSettings(el) {
   el.querySelector("#pb-ghl-save").addEventListener("click", saved("HighLevel", () => api("/publish/keys", { method: "POST", body: { channel: "ghl", token: el.querySelector("#pb-ghl-tok").value.trim(), locationId: el.querySelector("#pb-ghl-loc").value } })));
   el.querySelector("#pb-sl-save").addEventListener("click", saved("Slack", () => api("/publish/keys", { method: "POST", body: { channel: "slack", token: el.querySelector("#pb-sl-tok").value.trim() } })));
   el.querySelector("#pb-drive-save").addEventListener("click", saved("Drive folder", () => api("/publish/prefs", { method: "POST", body: { driveFolder: el.querySelector("#pb-drive").value } })));
+  el.querySelector("#pb-doctor")?.addEventListener("click", async () => {
+    try {
+      const r = await api("/publish/connect-doctor");
+      const out = el.querySelector("#pb-doctor-out");
+      out.innerHTML = r.checks.length ? `<ul style="margin:6px 0;padding-left:18px">${r.checks.map((c) => `<li>${c.level === "ok" ? "OK. " : ""}${esc(c.problem)}${c.fix === "reconnect" ? " Press Connect again on that row." : c.fix === "connect" ? " Press Connect on the HighLevel contacts row." : ""}</li>`).join("")}</ul>` : " Nothing is connected yet.";
+    } catch (e) { toast(e.message, true); }
+  });
   el.querySelectorAll("[data-con]").forEach((row) => {
     const k = row.dataset.con, c = cons.find((x) => x.id === k);
     row.querySelector('[data-a="connect"]').addEventListener("click", async () => {
