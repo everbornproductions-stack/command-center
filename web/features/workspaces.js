@@ -107,12 +107,14 @@ function readCard(w) {
 }
 const card = (w) => (w.permissions["members.invite"] || w.permissions["projects.share"] ? manageCard(w) : readCard(w));
 
+const planName = (t) => ({ free: "Free", pro: "Pro", studio: "Pro", extreme: "Extreme", owner: "Owner" }[t] || String(t || "Free"));
+
 async function render(v) {
   v.innerHTML = `<div class="empty">Loading workspaces...</div>`;
   try { await load(); } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  const gateCard = !data.studio ? `<div class="panel" style="border-color:var(--violet)"><h3>Studio feature <span class="right">your tier: ${esc(data.tier)}</span></h3>
-      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Studio</b>; add a Studio licence in Settings. Workspaces others shared with you still show below.</div></div>` : "";
-  const localNote = !data.hosted ? `<div class="dim small" style="margin-bottom:12px">Desktop copy: workspaces you set up here are kept on this PC and work offline. Teammates join through the hosted hub (docs/hosted-hub.md).</div>` : "";
+  const gateCard = !data.studio ? `<div class="panel" style="border-color:var(--violet)"><h3>Teams are part of Pro and Extreme <span class="right">your plan: ${esc(planName(data.tier))}</span></h3>
+      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Pro</b> and <b>Extreme</b>. Choose a plan in Settings. Workspaces others shared with you still show below.</div></div>` : "";
+  const localNote = !data.hosted ? `<div class="dim small" style="margin-bottom:12px">Desktop copy: workspaces you set up here are kept on this PC and work offline. Teammates join with an invite code from you, or through a hosted hub if your team has one.</div>` : "";
   const roleKey = `<details class="small" style="margin-top:4px"><summary class="dim">What each role can do</summary>${Object.entries(ROLE_HELP).map(([r, t]) => `<div><b>${r}</b>: ${esc(t)}</div>`).join("")}</details>`;
   const active = all().find((w) => w.id === data.active);
   v.innerHTML = `<div style="max-width:1100px;margin:0 auto" class="grid">

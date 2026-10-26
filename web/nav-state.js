@@ -286,7 +286,8 @@ export function mergeProfileWithDraft(savedProfile = {}, draft = null) {
 }
 
 export function allAppsAllowed(rows) {
-  return Array.isArray(rows) && rows.length > 0 && rows.every((app) => !!app.allowed);
+  const list = Array.isArray(rows) ? rows.filter((app) => !app.sensitive) : [];
+  return list.length > 0 && list.every((app) => !!app.allowed);
 }
 
 export function toggleAllAppsLabel(rows) {

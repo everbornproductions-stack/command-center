@@ -30,7 +30,7 @@ function levelsHtml(view) {
         <input type="checkbox" id="pv-quality-signals" ${qualityOn ? "checked" : ""}>
         <span><b>Level 2: Helping Meldmind get smarter: anonymous results only, never your text</b></span>
       </label>
-      <div class="dim small" style="margin-top:4px">Counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id. No prompts, answers, file names, emails, keys, or identifying ids. Default on with this notice (off and ask in consent-first regions such as the EU and the UK).</div>
+      <div class="dim small" style="margin-top:4px">Counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id. No prompts, answers, file names, emails, keys, or identifying ids. Default on with this notice (off and ask in consent-first regions such as the EU and the UK). Your choice is saved, but this version does not send these counts anywhere yet. Nothing leaves this computer until a later update turns sending on, and the notice here will say so.</div>
     </div>
     <div class="route">
       <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">

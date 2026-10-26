@@ -134,6 +134,10 @@ export function addApp(raw = {}) {
   if (!name) throw bad("Type a name for the app.");
   if (/sk-|gsk_|xai-|AIza|Bearer /i.test(name)) throw bad("A name cannot carry a key.");
   const kind = ["website", "desktop", "mcp"].includes(raw.kind) ? raw.kind : "desktop";
+  if (kind === "website" && String(raw.origin || "").trim()) {
+    const why = blockedUrl(String(raw.origin).trim());
+    if (why) throw bad(why);
+  }
   let id = slug(name);
   if (state.apps.some((app) => app.id === id)) id = `${id}-${state.apps.length + 1}`.slice(0, 40);
   const profile = ["edge", "chrome", "owned"].includes(raw.profile) ? raw.profile : "owned";

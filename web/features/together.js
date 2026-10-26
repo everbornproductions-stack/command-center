@@ -21,6 +21,11 @@ async function drawSpaces(v) {
   catch (e) { v.innerHTML = `${bar("spaces")}<div class="empty">${esc(e.message)}</div>`; wireBar(v); return; }
   const seats = data.seats || {};
   const lock = seats.message ? `<div class="panel" role="status"><h3>Team spaces</h3><p>${esc(seats.message)}</p><p class="dim small">Teams on the other page stay there. This does not replace them.</p></div>` : "";
+  let pending = "";
+  try { pending = sessionStorage.getItem("cc.teamjoin") || ""; } catch {}
+  const joinCard = `<div class="panel" id="ts-join"><h3>Join a team space</h3>
+      <p class="dim small">${pending ? "You opened an invite link. Press Join to accept it." : "Someone sent you an invite code? Paste it here. Joining never sends anything."}</p>
+      <form class="row" data-join style="gap:6px"><input name="code" required maxlength="80" value="${esc(pending)}" placeholder="Invite code" aria-label="Invite code" style="flex:1"><button class="btn sm primary" type="submit">Join</button></form></div>`;
   const cards = (data.spaces || []).map((s) => `<div class="panel" data-space="${esc(s.id)}">
     <h3>${esc(s.name)} <span class="chip">${esc(s.role)}</span> <span class="right">${s.seats} in this space</span></h3>
     <div class="dim small" style="margin-bottom:8px">${(s.members || []).map((m) => `${esc(m.email)} (${esc(m.role)}, ${esc(m.status)})`).join(", ") || "No one else yet. You count as one seat."}</div>
@@ -31,7 +36,7 @@ async function drawSpaces(v) {
       <select aria-label="Role"><option value="member">member</option><option value="admin">admin</option><option value="viewer">viewer</option></select>
       <button class="btn sm" type="submit">Invite</button>
     </form>
-    <div class="dim small" style="margin-top:6px">No email is sent. You get a link to pass on yourself. An invite uses a seat.</div>
+    <div class="dim small" style="margin-top:6px">No email is sent. You get a message to pass on yourself. An invite uses a seat.</div>
     <div data-link></div>
     <div class="row" style="gap:6px;margin-top:8px">
       <select data-project aria-label="Project to share"><option value="">Share a project</option></select>
@@ -45,12 +50,23 @@ async function drawSpaces(v) {
       <p class="hint" data-whats-note="teamSpace" hidden>A shared place for people you invite. Nothing is emailed until you pass the link on yourself.</p>
       ${seats.open ? `<form id="ts-new" class="row" style="gap:6px"><input name="name" required maxlength="80" placeholder="Space name" aria-label="Team space name" style="flex:1"><button class="btn sm primary" type="submit">Create</button></form>` : ""}
     </div>
+    ${joinCard}
     ${lock}
     ${cards || (seats.open ? `<div class="empty">No team spaces yet.</div>` : "")}`;
   wireBar(v);
   v.querySelector("[data-whats='teamSpace']")?.addEventListener("click", () => {
     const note = v.querySelector("[data-whats-note='teamSpace']");
     if (note) note.hidden = !note.hidden;
+  });
+  v.querySelector("[data-join]")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = String(new FormData(e.target).get("code") || "").trim();
+    try {
+      const r = await api("/teamspaces/join", { method: "POST", body: { code } });
+      try { sessionStorage.removeItem("cc.teamjoin"); } catch {}
+      toast(`You joined as ${r.role}.`);
+      drawSpaces(v);
+    } catch (err) { toast(err.message, true); }
   });
   const proj = $("#ts-new", v);
   const options = (window.CC.S.projects || []).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
@@ -70,7 +86,13 @@ async function drawSpaces(v) {
       try {
         const r = await api(`/teamspaces/${id}/members`, { method: "POST", body: { email, role } });
         const box = card.querySelector("[data-link]");
-        box.innerHTML = `<div class="small" style="margin-top:8px">Link, shown once: <span class="mono">${esc(r.link)}</span></div>`;
+        box.innerHTML = `<div class="small" style="margin-top:8px">Send this to ${esc(email)}. It is shown once.</div>
+          <textarea readonly rows="7" class="mono" style="width:100%;margin-top:4px" data-invite-msg>${esc(r.message || r.link || r.code || "")}</textarea>
+          <button type="button" class="btn sm" data-copy-invite>Copy message</button>`;
+        box.querySelector("[data-copy-invite]")?.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(r.message || r.link || r.code || ""); toast("Copied. Paste it into a message to your teammate."); }
+          catch { box.querySelector("[data-invite-msg]")?.select(); toast("Select the text and copy it yourself.", true); }
+        });
         toast("Invite ready. Nothing was emailed.");
       } catch (err) { toast(err.message, true); }
     });

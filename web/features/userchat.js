@@ -22,6 +22,7 @@ async function renderTab(view) {
   view.innerHTML = `<div id="uc-root" class="grid" style="grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 14px">
     <div class="panel"><h3>People</h3>
       <div class="row small muted" style="gap:8px;flex-wrap:wrap;align-items:center"><span>${esc(hubLine(d))}</span>${d.hub?.configured ? "" : `<button type="button" class="btn sm" id="uc-setup-hub">Set up hub</button>`}</div>
+      <form id="uc-hub-form" hidden class="small" style="margin-top:6px"><div class="dim">A hub lets you chat with people on other computers. Paste the web address whoever runs your hub gave you. You can leave this empty and keep chatting on this computer only.</div><div class="row" style="gap:6px;margin-top:4px"><input name="hub" type="text" aria-label="Hub address" placeholder="https://your-hub.example.com" style="flex:1"><button class="btn sm primary" type="submit">Save hub</button></div><div id="uc-hub-msg" class="dim small" role="status"></div></form>
       ${spaces.length ? spaces.map((s) => `<div class="cat-h" style="margin-top:10px">${esc(s.name)}</div>
         ${(s.members || []).map((m) => `<div class="row small" style="gap:6px;padding:3px 0">
           <span style="flex:1">${esc(m.email)} <span class="dim">${esc(m.role)}</span></span>
@@ -50,14 +51,19 @@ async function renderTab(view) {
     </div>
   </div>`;
   view.querySelector("#uc-setup-hub")?.addEventListener("click", () => {
-    const S = window.CC.S;
-    if (S) { S.settingsMore = true; S.navFocus = "phone-pair"; }
-    window.CC.go?.("settings", "phone-pair");
-    setTimeout(() => {
-      const target = document.getElementById("hub-addr") || document.getElementById("phone-pair");
-      target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-      target?.focus?.();
-    }, 60);
+    const f = view.querySelector("#uc-hub-form");
+    if (f) { f.hidden = !f.hidden; f.querySelector("input")?.focus(); }
+  });
+  view.querySelector("#uc-hub-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = view.querySelector("#uc-hub-msg");
+    const url = String(new FormData(e.target).get("hub") || "").trim();
+    if (msg) msg.textContent = "Checking the address...";
+    try {
+      const r = await api("/userchat/hub", { method: "POST", body: { url } });
+      if (r.ok) { toast(r.cleared ? "Hub removed. People chat is local only." : "Hub saved."); renderTab(view); }
+      else if (msg) msg.textContent = r.message || "That address did not work. Nothing was changed.";
+    } catch (err) { if (msg) msg.textContent = err.message; }
   });
   view.querySelector("#uc-plans")?.addEventListener("click", () => {
     const S = window.CC.S;

@@ -59,6 +59,15 @@ const HUB = (() => {
   return v && v !== location.origin ? v : "";
 })();
 const hubAddress = () => HUB || location.origin;
+// A team invite link ends in #teamjoin=CODE. Keep the code for the Join card on the Together page
+// and clear it from the address bar so it is not left in history.
+const TEAM_JOIN = (() => {
+  try {
+    const m = /(?:^#|&)teamjoin=([A-Za-z0-9_-]{8,80})/.exec(location.hash || "");
+    if (m) { sessionStorage.setItem("cc.teamjoin", m[1]); history.replaceState(null, "", location.pathname + location.search); }
+    return !!sessionStorage.getItem("cc.teamjoin");
+  } catch { return false; }
+})();
 let CONFIG = { mode: "local" };
 // Local mode: the server injects a per-launch session token into index.html; every /api call carries it
 // (X-CC-Token) and it is the first WebSocket message, so a foreign web page cannot drive this console.
@@ -112,6 +121,7 @@ async function apiCall(path, opts = {}) {
     const err = new Error(httpError(r, j));
     if (j?.code) err.code = j.code;
     if (j?.missing) err.missing = j.missing;
+    if (j?.warnings) err.warnings = j.warnings;
     if (j?.questions) err.questions = j.questions;
     if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
@@ -2635,7 +2645,7 @@ function renderSettings(v) {
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); restartFullSetup(); });
   $("#s-find-ais")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
-  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
+  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); toast("Checking the hub..."); fetch(v + "/api/config", { redirect: "manual" }).then((r) => { if (!r.ok) throw new Error("no hub"); localStorage.setItem("cc.hub", v); location.reload(); }).catch(() => toast("Meldmind could not reach a hub at that address, so nothing was changed. Check the address and try again.", true)); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
   $("#hub-copy")?.addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
   if ($("#hub-qr")) apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
@@ -3017,6 +3027,7 @@ async function boot() {
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
 window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

@@ -53,6 +53,7 @@ test("a failed recheck cannot launder a tampered record into a sealed one", () =
 
 test("an install from before the seal existed keeps its tier once", async () => {
   fs.rmSync(path.join(DIR, "license.seal"), { force: true });
+  fs.rmSync(path.join(DIR, "license.sealed"), { force: true }); // an old install has neither file
   store.putDoc("license", { ...forged(), tier: "pro" });
   Lic.sealExistingInstall();
   assert.equal(Lic.licenseState().tier, "pro");
@@ -82,4 +83,37 @@ test("outside strict mode (source runs, tests) an unsealed record still works", 
   store.putDoc("license", forged());
   assert.equal(Lic.licenseState().tier, "extreme");
   process.env.CC_LICENSE_STRICT = "1";
+});
+
+test("deleting license.seal and the marker cannot re-seal an edited record after the grandfather date", async () => {
+  process.env.CC_LICENSE_GRANDFATHER_UNTIL = "2020-01-01";
+  try {
+    fs.rmSync(path.join(DIR, "license.seal"), { force: true });
+    fs.rmSync(path.join(DIR, "license.sealed"), { force: true });
+    store.putDoc("license", { ...forged(), tier: "extreme" });
+    Lic.sealExistingInstall();
+    assert.equal(Lic.licenseState().tier, "free");
+  } finally { delete process.env.CC_LICENSE_GRANDFATHER_UNTIL; }
+});
+
+test("deleting only the seal key file does not re-seal when the marker exists", async () => {
+  Lic.__saveForTest({ ...forged(), tier: "pro" }); // makes key + marker
+  assert.ok(fs.existsSync(path.join(DIR, "license.sealed")));
+  fs.rmSync(path.join(DIR, "license.seal"), { force: true });
+  store.putDoc("license", { ...forged(), tier: "extreme" }); // edited, no seal
+  Lic.sealExistingInstall();
+  assert.equal(Lic.licenseState().tier, "free");
+});
+
+test("a server-signed record with a test keypair stays trusted with no seal and no grandfather", () => {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  process.env.CC_LICENSE_PUBKEY = publicKey.export({ type: "spki", format: "der" }).toString("base64");
+  try {
+    const rec = { ...forged(), tier: "pro", issuedAt: 1 };
+    rec.sig = crypto.sign(null, Buffer.from(Seal.serverPayload(rec)), privateKey).toString("base64");
+    store.putDoc("license", rec);
+    assert.equal(Lic.licenseState().tier, "pro");
+    store.putDoc("license", { ...rec, tier: "extreme" });
+    assert.equal(Lic.licenseState().tier, "free");
+  } finally { delete process.env.CC_LICENSE_PUBKEY; }
 });

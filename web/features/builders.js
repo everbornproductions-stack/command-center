@@ -252,13 +252,13 @@ function applyState(root) {
   }
   root.querySelectorAll("[data-check]").forEach((el) => { el.checked = !!lastChecks[el.dataset.check]; });
 }
-async function run(root, action) {
+async function run(root, action, sendAnyway = false) {
   const body = fieldValue(root);
   lastBody = body;
   lastChecks = checksOf(root);
   if (action !== "preview" && formKey(body) !== previewKey) return toast("Preview this again before you continue.", true);
   const path = action === "preview" ? `/builders/${openId}/preview` : `/builders/${openId}/${action}`;
-  const payload = action === "preview" ? body : { ...body, jobId: job?.id, confirm: action === "publish", checks: checksOf(root) };
+  const payload = action === "preview" ? body : { ...body, jobId: job?.id, confirm: action === "publish", checks: checksOf(root), ...(sendAnyway ? { sendAnyway: true } : {}) };
   try {
     const out = await api(path, { method: "POST", body: payload });
     if (action === "preview") {
@@ -274,7 +274,14 @@ async function run(root, action) {
     if (action === "publish") toast(out.posted ? "Published after your click." : (out.reason || "Saved. Nothing was sent."));
     else if (action === "test") toast("Test finished. Nothing was sent.");
     else if (action === "build") toast(out.ai?.started ? "Build started." : "Draft built here. Nothing was sent.");
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    toast(e.message, true);
+    if (e.warnings?.length && action === "publish") {
+      const { showReview } = await import("../compliance-ui.js");
+      const anchor = root.querySelector("#builders-checks") || root;
+      showReview(anchor, e.warnings, { onFix: () => (root.querySelector("textarea, input[type=text]"))?.focus(), onSendAnyway: () => run(root, "publish", true) });
+    }
+  }
 }
 async function load(text) {
   info = await api(`/builders?text=${encodeURIComponent(text || "")}`);

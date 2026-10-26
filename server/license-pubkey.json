@@ -1,5 +1,6 @@
 {
-  "_comment": "Public key (base64 DER, Ed25519) of the licence server's signer. No secret lives here. Empty until the licence server signs its answers. Set requireServerSignature to true once it does.",
+  "_comment": "Public key (base64 DER, Ed25519) of the licence server's signer. No secret lives here. Empty until the licence server signs its answers. Set requireServerSignature to true once it does. grandfatherUntil: installs from before the seal keep their tier once until this date; after it an unsealed record is Free.",
   "publicKey": "",
-  "requireServerSignature": false
+  "requireServerSignature": false,
+  "grandfatherUntil": "2026-12-31"
 }

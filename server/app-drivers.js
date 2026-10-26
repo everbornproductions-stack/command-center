@@ -47,12 +47,44 @@ export function scrub(text) {
     .replace(/Bearer\s+\S+/gi, "");
 }
 
+export const PRIVATE_REFUSAL = "A website door has to be a public https address. Local, private and file addresses are refused.";
+
+// True for an IPv4 address that is not on the public internet.
+function privateV4(host) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a === 0 || a === 10 || a === 127 || a >= 224
+    || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168) || (a === 192 && b === 0 && Number(m[3]) === 0) || (a === 198 && (b === 18 || b === 19));
+}
+
+// A door is public https only: no file:, no http:, no login in the address, no localhost,
+// no single-word machine names, no .local/.lan/.internal names, no private or IPv6 literal ranges.
+function privateReason(u) {
+  if (u.protocol !== "https:") return PRIVATE_REFUSAL;
+  if (u.username || u.password) return PRIVATE_REFUSAL;
+  const host = u.hostname.toLowerCase().replace(/\.$/, "");
+  if (!host) return PRIVATE_REFUSAL;
+  // only a global unicast IPv6 literal (2000::/3) passes
+  if (host.startsWith("[")) return /^\[[23][0-9a-f]{0,3}:/.test(host) ? "" : PRIVATE_REFUSAL;
+  if (privateV4(host)) return PRIVATE_REFUSAL;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return "";
+  if (/^[0-9.]+$/.test(host) || /^0x/i.test(host)) return PRIVATE_REFUSAL;
+  if (!host.includes(".")) return PRIVATE_REFUSAL;
+  if (/(^|\.)(localhost|local|lan|internal|intranet|home|corp|private|arpa|localdomain)$/.test(host)) return PRIVATE_REFUSAL;
+  if (/(^|\.)localhost\./.test(host)) return PRIVATE_REFUSAL;
+  return "";
+}
+
 export function blockedUrl(raw) {
+  const text = String(raw || "").trim();
+  if (!text || /^about:blank$/i.test(text)) return "";
   let u;
-  try { u = new URL(String(raw || "")); } catch { return ""; }
+  try { u = new URL(text); } catch { return PRIVATE_REFUSAL; }
   if (PAYMENT_HOST.test(u.hostname)) return PAYMENT_REFUSAL;
   if (BILLING_PATH.test(u.pathname)) return PAYMENT_REFUSAL;
-  return "";
+  return privateReason(u);
 }
 
 export function blockedScreen(title) {

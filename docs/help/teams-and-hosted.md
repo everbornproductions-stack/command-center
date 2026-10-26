@@ -7,7 +7,7 @@ lastUpdatedVersion: 0.4.8
 
 # Teams, People, and hosted runs
 
-Teams is where you invite people and share the projects you choose. You pick a role for each person. The invite is a link you send yourself. The Teams page asks for a Studio licence before you create a workspace. Pro is $18.99 a month. Extreme is $29.99 a month. Studio is the licence the Teams page checks today.
+Teams is where you invite people and share the projects you choose. You pick a role for each person. The invite is a short message with a code that you send yourself, and your teammate pastes it into the Join box under Together, Team spaces. Teams are part of Pro and Extreme. Pro is $18.99 a month. Extreme is $29.99 a month.
 
 People is a chat with your team. It shows up in the Help list only when that page is in your app.
 

@@ -101,13 +101,15 @@ export function requireApproval(id) {
   return publicItem(item);
 }
 
-// Phone paired: wait for a yes on the phone, or a yes on this PC.
+// Phone paired: wait for a real yes, from the phone or from the Approve button on this PC.
+// A caller's own confirmed:true is NOT that yes: it only opens the hold. Before 0.4.20 it
+// approved its own hold and the record said "via phone". `confirmed` stays in the signature
+// so old callers keep working, and it is ignored on purpose.
 // Phone not paired: return null and let the caller's own confirm stand.
-export function holdOutbound({ kind, action, amount, approvalId, confirmed }) {
+export function holdOutbound({ kind, action, amount, approvalId } = {}) {
   if (!phoneReady()) return null;
   let item = approvalId ? find(approvalId) : null;
   if (!item) item = ask({ kind, action, amount });
-  if (confirmed && item.status === "pending") item = decide(item.id, true, "pc");
   if (item.status !== "approved") {
     const err = new Error("Approve this on your phone before it goes out. Declining sends nothing.");
     err.status = 409;
@@ -132,6 +134,7 @@ function publicItem(item) {
     amount: item.amount,
     status: item.status,
     via: item.via,
+    decidedBy: item.decidedBy || null,
     createdAt: item.createdAt,
   };
 }

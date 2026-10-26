@@ -126,6 +126,24 @@ export function setAllowed(id, allowed) {
   return saveState({ ...cur, allows });
 }
 
+// Never-list for Select All (0.4.20). Programs that hold passwords, money, mail, remote control,
+// system settings or private messages are never switched on by one click. A person can still
+// allow one of them on purpose, one at a time.
+const NEVER = [
+  [/password|1password|bitwarden|keepass|lastpass|dashlane|keeper|authy|authenticator|vault|nordpass|roboform/i, "It holds passwords or sign-in codes."],
+  [/bank|chase|wells fargo|schwab|fidelity|vanguard|paypal|venmo|cash app|zelle|coinbase|crypto|wallet|binance|metamask|quickbooks|quicken|turbotax|payroll|stripe|square|brokerage|robinhood/i, "It handles money."],
+  [/outlook|thunderbird|mailbird|apple mail|windows mail|gmail|\bmail\b|eudora|postbox/i, "It holds your email."],
+  [/whatsapp|signal|telegram|messenger|imessage|discord|slack|teams|skype|zoom|messages/i, "It holds private messages."],
+  [/powershell|cmd\.exe|command prompt|terminal|regedit|registry|task scheduler|group policy|services\.msc|device manager|bios|disk management|windows security|defender|bitlocker/i, "It changes the system."],
+  [/anydesk|teamviewer|remote desktop|rdp|vnc|logmein|splashtop|chrome remote|rustdesk/i, "It gives remote control of this computer."],
+  [/vpn|proxy|tor browser|wireguard|openvpn/i, "It controls your network connection."],
+];
+export function sensitiveWhy(app) {
+  const hay = `${app?.id || ""} ${app?.title || ""} ${app?.publisher || ""}`;
+  for (const [re, why] of NEVER) if (re.test(hay)) return why;
+  return "";
+}
+
 export function setAllAllowed(allowed, opts = {}) {
   if (allowed) guard("appScan");
   const cur = loadState();
@@ -138,6 +156,7 @@ export function setAllAllowed(allowed, opts = {}) {
   const allows = { ...cur.allows };
   for (const app of cur.apps || []) {
     if (filterIds && !filterIds.has(app.id)) continue;
+    if (allowed && sensitiveWhy(app)) continue;
     allows[app.id] = !!allowed;
   }
   // Persist bulk allow map.
@@ -251,7 +270,10 @@ export function publicState(state = loadState()) {
       url: app.url,
       reason: app.reason || "",
       allowed: !!state.allows?.[app.id],
+      sensitive: !!sensitiveWhy(app),
+      sensitiveWhy: sensitiveWhy(app),
     })),
+    skippedByAll: (state.apps || []).filter((app) => sensitiveWhy(app) && !state.allows?.[app.id]).length,
   };
 }
 

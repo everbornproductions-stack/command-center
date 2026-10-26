@@ -18,6 +18,7 @@ import {
 } from "../build-all.js";
 import { isFlowStagesEnabled } from "../walkthroughs.js";
 import { needsRemote, requiredChecks } from "../builders/drafts.js";
+import { checkOutgoing } from "../compliance-guard.js";
 
 export const id = "buildall";
 
@@ -177,6 +178,10 @@ function builderPlan(body) {
       { id: "publish", label: STEP_LABELS.publish, risk: "none", run: async ({ job }) => {
         const remote = needsRemote(builderId, draft);
         if (remote && !job.allowPost) return { stop: { kind: "post", reason: STOP_REASON.post } };
+        if (builderId === "hl-campaign") {
+          const g = checkOutgoing({ text: input.text, channel: input.channel, consent: false, sendTime: input.sendTime });
+          if (!g.ok) return needs(`Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`);
+        }
         if (requiredChecks(builderId, input).length) return needs("This send has boxes only you can tick. Open the builder and tick them, then click Publish.");
         const r = await callRoute("POST", `${base}/publish`, { ...input, jobId, confirm: true, checks: {} });
         if (r.status >= 400) return needs(r.json?.error || "Publish needs you.");
