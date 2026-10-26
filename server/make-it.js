@@ -159,7 +159,8 @@ export async function run(body = {}) {
   if (!prompt) throw bad("Write what to make.");
   if (p.needsOk && !(Number(body.okUsd) + 1e-9 >= p.usd)) throw bad(`That costs about $${p.usd}. Say yes first.`, 409, { code: "needs_ok", plan: p });
   const projectId = body.projectId || null;
-  const name = nameFromPrompt(body.request || p.request);
+  const ver = Math.max(1, Math.round(Number(body.version)) || 1);
+  const name = nameFromPrompt(body.rootRequest || body.request || p.request) + (ver > 1 ? ` (version ${ver})` : "");
   const parent = body.parentAssetId || "";
   if (p.kind === "image") {
     const row = await makeImages({ provider: p.provider, model: p.model, op: "generate", prompt, n: 1, size: p.size || "square", quality: p.quality || "medium", estimate: p.practice ? 0 : p.usd, projectId, runId: null });
