@@ -96,3 +96,28 @@ export function composerAis(providers) {
   const shown = real.length ? real : list.filter(isDemoAi);
   return shown.map(chipOf);
 }
+
+// ---- Bottom AI bar (0.4.21) ----
+// Only AIs that are connected in some way get a tile: a saved key, a signed-in account, an MCP or
+// local connection, or a tracked subscription. Demo AIs are already filtered by hideDemoBots, so
+// they only show in demo mode. An agent counts when its own status is up.
+export function isOnBar(p, subscriptions = []) {
+  if (!p) return false;
+  if (isDemoAi(p)) return true;
+  if (isConnectedAi(p)) return true;
+  const up = p.status?.status === "green" || p.status?.status === "amber";
+  // Handoff and local-app AIs are "connected" by design in Settings, but nothing is linked until the
+  // app is seen working (status) or a subscription is tracked, so they stay off the bar until then.
+  const handsOff = ["handoff", "local"].includes(p.access?.auth);
+  if (p.access?.connected && !handsOff) return true;
+  if (p.connect?.mcp?.configured) return true;
+  if (handsOff && up) return true;
+  if (p.kind === "agent") return p.status?.status === "green" || p.status?.status === "amber";
+  const subs = Array.isArray(subscriptions) ? subscriptions : [];
+  return subs.some((s) => s.provider === p.id && (s.credits != null || s.renews));
+}
+
+export function barProviders(providers, subscriptions = []) {
+  const list = Array.isArray(providers) ? providers : [];
+  return list.filter((p) => isOnBar(p, subscriptions));
+}

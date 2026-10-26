@@ -8,7 +8,7 @@ import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STA
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
-import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { composerAis, hideDemoBots, barProviders, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
 import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
@@ -619,7 +619,10 @@ function renderFeed() {
 function renderStrip() {
   const strip = $("#strip");
   // the AIs, then the outside agents (Grok Bot, the browser helper), then media tools
-  const order = S.providers.filter((p) => p.kind === "text").concat(S.providers.filter((p) => p.kind === "agent"), S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent"));
+  // Only connected AIs get a tile (0.4.21). "+ Add an AI" is always there so more can be connected.
+  const onBar = barProviders(S.providers, S.subscriptions);
+  const order = onBar.filter((p) => p.kind === "text").concat(onBar.filter((p) => p.kind === "agent"), onBar.filter((p) => p.kind !== "text" && p.kind !== "agent"));
+  const addTile = `<div class="tile add-ai" id="strip-add" role="button" tabindex="0" aria-label="Add an AI. Opens Find my AIs"><div class="top"><span class="name">+ Add an AI</span></div><div class="sub">${order.length ? "Connect another" : "None connected yet"}</div></div>`;
   strip.innerHTML = order.map((p) => {
     const st = p.status?.status || "grey";
     const bp = S.ledger?.byProvider?.[p.id];
@@ -646,19 +649,24 @@ function renderStrip() {
     const connBadge = isNavStateEnabled(S) && !active && isConnected ? `<span class="badge ok tile-connected">Connected</span>` : "";
     const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
     const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
-    return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
+    return `<div class="tile ${active ? "active" : ""}" data-working="${active ? "1" : "0"}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
       <div class="meter"><i style="width:${meter.toFixed(0)}%;background:${p.color}"></i></div>
       ${badge ? `<span class="badge">${badge}</span>` : connBadge}
     </div>`;
-  }).join("");
-  $$(".tile", strip).forEach((t) => {
+  }).join("") + addTile;
+  $$(".tile:not(.add-ai)", strip).forEach((t) => {
     t.addEventListener("click", () => openProviderSetup(t.dataset.p));
     t.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProviderSetup(t.dataset.p); } });
   });
+  const addAi = () => addAnAi();
+  $("#strip-add")?.addEventListener("click", addAi);
+  $("#strip-add")?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addAi(); } });
   renderStripAfter();
 }
+// "+ Add an AI" on the bottom bar and under the chat box: Find my AIs, where keys and sign-ins are added.
+function addAnAi() { S.connectWizard = false; S.openProject = null; S.view = "setup"; render(); }
 function openProviderSetup(providerId) {
   if (!providerId) return;
   S.connectWizard = false;
@@ -771,7 +779,10 @@ function setUiMode(mode, opts = {}) {
   const patch = { uiMode: mode, uiModeChosen: true };
   if (mode === "expert") patch.expertConfirmed = true;
   // Switching while on Settings keeps Settings in view: no "Expert setup 1 of 5" over it (bug 7).
-  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
+  // 0.4.21 (M24): the page stays where it is. Expert setup is offered as a small card, never opened over the chat.
+  const wantsExpertSetup = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
+  const openExpert = wantsExpertSetup && S.view === "setup";
+  S.expertOffer = wantsExpertSetup && !openExpert;
   S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
@@ -922,6 +933,7 @@ function render() {
   if (isNavStateEnabled(S)) restoreViewDraft(S.view, v);
   syncBackBtn();
   window.CC?.syncAssetTray?.(S.view);
+  window.CC?.dock?.onRender?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
@@ -1355,7 +1367,7 @@ function renderSimpleChat(v) {
         <div id="cmd-extras"></div>
         <div class="row simple-send-row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-          <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
+          <button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
           <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
@@ -1394,7 +1406,7 @@ function renderSimpleChat(v) {
     S.settings = { ...(S.settings || {}), simpleStrip: on };
     syncChrome();
     const btn = $("#cc-show-ais");
-    if (btn) btn.textContent = on ? "Hide AIs" : "Show AIs";
+    if (btn) btn.textContent = on ? "Hide my AIs" : "Show my AIs";
     try { const saved = await api("/settings", { method: "POST", body: { simpleStrip: on } }); if (saved) S.settings = { ...S.settings, ...saved, simpleStrip: on }; }
     catch (e) { toast(e.message, true); }
   });
@@ -1438,7 +1450,7 @@ function paintStarters() {
 }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
-  const modeSel = S.cmdMode || "mission";
+  const modeSel = S.cmdMode || "single";
   v.innerHTML = `
   <div class="cmd">
     <div class="orders">
@@ -1545,14 +1557,25 @@ function renderComposerAis() {
   if (!chips.length) {
     // Right after Try it now the practice AIs can be a moment behind. Never say "No AI" then.
     box.innerHTML = S.demo ? `<div class="composer-empty dim small">Practice AIs are on. Nothing is spent.</div>` : `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
+    addAiChip(box);
     return;
   }
   box.innerHTML = chips.map((c) => {
     const model = c.model ? `<span class="composer-model">${esc(c.model)}</span>` : "";
     const hint = c.demo ? "Demo AI. Connect a real one and this leaves." : "Connected. Open its settings.";
-    return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}" data-p="${esc(c.id)}" title="${esc(hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
+    const working = S.activeByProvider[c.id] > 0;
+    return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}${working ? " working" : ""}" data-working="${working ? "1" : "0"}" data-p="${esc(c.id)}" title="${esc(working ? "Working on your request now." : hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
   }).join("");
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => openProviderSetup(b.dataset.p)));
+  addAiChip(box);
+}
+// A small "+ Add an AI" chip so more AIs can be connected from the chat box (0.4.21).
+function addAiChip(box) {
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "composer-add"; b.className = "composer-ai composer-add";
+  b.title = "Connect another AI"; b.textContent = "+ Add an AI";
+  b.addEventListener("click", addAnAi);
+  box.appendChild(b);
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
 // Idle Live ops is one line. The graph shows only while a run is going.
@@ -1939,7 +1962,7 @@ async function sendOrders() {
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
   const simple = S.uiMode === "simple";
-  const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
+  const mode = simple ? "single" : (S.cmdMode || "single"), costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
@@ -2219,7 +2242,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { setWorkingProject(made.id); S.openProject = made.id; render(); toast(`${name} is now your active project.`); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }

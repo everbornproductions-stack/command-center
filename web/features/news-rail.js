@@ -1,6 +1,6 @@
 // AI News side panel. Docked in its own column on wide windows (open by default), a floating card on mid windows,
 // and a small pill on phones that opens the News screen. It only reads the published issue; nothing is posted or sent here.
-import { readRail, saveRail, railLinks, railMode, togglePin } from "/news-rail.js";
+import { readRail, saveRail, railLinks, railMode, togglePin, RAIL_KEY } from "/news-rail.js";
 
 const { api, esc, go } = window.CC;
 const mode = () => railMode(window.innerWidth);
@@ -42,8 +42,18 @@ body.rail-dock-left .view-col { padding-left: 288px; }
 #cc-rail[data-mode="phone"] .rail-head { padding: 6px 12px; }
 `;
 
+// 0.4.21 (L3, F24): in Expert under 1500 px the rail starts minimized, so the page has room for the
+// orders, the answer and Live ops. A choice the person saved (Minimize / open) always wins.
+let effMin = false;
+let lastExpert = null;
+const isExpert = () => window.CC?.S?.uiMode === "expert";
+function explicitMin() {
+  try { return typeof (JSON.parse(localStorage.getItem(RAIL_KEY) || "{}") || {}).min === "boolean"; } catch { return false; }
+}
+function autoMin() { return isExpert() && window.innerWidth < 1500 && !explicitMin(); }
+
 function applyDock(el) {
-  const docked = !!el && mode() === "dock" && !state.min && !state.hidden;
+  const docked = !!el && mode() === "dock" && !effMin && !state.hidden;
   document.body.classList.toggle("rail-dock-right", docked && state.side === "right");
   document.body.classList.toggle("rail-dock-left", docked && state.side === "left");
 }
@@ -85,7 +95,8 @@ function mount() {
   }
   const m = mode();
   // On a phone the panel is only the pill; a tap opens the News screen.
-  const min = m === "phone" ? true : state.min;
+  const min = m === "phone" ? true : (state.min || autoMin());
+  effMin = min;
   el.dataset.side = state.side;
   el.dataset.mode = m;
   el.dataset.min = min ? "1" : "0";
@@ -107,7 +118,7 @@ function mount() {
     }
     const act = ev.target.closest("[data-rail]")?.dataset.rail;
     if (!act) return;
-    if (act === "toggle") state.min = !state.min;
+    if (act === "toggle") state.min = !effMin;
     else if (act === "side") state.side = state.side === "left" ? "right" : "left";
     else if (act === "hide") state.hidden = true;
     else if (act === "open") { (window.CC.openCommunity || go)("news"); return; }
@@ -161,7 +172,7 @@ function start() {
 window.CC.register({
   id: "news-rail",
   settings: { order: 47, render: renderSettings },
-  onState() { start(); },
+  onState() { start(); const ex = isExpert(); if (lastExpert !== ex && !state.hidden) mount(); lastExpert = ex; },
 });
 // Shell modules load after the first state arrives, so start here too.
 start();

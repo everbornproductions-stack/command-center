@@ -46,6 +46,7 @@ export const FEATURES = [
   { id: "mindmedia-save", shell: true },
   { id: "make-chat", shell: true },
   { id: "finish-drawer", shell: true },
+  { id: "dock", shell: true },
 
   { id: "mindmedia", views: ["mindmedia"] },
   { id: "next-actions", deliverable: true },
