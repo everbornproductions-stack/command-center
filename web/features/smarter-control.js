@@ -80,7 +80,7 @@ CC.register({
         ${apps.using ? `<div class="row" style="gap:8px;margin-top:8px"><b>${esc(apps.using.text)}</b><button class="btn sm" id="sc-stop2" type="button">Stop</button></div>` : ""}`)}
       ${panel("Recipes", `<div class="dim small">Record a task once, then run it again on a schedule. A send, buy, or delete still waits for a yes. Unlimited on Extreme.</div>${recipeRows || `<div class="dim small" style="margin-top:8px">No recipes yet.</div>`}`)}
       ${panel("Monthly budget", `<div class="small">${esc(guard.plain)}</div><div class="small" style="margin-top:6px">${esc(guard.savedPlain)}</div><div class="dim small">The top bar still shows You saved this month. That figure is an estimate.</div>
-        <div class="row" style="gap:8px;margin-top:8px"><input id="sc-cap-usd" type="number" min="0.01" step="0.01" placeholder="Monthly cap" value="${guard.cap || ""}"><button class="btn sm" id="sc-budget" type="button">${guard.included ? "Save cap" : guard.optedIn ? "Save cap" : "Turn on budget cap"}</button></div>`)}
+        <div class="row" style="gap:8px;margin-top:8px"><input id="sc-cap-usd" type="number" min="0.01" step="0.01" placeholder="Monthly cap" value="${guard.cap || ""}"><button class="btn sm" id="sc-budget" type="button">${guard.included ? "Save cap" : guard.optedIn ? "Save cap" : "Turn on budget cap"}</button><button class="btn sm" id="sc-budget-test" type="button" title="A practice check. Nothing is spent and no AI is called.">Test my budget</button></div><div class="small" id="sc-budget-out" role="status" aria-live="polite" style="margin-top:6px"></div>`)}
       ${panel("Phone approvals", `<div class="small">${esc(phone.note)}</div>${(phone.pending || []).map((item) => `<div class="small" style="margin-top:6px">${esc(item.action)}</div>`).join("") || `<div class="dim small" style="margin-top:6px">Nothing is waiting.</div>`}`)}
     </div>`;
     const save = document.querySelector("#s-save");
@@ -131,6 +131,9 @@ CC.register({
     el.querySelector("#sc-stop2")?.addEventListener("click", async () => {
       try { await api("/control-apps/stop", { method: "POST", body: { id: apps.using.id } }); render(el); }
       catch (e) { toast(e.message); }
+    });
+    el.querySelector("#sc-budget-test")?.addEventListener("click", async () => {
+      try { const r = await api("/cost-guard/test", { method: "POST", body: {} }); el.querySelector("#sc-budget-out").textContent = r.plain; } catch (e) { toast(e.message); }
     });
     el.querySelector("#sc-budget")?.addEventListener("click", async () => {
       const cap = Number(el.querySelector("#sc-cap-usd").value);

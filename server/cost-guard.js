@@ -159,6 +159,18 @@ export function assertSpendAllowed({ provider, estimate = 0, free = false, hold 
   return { ok: true, level: snap.level, release: hold ? reserve(RESERVE_EACH) : () => {} };
 }
 
+// A practice check for the Settings button "Test my budget" (0.4.21). It asks the same question a paid call asks,
+// with a typical small cost, and calls no AI and spends nothing.
+export function budgetTest({ estimate = 0.006 } = {}) {
+  const snap = snapshot();
+  const next = +Math.max(0.0001, Number(estimate) || 0.006).toFixed(4);
+  if (snap.cap == null) return { cap: null, spent: snap.spent, next, wouldStop: false, plain: `The monthly cap is off, so paid calls are not stopped by a cap. You have spent $${snap.spent.toFixed(2)} this month.` };
+  let wouldStop = false;
+  try { assertSpendAllowed({ provider: "openai", estimate: next }); } catch (e) { if (e.code === "budget_cap") wouldStop = true; else throw e; }
+  const plain = `Your cap is $${snap.cap.toFixed(2)}, spent $${snap.spent.toFixed(2)}. The next paid call needs about $${next.toFixed(3)}, so it ${wouldStop ? "would be stopped" : "would go ahead"}. This check spent nothing.`;
+  return { cap: snap.cap, spent: snap.spent, next, wouldStop, plain };
+}
+
 // 0.4.20: when the month's budget stops a paid run the person gets two local choices, never a charge.
 // "plus": raise the local budget cap by a little (default $1) and run again. This only edits the
 // number in this app. It does not buy anything or touch billing.
