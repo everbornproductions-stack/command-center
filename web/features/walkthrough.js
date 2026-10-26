@@ -533,6 +533,7 @@ function paintReview(stage, w, busy) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
+  mountDoneCard(stage, w);
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
@@ -589,6 +590,24 @@ function paintDone(stage, w) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
+}
+// The done screen ends in one Result card: what you got, where it was saved, and the next click.
+function mountDoneCard(stage, w) {
+  const CC = window.CC;
+  if (!CC.resultCard) return;
+  const title = w.plan?.title || "Your project";
+  const card = CC.resultCard({
+    what: `${title} is ready`, detail: "", savedWhere: "Not saved in MindMedia yet.",
+    actions: [
+      { label: "Save to MindMedia", primary: true, onClick: async (b, el) => {
+        const r = await CC.saveToMindMedia({ kind: "text", text: w.deliverable || "", name: title, projectId: w.projectId || CC.S.project || "", source: "Start a project", dedupeKey: `walk:${w.id}`, quiet: true });
+        const it = r.items?.[0] || {};
+        el.replaceWith(CC.resultCard({ what: `${title} is ready`, savedWhere: `Saved in MindMedia, ${r.where || "Unfiled"}.`, item: { projectId: r.projectId, assetId: it.id }, actions: [{ label: "Finish", primary: true, onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, item: { projectId: r.projectId, assetId: it.id, kind: "text" } }) }] }));
+      } },
+      { label: "Finish", onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }) },
+    ],
+  });
+  stage.querySelector("#sp-done-view")?.after(card);
 }
 async function downloadWalk(id, format) {
   try {

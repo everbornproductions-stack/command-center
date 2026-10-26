@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { ensureCatalog } from "../builders/web/catalog.js";
 import { getBuilder, listBuilders, loadBuilderExtras, publicBuilder, registerBuilder, suggestBuilders } from "../builders/web/registry.js";
 import { fieldsFor, defaultTarget, previewBuilder, buildBuilder, testBuilder, fixBuilder, publishBuilder, publicDraft } from "../builders/web/flow.js";
+import { saveToMindMedia } from "../project-media.js";
 import { assertWebAddress } from "../builders/web/publish.js";
 import { REGULATED_WORDS } from "../builders/web/compliance.js";
 
@@ -103,6 +104,16 @@ function writeFiles(h, draft) {
     written.push(["projects", folderId, "site", ...rel.split("/")].join("/"));
   }
   return written;
+}
+
+// Every finished site is also filed in MindMedia (one item, the start page) so it is never lost.
+function keepSite(h, draft) {
+  try {
+    const rels = draft.written || [];
+    const home = rels.find((r) => /\/index\.html?$/i.test(r)) || rels.find((r) => /\.html?$/i.test(r)) || rels[0];
+    if (!home) return null;
+    return saveToMindMedia({ kind: "site", projectId: draft.projectId || "", source: "Web builder", name: draft.name || "Website", dedupeKey: `site:${draft.id}`, files: [{ name: path.basename(home), path: path.resolve(h.DATA_DIR, home) }] });
+  } catch { return null; }
 }
 
 function rememberProject(h, draft) {
@@ -277,6 +288,8 @@ export async function routes(req, res, url, body, h) {
     if (!out.ok) return send(h, res, out.status, { error: out.error, code: out.code, issues: out.issues || null });
     draft.published = { status: out.status, target: out.target, dryRun: !!out.dryRun, note: out.note, link: out.link || null, at: Date.now() };
     if (out.status === "saved") draft.written = writeFiles(h, draft);
+    const kept = draft.written?.length ? keepSite(h, draft) : null;
+    if (kept) draft.mindmedia = { projectId: kept.projectId, assetId: kept.items?.[0]?.id, where: kept.where };
     saveDraft(h, draft);
     try {
       h.recordCredits({ provider: out.target, units: 0, cost: 0, note: `builders ${out.status} ${out.target}`.slice(0, 160), project: draft.projectId });
