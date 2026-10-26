@@ -2,7 +2,7 @@
 id: remix
 title: Remix
 summary: Make something of your own from a screenshot, a recording, a design file, a game type, or a description.
-lastUpdatedVersion: 0.4.13
+lastUpdatedVersion: 0.4.21
 ---
 
 # Remix
@@ -45,3 +45,7 @@ Turn on **Build it all for me** to run every step in one go: what to make, the s
 It still stops for three things, the same rules as Get it done: spending money, deleting something for good, and posting or sending in public. A second switch, **Also allow posting**, lets public posting through. It is off unless you turn it on. Boxes that only you can tick, such as a compliance check, still wait for you.
 
 You see each step as it runs, and **Stop** ends the run before the next step. The switch is off at first. Meldmind remembers your choice for next time.
+
+## See it before you zip it
+
+When a remix is saved, Play preview runs the page in a safe frame right there. The frame cannot reach your files or Meldmind. Press it again to stop. The test run reads the page and its scripts and checks that no question was left as "Not described." It does not open a browser, and it says so.
