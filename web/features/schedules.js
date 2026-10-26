@@ -216,6 +216,7 @@ async function renderTab(view) {
     <div class="grid" style="align-content:start">${form(editing)}</div>
   </div>`;
   wireForm(view);
+  mountTakeover(view);
   view.querySelector("#sch-token-ok")?.addEventListener("click", () => { st.token = null; renderTab(view); });
   const act = (sel, fn) => view.querySelectorAll(sel).forEach((b) => b.addEventListener("click", async () => { try { await fn(b); } catch (e) { toast(e.message, true); } }));
   act("[data-run]", async (b) => { await api(`/schedules/${b.dataset.run}/run`, { method: "POST" }); toast("Run queued"); renderTab(view); });
@@ -226,6 +227,15 @@ async function renderTab(view) {
   act("[data-del]", async (b) => { if (!confirm("Delete this schedule? Its run history stays.")) return; await api(`/schedules/${b.dataset.del}`, { method: "DELETE" }); renderTab(view); });
   act("[data-approve]", async (b) => { const r = await api(`/schedules/runs/${b.dataset.approve}/approve`, { method: "POST" }); toast(r.status === "done" ? "Sent" : r.error || "Could not send", r.status !== "done"); renderTab(view); });
   act("[data-reject]", async (b) => { await api(`/schedules/runs/${b.dataset.reject}/reject`, { method: "POST" }); toast("Not sent"); renderTab(view); });
+}
+
+// Review and Take Over Tasks (flag_takeover). The panel loads only when the flag is on.
+function mountTakeover(view) {
+  if (!(S().flags?.takeover || S().settings?.flag_takeover)) return;
+  const host = document.createElement("div");
+  host.id = "tk-host";
+  view.querySelector("#sch-form")?.parentElement?.appendChild(host);
+  import("../takeover-panel.js").then((m) => m.mount(host)).catch((e) => toast(e.message, true));
 }
 
 let pending = null;

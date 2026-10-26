@@ -42,7 +42,7 @@ import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
-import { flagOn, flagView, projectmediaOn } from "./flags.js";
+import { flagOn, flagView, projectmediaOn, takeoverOn } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -501,7 +501,7 @@ function fullState() {
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
-    flags: { flag_navstate: isNavStateEnabled(s) },
+    flags: { ...flagView(), takeover: takeoverOn(s), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }

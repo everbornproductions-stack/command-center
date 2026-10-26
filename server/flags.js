@@ -25,4 +25,11 @@ export function projectmediaOn(settings = {}) {
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia") });
+// The saved setting (flag_takeover) is used only when no env var forces the flag.
+export function takeoverOn(settings = {}) {
+  const v = process.env.CC_FLAG_TAKEOVER;
+  if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("takeover");
+  if (settings && typeof settings.flag_takeover === "boolean") return settings.flag_takeover;
+  return flagOn("takeover");
+}
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), takeover: flagOn("takeover") });
