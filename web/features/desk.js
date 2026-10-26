@@ -250,7 +250,7 @@ function renderCredits(container) {
     const leftRows = r.left || [];
     const left = leftRows.length
       ? leftRows.map((row) => `<div class="small">${esc(row.line)}</div>`).join("")
-      : `<div class="small">No remaining balance is reported yet.</div>`;
+      : `<div class="small">This AI does not tell Meldmind its balance.</div>`;
     container.innerHTML = `<div class="panel"><h3>AI credits</h3><p>${esc(r.line || "")}</p>${rows}${left}</div>`;
   }).catch(() => {});
 }

@@ -9,7 +9,7 @@ const { S, api, toast, esc, go } = window.CC;
 export const SIMPLE_STEPS = [
   { id: "s-type", for: "simple", target: "#orders", view: "command", title: "Type your question here", body: "Type what you want in the box. Then tap Send. Meldmind picks an AI for you." },
   { id: "s-example", for: "simple", target: "#cc-starters", view: "command", title: "Or tap an example", body: "Or tap an example under the box. It fills the words. You can change them before you send." },
-  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Your answer shows here. Tap Read aloud to hear it." },
+  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Send a question and your answer will show here. Tap Read aloud to hear it." },
   { id: "s-help", for: "simple", target: "#help-search", view: "help", title: "Help is here, any time", body: "Help is here, any time. Type a question in your own words." },
   { id: "s-text", for: "simple", target: "#basics-reading", view: "settings", title: "Make text bigger", body: "Make text bigger in Settings. Open Text and reading, then pick Large or Extra large." },
 ];

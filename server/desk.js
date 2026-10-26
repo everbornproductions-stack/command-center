@@ -69,7 +69,7 @@ export function plainCredits({ month = 0, today = 0, byProvider = {}, names = {}
     ? Object.entries(balances).map(([id, balance]) => {
       const name = names[id] || id;
       const words = balanceWords(balance);
-      return { id, name, line: words ? `${name} has ${words}.` : `No remaining balance is reported for ${name}.` };
+      return { id, name, line: words ? `${name} has ${words}.` : "This AI does not tell Meldmind its balance." };
     })
     : [];
   return {

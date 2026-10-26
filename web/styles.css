@@ -534,3 +534,9 @@ body[data-ui="simple"] #deliv-extras .cc-written { display: none; }
 .projbar select { width: auto; min-width: 160px; max-width: 100%; }
 .projbar .pb-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .projbar .pb-tools .btn.on { border-color: var(--accent); }
+
+/* One project picker named Project (0.4.20): on Chat the chat card owns the picker, the bar keeps the project tools. */
+.projbar .pb-lbl-tools{display:none}
+.projbar[data-view="command"] #pb-select{display:none}
+.projbar[data-view="command"] .pb-lbl-pick{display:none}
+.projbar[data-view="command"] .pb-lbl-tools{display:inline}

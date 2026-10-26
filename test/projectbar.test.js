@@ -29,7 +29,7 @@ test("bar helpers: shows only on the tool pages and only when the flag is on", (
   assert.equal(barShows("settings", true), false);
   assert.equal(BAR_VIEWS.includes("projects"), false);
   const html = barHtml({ projects: [{ id: "a", name: "A <b>" }], selected: "a", view: "images" });
-  assert.match(html, /Working in:/);
+  assert.match(html, /Project:/);
   assert.match(html, /value="a" selected>A &lt;b&gt;/);
   assert.match(html, /Continue this project/);
   assert.match(html, /data-pb-go="images" aria-current="page"/);

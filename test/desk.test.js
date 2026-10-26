@@ -148,7 +148,7 @@ test("readers, receipt, repeat, tone, and the first council use plain words", ()
   });
   assert.match(left.left.find((r) => r.id === "anthropic").line, /Claude has about \$1\.20 left/);
   assert.match(left.left.find((r) => r.id === "elevenlabs").line, /ElevenLabs has 10,000 characters left/);
-  assert.match(left.left.find((r) => r.id === "demo-nova").line, /No remaining balance is reported for Nova \(demo\)/);
+  assert.match(left.left.find((r) => r.id === "demo-nova").line, /This AI does not tell Meldmind its balance/);
   const viewed = desk.creditsView({
     ledger: { month: 0, today: 0, byProvider: {} },
     statuses: { anthropic: { status: "green", balance: { left: 3, unit: "USD" } }, openai: { status: "grey", balance: null } },
@@ -258,7 +258,7 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     assert.match(credits.json.line, /This month your AIs used about/);
     assert.ok(Array.isArray(credits.json.left));
     assert.ok(credits.json.left.length >= 1);
-    assert.match(credits.json.left.map((row) => row.line).join("\n"), /No remaining balance is reported/);
+    assert.match(credits.json.left.map((row) => row.line).join("\n"), /This AI does not tell Meldmind its balance/);
 
     const review = await s.api("/desk/review", { method: "POST", body: { id: "s-seed" } });
     assert.equal(review.status, 200, review.text);

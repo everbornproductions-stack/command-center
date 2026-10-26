@@ -27,8 +27,8 @@ export function barHtml({ projects, selected, view }) {
     ? BAR_TOOLS.map(([id, label]) => `<button type="button" class="btn sm${id === view ? " on" : ""}" data-pb-go="${id}"${id === view ? ' aria-current="page"' : ""}>${label}</button>`).join("")
     : "";
   const cont = has ? `<button type="button" class="btn sm" id="pb-continue">Continue this project</button>` : "";
-  return `<span class="pb-lbl">Working in:</span>
-    <select id="pb-select" aria-label="Working in project">${opts}</select>
+  return `<span class="pb-lbl"><span class="pb-lbl-pick">Project:</span><span class="pb-lbl-tools">Project tools:</span></span>
+    <select id="pb-select" aria-label="Project">${opts}</select>
     ${cont}<span class="pb-tools">${tools}</span>`;
 }
 
