@@ -48,6 +48,7 @@ export const FEATURES = [
   { id: "make-chat", shell: true },
   { id: "finish-drawer", shell: true },
   { id: "dock", shell: true },
+  { id: "bracket-strip", shell: true },
 
   { id: "mindmedia", views: ["mindmedia"] },
   { id: "next-actions", deliverable: true },
