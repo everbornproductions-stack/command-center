@@ -81,12 +81,12 @@ html[data-look="classic"] .rolling-light::before { display: none; }
 #cc-startup {
   position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   background: radial-gradient(900px 500px at 20% 10%, #12304f 0%, transparent 60%), radial-gradient(800px 500px at 90% 90%, #2a1850 0%, transparent 60%), #070b12;
-  color: #fff; cursor: pointer; transition: opacity .5s ease; text-align: center; padding: 24px;
+  color: #fff; cursor: pointer; transition: opacity .9s ease; text-align: center; padding: 24px; overflow: hidden;
 }
 #cc-startup.mm-out { opacity: 0; pointer-events: none; }
-#cc-startup .mm-name { font-size: clamp(2rem, 7vw, 3.75rem); font-weight: 800; letter-spacing: -.02em; animation: mm-fade-in .7s ease both; }
-#cc-startup .mm-tag { font-size: clamp(1.25rem, 4vw, 2rem); font-weight: 600; margin: 0; animation: mm-fade-in .7s .35s ease both; }
-#cc-startup .mm-sub { font-size: .9375rem; color: #c3cad6; margin: 0; animation: mm-fade-in .7s .7s ease both; }
+#cc-startup .mm-name { max-width: 100%; font-size: clamp(3.2rem, 13vw, 7.5rem); font-weight: 800; letter-spacing: -.02em; animation: mm-fade-in .7s ease both; }
+#cc-startup .mm-tag { max-width: 100%; font-size: clamp(2.5rem, 8vw, 4rem); font-weight: 600; margin: 0; animation: mm-fade-in .7s .35s ease both; }
+#cc-startup .mm-sub { max-width: 100%; text-wrap: balance; font-size: clamp(1.25rem, 4.4vw, 1.875rem); color: #c3cad6; margin: 0; animation: mm-fade-in .7s .7s ease both; }
 #cc-startup .mm-gold { color: #f5c542; position: relative; display: inline-block; padding: 0 .12em; border-radius: .22em; --mm-light: #f5c542; }
 #cc-startup .mm-gold::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;

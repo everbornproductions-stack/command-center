@@ -186,6 +186,15 @@ function startWatcher() {
   } catch { watcher = null; }
 }
 
+// Startup screen timing (0.4.20, Chris): it stays up at least twice as long as before (2.6 s, or 1.8 s on the
+// quiet look) and at least twice as long as the app took to load, then fades out slowly.
+const SPLASH_BASE_MS = 2600, SPLASH_BASE_QUIET_MS = 1800, SPLASH_FADE_MS = 900, SPLASH_MAX_MS = 12000;
+function splashHold(loadMs, quiet) {
+  const base = quiet ? SPLASH_BASE_QUIET_MS : SPLASH_BASE_MS;
+  const load = Number.isFinite(loadMs) && loadMs > 0 ? loadMs : 0;
+  return Math.min(SPLASH_MAX_MS, Math.max(2 * base, 2 * load));
+}
+
 function showStartup() {
   try { if (sessionStorage.getItem(SPLASH_KEY)) return null; sessionStorage.setItem(SPLASH_KEY, "1"); } catch {}
   if (/[?&]nosplash\b/.test(location.search)) return null;
@@ -200,18 +209,21 @@ function showStartup() {
     <p class="mm-sub" aria-hidden="true">Meldmind never just stops.</p>
     <span class="mm-sr">Are you game?</span>`;
   document.body.appendChild(el);
-  let done = false;
+  let done = false, held = false;
   const close = () => {
     if (done) return;
     done = true;
-    document.removeEventListener("keydown", close, true);
+    document.removeEventListener("keydown", early, true);
     el.classList.add("mm-out");
-    setTimeout(() => el.remove(), 600);
+    setTimeout(() => el.remove(), SPLASH_FADE_MS + 100);
   };
-  el.addEventListener("click", close);
-  el.addEventListener("touchstart", close, { passive: true });
-  document.addEventListener("keydown", close, true);
-  setTimeout(close, quiet ? 1800 : 2600);
+  // A tap or key press can only skip the screen after its minimum time has passed.
+  const early = () => { if (held) close(); };
+  el.addEventListener("click", early);
+  el.addEventListener("touchstart", early, { passive: true });
+  document.addEventListener("keydown", early, true);
+  const hold = splashHold(performance.now(), quiet);
+  setTimeout(() => { held = true; close(); }, hold);
   return el;
 }
 
@@ -271,7 +283,7 @@ async function init() {
   startWatcher();
 }
 
-window.CC.look = { apply, refreshLights, frameTest, choice: currentChoice, graphicsInfo };
+window.CC.look = { splashHold, apply, refreshLights, frameTest, choice: currentChoice, graphicsInfo };
 
 CC.register({
   id: "look",
