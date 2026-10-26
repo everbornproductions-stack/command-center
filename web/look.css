@@ -5,7 +5,9 @@
 @keyframes mm-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes mm-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Frosted panes: panels, dialogs, menus, suggestion lists. "body" lifts these above the wallpaper rules in themes.js. */
+/* Frosted panes: panels, dialogs, menus, suggestion lists. "body" lifts these above the wallpaper rules in themes.js.
+   0.4.21: real see-through glass. A light tint (--mm-glass-see), a strong blur and saturation over the stage picture, and
+   a lit top edge. The wallpaper is no longer pre-blurred under glass (below), so the blur has something to frost. */
 html[data-look="glass"] body .panel,
 html[data-look="glass"] body #cc-mode-ask .card,
 html[data-look="glass"] body #cc-upgrade .card,
@@ -13,14 +15,46 @@ html[data-look="glass"] body .gate-card,
 html[data-look="glass"] body #cc-tour .card,
 html[data-look="glass"] body #cc-keysetup .box,
 html[data-look="glass"] body .nav-panel,
-html[data-look="glass"] body #cc-suggest .psg {
-  background: var(--mm-glass-fill);
+html[data-look="glass"] body #cc-suggest .psg,
+html[data-look="glass"] body .projbar,
+html[data-look="glass"] body .pcard,
+html[data-look="glass"] body .pcard-set,
+html[data-look="glass"] body .feed,
+html[data-look="glass"] body .strip,
+html[data-look="glass"] body .tile {
+  background: var(--mm-glass-see);
   border-color: var(--mm-glass-line);
-  box-shadow: var(--mm-glass-shadow);
-  -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(1.15);
-  backdrop-filter: blur(var(--mm-blur)) saturate(1.15);
+  box-shadow: var(--mm-glass-edge), var(--mm-glass-shadow);
+  -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+  backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
 }
-html[data-look="glass"] body .topbar { background: var(--mm-grad-calm); }
+/* Dialogs and menus sit on top of other content, so they keep a little more body than the panels. */
+html[data-look="glass"] body #cc-mode-ask .card,
+html[data-look="glass"] body #cc-upgrade .card,
+html[data-look="glass"] body .gate-card,
+html[data-look="glass"] body #cc-tour .card,
+html[data-look="glass"] body #cc-keysetup .box,
+html[data-look="glass"] body .nav-panel,
+html[data-look="glass"] body #cc-suggest .psg { background: color-mix(in srgb, var(--mm-glass-fill-solid) 62%, transparent); }
+/* The stage picture: sharp under glass (the app used to blur it first, which left nothing to see through the panes). */
+html[data-look="glass"][data-wall="image"] #cc-wall,
+html[data-look="glass"][data-wall="photo"] #cc-wall { inset: 0; filter: saturate(1.15); transform: none; }
+html[data-look="glass"][data-wall="image"] #cc-wall-veil,
+html[data-look="glass"][data-wall="photo"] #cc-wall-veil { background: rgba(8, 12, 18, .16); }
+html[data-look="glass"][data-theme="light"][data-wall="image"] #cc-wall-veil,
+html[data-look="glass"][data-theme="light"][data-wall="photo"] #cc-wall-veil { background: rgba(243, 245, 249, .22); }
+html[data-look="glass"][data-wall="gradient"] #cc-wall-veil { background: rgba(8, 12, 18, .1); }
+html[data-look="glass"] body .topbar {
+  background: var(--mm-glass-see); border-bottom-color: var(--mm-glass-line); box-shadow: var(--mm-glass-edge);
+  -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+  backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+}
+html[data-look="glass"] body #cc-rail,
+html[data-look="glass"] body #cc-canvas .cv-frame {
+  background: var(--mm-glass-see); border-color: var(--mm-glass-line); box-shadow: var(--mm-glass-edge), var(--mm-glass-shadow);
+  -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+  backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+}
 html[data-look="glass"] .mm-grad-calm { background: var(--mm-grad-calm); }
 html[data-look="glass"] .mm-grad-working { background: var(--mm-grad-working); }
 html[data-look="glass"] .mm-grad-success { background: var(--mm-grad-success); }
@@ -60,6 +94,14 @@ html[data-look="glass"] body.light-mode #cc-tour .card,
 html[data-look="glass"] body.light-mode #cc-keysetup .box,
 html[data-look="glass"] body.light-mode .nav-panel,
 html[data-look="glass"] body.light-mode #cc-suggest .psg,
+html[data-look="glass"] body.light-mode .projbar,
+html[data-look="glass"] body.light-mode .pcard,
+html[data-look="glass"] body.light-mode .pcard-set,
+html[data-look="glass"] body.light-mode .feed,
+html[data-look="glass"] body.light-mode .strip,
+html[data-look="glass"] body.light-mode .tile,
+html[data-look="glass"] body.light-mode #cc-rail,
+html[data-look="glass"] body.light-mode .topbar,
 html[data-look="glass"][data-blur="off"] .panel,
 html[data-look="glass"][data-blur="off"] #cc-mode-ask .card,
 html[data-look="glass"][data-blur="off"] #cc-upgrade .card,
@@ -67,7 +109,15 @@ html[data-look="glass"][data-blur="off"] .gate-card,
 html[data-look="glass"][data-blur="off"] #cc-tour .card,
 html[data-look="glass"][data-blur="off"] #cc-keysetup .box,
 html[data-look="glass"][data-blur="off"] .nav-panel,
-html[data-look="glass"][data-blur="off"] #cc-suggest .psg {
+html[data-look="glass"][data-blur="off"] #cc-suggest .psg,
+html[data-look="glass"][data-blur="off"] .projbar,
+html[data-look="glass"][data-blur="off"] .pcard,
+html[data-look="glass"][data-blur="off"] .pcard-set,
+html[data-look="glass"][data-blur="off"] .feed,
+html[data-look="glass"][data-blur="off"] .strip,
+html[data-look="glass"][data-blur="off"] .tile,
+html[data-look="glass"][data-blur="off"] #cc-rail,
+html[data-look="glass"][data-blur="off"] .topbar {
   -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--mm-glass-fill-solid);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -105,5 +155,7 @@ html[data-look="classic"] .rolling-light::before { display: none; }
 #cc-look-probe::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; background: conic-gradient(from var(--mm-angle), transparent 0 55%, var(--mm-light-working) 82%, #fff 100%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: mm-roll 1.2s linear infinite; }
 /* Offer bar. */
 #cc-look-offer { position: fixed; left: 16px; bottom: 16px; z-index: 60; max-width: min(340px, calc(100vw - 32px)); background: var(--panel-solid, #111827); color: var(--text, #e5e7eb); border: 1px solid var(--line-2, #273449); border-radius: 10px; padding: 8px 10px; font-size: .8125rem; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; box-shadow: 0 8px 22px rgba(0, 0, 0, .3); opacity: .94; }
+/* Docked (0.4.21): inside the notices row above the page, in normal flow, so it never covers a control. */
+#cc-look-offer.docked { position: static; max-width: none; margin: 0 12px; opacity: 1; box-shadow: none; font-size: .8125rem; }
 /* Quiet line: never sits over the middle of the page (welcome card, Send) and on a phone it sits above the tab bar. */
 @media (max-width: 760px) { #cc-look-offer { left: 8px; right: 8px; max-width: none; bottom: calc(56px + env(safe-area-inset-bottom) + 6px); font-size: .75rem; } #cc-look-offer .btn { min-height: 44px; } }

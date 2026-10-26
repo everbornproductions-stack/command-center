@@ -253,10 +253,16 @@ async function startServer() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
-    backgroundColor: "#090d14", title: "Meldmind", autoHideMenuBar: true,
+    // 0.4.21: stay hidden until the first frame is ready, in the splash's own colour, so there is no blank grey or white flash.
+    // The page paints its start screen from the first frame (web/index.html), so what shows first is already Meldmind.
+    show: false, backgroundColor: "#070b12", title: "Meldmind", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
+  let shown = false;
+  const showNow = () => { if (shown || !win || win.isDestroyed()) return; shown = true; try { win.show(); } catch {} };
+  win.once("ready-to-show", showNow);
+  setTimeout(showNow, 6000); // never leave the app invisible if the page is slow to paint
   watchReloads(win); // attach before the first load so it is counted
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
   else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
