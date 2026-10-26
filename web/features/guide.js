@@ -421,9 +421,9 @@ export const GUIDE = [
     note(parts) {
       const hosted = parts.some((p) => p.id === "hosted");
       const teams = parts.some((p) => p.id === "teams");
-      if (hosted && teams) return "The Teams page asks for a Studio licence before you create a workspace, and hosted runs are Extreme.";
+      if (hosted && teams) return "Teams are part of Pro and Extreme, and hosted runs are Extreme.";
       if (hosted) return "Hosted runs are Extreme.";
-      if (teams) return "The Teams page asks for a Studio licence before you create a workspace.";
+      if (teams) return "Teams are part of Pro and Extreme.";
       return "";
     },
     badge(parts) {
@@ -657,7 +657,7 @@ const GUIDE_COPY = {
     },
     start(parts) {
       const ids = new Set(parts.map((p) => p.id));
-      if (ids.has("teams")) return "Open Teams. The page asks for a Studio licence before you create a workspace.";
+      if (ids.has("teams")) return "Open Teams. Teams are part of Pro and Extreme.";
       if (ids.has("people")) return "Open People to talk with your team.";
       return "Open hosted runs. Extreme is $29.99 a month.";
     },

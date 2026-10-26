@@ -157,12 +157,12 @@ test("owner copy: five seats, group chat, live recipe, report and block, news ro
       const inv = await s.api(`/teamspaces/${id}/members`, { method: "POST", body: { email, role: "member" } });
       assert.equal(inv.status, 200, JSON.stringify(inv.json));
       assert.equal(inv.json.emailed, false);
-      link = inv.json.link;
+      link = inv.json.code;
     }
     const full = await s.api(`/teamspaces/${id}/members`, { method: "POST", body: { email: "e@example.com", role: "viewer" } });
     assert.equal(full.status, 402);
     assert.match(full.json.error, /5 people total/);
-    const code = link.match(/teamjoin=([A-Za-z0-9_-]+)/)?.[1];
+    const code = link;
     const stored = fs.readFileSync(path.join(s.dir, "teamspaces.json"), "utf8");
     assert.equal(stored.includes(code), false);
     assert.ok(stored.includes(hashCode(code)));

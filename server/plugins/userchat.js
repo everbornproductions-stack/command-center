@@ -1,12 +1,14 @@
 // People chat routes (Phase 92). Send is the only click that stores a message.
 // A hub delivery, when a hub address is set, happens on that same click.
-import { overview, openThread, sendMessage, blockPerson, unblockPerson, fileReport, receiveInbox } from "../user-chat.js";
+import { overview, openThread, sendMessage, setHub, hubTarget, blockPerson, unblockPerson, fileReport, receiveInbox } from "../user-chat.js";
 
 export const id = "userchat";
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/userchat/, "").replace(/\/$/, "") || "/";
   if (req.method === "GET" && p === "/") return h.json(res, 200, await overview(h));
+  if (req.method === "GET" && p === "/hub") return h.json(res, 200, hubTarget());
+  if (req.method === "POST" && p === "/hub") return h.json(res, 200, await setHub(body?.url, { fetchImpl: h.hubFetch }));
   if (req.method === "POST" && p === "/threads") return h.json(res, 200, await openThread(h, body));
   if (req.method === "POST" && p === "/block") return h.json(res, 200, await blockPerson(h, body.email || body.key));
   if (req.method === "POST" && p === "/unblock") return h.json(res, 200, await unblockPerson(h, body.email || body.key));

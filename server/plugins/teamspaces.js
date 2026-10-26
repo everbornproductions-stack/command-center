@@ -6,6 +6,7 @@ import { HOSTED } from "../store.js";
 import { seatCheck, assertSeats, EXTREME_TEAM_SEATS } from "../team-seat.js";
 import { redact, bad } from "../together-text.js";
 import { isBlocked } from "../moderation.js";
+import { blockedUrl } from "../app-drivers.js";
 
 export const id = "teamspaces";
 const DOC = "teamspaces";
@@ -80,9 +81,33 @@ function viewSpace(h, s) {
   };
 }
 
-function inviteLink(code, req) {
-  const origin = req?.headers?.host ? `http://${req.headers.host}` : "";
-  return `${origin.replace(/\/$/, "")}/#teamjoin=${code}`;
+// An invite link only helps if the other person can open it. A link that starts with this computer's own
+// address (127.0.0.1, localhost, 192.168.x) is a dead end, so it is never made. The link is built only
+// from a public https address: CC_PUBLIC_URL, or the address the request came to when that is public.
+export function inviteOrigin(req, env = process.env) {
+  const fixed = String(env.CC_PUBLIC_URL || "").trim().replace(/\/$/, "");
+  if (fixed && blockedUrl(fixed) === "") return new URL(fixed).origin;
+  const host = String(req?.headers?.host || "").trim();
+  if (host && blockedUrl(`https://${host}`) === "") return `https://${host}`;
+  return "";
+}
+
+export function inviteLink(code, req) {
+  const origin = inviteOrigin(req);
+  return origin ? `${origin}/#teamjoin=${code}` : "";
+}
+
+export function inviteMessage({ space, code, link, role }) {
+  const lines = [
+    `You are invited to join "${space}" on Meldmind as ${role === "viewer" ? "a viewer" : role === "admin" ? "an admin" : "a member"}.`,
+    "",
+    "1. Open Meldmind on your computer.",
+    "2. Go to Together, then Team spaces.",
+    `3. Paste this code in the Join box and press Join: ${code}`,
+  ];
+  if (link) lines.push("", `Or open this link: ${link}`);
+  lines.push("", "The code works once and expires in 14 days.");
+  return lines.join("\n");
 }
 
 async function seatInfo(h) {
@@ -168,7 +193,8 @@ export async function routes(req, res, url, body, h) {
       const expiresAt = Date.now() + INVITE_DAYS * 86400000;
       s.members.push({ email, role, status: "invited", invitedAt: Date.now(), expiresAt, joinedAt: null, inviteHash: hashCode(code) });
       save(h, d);
-      return h.json(res, 200, { email, role, emailed: false, expiresAt, link: inviteLink(code, req) });
+      const link = inviteLink(code, req);
+      return h.json(res, 200, { email, role, emailed: false, expiresAt, link, code, message: inviteMessage({ space: s.name, code, link, role }) });
     }
     if (parts[1] === "members" && parts[2] && req.method === "PATCH") {
       const email = clean(decodeURIComponent(parts[2]));

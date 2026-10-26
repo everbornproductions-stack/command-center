@@ -15,7 +15,9 @@ import { emit } from "../events.js";
 import { check as ssoCheck } from "../sso.js";
 
 export const id = "workspaces";
-const STUDIO = new Set(["studio", "owner"]);
+// Pro and Extreme get teams. "studio" is an old licence name that still works, and "owner" is the owner tier.
+export const TEAM_TIERS = ["pro", "studio", "extreme", "owner"];
+const STUDIO = new Set(TEAM_TIERS);
 const DOC = "workspaces";
 const ACTIVE_DOC = "workspaces.active";
 export const ROLES = ["owner", "admin", "member", "viewer"];
@@ -46,7 +48,7 @@ export function canManageMember(actorRole, targetRole, newRole = null) {
 
 function gate() {
   const s = licenseState();
-  if (!STUDIO.has(s.tier)) throw Object.assign(new Error("Teams and shared workspaces are part of Studio: invite teammates or clients with a role, share chosen projects, see each member's AI usage."), { status: 402, code: "studio" });
+  if (!STUDIO.has(s.tier)) throw Object.assign(new Error("Teams and shared workspaces are part of Pro and Extreme: invite teammates or clients with a role, share chosen projects, see each member's AI usage. Add a Pro or Extreme plan in Settings."), { status: 402, code: "studio" });
   return s;
 }
 const err = (status, message, code) => Object.assign(new Error(message), { status, code });

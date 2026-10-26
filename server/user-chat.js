@@ -4,7 +4,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { HOSTED } from "./store.js";
+import { HOSTED, doc, putDoc } from "./store.js";
 import { localFetch } from "./loopback-fetch.js";
 import { redact, hasSecret, bad } from "./redact-text.js";
 
@@ -55,9 +55,15 @@ export function roleIn(space, who) {
   return "owner";
 }
 
+// The hub address comes from the environment first, then from the one the person saved in Settings.
+// Both are read here, so the Settings box writes what People chat reads.
+export function savedHub() {
+  try { return String(doc("settings", () => ({}))?.userchatHub || "").trim(); } catch { return ""; }
+}
+
 export function hubTarget() {
   if (HOSTED) return { configured: true, mode: "hosted", host: "" };
-  const raw = String(process.env.CC_USERCHAT_HUB || "").trim();
+  const raw = String(process.env.CC_USERCHAT_HUB || "").trim() || savedHub();
   if (!raw) return { configured: false, mode: "local", host: "" };
   let u;
   try { u = new URL(raw); } catch { return { configured: false, mode: "local", host: "", error: "The hub address is not valid." }; }
@@ -347,4 +353,30 @@ export async function receiveInbox(h, body) {
   if (d.inbox.length > 200) d.inbox.splice(0, d.inbox.length - 200);
   h.putDoc(DOC, d);
   return { ok: true, stored: "hub", sent: false, id: row.id };
+}
+
+// Save (or clear) the hub address. A hub that cannot be reached is not saved, and nothing breaks:
+// the answer is a plain sentence, never an error that locks the page.
+export async function setHub(raw, { fetchImpl = globalThis.fetch, timeoutMs = 6000 } = {}) {
+  const text = String(raw || "").trim().replace(/\/$/, "");
+  const settings = doc("settings", () => ({})) || {};
+  if (!text) {
+    putDoc("settings", { ...settings, userchatHub: "" });
+    return { ok: true, cleared: true, hub: hubTarget() };
+  }
+  let u;
+  try { u = new URL(text); } catch { return { ok: false, message: "That is not a web address. It looks like https://your-hub.example.com" }; }
+  if (u.username || u.password) return { ok: false, message: "Leave the password out of the hub address." };
+  const loop = u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "::1";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && loop)) return { ok: false, message: "The hub address has to start with https://" };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const r = await fetchImpl(`${u.origin}/api/config`, { signal: ctl.signal, redirect: "manual" });
+    if (!r || r.status >= 500 || r.status === 404) return { ok: false, message: `Meldmind could not find a hub at ${u.host}. Check the address with whoever runs it. Nothing was changed.` };
+  } catch {
+    return { ok: false, message: `Meldmind could not reach ${u.host}. Check the address and your internet. Nothing was changed.` };
+  } finally { clearTimeout(timer); }
+  putDoc("settings", { ...settings, userchatHub: u.origin });
+  return { ok: true, hub: hubTarget() };
 }
