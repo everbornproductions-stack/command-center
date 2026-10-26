@@ -32,7 +32,7 @@ const css = `
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #sp-root textarea, #sp-root input[type="text"] { width: 100%; }
 .sp-type, .sp-tpl, .sp-tpl-form { min-width: 0; overflow-wrap: anywhere; }
-.sp-tpl-form { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
+.sp-tpl-form { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
 .sp-tpl-form input, .sp-tpl-form textarea { min-width: 0; }
 @media (max-width: 640px) { .sp-home { align-items: stretch; } .sp-home .btn { width: 100%; } }
 `;
@@ -371,7 +371,7 @@ function wireTemplates(root, data) {
   }));
   root.querySelectorAll("[data-tpl-del]").forEach((b) => b.addEventListener("click", async () => {
     const t = byId(b.dataset.tplDel);
-    if (!t || !window.confirm(`Delete the template "${t.name}"? Projects already made from it are not changed.`)) return;
+    if (!t || !(await window.CC.confirm(`Delete the template "${t.name}"? Projects already made from it are not changed.`, { danger: true, ok: "Delete" }))) return;
     try {
       await api(`/walkthrough/templates/${encodeURIComponent(t.id)}`, { method: "DELETE" });
       toast("Template deleted");

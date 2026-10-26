@@ -201,7 +201,7 @@ export function mountPublishPlus(view) {
       }
       if (a === "cancel") { st.editing = null; return paint(); }
       if (a === "edit") { st.editing = st.items.find((x) => x.id === b.dataset.id); return paint(); }
-      if (a === "del") { if (!confirm("Remove this from the calendar?")) return; await api(`/publishplus/calendar/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); return paint(); }
+      if (a === "del") { if (!(await window.CC.confirm("Remove this from the calendar?", { danger: true, ok: "Remove" }))) return; await api(`/publishplus/calendar/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); return paint(); }
       if (a === "prev" || a === "next") { st.month = new Date(st.month.getFullYear(), st.month.getMonth() + (a === "next" ? 1 : -1), 1); return paint(); }
       if (a === "ask") {
         const it = st.items.find((x) => x.id === b.dataset.id), slot = card.querySelector(`[data-slot="${CSS.escape(it.id)}"]`);
@@ -221,7 +221,7 @@ export function mountPublishPlus(view) {
       // website
       if (a === "cfg") { const vals = {}; body.querySelectorAll("[data-pp-cfg]").forEach((i) => { vals[i.dataset.ppCfg] = i.value; }); await api("/publishplus/sites/config", { method: "POST", body: { target: body.querySelector("#pp-host").value, ...vals } }); toast("Saved"); return refreshHost(body); }
       if (a === "tok") { const i = body.querySelector("#pp-tok"); if (!i.value.trim()) return toast("Paste the token first", true); await api("/publishplus/sites/connect", { method: "POST", body: { target: body.querySelector("#pp-host").value, token: i.value.trim() } }); i.value = ""; toast("Token saved in the vault. Nothing was deployed."); return refreshHost(body); }
-      if (a === "tok-off") { if (!confirm("Remove the saved token?")) return; await api(`/publishplus/sites/connect/${encodeURIComponent(body.querySelector("#pp-host").value)}`, { method: "DELETE" }); return refreshHost(body); }
+      if (a === "tok-off") { if (!(await window.CC.confirm("Remove the saved token?", { danger: true, ok: "Remove" }))) return; await api(`/publishplus/sites/connect/${encodeURIComponent(body.querySelector("#pp-host").value)}`, { method: "DELETE" }); return refreshHost(body); }
       if (a === "plan-prev") return plan(body, false);
       if (a === "plan-live") return plan(body, true);
       if (a === "deploy") {

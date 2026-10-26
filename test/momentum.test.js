@@ -15,12 +15,12 @@ const DASH = String.fromCharCode(0x2014);
 const now = Date.now();
 const withResult = (over = {}) => ({ hasResult: true, resultType: "text", resultAt: now - 20000, hasProject: true, text: "Here is the plan for your tea club newsletter this month.", now, ...over });
 
-test("flag is off by default, env switches it, other flags kept", () => {
+test("flag is on by default (0.4.21 restore), env switches it, other flags kept", () => {
   const was = process.env.CC_FLAG_MOMENTUM;
   try {
     delete process.env.CC_FLAG_MOMENTUM;
-    assert.equal(flagOn("momentum"), false);
-    assert.equal(flagView().momentum, false);
+    assert.equal(flagOn("momentum"), true);
+    assert.equal(flagView().momentum, true);
     process.env.CC_FLAG_MOMENTUM = "1";
     assert.equal(flagView().momentum, true);
     process.env.CC_FLAG_MOMENTUM = "0";

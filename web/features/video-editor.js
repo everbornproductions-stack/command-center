@@ -11,7 +11,7 @@ const STYLE = `
 .ve-row input[type=text],.ve-row textarea,.ve-row select{max-width:100%;box-sizing:border-box}
 .ve-grow{flex:1 1 160px}
 .ve-num{width:84px}
-.ve-video{width:100%;max-height:340px;background:#000;border-radius:6px}
+.ve-video{width:100%;max-height:340px;background:var(--sunk-bg, #000);border-radius:6px}
 .ve-item{border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0}
 .ve-item textarea{width:100%;min-height:48px;box-sizing:border-box}
 .ve-lane{position:relative;height:18px;background:var(--panel2,rgba(128,128,128,.12));border-radius:4px;margin:3px 0;overflow:hidden}
@@ -187,7 +187,7 @@ export async function mountVideoEditor(view) {
     q("#ve-pick").addEventListener("change", (e) => { if (e.target.value) open(e.target.value); else { lastOpen = ""; p = null; freeBlob(); render(); } });
     q("#ve-newbtn").addEventListener("click", openNew);
     q("#ve-del")?.addEventListener("click", async () => {
-      if (!confirm("Delete this edit? The original video and any exported files stay on your computer.")) return;
+      if (!(await window.CC.confirm("Delete this edit? The original video and any exported files stay on your computer.", { danger: true, ok: "Delete" }))) return;
       try { await api(`/videoeditor/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" }); lastOpen = ""; p = null; freeBlob(); await loadList(); render(); } catch (e) { setMsg(e.message, true); }
     });
     if (!p) return;

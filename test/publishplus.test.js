@@ -16,13 +16,13 @@ import { buildPayload } from "../server/plugins/publish.js";
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const DASH = String.fromCharCode(0x2014);
 
-test("flag is off by default, env turns it on or off, other flags stay", () => {
+test("flag is on by default (0.4.21 restore), env turns it on or off, other flags stay", () => {
   const was = process.env.CC_FLAG_PUBLISH;
   try {
     delete process.env.CC_FLAG_PUBLISH;
-    assert.equal(flagOn("publish"), false);
-    assert.equal(flagView().publish, false);
-    assert.equal(flagView().finishrouter, false);
+    assert.equal(flagOn("publish"), true);
+    assert.equal(flagView().publish, true);
+    assert.equal(flagView().finishrouter, true);
     assert.ok("projectmedia" in flagView() && "nextactions" in flagView() && "promptdrop" in flagView() && "projectbar" in flagView());
     process.env.CC_FLAG_PUBLISH = "1";
     assert.equal(flagOn("publish"), true);

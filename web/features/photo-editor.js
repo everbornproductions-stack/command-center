@@ -125,7 +125,7 @@ export async function openPhotoEditor({ host, imageId, index = 0, url, projectId
     box.innerHTML = items.length ? items.map((v) => `<div class="pe-ver"><span>${esc(v.name)}</span><button class="btn sm" data-open="${esc(v.id)}">Open</button><button class="btn sm" data-del="${esc(v.id)}">Delete</button></div>`).join("") : "None yet.";
     box.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { const v = items.find((x) => x.id === b.dataset.open); if (v) { $("#pe-preset").value = ""; setRecipe(v.recipe); $("#pe-name").value = v.name; } }));
     box.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
-      if (!confirm("Delete this version and its edited copy? Your original photo stays.")) return;
+      if (!(await window.CC.confirm("Delete this version and its edited copy? Your original photo stays.", { danger: true, ok: "Delete" }))) return;
       try { await api(`/photoeditor/versions/${encodeURIComponent(b.dataset.del)}`, { method: "DELETE" }); toast("Version deleted. The original is untouched."); await versions(); CC.refreshImages?.(); } catch (er) { toast(er.message, true); }
     }));
   };

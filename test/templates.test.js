@@ -9,12 +9,12 @@ import { templatesOn, flagOn } from "../server/flags.js";
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const DASH = String.fromCharCode(0x2014);
 
-test("flag is off by default; env and saved setting turn it on", () => {
+test("flag is on by default (0.4.21 restore); env and saved setting turn it on", () => {
   const was = process.env.CC_FLAG_TEMPLATES;
   try {
     delete process.env.CC_FLAG_TEMPLATES;
-    assert.equal(flagOn("templates"), false);
-    assert.equal(templatesOn({}), false);
+    assert.equal(flagOn("templates"), true);
+    assert.equal(templatesOn({}), true);
     assert.equal(templatesOn({ flag_templates: true }), true);
     process.env.CC_FLAG_TEMPLATES = "0";
     assert.equal(templatesOn({ flag_templates: true }), false);

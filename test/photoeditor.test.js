@@ -15,12 +15,12 @@ const EM = String.fromCharCode(0x2014), EN = String.fromCharCode(0x2013);
 const px = (r, g, b) => [r, g, b, 255];
 const flat = (n, rgb) => Uint8ClampedArray.from(Array.from({ length: n }, () => px(...rgb)).flat());
 
-test("flag is off by default, env turns it on, other flags stay", () => {
+test("flag is on by default (0.4.21 restore), env turns it on, other flags stay", () => {
   const was = process.env.CC_FLAG_PHOTOEDITOR;
   try {
     delete process.env.CC_FLAG_PHOTOEDITOR;
-    assert.equal(flagOn("photoeditor"), false);
-    assert.equal(flagView().photoeditor, false);
+    assert.equal(flagOn("photoeditor"), true);
+    assert.equal(flagView().photoeditor, true);
     for (const k of ["projectbar", "promptdrop", "nextactions", "projectmedia", "finishrouter"]) assert.ok(k in flagView(), k);
     process.env.CC_FLAG_PHOTOEDITOR = "1";
     assert.equal(flagOn("photoeditor"), true);
@@ -113,8 +113,8 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("edited-copy")]);
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 
-test("routes: off by default, then versions are saved as new files and the original never changes", async () => {
-  const srv = await startServer();
+test("routes: off when switched off, then versions are saved as new files and the original never changes", async () => {
+  const srv = await startServer({ env: { CC_FLAG_PHOTOEDITOR: "0" } });
   const on = await startServer({
     env: { CC_FLAG_PHOTOEDITOR: "1" },
     seed(dir) {
@@ -133,7 +133,7 @@ test("routes: off by default, then versions are saved as new files and the origi
     assert.equal(off.json.code, "flag_off");
 
     assert.equal((await on.api("/state")).json.flags.photoeditor, true);
-    assert.equal((await on.api("/state")).json.flags.finishrouter, false, "other flags stay");
+    assert.equal((await on.api("/state")).json.flags.finishrouter, true, "other flags stay (finish router is on in 0.4.21)");
     const cfg = await on.api("/photoeditor/config");
     assert.equal(cfg.status, 200);
     assert.equal(cfg.json.sliders.length, 10);

@@ -10,13 +10,13 @@ import { splitSections, joinSections, claimsOf, accountingTotals, accountingCsv,
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const DASH = String.fromCharCode(0x2014);
 
-test("flag is off by default, env forces it, other flags stay", () => {
+test("flag is on by default (0.4.21 restore), env forces it, other flags stay", () => {
   const was = process.env.CC_FLAG_FINISHERS;
   try {
     delete process.env.CC_FLAG_FINISHERS;
-    assert.equal(flagOn("finishers"), false);
-    assert.equal(flagView().finishers, false);
-    assert.equal(flagView().finishrouter, false);
+    assert.equal(flagOn("finishers"), true);
+    assert.equal(flagView().finishers, true);
+    assert.equal(flagView().finishrouter, true);
     assert.ok("projectbar" in flagView() && "nextactions" in flagView());
     process.env.CC_FLAG_FINISHERS = "1";
     assert.equal(flagView().finishers, true);
