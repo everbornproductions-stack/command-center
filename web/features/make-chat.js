@@ -60,7 +60,7 @@ function tileHtml(t, isLast) {
     const media = t.src ? (isStill(t) ? `<img class="mk-img" alt="${esc(t.request)}" src="${esc(t.src)}">` : t.kind === "video" ? `<video class="mk-video" controls playsinline src="${esc(t.src)}"></video>` : `<audio class="mk-audio" controls src="${esc(t.src)}"></audio>`) : `<span class="mk-note">Loading...</span>`;
     const practiceNote = t.practice ? `<div class="mk-note">${t.kind === "image" ? "Practice picture: free, and drawn on your computer. Connect a picture maker for a real one." : t.kind === "video" ? "Practice video: a still frame, nothing was spent. Connect a video maker for a real clip." : "Practice voice: a silent clip, nothing was spent. Connect a voice maker for a real voice."}</div>` : "";
     body = `<div class="mk-media">${media}</div>${practiceNote}
-      <div class="mk-actions"><button type="button" data-mk="dl" class="btn sm primary mk-dl">Download</button><button type="button" data-mk="again" class="btn sm mk-again">Make another</button><button type="button" data-mk="open" class="btn sm mk-open">Open in MindMedia</button></div>
+      ${window.CC.resultHero ? window.CC.resultHero.actionsHtml(t) : `<div class="mk-actions"><button type="button" data-mk="dl" class="btn sm primary mk-dl">Download</button><button type="button" data-mk="again" class="btn sm mk-again">Make another</button><button type="button" data-mk="open" class="btn sm mk-open">Open in MindMedia</button></div>`}
       ${`<div class="mk-change"><input class="mk-change-input" type="text" aria-label="Change it" placeholder="${t.kind === "image" ? "Change it: make the sky darker" : t.kind === "video" ? "Change it: make it slower" : "Change it: warmer voice"}"><button type="button" data-mk="change-go" class="btn sm mk-change-go">Change it</button></div>`}
       <details class="mk-how"><summary>How it was made</summary><p>${esc(t.providerName || "")}${t.practice ? " (practice)" : t.usd ? `, about $${Number(t.usd).toFixed(2)}` : ""}.</p>${t.kind !== "audio" ? `<p><b>Prompt used:</b> ${esc(t.generatorPrompt || "")}</p>` : ""}<p class="mk-note">Saved in MindMedia as "${esc(t.name || "")}".</p></details>`;
   } else if (t.state === "error") {
@@ -203,6 +203,7 @@ function onClick(e) {
   const tileEl = e.target.closest(".mk-tile"); if (!tileEl) return;
   const t = find(tileEl.dataset.id); if (!t) return;
   const has = (c) => e.target.closest(c);
+  if (window.CC.resultHero?.handleClick(e, { tile: t, change: (change) => begin({ kind: t.kind, request: t.request, root: t.root, change, from: t, seconds: t.seconds }), openRoute: () => window.CC.resultHero.openRoute({ kind: t.kind, projectId: t.projectId, assetId: t.assetId, name: t.name, box: tileEl.querySelector(".rh-pubbox") || tileEl.appendChild(Object.assign(document.createElement("div"), { className: "rh-pubbox" })) }) })) return;
   if (has(".mk-ask-yes")) { t.state = "working"; execute(t, t.plan); return; }
   if (has(".mk-ask-no")) { t.state = "stopped"; paint(); return; }
   if (has(".mk-stop")) { t.state = "stopped"; t.ctl?.abort(); paint(); return; }

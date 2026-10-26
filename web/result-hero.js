@@ -97,3 +97,13 @@ export function heroPlan({ kind, prompt, channels, saved = true } = {}) {
   for (const h of hookButtons(k)) more.push({ id: h.id, label: h.label, hook: true });
   return { kind: k, main, quick: quickOptions(k, prompt), more };
 }
+
+// Guess the kind of a text result so the right main button shows. Only clear signs count; a plain answer stays a document.
+export function guessKind(text, hint) {
+  const h = normalKind(hint);
+  if (h === "site" || h === "campaign") return h;
+  const t = String(text || "");
+  if (/<!doctype html|<html[\s>]/i.test(t)) return "site";
+  if (/(^|\n)\s*(?:#{1,3}\s*)?(?:day\s*\d+|week\s*\d+|post\s*\d+)\b/i.test(t) && /#\w{3,}|caption|hashtag|call to action/i.test(t)) return "campaign";
+  return "document";
+}
