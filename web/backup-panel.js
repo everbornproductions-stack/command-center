@@ -46,7 +46,7 @@ export function panelHtml(view = {}, { esc = plainEsc, setup = false } = {}) {
     <div class="cat-h" style="margin-top:12px">2. Website</div>
     <label class="row small" style="gap:6px"><input type="checkbox" id="cc-aw-website" ${view.website ? "checked" : ""}> ${esc(view.websiteLabel || "Let Meldmind use the website for me (ChatGPT, Claude, Grok)")}</label>
     <div class="hint" role="note">${esc(view.websiteWarning || "")}</div>
-    ${view.website ? `<div class="small">${esc(view.websiteLater || "Website mode is coming in a later update.")}</div>` : ""}
+    ${view.website ? `<div class="small">${esc(view.websiteNote || "Website mode is on. If the apps cannot answer, Meldmind tries the website in its own window and asks you before it sends.")}</div>` : ""}
     <div class="cat-h" style="margin-top:12px">3. You copy it over</div>
     <div class="small dim">Continue in copies the question and opens that AI's page. The question asks the AI to send its answer back, and Meldmind checks for it. Paste reply is always there too.</div>
     ${setup ? `<div class="small dim" style="margin-top:8px">You can change this later in Settings.</div>` : ""}
@@ -64,7 +64,7 @@ export function waitBoxHtml(w = {}, { esc = plainEsc, now = Date.now() } = {}) {
     <div><b>${esc(head)}</b></div>
     <div class="small dim">Waiting <span data-aw-since="${Number(w.since) || now}">${esc(elapsed(now - (Number(w.since) || now)))}</span>. ${esc(WAIT_NOTE)}</div>
     <ol class="cc-aw-steps small">${list}</ol>
-    ${w.website ? `<div class="small">Website mode is coming in a later update.</div>` : ""}
+    ${w.website ? `<div class="small">Website mode is on: Meldmind tries the website in its own window and asks you before it sends.</div>` : ""}
     <div class="row cc-aw-btns" style="gap:6px;flex-wrap:wrap;margin-top:6px">
       <button type="button" class="btn sm primary" data-aw-continue="${esc(w.jobId)}">Continue in ${esc(w.ai || "the AI")}</button>
       <button type="button" class="btn sm" data-aw-paste="${esc(w.jobId)}">Paste reply</button>

@@ -3,7 +3,7 @@
 // or a side-by-side column), the slot does not fail. It waits, and Meldmind works down one ordered list
 // (server/sub-routes.js CHAIN):
 //   1. the AI's official app on this PC, signed in with the person's own plan (the answer fills in on its own)
-//   2. website mode, only when the person turned it on (stored, not wired in this pass: it is skipped)
+//   2. website mode, only when the person turned it on: the AI's own site in Meldmind's browser window (server/website-step.js)
 //   3. "You copy it over": Continue in <AI> copies a prompt that asks the other AI to send its answer back
 //      (report-back hub, the Meldmind MCP tool submit_answer, or a marked block the person copies)
 // Meldmind keeps checking: the hub poll, the MCP tool, and (in the desktop app) the clipboard when the window
@@ -19,7 +19,8 @@ import { recordCall } from "./ledger.js";
 import { fallbackSettings, troubleKind } from "./fallback.js";
 import { listTargets, stripSecrets } from "./handoff.js";
 import { workerOn, hubRoute } from "./reportback.js";
-import { CHAIN, WEBSITE_LATER, readyRoutesFor, routeSettings, askApp, stopApp, noteSignedOut } from "./sub-routes.js";
+import { askWebsite, liveDeps as webDeps } from "./website-step.js";
+import { CHAIN, WEBSITE_NOTE, readyRoutesFor, routeSettings, askApp, stopApp, noteSignedOut } from "./sub-routes.js";
 
 export const DOC = "answerwait.jobs";
 export const MAX_JOBS = 100;
@@ -145,6 +146,7 @@ function patch(id, fields) {
 
 // The waiting box's own words. step is where in CHAIN the job is.
 export function headline(job) {
+  if (job.step === "website" && job.trying) return `Out of API credits. Answering through the ${job.aiName} website in the Meldmind window.`;
   if (job.step === "apps" && job.trying) return `Out of API credits. Answering through ${job.trying} on this PC.`;
   return `Out of API credits. Answering through your ${job.aiName} subscription.`;
 }
@@ -152,7 +154,7 @@ export function publicJob(j) {
   if (!j) return null;
   return {
     id: j.id, kind: j.kind, runId: j.runId, slot: j.slot, provider: j.provider, model: j.model, ai: j.aiName, title: j.title,
-    status: j.status, step: j.step, trying: j.trying || null, tried: j.tried || [], website: !!j.website, websiteNote: j.website ? WEBSITE_LATER : null,
+    status: j.status, step: j.step, trying: j.trying || null, tried: j.tried || [], website: !!j.website, websiteNote: j.website ? WEBSITE_NOTE : null,
     headline: headline(j), page: j.page || null, hub: !!j.hub, createdAt: j.createdAt, updatedAt: j.updatedAt || j.createdAt,
     answeredAt: j.answeredAt || null, answeredBy: j.answeredBy || null, tag: j.tag || null,
   };
@@ -199,6 +201,7 @@ export function openWait({ kind, runId, slot = null, provider, model, ask, syste
 
 // Walk the chain from the job's current step. Each step either answers, or hands on to the next one.
 const appRuns = new Map(); // job id -> app run id
+let webOverride = null; // tests: a fake browser helper for the website step
 export async function advance(jobId) {
   let job = findJob(jobId);
   if (!job || job.status !== "waiting") return;
@@ -232,8 +235,23 @@ export async function advance(jobId) {
       continue;
     }
     if (step === "website") {
-      // stored, not wired in this pass: the box says so and the chain moves on
-      if (job.website) { job = patch(jobId, { website: true }); stepped(job); }
+      // Only when the person turned website mode on. A website that cannot answer hands on to copy it over.
+      if (!routeSettings().website || HOSTED) continue;
+      job = patch(jobId, { website: true, trying: "the website" });
+      stepped(job);
+      let res;
+      try { res = await askWebsite(job, appPrompt(job), { ...(await webDeps()), ...(webOverride || {}) }); }
+      catch (e) { res = { ok: false, code: "error", message: `The website step stopped: ${e.message}` }; }
+      job = findJob(jobId);
+      if (!job || job.status !== "waiting") return;
+      if (res.ok) {
+        await deliver(jobId, res.text, { route: "website", by: `${res.site} website`, tag: `via ${res.site} website`, raw: true });
+        return;
+      }
+      job = patch(jobId, { trying: null, tried: [...(job.tried || []), { route: "website", name: "Website", code: res.code }] });
+      note(job, `website-${res.code}`);
+      emit("log", { text: `${res.message} Meldmind moves on to the next way to answer.`, missionId: job.runId });
+      stepped(job);
       continue;
     }
     if (step === "copy") {
@@ -253,7 +271,7 @@ function stepped(job) {
 }
 
 // ---------- an answer arrives ----------
-// route: app | hub | mcp | clipboard | paste
+// route: app | website | hub | mcp | clipboard | paste
 export async function deliver(jobId, text, { route = "paste", by = "", tag = "", raw = false } = {}) {
   if (!ID_RE.test(String(jobId || ""))) throw bad(400, "That is not a Meldmind answer job id.", "bad_id");
   const job = findJob(jobId);
@@ -330,4 +348,4 @@ export async function fromHub(row) {
   catch (e) { return { jobId: job.id, status: job.status, error: e.message }; }
 }
 
-export const _test = { jobs, upsert, appRuns };
+export const _test = { jobs, upsert, appRuns, setWebDeps: (d) => { webOverride = d; } };
