@@ -37,7 +37,7 @@ test("research plans: free daily, pro monthly, extreme unlimited, no em dashes",
     assert.equal(proDeny.status, 402);
     assert.equal(proDeny.code, "pro_required");
     assert.match(proDeny.message, /Pro search/);
-    assert.doesNotMatch(proDeny.message, /2014/);
+    assert.doesNotMatch(proDeny.message, /—/);
     process.env.CC_RESEARCH_TIER = "pro";
     process.env.CC_RESEARCH_DEEP_MONTHLY = "1";
     assert.equal(researchPlan().deepMonthly, 1);
@@ -84,7 +84,7 @@ test("research plans: free daily, pro monthly, extreme unlimited, no em dashes",
     assert.match(docxText(docx), /Cross-check holds/);
 
     for (const f of ["server/feature-gate.js", "server/research.js", "server/research-export.js", "server/plugins/research.js", "server/plugins/alerts.js", "web/features/search.js", "web/app.js", "web/mode.js", ".github/workflows/mac-ci.yml"]) {
-      assert.doesNotMatch(read(f), /2014/, `${f} has an em dash`);
+      assert.doesNotMatch(read(f), /—/, `${f} has an em dash`);
     }
     assert.match(read("server/research.js"), /export function abortResearch/);
     assert.match(read("server/plugins/research.js"), /\/abort/);
@@ -113,7 +113,7 @@ test("Mac CI: tests on a tag or a manual start, no package and no secrets", () =
   assert.doesNotMatch(wf, /npm run dist/);
   assert.doesNotMatch(wf, /\$\{\{ secrets\./);
   assert.doesNotMatch(wf, /gh release/);
-  assert.doesNotMatch(wf, /2014/);
+  assert.doesNotMatch(wf, /—/);
   assert.match(read("docs/RELEASING.md"), /mac-ci\.yml/);
   assert.match(read("docs/ci/mac-build.yml"), /mac-release/);
   assert.match(read("docs/ci/mac-build.yml"), /not a workflow/);
@@ -413,7 +413,7 @@ test("server: Stop aborts a deep research run before the report is written", asy
     assert.equal(resMod.FLAG_AGENTS, "flag_agents");
     assert.equal(resMod.COST_MULTIPLIER, 15);
     assert.match(resMod.COST_WARNING, /15 times the tokens/);
-    assert.doesNotMatch(resMod.COST_WARNING, /2014/);
+    assert.doesNotMatch(resMod.COST_WARNING, /—/);
 
     const efSimple = resMod.scaleEffort("solar price today");
     assert.equal(efSimple.level, "simple");
