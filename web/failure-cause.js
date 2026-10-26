@@ -5,6 +5,7 @@
 export function failureKind(text) {
   const t = String(text || "").toLowerCase();
   if (!t) return "other";
+  if (/^nothing came back/.test(t)) return "empty";
   if (/spending limit|spend cap|monthly (spend )?cap|budget is used up|reached its \$|run reached|raise the cap|raise the limit/.test(t) && !/provider|team has either/.test(t)) return "budget";
   if (/\b429\b|rate.?limit|too many requests|busy right now|overloaded/.test(t)) return "rate";
   if (/\b402\b|out of credits|used all available credits|insufficient|credit balance|billing|payment required|quota/.test(t)) return "credit";
@@ -18,6 +19,7 @@ const TITLES = {
   credit: "That AI is out of credit. Nothing was charged.",
   key: "That AI did not accept the key. Nothing was charged.",
   other: "That AI did not finish. Nothing was charged.",
+  empty: "Nothing came back. Nothing was charged.",
 };
 const HINTS = {
   budget: "You can keep going on a free AI, or add $1 to your limit here and run it again.",
@@ -25,11 +27,14 @@ const HINTS = {
   credit: "Add credit on that AI's website, or send this to another AI.",
   key: "Open Settings and paste the key again, or send this to another AI.",
   other: "Try again, or send it to another AI.",
+  empty: "Press Try again, or send it to another AI.",
 };
 
 export function failureCopy(text) {
   const kind = failureKind(text);
-  return { kind, title: TITLES[kind], hint: HINTS[kind] };
+  // the server already wrote the plain reason after "Nothing came back." (which AI, and what to do): show it
+  const hint = kind === "empty" ? (String(text).replace(/^\s*nothing came back\.\s*/i, "").trim() || HINTS.empty) : HINTS[kind];
+  return { kind, title: TITLES[kind], hint };
 }
 
 export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try again", other = "Try another AI" } = {}) {

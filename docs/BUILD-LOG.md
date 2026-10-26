@@ -2551,3 +2551,13 @@ No locked decision was changed. Stripe, Square and billing were not touched (Str
 - Flags on by default (override with CC_FLAG_<NAME>=0): projectbar, promptdrop, nextactions, projectmedia, finishrouter, finishpath, takeover, look, livebubble, navstate, phoneweb, agents, flowstages. Tests that asserted "off by default" now assert on by default and test the off path with the env var.
 - Version 0.4.19 in package.json, lock, tests, What's new, release notes, help catalog and the guide PDF.
 - Local tests (Linux, Node 22, credential env vars unset): npm test 1033 tests, 1032 pass, 0 fail, 0 cancelled, 1 skipped; smoke passes; the serial run passes except media.test.js, which timed out under load once and passes alone. Pull request 123.
+
+## 2026-10-26 Release 0.4.21, area I (dogfood finding 01: coding job finished "done" with nothing)
+
+- Cause: Gemini answered 429 (no quota), OpenRouter 402, a third route returned no words, and the single chat still ended "done" with an empty deliverable and cost 0.
+- Server memory: a 429 that says the quota is gone (not a short rate limit) is now remembered as "credits" with the 15 minute cool-down (server/fallback.js troubleKind), so the router and the next send skip that AI before calling it.
+- Empty answers: fallbackChat treats a finished stream with no words and no tool work as a failure ("sent back an empty answer"), tries a stand-in, and finally throws "Nothing came back. <AI> is out of quota or credits. Add credits in Settings, or press Try again..." (nothingCameBack). Single marks the run failed with needsAttention.retry, council with every seat empty fails with the same words, mission with an empty deliverable fails, media with no file says Nothing came back. Cost stays 0 because nothing is recorded.
+- Send check: new server/send-check.js and POST /api/send-check name connected AIs that are out (trouble table plus pause bookkeeping), give the next working AI, and set autoMode "mission" for a coding job when two or more AIs work and the person did not choose Single.
+- UI (small): web/send-check.js paints a banner above the prompt box with Use X for this / Add credits / Open Settings; sendOrders calls it before sending (web/app.js, 12 lines); failure-cause.js shows "Nothing came back" cards. Expert Single stays Single once clicked (S.cmdModeExplicit).
+- Tests: test/send-check.test.js (server, mocked providers), test/send-check-browser.test.js (real browser), test/send-check-mock.js (shared mock).
+

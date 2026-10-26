@@ -4,6 +4,7 @@ import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUP
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
+import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
@@ -1514,7 +1515,7 @@ function renderCommand(v) {
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
@@ -1962,7 +1963,7 @@ async function sendOrders() {
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
   const simple = S.uiMode === "simple";
-  const mode = simple ? "single" : (S.cmdMode || "single"), costMode = S.costMode || S.settings.defaultMode;
+  let mode = simple ? "single" : (S.cmdMode || "single"); const costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
@@ -1995,6 +1996,13 @@ async function sendOrders() {
   S.skipMake = false;
   window.CC.makeChat?.reset();
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
+  // 0.4.21: say it BEFORE sending when an AI is out of credits or quota, and let Auto split a coding job (Single stays Single when chosen)
+  {
+    const sc = await runSendCheck(api, { prompt, explicit: !simple && S.cmdModeExplicit === true && mode === "single", mode: S.costMode || S.settings.defaultMode });
+    clearSendBanner();
+    if (sc?.banner) showSendBanner(sc, { esc, onSwitch: (to) => { S.forceFree = { provider: to.provider, model: to.model, name: to.name }; toast(`This one goes to ${to.name}.`); }, onSettings: () => { S.view = "settings"; render(); }, onCredits: (url) => { try { window.open(url, "_blank", "noopener"); } catch {} } });
+    if (mode === "single" && sc?.autoMode === "mission" && !S.pendingAvoid && !S.forceFree?.provider) { mode = "mission"; toast(splitNote(sc)); }
+  }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
   const ask = window.CC.searchAsk?.() || {};
