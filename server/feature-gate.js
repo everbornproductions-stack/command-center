@@ -5,6 +5,7 @@ import {
   extremeMonthlyLabel, extremeYearlyLabel, proMonthlyLabel, proYearlyLabel,
 } from "./price-config.js";
 import { ctx, doc } from "./store.js";
+import { isTrusted as isTrustedLicense } from "./license-seal.js";
 
 export const PRO_AIS = 4;
 export const EXTREME_AIS = 8;
@@ -671,7 +672,7 @@ export function currentTier(now = Date.now()) {
   try { stored = doc("license", () => ({})) || {}; } catch { stored = {}; }
   const raw = String(stored.tier || "").toLowerCase();
   const seen = Number(stored.lastOkAt || stored.checkedAt || 0);
-  const fresh = stored.status === "active" && seen > 0 && now <= seen + TIER_GRACE_MS;
+  const fresh = isTrustedLicense(stored) && stored.status === "active" && seen > 0 && now <= seen + TIER_GRACE_MS;
   if (fresh && (raw === "extreme" || raw === "owner" || raw === "pro" || raw === "studio")) return raw;
   if (live.reason === "trial") return "pro";
   return "free";

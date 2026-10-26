@@ -1,0 +1,5 @@
+{
+  "_comment": "Public key (base64 DER, Ed25519) of the licence server's signer. No secret lives here. Empty until the licence server signs its answers. Set requireServerSignature to true once it does.",
+  "publicKey": "",
+  "requireServerSignature": false
+}
