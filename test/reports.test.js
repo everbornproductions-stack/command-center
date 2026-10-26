@@ -1,11 +1,11 @@
 // Phase 4: weekly report (R6). Pure checks (when a Monday report is due, including a missed Monday; the
-// email draft), then the running server in a temp data dir, demo AIs only (local mock, no real key or
-// URL): Run now lists what shipped, the draft and the export work, and nothing is ever sent.
+// email draft), then the running server in a temp data dir, a priced AI on a local mock (no real key or
+// URL; practice AIs add $0 since 0.4.20): Run now lists what shipped, the draft and the export work, and nothing is ever sent.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir, ROOT } from "./helpers.js";
+import { startServer, startMockOpenAI, tmpDir, ROOT } from "./helpers.js";
 
 const DIR = tmpDir("cc-reports-");
 process.env.CC_DATA_DIR = process.env.CC_DATA_DIR || DIR;
@@ -36,15 +36,16 @@ test("email draft: subject, plain text body, mailto link, never sent", () => {
 });
 
 test("weekly report: run now lists what shipped; draft and export; nothing sent", { timeout: 120000 }, async () => {
-  const s = await startServer();
+  const mock = await startMockOpenAI();
+  const s = await startServer({ env: { CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: mock.base } });
   try {
     let d = (await s.api("/reports/latest")).json;
     assert.equal(d.latest, null); assert.deepEqual(d.prefs, { email: "" }); assert.ok(d.nextRun > Date.now());
     assert.equal((await s.api("/reports/draft")).status, 404, "no report yet");
     assert.equal((await s.api("/reports/latest", { noToken: true })).status, 401);
 
-    await s.api("/demo", { method: "POST", body: { on: true } });
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line tagline for a bakery.", provider: "demo-nova", model: "nova-lite" } })).status, 202);
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-test-not-a-real-key-0001" } })).json.status.status, "green");
+    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line tagline for a bakery.", provider: "openai", model: "gpt-6-luna" } })).status, 202);
     let m = null;
     for (let i = 0; i < 240 && !m; i++) { m = (await s.api("/missions")).json.find((x) => x.kind === "single" && x.status === "done"); if (!m) await sleep(250); }
     assert.ok(m, "the chat finished");
@@ -67,7 +68,7 @@ test("weekly report: run now lists what shipped; draft and export; nothing sent"
     assert.equal(ex.status, 200); assert.match(ex.headers["content-type"], /text\/markdown/); assert.match(ex.headers["content-disposition"], /attachment; filename="weekly-report-\d{4}-\d{2}-\d{2}\.md"/);
     assert.equal(ex.text, rep.markdown);
     assert.ok(!s.stub.hits.some((h) => /email|resend/i.test(h.path)), "nothing sent anywhere");
-  } finally { await s.stop(); }
+  } finally { await s.stop(); await mock.close(); }
 });
 
 test("reports code: no automatic sending, draft / export / copy buttons, no em-dashes", () => {

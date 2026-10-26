@@ -129,7 +129,7 @@ test("trackBusy: page buttons (top tabs, nav menus, mobile nav) are never marked
 test("app-wide: api() goes through trackBusy, toasts are counted, the click tracker is installed", () => {
   const app = read("web", "app.js");
   assert.match(app, /function api\(path, opts = \{\}\) \{ return trackBusy\(apiCall\(path, opts\)\); \}/);
-  assert.match(app, /function toast\(msg, err = false, link = null\) \{\n  noteToast\(\);/);
+  assert.match(app, /function toast\(msg, err = false, link = null, ttl = 0\) \{\n  noteToast\(\);/);
   assert.match(app, /installClickTracking\(document\);/);
   const css = read("web", "styles.css");
   assert.match(css, /\.spinner \{/);

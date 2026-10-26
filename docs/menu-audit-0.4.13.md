@@ -56,6 +56,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Create | Marketplace | page `marketplace` | OK |
 | Create | Images | page `images` | OK |
 | Create | Media | page `media` | OK |
+| Create | MindMedia | page `mindmedia` | OK |
 | Create | Publish | page `publish` | OK |
 | Create | Remix | page `remix` | OK |
 | Create | Builders | page `builders` | OK |
@@ -109,6 +110,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Create | Marketplace | page `marketplace` | OK |
 | Create | Images | page `images` | OK |
 | Create | Media | page `media` | OK |
+| Create | MindMedia | page `mindmedia` | OK |
 | Create | Publish | page `publish` | OK |
 | Create | Remix | page `remix` | OK |
 | Create | Builders | page `builders` | OK |
@@ -151,6 +153,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Create | Pro prompts | page `prompts` | OK |
 | Create | Images | page `images` | OK |
 | Create | Media | page `media` | OK |
+| Create | MindMedia | page `mindmedia` | OK |
 | Create | Publish | page `publish` | OK |
 | Create | Remix | page `remix` | OK |
 | Create | Builders | page `builders` | OK |

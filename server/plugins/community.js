@@ -561,7 +561,7 @@ export async function routes(req, res, url, body, h) {
       pending: row.pending,
       synced,
       note: row.pending
-        ? "Saved on this computer. It will use the email on your licence once that email is on file. Nothing is sent."
+        ? "Saved on this computer. It will use the email on your license once that email is on file. Nothing is sent."
         : (optedIn ? "You are on the list. Nothing is sent from this app." : "You are off the list."),
     });
   }

@@ -56,7 +56,7 @@ test("the short tour shows only pages that exist, in order, with one idea and Tr
   assert.equal(byId.safety.tier, "free");
   assert.match(byId.safety.priceNote, /\$18\.99/);
   assert.equal(byId.teams.tier, "pro");
-  assert.match(byId.teams.priceNote, /Studio/);
+  assert.match(byId.teams.priceNote, /Pro and Extreme/);
   assert.doesNotMatch(byId.teams.body, /PC is off/);
   assert.equal(byId["whats-new"].tier, "free");
   assert.equal(byId["whats-new"].open.article, "after-an-update");

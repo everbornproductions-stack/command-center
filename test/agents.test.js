@@ -97,14 +97,12 @@ test("agents and prompts on demo models: create, edit, run, tools, libraries, va
     await s.api(`/tools/servers/${sid}/options`, { method: "POST", body: { autoReadOnly: true } });
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "clock", enabled: true } });
     await s.api(`/tools/servers/${sid}/tools`, { method: "POST", body: { tool: "word_count", enabled: true } });
-    // A saved tools server is a real connection, so the demo AIs retire (decision 11, 0.4.13).
-    // Demo mode turned back on in Settings stays on, and with no real AI to answer, the demo still runs the job.
-    // wait for the background demo check those saves started (slower on Windows), then turn demo back on
-    let st = null;
-    for (let t0 = Date.now(); Date.now() - t0 < 20000; await sleep(200)) { st = (await s.api("/state")).json; if (st.realAi && st.settings.demoRetiredAt) break; }
-    assert.equal(st.realAi, true, "a tools server counts as a real connection");
+    // A saved tools server is a tool, not an AI, so the practice AIs stay (0.4.20).
+    // Turning demo on in Settings still keeps them, and the demo runs the job.
+    const st = (await s.api("/state")).json;
+    assert.equal(st.realAi, false, "a tools server is not a real AI");
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
-    assert.equal((await s.api("/state")).json.settings.demoKeep, true);
+    assert.equal((await s.api("/state")).json.settings.demo, true, "the practice AIs stay on");
     ov = (await s.api("/agents")).json;
     assert.deepEqual(ov.tools[0].tools.filter((t) => t.switchedOn).map((t) => t.key), [`${sid}/clock`, `${sid}/word_count`]);
     const ask = "What does the clock say? Use a tool.";

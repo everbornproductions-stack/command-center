@@ -75,10 +75,19 @@ test("Settings section chips filter the long page and Show all brings it back", 
     await t.page.waitForSelector("#settings-groups-bar", { timeout: 10000 });
     const count = () => t.page.evaluate(() => [...document.querySelector("#settings-keys").parentElement.children].filter((e) => !e.hidden).length);
     const before = await count();
-    await t.page.click('[data-settings-jump="#settings-group-privacy"]');
-    const after = await count();
+    // The page can still draw again a moment after it opens, which drops a filter picked too early (the
+    // chips are wired late too), so retry the whole pick, check and Show all until it holds.
+    let after = before;
+    for (let i = 0; i < 6; i++) {
+      await t.page.click('[data-settings-jump="#settings-group-privacy"]');
+      try {
+        await t.page.waitForSelector("#settings-show-all:not([hidden])", { timeout: 1500 });
+        after = await count();
+        await t.page.click("#settings-show-all", { force: true, timeout: 3000 });
+        break;
+      } catch { await t.page.waitForTimeout(500); }
+    }
     assert.ok(after < before, `filtered ${before} -> ${after}`);
-    await t.page.click("#settings-show-all");
     assert.equal(await count(), before);
   } finally { await t.close(); }
 });

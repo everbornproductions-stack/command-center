@@ -206,30 +206,20 @@ test("an MCP server or Grok Bot handoff hides demo AIs, demo tools and the demo 
     assert.ok(add.json.server, JSON.stringify(add.json));
     await new Promise((r) => setTimeout(r, 300));
     st = (await s.api("/state")).json;
-    assert.equal(st.realAi, true, "a saved MCP server counts as a real connection");
-    assert.deepEqual(demoIds(st.providers), []);
-    assert.equal(st.demoBanner, false);
-    tools = (await s.api("/tools")).json;
-    assert.equal(tools.servers.some((x) => x.demo), false, "demo tools leave the list");
-    assert.equal(tools.demoAvailable, false, "no offer to add demo tools");
-    assert.deepEqual(demoIds(tools.providers), []);
-    const imgs = (await s.api("/images/providers")).json;
-    assert.ok(Array.isArray(imgs.items), JSON.stringify(imgs).slice(0, 200));
-    assert.deepEqual(demoIds(imgs.items), [], "demo images leave the picker");
-    const market = (await s.api("/marketplace")).json;
-    assert.ok(Array.isArray(market.catalog), JSON.stringify(market).slice(0, 200));
-    assert.equal(market.catalog.some((r) => r.demo), false, "the demo catalog leaves the list");
+    // An MCP server is a tool, not an AI (0.4.20): the practice AIs, demo tools and demo catalog stay.
+    assert.equal(st.realAi, false, "a saved MCP server is not a real AI");
+    assert.ok(demoIds(st.providers).includes("demo-nova"));
+    assert.ok((await s.api("/marketplace")).json.catalog.some((r) => r.demo), "the demo catalog stays");
 
-    // Kept on in Settings: demos come back with a one-line banner, and Turn off clears both.
+    // Demo on in Settings still works, and Turn off clears the practice AIs.
     await s.api("/demo", { method: "POST", body: { on: true } });
     st = (await s.api("/state")).json;
-    assert.equal(st.settings.demoKeep, true);
-    assert.equal(st.demoBanner, true);
     assert.ok(demoIds(st.providers).includes("demo-nova"));
     await s.api("/demo", { method: "POST", body: { on: false } });
     st = (await s.api("/state")).json;
     assert.equal(st.demoBanner, false);
     assert.deepEqual(demoIds(st.providers), []);
+    await s.api("/demo", { method: "POST", body: { on: true } });
 
     // Remove the MCP server: nothing real is left, then a Grok Bot handoff alone hides them again.
     await s.api(`/tools/servers/${encodeURIComponent(add.json.server.id)}`, { method: "DELETE" });

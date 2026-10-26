@@ -171,7 +171,7 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
   assert.equal(LIMITS.studio.label, "Studio");
 
   const ws = fs.readFileSync(path.join(ROOT, "server", "plugins", "workspaces.js"), "utf8");
-  assert.match(ws, /const STUDIO = new Set\(\["studio", "owner"\]\)/);
+  assert.match(ws, /const STUDIO = new Set\(TEAM_TIERS\)/);
 });
 
 test("the comparison table is Free, Pro, and Extreme", () => {

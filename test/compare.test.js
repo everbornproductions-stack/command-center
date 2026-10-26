@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, ROOT } from "./helpers.js";
+import { startServer, startMockOpenAI, ROOT } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const COLS = [{ provider: "demo-nova", model: "nova-lite" }, { provider: "demo-atlas", model: "atlas-pro" }, { provider: "demo-sage", model: "sage-mini" }];
@@ -21,7 +21,8 @@ const ledgerFor = async (s, id) => (await s.api("/state")).json.ledger.recent.fi
 
 let savedPresets = null;
 test("side-by-side comparison: parallel columns, ledger, winner rating, presets, spend cap skip", { timeout: 180000 }, async () => {
-  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
+  const mock = await startMockOpenAI();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: mock.base, CC_BASE_URL_XAI: mock.base } });
   try {
     assert.equal((await s.api("/demo", { method: "POST", body: { on: true } })).status, 200);
 
@@ -102,22 +103,29 @@ test("side-by-side comparison: parallel columns, ledger, winner rating, presets,
     savedPresets = fs.readFileSync(path.join(s.dir, "compare.presets.json"), "utf8");
 
     // ---- a provider at its spend cap is skipped with a note ----
-    const capRes = await s.api("/alerts/caps", { method: "POST", body: { caps: { "demo-sage": 0.000001 } } });
+    // Practice AIs add $0 to the ledger (0.4.20), so the capped column is a priced AI (OpenAI on a loopback mock).
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-test-not-a-real-key-0001" } })).json.status.status, "green");
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "xai", key: "xai-test-not-a-real-key-0001" } })).json.status.status, "green");
+    const OPEN = { provider: "openai", model: "gpt-6-luna" };
+    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: PROMPT, ...OPEN } })).status, 202);
+    for (let i = 0; i < 120 && !((await s.api("/state")).json.ledger.byProvider.openai?.month > 0); i++) await sleep(250);
+    assert.ok((await s.api("/state")).json.ledger.byProvider.openai.month > 0, "the priced chat spent something");
+    const capRes = await s.api("/alerts/caps", { method: "POST", body: { caps: { openai: 0.000001 } } });
     assert.equal(capRes.status, 200);
-    assert.ok(capRes.json.stop.includes("demo-sage"), "sage is over its cap");
-    assert.equal((await s.api("/compare/models")).json.models.find((m) => m.model === "sage-mini").capped, true);
-    const capped = await s.api("/compare", { method: "POST", body: { prompt: PROMPT, columns: list[0].columns } });
+    assert.ok(capRes.json.stop.includes("openai"), "openai is over its cap");
+    assert.equal((await s.api("/compare/models")).json.models.find((m) => m.model === OPEN.model).capped, true);
+    const capped = await s.api("/compare", { method: "POST", body: { prompt: PROMPT, columns: [{ provider: "xai", model: "grok-4.3" }, { provider: "xai", model: "grok-4.7" }, OPEN] } });
     assert.equal(capped.status, 202);
-    const sageCol = capped.json.columns.find((c) => c.provider === "demo-sage");
+    const sageCol = capped.json.columns.find((c) => c.provider === "openai");
     assert.equal(sageCol.status, "skipped");
     assert.match(sageCol.note, /spend cap/);
     const run2 = await waitRun(s, capped.json.id);
-    assert.equal(run2.status, "done");
+    assert.equal(run2.status, "done", JSON.stringify(run2.columns.map((c) => [c.provider, c.status, c.note])));
     assert.equal(run2.columns.filter((c) => c.status === "done").length, 2);
-    assert.equal(run2.columns.find((c) => c.provider === "demo-sage").cost, null);
+    assert.equal(run2.columns.find((c) => c.provider === "openai").cost, null);
     const led2 = await ledgerFor(s, run2.id);
     assert.equal(led2.length, 2, "only the two answered columns are in the ledger");
-    assert.ok(!led2.some((e) => e.provider === "demo-sage"), "the capped provider was never called");
+    assert.ok(!led2.some((e) => e.provider === "openai"), "the capped provider was never called");
     // a skipped column cannot win
     assert.equal((await s.api(`/compare/${run2.id}/winner`, { method: "POST", body: { column: sageCol.i } })).status, 400);
 
@@ -126,7 +134,7 @@ test("side-by-side comparison: parallel columns, ledger, winner rating, presets,
     const nokey = await s.api("/compare", { method: "POST", body: { prompt: PROMPT, columns: COLS.slice(0, 2) } });
     if (nokey.status === 202) assert.ok(nokey.json.columns.every((c) => c.status === "skipped" && /no API key|spend cap/.test(c.note)));
     else assert.equal(nokey.status, 400); // the demo AIs left the registry for this user
-  } finally { await s.stop(); }
+  } finally { await s.stop(); await mock.close(); }
 });
 
 test("a saved preset reloads in a fresh start of the app, and deletes", { timeout: 60000 }, async () => {
