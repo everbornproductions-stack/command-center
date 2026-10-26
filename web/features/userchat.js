@@ -1,6 +1,8 @@
 // People chat (Phase 92). Direct messages and small groups. Send is a click.
 // Report and block stay on this computer. Nothing goes out until Send.
-const { api, toast, esc } = window.CC;
+const { api, toast, esc, S } = window.CC;
+
+import { emptyTeamText, whoLine } from "/team-words.js";
 
 let openId = "";
 let draft = "";
@@ -21,6 +23,7 @@ async function renderTab(view) {
   const spaces = d.spaces || [];
   view.innerHTML = `<div id="uc-root" class="grid" style="grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 14px">
     <div class="panel"><h3>People</h3>
+      <div class="dim small" id="uc-who" style="margin-bottom:4px">${esc(whoLine(d.me))}</div>
       <div class="row small muted" style="gap:8px;flex-wrap:wrap;align-items:center"><span>${esc(hubLine(d))}</span>${d.hub?.configured ? "" : `<button type="button" class="btn sm" id="uc-setup-hub">Set up hub</button>`}</div>
       <form id="uc-hub-form" hidden class="small" style="margin-top:6px"><div class="dim">A hub lets you chat with people on other computers. Paste the web address whoever runs your hub gave you. You can leave this empty and keep chatting on this computer only.</div><div class="row" style="gap:6px;margin-top:4px"><input name="hub" type="text" aria-label="Hub address" placeholder="https://your-hub.example.com" style="flex:1"><button class="btn sm primary" type="submit">Save hub</button></div><div id="uc-hub-msg" class="dim small" role="status"></div></form>
       ${spaces.length ? spaces.map((s) => `<div class="cat-h" style="margin-top:10px">${esc(s.name)}</div>
@@ -30,7 +33,7 @@ async function renderTab(view) {
           <label class="dim small"><input type="checkbox" data-pick="${esc(s.id)}" value="${esc(m.email)}" aria-label="Add ${esc(m.email)} to a group"> Group</label>
         </div>`).join("") || `<div class="dim small">No one else is in this team space yet.</div>`}
         ${s.role === "viewer" ? `<div class="dim small">You can read this team space. A viewer cannot send.</div>` : `<button class="btn sm" type="button" data-group="${esc(s.id)}" style="margin-top:6px">Start group chat</button>`}
-      `).join("") : `<div class="empty">Chat with people you invite. This is part of Extreme. <button type="button" class="btn sm" id="uc-plans">See plans</button><div class="dim small" style="margin-top:8px">Nothing is sent until you click Send.</div></div>`}
+      `).join("") : `<div class="empty">${esc(emptyTeamText(S?.license?.tier))} ${["extreme", "owner"].includes(S?.license?.tier) ? "" : `<button type="button" class="btn sm" id="uc-plans">See plans</button>`}<div class="dim small" style="margin-top:8px">Nothing is sent until you click Send.</div></div>`}
       ${(d.blocks || []).length ? `<div class="cat-h" style="margin-top:12px">Blocked</div>` + d.blocks.map((b) => `<div class="row small" style="gap:6px"><span style="flex:1">${esc(b.key)}</span><button class="ghost small" type="button" data-unblock="${esc(b.key)}">Unblock</button></div>`).join("") : ""}
     </div>
     <div class="panel"><h3>${thread ? esc(thread.title || "Chat") : "Chat"}</h3>
