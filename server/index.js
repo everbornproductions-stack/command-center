@@ -41,7 +41,8 @@ import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
-import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted } from "./projects.js";
+import { flagOn, flagView } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -493,7 +494,7 @@ function fullState() {
     mode: MODE, user: HOSTED ? { email: c.email } : null, hub: HOSTED ? CFG.hubUrl : null,
     lastRun: c.lastRun, plugins: loadedPlugins(),
     name: s.name, settings: s, demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
-    ...subsView(), projects: listProjects(), hq: hqSnapshot(),
+    ...subsView(), projects: listProjects(), deletedProjects: flagOn("projectbar") ? listDeleted() : [], flags: flagView(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
@@ -868,6 +869,34 @@ async function api(req, res, url) {
     const id = body.id || projectSlug(name);
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
     return json(res, 200, saveProject(body));
+  }
+  if (seg[0] === "projects-deleted") {
+    if (!flagOn("projectbar")) return json(res, 404, { error: "Recently Deleted is turned off on this install.", code: "flag_off" });
+    if (method === "GET" && !seg[1]) {
+      for (const id of expiredDeleted()) { try { const pr = deletedProject(id); if (pr) projectRemoval(id, { remove: true, project: pr }); } catch { /* it stays listed and is tried again next time */ } }
+      return json(res, 200, { projects: listDeleted() });
+    }
+    if (method === "POST" && seg[1] && seg[2] === "restore") {
+      try {
+        const existing = listProjects();
+        try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+        const back = restoreProject(seg[1]);
+        if (!back) return json(res, 404, { error: "That project is not in Recently Deleted." });
+        return json(res, 200, { ok: true, project: back });
+      } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+    }
+    if (method === "DELETE" && seg[1] && !seg[2]) {
+      if (url.searchParams.get("confirm") !== "yes") return json(res, 400, { error: "Confirm before deleting for good.", code: "confirm" });
+      const pr = deletedProject(seg[1]);
+      if (!pr) return json(res, 404, { error: "That project is not in Recently Deleted." });
+      try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true, project: pr }) }); }
+      catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+  }
+  if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2] && flagOn("projectbar")) {
+    const gone = trashProject(seg[1]);
+    if (!gone) return json(res, 404, { error: "project not found" });
+    return json(res, 200, { ok: true, soft: true, deleted: gone });
   }
   if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) {
     try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true }) }); }

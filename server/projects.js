@@ -25,7 +25,46 @@ export function saveProject(p) {
 export function deleteProject(id) {
   const d = data();
   d.projects = d.projects.filter((p) => p.id !== id);
+  if (Array.isArray(d.recentlyDeleted)) d.recentlyDeleted = d.recentlyDeleted.filter((e) => e.project?.id !== id);
   save();
+}
+
+// ---------- Recently Deleted (soft delete) ----------
+// A deleted project moves to recentlyDeleted with a time stamp. It leaves listProjects(), so Live,
+// pickers and the Free project count stop seeing it. Runs and files are not touched until it is
+// removed for good (by the owner, or after KEEP_DAYS).
+export const KEEP_DAYS = 30;
+export function trashProject(id, now = Date.now()) {
+  const d = data();
+  const p = d.projects.find((x) => x.id === id);
+  if (!p) return null;
+  d.projects = d.projects.filter((x) => x.id !== id);
+  d.recentlyDeleted = (d.recentlyDeleted || []).filter((e) => e.project?.id !== id);
+  d.recentlyDeleted.push({ deletedAt: now, project: p });
+  save();
+  return { id: p.id, name: p.name, deletedAt: now };
+}
+export function listDeleted() {
+  return (data().recentlyDeleted || []).map((e) => ({ id: e.project.id, name: e.project.name, color: e.project.color, deletedAt: e.deletedAt, expiresAt: e.deletedAt + KEEP_DAYS * 86400000 }));
+}
+export function deletedProject(id) {
+  return (data().recentlyDeleted || []).find((e) => e.project?.id === id)?.project || null;
+}
+export function restoreProject(id) {
+  const d = data();
+  const e = (d.recentlyDeleted || []).find((x) => x.project?.id === id);
+  if (!e) return null;
+  if (d.projects.some((x) => x.id === id)) { const err = new Error("A project with that id already exists."); err.status = 409; throw err; }
+  const taken = new Set(d.projects.map((x) => String(x.name || "").trim().toLowerCase()));
+  const p = { ...e.project };
+  if (taken.has(String(p.name || "").trim().toLowerCase())) p.name = `${p.name} (restored)`;
+  d.recentlyDeleted = d.recentlyDeleted.filter((x) => x !== e);
+  d.projects.push(p);
+  save();
+  return p;
+}
+export function expiredDeleted(now = Date.now()) {
+  return (data().recentlyDeleted || []).filter((e) => now - e.deletedAt > KEEP_DAYS * 86400000).map((e) => e.project.id);
 }
 export function addLink(projectId, categoryId, link) {
   const p = data().projects.find((x) => x.id === projectId);

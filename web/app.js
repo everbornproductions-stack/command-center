@@ -8,6 +8,7 @@ import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
+import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
@@ -333,7 +334,7 @@ function applyState(st) {
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   S.councilOffer = st.councilOffer || S.councilOffer || null;
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
   renderDemoBanner();
@@ -799,6 +800,7 @@ function render() {
   syncChrome();
   renderAsk();
   markTabs();
+  syncProjectBar();
   $("#feed")?.classList.remove("open");
   const v = $("#view");
   graph = null;
@@ -1024,6 +1026,7 @@ function wireProjectPicker() {
     S.project = sel.value;
     localStorage.setItem("cc.project", S.project);
     if (renameBtn) renameBtn.hidden = !S.project;
+    syncProjectBar();
   });
   renameBtn?.addEventListener("click", () => { if (!S.project) return; sel.value = S.project; open("rename"); });
   $("#proj-cancel")?.addEventListener("click", close);
@@ -1047,6 +1050,100 @@ function wireProjectPicker() {
       toastSaved(savedId);
     } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
   });
+}
+
+// ----- Working-in bar, Continue this project, Recently Deleted (flag: projectbar) -----
+function clearActiveProject(id) {
+  if (S.project !== id) return;
+  S.project = "";
+  try { localStorage.removeItem("cc.project"); } catch { /* storage can be blocked */ }
+}
+function syncOtherPickers() {
+  for (const sel of ["#proj", "#im-proj", "#md-proj"]) {
+    const el = $(sel);
+    if (el && [...el.options].some((o) => o.value === (S.project || ""))) el.value = S.project || "";
+  }
+  const rn = $("#proj-rename");
+  if (rn) rn.hidden = !S.project;
+}
+function setWorkingProject(id) {
+  S.project = id || "";
+  try { if (S.project) localStorage.setItem("cc.project", S.project); else localStorage.removeItem("cc.project"); } catch { /* storage can be blocked */ }
+  syncOtherPickers();
+  syncProjectBar();
+}
+function syncProjectBar() {
+  let bar = $("#projbar");
+  if (!barShows(S.view, S.flags?.projectbar) || S.openProject) { bar?.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "projbar";
+    bar.className = "projbar";
+    bar.setAttribute("role", "region");
+    bar.setAttribute("aria-label", "Working in");
+    $("#view").before(bar);
+  }
+  const hadFocus = document.activeElement?.id === "pb-select";
+  bar.innerHTML = barHtml({ projects: S.projects || [], selected: S.project, view: S.view });
+  const sel = $("#pb-select", bar);
+  sel.addEventListener("change", () => setWorkingProject(sel.value));
+  if (hadFocus) sel.focus();
+  $("#pb-continue", bar)?.addEventListener("click", () => continueProject(S.project));
+  $$("[data-pb-go]", bar).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.pbGo; S.openProject = null; render(); }));
+}
+// One click: the project is selected, its last words are back in the box, and Chat is open
+// with the tools for that project one click away in the bar.
+async function continueProject(id) {
+  const p = (S.projects || []).find((x) => x.id === id);
+  if (!p) return;
+  setWorkingProject(id);
+  const last = lastRunFor(S.missions, id);
+  let words = last?.title || "";
+  if (last?.id) {
+    try { const m = await api(`/missions/${last.id}`); words = m?.prompt || m?.question || words; } catch { /* the short title is enough */ }
+  }
+  if (words) S.lastOrders = String(words);
+  S.openProject = null;
+  S.view = "command";
+  render();
+  toast(words ? `Back in ${p.name}. Your last request is in the box.` : `Back in ${p.name}.`);
+}
+async function restoreDeleted(id) {
+  try {
+    const r = await api(`/projects-deleted/${encodeURIComponent(id)}/restore`, { method: "POST", body: {} });
+    await refresh();
+    toast(`Brought back ${r?.project?.name || "the project"}.`);
+  } catch (e) { toast(e.message, true); }
+}
+async function deleteForGood(item) {
+  if (!confirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`)) return;
+  try {
+    const done = await api(`/projects-deleted/${encodeURIComponent(item.id)}?confirm=yes`, { method: "DELETE" });
+    toast((done.receipt?.lines || ["Project deleted for good."]).join(" "));
+    await refresh();
+  } catch (e) { toast(e.message, true); }
+}
+async function deleteProjectSoft(p) {
+  if (!confirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`)) return false;
+  try {
+    await api(`/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+    clearActiveProject(p.id);
+    if (S.openProject === p.id) S.openProject = null;
+    await refresh();
+    toast(`Deleted "${p.name}".`, false, { label: "Undo", onClick: () => restoreDeleted(p.id) });
+    return true;
+  } catch (e) { toast(e.message, true); return false; }
+}
+function recentlyDeletedHtml() {
+  const rows = S.deletedProjects || [];
+  if (!S.flags?.projectbar || !rows.length) return "";
+  return `<div class="panel" id="recently-deleted"><h3>Recently Deleted <span class="right">kept 30 days</span></h3>
+    ${rows.map((d) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px"><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(d.name)}</span><span class="dim">${ago(d.deletedAt)} ago</span><button type="button" class="btn sm" data-rd-restore="${esc(d.id)}">Bring back</button><button type="button" class="btn sm danger" data-rd-purge="${esc(d.id)}">Delete for good</button></div>`).join("")}
+  </div>`;
+}
+function wireRecentlyDeleted(v) {
+  $$("[data-rd-restore]", v).forEach((b) => b.addEventListener("click", () => restoreDeleted(b.dataset.rdRestore)));
+  $$("[data-rd-purge]", v).forEach((b) => b.addEventListener("click", () => { const item = (S.deletedProjects || []).find((d) => d.id === b.dataset.rdPurge); if (item) deleteForGood(item); }));
 }
 
 // ----- Command -----
@@ -1774,12 +1871,14 @@ function renderProjects(v) {
           <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
+          ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
         </div>`; }).join("") || `<div class="empty">No projects yet. Click + New project to group links, runs and files for one client or campaign.</div>`}</div>
     </div>
     <div class="grid">
       <div class="panel"><h3>Waiting on you <span class="right">HQ board</span></h3>
         ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
+      ${recentlyDeletedHtml()}
       <div class="panel"><h3>Recent runs</h3>
         <input id="run-search" placeholder="Search all history" value="${esc(S.runQuery || "")}" style="width:100%;margin-bottom:8px" aria-label="Search all history">
         <div id="run-search-note" class="dim small"></div>
@@ -1787,6 +1886,9 @@ function renderProjects(v) {
       </div>
     </div></div>`;
   $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
+  $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
+  $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
+  wireRecentlyDeleted(v);
   wireRunRows(v);
   $("#run-search")?.addEventListener("input", async (e) => {
     const q = e.target.value;
@@ -1818,7 +1920,7 @@ function renderProjectDetail(v, p) {
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
   v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
-    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button><button class="btn sm danger" id="del">Delete</button></div>
+    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
       ${p.categories.map((c) => `<div class="cat-h">${esc(c.name)} <button class="ghost small" data-add="${c.id}">+ link</button></div>
@@ -1834,7 +1936,9 @@ function renderProjectDetail(v, p) {
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
   renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
+  $("#pcont")?.addEventListener("click", () => continueProject(p.id));
   $("#del").addEventListener("click", async () => {
+    if (S.flags?.projectbar) { await deleteProjectSoft(p); return; }
     let lines = `Delete project "${p.name}"? Links on this card go away. Chats stay in My chats. AI keys are not touched.`;
     try {
       const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
@@ -2653,7 +2757,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

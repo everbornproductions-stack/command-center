@@ -434,8 +434,8 @@ function runsFor(id) {
   }
 }
 
-export function projectRemoval(id, { remove = false } = {}) {
-  const project = listProjects().find((p) => p.id === id);
+export function projectRemoval(id, { remove = false, project: given = null } = {}) {
+  const project = given || listProjects().find((p) => p.id === id);
   if (!project) {
     const e = new Error("project not found");
     e.status = 404;
