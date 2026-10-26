@@ -518,6 +518,8 @@ function paintPlan(stage, w, expert) {
 }
 function paintBuild(stage, w, expert) {
   const steps = w.plan?.steps || [];
+  // 0.4.21: the Build panel (on wide windows) shows what the steps have made so far
+  window.CC.layout?.buildFeed?.({ name: w.plan?.title || w.typeName || "Your project", text: steps.map((s) => s.output).filter(Boolean).join("\n\n"), working: w.status !== "failed" && w.status !== "paused" });
   stage.innerHTML = `<div role="status"><b>${w.status === "failed" ? "The build stopped." : w.status === "paused" ? "The build is paused." : "Building each step."}</b>
       <div class="small dim">${esc(liveLine || "Progress shows on the live view and the flow map.")}</div></div>
     ${steps.map((s) => `<div class="sp-step"><b>${esc(s.title)}</b> <span class="chip">${esc(s.status || "queued")}</span>
@@ -536,6 +538,7 @@ function paintBuild(stage, w, expert) {
   });
 }
 function paintReview(stage, w, busy) {
+  window.CC.layout?.buildFeed?.({ name: w.plan?.title || w.typeName || "Your project", text: w.deliverable || "", working: !!busy });
   stage.innerHTML = `<h3 style="margin:0 0 6px">Review</h3>
     <div class="md">${md(w.deliverable || "The deliverable is not ready yet.")}</div>
     ${(w.revisions || []).length ? `<p class="small dim">${w.revisions.length} revision${w.revisions.length === 1 ? "" : "s"} so far.</p>` : ""}

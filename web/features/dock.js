@@ -288,32 +288,27 @@ function syncOpsSlim() {
   const live = s.live || {};
   const running = !!live.id && (busy() || Object.keys(live.tasks || {}).length > 0 || live.kind === "council");
   if (!running) { slim?.remove(); panel.classList.remove("slim-collapsed"); return; }
-  const open = s.opsExpandedFor === live.id;
+  // 0.4.21 (area H): the slim line is the default; "See live" opens the full map as an overlay (CC.layout.seeLive).
   if (!slim) {
     slim = document.createElement("div");
     slim.id = "cc-ops-slim";
     slim.className = "ops-slim";
     slim.innerHTML = `<span class="dock-pulse" aria-hidden="true"></span><span class="ops-slim-text"></span><button type="button" id="cc-ops-expand" class="btn sm"></button>`;
     panel.before(slim);
-    slim.querySelector("#cc-ops-expand").addEventListener("click", () => {
-      const l = S().live || {};
-      S().opsExpandedFor = S().opsExpandedFor === l.id ? "" : l.id;
-      syncOpsSlim();
-      try { CC.graph?.resize?.(); } catch { /* the map redraws on its own */ }
-    });
+    slim.querySelector("#cc-ops-expand").addEventListener("click", () => CC.layout?.seeLive?.());
   }
   const finished = !busy();
   slim.querySelector(".ops-slim-text").textContent = finished ? finishedLine(live) : workingLine(live, working());
   const btn = slim.querySelector("#cc-ops-expand");
-  btn.textContent = open ? "Hide the map" : "Live view";
-  btn.setAttribute("aria-expanded", open ? "true" : "false");
-  panel.classList.toggle("slim-collapsed", !open);
+  btn.textContent = "See live";
+  btn.setAttribute("aria-haspopup", "dialog");
+  panel.classList.add("slim-collapsed");
 }
 
 CC.dock = {
   onRender() { update(); syncOpsSlim(); },
   update,
-  expandOps() { const l = S().live || {}; if (l.id) { S().opsExpandedFor = l.id; syncOpsSlim(); } },
+  expandOps() { CC.layout?.seeLive?.(); },
 };
 
 CC.register({

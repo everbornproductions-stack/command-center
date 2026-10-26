@@ -167,7 +167,8 @@ test("the bottom bar lights an AI while a run is going and goes dark after", { s
   try {
     await demoOn(t);
     await t.page.evaluate(() => { window.CC.S.settings.simpleStrip = true; window.CC.go("command"); });
-    await t.page.waitForSelector("#cc-composer-ais .composer-ai[data-p]", { timeout: WAIT() });
+    // 0.4.21 (area H): under the Simple box the AI row shows while a run is going (or when Auto team is open), so it is attached, not on screen, before Send.
+    await t.page.waitForSelector("#cc-composer-ais .composer-ai[data-p]", { state: "attached", timeout: WAIT() });
     assert.ok(await t.page.$("#composer-add"), "+ Add an AI chip");
     await t.page.fill("#orders", "Write one friendly line for my bakery");
     await t.page.click("#go");
