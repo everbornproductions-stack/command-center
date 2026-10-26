@@ -2551,7 +2551,7 @@ function renderSimpleBasics(v) {
     try { await api("/privacy", { method: "POST", body: { contentOptIn: !!e.target.checked } }); }
     catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
   });
-  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
+  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "privacy"; S.helpSection = "What leaves this computer"; S.view = "help"; render(); });
   $("#basics-help-go").addEventListener("click", () => { S.view = "help"; render(); });
 }
 function renderSettings(v) {

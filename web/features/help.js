@@ -185,6 +185,13 @@ function renderTab(view) {
     const scroller = document.getElementById("view");
     if (scroller) scroller.scrollTop = 0;
     article.querySelector("#help-article-title")?.focus?.();
+    // A link can ask for one section of the article (0.4.21), for example Privacy > What leaves this computer.
+    const want = String(window.CC.S?.helpSection || "").toLowerCase();
+    if (want) {
+      window.CC.S.helpSection = null;
+      const h = [...article.querySelectorAll("h1,h2,h3,h4")].find((el) => el.textContent.trim().toLowerCase().startsWith(want));
+      if (h) h.scrollIntoView({ block: "start" });
+    }
   }
 
   view.addEventListener("click", (e) => {
@@ -294,8 +301,9 @@ function renderTab(view) {
   });
 }
 
-window.CC.openHelp = (id) => {
+window.CC.openHelp = (id, section) => {
   window.CC.S.helpArticle = id;
+  window.CC.S.helpSection = section || null;
   window.CC.go("help");
 };
 

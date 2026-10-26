@@ -33,6 +33,9 @@ export const QUALITY_NEVER_ITEMS = [
   "identifying ids",
 ];
 export const QUALITY_SIGNALS_DETAIL = "Counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id. No prompts, answers, file names, emails, keys, or identifying ids.";
+export const LOCAL_ONLY_BADGE = "Nothing left this computer";
+export const SHARING_CHANGED_TITLE = "Sharing changed";
+export const SHARING_CHANGED_BODY = "Meldmind now helps itself get smarter with anonymous counts: provider, task type, thumbs up or down, and cost. Never your text. It is off in the EU and the UK until you say yes. You can change it any time.";
 export const CONTENT_SHARING_LABEL = "Share real prompts and answers for our own-AI program";
 export const CONTENT_SHARING_DETAIL = "Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded. Nothing collects prompts or answers without a clear yes.";
 
@@ -391,7 +394,7 @@ export const SENDERS = [
     name: "Anonymous quality signals and track records",
     what: QUALITY_SIGNALS_DETAIL,
     to: "Everborn's hub (hub.meldmind.ai). Show what would be shared lists exactly what goes.",
-    when: "Once a day, only while the switch is on and there is something to send.",
+    when: "Once a day, only while the switch is on and there is something to send. In this version the sending itself is still switched off until our receiving service is live, so these counts stay on this computer for now (the Privacy page says which). Your choice is saved.",
     off: "Welcome screen or Settings > Privacy > Helping Meldmind get smarter (or Settings > Who's best > I am willing to share anonymous track records). On by default with an up-front notice, and off until you opt in in consent-first regions such as the EU and the UK.",
     state: "switch",
     switch: "trackRecords",
@@ -509,6 +512,11 @@ export function privacyView(live = {}) {
     qualityNeverItems: QUALITY_NEVER_ITEMS,
     contentSharingLabel: CONTENT_SHARING_LABEL,
     contentSharingDetail: CONTENT_SHARING_DETAIL,
+    // True when nothing is set up to leave this computer: no sharing switch on, no sync, no AI key saved.
+    // The page shows the badge "Nothing left this computer" only then (S39).
+    localOnly: live.localOnly === true,
+    localOnlyBadge: LOCAL_ONLY_BADGE,
+    signalSending: live.signalSending === true,
     levels: {
       onDevice: typeof live.onDevice === "boolean" ? live.onDevice : true,
       qualitySignals: typeof live.trackRecords === "boolean" ? live.trackRecords : (typeof live.usage === "boolean" ? live.usage : null),

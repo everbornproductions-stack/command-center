@@ -5,6 +5,7 @@ import { privacyView, detectLocale, isConsentFirstLocale } from "../privacy.js";
 import { publicState as usageState, setShare as setUsageShare } from "../usage.js";
 import { brainSettings, saveBrainSettings } from "../brain.js";
 import { status as syncStatus } from "../history-sync.js";
+import { flagOn } from "../flags.js";
 
 export const id = "privacy";
 
@@ -34,6 +35,8 @@ function live(h) {
   return out;
 }
 
+function signalsOn() { try { return flagOn("signalsend"); } catch { return false; } }
+
 function connected(h) {
   const names = [];
   for (const p of Object.values(h.PROVIDERS || {})) {
@@ -43,11 +46,20 @@ function connected(h) {
   return names;
 }
 
+function fullView(h) {
+  const lv = live(h);
+  const conn = connected(h);
+  const sharing = lv.usage === true || lv.trackRecords === true || lv.contentOptIn === true || lv.chatSync === true;
+  lv.localOnly = !sharing && conn.length === 0;
+  lv.signalSending = signalsOn();
+  const view = privacyView(lv);
+  view.connected = conn;
+  return view;
+}
+
 export async function routes(req, res, url, body, h) {
   if (req.method === "GET" && (url.pathname === "/api/privacy" || url.pathname === "/api/privacy/")) {
-    const view = privacyView(live(h));
-    view.connected = connected(h);
-    return h.json(res, 200, view);
+    return h.json(res, 200, fullView(h));
   }
   if (req.method === "POST" && (url.pathname === "/api/privacy" || url.pathname === "/api/privacy/")) {
     const b = body || {};
@@ -68,9 +80,7 @@ export async function routes(req, res, url, body, h) {
       pd.noticeSeen = b.noticeSeen;
     }
     try { h.putDoc("privacy", pd); } catch { /* ignore */ }
-    const view = privacyView(live(h));
-    view.connected = connected(h);
-    return h.json(res, 200, view);
+    return h.json(res, 200, fullView(h));
   }
   return false;
 }
