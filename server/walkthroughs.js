@@ -829,3 +829,18 @@ export function exampleEvents(script) {
   });
   return events;
 }
+
+// A project name from the walkthrough kind and the idea (0.4.21, F16). With no idea typed (the idea is the kind's own
+// starter line) the name is "New app project", never "App/software: App/software: Who it is for...".
+export function walkProjectName(typeName, idea) {
+  const kind = String(typeName || "Project").trim() || "Project";
+  let text = String(idea || "").replace(/\s+/g, " ").trim();
+  if (text.toLowerCase().startsWith(kind.toLowerCase() + ":")) text = text.slice(kind.length + 1).trim();
+  if (!text || /Details to confirm|\[ASK\]/.test(text)) return `New ${kind.toLowerCase().replace(/\/software$/, "")} project`;
+  if (text.length > 42) {
+    const cut = text.slice(0, 43);
+    const sp = cut.lastIndexOf(" ");
+    text = (sp > 20 ? cut.slice(0, sp) : text.slice(0, 42)).replace(/[.,;:\s]+$/, "");
+  }
+  return `${kind}: ${text}`;
+}

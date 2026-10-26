@@ -2391,7 +2391,7 @@ function renderCredits(v) {
   </div>`;
   renderExtras("credits", "#credits-extras");
   $$("[data-rule]", v).forEach((cb) => cb.addEventListener("change", async () => { const rules = (S.rules || []).map((r) => ({ ...r, enabled: r.id === cb.dataset.rule ? cb.checked : r.enabled })); for (const r of rules) { delete r.providerName; delete r.color; delete r.activeNow; delete r.nextStart; } S.rules = await api("/rules", { method: "POST", body: { rules } }); toast("Rules saved"); }));
-  $("#cr-go").addEventListener("click", async () => { const units = Number($("#cr-u").value); if (!units) return; await api("/credits", { method: "POST", body: { provider: $("#cr-p").value, units, note: $("#cr-n").value, project: S.project } }); toast("Logged"); await refresh(); });
+  $("#cr-go").addEventListener("click", async () => { const units = Number($("#cr-u").value); if (!units) return toast("Type how many credits you used first.", true); await api("/credits", { method: "POST", body: { provider: $("#cr-p").value, units, note: $("#cr-n").value, project: S.project } }); toast("Logged"); await refresh(); });
 }
 
 // ----- Subscriptions -----

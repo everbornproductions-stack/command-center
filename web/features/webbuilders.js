@@ -452,6 +452,7 @@ function boot(view, openId) {
   });
   root.querySelector("#bd-suggest-go").addEventListener("click", async () => {
     const text = root.querySelector("#bd-notice").value.trim();
+    if (!text) toast("Tell me what you are working on first, for example: a flyer for my shop. Showing the usual builders for now.");
     try {
       if (text) await api("/webbuilders/notice", { method: "POST", body: { text } });
       await loadHub();

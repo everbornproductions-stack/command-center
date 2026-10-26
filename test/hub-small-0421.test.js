@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, tmpDir } from "./helpers.js";
+import { startServer, tmpDir, ROOT } from "./helpers.js";
 
 test("hub: bad status is refused, long text is flagged, a huge body gets 413, Unfiled is reserved", async () => {
   const srv = await startServer({});
@@ -36,4 +36,18 @@ test("Drive folder is called Meldmind and an old Everborn Command folder is rena
   assert.ok(fs.existsSync(path.join(base, "Meldmind", "unfiled", "old.md")));
   assert.equal(fs.existsSync(path.join(base, "Everborn Command")), false);
   assert.ok(fs.readdirSync(path.join(base, "Meldmind", "unfiled")).some((f) => /Hello\.md$/.test(f)));
+});
+
+import { walkProjectName } from "../server/walkthroughs.js";
+test("project names from Start: no doubled kind, no starter line, cut at a word (F16)", () => {
+  assert.equal(walkProjectName("App/software", "App/software: Who it is for, the must-have... Details to confirm: [ASK]."), "New app project");
+  assert.equal(walkProjectName("Website", ""), "New website project");
+  assert.equal(walkProjectName("Website", "A site for my bakery with online orders and a map"), "Website: A site for my bakery with online orders");
+  assert.equal(walkProjectName("Website", "Website: bakery"), "Website: bakery");
+});
+test("source: empty Show builders, Suggest builders and Log say what to fill in", async () => {
+  const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
+  assert.match(read("web", "features", "builders.js"), /Tell me what you are working on first/);
+  assert.match(read("web", "features", "webbuilders.js"), /Tell me what you are working on first/);
+  assert.match(read("web", "app.js"), /Type how many credits you used first/);
 });

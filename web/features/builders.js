@@ -350,6 +350,7 @@ async function render(view) {
   if (preset && box) box.value = preset;
   paint();
   root.querySelector("#builders-show").addEventListener("click", async () => {
+    if (!box.value.trim()) toast("Tell me what you are working on first, for example: a booking page. Showing every builder for now.");
     try {
       await load(box.value);
       sessionStorage.setItem("cc.builderText", box.value);
