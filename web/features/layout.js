@@ -61,6 +61,7 @@ function buildSide() {
       <button type="button" class="side-item" id="side-new" data-side="new" title="Start something new"><i aria-hidden="true">+</i><span>New</span></button>
       <button type="button" class="side-item" id="side-projects" data-side="projects" title="Projects"><i aria-hidden="true">&#9638;</i><span>Projects</span></button>
       <button type="button" class="side-item" id="side-mindmedia" data-side="mindmedia" title="MindMedia: everything you made"><i aria-hidden="true">&#9635;</i><span>MindMedia</span></button>
+      <button type="button" class="side-item" id="side-news" data-side="news" title="AI News: what is new in AI this week"><i aria-hidden="true">&#9783;</i><span>AI News</span></button>
       <div class="side-group">
         <button type="button" class="side-item" id="side-create" data-side="create" aria-expanded="false" aria-controls="side-create-list" title="Create"><i aria-hidden="true">&#10022;</i><span>Create</span></button>
         <div class="side-sub" id="side-create-list" hidden></div>
@@ -97,7 +98,9 @@ function applySide() {
   b.setAttribute("aria-label", col ? "Open the sidebar" : "Collapse the sidebar");
   b.firstElementChild.innerHTML = col ? "&raquo;" : "&laquo;";
   const s = S();
-  const cur = s.view === "command" && !s.openProject ? "new" : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : "";
+  const cur = s.view === "command" && !s.openProject ? "new" : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : s.view === "ai-news" ? "news" : "";
+  const newsOn = (() => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } })();
+  const ni = side.querySelector("#side-news"); if (ni) ni.hidden = !newsOn;
   side.querySelectorAll("[data-side]").forEach((el) => { if (el.dataset.side !== "create") el.classList.toggle("active", el.dataset.side === cur); });
   paintRecent();
 }
@@ -108,7 +111,7 @@ function onSideClick(e) {
   if (b.id === "side-profile") { st.menuOpen ? closeMenu() : openMenu(); return; }
   if (b.dataset.chat) { openChat(b.dataset.chat); return; }
   if (b.dataset.sideAct === "orig") { runOriginal(b); return; }
-  const places = { "side-new": newChat, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia"), "side-create": () => toggleCreate() };
+  const places = { "side-new": newChat, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia"), "side-news": () => CC.go("ai-news"), "side-create": () => toggleCreate() };
   places[b.id]?.();
 }
 
@@ -183,8 +186,8 @@ function menuHtml() {
   const first = [
     ["settings", "Settings"], ["keys", "Keys and connections"], ["look", "Look and theme"], ["expert", "Expert mode"],
   ].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
-  const second = [["community", "Community"], ["news", "AI News"]].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
-  return `${first}<div class="side-sec" role="presentation">Community and news</div>${second}
+  const second = [["community", "Community"]].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
+  return `${first}<div class="side-sec" role="presentation">Community</div>${second}
     <details class="side-det"><summary>Help</summary>${itemsHtml(help)}</details>
     <details class="side-det"><summary>More pages</summary>${itemsHtml(more)}</details>`;
 }
@@ -205,7 +208,6 @@ function openMenu() {
     else if (k === "look") CC.openSettings?.("[data-feature='look']");
     else if (k === "expert") document.getElementById("mode-expert")?.click();
     else if (k === "community") CC.go("community");
-    else if (k === "news") (CC.openCommunity || CC.go)("news");
   };
   menu.querySelector("button")?.focus();
 }
@@ -555,7 +557,7 @@ function onRender(view) {
 document.addEventListener("click", onDocClick);
 window.addEventListener("resize", () => { clearTimeout(onRender.t); onRender.t = setTimeout(() => { applySide(); queuePanel(); }, 120); });
 
-CC.layout = { onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
+CC.layout = { refresh: () => applySide(), onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
 // The first page is drawn before this module loads (and is not drawn again when no AI is connected yet), so catch up now.
 setTimeout(() => { try { onRender(S().view); } catch { /* the next render does it */ } }, 0);
 CC.register({

@@ -20,11 +20,9 @@ test("source: feature pages use the themed confirm dialog", () => {
   assert.match(hub, /restore it for 30 days/);
 });
 
-test("source: a hidden AI News panel comes back from the Community News screen, and Escape closes Who will read this", () => {
-  assert.match(read("web", "features", "community.js"), /Show the AI News panel/);
-  const rail = read("web", "features", "news-rail.js");
-  assert.match(rail, /window\.CC\.newsRail = \{/);
-  assert.equal(/Settings can bring it back/.test(rail), false);
+test("source: AI News has no floating panel to bring back, and Escape closes Who will read this", () => {
+  assert.equal(/Show the AI News panel/.test(read("web", "features", "community.js")), false);
+  assert.equal(/window\.CC\.newsRail = \{/.test(read("web", "features", "news-rail.js")), false);
   const desk = read("web", "features", "desk.js");
   assert.match(desk, /ev\.key === "Escape"/);
 });

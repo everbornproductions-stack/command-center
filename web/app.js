@@ -2579,6 +2579,7 @@ function renderSimpleBasics(v) {
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
     <div id="basics-memories-body"></div>
+    <div id="basics-news-body"></div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
       <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
       <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
@@ -2594,6 +2595,7 @@ function renderSimpleBasics(v) {
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
   renderFeature("settings", "memories", "#basics-memories-body");
+  renderFeature("settings", "ai-news", "#basics-news-body");
   $("#basics-private").addEventListener("change", async (e) => {
     const next = !!e.target.checked;
     try {

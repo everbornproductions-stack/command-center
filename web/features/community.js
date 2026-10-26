@@ -12,6 +12,15 @@ let shareOverride = "";
 let busy = false;
 let liveTimer = null;
 const LIVE_MS = 5000;
+// 0.4.21: AI News has one home, its own page (view "ai-news", an item in the sidebar). Community is chat only.
+let newsMode = false;
+const TOPICS_KEY = "cc.newsTopics";
+export const NEWS_TOPICS = [["ai", "Newest in AI"], ["meldmind", "New in Meldmind"], ["prompts", "Top voted prompts"], ["highlights", "Community highlights"]];
+export const newsIsOn = () => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } };
+function readTopics() {
+  try { const t = JSON.parse(localStorage.getItem(TOPICS_KEY) || "null"); if (Array.isArray(t)) return NEWS_TOPICS.map(([k]) => k).filter((k) => t.includes(k)); } catch { /* use all */ }
+  return NEWS_TOPICS.map(([k]) => k);
+}
 
 const css = `
 #cc-community { max-width: 1100px; margin: 0 auto; }
@@ -37,7 +46,7 @@ if (!document.getElementById("cc-community-style")) {
 let unreadChat = 0;
 function paintNavBadge(on) {
   const text = unreadChat > 0 ? (unreadChat > 99 ? "99+" : String(unreadChat)) : "New";
-  document.querySelectorAll('button[data-view="community"]').forEach((btn) => {
+  document.querySelectorAll('button[data-view="ai-news"], #side-news').forEach((btn) => {
     let mark = btn.querySelector(".cc-new");
     if (!on && !unreadChat) { mark?.remove(); return; }
     if (!mark) {
@@ -142,6 +151,7 @@ window.CC.shareMindMediaItem = (item = {}) => shareInChat({
 });
 // Other panels (the AI News side panel) open the Community page on a channel, News included.
 window.CC.openCommunity = (ch) => {
+  if (ch === "news") { go("ai-news"); return; }
   if (ch) channel = String(ch);
   if (window.CC.S.view === "community") { const view = document.getElementById("view"); if (view) { render(view); return; } }
   go("community");
@@ -246,10 +256,8 @@ function newsHtml(news) {
   if (!issue) return `<div class="empty">No issue yet. A new one is published each week. No app update is needed.</div>`;
   return `<h2 style="margin:0 0 6px">${esc(issue.title || "AI News")}</h2>
     <div class="dim small">This week in the app. Open a source link to read it on the provider's site.</div>
-    ${sectionHtml("Newest in AI", issue.sections?.ai, "ai")}
-    ${sectionHtml("New in Meldmind", issue.sections?.meldmind, "meldmind")}
-    ${sectionHtml("Top voted prompts", issue.sections?.prompts, "prompts")}
-    ${sectionHtml("Community highlights", issue.sections?.highlights, "highlights")}`;
+    ${NEWS_TOPICS.filter(([k]) => readTopics().includes(k)).map(([k, label]) => sectionHtml(label, issue.sections?.[k], k)).join("")}
+    ${readTopics().length ? "" : `<div class="empty">All topics are off. Pick topics in Settings.</div>`}`;
 }
 
 function moreHtml() {
@@ -382,7 +390,10 @@ function wireFeed(view, scope) {
 
 async function render(view) {
   stopLive();
-  view.innerHTML = `<div id="cc-community"><div class="empty">Loading community...</div></div>`;
+  if (!newsMode && channel === "news") channel = "general";
+  if (newsMode) channel = "news";
+  if (newsMode && !newsIsOn()) { view.innerHTML = `<div id="cc-community" data-ai-news="1"><div class="panel"><h2 style="margin:0 0 6px">AI News</h2><div class="empty">AI News is off. Turn it on in Settings.</div></div></div>`; return; }
+  view.innerHTML = `<div id="cc-community" ${newsMode ? 'data-ai-news="1"' : ""}><div class="empty">Loading community...</div></div>`;
   const root = view.querySelector("#cc-community");
   try { room = await api(`/community?channel=${encodeURIComponent(channel)}`); }
   catch (e) { root.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
@@ -392,13 +403,13 @@ async function render(view) {
     api("/community/news/seen", { method: "POST", body: { id: room.news.issue.id } }).then(() => { unread = false; paintNavBadge(false); }).catch(() => {});
   }
   paintNavBadge(unread);
-  const channels = room.channels || [];
-  const onNews = channel === "news";
+  const channels = (room.channels || []).filter((c) => c.id !== "news");
+  const onNews = newsMode;
   const joined = !!room.joined;
-  root.innerHTML = `<div class="cc-layout">
-    <div class="panel cc-channels" role="tablist" aria-label="Community channels">
-      ${channels.map((c) => `<button class="btn sm ${c.id === channel ? "active" : ""}" type="button" data-channel="${esc(c.id)}">${esc(c.label)}${c.id === "news" && unread ? ` <span class="chip cc-new">New</span>` : ""}</button>`).join("")}
-    </div>
+  root.innerHTML = `<div class="cc-layout" ${onNews ? 'style="grid-template-columns:minmax(0,1fr)"' : ""}>
+    ${onNews ? "" : `<div class="panel cc-channels" role="tablist" aria-label="Community channels">
+      ${channels.map((c) => `<button class="btn sm ${c.id === channel ? "active" : ""}" type="button" data-channel="${esc(c.id)}">${esc(c.label)}</button>`).join("")}
+    </div>`}
     <div>
       <div class="panel">
         ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your license.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div><div class="row" style="gap:8px;margin-top:6px"><button class="btn sm primary" type="button" id="cc-signin">Sign in</button><span class="dim small">Opens Settings where you add your email. This works even when the shared room is offline.</span></div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
@@ -407,23 +418,20 @@ async function render(view) {
           <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News.</div>
           <div><button class="btn sm primary" type="submit">Save username</button></div>
         </form>`)}
-        <div class="dim small">${esc(SHORT)}</div>
-        <div class="dim small" id="cc-online-note">Who is online: Meldmind does not show who is online or when someone was last here. The chip below tells you if the shared room can be reached.</div>
+        ${onNews ? "" : `<div class="dim small">${esc(SHORT)}</div>
+        <div class="dim small" id="cc-online-note">Who is online: Meldmind does not show who is online or when someone was last here. The chip below tells you if the shared room can be reached.</div>`}
         ${onNews ? "" : `<div class="row" style="gap:8px;margin-top:6px;align-items:center">${syncChip(room.sync, room.messages)}<button class="btn sm" type="button" id="cc-refresh">Refresh</button></div>${joined ? shareNote(room.sync) : ""}`}
-        ${onNews && window.CC.newsRail?.hidden?.() ? `<div class="row" style="margin-bottom:8px"><button class="btn sm" type="button" id="cc-show-rail">Show the AI News panel</button></div>` : ""}
         ${onNews ? newsHtml(room.news) : `
           <div id="cc-feed" style="max-height:60vh;overflow-y:auto">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
             <textarea id="cc-body" rows="3" maxlength="2000" placeholder="Write a message. Nothing is posted until you click Send." aria-label="Message"></textarea>
             <div><button class="btn sm primary" type="submit" id="cc-send-go">${room.sync && room.sync.canShare === false ? "Save on this computer" : "Send"}</button></div>
           </form>` : ""}`}
-        ${mailBox(!!room.newsletter?.optedIn)}
       </div>
       ${moreHtml()}
     </div>
   </div>`;
 
-  root.querySelector("#cc-show-rail")?.addEventListener("click", (ev) => { window.CC.newsRail?.show?.(); ev.currentTarget.closest(".row")?.remove(); });
   root.querySelectorAll("[data-channel]").forEach((btn) => btn.addEventListener("click", async () => {
     channel = btn.dataset.channel;
     if (channel === "news" && room?.news?.issue?.id && room.news.unread) {
@@ -487,7 +495,6 @@ async function render(view) {
     try {
       await api("/community/news/share", { method: "POST", body: { issueId: room.news.issue.id, itemId: btn.dataset.shareItem, channel: shareOverride || "general" } });
       toast("Shared in chat.");
-      channel = shareOverride || "general";
       render(view);
     } catch (e) { toast(e.message, true); }
   }));
@@ -547,8 +554,7 @@ function renderSettings(el) {
       <button class="btn sm" type="button" id="cc-settings-username-go">Save username</button>
     </div>
     <div class="dim small" id="cc-settings-username-note">You can change this name. After a change, wait 1 hour before the next one.</div>
-  </div>
-  <div class="panel" id="cc-settings-mail"><h3>Weekly AI News email</h3>${mailBox(false)}</div>`;
+  </div>`;
   const note = el.querySelector("#cc-settings-username-note");
   const input = el.querySelector("#cc-settings-username");
   api("/account").then((state) => {
@@ -568,6 +574,24 @@ function renderSettings(el) {
       }
     } catch (e) { toast(e.message, true); }
   });
+}
+
+// AI News settings: on or off, which topics, and the weekly email. Nothing else; the news itself is on its own page.
+function renderNewsSettings(el) {
+  el.innerHTML = `<div class="panel" id="cc-settings-news" data-news-settings="1"><h3>AI News</h3>
+    <p class="small">AI News has its own item in the left menu. Here you only choose whether it shows and what it covers.</p>
+    <label class="row" style="gap:8px"><input type="checkbox" id="cc-news-on" ${newsIsOn() ? "checked" : ""}> Show AI News</label>
+    <div class="lbl" style="margin-top:8px">Topics</div>
+    ${NEWS_TOPICS.map(([k, label]) => `<label class="row" style="gap:8px"><input type="checkbox" data-news-topic="${k}" ${readTopics().includes(k) ? "checked" : ""}> ${esc(label)}</label>`).join("")}
+    <div id="cc-settings-mail">${mailBox(false)}</div></div>`;
+  el.querySelector("#cc-news-on")?.addEventListener("change", (ev) => {
+    try { localStorage.setItem("cc.newsOn", ev.target.checked ? "1" : "0"); } catch { /* the choice lasts for this visit only */ }
+    window.CC.layout?.refresh?.();
+  });
+  el.querySelectorAll("[data-news-topic]").forEach((box) => box.addEventListener("change", () => {
+    const on = [...el.querySelectorAll("[data-news-topic]")].filter((b) => b.checked).map((b) => b.dataset.newsTopic);
+    try { localStorage.setItem(TOPICS_KEY, JSON.stringify(on)); } catch { /* the choice lasts for this visit only */ }
+  }));
   api("/community/newsletter").then((row) => {
     const box = el.querySelector("#cc-mail");
     if (box) box.checked = row.optedIn === true;
@@ -578,9 +602,16 @@ function renderSettings(el) {
 // 0.4.21: start the unread check as soon as this file loads (one request), not only after the first state push.
 setTimeout(() => { try { startUnread(); } catch { /* onState starts it later */ } }, 0);
 
+// AI News: its own page. It reuses the Community code, so there is one News screen and no second copy.
+window.CC.register({
+  id: "ai-news",
+  tab: { label: "AI News", order: 47, render(view) { newsMode = true; return render(view); } },
+  settings: { order: 47, render: renderNewsSettings },
+});
+
 window.CC.register({
   id: "community",
-  tab: { label: "Community", order: 46, render },
+  tab: { label: "Community", order: 46, render(view) { newsMode = false; return render(view); } },
   settings: { order: 46, render: renderSettings },
   deliverable: { order: 4, render(el, run) {
     if (!run || run.kind !== "mission") { el.innerHTML = ""; return; }

@@ -380,16 +380,21 @@ test("8b. Start a project hands its build to the Build panel as it is made", { s
   } finally { await t.close(); }
 });
 
-// ---------- 5c. AI News is reachable but never floats over the page ----------
-test("5c. AI News sits behind the profile menu in Simple and still opens", { skip }, async () => {
+// ---------- 5c. AI News has one home: its own item in the sidebar ----------
+test("5c. AI News is its own sidebar item, not in the profile menu, and opens its page", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1500, height: 900 });
   try {
     await goChat(t.page);
     await t.page.waitForSelector("#cc-side", { timeout: WAIT });
     await t.page.waitForTimeout(1200);
     assert.equal(await vis(t.page, "#cc-rail"), false, "no floating News card");
+    assert.equal(await vis(t.page, "#side-news"), true, "AI News sits in the sidebar");
     await t.page.click("#side-profile");
-    await t.page.click('#side-menu [data-menu-act="news"]');
-    await t.page.waitForFunction(() => ["news", "community"].includes(window.CC.S.view) || /News/i.test(document.querySelector("#view")?.innerText || ""), null, { timeout: WAIT });
+    assert.equal(await t.page.locator('#side-menu [data-menu-act="news"]').count(), 0, "not repeated in the profile menu");
+    await t.page.keyboard.press("Escape");
+    await t.page.click("#side-news");
+    await t.page.waitForFunction(() => window.CC.S.view === "ai-news", null, { timeout: WAIT });
+    await t.page.waitForSelector('#view [data-ai-news="1"]', { timeout: WAIT });
   } finally { await t.close(); }
 });
+

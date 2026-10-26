@@ -129,6 +129,7 @@ export const FEATURES = [
   { id: "modelwatch", settings: true },
   { id: "userchat", views: ["userchat"] },
   { id: "community", views: ["community"], settings: true, deliverable: true, listen: true },
+  { id: "ai-news", file: "community", views: ["ai-news"], settings: true },
   { id: "industries", views: ["prompts"] },
   { id: "teamrecipes", views: ["workspaces"] },
   { id: "highlevel", settings: true },

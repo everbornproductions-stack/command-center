@@ -39,9 +39,10 @@ test("only safe https links are listed, at most eight", () => {
   assert.deepEqual(railLinks({ issue: null }), []);
 });
 
-test("the page code has both sides, minimize, hide with a Settings switch, and no dashes", () => {
+test("0.4.21: the floating News panel is gone; the file only clears an old one, and the registry still lists it", () => {
   const ui = read("web", "features", "news-rail.js");
-  for (const needle of ["data-side", "Minimize", "Move ", "Open AI News", "Show the AI News panel", 'rel="noopener"']) assert.ok(ui.includes(needle), needle);
+  assert.equal(/createElement|innerHTML/.test(ui), false, "nothing is drawn");
+  assert.match(ui, /getElementById\("cc-rail"\)\?\.remove\(\)/);
   assert.match(read("web", "perf", "registry.js"), /"news-rail"/);
   assert.equal(/[–—]/.test(ui + read("web", "news-rail.js")), false);
 });
@@ -70,12 +71,6 @@ test("pinned links are https only, limited, toggled and remembered", () => {
   assert.equal(readRail(st, 1366).pins.length, MAX_PINS);
 });
 
-test("the docked panel reserves a gutter, refreshes, shows what shipped, and opens News on a phone", () => {
-  const ui = read("web", "features", "news-rail.js");
-  for (const needle of ["rail-dock-right", "rail-dock-left", "padding-right: 288px", 'data-rail="refresh"', "What Meldmind shipped", "WEEKLY_CHECK_MS", "openCommunity", "data-pin"]) assert.ok(ui.includes(needle), needle);
-}
-);
-
 test("0.4.21: rows can open in-app objects (What's new, Help article, template) and can be pinned", async () => {
   const { appRows, isAppUrl, APP_TARGET } = await import("../web/news-rail.js");
   const rows = appRows({ issue: { sections: { meldmind: [
@@ -91,7 +86,5 @@ test("0.4.21: rows can open in-app objects (What's new, Help article, template) 
   const pins = togglePin([], { title: "What's new", url: "app:whatsnew" });
   assert.equal(pins.length, 1);
   assert.equal(togglePin([], { title: "x", url: "app:evil()" }).length, 0);
-  const ui = read("web", "features", "news-rail.js");
-  assert.match(ui, /data-app-open/); assert.match(ui, /openNews/); assert.match(ui, /openTemplateId/);
   assert.match(read("web", "features", "prompts.js"), /openTemplateId/);
 });
