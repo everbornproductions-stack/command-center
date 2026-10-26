@@ -52,6 +52,15 @@ export function checkOutgoing({ text = "", channel = "", consent, sendTime, cred
   if (isSend && consent !== true) {
     warnings.push({ rule: "missing_consent", level: "warn", canSendAnyway: true, plain: "Nothing here says these people agreed to hear from you.", why: "Texts and marketing emails need permission first (TCPA and CAN-SPAM). Tick the permission box, or only message people who asked to hear from you." });
   }
+  // Quiet hours are a real clock check (0.4.21): a time before 8 am or from 9 pm on is a warning for texts and calls.
+  const clock = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(String(sendTime ?? "").trim());
+  if (clock && /^(sms|call)$/i.test(channel)) {
+    let hh = Number(clock[1]);
+    if (clock[3]) { hh = hh % 12 + (/pm/i.test(clock[3]) ? 12 : 0); }
+    if (hh < 8 || hh >= 21) {
+      warnings.push({ rule: "quiet_hours", level: "warn", canSendAnyway: true, plain: "This is set for a time when people are usually left alone.", why: "Texts and calls are allowed from 8 am to 9 pm in the person's own time zone (TCPA). Pick a time inside those hours." });
+    }
+  }
   if (sendTime !== undefined && sendTime !== null && sendTime !== "") {
     warnings.push({ rule: "send_time_label", level: "info", canSendAnyway: true, plain: "Meldmind sends when you click Publish, not at the time you picked.", why: "The time is only used to check quiet hours (8 am to 9 pm). Click Publish at the time you want it to go out." });
   }

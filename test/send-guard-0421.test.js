@@ -47,3 +47,13 @@ test("publish preview and post refuse blocked words and mask numbers in the titl
     assert.doesNotMatch(JSON.stringify(hist.json), /123-45-6789/);
   } finally { await s.stop(); }
 });
+
+test("quiet hours are a real clock check for texts (8 am to 9 pm)", () => {
+  const rules = (t, ch = "sms") => checkOutgoing({ text: "Sale. Reply STOP to opt out.", channel: ch, consent: true, sendTime: t }).warnings.map((w) => w.rule);
+  assert.ok(rules("07:30").includes("quiet_hours"));
+  assert.ok(rules("21:00").includes("quiet_hours"));
+  assert.ok(rules("10:00 pm").includes("quiet_hours"));
+  assert.ok(!rules("10:00").includes("quiet_hours"));
+  assert.ok(!rules("8:00 am").includes("quiet_hours"));
+  assert.ok(!rules("05:00", "email").includes("quiet_hours"));
+});
