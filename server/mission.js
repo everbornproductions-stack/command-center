@@ -18,7 +18,7 @@ import { fallbackChat, completeFallback, fallbackRecord, announce as announceFal
 import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
-import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { withMemory, contextFor, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
@@ -632,10 +632,10 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const t0 = restore?.startedAt || Date.now();
   // project memory (R5): voice, offers, never-say list and past winners ride along in the context of every step
   // (the QA reviewer and the assembler get it too, so the never-say list holds in the final deliverable)
-  const memBlock = contextFor(projectId);
-  context = withMemory(context, projectId);
+  const memBlock = contextFor(projectId, goal);
+  context = withMemory(context, projectId, `${goal}\n${context}`);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
-  const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: context.includes(MEMORY_MARKER), ...(toneId ? { tone: toneId } : {}) };
+  const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: carriesMemory(context), ...(toneId ? { tone: toneId } : {}) };
   // AI employees picked for this mission: each step goes to the best fit and runs with its job script
   const crew = resolveCrew(restore ? restore.employees : employees);
   if (!restore && crew.length) mission.employees = crew.map((c) => c.id);

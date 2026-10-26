@@ -226,10 +226,13 @@ function answerFor(model, system, user, messages = []) {
   const employee = sys.match(/^You are the AI employee "([^"\n]{1,80})"/)?.[1];
   // project memory (Phase 3): the pretend AI says so when the project's voice and never-say list arrived
   const memory = u.match(/PROJECT MEMORY for ([^\n]{1,80}?) \(follow this/)?.[1];
+  // Memories (0.4.21): the pretend AI says what it was told to remember, so tests can see it arrive
+  const recalled = u.match(/WHAT I REMEMBER[^\n]*\n((?:(?:About the user|This project[^\n]*|Knowledge):\n(?:- [^\n]*\n?)+\n*)+)/)?.[1]?.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2)).join("; ");
   const lead = [
     ...(custom ? [`*Speaking as your custom agent **${custom}**.*`] : []),
     ...(employee ? [`*Working as your AI employee **${employee}**.*`] : []),
     ...(memory ? [`*Following the project memory for **${memory}**.*`] : []),
+    ...(recalled ? [`*Remembering: ${recalled.slice(0, 500)}*`] : []),
   ];
   // Practice answers (0.4.17): short, task-shaped examples. Each pretend AI has its own style, so a council differs.
   if (/You chair a council/.test(sys)) return [...lead, practiceVerdict(u, model)].join("\n\n");

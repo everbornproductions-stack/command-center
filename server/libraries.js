@@ -479,7 +479,7 @@ export async function search(libId, q, { mode = "hybrid", k = TOP_K, missionId =
 }
 
 // ---------- what chat, council and mission call ----------
-export const queryFor = (prompt) => String(prompt || "").split(/\n\s*PROJECT MEMORY for /)[0].replace(/\s+/g, " ").trim().slice(0, 1000);
+export const queryFor = (prompt) => String(prompt || "").split(/\n\s*(?:PROJECT MEMORY for |WHAT I REMEMBER)/)[0].replace(/\s+/g, " ").trim().slice(0, 1000);
 export function libraryBlock(sources) {
   if (!sources?.length) return "";
   const lines = sources.map((s) => `[${s.n}] ${s.title} (library: ${s.libraryName})\n${s.text}`);

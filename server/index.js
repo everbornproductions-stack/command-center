@@ -38,7 +38,8 @@ import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
-import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { autoRemember, warm as warmMemories } from "./memories.js";
+import { withMemory, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
@@ -392,6 +393,15 @@ function trackRun(kind, promise) {
   p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
   return p;
 }
+// Memories (0.4.21): a lasting statement in the message is saved with a one-line "Remembered: ..." (the page
+// shows it with Undo), "forget ..." removes it, and Smarter recall ranks the saved ones for this message.
+async function noteMemories(text, projectId) {
+  try {
+    const r = autoRemember(text, { projectId, source: "chat" });
+    if (r.saved.length || r.forgotten.length || r.refused) emit("memory.saved", { saved: r.saved, forgotten: r.forgotten, refused: r.refused, message: r.message });
+    await warmMemories(text, projectId);
+  } catch (e) { emit("log", { text: `Memory skipped: ${e.message}`, level: "warn" }); }
+}
 function guardMaxQuality(mode) {
   if (normalizeMode(mode) !== "max") return;
   guard("maxQuality");
@@ -610,10 +620,10 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
-  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId, prompt);
   const imported = withImported(prompt, remembered);
   const ask = imported.ask;
-  m.memory = ask.includes(MEMORY_MARKER);
+  m.memory = carriesMemory(ask);
   if (imported.used.length) m.importedRefs = imported.used;
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
@@ -764,6 +774,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     const tone = takeNextTone();
     if (job.background && job.runAt === "offpeak") { restoreTone(tone); return json(res, 400, { error: BACKGROUND_MIX }); }
     if (job.searchMode === "deep") {
@@ -793,6 +804,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
+    await noteMemories(job.goal, job.projectId);
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
     try { if (job.background) guard("backgroundRuns"); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
@@ -861,6 +873,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     try { guardMaxQuality(chatPriority(job.mode)); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
