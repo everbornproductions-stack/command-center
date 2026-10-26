@@ -226,7 +226,7 @@ async function viaChrome(html) {
 }
 
 function asciiForBuiltin(md) {
-  return String(md).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, " - ").replace(/…/g, "...").replace(/[•●]/g, "-").replace(/ /g, " ");
+  return String(md).replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, " - ").replace(/\u2026/g, "...").replace(/[\u2022\u25cf]/g, "-").replace(/\u00a0/g, " ");
 }
 
 /**

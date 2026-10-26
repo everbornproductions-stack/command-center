@@ -150,14 +150,15 @@ async function checkStatusPage(p) {
   return null;
 }
 
-export async function checkProvider(id) {
+// `auto` is a background check. It cannot undo a real failure; a check the person asked for can.
+export async function checkProvider(id, { auto = false } = {}) {
   const p = PROVIDERS[id];
   if (!p) return;
   const sec = getSecret(p.id, p.keyEnv);
   const incident = await checkStatusPage(p);
   // A list of models proves the key is valid, not that there is money behind it. After a real 402/403/429
   // the light stays as the real call left it.
-  if (sec && heldByRealFailure(id)) { set(id, { incident, checkedNote: "held after a real failure" }); return getStatus(id); }
+  if (auto && sec && heldByRealFailure(id)) { set(id, { incident, checkedNote: "held after a real failure" }); return getStatus(id); }
   if (!sec) { set(id, { status: "grey", detail: incident ? `no key · ${incident}` : "no key", incident }); return getStatus(id); }
   // managed plan (Phase 9): the pool key is not used for checks; the first real call shows whether it works
   if (sec.managed) { set(id, { status: incident ? "amber" : "green", detail: incident ? `managed by Everborn · ${incident}` : "managed by Everborn", incident }); return getStatus(id); }
@@ -221,7 +222,7 @@ export async function checkProvider(id) {
 }
 
 export async function checkAll() {
-  await Promise.allSettled(Object.keys(PROVIDERS).map((id) => checkProvider(id)));
+  await Promise.allSettled(Object.keys(PROVIDERS).map((id) => checkProvider(id, { auto: true })));
   return allStatus();
 }
 

@@ -202,9 +202,9 @@ test("credit lights stay honest after a real 402/403/429 (no green, no stale bal
     assert.equal(s.balance, null, "the old $ left is dropped");
     assert.equal(H.heldByRealFailure("groq"), true);
     assert.equal(H.isDeadNow("groq"), status !== 403 || s.status === "red" || /credits/i.test(s.detail));
-    // a models-list check cannot turn it green
-    const after = await H.checkProvider("groq");
-    assert.notEqual(after.status, "green", `${status} stays down after a list check`);
+    // a background models-list check cannot turn it green
+    const after = await H.checkProvider("groq", { auto: true });
+    assert.notEqual(after.status, "green", `${status} stays down after a background check`);
   }
   H.noteCall("groq", true, 10);
   assert.equal(H.getStatus("groq").status, "green", "a real call that works clears it");

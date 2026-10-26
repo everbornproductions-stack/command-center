@@ -79,13 +79,13 @@ export async function checkRespectingPause() {
     if (describePause(id)) {
       const prev = lastPaused.get(key) || 0;
       if (prev && now - prev < RECHECK_MS) continue;
-      await checkProvider(id);
+      await checkProvider(id, { auto: true });
       if (describePause(id)) lastPaused.set(key, now);
       else lastPaused.delete(key);
     } else {
       const prev = lastHealthy.get(key) || 0;
       if (prev && now - prev < HEALTH_MS) continue;
-      await checkProvider(id);
+      await checkProvider(id, { auto: true });
       lastHealthy.set(key, now);
       if (describePause(id)) lastPaused.set(key, now);
     }
