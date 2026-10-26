@@ -34,8 +34,8 @@ function appRows(st) {
     const href = safeUrl(app.url);
     const caps = (app.capabilities || []).join(", ");
     return `<label class="row small" style="gap:8px;padding:4px 0;align-items:flex-start">
-      <input type="checkbox" data-allow="${esc(app.id)}" ${app.allowed ? "checked" : ""} style="margin-top:3px">
-      <span style="flex:1"><b>${esc(app.title)}</b> ${priceChip(app.price)} ${caps ? `<span class="dim">${esc(caps)}</span>` : `<span class="dim">no task type yet</span>`}
+      <input type="checkbox" data-sensitive="${app.sensitive ? "1" : "0"}" data-allow="${esc(app.id)}" ${app.allowed ? "checked" : ""} style="margin-top:3px">
+      <span style="flex:1"><b>${esc(app.title)}</b> ${app.sensitive ? `<span class="pill" title="${esc(app.sensitiveWhy)}">Select All skips this</span>` : ""} ${priceChip(app.price)} ${caps ? `<span class="dim">${esc(caps)}</span>` : `<span class="dim">no task type yet</span>`}
         ${href ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Official site</a>` : ""}</span>
     </label>`;
   }).join("");
@@ -46,7 +46,8 @@ function wireAllow(root, reload) {
     const boxes = [...root.querySelectorAll("[data-allow]")];
     if (!boxes.length) return;
     const checkedCount = boxes.filter((b) => b.checked).length;
-    const allOn = checkedCount === boxes.length;
+    const others = boxes.filter((b) => b.dataset.sensitive !== "1");
+    const allOn = others.length > 0 && others.every((b) => b.checked);
     const btn = root.querySelector("[data-toggle-all]");
     if (btn) {
       btn.dataset.toggleAll = allOn ? "0" : "1";
@@ -61,7 +62,7 @@ function wireAllow(root, reload) {
       const next = toggleBtn.dataset.toggleAll === "1";
       try {
         await api("/apps/allow-all", { method: "POST", body: { allowed: next } });
-        root.querySelectorAll("[data-allow]").forEach((b) => { b.checked = next; });
+        root.querySelectorAll("[data-allow]").forEach((b) => { if (next && b.dataset.sensitive === "1") return; b.checked = next; });
         syncToggleBtn();
         toast(next ? "All programs allowed" : "All programs deselected");
         if (reload) reload();

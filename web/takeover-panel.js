@@ -9,6 +9,30 @@ export function isOwnerTier(S) {
   return S?.license?.tier === "owner";
 }
 
+// Words that make a line in a copied task worth a second look: it sends, deletes, pays or shares.
+const RISKY_LINE = /\b(send|sends|sending|email|emails|mail|forward|post|posts|publish|share|upload|text|sms|delete|deletes|remove|erase|wipe|drop|pay|pays|payment|charge|buy|purchase|transfer|wire|refund|invoice|password|api[ -]?key|token|secret|credentials?|install|download|run|execute)\b/gi;
+export function riskyLines(prompt) {
+  return String(prompt || "").split("\n").filter((line) => { RISKY_LINE.lastIndex = 0; return RISKY_LINE.test(line); });
+}
+// A copy with every send, delete or pay line removed. Nothing is changed until the person copies it.
+export function saferCopy(prompt) {
+  const bad = new Set(riskyLines(prompt));
+  return String(prompt || "").split("\n").filter((line) => !bad.has(line) && line.trim()).join("\n");
+}
+function markRisky(text) {
+  return esc(text).replace(new RegExp(RISKY_LINE.source, "gi"), (m) => `<mark style="background:#f5d76e;color:#111;padding:0 2px">${m}</mark>`);
+}
+function promptBlock(t) {
+  if (!t.prompt) return "";
+  const full = String(t.prompt);
+  const risky = riskyLines(full).length;
+  const note = risky ? `<div style="font-size:14px;margin-bottom:4px">${risky} line${risky === 1 ? "" : "s"} below ${risky === 1 ? "sends, deletes or pays" : "send, delete or pay"}. They are highlighted.</div>` : "";
+  const open = full.length <= 240 ? " open" : "";
+  const safer = risky ? `<button type="button" class="btn sm" data-tk-safer="${esc(t.id)}" data-tk-safer-text="${esc(saferCopy(full))}">Safer copy</button>` : "";
+  return `<details class="tk-prompt"${open} style="margin:4px 0"><summary style="font-size:14px;cursor:pointer">Show all (${full.length} characters)</summary>
+    ${note}<div style="font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere">${markRisky(full)}</div>${safer}</details>`;
+}
+
 export function taskRowHtml(t) {
   const when = t.when ? esc(t.when) : "time not found";
   const state = t.takenSchedule ? `<span class="pill green">Taken over (paused in Schedules)</span>` : t.active ? "" : `<span class="pill">Paused there</span>`;
@@ -18,7 +42,7 @@ export function taskRowHtml(t) {
   return `<div class="tk-row" style="padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere">
     <div class="row" style="gap:8px;flex-wrap:wrap"><b>${esc(t.name)}</b><span class="small dim">from ${esc(t.sourceName)}</span>${state}</div>
     <div class="small muted">Runs: ${when}</div>
-    ${t.prompt ? `<div class="small dim" style="white-space:pre-wrap;max-height:80px;overflow:auto">${esc(t.prompt.slice(0, 300))}</div>` : ""}
+    ${promptBlock(t)}
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${buttons}</div></div>`;
 }
 
@@ -78,6 +102,9 @@ export async function mount(host) {
       const cron = host.querySelector(`[data-tk-cron="${b.dataset.tkTake}"]`)?.value || "";
       const r = await api(`/takeover/task/${b.dataset.tkTake}/take`, { method: "POST", body: { confirm: true, cron } });
       st.review = r.view; st.msg = "Taken over. Find it in Schedules, paused."; draw();
+    })));
+    host.querySelectorAll("[data-tk-safer]").forEach((b) => b.addEventListener("click", guarded(async () => {
+      try { await navigator.clipboard.writeText(b.dataset.tkSaferText || ""); toast("Safer copy is on your clipboard. Nothing was changed."); } catch { toast("Could not copy. Select the text and copy it yourself.", true); }
     })));
     host.querySelectorAll("[data-tk-skip]").forEach((b) => b.addEventListener("click", guarded(async () => { st.review = await api(`/takeover/task/${b.dataset.tkSkip}/dismiss`, { method: "POST", body: {} }); draw(); })));
     host.querySelectorAll("[data-tk-pause]").forEach((b) => b.addEventListener("click", guarded(async () => {
