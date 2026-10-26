@@ -229,10 +229,11 @@ test("routes: one ordered chain, status rows from detection, per-route switches,
   assert.equal(SR.routeSettings().website, true);
   SR.saveRouteSettings({ routes: { "claude-code": false } });
   assert.equal((await SR.readyRoutesFor("anthropic")).length, 0, "a route switched off is never tried");
-  // with website mode on (stored, not wired) the box says so and the chain still reaches copy it over
+  // with website mode on but no browser window, the website step is tried, says why it could not answer, and the chain still reaches copy it over
   const info = AW.openWait({ kind: "single", runId: "s-test7", provider: "anthropic", model: "claude-x", ask: "Q7" });
   const job = await until(() => AW.findJob(info.jobId)?.step === "copy" && AW.findJob(info.jobId));
-  assert.equal(AW.publicJob(job).websiteNote, "Website mode is coming in a later update.");
+  assert.match(AW.publicJob(job).websiteNote, /^Website mode is on\./);
+  assert.ok(AW.findJob(info.jobId).tried.some((t) => t.route === "website"), "the website step was tried");
   await AW.stopWait(info.jobId);
   SR.saveRouteSettings({ routes: { "claude-code": true }, website: false });
   assert.deepEqual(SR.routesFor("xai"), [], "Grok has no official app route: it stays on copy it over");

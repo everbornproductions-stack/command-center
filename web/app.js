@@ -2576,6 +2576,7 @@ function renderSimpleBasics(v) {
       <p class="dim small" style="margin:6px 0">Helping Meldmind get smarter: anonymous results only, never your text. This shares the task type, which AI, and the score (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id). It never shares your words or keys (no prompts, answers, file names, emails, keys, or identifying ids).</p>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-content-optin"> Share real prompts and answers for our own-AI program</label>
       <p class="dim small" style="margin:6px 0">Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded.</p>
+      <p class="dim small" id="basics-kept-note" style="margin:6px 0"></p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
@@ -2606,6 +2607,8 @@ function renderSimpleBasics(v) {
     if (box) box.checked = !!d?.levels?.qualitySignals;
     const cbox = $("#basics-content-optin");
     if (cbox) cbox.checked = d?.levels?.contentOptIn === true;
+    const kept = $("#basics-kept-note");
+    if (kept) kept.textContent = d?.keptNote || "";
   }).catch(() => {});
   $("#basics-share").addEventListener("change", async (e) => {
     try { await api("/privacy", { method: "POST", body: { qualitySignals: !!e.target.checked } }); }
@@ -3359,6 +3362,7 @@ function renderWelcome(v, st) {
     api("/privacy").then((d) => {
       if (!st.qualityTouched && typeof d?.levels?.qualitySignals === "boolean") st.qualitySignals = d.levels.qualitySignals;
       if (!st.contentTouched) st.contentOptIn = d?.levels?.contentOptIn === true;
+      st.keptNote = d?.keptNote || "";
       st.privacyKnown = true;
       if (S.view === "setup" && st.phase === "welcome") render();
     }).catch(() => { st.privacyKnown = true; }).finally(() => { st.privacyLoading = false; });
@@ -3385,7 +3389,7 @@ function renderWelcome(v, st) {
       <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">
           <input type="checkbox" id="su-quality-signals" ${qualityChecked ? "checked" : ""}>
-          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span></span>
+          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span> <span class="dim" id="su-kept-note">${esc(st.keptNote || "")}</span></span>
         </label>
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start;margin-top:8px">
           <input type="checkbox" id="su-content-optin" ${contentChecked ? "checked" : ""}>

@@ -5,6 +5,8 @@ import crypto from "node:crypto";
 import { PROVIDERS } from "../registry.js";
 import { searchCaps, nameOfLedgerProvider } from "../search.js";
 import { scheduler } from "../perf/scheduler.js";
+import { checkFrom, VIA } from "../report-mail.js";
+import { send as sendOwnMail, mailView } from "../report-mail-live.js";
 export const id = "alerts";
 const nameOf = (pid) => PROVIDERS[pid]?.name || nameOfLedgerProvider(pid) || pid;
 
@@ -13,7 +15,7 @@ const STATE = "alerts.state";    // { month, perProvider: { id: { spend, cap, pc
 const SUBS = "alerts.push";      // { subs: [subscription] }
 const VAPID = "alerts.vapid";    // { publicKey, privateKey } (base64url)
 const PREFS = "alerts.prefs";    // { email, emailOn, pushOn, jobDoneOn }
-const PREF_DEFAULTS = { email: "", emailOn: false, pushOn: true, jobDoneOn: false };
+const PREF_DEFAULTS = { email: "", emailOn: false, pushOn: true, jobDoneOn: false, from: "", via: "auto" };
 const prefsOf = (h) => ({ ...PREF_DEFAULTS, ...h.doc(PREFS, () => ({})) });
 
 let H = null;
@@ -68,11 +70,10 @@ async function notify(h, key, title, body, level = "amber") {
   if (prefs.pushOn) await pushAll(h, { title, body, level }).catch(() => {});
 }
 
+// Alerts go out through the person's own sender (their Resend key and From address, Gmail or Outlook), never
+// from Everborn's domain. See server/report-mail.js.
 async function sendEmail(h, to, subject, text) {
-  const k = h.getSecret("resend")?.key;
-  if (!k) return;
-  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${k}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Meldmind <alerts@everbornproductions.com>", to, subject: `[Meldmind] ${subject}`, text }) });
-  if (!r.ok) throw new Error(`Resend ${r.status}`);
+  await sendOwnMail({ to, subject: `[Meldmind] ${subject}`, text }, prefsOf(h));
 }
 
 // ---------- Web Push (RFC 8291 aes128gcm + RFC 8292 VAPID) ----------
@@ -225,9 +226,9 @@ export function renewalSweep(h) {
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/alerts/, "");
-  if (req.method === "GET" && p === "/state") { const { st } = recompute(h); return h.json(res, 200, { ...st, caps: h.doc(CAPS, () => ({})), prefs: prefsOf(h), vapidPublicKey: vapidKeys(h).publicKey, pushDevices: h.doc(SUBS, () => ({ subs: [] })).subs.length }); }
+  if (req.method === "GET" && p === "/state") { const { st } = recompute(h); return h.json(res, 200, { ...st, caps: h.doc(CAPS, () => ({})), prefs: prefsOf(h), mail: mailView(prefsOf(h)), vapidPublicKey: vapidKeys(h).publicKey, pushDevices: h.doc(SUBS, () => ({ subs: [] })).subs.length }); }
   if (req.method === "POST" && p === "/caps") { const caps = {}; for (const [k, v] of Object.entries(body.caps || {})) if (PROVIDERS[k] && Number(v) >= 0) caps[k] = Number(v); h.putDoc(CAPS, caps); const { st, changes } = recompute(h); h.emit("log", { text: "Spend caps saved." }); alertChanges(h, changes); return h.json(res, 200, st); }
-  if (req.method === "POST" && p === "/prefs") { const prefs = { ...h.doc(PREFS, () => ({})), ...(body.email !== undefined ? { email: String(body.email).trim() } : {}), ...(body.emailOn !== undefined ? { emailOn: !!body.emailOn } : {}), ...(body.pushOn !== undefined ? { pushOn: !!body.pushOn } : {}), ...(body.jobDoneOn !== undefined ? { jobDoneOn: !!body.jobDoneOn } : {}) }; h.putDoc(PREFS, prefs); return h.json(res, 200, { ...PREF_DEFAULTS, ...prefs }); }
+  if (req.method === "POST" && p === "/prefs") { const prefs = { ...h.doc(PREFS, () => ({})), ...(body.email !== undefined ? { email: String(body.email).trim() } : {}), ...(body.emailOn !== undefined ? { emailOn: !!body.emailOn } : {}), ...(body.pushOn !== undefined ? { pushOn: !!body.pushOn } : {}), ...(body.jobDoneOn !== undefined ? { jobDoneOn: !!body.jobDoneOn } : {}), ...(body.from !== undefined ? { from: checkFrom(body.from) } : {}), ...(body.via !== undefined ? { via: body.via === "auto" || VIA.includes(body.via) ? body.via : "auto" } : {}) }; h.putDoc(PREFS, prefs); return h.json(res, 200, { ...PREF_DEFAULTS, ...prefs }); }
   if (req.method === "POST" && p === "/subscribe") { if (!validEndpoint(body.endpoint) || typeof body.keys?.p256dh !== "string" || typeof body.keys?.auth !== "string") return h.json(res, 400, { error: "bad subscription" }); const d = h.doc(SUBS, () => ({ subs: [] })); if (!d.subs.some((s) => s.endpoint === body.endpoint)) d.subs.push({ endpoint: body.endpoint, keys: body.keys, addedAt: Date.now() }); h.putDoc(SUBS, d); return h.json(res, 200, { devices: d.subs.length }); }
   if (req.method === "POST" && p === "/unsubscribe") { const d = h.doc(SUBS, () => ({ subs: [] })); const before = d.subs.length; d.subs = d.subs.filter((s) => s.endpoint !== body.endpoint); if (d.subs.length !== before) h.putDoc(SUBS, d); return h.json(res, 200, { devices: d.subs.length, removed: before - d.subs.length }); }
   if (req.method === "POST" && p === "/test") { await notify(h, `test:${Date.now()}`, "Test alert", "If you can read this on your phone, push works.", "amber"); return h.json(res, 200, { ok: true }); }

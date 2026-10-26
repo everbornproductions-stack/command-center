@@ -9,14 +9,15 @@ async function renderTab(view) {
   view.innerHTML = `<div class="grid" style="grid-template-columns: minmax(0,1fr) 320px">
     <div class="panel"><h3>Weekly report <span class="right">${r ? new Date(r.ts).toLocaleString() : "not run yet"}</span><button class="btn sm primary" id="rp-run" style="margin-left:8px">Run now</button></h3>
       ${r ? `<div class="kpi" style="margin-bottom:12px"><div class="k"><div class="l">This week</div><div class="v">${money(r.totals.thisWeek)}</div><div class="s">${r.totals.calls} calls</div></div><div class="k"><div class="l">Last week</div><div class="v">${money(r.totals.lastWeek)}</div></div><div class="k"><div class="l">Runs shipped</div><div class="v">${r.totals.runs}</div></div><div class="k"><div class="l">Needs attention</div><div class="v">${r.low + r.renewals}</div><div class="s">${r.low} low · ${r.renewals} renewing</div></div></div>
-      <div class="row small" style="gap:8px;margin-bottom:10px"><button class="btn sm" id="rp-draft">Email draft</button><button class="btn sm" id="rp-export">Export .md</button><button class="btn sm" id="rp-copy">Copy</button></div>
+      <div class="row small" style="gap:8px;margin-bottom:10px"><button class="btn sm" id="rp-send">Send it to me</button><button class="btn sm" id="rp-draft">Email draft</button><button class="btn sm" id="rp-export">Export .md</button><button class="btn sm" id="rp-copy">Copy</button></div>
       <div class="md">${md(r.markdown)}</div>` : `<div class="empty">Made every Monday from 7:00 (or the next time the app runs), or click Run now.</div>`}
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>Email draft</h3>
         <label class="lbl" for="rp-email">Send-to address for the draft</label>
         <input type="text" id="rp-email" placeholder="you@example.com" value="${esc(d.prefs?.email || "")}">
-        <div class="dim small" style="margin-top:6px">Nothing is emailed automatically. Email draft opens your own mail app with the report filled in; you decide whether to send it.</div></div>
+        <div class="dim small" style="margin-top:6px">Nothing is emailed automatically. Send it to me emails the report from your own account when you click. Email draft opens your own mail app instead.</div>
+        <div class="dim small" id="rp-setup" style="margin-top:6px">${esc(d.mail?.setup || "Sends from your own Resend account, Gmail or Outlook. Pick one under Alerts.")}</div></div>
       <div class="panel"><h3>History</h3>${(d.history || []).slice(0, 12).map((h) => `<div class="row small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${new Date(h.ts).toLocaleDateString()}</span><span class="dim">${esc(h.reason || "")}</span><span class="mono" style="margin-left:auto">${money(h.totals?.thisWeek || 0)}</span></div>`).join("") || `<div class="dim small">No reports yet.</div>`}</div>
     </div></div>`;
   view.querySelector("#rp-run").addEventListener("click", async () => { try { await api("/reports/run-now", { method: "POST" }); toast("Report ready"); renderTab(view); } catch (e) { toast(e.message, true); } });
@@ -24,6 +25,9 @@ async function renderTab(view) {
   if (!r) return;
   view.querySelector("#rp-draft").addEventListener("click", async () => {
     try { const dr = await api("/reports/draft"); location.href = dr.mailto; toast("Draft opened in your mail app"); } catch (e) { toast(e.message, true); }
+  });
+  view.querySelector("#rp-send").addEventListener("click", async () => {
+    try { const x = await api("/reports/send", { method: "POST", body: { to: view.querySelector("#rp-email").value } }); toast(`Sent to ${x.to}`); } catch (e) { toast(e.message, true); }
   });
   view.querySelector("#rp-export").addEventListener("click", () => {
     const a = document.createElement("a");

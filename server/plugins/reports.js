@@ -2,6 +2,8 @@
 // and keep/downgrade/cancel suggestions. Generated in-app every Monday from 07:00 local (or the next
 // time the app runs after that), or on demand. Nothing is sent automatically: the person gets an
 // email draft (opens their own mail app) and a Markdown export, and sends it themselves if they want.
+import { send as sendOwnMail, mailView } from "../report-mail-live.js";
+import { unusedSubscriptions, unusedLines } from "../unused-subs.js";
 import { allEntries } from "../ledger.js";
 import { PROVIDERS } from "../registry.js";
 import { scheduler } from "../perf/scheduler.js";
@@ -58,8 +60,7 @@ export function buildReport(h, now = new Date()) {
   const subs = h.subscriptionView();
   const low = subs.filter((s) => s.signal === "low" || s.signal === "attention");
   const renewals = subs.filter((s) => s.daysLeft != null && s.daysLeft >= 0 && s.daysLeft <= 7);
-  const usedProviders = new Set(entries.filter((e) => e.ts > now.getTime() - 30 * 86400000).map((e) => e.provider));
-  const idle = subs.filter((s) => s.provider && !usedProviders.has(s.provider) && (s.monthly || s.listPrice));
+  const idle = unusedSubscriptions(subs, entries, now.getTime()).unused;
   const shipped = shippedThisWeek(h, thisW.start);
   const st = h.doc("alerts.state", () => null);
   const caps = st?.perProvider ? Object.entries(st.perProvider).filter(([, r]) => r.level !== "ok").map(([pid, r]) => `${PROVIDERS[pid]?.name || pid} at ${r.pct}% of $${r.cap}`) : [];
@@ -79,7 +80,8 @@ export function buildReport(h, now = new Date()) {
     if (shipped.length > 15) lines.push(`- and ${shipped.length - 15} more`);
   } else lines.push("- Nothing finished this week.");
   lines.push(`\n## Keep, downgrade, cancel`);
-  lines.push(idle.length ? idle.map((s) => `- **${s.name}**: no API use in 30 days${s.monthly != null ? `, $${s.monthly}/month` : s.listPrice ? `, list ~$${s.listPrice}/month` : ""}. Consider cancelling or downgrading, unless you use it outside this console.`).join("\n") : "- Every tracked subscription with an API saw use this month.");
+  const idleLines = unusedLines(subs, entries, now.getTime());
+  lines.push(idleLines.length ? idleLines.join("\n") : "- Every subscription Meldmind can see was used in the last 30 days.");
   const unpriced = subs.filter((s) => s.monthly == null).length;
   if (unpriced) lines.push(`- ${unpriced} subscription${unpriced === 1 ? "" : "s"} still have no confirmed price; fill them in on the Subscriptions tab for a real total.`);
   return { ts: now.getTime(), week: thisW, markdown: lines.join("\n"), totals: { thisWeek: +a.total.toFixed(4), lastWeek: +b.total.toFixed(4), calls: a.calls, runs: shipped.length }, shipped: shipped.slice(0, 15).map(({ id, kind, title, finishedAt }) => ({ id, kind, title, finishedAt })), low: low.length, renewals: renewals.length, idle: idle.length, cancel: idle.map((s) => s.name) };
@@ -99,7 +101,7 @@ function hasJob(h) {
   } catch { return false; }
 }
 
-// In-app only: the report is stored and announced in the live feed. No email, no push, no network.
+// In-app only: the report is stored and announced in the live feed. Nothing is sent until the person clicks Send.
 function store(h, rep, reason) {
   if (!shouldAnnounceReport(reason, hasJob(h))) return;
   h.putDoc(LATEST, rep);
@@ -125,11 +127,26 @@ export function draftOf(rep, to = "") {
   return { to, subject, body, mailto: `mailto:${encodeURIComponent(to)}?subject=${enc(subject)}&body=${enc(short)}` };
 }
 
+// The sender (Resend From, Gmail or Outlook) is chosen once, with the alerts, and shared here.
+const senderPrefs = (h) => ({ from: "", via: "auto", ...h.doc("alerts.prefs", () => ({})) });
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/reports/, "");
-  if (req.method === "GET" && p === "/latest") return h.json(res, 200, { latest: h.doc(LATEST, () => null), history: h.doc(HIST, () => ({ items: [] })).items, prefs: prefsOf(h), nextRun: lastMonday7() + 7 * 86400000 });
+  if (req.method === "GET" && p === "/latest") return h.json(res, 200, { latest: h.doc(LATEST, () => null), history: h.doc(HIST, () => ({ items: [] })).items, prefs: prefsOf(h), mail: mailView(senderPrefs(h)), nextRun: lastMonday7() + 7 * 86400000 });
   if (req.method === "POST" && p === "/run-now") { const rep = buildReport(h); store(h, rep, "run now"); return h.json(res, 200, rep); }
   if (req.method === "POST" && p === "/prefs") { const prefs = { email: body.email !== undefined ? String(body.email).trim().slice(0, 200) : prefsOf(h).email }; h.putDoc(PREFS, prefs); return h.json(res, 200, prefs); }
+  if (req.method === "POST" && p === "/send") {
+    // Only on a click. Sends the latest report from the person's own sender to their own address.
+    const rep = h.doc(LATEST, () => null);
+    if (!rep) return h.json(res, 404, { error: "no report yet: click Run now" });
+    const to = String(body.to || prefsOf(h).email || "").trim();
+    const d = draftOf(rep, to);
+    try {
+      const r = await sendOwnMail({ to, subject: d.subject, text: d.body }, senderPrefs(h));
+      h.emit("log", { text: `Weekly report emailed to ${to} (${r.via}).` });
+      return h.json(res, 200, { ...r, to });
+    } catch (e) { return h.json(res, e.status || 500, { error: e.message, code: e.code || null }); }
+  }
   if (req.method === "GET" && (p === "/draft" || p === "/export")) {
     const rep = h.doc(LATEST, () => null);
     if (!rep) return h.json(res, 404, { error: "no report yet: click Run now" });
