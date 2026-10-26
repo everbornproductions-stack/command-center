@@ -50,7 +50,8 @@ test("flag: takeover is OFF by default and env or a saved setting turns it on", 
   process.env.CC_FLAG_TAKEOVER = "0";
   assert.equal(takeoverOn({ flag_takeover: true }), false);
   delete process.env.CC_FLAG_TAKEOVER;
-  assert.deepEqual(Object.keys(flagView()).sort(), ["nextactions", "projectbar", "projectmedia", "promptdrop", "takeover"]);
+  // flagView lists every flag in the shared table, so new slices do not break this test
+  for (const k of ["nextactions", "projectbar", "projectmedia", "promptdrop", "takeover"]) assert.ok(k in flagView(), k);
 });
 
 test("looking uses only plain list tools and reports servers that fail", async () => {
