@@ -92,7 +92,7 @@ export function openFinishDrawer(opts = {}) {
   };
   box.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-a]");
-    if (!b) return;
+    if (!b || b.closest("[data-pub]") || !Object.prototype.hasOwnProperty.call(act, b.dataset.a)) return; // the Publish panel owns its own buttons
     try { await act[b.dataset.a](); } catch (er) { toast(er.message || "That did not work.", true); }
   });
   return { close, el: box };
