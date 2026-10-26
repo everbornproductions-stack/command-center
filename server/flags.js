@@ -8,6 +8,7 @@ const DEFAULTS = {
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
   finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
+  momentum: false, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
   takeover: false, // Review and Take Over Tasks panel, project mirroring, Owner tools
 };
 export function flagOn(name) {
