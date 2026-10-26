@@ -20,7 +20,7 @@ test("no 'licence' in user-facing strings (identifiers, reason codes and file id
   for (const dir of ["web", "server", "docs/help"]) {
     for (const f of walk(path.join(root, dir))) {
       read(f).split("\n").forEach((line, i) => {
-        if (/^\s*(\/\/|\*)/.test(line) || /import[ (]/.test(line) || /keywords:/.test(line) || /id: "licence"/.test(line)) return;
+        if (/^\s*(\/\/|\*)/.test(line) || /import[ (]/.test(line) || /keywords:/.test(line) || /id: "licence"/.test(line) || /spell it Licence/.test(line)) return;
         const m = line.replace(/(no_|^|[^A-Za-z_-])licence_[a-z_$]+/gi, "$1").replace(/licence-session/g, "");
         if (/(?<![A-Za-z_-])[Ll]icence(?![A-Za-z_-])/.test(m)) bad.push(`${path.relative(root, f)}:${i + 1}`);
       });

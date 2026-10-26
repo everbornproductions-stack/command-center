@@ -165,12 +165,12 @@ function flowControlsHtml(w) {
     </span>
   </div>
   <details class="panel" id="sp-stack-panel" ${stacked.length ? "open" : ""}>
-    <summary class="small"><b>Stacked steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
+    <summary class="small"><b>Queued steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
     <div class="sp-actions" style="margin-top:8px">
       <select id="sp-stack-stage" aria-label="Stage for stacked step" style="width:auto">${stageOptions}</select>
       <input id="sp-stack-input" type="text" placeholder="Prompt or instruction for this stage" style="flex:1;min-width:180px">
       <button class="btn sm" type="button" data-stack-add>Stack step</button>
-      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run stacked steps</button>` : ""}
+      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run queued steps</button>` : ""}
     </div>
     ${stacked.length ? `<ol class="small" style="margin:8px 0 0 18px;padding:0">${stacked.map((st) => `<li><b>${esc(st.flowStage || st.stage)}</b>: ${esc(st.prompt || st.title)} <span class="chip">${esc(st.status || "queued")}</span></li>`).join("")}</ol>` : ""}
   </details>`;

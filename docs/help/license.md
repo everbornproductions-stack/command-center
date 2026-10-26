@@ -11,7 +11,7 @@ Settings has License and cloud. Paste a license key and click Activate, or paste
 
 A key works on 2 computers, a PC and a laptop. Settings, Devices, lists those computers. Remove one there to free a spot. Removing asks you to confirm first. If the key is already on 2 computers, activating another one says: This key is already on 2 computers. Remove one in Settings > Devices. Each person has their own key. An Extreme team seat is its own key, with its own 2 computers. A promo or tester code can be locked to one email. That code redeems only for that email.
 
-The word license means the same thing on receipts and in some emails (some places spell it licence). The screen in the app says License.
+The word license means the same thing on receipts and in some emails (some places spell it Licence). The screen in the app says License.
 
 Free includes 3 projects and 5 councils a month, 1 connected service, and 1 email account per provider. Pro includes every connected service and up to 8 email accounts per provider. Activating or redeeming a paid license raises those limits. Re-check asks the license server again. Meldmind does not charge a card from this screen.
 
