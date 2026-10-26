@@ -28,6 +28,7 @@ import * as drive from "../publish/drive.js";
 import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
 import { holdOutbound } from "../phone-approvals.js";
+import { checkOutgoing, maskSensitive } from "../compliance-guard.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
 
 export const id = "publish";
@@ -74,7 +75,7 @@ export const ACCEPTS = { instagram: ["image", "video"], ghl: ["text", "image", "
 export function buildPayload(body, media) {
   const pl = {
     channel: body.channel,
-    title: String(body.title || "Deliverable").slice(0, 120),
+    title: maskSensitive(String(body.title || "Deliverable")).slice(0, 120),
     text: String(body.text || media?.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
     mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
     mediaType: body.mediaType === "video" ? "video" : "image",
@@ -106,7 +107,10 @@ function previewOf(h, pl, media) {
   if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
-  return { ...pv, problems };
+  // 0.4.21: the same words check that texts and emails get. A hard block cannot be posted; warnings are shown.
+  const compliance = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pl.channel, consent: true });
+  for (const b of compliance.blocked) problems.push(`${b.plain} ${b.why}`);
+  return { ...pv, problems, warnings: compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why })) };
 }
 
 function logPost(h, entry) {
@@ -160,7 +164,10 @@ export async function routes(req, res, url, body, h) {
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
-    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
+    // checked again on the stored payload, so a changed rule or a hand-made request cannot skip it
+    const again = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pv.channel, consent: true });
+    if (!again.ok && ready) return h.json(res, 422, { error: `Not sent. ${again.blocked[0].plain} ${again.blocked[0].why}`, code: "compliance_block" });
+    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: maskSensitive(pl.title), text: maskSensitive(pl.text).slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {
       if (!ready) { entry.status = "dry-run"; entry.note = "No credentials for this channel: recorded, not sent."; }
       else {

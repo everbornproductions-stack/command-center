@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
 import { canSend, gmailSend } from "./google.js";
 import { scrubText } from "./prompts/safety.js";
+import { assertOutgoingOk } from "./compliance-guard.js";
 
 export const DOC = "everyday.plan";
 export const TRY_BRIEF = "Every weekday at 8: agenda, inbox, tasks, weather, and news";
@@ -222,6 +223,7 @@ export function publicDraft(draft) {
 }
 
 export async function deliverExact(mail) {
+  assertOutgoingOk({ text: `${mail?.subject || ""}\n${mail?.body || ""}`, channel: "email" });
   const sink = loopbackUrl(process.env.CC_EVERYDAY_MAIL_URL);
   if (sink) {
     const r = await fetch(sink, { method: "POST", headers: { "content-type": "application/json", connection: "close" }, body: JSON.stringify(mail), signal: AbortSignal.timeout(8000), redirect: "error" });

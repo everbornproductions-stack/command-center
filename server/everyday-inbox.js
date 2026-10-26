@@ -7,6 +7,7 @@ import { listAccounts } from "./mail-accounts.js";
 import { gmailSearch, gmailSend, canSend } from "./google.js";
 import { loadProfile } from "./prompts/apply.js";
 import { scrubText } from "./prompts/safety.js";
+import { assertOutgoingOk } from "./compliance-guard.js";
 
 export const DOC = "everyday.inbox";
 export const TRY_INBOX = "What needs me today in all my inboxes?";
@@ -219,6 +220,7 @@ export function exactMail(body) {
 }
 
 export async function deliverExact(mail, accountId) {
+  assertOutgoingOk({ text: `${mail?.subject || ""}\n${mail?.body || ""}`, channel: "email" });
   const sink = loopbackUrl(process.env.CC_EVERYDAY_MAIL_URL);
   if (sink) {
     const r = await fetch(sink, {

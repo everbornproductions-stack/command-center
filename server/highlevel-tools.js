@@ -233,7 +233,7 @@ export async function runHighlevelAction(name, raw, { confirmed = false } = {}) 
   const spec = ACTIONS[name];
   if (!spec) return { text: "Unknown HighLevel action.", isError: true };
   if (spec.writes && confirmed !== true) return { text: "This waits for a click. Nothing was sent.", isError: true, denied: true };
-  { const g = guardOf(name, argsFor(name, raw), { consent: true }); if (g && !g.ok) return { text: `Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`, isError: true, denied: true }; }
+  { const g = guardOf(name, argsFor(name, raw), raw); if (g && !g.ok) return { text: `Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`, isError: true, denied: true }; }
   try {
     const result = await perform(name, argsFor(name, raw));
     return { text: JSON.stringify(result), isError: false };
