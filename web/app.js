@@ -9,7 +9,7 @@ import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
-import { askText } from "./ask-dialog.js";
+import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -1219,7 +1219,7 @@ async function restoreDeleted(id) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteForGood(item) {
-  if (!confirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`)) return;
+  if (!(await askConfirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`, { danger: true, ok: "Delete" }))) return;
   try {
     const done = await api(`/projects-deleted/${encodeURIComponent(item.id)}?confirm=yes`, { method: "DELETE" });
     toast((done.receipt?.lines || ["Project deleted for good."]).join(" "));
@@ -1227,7 +1227,7 @@ async function deleteForGood(item) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteProjectSoft(p) {
-  if (!confirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`)) return false;
+  if (!(await askConfirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`, { danger: true, ok: "Delete" }))) return false;
   try {
     await api(`/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
     clearActiveProject(p.id);
@@ -1877,7 +1877,7 @@ async function confirmRisky(text) {
   }
   const hits = riskyHits(text, { neverSay, scf });
   if (!hits.length) return true;
-  return confirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`);
+  return (await askConfirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`));
 }
 async function copyDeliverable() {
   const t = S.live.deliverable || $("#out-md")?.innerText || "";
@@ -2219,7 +2219,7 @@ function renderProjectDetail(v, p) {
       const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
       if (preview?.lines?.length) lines = preview.lines.join("\n");
     } catch { /* the short line above is enough to confirm */ }
-    if (!confirm(`${lines}\n\nDelete this project?`)) return;
+    if (!(await askConfirm(`${lines}\n\nDelete this project?`))) return;
     try {
       const done = await api(`/projects/${p.id}`, { method: "DELETE" });
       const file = done.receipt?.file;
@@ -2410,7 +2410,7 @@ function renderSubscriptions(v) {
     const id = tr.dataset.id;
     const collect = () => { const o = { id }; $$("[data-f]", tr).forEach((i) => { o[i.dataset.f] = i.value === "" ? null : i.type === "number" ? Number(i.value) : i.value; }); return o; };
     $("[data-save]", tr).addEventListener("click", async () => { await api("/subscriptions", { method: "POST", body: collect() }); toast("Saved"); await refresh(); });
-    $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
+    $("[data-del]", tr).addEventListener("click", async () => { if (!(await askConfirm("Remove this subscription from the tracker?", { danger: true, ok: "Remove" }))) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
   $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
@@ -2655,13 +2655,13 @@ function renderSettings(v) {
     const wsOnly = !key && wsEl && P(id)?.keyed && workspaceId !== (P(id)?.workspaceId || "");
     if (!key && !wsOnly) return toast("Paste the key first", true);
     const sug = key ? await suggestKey(key) : null;
-    if (sug && sug.provider !== id && sug.confidence === "high" && confirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`)) return saveKeyAs(sug, key);
+    if (sug && sug.provider !== id && sug.confidence === "high" && (await askConfirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`))) return saveKeyAs(sug, key);
     b.disabled = true; b.textContent = "Testing…";
     try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
-  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`)) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
+  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`, { danger: true, ok: "Remove" }))) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
   $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {
     try { await api("/connect/active", { method: "POST", body: { provider: b.dataset.prov, mode: b.dataset.conn } }); await refresh(); }
     catch (e) { toast(e.message, true); }
@@ -2747,7 +2747,7 @@ function renderSettings(v) {
   wireAnyKey(v);
   $("#cp-add")?.addEventListener("click", () => openCustomForm());
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
-  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
+  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`, { danger: true, ok: "Delete" }))) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
   $("#settings-back")?.addEventListener("click", () => { S.settingsMore = false; S.navFocus = ""; render(); });
   $("#settings-find")?.addEventListener("input", (e) => {
@@ -2855,7 +2855,7 @@ function wireAnyKey(root) {
       return;
     }
     out.textContent = `Looks like a ${sug.name} key${sug.confidence === "high" ? "" : " (best guess)"}.`;
-    if (sug.confidence !== "high" && !confirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`)) return;
+    if (sug.confidence !== "high" && !(await askConfirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`))) return;
     await saveKeyAs(sug, key);
   });
 }
@@ -3098,7 +3098,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
@@ -3169,7 +3169,7 @@ async function saveSetupUsername(useDefault) {
   const saved = st?.usernameSaved || "";
   if (saved) {
     if (useDefault || !st?.usernameTouched || !typed || typed === saved) return;
-    if (!confirm(`Change your saved username from "${saved}" to "${typed}"?`)) return;
+    if (!(await askConfirm(`Change your saved username from "${saved}" to "${typed}"?`))) return;
   }
   const username = useDefault ? (suggestion || typed) : (typed || suggestion);
   if (!username) return;
@@ -3231,7 +3231,7 @@ function welcomeAppsHtml() {
 async function saveWelcomeKey(st) {
   const key = ($("#su-or-key")?.value || st.orKey || "").trim();
   if (!key) return false;
-  if (P("openrouter")?.keyed && !confirm("An OpenRouter key is already saved in the vault. Replace it?")) return false;
+  if (P("openrouter")?.keyed && !(await askConfirm("An OpenRouter key is already saved in the vault. Replace it?"))) return false;
   const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
   st.orKey = "";
   keyToast("openrouter", r);
@@ -3528,7 +3528,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
     });
     $("#su-agy-install")?.addEventListener("click", async () => {
-      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      if (!(await askConfirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password."))) return;
       try {
         const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
         toast(r.message || "Installer finished", !r.ok);
@@ -3592,7 +3592,7 @@ function renderSetup(v) {
   renderExtras("setup", "#su-extras");
   renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !(await askConfirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`))) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-tools-toggle", v)?.addEventListener("click", (e) => {
@@ -3601,7 +3601,7 @@ function renderSetup(v) {
     boxes.forEach((c) => { c.checked = next; });
     e.currentTarget.textContent = next ? "Deselect All" : "Select All";
   });
-  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
+  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!(await askConfirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`))) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => {

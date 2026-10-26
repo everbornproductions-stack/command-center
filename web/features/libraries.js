@@ -197,7 +197,7 @@ function wireCard(view, card) {
   $b("[data-unstage]")?.addEventListener("click", async () => { const sid = st.stage?.stageId; st.stage = null; if (sid) api(`/libraries/${id}/stage/${sid}`, { method: "DELETE" }).catch(() => {}); renderTab(view); });
   body.querySelectorAll("[data-rmdoc]").forEach((b) => b.addEventListener("click", async () => {
     const d = st.detail[id]?.documents.find((x) => String(x.id) === b.dataset.rmdoc);
-    if (!d || !confirm(`Remove "${d.title}" from this library? The file itself is not touched.`)) return;
+    if (!d || !(await window.CC.confirm(`Remove "${d.title}" from this library? The file itself is not touched.`, { danger: true, ok: "Remove" }))) return;
     try { await api(`/libraries/${id}/docs/${d.id}`, { method: "DELETE" }); await Promise.all([load(), openDetail(id)]); renderTab(view); } catch (e) { toast(e.message, true); }
   }));
   // attachments
@@ -216,7 +216,7 @@ function wireCard(view, card) {
   $b("[data-q]").addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
   $b("[data-rename-save]").addEventListener("click", async () => { try { await api(`/libraries/${id}`, { method: "POST", body: { name: $b("[data-rename]").value } }); await load(); renderTab(view); toast("Renamed"); } catch (e) { toast(e.message, true); } });
   $b("[data-del]").addEventListener("click", async () => {
-    if (!confirm(`Delete the library "${l.name}"? Its index (${l.chunks} passages) is removed from this PC and it is detached everywhere. Your original files are not touched.`)) return;
+    if (!(await window.CC.confirm(`Delete the library "${l.name}"? Its index (${l.chunks} passages) is removed from this PC and it is detached everywhere. Your original files are not touched.`, { danger: true, ok: "Delete" }))) return;
     try { await api(`/libraries/${id}`, { method: "DELETE" }); st.open = null; await load(); renderTab(view); toast("Library deleted"); } catch (e) { toast(e.message, true); }
   });
 }
@@ -270,7 +270,7 @@ function renderSources(el) {
     catch (e) { toast(e.message, true); }
   }));
   el.querySelectorAll("[data-off]").forEach((b) => b.addEventListener("click", async () => {
-    if (!confirm("Disconnect? The tokens are removed from the vault. What is already indexed stays in your libraries.")) return;
+    if (!(await window.CC.confirm("Disconnect? The tokens are removed from the vault. What is already indexed stays in your libraries.", { danger: true, ok: "Disconnect" }))) return;
     try { await api(`/libraries/${b.dataset.off}`, { method: "DELETE" }); await load(); renderSources(el); } catch (e) { toast(e.message, true); }
   }));
 }

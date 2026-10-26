@@ -203,8 +203,8 @@ test("Run the whole setup again reopens the welcome screen after first run is do
   assert.match(setupFn, /if \(st\.fullFlow\) \{ await advanceFromScanToConnections\(\); return; \}/);
   assert.match(setupFn, /if \(st\.fullFlow\) \{\s*await advanceFromScanToConnections\(\);/);
   // Saved items are not overwritten without asking.
-  assert.match(app, /if \(P\("openrouter"\)\?\.keyed && !confirm\(/);
-  assert.match(app, /if \(P\(b\.dataset\.savek\)\?\.keyed && !confirm\(/);
+  assert.match(app, /if \(P\("openrouter"\)\?\.keyed && !\(await askConfirm\(/);
+  assert.match(app, /if \(P\(b\.dataset\.savek\)\?\.keyed && !\(await askConfirm\(/);
   assert.match(app, /Change your saved username from/);
   // Separate direct entries remain for Find my AIs and Get everything connected.
   assert.match(app, /id="s-setup">\$\{esc\(RESTART_SETUP_LABEL\)\}</);

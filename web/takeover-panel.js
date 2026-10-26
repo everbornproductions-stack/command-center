@@ -74,33 +74,33 @@ export async function mount(host) {
     q("#tk-paste-toggle")?.addEventListener("click", () => { const p = q("#tk-paste"); p.hidden = !p.hidden; });
     q("#tk-paste-go")?.addEventListener("click", guarded(async () => { st.review = await api("/takeover/import", { method: "POST", body: { text: q("#tk-paste-text").value, label: "Pasted export" } }); st.msg = "Read the export."; draw(); }));
     host.querySelectorAll("[data-tk-take]").forEach((b) => b.addEventListener("click", guarded(async () => {
-      if (!confirm("Copy this task into Schedules? It starts paused, so nothing runs twice.")) return;
+      if (!(await window.CC.confirm("Copy this task into Schedules? It starts paused, so nothing runs twice."))) return;
       const cron = host.querySelector(`[data-tk-cron="${b.dataset.tkTake}"]`)?.value || "";
       const r = await api(`/takeover/task/${b.dataset.tkTake}/take`, { method: "POST", body: { confirm: true, cron } });
       st.review = r.view; st.msg = "Taken over. Find it in Schedules, paused."; draw();
     })));
     host.querySelectorAll("[data-tk-skip]").forEach((b) => b.addEventListener("click", guarded(async () => { st.review = await api(`/takeover/task/${b.dataset.tkSkip}/dismiss`, { method: "POST", body: {} }); draw(); })));
     host.querySelectorAll("[data-tk-pause]").forEach((b) => b.addEventListener("click", guarded(async () => {
-      if (!confirm("Ask the other AI to pause its own copy of this task?")) return;
+      if (!(await window.CC.confirm("Ask the other AI to pause its own copy of this task?"))) return;
       const r = await api(`/takeover/task/${b.dataset.tkPause}/pause-original`, { method: "POST", body: { confirm: true } });
       st.review = r.view; draw();
     })));
     q("#tk-prev")?.addEventListener("click", guarded(async () => { const id = q("#tk-proj").value; if (!id) return; st.mirror = await api(`/takeover/mirror/${encodeURIComponent(id)}`); draw(); q("#tk-proj").value = id; }));
     host.querySelectorAll("[data-tk-mirror]").forEach((b) => b.addEventListener("click", guarded(async () => {
       const [kind, id] = b.dataset.tkMirror.split("|");
-      if (!confirm("Send this project brief? It has the name, summary and section names only.")) return;
+      if (!(await window.CC.confirm("Send this project brief? It has the name, summary and section names only."))) return;
       const r = await api(`/takeover/mirror/${encodeURIComponent(b.dataset.tkProj)}`, { method: "POST", body: { kind, id, confirm: true } });
       toast(`Sent to ${r.target}`);
     })));
     q("#tk-own-save")?.addEventListener("click", guarded(async () => {
       const patch = {};
       host.querySelectorAll("[data-tk-own]").forEach((el) => { patch[el.dataset.tkOwn] = el.value; });
-      if (!confirm("Save these owner settings?")) return;
+      if (!(await window.CC.confirm("Save these owner settings?"))) return;
       await api("/takeover/owner/change", { method: "POST", body: { patch, confirm: true } });
       toast("Saved"); refresh();
     }));
     q("#tk-own-undo")?.addEventListener("click", guarded(async () => {
-      if (!confirm("Put the last owner change back?")) return;
+      if (!(await window.CC.confirm("Put the last owner change back?"))) return;
       await api("/takeover/owner/undo", { method: "POST", body: { confirm: true } });
       toast("Put back"); refresh();
     }));

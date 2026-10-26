@@ -725,7 +725,7 @@ function wireProjectMediaEvents(box, p) {
           setTimeout(() => URL.revokeObjectURL(a.href), 1500);
           toast(`Exported ${res.count || 0} asset(s).`);
         } else if (act === "delete") {
-          if (!confirm(`Remove ${assetIds.length} asset(s) from this project view?`)) return;
+          if (!(await window.CC.confirm(`Remove ${assetIds.length} asset(s) from this project view?`, { danger: true, ok: "Remove" }))) return;
           await api(`/projectmedia/${encodeURIComponent(p.id)}/bulk`, {
             method: "POST",
             body: { assetIds, action: "delete" },

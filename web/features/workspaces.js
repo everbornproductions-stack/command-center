@@ -147,12 +147,12 @@ async function render(v) {
   $("#ws-new", v)?.addEventListener("submit", (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (name) act(() => api("/workspaces", { method: "POST", body: { name } }), "Workspace created"); });
   $$("[data-ws]", v).forEach((cardEl) => {
     const id = cardEl.dataset.ws;
-    cardEl.querySelector("[data-del]")?.addEventListener("click", () => { if (confirm("Delete this workspace? Members lose access; your projects are not touched.")) act(() => api(`/workspaces/${id}`, { method: "DELETE" }), "Workspace deleted"); });
+    cardEl.querySelector("[data-del]")?.addEventListener("click", async () => { if ((await window.CC.confirm("Delete this workspace? Members lose access; your projects are not touched.", { danger: true, ok: "Delete" }))) act(() => api(`/workspaces/${id}`, { method: "DELETE" }), "Workspace deleted"); });
     cardEl.querySelector("[data-rename]")?.addEventListener("click", async () => { const name = await window.CC.ask("New name for this workspace"); if (name?.trim()) act(() => api(`/workspaces/${id}`, { method: "PATCH", body: { name: name.trim() } }), "Renamed"); });
     cardEl.querySelector("[data-invite]")?.addEventListener("submit", (e) => { e.preventDefault(); const email = e.target.querySelector("input").value.trim(); const role = e.target.querySelector("select").value; if (email) invite(id, email, role); });
     cardEl.querySelectorAll("[data-relink]").forEach((b) => b.addEventListener("click", () => invite(id, b.dataset.relink, b.dataset.r)));
     cardEl.querySelectorAll("[data-role]").forEach((s) => s.addEventListener("change", () => act(() => api(`/workspaces/${id}/members/${encodeURIComponent(s.dataset.role)}`, { method: "PATCH", body: { role: s.value } }), `Role changed to ${s.value}`)));
-    cardEl.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => { if (confirm(`Remove ${b.dataset.rm} from this workspace?`)) act(() => api(`/workspaces/${id}/members/${encodeURIComponent(b.dataset.rm)}`, { method: "DELETE" }), "Member removed"); }));
+    cardEl.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => { if ((await window.CC.confirm(`Remove ${b.dataset.rm} from this workspace?`, { danger: true, ok: "Remove" }))) act(() => api(`/workspaces/${id}/members/${encodeURIComponent(b.dataset.rm)}`, { method: "DELETE" }), "Member removed"); }));
     cardEl.querySelectorAll("[data-share]").forEach((cb) => cb.addEventListener("change", () => act(() => cb.checked ? api(`/workspaces/${id}/projects`, { method: "POST", body: { projectId: cb.dataset.share } }) : api(`/workspaces/${id}/projects/${encodeURIComponent(cb.dataset.share)}`, { method: "DELETE" }), cb.checked ? "Project shared" : "Project unshared")));
     cardEl.querySelector("[data-sync]")?.addEventListener("click", () => act(() => api(`/workspaces/${id}/sync`, { method: "POST" }), "Members now see the latest links"));
   });

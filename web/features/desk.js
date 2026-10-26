@@ -286,7 +286,7 @@ function renderSettings(container) {
     try {
       const text = await f.text();
       const data = JSON.parse(text);
-      if (!confirm("Restore this backup? Projects in the file replace the project list. Chats in the file are put back. AI keys on this computer stay.")) return;
+      if (!(await window.CC.confirm("Restore this backup? Projects in the file replace the project list. Chats in the file are put back. AI keys on this computer stay."))) return;
       const r = await api("/desk/restore", { method: "POST", body: data });
       toast(`Restored ${r.projects} projects and ${r.chats} chats. Keys were not in the file.`);
       if (window.CC.refresh) window.CC.refresh();
