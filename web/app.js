@@ -124,6 +124,7 @@ async function apiCall(path, opts = {}) {
     if (j?.missing) err.missing = j.missing;
     if (j?.warnings) err.warnings = j.warnings;
     if (j?.questions) err.questions = j.questions;
+    if (j?.next) err.next = j.next;
     if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
   }
@@ -1697,7 +1698,8 @@ function renderOutput() {
   if (panel) panel.hidden = !showDeliverable(l, text);
   // Simple: the answer sits right under the chat box, and only when there is one.
   const simpleAnswer = $("#simple-answer");
-  if (simpleAnswer) simpleAnswer.hidden = !l.id;
+  if (simpleAnswer) simpleAnswer.hidden = !l.id && !S.make?.active;
+  window.CC.makeChat?.mount();
   paintAnswerLine(l, text);
   const wait = $("#deliv-wait");
   if (wait && panel) wait.hidden = !panel.hidden;
@@ -1962,6 +1964,13 @@ async function sendOrders() {
     }
   }
   S.skipProjectStart = false;
+  // Asked to make a picture, a video or a voice: it is made right here and shown in the answer panel (web/features/make-chat.js).
+  if (mode === "single" && !S.skipMake && window.CC.makeChat?.handle) {
+    const draftBox = $("#orders");
+    if (await window.CC.makeChat.handle(prompt)) { if (draftBox) draftBox.value = ""; S.lastOrders = ""; return; }
+  }
+  S.skipMake = false;
+  window.CC.makeChat?.reset();
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
