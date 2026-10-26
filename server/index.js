@@ -41,7 +41,7 @@ import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
-import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot, listSubProjects, projectTree, expandProject } from "./projects.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -867,7 +867,14 @@ async function api(req, res, url) {
     }
     const id = body.id || projectSlug(name);
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
-    return json(res, 200, saveProject(body));
+    try { return json(res, 200, saveProject(body)); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  if (method === "GET" && p === "/projects/tree") return json(res, 200, { tree: projectTree() });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "subprojects") return json(res, 200, { subProjects: listSubProjects(seg[1]) });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "expand") {
+    const expanded = expandProject(seg[1], { missions: missionList() });
+    if (!expanded) return json(res, 404, { error: "project not found" });
+    return json(res, 200, expanded);
   }
   if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) {
     try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true }) }); }

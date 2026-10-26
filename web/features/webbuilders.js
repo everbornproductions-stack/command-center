@@ -199,8 +199,12 @@ function boot(view, openId) {
     const at = step === "done" ? order.length : order.indexOf(step);
     root.querySelector("#bd-rail").innerHTML = RAIL.map(([id, label], index) => {
       const cls = index < at || step === "done" ? "done" : index === at ? "on" : "";
+      if (window.CC?.S?.settings?.flag_flowstages || window.CC?.S?.settings?.flags?.flag_flowstages) {
+        return `<button type="button" class="btn sm ${cls}" data-bd-step="${esc(id)}">${esc(label)}</button>`;
+      }
       return `<span class="${cls}">${esc(label)}</span>`;
     }).join("");
+    root.querySelectorAll("[data-bd-step]").forEach((btn) => btn.addEventListener("click", () => { step = btn.dataset.bdStep; paintFlowBits(); }));
   }
 
   function side() {
@@ -371,6 +375,7 @@ function boot(view, openId) {
       const label = group === "web" ? "Web" : "Marketing";
       return `<h4>${label}</h4><div class="bd-cards">${rows.map(cardHtml).join("")}</div>`;
     }).join("");
+    root.querySelectorAll("[data-bd-step]").forEach((btn) => btn.addEventListener("click", () => { step = btn.dataset.bdStep; paintFlowBits(); }));
     root.querySelector("#bd-all-panel").hidden = !showAll;
     root.querySelector("#bd-show-all").textContent = showAll ? "Show suggested only" : "Show all";
     root.querySelectorAll("[data-open]").forEach((btn) => btn.addEventListener("click", () => openBuilder(btn.dataset.open)));

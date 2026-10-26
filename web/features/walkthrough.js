@@ -11,10 +11,22 @@ const css = `
 .sp-type { text-align: left; background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; }
 .sp-type:hover, .sp-type:focus { border-color: var(--accent); outline: none; }
 .sp-type h4 { margin: 0 0 4px; font-size: 15px; }
-.sp-rail { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-rail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sp-rail span { font-size: 12px; color: var(--dim); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .sp-rail span.on { color: var(--text); border-color: var(--accent); }
 .sp-rail span.done { color: var(--muted); }
+.sp-crumb { max-width: 100%; overflow-wrap: anywhere; font-size: 12px; color: var(--dim); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #0e1726; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.sp-crumb.on { color: var(--text); border-color: var(--accent); font-weight: 600; }
+.sp-crumb.done { color: var(--muted); border-color: #1e293b; }
+.sp-crumb.skipped { opacity: 0.6; text-decoration: line-through; }
+.sp-crumb-sep { color: var(--dim); font-size: 11px; border: none !important; padding: 0 2px !important; }
+.sp-flowchart { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #0b1320; }
+.sp-flow-node { min-width: 128px; overflow-wrap: anywhere; word-break: break-word; flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #0e1726; color: var(--text); text-align: left; cursor: pointer; }
+.sp-flow-node.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.sp-flow-node.done { border-color: #10b981; }
+.sp-flow-node.skipped { opacity: 0.6; }
+.sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
+.sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
 .sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -50,7 +62,22 @@ function clientExperience() {
   }
   return "simple";
 }
-const qexp = () => `experience=${encodeURIComponent(clientExperience())}`;
+
+function clientFlowStages(w) {
+  if (w?.flowStagesEnabled === true) return true;
+  const s = window.CC?.S?.settings || {};
+  if (s.flag_flowstages === true || s.flags?.flag_flowstages === true) return true;
+  try {
+    const local = localStorage.getItem("cc.flag_flowstages");
+    if (local === "1" || local === "true") return true;
+  } catch { /* storage can be blocked */ }
+  return false;
+}
+
+const qexp = () => {
+  const base = `experience=${encodeURIComponent(clientExperience())}`;
+  return clientFlowStages() ? `${base}&flag_flowstages=1` : base;
+};
 function stopPoll() { if (poll) clearInterval(poll); poll = null; pollId = ""; }
 function startPoll(id) {
   if (poll && pollId === id) return;
@@ -92,9 +119,123 @@ function ensureHome() {
 new MutationObserver(() => ensureHome()).observe(document.getElementById("view") || document.body, { childList: true });
 
 function rail(w) {
-  const at = (w.stages || []).findIndex((s) => s.id === w.stage);
-  return `<div class="sp-rail" aria-label="Steps">${(w.stages || []).map((s, i) => `<span class="${i === at ? "on" : i < at ? "done" : ""}">${esc(s.label)}</span>`).join("")}</div>`;
+  const stages = w.stages || [];
+  const at = stages.findIndex((s) => s.id === w.stage);
+  if (!clientFlowStages(w)) {
+    return `<div class="sp-rail" aria-label="Steps">${stages.map((s, i) => `<span class="${i === at ? "on" : i < at ? "done" : ""}">${esc(s.label)}</span>`).join("")}</div>`;
+  }
+  if (w.experience === "expert") {
+    const nodes = (w.flowchart?.nodes || stages).map((s, i) => {
+      const state = s.state || (i === at ? "active" : i < at ? "done" : "pending");
+      const cls = state === "active" || state === "running" ? "on" : state === "done" ? "done" : state === "skipped" ? "skipped" : "";
+      const badge = s.skipped ? "skipped" : s.autofilled ? "AI filled" : state;
+      const edge = i < stages.length - 1 ? `<div class="sp-flow-edge" aria-hidden="true">→</div>` : "";
+      return `<button type="button" class="sp-flow-node ${cls}" data-stage-jump="${esc(s.id)}" aria-current="${i === at ? "step" : "false"}">
+        <div class="row small" style="justify-content:space-between;width:100%"><span class="mono dim">${i + 1}</span><span class="chip">${esc(badge)}</span></div>
+        <b>${esc(s.label)}</b>
+      </button>${edge}`;
+    }).join("");
+    return `<div class="sp-flowchart" role="region" aria-label="Live horizontal flowchart">${nodes}</div>`;
+  }
+  return `<nav class="sp-rail sp-breadcrumb" aria-label="Flow stages">${stages.map((s, i) => {
+    const cls = `${i === at ? "on" : i < at ? "done" : ""}${s.skipped ? " skipped" : ""}`.trim();
+    const sep = i < stages.length - 1 ? `<span class="sp-crumb-sep" aria-hidden="true">→</span>` : "";
+    return `<button type="button" class="sp-crumb ${cls}" data-stage-jump="${esc(s.id)}" aria-current="${i === at ? "step" : "false"}"><span>${i + 1}. ${esc(s.label)}</span></button>${sep}`;
+  }).join("")}</nav>`;
 }
+
+function flowControlsHtml(w) {
+  if (!clientFlowStages(w) || w.example || w.readonly) return "";
+  const isPaused = w.paused || w.status === "paused";
+  const stacked = w.stackedSteps || [];
+  const stageOptions = (w.stages || []).map((s) => `<option value="${esc(s.id)}" ${s.id === w.stage ? "selected" : ""}>${esc(s.label)}</option>`).join("");
+  const currentEntry = (w.stages || []).find((s) => s.id === w.stage);
+  return `<div class="sp-flow-bar" id="sp-flow-controls">
+    <button class="btn sm" type="button" data-flow-action="autofill">Let AI fill</button>
+    <button class="btn sm" type="button" data-flow-action="skip">Skip stage</button>
+    <button class="btn sm" type="button" data-flow-action="move-up" title="Move stage earlier">Move left</button>
+    <button class="btn sm" type="button" data-flow-action="move-down" title="Move stage later">Move right</button>
+    <button class="btn sm" type="button" data-flow-action="add">+ Add step</button>
+    ${currentEntry?.custom ? `<button class="btn sm" type="button" data-flow-action="remove">Remove step</button>` : ""}
+    <span style="margin-left:auto;display:flex;gap:6px">
+      ${isPaused
+        ? `<button class="btn sm primary" type="button" data-flow-action="resume">Resume</button>`
+        : `<button class="btn sm" type="button" data-flow-action="pause">Pause</button>`}
+      <button class="btn sm" type="button" data-flow-action="save">Save</button>
+    </span>
+  </div>
+  <details class="panel" id="sp-stack-panel" ${stacked.length ? "open" : ""}>
+    <summary class="small"><b>Stacked steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
+    <div class="sp-actions" style="margin-top:8px">
+      <select id="sp-stack-stage" aria-label="Stage for stacked step" style="width:auto">${stageOptions}</select>
+      <input id="sp-stack-input" type="text" placeholder="Prompt or instruction for this stage" style="flex:1;min-width:180px">
+      <button class="btn sm" type="button" data-stack-add>Stack step</button>
+      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run stacked steps</button>` : ""}
+    </div>
+    ${stacked.length ? `<ol class="small" style="margin:8px 0 0 18px;padding:0">${stacked.map((st) => `<li><b>${esc(st.flowStage || st.stage)}</b>: ${esc(st.prompt || st.title)} <span class="chip">${esc(st.status || "queued")}</span></li>`).join("")}</ol>` : ""}
+  </details>`;
+}
+
+function wireFlowControls(root, w) {
+  root.querySelectorAll("[data-stage-jump]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (w.example || w.readonly) return;
+      try {
+        paintWalk(await api(`/walkthrough/${w.id}/stage?${qexp()}`, { method: "POST", body: { stage: btn.dataset.stageJump, experience: clientExperience(), flag_flowstages: true } }));
+      } catch (e) { toast(e.message, true); }
+    });
+  });
+  root.querySelectorAll("[data-flow-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const act = btn.dataset.flowAction;
+      try {
+        if (act === "autofill") {
+          paintWalk(await api(`/walkthrough/${w.id}/autofill?${qexp()}`, { method: "POST", body: { stage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
+        } else if (act === "skip") {
+          paintWalk(await api(`/walkthrough/${w.id}/skip?${qexp()}`, { method: "POST", body: { stage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
+        } else if (act === "move-up" || act === "move-down") {
+          paintWalk(await api(`/walkthrough/${w.id}/reorder?${qexp()}`, { method: "POST", body: { stage: w.stage, direction: act === "move-up" ? "up" : "down", experience: clientExperience(), flag_flowstages: true } }));
+        } else if (act === "add") {
+          const label = prompt("Step or stage name", "Custom check");
+          if (!label) return;
+          paintWalk(await api(`/walkthrough/${w.id}/add-stage?${qexp()}`, { method: "POST", body: { label, afterStage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
+        } else if (act === "remove") {
+          paintWalk(await api(`/walkthrough/${w.id}/remove-stage?${qexp()}`, { method: "POST", body: { stage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
+        } else if (act === "pause") {
+          paintWalk(await api(`/walkthrough/${w.id}/pause?${qexp()}`, { method: "POST", body: { experience: clientExperience(), flag_flowstages: true } }));
+          toast("Project paused.");
+        } else if (act === "resume") {
+          paintWalk(await api(`/walkthrough/${w.id}/resume?${qexp()}`, { method: "POST", body: { experience: clientExperience(), flag_flowstages: true } }));
+          toast("Project resumed.");
+        } else if (act === "save") {
+          paintWalk(await api(`/walkthrough/${w.id}/save?${qexp()}`, { method: "POST", body: { experience: clientExperience(), flag_flowstages: true } }));
+          toast("Project saved.");
+        }
+      } catch (e) { toast(e.message, true); }
+    });
+  });
+  root.querySelector("[data-stack-add]")?.addEventListener("click", async () => {
+    const promptEl = root.querySelector("#sp-stack-input");
+    const stageEl = root.querySelector("#sp-stack-stage");
+    const text = String(promptEl?.value || "").trim();
+    if (!text) { toast("Type a prompt for the stacked step.", true); return; }
+    try {
+      paintWalk(await api(`/walkthrough/${w.id}/stack?${qexp()}`, {
+        method: "POST",
+        body: { append: true, steps: [{ stage: stageEl?.value || w.stage, prompt: text }], experience: clientExperience(), flag_flowstages: true },
+      }));
+    } catch (e) { toast(e.message, true); }
+  });
+  root.querySelector("[data-stack-run]")?.addEventListener("click", async () => {
+    try {
+      paintWalk(await api(`/walkthrough/${w.id}/stack?${qexp()}`, {
+        method: "POST",
+        body: { append: true, steps: [], run: true, experience: clientExperience(), flag_flowstages: true },
+      }));
+    } catch (e) { toast(e.message, true); }
+  });
+}
+
 function modeNote(w) {
   return w.experience === "expert"
     ? "Expert mode shows which AI was chosen and lets you edit the plan before it runs."
@@ -232,14 +373,17 @@ function paintWalk(w) {
       <button class="btn sm" type="button" id="sp-back">All project types</button>
       <b>${esc(w.typeName)}</b>
       <span class="chip">${esc(w.modeLabel)}</span>
+      ${w.paused || w.status === "paused" ? `<span class="chip amber">Paused</span>` : ""}
       ${w.example ? `<span class="chip amber">Example data</span>` : ""}
     </div>
     ${rail(w)}
+    ${flowControlsHtml(w)}
     <p class="small dim" style="margin:0">${esc(modeNote(w))}</p>
     ${w.error ? `<div class="sp-banner" role="alert">${esc(w.error)}</div>` : ""}
     ${w.projectNote ? `<div class="small dim">${esc(w.projectNote)}</div>` : ""}
     <div id="sp-stage"></div>`;
   root.querySelector("#sp-back").addEventListener("click", () => renderTab(root.parentElement));
+  wireFlowControls(root, w);
   const stage = root.querySelector("#sp-stage");
   if (w.status === "planning") paintWait(stage, "The council is building the plan.");
   else if (w.status === "revising") paintReview(stage, w, true);
@@ -327,7 +471,7 @@ function paintPlan(stage, w, expert) {
 }
 function paintBuild(stage, w, expert) {
   const steps = w.plan?.steps || [];
-  stage.innerHTML = `<div role="status"><b>${w.status === "failed" ? "The build stopped." : "Building each step."}</b>
+  stage.innerHTML = `<div role="status"><b>${w.status === "failed" ? "The build stopped." : w.status === "paused" ? "The build is paused." : "Building each step."}</b>
       <div class="small dim">${esc(liveLine || "Progress shows on the live view and the flow map.")}</div></div>
     ${steps.map((s) => `<div class="sp-step"><b>${esc(s.title)}</b> <span class="chip">${esc(s.status || "queued")}</span>
       <div class="small dim">${expert ? esc(s.agentName || s.routedTo || "") : esc(s.routedTo || "")}</div>
