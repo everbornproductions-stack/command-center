@@ -192,7 +192,7 @@ test("icon buttons include a word, and help does not keep stale lines", () => {
     const text = fs.readFileSync(path.join(helpDir, name), "utf8");
     for (const phrase of stale) assert.equal(text.includes(phrase), false, `${name} still says ${phrase}`);
   }
-  assert.match(read("web", "features", "desk.js"), /Practice answer from a pretend AI\. Nothing was spent\./);
+  assert.match(read("web", "features", "desk.js"), /Sample answer: add a key for real answers\. Nothing was spent\./);
   assert.match(read("web", "features", "desk.js"), /Get real answers/);
   for (const term of Object.values(TERMS)) {
     assert.ok(term.plain && term.explain, term.label);

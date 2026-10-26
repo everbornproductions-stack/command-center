@@ -186,7 +186,7 @@ function toastNeedKey() {
   $("#toasts").appendChild(t);
   setTimeout(() => t.remove(), 8000);
 }
-function toast(msg, err = false, link = null) {
+function toast(msg, err = false, link = null, ttl = 0) {
   noteToast();
   if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
@@ -200,7 +200,7 @@ function toast(msg, err = false, link = null) {
     t.append(a);
   }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
-  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), ttl || (err ? 6000 : 3500));
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
@@ -3563,7 +3563,7 @@ async function finishAiSetup(nextView, { quiet = false } = {}) {
     // After the welcome screen: no desktop card and no tour this session (0.4.17).
     if (S.setup?.phase === "welcome") { S.setup.phase = ""; S.firstRunDone = true; window.CC?.tour?.sync?.(); }
     S.view = nextView;
-    if (nextView === "command" && !quiet) toast("Setup complete");
+    if (nextView === "command" && !quiet) toast("Setup complete. You are in Chat. Type below.", false, null, 6000);
     render();
   } catch (e) { toast(e.message, true); }
 }

@@ -2,9 +2,9 @@
 // short, plausible examples shaped like the request: a post, an email, a plan, a summary, code,
 // a list, or a plain answer. Each pretend AI has its own style, so a council shows a real-looking
 // difference of opinion. Everything is built here from the request text: no network, no key,
-// nothing spent. Every answer ends with the "Practice answer from a pretend AI" label.
+// nothing spent. Every answer ends with the "Sample answer: add a key for real answers" label.
 
-export const PRACTICE_LABEL = "Practice answer from a pretend AI";
+export const PRACTICE_LABEL = "Sample answer: add a key for real answers";
 
 const NAMES = { "nova-ultra": "Nova Ultra", "nova-lite": "Nova Lite", "atlas-pro": "Atlas Pro", "sage-mini": "Sage Mini" };
 
@@ -21,7 +21,7 @@ export function modelLabel(model) {
 }
 
 export function practiceFooter(model) {
-  return `*${PRACTICE_LABEL} (${modelLabel(model)}). Nothing was spent. Add a key in Settings for real answers.*`;
+  return `*${PRACTICE_LABEL} (${modelLabel(model)}). Nothing was spent.*`;
 }
 
 // The request itself: the first line after a QUESTION: / TASK: / GOAL: tag, without the app's own wrapping.

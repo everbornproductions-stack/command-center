@@ -215,7 +215,7 @@ function renderInto(v) {
   });
   v.querySelector("#cs-done").addEventListener("click", async () => {
     try { data = await api("/connectsetup/complete", { method: "POST" }); S.connectSetup = data; } catch (e) { toast(e.message, true); return; }
-    S.connectWizard = false; S.view = "command"; toast("Setup complete"); render();
+    S.connectWizard = false; S.view = "command"; toast("Setup complete. You are in Chat. Type below."); render();
   });
 }
 

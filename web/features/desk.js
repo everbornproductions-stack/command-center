@@ -213,7 +213,7 @@ function renderDeliverable(container, live) {
   const practice = isPractice(answerProviderId(), name);
   const review = (S.live.council || S.live.mission || {}).doubleCheck;
   container.innerHTML = `<div class="cc-desk-tools">
-    ${practice ? `<div class="panel" id="cc-practice" role="status"><p class="small" style="margin:0 0 8px">Practice answer from a pretend AI. Nothing was spent.</p><button type="button" class="btn sm" id="cc-practice-go">Get real answers</button></div>` : ""}
+    ${practice ? `<div class="panel" id="cc-practice" role="status"><p class="small" style="margin:0 0 8px">Sample answer: add a key for real answers. Nothing was spent.</p><button type="button" class="btn sm" id="cc-practice-go">Get real answers</button></div>` : ""}
     ${name ? `<p class="small cc-written" style="margin:6px 0">Written by ${esc(name)}.</p>` : ""}
     ${review?.text ? `<div class="panel"><h3>Double-check</h3><p class="small">${esc(review.line || "")}</p><div class="md">${esc(review.text)}</div></div>` : ""}
     <div class="cc-desk-row">
