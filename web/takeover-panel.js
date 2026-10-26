@@ -28,8 +28,10 @@ function promptBlock(t) {
   const risky = riskyLines(full).length;
   const note = risky ? `<div style="font-size:14px;margin-bottom:4px">${risky} line${risky === 1 ? "" : "s"} below ${risky === 1 ? "sends, deletes or pays" : "send, delete or pay"}. They are highlighted.</div>` : "";
   const open = full.length <= 240 ? " open" : "";
-  const safer = risky ? `<button type="button" class="btn sm" data-tk-safer="${esc(t.id)}" data-tk-safer-text="${esc(saferCopy(full))}">Safer copy</button>` : "";
-  return `<details class="tk-prompt"${open} style="margin:4px 0"><summary style="font-size:14px;cursor:pointer">Show all (${full.length} characters)</summary>
+  const saferText = saferCopy(full);
+  const safer = risky ? (saferText ? `<button type="button" class="btn sm" data-tk-safer="${esc(t.id)}" data-tk-safer-text="${esc(saferText)}">Safer copy</button>` : `<button type="button" class="btn sm" disabled title="Every line sends, deletes or pays, so there is nothing safe to copy.">Safer copy</button> <span class="small dim">Every line sends, deletes or pays.</span>`) : "";
+  const flag = risky ? `<div class="small" style="margin-top:4px"><b>Contains words that send, delete or pay (${risky})</b></div>` : "";
+  return `${flag}<details class="tk-prompt"${open} style="margin:4px 0"><summary style="font-size:14px;cursor:pointer">Show all (${full.length} characters)</summary>
     ${note}<div style="font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere">${markRisky(full)}</div>${safer}</details>`;
 }
 

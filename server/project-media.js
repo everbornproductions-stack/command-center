@@ -310,7 +310,7 @@ function collectNativeAssets(projectId, state, allJobs) {
         isUpload: false,
         isLink: false,
         linkedFrom: null,
-        name: meta.name || baseName,
+        name: meta.name || promptName(prompt, baseName, outputs.length, idx),
         mime,
         sizeBytes: st ? st.sizeBytes : 0,
         filePath: st ? st.path : (typeof outPath === "string" ? outPath : null),
@@ -1290,6 +1290,15 @@ function slug(t, fallback = "result") {
 
 // A readable name from the first line of some words (0.4.21): no #, ** or backticks, never cut in the middle of a word.
 // A Pro prompt (ROLE / CONTEXT / COMMAND blocks) is named from its ROLE line, not from the profile block above it.
+// A picture or clip made from words is named after the words ("a woman on a beach.png"), not "img-mh3k9x.svg"
+// (0.4.21, M36). Several outputs from one job get 1, 2, 3.
+function promptName(prompt, baseName, count, idx) {
+  const words = smartName(String(prompt || ""), 48).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!words || !/^(img|mj|job)-|-dry-run/i.test(baseName)) return baseName;
+  const ext = path.extname(baseName);
+  return `${words}${count > 1 ? ` ${idx + 1}` : ""}${ext}`;
+}
+
 export function smartName(text, max = 60) {
   const raw = String(text || "").replace(/\r/g, "");
   const role = /^ROLE:\s*(.+)$/m.exec(raw);
@@ -1324,6 +1333,11 @@ export function saveToMindMedia(opts = {}) {
   const pid = hubProjectId(opts.projectId);
   const source = String(opts.source || "Meldmind").slice(0, 60);
   let status = STATUSES.find((x) => x.toLowerCase() === String(opts.status || "").toLowerCase()) || "Draft";
+  if (opts.status && !STATUSES.some((x) => x.toLowerCase() === String(opts.status).toLowerCase())) {
+    const err = new Error(`Status must be one of: ${STATUSES.join(", ")}.`);
+    err.status = 400;
+    throw err;
+  }
   const files = Array.isArray(opts.files) ? opts.files.filter(Boolean) : [];
   const hasText = typeof opts.text === "string" && opts.text.trim().length > 0;
   if (!files.length && !hasText) {

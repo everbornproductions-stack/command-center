@@ -229,7 +229,7 @@ async function runDesktop(install) {
   try {
     await api("/antigravity/allow", { method: "POST", body: { allow: true } });
     if (!install) { toast("Antigravity is allowed. Change this any time in Settings.", false, openSettings); return; }
-    if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) {
+    if (!(await window.CC.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.", { ok: "Install" }))) {
       toast("Nothing was installed. Install and connect is in Settings.", false, openSettings);
       return;
     }

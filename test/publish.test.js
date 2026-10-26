@@ -92,7 +92,7 @@ test("Drive folder: copies the deliverable and only the media job's file; ledger
   assert.equal(pv.json.ready, true); assert.deepEqual(pv.json.problems, []); assert.equal(pv.json.media.files, 1);
   const post = await s.api("/publish/post", { method: "POST", body: { channel: "drive", previewId: pv.json.previewId, confirmed: true } });
   assert.equal(post.status, 200); assert.equal(post.json.status, "posted");
-  const outDir = path.join(folder, "Everborn Command", "unfiled");
+  const outDir = path.join(folder, "Meldmind", "unfiled");
   const names = fs.readdirSync(outDir);
   assert.ok(names.some((n) => n.endsWith("Week plan.md")), names.join(","));
   assert.ok(names.includes("mj-test.mp4"));

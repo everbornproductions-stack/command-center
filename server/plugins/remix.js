@@ -8,6 +8,7 @@ import { remixGate, countRemixMonth, REMIX_PRO_CAP, remixAbilityGate, remixAbili
 import { rate as rateBrain, brainSettings } from "../brain.js";
 import { STARTS, PART_PLAIN, publishPlan, publishVaultId, runTool, voiceCommand, clearArt, applyReuseReport, accessReport, externalCommandAllowed } from "../remix-abilities.js";
 import { projectFiles, safeRel, freshPage } from "../remix-build.js";
+import { inlinePage } from "../remix-play.js";
 import { commitVersion } from "../remix-git.js";
 import { flagOn } from "../flags.js";
 import { setSecret, hasSecret, getSecret } from "../vault.js";
@@ -327,6 +328,15 @@ export async function routes(req, res, url, body, h) {
     const live = BUILDING.get(rid);
     const state = live?.state || (test ? "done" : "starter");
     return h.json(res, 200, { projectId: rid, state, folder: `projects/${rid}`, savedAt: `projects/${rid}`, files, test, zip: `/api/remix/zip/${rid}`, hasOutput: files.includes("OUTPUT.md") || files.includes("package.json") });
+  }
+
+  // 0.4.21: the page as one self-contained document for a sandboxed Play frame. Reading only, nothing is run here.
+  if (req.method === "GET" && p.startsWith("/play/")) {
+    const rid = p.slice("/play/".length);
+    if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
+    if (h.HOSTED || !h.DATA_DIR) return h.json(res, 400, { error: "The play preview is on the desktop app only.", code: "local" });
+    const out = inlinePage(creditsFile(h.DATA_DIR, rid).folder);
+    return h.json(res, out.ok ? 200 : 404, out.ok ? { html: out.html, bytes: out.bytes, files: out.files } : { error: out.error, code: "missing" });
   }
 
   if (req.method === "GET" && p.startsWith("/zip/")) {

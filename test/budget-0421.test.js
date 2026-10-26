@@ -62,3 +62,27 @@ test("source: the mission limit text keeps enough digits and Expert gets the Con
   assert.match(app, /S\.guardCap/);
   assert.equal(read("web", "features", "smarter-control.js").includes('min="1" step="1" placeholder="Monthly cap"'), false);
 });
+
+import { failureCopy, failureHtml, CHIPS } from "../web/failure-cause.js";
+test("every stop carries a reason chip that says whose limit or key it is", () => {
+  assert.equal(failureCopy("Your monthly spending limit was reached").chip, "Your limit");
+  assert.equal(failureCopy("429 too many requests").chip, CHIPS.rate);
+  assert.equal(failureCopy("402 out of credits").chip, "Their credit");
+  assert.equal(failureCopy("401 invalid key").chip, "Your key");
+  assert.match(failureHtml({ text: "402 payment required" }), /data-cause-chip>Their credit</);
+});
+
+test("Test my budget: a practice check says whether the next paid call would stop, and spends nothing", () => {
+  store.putDoc("license", { tier: null, status: null, lastOkAt: 0, checkedAt: 0 });
+  store.ctx().ledger = [];
+  Guard.saveGuard({ on: true, cap: 0.01 });
+  const before = JSON.stringify(store.ctx().ledger);
+  const ok = Guard.budgetTest();
+  assert.equal(ok.wouldStop, false);
+  assert.match(ok.plain, /Your cap is \$0\.01, spent \$0\.00\. The next paid call needs about \$0\.006, so it would go ahead\./);
+  const tight = Guard.budgetTest({ estimate: 0.02 });
+  assert.equal(tight.wouldStop, true);
+  assert.match(tight.plain, /would be stopped/);
+  assert.equal(JSON.stringify(store.ctx().ledger), before);
+  assert.match(fs.readFileSync(path.join(ROOT, "web", "features", "smarter-control.js"), "utf8"), /id="sc-budget-test"/);
+});

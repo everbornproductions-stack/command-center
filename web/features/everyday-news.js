@@ -165,7 +165,7 @@ function wireIdeas(root, prefix) {
         return;
       }
       if (act === "delete") {
-        if (!window.confirm("Delete this idea? This cannot be undone.")) return;
+        if (!(await window.CC.confirm("Delete this idea? This cannot be undone.", { danger: true, ok: "Delete" }))) return;
         const r = await api(`/everyday-news/suggestions/${encodeURIComponent(id)}/delete`, { method: "POST", body: {} });
         paintIdeas(root, prefix, r.ideas || []);
         return;

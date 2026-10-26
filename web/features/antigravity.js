@@ -54,7 +54,7 @@ async function renderSettings(el) {
     catch (err) { toast(err.message, true); }
   });
   el.querySelector("#agy-install").addEventListener("click", async () => {
-    if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+    if (!(await window.CC.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.", { ok: "Install" }))) return;
     try {
       const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
       toast(r.message || "Installer finished", !r.ok);
@@ -72,7 +72,7 @@ async function renderSettings(el) {
     try {
       const preview = await api("/bridge/mcp");
       if (!preview.ok) return toast(preview.message || "Could not prepare that", true);
-      if (!window.confirm(preview.message || "Add Meldmind to Antigravity?")) return toast("Nothing was written");
+      if (!(await window.CC.confirm(preview.message || "Add Meldmind to Antigravity?", { ok: "Add" }))) return toast("Nothing was written");
       const wrote = await api("/bridge/mcp", { method: "POST", body: { confirm: true } });
       toast(wrote.message || "Added", wrote.ok === false);
     } catch (err) { toast(err.message, true); }

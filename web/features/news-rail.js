@@ -122,7 +122,7 @@ function mount() {
       <button type="button" class="rail-title" data-rail="${m === "phone" ? "open" : "toggle"}" aria-expanded="${min ? "false" : "true"}">AI News${dot}</button>
       ${min ? "" : `<button type="button" class="btn sm" data-rail="side" aria-label="Dock the panel on the ${state.side === "left" ? "right" : "left"}">Move ${state.side === "left" ? "right" : "left"}</button>
       <button type="button" class="btn sm" data-rail="toggle" aria-label="Minimize AI News">Minimize</button>
-      <button type="button" class="btn sm" data-rail="hide" aria-label="Hide AI News. Settings can bring it back.">Hide</button>`}
+      <button type="button" class="btn sm" data-rail="hide" aria-label="Hide AI News. Open Community, then AI News, to bring it back.">Hide</button>`}
     </div>
     ${min ? "" : `<div class="rail-body">${bodyHtml()}</div>`}`;
   el.onclick = async (ev) => {
@@ -175,6 +175,12 @@ function renderSettings(host) {
     if (!state.hidden && !links.length) load();
   });
 }
+
+// Bring the panel back from anywhere (0.4.21, F7): the Community News screen has a Show button, so Simple needs no Settings page.
+window.CC.newsRail = {
+  hidden: () => !!state.hidden,
+  show() { state.hidden = false; saveRail(localStorage, state); mount(); if (!links.length) load(); },
+};
 
 function start() {
   if (start.done) return;

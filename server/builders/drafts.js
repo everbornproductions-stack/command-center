@@ -165,15 +165,19 @@ function organized(input) {
   };
 }
 
+// What contacts read. The bracket tags stay inside prompts for review; they never go out in a message (M38).
+const NOTE_CROA = "Credit repair note:";
+const NOTE_RESPA = "Referral note:";
+
 function campaignMessage(input) {
   let message = input.text || "A short note to your contacts.";
   if (input.channel === "sms" && !/\bSTOP\b/.test(message)) message += "\nReply STOP to opt out.";
   if (input.channel === "email" && !/unsubscribe/i.test(message)) message += "\nYou can unsubscribe from these emails.";
   if (isCreditRepair(input.text)) {
-    message = message.replace(/\b(your |the )?score will (jump|rise|increase|go up)\b[^.!\n]*/gi, `${CROA} No score change is promised`);
-    if (!message.includes(CROA)) message += `\n${CROA} This does not promise a result, a deletion, or a credit score change.`;
+    message = message.replace(/\b(your |the )?score will (jump|rise|increase|go up)\b[^.!\n]*/gi, `${NOTE_CROA} No score change is promised`);
+    if (!message.includes(NOTE_CROA)) message += `\n${NOTE_CROA} This does not promise a result, a deletion, or a credit score change. Results vary.`;
   }
-  if (REFERRAL_RE.test(input.text) && !message.includes(RESPA)) message += `\n${RESPA} Referral rewards need a human review.`;
+  if (REFERRAL_RE.test(input.text) && !message.includes(NOTE_RESPA)) message += `\n${NOTE_RESPA} Referral rewards need a human review.`;
   return message;
 }
 

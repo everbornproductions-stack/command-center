@@ -3,10 +3,11 @@
 // Data: GET /api/mindmedia. Keep, move, rename, tag, status and delete go through /api/mindmedia/*.
 // Publishing uses CC.publishPanel (web/features/mindmedia-parts.js) and the existing /api/publish routes.
 import "/features/mindmedia-parts.js";
+import { askAbout, makeAnother } from "/hub-ask.js";
 const { S, api, apiBlobUrl, downloadBlob, esc, toast } = window.CC;
 
 const TYPES = [["all", "All"], ["image", "Images"], ["video", "Video"], ["audio", "Audio"], ["text", "Text"], ["site", "Sites"], ["file", "Files"]];
-const ui = { project: "all", type: "all", status: "all", source: "all", tag: "", q: "", sort: "date-desc", select: false, selected: new Set(), focus: null, data: null, busy: false };
+const ui = { view: "", project: "all", type: "all", status: "all", source: "all", tag: "", q: "", sort: "date-desc", select: false, selected: new Set(), focus: null, data: null, busy: false };
 const blobs = new Map();
 
 const CSS = `
@@ -56,6 +57,11 @@ const CSS = `
 .mmh-insp .dl { color: var(--muted); font-size: .82rem; }
 .mmh-insp ul { margin: 0; padding-left: 18px; font-size: .85rem; }
 .mmh-bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; margin-bottom: 10px; background: var(--panel-solid); }
+.mmh-pend { border: 1px solid var(--line-2); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; background: var(--panel-solid); }
+.mmh-pend h3 { margin: 0 0 6px; font-size: .95rem; }
+.mmh-pend .pt { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: .88rem; }
+.mmh-pend .pt .nm { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mmh-trashnote { color: var(--muted); font-size: .88rem; margin-bottom: 10px; }
 .mmh-empty { border: 1px dashed var(--line-2); border-radius: var(--radius); padding: 24px; text-align: center; color: var(--muted); }
 @media (max-width: 1000px) {
   .mmh, .mmh.noinsp { grid-template-columns: minmax(0, 1fr); }
@@ -82,6 +88,7 @@ const ICON = { video: "▶", audio: "♪", site: "▤", file: "□", text: "¶",
 function query() {
   const p = new URLSearchParams();
   p.set("project", ui.project);
+  if (ui.view) p.set("view", ui.view);
   if (ui.type !== "all") p.set("type", ui.type);
   if (ui.status !== "all") p.set("status", ui.status);
   if (ui.source !== "all") p.set("source", ui.source);
@@ -108,20 +115,23 @@ function thumbInto(el, it) {
 }
 
 function railHtml(d) {
-  const row = (id, label, n) => `<button type="button" data-p="${esc(id)}" aria-current="${ui.project === id ? "true" : "false"}">${esc(label)}<span class="n">${n}</span></button>`;
+  const row = (id, label, n) => `<button type="button" data-p="${esc(id)}" aria-current="${ui.project === id && !ui.view ? "true" : "false"}">${esc(label)}<span class="n">${n}</span></button>`;
   const projects = (d.projects || []).filter((p) => p.id !== "unfiled");
   let h = row("all", "All media", d.total) + row("unfiled", "Unfiled", d.unfiledCount || 0);
   if (projects.length) h += `<div class="sec">Projects</div>` + projects.map((p) => row(p.id, p.name, p.count)).join("");
+  const views = (d.views || []).filter((v) => v.count > 0 || ui.view === v.id || v.id === "trash");
+  if (views.length) h += `<div class="sec">Smart views</div>` + views.map((v) => `<button type="button" data-v="${esc(v.id)}" aria-current="${ui.view === v.id ? "true" : "false"}">${esc(v.label)}<span class="n">${v.count}</span></button>`).join("");
   return h;
 }
 
 function cardHtml(it) {
   const sel = ui.selected.has(key(it));
   const pressed = ui.select ? sel : ui.focus && key(ui.focus) === key(it);
-  return `<button type="button" class="mmh-card" data-k="${esc(key(it))}" aria-pressed="${pressed ? "true" : "false"}" aria-label="${esc(it.name)}, ${esc(it.kind)}, ${esc(it.status)}">
+  const card = `<button type="button" class="mmh-card" data-k="${esc(key(it))}" aria-pressed="${pressed ? "true" : "false"}" aria-label="${esc(it.name)}, ${esc(it.kind)}, ${esc(it.status)}">
     ${ui.select ? `<input type="checkbox" class="mmh-pick" tabindex="-1" aria-hidden="true" ${sel ? "checked" : ""}>` : ""}
     <div class="mmh-thumb" data-th></div>
     <div class="mmh-meta"><b>${esc(it.name)}</b><span>${window.CC.mmStatusChip(it.status)}</span><small>${esc(it.source || "")} &middot; ${esc(it.projectName || "")} &middot; ${esc(when(it.createdAt))}</small></div></button>`;
+  return ui.view === "trash" ? `<div>${card}<button type="button" class="btn sm" data-restore="${esc(key(it))}" style="margin-top:4px">Restore</button></div>` : card;
 }
 
 function versionsOf(it, all) {
@@ -139,13 +149,17 @@ async function inspectorHtml(it, d) {
     <label class="lbl" for="mmh-name">Name</label><input type="text" id="mmh-name" value="${esc(it.name)}">
     <label class="lbl" for="mmh-status">Status</label>
     <select id="mmh-status">${(d.statuses || []).map((s) => `<option ${s === it.status ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
-    <label class="lbl" for="mmh-tags">Tags (separate with commas)</label><input type="text" id="mmh-tags" value="${esc((it.tags || []).join(", "))}">
+    <div class="acts"><button type="button" class="btn sm" data-a="ask">Ask Meldmind about this</button><button type="button" class="btn sm" data-a="another">Make another like this</button></div>
     <div class="dl">${esc(it.source || "")} &middot; ${esc(it.projectName || "")} &middot; ${esc(new Date(it.createdAt || Date.now()).toLocaleString())}</div>
-    ${prov.prompt || prov.model ? `<details><summary class="dl">How it was made</summary><div class="dl">${prov.prompt ? `Prompt: ${esc(prov.prompt)}<br>` : ""}${prov.model ? `Model: ${esc(prov.model)}<br>` : ""}${prov.provider ? `From: ${esc(prov.provider)}<br>` : ""}${prov.cost != null ? `Cost: $${Number(prov.cost).toFixed(2)}` : ""}</div></details>` : ""}
     ${dests.length ? `<div><div class="dl">Where it went</div><ul>${dests.map((x) => `<li>${/^https?:\/\//.test(x.link || "") ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)} <span class="dl">${esc(new Date(x.at).toLocaleString())}</span></li>`).join("")}</ul></div>` : ""}
+    <details class="mmh-moreinsp"><summary class="dl">More: tags, how it was made, versions, move</summary>
+    <label class="lbl" for="mmh-tags">Tags (separate with commas)</label><input type="text" id="mmh-tags" value="${esc((it.tags || []).join(", "))}">
+    ${prov.prompt || prov.model ? `<details><summary class="dl">How it was made</summary><div class="dl">${prov.prompt ? `Prompt: ${esc(prov.prompt)}<br>` : ""}${prov.model ? `Model: ${esc(prov.model)}<br>` : ""}${prov.provider ? `From: ${esc(prov.provider)}<br>` : ""}${prov.cost != null ? `Cost: $${Number(prov.cost).toFixed(2)}` : ""}</div></details>` : ""}
     ${versions.length > 1 ? `<div><div class="dl">Versions</div><ul>${versions.map((v) => `<li>${v.id === it.id ? "<b>" : ""}${esc(v.name)} (${esc(when(v.createdAt))})${v.id === it.id ? "</b>" : ""}</li>`).join("")}</ul></div>` : ""}
+    ${it.kind !== "text" ? `<label class="lbl" for="mmh-host">Public link (Instagram and HighLevel need one)</label><div class="acts"><input type="text" id="mmh-host" placeholder="https://" value="${esc(it.publicUrl || "")}" style="flex:1"><button type="button" class="btn sm" data-a="host">Save link</button></div>` : ""}
     <label class="lbl" for="mmh-move">Send to</label>
     <select id="mmh-move"><option value="">Move to a project...</option>${projects.filter((p) => p.id !== it.projectId).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+    </details>
     <div class="acts"><button type="button" class="btn sm primary" data-a="publish">Publish</button><button type="button" class="btn sm" data-a="download">Download</button><button type="button" class="btn sm" data-a="delete">Delete</button><button type="button" class="btn sm" data-a="close">Close</button></div>
     <div data-pub></div>
   </aside>`;
@@ -167,10 +181,12 @@ async function fillPreview(el, it) {
 
 async function render(view) {
   ensureCss();
+  if (S.mmView) { ui.view = S.mmView === "all" ? "" : S.mmView; S.mmView = ""; ui.project = "all"; ui.focus = null; }
   if (S.mmFocus) {
-    const f = S.mmFocus; S.mmFocus = null;
+    const f = S.mmFocus; S.mmFocus = null; ui.view = "";
     ui.project = "all"; ui.type = "all"; ui.status = "all"; ui.q = ""; ui.source = "all"; ui.tag = "";
     ui.focus = { projectId: f.projectId, id: f.assetId };
+    if (S.mmPublish) { ui.openPublish = true; S.mmPublish = false; }
   }
   let d;
   try { d = await load(); } catch (e) { view.innerHTML = `<div class="empty" role="alert">${esc(e.message)}</div>`; return; }
@@ -197,7 +213,9 @@ async function render(view) {
         <select id="mmh-bs" aria-label="Set status"><option value="">Set status...</option>${(d.statuses || []).map((s) => `<option>${esc(s)}</option>`).join("")}</select>
         <select id="mmh-bm" aria-label="Move to project"><option value="">Move to project...</option>${(d.projects || []).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
         <button type="button" class="btn sm" id="mmh-bd">Delete</button></div>` : ""}
-      ${(d.needsEnding || []).length && ui.project === "all" && !ui.q && ui.type === "all" ? `<div class="mmh-shelf" role="region" aria-label="Needs an ending"><h3>Needs an ending</h3><div class="dl">Made but not used yet. Keep it, publish it, or discard it.</div>
+      ${ui.view === "trash" ? `<div class="mmh-trashnote">Items stay in the Trash for ${d.trashDays || 30} days. Press Restore to put one back.</div>` : ""}
+      ${(d.pending || []).length && !ui.view ? `<div class="mmh-pend" role="status" aria-live="polite"><h3>Working on it</h3>${d.pending.map((j) => `<div class="pt"><span aria-hidden="true">${ICON[j.kind] || ICON.file}</span><span class="nm">${esc(j.name)}</span><span class="dim small">${esc(j.status)}</span></div>`).join("")}</div>` : ""}
+      ${!ui.view && (d.needsEnding || []).length && ui.project === "all" && !ui.q && ui.type === "all" ? `<div class="mmh-shelf" role="region" aria-label="Needs an ending"><h3>Needs an ending</h3><div class="dl">Made but not used yet. Keep it, publish it, or discard it.</div>
         ${d.needsEnding.map((it) => `<div class="it" data-k="${esc(key(it))}"><span class="nm">${esc(it.name)}</span><button type="button" class="btn sm" data-e="keep">Keep</button><button type="button" class="btn sm primary" data-e="publish">Publish</button><button type="button" class="btn sm" data-e="discard">Discard</button></div>`).join("")}</div>` : ""}
       ${items.length ? `<div class="mmh-grid">${items.map(cardHtml).join("")}</div>` : `<div class="mmh-empty">${d.total ? "Nothing matches these filters." : "Nothing here yet. Anything you make in Meldmind shows up here: images, video, voice, written results and sites."}</div>`}
     </section>
@@ -207,7 +225,18 @@ async function render(view) {
   const byKey = new Map(items.concat(d.needsEnding || []).map((i) => [key(i), i]));
   view.querySelectorAll(".mmh-card").forEach((c) => thumbInto(c.querySelector("[data-th]"), byKey.get(c.dataset.k)));
   const redraw = () => render(view);
-  view.querySelectorAll(".mmh-rail [data-p]").forEach((b) => b.addEventListener("click", () => { ui.project = b.dataset.p; ui.focus = null; ui.selected.clear(); redraw(); }));
+  view.querySelectorAll(".mmh-rail [data-p]").forEach((b) => b.addEventListener("click", () => { ui.project = b.dataset.p; ui.view = ""; ui.focus = null; ui.selected.clear(); redraw(); }));
+  view.querySelectorAll(".mmh-rail [data-v]").forEach((b) => b.addEventListener("click", () => { ui.view = b.dataset.v; ui.project = "all"; ui.focus = null; ui.selected.clear(); ui.select = false; redraw(); }));
+  view.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", async () => {
+    const it = byKey.get(b.dataset.restore);
+    try { await api("/mindmedia/restore", { method: "POST", body: { projectId: it.projectId, assetId: it.id } }); toast(`Restored "${it.name}".`); redraw(); } catch (e) { toast(e.message, true); }
+  }));
+  // jobs still running: look again every few seconds and say when one is ready (stops by itself)
+  clearTimeout(ui.pollT);
+  const nowPending = new Set((d.pending || []).map((j) => j.id));
+  if ([...(ui.lastPending || [])].some((id) => !nowPending.has(id))) toast("A piece you were waiting for is ready.");
+  ui.lastPending = nowPending;
+  if (nowPending.size) ui.pollT = setTimeout(() => { if (S.view === "mindmedia" && view.isConnected && !ui.busy) redraw(); }, 4000);
   view.querySelectorAll(".mmh-types [data-t]").forEach((b) => b.addEventListener("click", () => { ui.type = b.dataset.t; redraw(); }));
   let qt;
   view.querySelector("#mmh-q").addEventListener("input", (e) => { clearTimeout(qt); qt = setTimeout(async () => { ui.q = e.target.value; await redraw(); const q2 = view.querySelector("#mmh-q"); q2?.focus(); q2?.setSelectionRange(q2.value.length, q2.value.length); }, 250); });
@@ -216,6 +245,7 @@ async function render(view) {
   view.querySelectorAll(".mmh-card").forEach((c) => c.addEventListener("click", () => {
     const it = byKey.get(c.dataset.k);
     if (ui.select) { const k = key(it); if (ui.selected.has(k)) ui.selected.delete(k); else ui.selected.add(k); redraw(); return; }
+    if (ui.view === "trash") return;
     ui.focus = it; redraw();
   }));
 
@@ -232,7 +262,7 @@ async function render(view) {
   view.querySelector("#mmh-bd")?.addEventListener("click", async () => {
     const list = chosen();
     if (!list.length) return toast("Pick something first.", true);
-    if (!confirm(`Delete ${list.length} item${list.length === 1 ? "" : "s"}? Files in other places are not touched.`)) return;
+    if (!(await window.CC.confirm(`Move ${list.length} item${list.length === 1 ? "" : "s"} to the Trash? You can restore ${list.length === 1 ? "it" : "them"} for 30 days. Files in other places are not touched.`, { danger: true, ok: "Move to Trash" }))) return;
     try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Deleted."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
   });
 
@@ -259,9 +289,28 @@ async function render(view) {
       if (!e.target.value) return;
       try { await api("/mindmedia/move", { method: "POST", body: { projectId: it.projectId, assetId: it.id, targetProjectId: e.target.value } }); toast("Moved."); ui.focus = null; redraw(); } catch (er) { toast(er.message, true); }
     });
+    const toChat = async (words) => {
+      window.CC.S.lastOrders = words;
+      window.CC.go("command");
+      for (let i = 0; i < 60; i++) {
+        const box = document.getElementById("orders");
+        if (box) { box.value = words; box.dispatchEvent(new Event("input", { bubbles: true })); box.focus(); box.setSelectionRange(words.length, words.length); return; }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+    insp.querySelector('[data-a="ask"]').addEventListener("click", async () => {
+      let text = "";
+      if (it.kind === "text") { try { text = (await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`)).text; } catch { /* ask without the words */ } }
+      toChat(askAbout(it, text));
+    });
+    insp.querySelector('[data-a="another"]').addEventListener("click", () => toChat(makeAnother(it)));
+    insp.querySelector('[data-a="host"]')?.addEventListener("click", async () => {
+      const link = insp.querySelector("#mmh-host").value.trim();
+      try { await api("/mindmedia/host", { method: "POST", body: { projectId: it.projectId, assetId: it.id, link } }); toast(link ? "Link saved. Publish can use it now." : "Link removed."); redraw(); } catch (e) { toast(e.message, true); }
+    });
     insp.querySelector('[data-a="close"]').addEventListener("click", () => { ui.focus = null; redraw(); });
     insp.querySelector('[data-a="delete"]').addEventListener("click", async () => {
-      if (!confirm(`Delete "${it.name}"?`)) return;
+      if (!(await window.CC.confirm(`Move "${it.name}" to the Trash? You can restore it for 30 days.`, { danger: true, ok: "Move to Trash" }))) return;
       try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Deleted."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
     });
     insp.querySelector('[data-a="download"]').addEventListener("click", async () => {

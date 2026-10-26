@@ -29,6 +29,7 @@ import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
 import { holdOutbound } from "../phone-approvals.js";
 import { checkOutgoing, maskSensitive } from "../compliance-guard.js";
+import { recordSend, sendLog } from "../send-log.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
 
 export const id = "publish";
@@ -116,6 +117,7 @@ function previewOf(h, pl, media) {
 
 function logPost(h, entry) {
   const name = CH[entry.channel].name;
+  if (entry.status === "posted") recordSend({ channel: entry.channel, kind: "publish", to: entry.channelName || "", title: entry.title, text: entry.text, via: "publish" });
   h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${name}${entry.error ? ` · ${entry.error}` : ""}${/^https:\/\//.test(entry.result?.url || "") ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
   // a ledger note for every post: zero cost, so the Credits tab and weekly report can see what went out
   try { h.recordCredits({ provider: entry.channel, units: 0, cost: 0, note: `${entry.status} · ${name} · ${entry.title}`.slice(0, 160), project: entry.projectId }); } catch (e) { console.error("[publish] ledger", e.message); }
@@ -135,6 +137,8 @@ function channelList(h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
   const seg = p.split("/").filter(Boolean);
+  if (req.method === "GET" && p === "/connect-doctor") return h.json(res, 200, { checks: OA.doctor() });
+  if (req.method === "GET" && p === "/send-log") return h.json(res, 200, { items: sendLog(Number(url.searchParams.get("limit")) || 100) });
   if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h).map((c) => ({ ...c, accepts: ACCEPTS[c.id] || [] })));
   if (req.method === "POST" && p === "/preview") {
     if (!CH[body.channel]) return h.json(res, 400, { error: "unknown channel" });

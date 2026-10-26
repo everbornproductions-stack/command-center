@@ -16,7 +16,7 @@ test("help search answers plain questions with a relevant article first", () => 
   const pack = loadHelp();
   const first = (q) => searchArticles(pack.articles, q, 5)[0]?.id;
   assert.equal(first("how do I ask a question"), "start-here");
-  assert.equal(first("make text bigger"), "share-export");
+  assert.equal(first("make text bigger"), "text-size");
   assert.equal(first("what is a key"), "api-keys");
   assert.equal(first("does this cost money"), "license");
   assert.equal(searchArticles(pack.articles, "SmartScreen unsigned installer")[0].id, "troubleshooting");
@@ -197,7 +197,7 @@ test("icon buttons include a word, and help does not keep stale lines", () => {
   for (const term of Object.values(TERMS)) {
     assert.ok(term.plain && term.explain, term.label);
   }
-  assert.match(read("web", "features", "userchat.js"), /Chat with people you invite/);
+  assert.match(read("web", "team-words.js"), /Chat with people you invite/);
   assert.match(read("web", "app.js"), /What's this\?/);
   const notes = read("docs", "RELEASE-NOTES.md");
   const first = notes.indexOf("## v");

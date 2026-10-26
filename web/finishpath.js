@@ -8,12 +8,13 @@ export const PAIR = { good: "Looks good, Finish", edit: "Edit further" };
 export const UNDO_LABEL = "Undo last step";
 export const BRANCH_LABEL = "Branch from here";
 export const KINDS = ["command", "image", "media", "remix", "project"];
-export const MAX_TEXT = 4000;
+export const MAX_TEXT = 60000;
 
 const KIND_WORDS = { command: "answer", image: "image set", media: "media job", remix: "remix", project: "project" };
 
 export function cleanText(text, max = MAX_TEXT) {
-  return String(text ?? "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, max);
+  // Line breaks, indents and code marks stay (0.4.21, M10): a saved script must still run. Only trailing blanks go.
+  return String(text ?? "").replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, max);
 }
 
 // The one card shown before Finish. Plain lines, one confirm. Returns null when there is nothing to finish.
@@ -27,7 +28,7 @@ export function previewCard({ kind, text, name, projectName } = {}) {
     `What: your ${KIND_WORDS[k]}${name ? `, ${cleanText(name, 70)}` : ""}`,
     `Size: about ${words} word${words === 1 ? "" : "s"}`,
     projectName ? `Project: ${cleanText(projectName, 70)}` : "Project: none picked",
-    "Next: Publish opens with this result. Nothing is sent until you pick where it goes and press the button there.",
+    "Next: the Finish panel opens with this result. Nothing is sent until you pick where it goes and press the button there.",
   ];
   return {
     title: "Ready to finish?",

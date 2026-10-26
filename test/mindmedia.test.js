@@ -57,7 +57,7 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
     const bad = await post("/mindmedia/save", { files: [{ name: "x.txt", path: path.join(srv.dir, "secret.txt") }] });
     assert.equal(bad.status, 400);
     assert.equal((await post("/mindmedia/save", {})).status, 400);
-    assert.equal((await post("/mindmedia/save", { text: "x", status: "nonsense" })).status, 200, "unknown status falls back to Draft");
+    assert.equal((await post("/mindmedia/save", { text: "x", status: "nonsense" })).status, 400, "unknown status is refused, as the meta route does (0.4.21)");
 
     // dedupe: the same key updates instead of stacking
     const d1 = await post("/mindmedia/save", { text: "v1", name: "Plan", dedupeKey: "plan-1" });
@@ -67,7 +67,7 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
 
     // cross-project list with filters
     const all = (await srv.api("/mindmedia")).json;
-    assert.ok(all.total >= 5);
+    assert.ok(all.total >= 4);
     assert.deepEqual(all.statuses, ["Draft", "Review", "Approved", "Scheduled", "Published"]);
     assert.ok(all.projects.some((p) => p.id === "unfiled") && all.projects.some((p) => p.id === "alpha-proj"));
     assert.equal((await srv.api("/mindmedia?project=alpha-proj")).json.items.every((i) => i.projectId === "alpha-proj"), true);

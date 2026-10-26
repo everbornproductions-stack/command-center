@@ -19,6 +19,7 @@ import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { assertOutgoingOk } from "./compliance-guard.js";
+import { recordSend } from "./send-log.js";
 import { htmlToText } from "./receipts.js";
 import { localFetch } from "./loopback-fetch.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
@@ -315,6 +316,7 @@ export async function gmailSend(mail, accountId) {
   assertOutgoingOk({ text: `${m.subject}\n${m.body}`, channel: "email" }); // a hard compliance block never goes out, even after a click
   const mime = [`To: ${m.to.join(", ")}`, `Subject: ${encHeader(m.subject)}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", m.body].join("\r\n");
   const r = await call(`${gmailApi()}/gmail/v1/users/me/messages/send`, { method: "POST", body: { raw: Buffer.from(mime, "utf8").toString("base64url") } }, accountId);
+  recordSend({ channel: "email", kind: "gmail", to: m.to.join(", "), title: m.subject, text: m.body });
   return { id: r.id || null, to: m.to, subject: m.subject };
 }
 

@@ -49,7 +49,8 @@ export async function routes(req, res, url, body, h) {
     if (m === "GET" && sub === "item") {
       const a = assetForPublish(url.searchParams.get("projectId"), url.searchParams.get("assetId"));
       if (!a) return h.json(res, 404, { error: "That item was not found." });
-      return h.json(res, 200, { projectId: a.projectId, assetId: a.assetId, name: a.name, kind: a.kind, text: a.text.slice(0, 20000) });
+      const full = String(a.text || "");
+      return h.json(res, 200, { projectId: a.projectId, assetId: a.assetId, name: a.name, kind: a.kind, text: full.slice(0, 20000), truncated: full.length > 20000, length: full.length });
     }
     if (m === "POST" && sub === "save") {
       const b = body || {};

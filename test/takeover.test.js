@@ -196,3 +196,21 @@ test("server: flag OFF by env, ON by default, owner routes refuse a free account
     assert.equal(state.json.flags.takeover, true);
   } finally { await on.stop(); }
 });
+
+test("0.4.21: prompt keeps its lines, Safer copy has something to copy, every-minute schedules are refused", async () => {
+  const src = { id: "x", name: "Other AI", kind: "export" };
+  const t = T.normalizeTask({ id: "multi", name: "Weekly", prompt: "Summarise the week.\nSend it to the team.\nSave a note.", cron: "0 9 * * 1" }, src);
+  assert.equal(t.prompt.split("\n").length, 3);
+  const { taskRowHtml, saferCopy, riskyLines } = await import("../web/takeover-panel.js");
+  assert.equal(riskyLines(t.prompt).length, 1);
+  assert.equal(saferCopy(t.prompt), "Summarise the week.\nSave a note.");
+  const html = taskRowHtml({ id: "a", name: "Weekly", sourceName: "Other AI", prompt: t.prompt, active: true });
+  assert.match(html, /Contains words that send, delete or pay \(1\)/);
+  assert.match(html, /data-tk-safer-text="Summarise the week/);
+  const allBad = taskRowHtml({ id: "b", name: "Bad", sourceName: "Other AI", prompt: "Send it.\nDelete it.", active: true });
+  assert.match(allBad, /disabled title="Every line sends, deletes or pays/);
+  assert.equal(T.everyMinute("* * * * *"), true);
+  assert.equal(T.everyMinute("*/1 * * * *"), true);
+  assert.equal(T.everyMinute("0 9 * * 1-5"), false);
+  assert.equal(T.everyMinute("*/5 * * * *"), false);
+});

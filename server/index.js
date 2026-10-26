@@ -230,8 +230,13 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let d = "";
-    req.on("data", (c) => { d += c; if (d.length > 18e6) req.destroy(); });
-    req.on("end", () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(new Error("bad json")); } });
+    let tooBig = false;
+    // 0.4.21 (F18): a body over the limit is read and dropped, then answered with a plain 413, not a reset connection.
+    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > 18e6) { tooBig = true; d = ""; } });
+    req.on("end", () => {
+      if (tooBig) return reject(Object.assign(new Error("That is too large to send at once. The limit is about 18 MB. Try a smaller file."), { status: 413 }));
+      try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(Object.assign(new Error("bad json"), { status: 400 })); }
+    });
     req.on("error", reject);
   });
 }
@@ -724,7 +729,10 @@ async function api(req, res, url) {
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
   // a raw zip upload (history import, Phase 23) is streamed by its plugin, not read as JSON here
-  const body = (method === "POST" || method === "PUT" || method === "PATCH") && !isZipUpload(req, url) ? await readBody(req) : {};
+  let body = {};
+  if ((method === "POST" || method === "PUT" || method === "PATCH") && !isZipUpload(req, url)) {
+    try { body = await readBody(req); } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });

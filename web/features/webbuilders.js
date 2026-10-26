@@ -1,5 +1,6 @@
 // Builders hub. Suggested builders come from the server. Show all reveals the rest.
 // One main button walks Describe, Preview the AIs, Build, Test, and Publish.
+import { lockLabel } from "/tier-lock.js";
 const { api, toast, esc, go } = window.CC;
 
 const NEXT = {
@@ -103,9 +104,10 @@ function fieldHtml(field, defaults) {
 }
 
 function cardHtml(row) {
+  const lock = lockLabel(row.tier, window.CC.S?.license?.tier || "free");
   return `<button type="button" class="bd-card" data-open="${esc(row.id)}">
     <h4>${esc(row.title)}</h4>
-    <div class="dim small">${esc(tierName(row.tier))}</div>
+    <div class="dim small">${esc(tierName(row.tier))}${lock ? ` <span class="chip amber" data-lock>${esc(lock)}</span>` : ""}</div>
     <p class="small" style="margin:6px 0">${esc(row.summary)}</p>
     ${row.reason ? `<div class="dim small">${esc(row.reason)}</div>` : ""}
   </button>`;
@@ -450,6 +452,7 @@ function boot(view, openId) {
   });
   root.querySelector("#bd-suggest-go").addEventListener("click", async () => {
     const text = root.querySelector("#bd-notice").value.trim();
+    if (!text) toast("Tell me what you are working on first, for example: a flyer for my shop. Showing the usual builders for now.");
     try {
       if (text) await api("/webbuilders/notice", { method: "POST", body: { text } });
       await loadHub();

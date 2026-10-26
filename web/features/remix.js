@@ -432,7 +432,7 @@ function madeHtml(res, name) {
   const tr = test ? `<p class="small"><b>Test run:</b> ${esc(test.grade)}. ${test.passed} of ${test.checks.length} checks passed.${test.failed ? ` Needs a look: ${esc(test.checks.filter((c) => !c.ok).map((c) => c.name).join("; "))}.` : ""}</p>` : "";
   return `<div id="remix-made"><p><b>${esc(name || "Your project")}</b> is saved.</p><p class="small">${esc(state)}</p>
     <p class="small">Saved at <code>${esc(res.savedAt || res.folder || "")}</code> on this computer.</p>
-    <div class="row" style="gap:8px;margin:8px 0"><button type="button" class="btn sm primary" id="remix-open-folder">Open folder</button><button type="button" class="btn sm" id="remix-zip">Download zip</button></div>
+    <div class="row" style="gap:8px;margin:8px 0"><button type="button" class="btn sm primary" id="remix-open-folder">Open folder</button><button type="button" class="btn sm" id="remix-zip">Download zip</button><button type="button" class="btn sm" id="remix-play" title="Runs the page in a safe frame here. It cannot reach your files or Meldmind.">Play preview</button></div><div id="remix-play-box"></div>
     ${tr}<details><summary class="small">${files.length} files</summary><ul class="small">${files.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></details></div>`;
 }
 
@@ -444,6 +444,20 @@ async function showMade(root, projectId, name) {
   box.innerHTML = (box.innerHTML || "") + madeHtml(res, name);
   box.querySelector("#remix-open-folder")?.addEventListener("click", async () => {
     try { await api("/remix/open-folder", { method: "POST", body: { projectId } }); } catch (e) { toast(e.message, true); }
+  });
+  box.querySelector("#remix-play")?.addEventListener("click", async () => {
+    const slot = box.querySelector("#remix-play-box");
+    if (slot.firstChild) { slot.replaceChildren(); return; }
+    try {
+      const r = await api(`/remix/play/${encodeURIComponent(projectId)}`);
+      const f = document.createElement("iframe");
+      f.setAttribute("sandbox", "allow-scripts"); // opaque origin: no Meldmind data, no cookies
+      f.setAttribute("title", "Play preview");
+      f.style.cssText = "width:100%;height:380px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:8px";
+      f.srcdoc = r.html;
+      slot.replaceChildren(f);
+      box.querySelector("#remix-play").textContent = "Stop preview";
+    } catch (e) { toast(e.message, true); }
   });
   box.querySelector("#remix-zip")?.addEventListener("click", async () => {
     try { window.CC.downloadBlob(await window.CC.apiBlobUrl(`/remix/zip/${encodeURIComponent(projectId)}`), `${projectId}.zip`); } catch (e) { toast(e.message, true); }

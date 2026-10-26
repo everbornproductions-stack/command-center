@@ -35,7 +35,7 @@ function pageCount(buf) {
 test("the guide builds from this app and lists every enabled feature", async () => {
   const probe = readAppProbe(ROOT);
   const pages = guidePages(probe);
-  assert.deepEqual(pages.map((p) => p.id), ["hub", "missions", "remix", "builders", "research", "connect", "safety", "teams", "whats-new"]);
+  assert.deepEqual(pages.map((p) => p.id), ["hub", "results", "textsize", "missions", "remix", "builders", "research", "connect", "safety", "teams", "whats-new"]);
   for (const page of pages) {
     assert.ok(page.steps.length >= 2, page.id);
     assert.ok(page.start, page.id);

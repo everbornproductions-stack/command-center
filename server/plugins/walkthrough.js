@@ -3,7 +3,7 @@
 import { loadHelp } from "../help.js";
 import { EXAMPLES, EXAMPLE_NOTE, exampleByType } from "../walkthrough-examples.js";
 import {
-  TYPES, typeById, resolveExperience, present, parsePlan, scaffoldPlan, planPrompt,
+  TYPES, typeById, walkProjectName, resolveExperience, present, parsePlan, scaffoldPlan, planPrompt,
   assignRoute, formatAnswers, missingAnswers, exportMarkdown, slugTitle, exampleEvents, labelsFor,
   isFlowStagesEnabled, resolveStageId, flowStageOf, applyStageAction, normalizeStackedSteps, nextStageAfter,
   buildStageList, buildFlowchart, ensureStageOrder,
@@ -114,7 +114,7 @@ function presentExample(script, exp, opts = {}) {
 function attachProject(h, w) {
   if (w.projectId) return;
   const type = typeById(w.type);
-  const name = `${type?.name || "Project"}: ${String(w.idea || "").slice(0, 42)}`;
+  const name = walkProjectName(type?.name, w.idea);
   const existing = h.listProjects?.() || [];
   try {
     h.guard?.("projects", { count: existing.length });

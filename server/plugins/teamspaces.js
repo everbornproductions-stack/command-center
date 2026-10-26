@@ -162,6 +162,13 @@ export async function routes(req, res, url, body, h) {
     }
     if (!hit) throw bad(404, "This code is not on this computer. Ask for a hub address or use the same computer.", "invite");
     if (hit.expiresAt && hit.expiresAt < Date.now()) throw bad(410, "That invite link has expired. Ask for a new one.", "expired");
+    // 0.4.21 (M42): when you are signed in with an email, the invite must be for that email.
+    let mine = "";
+    try { mine = String(h.ctx().email || "").trim().toLowerCase(); } catch { mine = ""; }
+    if (mine && hit.email && mine !== String(hit.email).trim().toLowerCase()) {
+      const [u, dom] = String(hit.email).split("@");
+      throw bad(403, `This invite was made for ${u.slice(0, 1)}***@${dom || "..."}. Sign in with that email to join.`, "email");
+    }
     hit.status = "active";
     hit.joinedAt = Date.now();
     delete hit.inviteHash;

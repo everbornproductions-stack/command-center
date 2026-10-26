@@ -48,6 +48,7 @@ export const FEATURES = [
   { id: "make-chat", shell: true },
   { id: "finish-drawer", shell: true },
   { id: "dock", shell: true },
+  { id: "bracket-strip", shell: true },
 
   { id: "mindmedia", views: ["mindmedia"] },
   { id: "next-actions", deliverable: true },
@@ -100,6 +101,8 @@ export const FEATURES = [
   { id: "a11y", settings: true, deliverable: true },
   { id: "byo", settings: true },
   { id: "antigravity", settings: true },
+  { id: "mcp-clients", settings: true },
+  { id: "guard-test", settings: true },
   { id: "graduate", home: true },
   { id: "calendar", settings: true },
   { id: "actions", home: true },

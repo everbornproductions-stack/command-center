@@ -410,6 +410,7 @@ async function render(view) {
         <div class="dim small">${esc(SHORT)}</div>
         <div class="dim small" id="cc-online-note">Who is online: Meldmind does not show who is online or when someone was last here. The chip below tells you if the shared room can be reached.</div>
         ${onNews ? "" : `<div class="row" style="gap:8px;margin-top:6px;align-items:center">${syncChip(room.sync, room.messages)}<button class="btn sm" type="button" id="cc-refresh">Refresh</button></div>${joined ? shareNote(room.sync) : ""}`}
+        ${onNews && window.CC.newsRail?.hidden?.() ? `<div class="row" style="margin-bottom:8px"><button class="btn sm" type="button" id="cc-show-rail">Show the AI News panel</button></div>` : ""}
         ${onNews ? newsHtml(room.news) : `
           <div id="cc-feed" style="max-height:60vh;overflow-y:auto">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
@@ -422,6 +423,7 @@ async function render(view) {
     </div>
   </div>`;
 
+  root.querySelector("#cc-show-rail")?.addEventListener("click", (ev) => { window.CC.newsRail?.show?.(); ev.currentTarget.closest(".row")?.remove(); });
   root.querySelectorAll("[data-channel]").forEach((btn) => btn.addEventListener("click", async () => {
     channel = btn.dataset.channel;
     if (channel === "news" && room?.news?.issue?.id && room.news.unread) {

@@ -55,6 +55,26 @@ export function meldmindMcpEntry({ command, script, port, tokenFile }) {
   };
 }
 
+// Setup text for other AI tools (0.4.21). Nothing is written to any other tool's files: the person copies
+// the lines. The bridge token stays in Meldmind's data folder and is only named by its file path.
+export function clientSnippets({ command, script, port, tokenFile } = {}) {
+  const entry = meldmindMcpEntry({ command, script, port, tokenFile });
+  const q = (v) => JSON.stringify(String(v));
+  const json = JSON.stringify({ mcpServers: { meldmind: entry } }, null, 2);
+  return [
+    {
+      id: "claude-code", name: "Claude Code", where: "Paste this in a terminal.", lang: "shell",
+      text: `claude mcp add meldmind --env MELDMIND_PORT=${port} --env MELDMIND_TOKEN_FILE=${q(tokenFile)} -- ${entry.command} ${q(script)}`,
+    },
+    {
+      id: "codex", name: "Codex", where: "Add this to ~/.codex/config.toml (the .codex folder in your home folder).", lang: "toml",
+      text: `[mcp_servers.meldmind]\ncommand = ${q(entry.command)}\nargs = [${q(script)}]\nenv = { MELDMIND_PORT = ${q(port)}, MELDMIND_TOKEN_FILE = ${q(tokenFile)} }`,
+    },
+    { id: "gemini-cli", name: "Gemini CLI", where: "Add this to ~/.gemini/settings.json. If the file already has mcpServers, add only the meldmind part.", lang: "json", text: json },
+    { id: "claude-desktop", name: "Claude desktop", where: "Open Claude, Settings, Developer, Edit Config, and add this. Restart Claude after.", lang: "json", text: json },
+  ];
+}
+
 export function mergeMcpConfig(existing, entry) {
   const base = existing && typeof existing === "object" && !Array.isArray(existing) ? { ...existing } : {};
   const prev = base.mcpServers && typeof base.mcpServers === "object" && !Array.isArray(base.mcpServers) ? { ...base.mcpServers } : {};

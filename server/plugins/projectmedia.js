@@ -60,6 +60,7 @@ export async function routes(req, res, url, body, h) {
         "image/jpeg",
         "image/webp",
         "image/gif",
+        "image/svg+xml", // safe inline: the response is sandboxed with no scripts, and it shows in an <img>
         "video/mp4",
         "video/webm",
         "video/quicktime",

@@ -30,11 +30,14 @@ const HINTS = {
   empty: "Press Try again, or send it to another AI.",
 };
 
+// A short label so the cause is clear at a glance (0.4.21): whose limit or key it is.
+export const CHIPS = { budget: "Your limit", rate: "Busy: their limit", credit: "Their credit", key: "Your key", other: "Something else" };
+
 export function failureCopy(text) {
   const kind = failureKind(text);
   // the server already wrote the plain reason after "Nothing came back." (which AI, and what to do): show it
   const hint = kind === "empty" ? (String(text).replace(/^\s*nothing came back\.\s*/i, "").trim() || HINTS.empty) : HINTS[kind];
-  return { kind, title: TITLES[kind], hint };
+  return { kind, title: TITLES[kind], hint, chip: CHIPS[kind] };
 }
 
 export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try again", other = "Try another AI" } = {}) {
@@ -42,7 +45,7 @@ export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try ag
   const buttons = c.kind === "budget"
     ? `<button class="btn sm primary" type="button" id="cc-limit-free">Continue free</button><button class="btn sm" type="button" id="cc-limit-plus">Add $1 and continue</button>`
     : `<button class="btn sm primary" type="button" id="cc-fail-retry">${esc(retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(other)}</button>`;
-  return `<div class="route" id="cc-fail" data-cause="${c.kind}" style="margin-top:10px"><b>${esc(c.title)}</b><div class="small dim" style="margin-top:4px">${esc(c.hint)}</div>${c.kind === "budget" ? `<div class="small" id="cc-still-works" style="margin-top:6px"><b>Still works when the budget is used up:</b> practice AIs, AIs running on this computer, your saved projects, files and notes, and everything you already made. Paid AI answers wait until next month or until you add to the limit.</div>` : ""}<div class="row" style="margin-top:8px;gap:8px">${buttons}</div></div>`;
+  return `<div class="route" id="cc-fail" data-cause="${c.kind}" style="margin-top:10px"><span class="chip ${c.kind === "budget" ? "amber" : ""}" data-cause-chip>${esc(c.chip)}</span> <b>${esc(c.title)}</b><div class="small dim" style="margin-top:4px">${esc(c.hint)}</div>${c.kind === "budget" ? `<div class="small" id="cc-still-works" style="margin-top:6px"><b>Still works when the budget is used up:</b> practice AIs, AIs running on this computer, your saved projects, files and notes, and everything you already made. Paid AI answers wait until next month or until you add to the limit.</div>` : ""}<div class="row" style="margin-top:8px;gap:8px">${buttons}</div></div>`;
 }
 
 // Continue free: re-send to a free or practice AI. Add $1: raise the local limit by a dollar, then re-send.
