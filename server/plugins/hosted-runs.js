@@ -28,6 +28,7 @@ function view(h) {
     tier,
     optIn: !!saved.optIn,
     runningInCloud,
+    hub: { ready: !!workerBase(), note: workerBase() ? "" : "Needs the Meldmind hub (coming soon)" },
     label: runningInCloud ? CLOUD_LABEL : null,
     jobs,
     desktopOnly: h.HOSTED ? DESKTOP_ONLY : [],

@@ -1,4 +1,5 @@
 // Phase 61 add-on. Shared recipes for a workspace (Extreme). Team spaces themselves live in teamspaces.js. Phase 8 invites are not changed here.
+import { pushRecipe } from "../team-sync.js";
 import { teamView, saveSharedRecipe, removeSharedRecipe } from "../team-spaces.js";
 
 export const id = "teamrecipes";
@@ -9,6 +10,8 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "GET" && !seg.length) return h.json(res, 200, await teamView());
   if (req.method === "POST" && seg.length === 2 && seg[1] === "recipes") {
     const out = saveSharedRecipe(decodeURIComponent(seg[0]), String(body?.pipelineId || ""));
+    const across = await pushRecipe(decodeURIComponent(seg[0]), out.recipe).catch(() => ({ ok: false }));
+    if (across.ok) out.across = true;
     const blob = JSON.stringify(out);
     if (body?.key && blob.includes(String(body.key))) return h.json(res, 500, { error: "A key was about to be returned. Nothing was saved." });
     return h.json(res, 200, out);

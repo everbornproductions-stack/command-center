@@ -13,6 +13,7 @@ import { licenseState } from "../license.js";
 import { listProjects } from "../projects.js";
 import { emit } from "../events.js";
 import { check as ssoCheck } from "../sso.js";
+import { createAcrossInvite, joinWithCode, acrossView, acrossReady } from "../team-sync.js";
 
 export const id = "workspaces";
 // Pro and Extreme get teams. "studio" is an old licence name that still works, and "owner" is the owner tier.
@@ -187,6 +188,12 @@ export async function routes(req, res, url, body, h) {
 
   if (method === "GET" && !seg.length) {
     const v = HOSTED ? await hostedView() : localView();
+    // 0.4.21: teams across computers (Supabase). Adds the other computers' members and the workspaces joined by code.
+    if (!HOSTED) {
+      const across = await acrossView(v.owned).catch(() => ({ ready: false, memberOf: [], note: "" }));
+      v.memberOf = [...v.memberOf, ...across.memberOf.map((w) => ({ ...w, createdAt: 0, permissions: permissionsFor(w.role) }))];
+      v.across = { ready: across.ready, note: across.note };
+    }
     return h.json(res, 200, { ...base, ...v });
   }
 
@@ -206,7 +213,14 @@ export async function routes(req, res, url, body, h) {
   if (method === "POST" && seg[0] === "join" && seg.length === 1) {
     const code = String(body.code || "").trim();
     if (!/^[A-Za-z0-9_-]{16,64}$/.test(code)) return h.json(res, 400, { error: "That invite link is not valid." });
-    if (!HOSTED) return h.json(res, 400, { error: "Invite links are opened on the hosted hub: sign in there with the invited email.", code: "local" });
+    if (!HOSTED) {
+      // 0.4.21: a second computer joins with the code through Meldmind's cloud, when it is set up.
+      if (!acrossReady()) return h.json(res, 400, { error: "Invite links are opened on the hosted hub: sign in there with the invited email.", code: "local" });
+      const joined = await joinWithCode(code, me());
+      if (!joined.ok) return h.json(res, 400, { error: joined.reason, code: "across" });
+      emit("log", { text: `Joined the team "${joined.name}" from another computer.` });
+      return h.json(res, 200, { ok: true, workspaceId: joined.workspaceId, name: joined.name, role: joined.role, across: true });
+    }
     try { const r = await rest("rpc/ws_accept_invite", { method: "POST", token: ctx().token, body: { p_hash: hashCode(code) } }); return h.json(res, 200, { ok: true, workspaceId: r || null }); }
     catch (e) { return h.json(res, 400, { error: /expired/i.test(e.message) ? "This invite has expired. Ask for a new link." : "This invite is not for the email you signed in with, or it was withdrawn." }); }
   }
@@ -269,8 +283,14 @@ export async function routes(req, res, url, body, h) {
         putDoc(DOC, d);
       }
       emit("log", { text: `${email} invited as ${role}. Copy the invite link from the Workspaces tab and send it yourself; nothing was emailed.` });
+      // 0.4.21: on the desktop, also put the invite where a second computer can find it (the code's hash only).
+      let across = null;
+      if (!HOSTED && acrossReady()) {
+        const w = localWs(wsId).w;
+        across = await createAcrossInvite({ wsId, name: w.name, role, code }).catch(() => ({ ok: false, reason: "Could not reach Meldmind's cloud." }));
+      }
       // the code is returned once and never stored in plain text
-      return h.json(res, 200, { ok: true, email, role, expiresAt, link: inviteLink(code, h, req), emailed: false });
+      return h.json(res, 200, { ok: true, email, role, expiresAt, link: inviteLink(code, h, req), emailed: false, ...(across ? { code, acrossOk: across.ok, acrossNote: across.ok ? "On the other computer, open Meldmind, go to Workspaces and choose Join with a code." : across.reason } : {}) });
     }
     const email = seg[2] ? clean(decodeURIComponent(seg[2])) : null;
     if (method === "PATCH" && email) {

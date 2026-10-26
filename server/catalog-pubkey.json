@@ -1,0 +1,1 @@
+{ "_about": "Ed25519 public key (base64 SPKI) that signs Everborn catalog rows. Empty until Everborn sets it. CC_CATALOG_PUBKEY overrides.", "publicKey": "" }

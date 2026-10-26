@@ -136,3 +136,22 @@ The Google and Microsoft sign-in app ids are public and are in `server/oauth-cli
 - Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates). Keys are sealed with the macOS Keychain through the desktop app.
 - First open: right-click the app, then Open. Help says the same thing.
 - TODO (needs an Apple Developer account, $99/year): signing and notarization. Until then Gatekeeper warns on the first open, and in-app updates cannot install on Mac (Apple only allows signed apps to self-update). Automatic updates for Mac are coming soon. On a Mac, Install now opens the release page so you download the new .dmg instead. Once signing is on, set `MAC_SELF_UPDATE = true` in electron/main.cjs.
+
+## Owner checklist (pay on the website, unlock in the app)
+
+This is the one list of things only Everborn can do. The same list shows in the app under Settings > Across computers when you are signed in as the owner (`server/owner-checklist.js`; a test keeps the two in step). No build runs any of it. Nothing here switches billing to live: that needs Chris's OK.
+
+1. **Run the unlock SQL.** In the Supabase SQL editor run `supabase/migrations/20261026_stripe_unlock_proof.sql`. Without it a paid buyer stays on Free.
+2. **Turn on Google and Azure sign-in in Supabase.** Authentication > Providers, with Everborn's own client id and secret. This is how the app proves a buyer's email.
+3. **Set STRIPE_READ_KEY.** A restricted Stripe key that can only read Checkout Sessions, saved as the function secret on `stripe-webhook`.
+4. **Fill in the price-tiers.js maps.** The seven Stripe price ids (and the lifetime product or Payment Link id) in `supabase/functions/stripe-webhook/price-tiers.js`, then deploy that function.
+5. **Set the licence signing key (H10).** The licence server's Ed25519 public key goes in `server/license-pubkey.json` (`publicKey`). Ship a build with it before **2026-12-31**, or installs from before the seal drop to Free on that date.
+6. **Run the free Community posting SQL.** `supabase/community.sql`, then `supabase/community_free_posting.sql`.
+7. **Run the report-back and Teams SQL.** `supabase/hub_reportback_teams.sql`. After it, report-back from another AI and Teams invite codes work across two computers. Hosted runs and phone use with the PC off still need the Meldmind hub (paid hosting, coming soon); ask Chris before any hosting spend.
+8. **Run the Marketplace catalog SQL.** `supabase/marketplace_catalog.sql`, then add free rows to `market_listings`. Optional: put a catalog signing key in `server/catalog-pubkey.json` so rows are checked.
+9. **Finish the Google consent screen.** Add test users, declare the gmail, drive and calendar scopes, finish Branding, publish, and go through Google verification. Then set `"consent": "live"` in `server/oauth-clients.json`. Until then the app says "Google sign-in is in testing: ask Everborn to add your email".
+10. **Billing go-live.** Needs Chris's OK. A build never does it.
+
+The release log says `Google sign-in secret: set` or `Google sign-in secret: not set` (never the value). The repo secret is `GOOGLE_OAUTH_CLIENT_SECRET`.
+
+While a buyer waits, the app shows "Waiting for your purchase to confirm" with a license key fallback. It never leaves them on Free in silence.
