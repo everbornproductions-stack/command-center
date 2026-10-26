@@ -13,6 +13,7 @@ const DEFAULTS = {
   takeover: false, // Review and Take Over Tasks panel, project mirroring, Owner tools
 
   templates: false, // Custom project templates: Save as template, Start from a template
+  videoeditor: false, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
