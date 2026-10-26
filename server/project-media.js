@@ -118,7 +118,7 @@ function inferKind(mime, jobKind, isUpload = false) {
 function safeStat(filePath) {
   if (!filePath || typeof filePath !== "string") return null;
   try {
-    const resolved = path.resolve(filePath);
+    const resolved = path.resolve(DATA_DIR, filePath);
     const root = path.resolve(DATA_DIR);
     if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
     if (!fs.existsSync(resolved)) return null;

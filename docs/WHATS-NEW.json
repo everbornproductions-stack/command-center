@@ -1,4 +1,19 @@
 {
+  "0.4.20": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Approvals that hold: a phone yes cannot be faked, app doors must be public https addresses, and Select All has a never-list.",
+      "Teams: invite messages carry a code instead of a local link, there is a Join card, and Pro and Extreme get teams. Set up hub saves what the server reads and never locks the page.",
+      "A send check warns in plain words before risky messages go out (guarantees, fair housing, rates, missing consent) and blocks the clearly illegal.",
+      "MindMedia: one place for everything you make, with an Unfiled shelf, a Needs an ending shelf, and Save to MindMedia after every result.",
+      "Finish now opens a drawer with Copy, Print, Save as PDF or Word, Save to MindMedia and Publish. Results end in a card that says where they went.",
+      "Spending limits can continue (free or +$1 more), errors say the real cause, and practice runs always show $0.",
+      "Remix writes what you asked for into its own project folder, runs a real test, and ends with Open folder and a zip.",
+      "Simple menu is shorter: Chat, Projects, Create, Community, More. Nothing was removed. Start a project shows three plain steps.",
+      "Community works for free accounts, shows when it last updated, counts unread messages, and the News panel docks in its own column.",
+      "Simple chat Send is never clipped, the light theme and phone layouts are fixed, and the opening screen stays up longer with bigger text."
+    ]
+  },
   "0.4.19": {
     "title": "What's new in Meldmind",
     "bullets": [
