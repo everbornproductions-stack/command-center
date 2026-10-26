@@ -2052,7 +2052,7 @@ async function sendOrders() {
       S.live.kind = "research";
       S.live.status = "running";
       renderOps();
-      toast("Deep research started. You will get an alert when the report is ready.");
+      toast(started.searchWarning ? `Deep research started. ${started.searchWarning}` : "Deep research started. You will get an alert when the report is ready.");
       S.awaitingRun = false;
     }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
