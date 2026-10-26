@@ -3,7 +3,8 @@
 // probe could not reach the host), a key in the Windows environment, a local
 // model, OpenRouter, an AI CLI on this PC (agy, claude, codex, gemini, found on
 // PATH or in its install folder), an official sign-in (manual handoff or
-// Antigravity), a configured Grok Bot webhook, or a real app / MCP connection.
+// Antigravity), or a configured Grok Bot webhook. Apps, MCP servers, webhooks
+// and HighLevel are tools, not AIs, so they never hide the practice AIs.
 // A rejected key does not count. A media or tool key alone does not count.
 // The demo tools server and demo catalog never count. Turning demo back on in
 // Settings (demoKeep) keeps the pretend AIs in the lists. The router still
@@ -49,7 +50,9 @@ function isAiCli(name) {
 export function connectedRealAi({ providers = [], cli = [], handoff = false, apps = 0 } = {}) {
   if ((Array.isArray(cli) ? cli : []).some(isAiCli)) return true;
   if (handoff) return true;
-  if (Number(apps) > 0) return true;
+  // An app, MCP server, webhook or HighLevel link is a tool, not an AI that can
+  // answer. It must not hide the practice AIs (0.4.20). `apps` is kept for callers.
+  void apps;
   return (Array.isArray(providers) ? providers : []).some((p) => {
     if (!p || isDemoProvider(p) || p.kind !== "text") return false;
     if (p.noKey && (p.custom || p.auth === "local")) return true;

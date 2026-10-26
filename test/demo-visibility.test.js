@@ -27,7 +27,7 @@ test("a saved key hides demos even when the probe cannot reach the host", () => 
   assert.equal(connectedRealAi({ providers: [], cli: ["codex"] }), true, "the Codex CLI counts");
   assert.equal(connectedRealAi({ providers: [], cli: ["gemini"] }), true, "the Gemini CLI counts");
   assert.equal(connectedRealAi({ providers: [], cli: ["git", "node"] }), false, "a non-AI tool does not count");
-  assert.equal(connectedRealAi({ providers: [], apps: 1 }), true, "an app or MCP connection counts");
+  assert.equal(connectedRealAi({ providers: [demo("demo-nova")], apps: 1 }), false, "an app, HighLevel or MCP connection is a tool, not an AI: the practice AIs stay");
   assert.equal(connectedRealAi({ providers: [demo("demo-nova")], apps: 0 }), false);
   assert.equal(connectedRealAi({ providers: [], handoff: true }), true, "a real handoff counts");
   assert.equal(connectedRealAi({ providers: [demo("demo-nova"), demo("demo-atlas")] }), false);
