@@ -74,10 +74,13 @@ export const ACCEPTS = { instagram: ["image", "video", "text"], ghl: ["text", "i
 
 // Normalise what the browser sent into the payload that will be posted, with the media job resolved.
 export function buildPayload(body, media) {
+  const rawTitle = String(body.title || "Deliverable"), rawText = String(body.text || media?.text || "");
   const pl = {
     channel: body.channel,
-    title: maskSensitive(String(body.title || "Deliverable")).slice(0, 120),
-    text: String(body.text || media?.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
+    // private numbers are hidden before any preview, history line or post (one shared helper)
+    title: maskSensitive(rawTitle).slice(0, 120),
+    text: maskSensitive(rawText).slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
+    masked: maskSensitive(`${rawTitle}\n${rawText}`) !== `${rawTitle}\n${rawText}`,
     mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
     mediaType: body.mediaType === "video" ? "video" : "image",
     when: body.when ? Number(new Date(body.when)) || null : null,
@@ -86,6 +89,7 @@ export function buildPayload(body, media) {
     channelName: typeof body.channelName === "string" ? body.channelName.replace(/[^\w.-]/g, "").slice(0, 80) : null,
     projectId: body.projectId || null,
     missionId: body.missionId || null,
+    consent: body.consent === true,
     mediaJobId: media?.jobId || null,
     mediaAssetId: media?.assetId || null,
     mediaProjectId: media?.projectId || null,
@@ -110,9 +114,11 @@ function previewOf(h, pl, media) {
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
   // 0.4.21: the same words check that texts and emails get. A hard block cannot be posted; warnings are shown.
-  const compliance = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pl.channel, consent: true });
+  const compliance = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pl.channel, consent: pl.consent === true });
   for (const b of compliance.blocked) problems.push(`${b.plain} ${b.why}`);
-  return { ...pv, problems, warnings: compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why })) };
+  const warnings = compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why }));
+  if (pl.masked) warnings.unshift({ rule: "private_numbers_hidden", plain: "Private numbers were hidden in this message.", why: "Social Security, card and account numbers keep only their last four digits before anything is shown or posted." });
+  return { ...pv, problems, warnings };
 }
 
 function logPost(h, entry) {
@@ -170,7 +176,7 @@ export async function routes(req, res, url, body, h) {
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
     // checked again on the stored payload, so a changed rule or a hand-made request cannot skip it
-    const again = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pv.channel, consent: true });
+    const again = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pv.channel, consent: pl.consent === true });
     if (!again.ok && ready) return h.json(res, 422, { error: `Not sent. ${again.blocked[0].plain} ${again.blocked[0].why}`, code: "compliance_block" });
     const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: maskSensitive(pl.title), text: maskSensitive(pl.text).slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {

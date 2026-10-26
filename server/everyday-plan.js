@@ -6,6 +6,7 @@ import { doc, putDoc } from "./store.js";
 import { canSend, gmailSend } from "./google.js";
 import { scrubText } from "./prompts/safety.js";
 import { assertOutgoingOk } from "./compliance-guard.js";
+import { maskPrivate } from "./mask-private.js";
 
 export const DOC = "everyday.plan";
 export const TRY_BRIEF = "Every weekday at 8: agenda, inbox, tasks, weather, and news";
@@ -219,7 +220,7 @@ export function rememberDraft(draft) {
 }
 export function publicDraft(draft) {
   if (!draft) return null;
-  return { id: draft.id, status: draft.status, to: draft.to, subject: draft.subject, body: draft.body, slots: draft.slots || [], createdAt: draft.createdAt, sentAt: draft.sentAt || null };
+  return { id: draft.id, status: draft.status, to: draft.to, subject: maskPrivate(draft.subject), body: maskPrivate(draft.body), slots: draft.slots || [], createdAt: draft.createdAt, sentAt: draft.sentAt || null };
 }
 
 export async function deliverExact(mail) {
@@ -245,7 +246,7 @@ export async function sendDraft(id, body) {
   const subject = String(body.subject || "").replace(/[\r\n]/g, " ").trim();
   const text = String(body.body || "");
   if (!EMAIL.test(to) || !subject || !text.trim()) throw fail(400, "The email needs a To, a subject, and a body.");
-  const mail = { to, subject, body: scrubText(text).text };
+  const mail = { to, subject: maskPrivate(subject), body: maskPrivate(scrubText(text).text) };
   const delivered = await deliverExact(mail);
   draft.to = mail.to;
   draft.subject = mail.subject;
