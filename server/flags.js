@@ -5,6 +5,7 @@ const DEFAULTS = {
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
+  templates: false, // Custom project templates: Save as template, Start from a template
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -25,4 +26,11 @@ export function projectmediaOn(settings = {}) {
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia") });
+// The saved setting (flag_templates) is used only when no env var forces the flag.
+export function templatesOn(settings = {}) {
+  const v = process.env.CC_FLAG_TEMPLATES;
+  if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("templates");
+  if (settings && typeof settings.flag_templates === "boolean") return settings.flag_templates;
+  return flagOn("templates");
+}
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), templates: flagOn("templates") });

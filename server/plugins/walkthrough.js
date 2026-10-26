@@ -6,10 +6,14 @@ import {
   TYPES, typeById, resolveExperience, present, parsePlan, scaffoldPlan, planPrompt,
   assignRoute, formatAnswers, missingAnswers, exportMarkdown, slugTitle, exampleEvents, labelsFor,
   isFlowStagesEnabled, resolveStageId, flowStageOf, applyStageAction, normalizeStackedSteps, nextStageAfter,
-  buildStageList, buildFlowchart, ensureStageOrder,
+  buildStageList, buildFlowchart, ensureStageOrder, normalizeSteps,
 } from "../walkthroughs.js";
 import { normalizeMode } from "../modes.js";
 import { fillAnswers, answerFromDescription } from "../build-all.js";
+import { templatesOn } from "../flags.js";
+import {
+  listTemplates, findTemplate, createTemplate, updateTemplate, deleteTemplate, templateFromWalk, applyTemplate,
+} from "../project-templates.js";
 
 export const id = "walkthrough";
 const KIND = "walkthrough.items";
@@ -41,6 +45,11 @@ function flowFlag(h, requested) {
   let settings = {};
   try { settings = h.settings() || {}; } catch { settings = {}; }
   return isFlowStagesEnabled({ settings, requested });
+}
+function templatesFlag(h) {
+  let settings = {};
+  try { settings = h.settings() || {}; } catch { settings = {}; }
+  return templatesOn(settings);
 }
 function presentWalk(w, exp, opts = {}) {
   return present(w, exp, opts);
@@ -121,7 +130,10 @@ function attachProject(h, w) {
       name: name.slice(0, 80),
       summary: String(w.idea || "").slice(0, 180),
       color: type?.color || "#22d3ee",
-      categories: [{ id: "deliverables", name: type?.category || "Deliverables", links: [] }],
+      categories: [
+        { id: "deliverables", name: type?.category || "Deliverables", links: [] },
+        ...(Array.isArray(w.mediaFolders) ? w.mediaFolders.map((n, i) => ({ id: `tpl-${i + 1}`, name: String(n).slice(0, 40), links: [] })) : []),
+      ],
     });
     w.projectId = p?.id || null;
     w.projectNote = "A project was created for this work.";
@@ -156,7 +168,10 @@ async function runPlan(h, w, exp) {
       browser: false,
     });
     const text = council?.verdict?.text || Object.values(council?.answers || {}).map((a) => a.text).find(Boolean) || "";
-    const parsed = parsePlan(text) || scaffoldPlan(type, w.idea);
+    const fromTemplate = () => (w.templateSteps?.length
+      ? { title: String(w.idea || type.name).slice(0, 48), source: "template", assembly: "One document that follows your template steps.", steps: normalizeSteps(w.templateSteps) }
+      : null);
+    const parsed = parsePlan(text) || fromTemplate() || scaffoldPlan(type, w.idea);
     if (parsed.source !== "council") parsed.councilFellBack = true;
     parsed.steps = assignRoute(parsed.steps, h.rank, priorityFor(w, exp));
     w.plan = { ...parsed, councilId: council?.id || null, councilNotes: String(text).slice(0, 1500) };
@@ -371,6 +386,27 @@ export async function routes(req, res, url, body, h) {
   const flowOn = flowFlag(h, url.searchParams.get("flag_flowstages") ?? body?.flag_flowstages);
   const flowOpts = { flowStages: flowOn };
 
+  if (parts[0] === "templates") {
+    if (!templatesFlag(h)) return h.json(res, 404, { error: "Templates are turned off on this install.", code: "flag_off" });
+    const tid = parts[1];
+    try {
+      if (req.method === "GET" && !tid) return h.json(res, 200, { templates: listTemplates(h) });
+      if (req.method === "POST" && !tid) {
+        if (body?.walkId) {
+          const w = find(h, String(body.walkId));
+          if (!w || w.example) return h.json(res, 404, { error: "Project not found." });
+          return h.json(res, 200, createTemplate(h, { ...templateFromWalk(w, body.name), ...(body.folders ? { folders: body.folders } : {}), ...(body.personas ? { personas: body.personas } : {}), ...(body.note ? { note: body.note } : {}) }));
+        }
+        return h.json(res, 200, createTemplate(h, body || {}));
+      }
+      if (req.method === "PUT" && tid) return h.json(res, 200, updateTemplate(h, tid, body || {}));
+      if (req.method === "DELETE" && tid) return h.json(res, 200, deleteTemplate(h, tid));
+    } catch (e) {
+      return h.json(res, e.status || 400, { error: e.message || "Template error.", code: e.code || "template_error" });
+    }
+    return false;
+  }
+
   if (req.method === "GET" && parts.length === 0) {
     const items = load(h).items.filter((w) => !w.example);
     return h.json(res, 200, {
@@ -379,6 +415,7 @@ export async function routes(req, res, url, body, h) {
       ...(flowOn ? { flowStagesEnabled: true } : {}),
       types: TYPES.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, color: t.color })),
       walks: items.map((w) => presentWalk(w, exp, flowOpts)),
+      ...(templatesFlag(h) ? { templatesEnabled: true, templates: listTemplates(h) } : {}),
       examples: EXAMPLES.map((e) => ({ type: e.type, label: "Example data", title: e.plan.title })),
     });
   }
@@ -408,7 +445,9 @@ export async function routes(req, res, url, body, h) {
   }
 
   if (req.method === "POST" && parts.length === 0) {
-    const type = typeById(body?.type);
+    const tpl = body?.templateId && templatesFlag(h) ? findTemplate(h, String(body.templateId)) : null;
+    if (body?.templateId && !tpl && templatesFlag(h)) return h.json(res, 404, { error: "Template not found.", code: "not_found" });
+    const type = typeById(tpl ? tpl.type : body?.type);
     if (!type) return h.json(res, 400, { error: "Pick a project type.", code: "bad_type" });
     const w = {
       id: "sp-" + Date.now().toString(36),
@@ -427,6 +466,7 @@ export async function routes(req, res, url, body, h) {
       w.flowStagesEnabled = true;
       w.stackedSteps = normalizeStackedSteps(body.stackedSteps);
     }
+    if (tpl) applyTemplate(w, tpl);
     persist(h, w);
     return h.json(res, 200, presentWalk(w, exp, flowOpts));
   }
