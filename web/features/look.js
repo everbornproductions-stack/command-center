@@ -206,6 +206,7 @@ function startWatcher() {
 
 // Startup screen timing (0.4.20, Chris): it stays up at least twice as long as before (2.6 s, or 1.8 s on the
 // quiet look) and at least twice as long as the app took to load, then fades out slowly.
+// The 2x hold is capped at SPLASH_MAX_MS (12 s) so a very slow start never traps anyone behind the start screen.
 const SPLASH_BASE_MS = 2600, SPLASH_BASE_QUIET_MS = 1800, SPLASH_FADE_MS = 900, SPLASH_MAX_MS = 12000;
 function splashHold(loadMs, quiet) {
   const base = quiet ? SPLASH_BASE_QUIET_MS : SPLASH_BASE_MS;
@@ -217,16 +218,21 @@ function showStartup() {
   try { if (sessionStorage.getItem(SPLASH_KEY)) return null; sessionStorage.setItem(SPLASH_KEY, "1"); } catch {}
   if (/[?&]nosplash\b/.test(location.search)) return null;
   const quiet = still() || lowPower();
-  const el = document.createElement("div");
-  el.id = "cc-startup";
-  el.setAttribute("role", "status");
-  el.setAttribute("aria-label", "Meldmind.ai. Are you game?");
-  if (quiet) el.dataset.still = "1";
-  el.innerHTML = `<div class="mm-name" aria-hidden="true">Meldmind.ai</div>
+  // 0.4.21: web/index.html already painted this screen from the first frame; adopt it. Build it only if it is missing.
+  let el = document.getElementById("cc-startup");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "cc-startup";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-label", "Meldmind.ai. Are you game?");
+    el.innerHTML = `<div class="mm-name" aria-hidden="true">Meldmind.ai</div>
     <p class="mm-tag" aria-hidden="true">Are you g<span class="mm-gold">A</span>m<span class="mm-gold">I</span>e?</p>
     <p class="mm-sub" aria-hidden="true">Meldmind never just stops.</p>
     <span class="mm-sr">Are you game?</span>`;
-  document.body.appendChild(el);
+    document.body.appendChild(el);
+  }
+  el.dataset.owned = "1";
+  if (quiet) el.dataset.still = "1";
   let done = false, held = false;
   const close = () => {
     if (done) return;
@@ -281,8 +287,8 @@ function panel(el) {
 }
 
 async function init() {
-  try { cfg = await api("/look"); } catch { return; }
-  if (!cfg?.flag) return;
+  try { cfg = await api("/look"); } catch { document.getElementById("cc-startup")?.remove(); return; }
+  if (!cfg?.flag) { document.getElementById("cc-startup")?.remove(); return; }
   info = graphicsInfo();
   const chk = savedCheck();
   if (chk) tier = chk.tier; else tier = finalTier(scoreGraphics(info).tier, null, info.backdrop).tier;
