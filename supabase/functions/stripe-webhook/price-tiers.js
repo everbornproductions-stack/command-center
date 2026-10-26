@@ -16,6 +16,15 @@
 export const PRICE_TIERS = {
 };
 
+// product id -> plan id, for a one-time product whose price ids change (a new price for the same
+// product, such as the $499 founder price). Example: "prod_AbCdEf": "lifetime-349".
+export const PRODUCT_TIERS = {
+};
+
+// Payment Link id -> plan id (the session carries payment_link). Example: "plink_1AbCdEf": "lifetime-349".
+export const PAYMENT_LINK_TIERS = {
+};
+
 // Plan id -> the licence tier it unlocks in the app. Developer carries the Extreme limits.
 // Founder lifetime is Pro for life (server/price-config.js LIFETIME_TIER); the app reads the
 // lifetime plan and keeps it Pro even when a row says otherwise.
@@ -30,7 +39,9 @@ export const PLANS = {
   "lifetime-499": { tier: "pro", interval: "once", lifetime: true },
 };
 
-// Fallback when the price id is not in PRICE_TIERS: unit amount in cents plus interval.
+// Last fallback when no id above matches: the price's own list amount in cents plus interval. This is
+// the Stripe price object's unit_amount, never what the buyer was charged, so a promo code or tax
+// cannot change the answer.
 // "once" is a one-time payment. Founder $349 once and Developer $349 a year differ by interval.
 export const AMOUNT_PLANS = {
   "1899:month": "pro-monthly",

@@ -177,7 +177,7 @@ async function closeQuiet(close) {
 
 // A tiny local stand-in for Supabase, the update feed and the OpenRouter models list (404 unless a test serves one). `rpc` decides what verify_license /
 // redeem_promo answer; every request is recorded in `hits`.
-export async function startStub({ rpc = () => ({ ok: false, tier: "free", status: "unknown", message: "stub: not found" }) } = {}) {
+export async function startStub({ rpc = () => ({ ok: false, tier: "free", status: "unknown", message: "stub: not found" }), auth = null } = {}) {
   const port = await freePort();
   const hits = [];
   const server = http.createServer(async (req, res) => {
@@ -188,6 +188,8 @@ export async function startStub({ rpc = () => ({ ok: false, tier: "free", status
     if (url.pathname === "/latest.json") return send(200, { version: "0.0.1", notes: "stub", url: null });
     const m = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/);
     if (m) { const out = rpc(m[1], body ? JSON.parse(body) : {}, req); return send(out?.httpStatus || 200, out?.rows ?? [out]); }
+    // Supabase Auth token endpoint (id_token exchange and refresh); only when a test gives `auth`.
+    if (auth && url.pathname === "/auth/v1/token") { const out = auth(url.searchParams.get("grant_type"), body ? JSON.parse(body) : {}); return send(out?.httpStatus || 200, out?.body ?? out); }
     send(404, { message: "stub: no route" });
   });
   await new Promise((r) => server.listen(port, "127.0.0.1", r));

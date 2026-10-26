@@ -3,7 +3,7 @@
 // Deno- or Node-specific imports, so both runtimes can import this file as is.
 // The webhook secret is passed in by the caller from the STRIPE_WEBHOOK_SECRET environment
 // variable. Nothing in this file holds a secret, writes an email to a log, or stores card data.
-import { PRICE_TIERS, PLANS, AMOUNT_PLANS } from "./price-tiers.js";
+import { PRICE_TIERS, PRODUCT_TIERS, PAYMENT_LINK_TIERS, PLANS, AMOUNT_PLANS } from "./price-tiers.js";
 
 export const TOLERANCE_SECONDS = 300; // The usual replay window: 5 minutes.
 
@@ -84,12 +84,15 @@ function priceFacts(item) {
   const interval = price?.recurring?.interval ?? plan?.interval ?? null;
   const amount = price?.unit_amount ?? plan?.amount ?? (Number.isInteger(item.amount) && (item.quantity ?? 1) === 1 ? item.amount : null);
   const metadata = price?.metadata ?? plan?.metadata ?? {};
-  return { priceId, interval, amount, metadata };
+  const productId = idOf(price?.product ?? plan?.product);
+  const productMeta = price?.product && typeof price.product === "object" ? price.product.metadata : null;
+  return { priceId, productId, interval, amount, metadata: { ...(productMeta || {}), ...(metadata || {}) } };
 }
 
 // Plan id for a price: PRICE_TIERS first, then price metadata (meldmind_plan), then amount + interval.
-export function planForPrice({ priceId = null, amount = null, interval = null, metadata = {} } = {}, tiers = PRICE_TIERS) {
+export function planForPrice({ priceId = null, productId = null, amount = null, interval = null, metadata = {} } = {}, tiers = PRICE_TIERS) {
   if (priceId && tiers[priceId] && PLANS[tiers[priceId]]) return tiers[priceId];
+  if (productId && PRODUCT_TIERS[productId] && PLANS[PRODUCT_TIERS[productId]]) return PRODUCT_TIERS[productId];
   const meta = metadata?.meldmind_plan;
   if (meta && PLANS[meta]) return meta;
   if (Number.isInteger(amount)) {
@@ -115,7 +118,26 @@ export function mapSubscriptionStatus(status) {
 
 const iso = (sec) => (Number.isFinite(Number(sec)) && Number(sec) > 0 ? new Date(Number(sec) * 1000).toISOString() : null);
 const lower = (v) => { const s = String(v ?? "").trim().toLowerCase(); return s && s.includes("@") ? s : null; };
-const idOf = (v) => (typeof v === "string" ? v : v?.id ?? null);
+function idOf(v) { return typeof v === "string" ? v : v?.id ?? null; }
+
+// Plan for a one-time Checkout Session, from ids and metadata only. lineItems may be undefined.
+export function planForSession(session, lineItems) {
+  const meta = session?.metadata?.meldmind_plan;
+  if (meta && PLANS[meta]) return meta;
+  const link = idOf(session?.payment_link);
+  if (link && PAYMENT_LINK_TIERS[link] && PLANS[PAYMENT_LINK_TIERS[link]]) return PAYMENT_LINK_TIERS[link];
+  for (const item of Array.isArray(lineItems) ? lineItems : []) {
+    const f = priceFacts(item);
+    const plan = planForPrice({ ...f, interval: f.interval || "once" });
+    if (plan) return plan;
+  }
+  return null;
+}
+
+function finishSessionGrant(grant, plan) {
+  if (!isLifetimePlan(plan)) return { kind: "ignore", reason: "not_a_plan" };
+  return { ...grant, plan, tier: tierForPlan(plan) };
+}
 
 // ---------- events -> what to do ----------
 //
@@ -140,10 +162,15 @@ export function planEvent(event) {
       return { kind: "update", subscriptionId: idOf(obj.subscription), customerId: idOf(obj.customer), email, status: "active", periodEnd: undefined };
     }
     if (obj.mode === "payment") {
-      const plan = planForPrice({ amount: Number.isInteger(obj.amount_total) ? obj.amount_total : null, interval: null, metadata: obj.metadata });
       if (!email) return { kind: "ignore", reason: "no_email" };
-      if (!plan || !isLifetimePlan(plan)) return { kind: "ignore", reason: "not_a_plan" };
-      return { kind: "grant", email, customerId: idOf(obj.customer), subscriptionId: null, plan, tier: tierForPlan(plan), lifetime: true, status: "active", periodEnd: null, paymentId: idOf(obj.payment_intent) };
+      // The plan is decided by the Checkout Session, never by the amount charged: a promo code or
+      // tax changes amount_total. Metadata, the Payment Link id and the line item's price or product
+      // id decide. When the event carries none of them, processEvent asks Stripe for the session's
+      // line items (db.fetchLineItems) and tries again.
+      const grant = { kind: "grant", email, customerId: idOf(obj.customer), subscriptionId: null, lifetime: true, status: "active", periodEnd: null, paymentId: idOf(obj.payment_intent) };
+      const plan = planForSession(obj, obj.line_items?.data);
+      if (plan) return finishSessionGrant(grant, plan);
+      return { kind: "resolve_session", sessionId: idOf(obj.id), session: obj, grant };
     }
     return { kind: "ignore", reason: "mode" };
   }
@@ -201,6 +228,19 @@ export async function processEvent(event, db, { genKey = genLicenseKey, now = ()
   if (!id) return { status: "ignored", reason: "no_event_id" };
   if (!(await db.claimEvent(id, event.type))) return { status: "duplicate" };
   try {
+    if (act.kind === "resolve_session") {
+      // Ask Stripe for the session's line items (a read-only call made by the Deno function).
+      const items = typeof db.fetchLineItems === "function" && act.sessionId ? await db.fetchLineItems(act.sessionId) : null;
+      if (!Array.isArray(items)) {
+        // No answer to give yet: release the id so Stripe's retry runs again once a read key is set.
+        await db.releaseEvent(id).catch(() => {});
+        return { status: "unresolved", reason: "no_line_items", sessionId: act.sessionId };
+      }
+      const plan = planForSession(act.session, items);
+      const next = plan ? finishSessionGrant(act.grant, plan) : { kind: "ignore", reason: "not_a_plan" };
+      if (next.kind === "ignore") return { status: "ignored", reason: next.reason };
+      return await applyAction(next, db, { genKey, now, eventId: id });
+    }
     return await applyAction(act, db, { genKey, now, eventId: id });
   } catch (e) {
     await db.releaseEvent(id).catch(() => {});
