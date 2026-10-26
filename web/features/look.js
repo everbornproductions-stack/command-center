@@ -1,7 +1,7 @@
 // Look (0.4.19, flag_look): the glass look, its setting, the graphics check and the startup screen.
 // With the flag off this module does nothing at all. Rules live in /look-core.js, styles in /look.css.
 // No always-on loop: one 1 second frame test, one event-driven long-frame watcher, one debounced observer.
-import { normalizeChoice, scoreGraphics, scoreFrames, combineTier, decideLook, stutterVerdict, signature, OFFERS, TEST_MS } from "/look-core.js";
+import { normalizeChoice, scoreGraphics, scoreFrames, combineTier, finalTier, decideLook, stutterVerdict, signature, OFFERS, TEST_MS } from "/look-core.js";
 
 const { api, toast, esc } = window.CC;
 const LS = "cc.look";
@@ -12,6 +12,7 @@ const TIER_WORDS = { good: "Good", borderline: "A little slow", weak: "Weak" };
 let cfg = null;      // { flag, choice, check }
 let info = null;
 let tier = "borderline";
+let tierReason = "";      // why Auto chose Classic, shown in Settings > Look
 let decision = null;
 let offered = false;
 let watcher = null;
@@ -21,6 +22,14 @@ function readLocal() { try { return JSON.parse(localStorage.getItem(LS) || "{}")
 function writeLocal(patch) { try { localStorage.setItem(LS, JSON.stringify({ ...readLocal(), ...patch })); } catch {} }
 const still = () => { try { return !!matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 const lowPower = () => document.body.classList.contains("light-mode");
+
+// Feature test, not a renderer-name guess: can this window draw backdrop-filter at all?
+export function backdropSupported() {
+  try {
+    if (typeof CSS === "undefined" || !CSS.supports) return true;
+    return CSS.supports("backdrop-filter", "blur(2px)") || CSS.supports("-webkit-backdrop-filter", "blur(2px)");
+  } catch { return true; }
+}
 
 export function graphicsInfo() {
   let renderer = "", accelerated;
@@ -35,7 +44,7 @@ export function graphicsInfo() {
     }
   } catch { accelerated = undefined; }
   return {
-    renderer, accelerated,
+    renderer, accelerated, backdrop: backdropSupported(),
     cores: navigator.hardwareConcurrency || 0,
     memoryGb: navigator.deviceMemory || 0,
     width: screen.width || 0, height: screen.height || 0, dpr: window.devicePixelRatio || 1,
@@ -52,7 +61,7 @@ export function currentChoice() { return normalizeChoice(readLocal().choice ?? c
 export function apply() {
   const root = document.documentElement;
   if (!cfg?.flag) { root.removeAttribute("data-look"); return null; }
-  decision = decideLook(currentChoice(), { tier, reducedMotion: still(), lowPower: lowPower() });
+  decision = decideLook(currentChoice(), { tier, reducedMotion: still(), lowPower: lowPower(), backdrop: info ? info.backdrop : true });
   root.dataset.look = decision.look;
   root.dataset.motion = decision.still ? "still" : "full";
   root.dataset.blur = decision.blur && decision.look === "glass" ? "on" : "off";
@@ -101,6 +110,8 @@ function toastUndo(message, undo) {
 // A bounded burst of animation frames with a blurred pane and one rolling light on screen.
 export function frameTest(ms = TEST_MS) {
   return new Promise((resolve) => {
+    // A window that is hidden or in the background gets slowed frames from the system; that says nothing about the graphics.
+    if (document.hidden || (typeof document.hasFocus === "function" && !document.hasFocus())) { resolve({ fps: 0, stutter: false, ok: true, measured: false }); return; }
     const probe = document.createElement("div");
     probe.id = "cc-look-probe";
     probe.setAttribute("aria-hidden", "true");
@@ -121,7 +132,8 @@ export function frameTest(ms = TEST_MS) {
 async function runCheck() {
   const lookup = scoreGraphics(info);
   const frames = await frameTest();
-  tier = combineTier(lookup.tier, frames);
+  const fin = finalTier(lookup.tier, frames, info.backdrop);
+  tier = fin.tier; tierReason = fin.reason;
   const check = { tier, fps: frames.fps, sig: signature(info), at: Date.now() };
   await saveCheck(check);
   apply();
@@ -238,6 +250,8 @@ function panel(el) {
   el.innerHTML = `<div class="panel" id="cc-look-panel"><h3>Look</h3>
     <label class="row small" style="gap:8px"><input type="checkbox" role="switch" id="look-switch" ${isGlass ? "checked" : ""}> Use the new glass look</label>
     <div class="dim small" id="look-warn" style="margin-top:6px">${decision?.warn ? esc(decision.warn) : ""}</div>
+    ${choice === "auto" && decision?.look === "classic" ? `<div class="look-fallback small" id="look-fallback" role="status"><b>Meldmind chose the Classic look for you.</b> ${esc(tierReason || "Your graphics test came back slow.")} The glass look can still work on many screens.
+      <label class="row small" style="gap:8px;margin-top:6px"><input type="checkbox" role="switch" id="look-anyway"> Try glass anyway</label></div>` : ""}
     <label class="lbl">Choose a look</label>
     <div class="seg" id="look-seg" role="group" aria-label="Look">${[["auto", "Auto"], ["glass", "Full glass"], ["classic", "Classic"]].map(([id, label]) => `<button type="button" data-look="${id}" class="${choice === id ? "on" : ""}" aria-pressed="${choice === id}">${label}</button>`).join("")}</div>
     <div class="dim small">Auto picks for you. Classic is the look from before: solid panels, no blur, no moving light.</div>
@@ -251,6 +265,7 @@ function panel(el) {
     toastUndo("Look changed.", async () => { await saveChoice(prev); apply(); panel(el); });
     panel(el);
   };
+  el.querySelector("#look-anyway")?.addEventListener("change", (e) => { if (e.target.checked) change("glass"); });
   el.querySelector("#look-switch").addEventListener("change", (e) => change(e.target.checked ? "glass" : "classic"));
   el.querySelector("#look-seg").addEventListener("click", (e) => { const b = e.target.closest("button[data-look]"); if (b) change(b.dataset.look); });
   el.querySelector("#look-retest").addEventListener("click", async (e) => {
@@ -266,7 +281,8 @@ async function init() {
   if (!cfg?.flag) return;
   info = graphicsInfo();
   const chk = savedCheck();
-  if (chk) tier = chk.tier; else tier = scoreGraphics(info).tier;
+  if (chk) tier = chk.tier; else tier = finalTier(scoreGraphics(info).tier, null, info.backdrop).tier;
+  if (tier === "weak") tierReason = info.backdrop === false ? "This window cannot draw see-through glass." : "Graphics acceleration is off, so glass could be slow.";
   apply();
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) document.documentElement.dataset.hidden = "1"; else document.documentElement.removeAttribute("data-hidden");
