@@ -64,6 +64,9 @@ function wouldCycle(projects, id, parentId) {
 // One status vocabulary for projects (0.4.20, I12): shown as colored chips on cards and on the detail page.
 export const PROJECT_STATUSES = ["Draft", "Review", "Approved", "Scheduled", "Published"];
 export function saveProject(p) {
+  // 0.4.21 (F18): "Unfiled" is the hub's own shelf for work with no project, so no project may take that name.
+  if (p.name !== undefined && /^\s*unfiled\s*$/i.test(String(p.name))) throw new Error("\"Unfiled\" is the shelf for work with no project. Pick another name.");
+  if (p.id && String(p.id).toLowerCase() === "unfiled") throw new Error("\"Unfiled\" is the shelf for work with no project. Pick another name.");
   const d = data();
   const id = p.id || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const patch = { ...p };

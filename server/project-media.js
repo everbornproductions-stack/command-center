@@ -1324,6 +1324,11 @@ export function saveToMindMedia(opts = {}) {
   const pid = hubProjectId(opts.projectId);
   const source = String(opts.source || "Meldmind").slice(0, 60);
   let status = STATUSES.find((x) => x.toLowerCase() === String(opts.status || "").toLowerCase()) || "Draft";
+  if (opts.status && !STATUSES.some((x) => x.toLowerCase() === String(opts.status).toLowerCase())) {
+    const err = new Error(`Status must be one of: ${STATUSES.join(", ")}.`);
+    err.status = 400;
+    throw err;
+  }
   const files = Array.isArray(opts.files) ? opts.files.filter(Boolean) : [];
   const hasText = typeof opts.text === "string" && opts.text.trim().length > 0;
   if (!files.length && !hasText) {
