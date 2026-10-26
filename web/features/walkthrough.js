@@ -555,7 +555,6 @@ function paintReview(stage, w, busy) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
-  mountDoneCard(stage, w);
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
@@ -601,6 +600,7 @@ function paintDone(stage, w) {
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  mountDoneCard(stage, w);
   stage.querySelector("#sp-done-save").addEventListener("click", async () => {
     try {
       paintWalk(await api(`/walkthrough/${w.id}/edit?${qexp()}`, { method: "POST", body: { deliverable: stage.querySelector("#sp-done-text").value, experience: clientExperience() } }));
@@ -626,10 +626,31 @@ function mountDoneCard(stage, w) {
         const it = r.items?.[0] || {};
         el.replaceWith(CC.resultCard({ what: `${title} is ready`, savedWhere: `Saved in MindMedia, ${r.where || "Unfiled"}.`, item: { projectId: r.projectId, assetId: it.id }, actions: [{ label: "Finish", primary: true, onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, item: { projectId: r.projectId, assetId: it.id, kind: "text" } }) }] }));
       } },
-      { label: "Finish", onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }) },
+      { label: "Finish", onClick: () => { CC._lastResult = { kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }; return CC.openFinishDrawer?.(CC._lastResult); } },
+      ...handoffActions(w, title),
     ],
   });
-  stage.querySelector("#sp-done-view")?.after(card);
+  card.id = "sp-result-card";
+  CC._lastResult = { kind: "text", text: w.deliverable || "", name: title, source: "Start a project" };
+  (stage.querySelector("#sp-done-view") || stage.querySelector("h3"))?.after(card);
+}
+// Hand-offs: open the other page with the project words filled in. Nothing is sent.
+function handoffActions(w, title) {
+  const CC = window.CC;
+  const brief = `${title}. ${String(w.deliverable || "").replace(/\s+/g, " ")}`.slice(0, 700);
+  const fill = (view, getInput) => {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      const el = getInput();
+      if (el) { el.value = brief; el.dispatchEvent(new Event("input", { bubbles: true })); clearInterval(t); }
+      if (tries >= 30) clearInterval(t);
+    }, 150);
+    CC.go(view);
+  };
+  const toSite = { label: "Build it as a website", title: "Opens Web and marketing with your words. Nothing is sent.", onClick: () => fill("webbuilders", () => document.getElementById("bd-notice")) };
+  const toRemix = { label: "Remix it", title: "Opens Remix with your words. Nothing is sent.", onClick: () => fill("remix", () => document.getElementById("remix-idea")) };
+  return w.type === "app" ? [toRemix, toSite] : [toSite];
 }
 async function downloadWalk(id, format) {
   try {

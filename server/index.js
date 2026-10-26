@@ -403,7 +403,18 @@ function startMission(opts) {
   if (opts.runAt === "offpeak") guard("scheduler");
   guard("concurrentRuns", { running: runsInFlight() });
   const { runAt, background, ...rest } = opts;
-  return trackRun("mission", runMission(rest));
+  const run = trackRun("mission", runMission(rest));
+  run.then((m) => keepMissionResult(m, rest)).catch(() => { /* the run's own error handling reports failures */ });
+  return run;
+}
+// A finished mission or pipeline run keeps its deliverable in MindMedia as Review (never a private run).
+async function keepMissionResult(m, opts) {
+  try {
+    const text = String(m?.deliverable || "").trim();
+    if (!m || m.private || opts?.private || !text || !["done", "done-with-errors"].includes(m.status)) return;
+    const { saveToMindMedia } = await import("./project-media.js");
+    saveToMindMedia({ kind: "text", text, name: String(m.title || m.plan?.title || m.goal || "Mission").replace(/\s+/g, " ").trim().slice(0, 100), status: "Review", source: "Mission", dedupeKey: `mission:${m.id}`, projectId: m.projectId || "" });
+  } catch { /* keeping is a bonus; the answer is still in the chat */ }
 }
 const BACKGROUND_MIX = "A background run starts now. Off-peak stays on the schedule.";
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
