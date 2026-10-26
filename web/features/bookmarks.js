@@ -115,10 +115,10 @@ function mount(el) {
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([r.html], { type: "text/html" })); a.download = "organized-bookmarks.html"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       toast("Import file downloaded");
     }));
-    q("#bm-apply")?.addEventListener("click", () => {
+    q("#bm-apply")?.addEventListener("click", async () => {
       const d = st.draft, merges = st.merge.size;
       if (st.folders.some((f) => !f.name.trim() && f.items.some((x) => !st.off.has(x)))) return toast("Every folder needs a name", true);
-      if (!confirm(`Reorganize ${d.browserName} (${d.profile}) into ${st.folders.length} folders${merges ? ` and merge ${merges} duplicate address${merges === 1 ? "" : "es"}` : ""}? Nothing else is deleted. The original file is backed up first, and Undo puts it back.`)) return;
+      if (!(await window.CC.confirm(`Reorganize ${d.browserName} (${d.profile}) into ${st.folders.length} folders${merges ? ` and merge ${merges} duplicate address${merges === 1 ? "" : "es"}` : ""}? Nothing else is deleted. The original file is backed up first, and Undo puts it back.`))) return;
       run("apply", async () => {
         const r = await api("/bookmarks/apply", { method: "POST", body: { draft: d.id, plan: planBody(), allowSynced: st.allowSynced } });
         toast(`Bookmarks organized: ${r.applied.moved} moved. Backup saved. Open ${d.browserName} to see them.`);
@@ -128,7 +128,7 @@ function mount(el) {
     el.querySelectorAll("[data-undo]").forEach((b) => b.addEventListener("click", () => run("undo", async () => {
       try { await api("/bookmarks/undo", { method: "POST", body: { id: b.dataset.undo } }); }
       catch (e) {
-        if (!/changed after they were organized/.test(e.message) || !confirm(e.message)) throw e;
+        if (!/changed after they were organized/.test(e.message) || !(await window.CC.confirm(e.message, { ok: "Undo anyway" }))) throw e;
         await api("/bookmarks/undo", { method: "POST", body: { id: b.dataset.undo, force: true } });
       }
       toast("Bookmarks put back as they were"); await load();

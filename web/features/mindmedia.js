@@ -232,7 +232,7 @@ async function render(view) {
   view.querySelector("#mmh-bd")?.addEventListener("click", async () => {
     const list = chosen();
     if (!list.length) return toast("Pick something first.", true);
-    if (!confirm(`Delete ${list.length} item${list.length === 1 ? "" : "s"}? Files in other places are not touched.`)) return;
+    if (!(await window.CC.confirm(`Move ${list.length} item${list.length === 1 ? "" : "s"} to the Trash? You can restore ${list.length === 1 ? "it" : "them"} for 30 days. Files in other places are not touched.`, { danger: true, ok: "Move to Trash" }))) return;
     try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Deleted."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
   });
 
@@ -261,7 +261,7 @@ async function render(view) {
     });
     insp.querySelector('[data-a="close"]').addEventListener("click", () => { ui.focus = null; redraw(); });
     insp.querySelector('[data-a="delete"]').addEventListener("click", async () => {
-      if (!confirm(`Delete "${it.name}"?`)) return;
+      if (!(await window.CC.confirm(`Move "${it.name}" to the Trash? You can restore it for 30 days.`, { danger: true, ok: "Move to Trash" }))) return;
       try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Deleted."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
     });
     insp.querySelector('[data-a="download"]').addEventListener("click", async () => {

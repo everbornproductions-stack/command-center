@@ -138,6 +138,17 @@ function beforeSend({ mode, prompt }) {
       };
       document.body.appendChild(wrap);
       paint();
+      // Escape cancels and Tab stays inside the box (0.4.21, M44); focus goes back where it was.
+      const back = document.activeElement;
+      wrap.querySelector("#cc-readers-go")?.focus();
+      wrap.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") { ev.preventDefault(); finish(false); try { back?.focus?.(); } catch {} return; }
+        if (ev.key !== "Tab") return;
+        const els = [...wrap.querySelectorAll("button, input")].filter((x) => !x.disabled);
+        if (!els.length) return;
+        const i = els.indexOf(document.activeElement);
+        if (ev.shiftKey && i <= 0) { ev.preventDefault(); els[els.length - 1].focus(); } else if (!ev.shiftKey && i === els.length - 1) { ev.preventDefault(); els[0].focus(); }
+      });
     }).catch((e) => { toast(e.message, true); resolve(false); });
   });
 }

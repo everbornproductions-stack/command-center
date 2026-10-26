@@ -135,7 +135,7 @@ async function renderPanel(el, { setup = false } = {}) {
   el.querySelector("#cc-aw-check")?.addEventListener("click", async () => { try { view = await api("/answerwait/check", { method: "POST" }); renderPanel(el, { setup }); } catch (x) { toast(x.message, true); } });
   el.querySelector("#cc-aw-website")?.addEventListener("change", async (e) => {
     if (e.target.checked) {
-      if (!confirm(`${view?.websiteWarning || ""}\n\nTurn on website mode anyway?`)) { e.target.checked = false; return; }
+      if (!(await window.CC.confirm(`${view?.websiteWarning || ""} Turn on website mode anyway?`, { ok: "Turn on" }))) { e.target.checked = false; return; }
       return post({ website: true, confirm: true }).catch((x) => { e.target.checked = false; toast(x.message, true); });
     }
     return post({ website: false }).catch((x) => toast(x.message, true));
