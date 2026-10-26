@@ -234,6 +234,10 @@ function collectNativeAssets(projectId, state, allJobs) {
   if (!pid) return [];
   const items = [];
   const trackedPaths = new Set();
+  // A file another project or an upload record already owns is never picked up again by the folder scan
+  // (a result moved out of Unfiled stays in its old folder on disk).
+  for (const u of state.uploads) if (typeof u.filePath === "string" && u.filePath) trackedPaths.add(path.resolve(u.filePath));
+  for (const j of allJobs) for (const o of Array.isArray(j.outputs) ? j.outputs : []) if (typeof o === "string" && !/^https?:\/\//i.test(o)) trackedPaths.add(path.resolve(o));
 
   // 1. Media & Image jobs from doc("media.jobs")
   for (const job of allJobs) {

@@ -7,9 +7,19 @@
 //   POST /api/mindmedia/delete      { items: [{ projectId, assetId }] }
 //   GET  /api/mindmedia/item?projectId=&assetId=     one item with its text (text items)
 // Files are served by GET /api/projectmedia/file. Nothing here posts anywhere; publishing stays in /api/publish.
+import path from "node:path";
+import { DATA_DIR } from "../paths.js";
 import { listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, STATUSES } from "../project-media.js";
 
 export const id = "mindmedia";
+
+// A request may point at a file that already lives in a project folder (a builder's site). Nothing else in the
+// data folder (keys, settings, other people's files) can be filed this way.
+function pathAllowed(p) {
+  const full = path.resolve(String(p || ""));
+  const root = path.resolve(DATA_DIR, "projects") + path.sep;
+  return full.startsWith(root);
+}
 
 export async function routes(req, res, url, body, h) {
   if (!url.pathname.startsWith("/api/mindmedia")) return false;
@@ -26,7 +36,11 @@ export async function routes(req, res, url, body, h) {
       return h.json(res, 200, { projectId: a.projectId, assetId: a.assetId, name: a.name, kind: a.kind, text: a.text.slice(0, 20000) });
     }
     if (m === "POST" && sub === "save") {
-      const out = saveToMindMedia(body || {});
+      const b = body || {};
+      for (const f of Array.isArray(b.files) ? b.files : []) {
+        if (f && typeof f.path === "string" && f.path && !pathAllowed(f.path)) return h.json(res, 400, { error: "That file is not inside a Meldmind project folder, so it cannot be kept." });
+      }
+      const out = saveToMindMedia(b);
       h.emit?.("projectmedia.update", { projectId: out.projectId, action: "save" });
       return h.json(res, 200, out);
     }
