@@ -28,6 +28,7 @@ import * as drive from "../publish/drive.js";
 import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
 import { holdOutbound } from "../phone-approvals.js";
+import { assetForPublish, recordPublishResult } from "../project-media.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -56,12 +57,25 @@ export function mediaFromJob(jobs, jobId) {
   return { jobId, kind: j.kind, urls, files };
 }
 
+// A MindMedia item attached to a post (0.4.20): resolved to its local file, or to its words for a text item.
+export function mediaFromAsset(projectId, assetId) {
+  if (!assetId) return null;
+  const a = assetForPublish(projectId, assetId);
+  if (!a) return { error: "That MindMedia item was not found" };
+  const kind = a.kind === "video" ? "video" : a.kind === "audio" ? "audio" : a.kind === "image" ? "image" : a.kind === "text" ? "text" : "file";
+  const urls = a.remote && /^https?:\/\//i.test(a.remote) ? [a.remote] : [];
+  return { assetId: a.assetId, projectId: a.projectId, name: a.name, kind, urls, files: a.file ? [a.file] : [], text: a.text || "" };
+}
+
+// What each channel can take, so the page only offers places the item fits.
+export const ACCEPTS = { instagram: ["image", "video"], ghl: ["text", "image", "video"], slack: ["text", "image"], drive: ["text", "image", "video", "audio", "file", "site"] };
+
 // Normalise what the browser sent into the payload that will be posted, with the media job resolved.
 export function buildPayload(body, media) {
   const pl = {
     channel: body.channel,
     title: String(body.title || "Deliverable").slice(0, 120),
-    text: String(body.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
+    text: String(body.text || media?.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
     mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
     mediaType: body.mediaType === "video" ? "video" : "image",
     when: body.when ? Number(new Date(body.when)) || null : null,
@@ -71,6 +85,8 @@ export function buildPayload(body, media) {
     projectId: body.projectId || null,
     missionId: body.missionId || null,
     mediaJobId: media?.jobId || null,
+    mediaAssetId: media?.assetId || null,
+    mediaProjectId: media?.projectId || null,
     files: [],
   };
   if (media && !media.error) {
@@ -86,6 +102,7 @@ function previewOf(h, pl, media) {
   const pv = pl.channel === "drive" ? drive.preview(pl, prefs(h), secretFor(h, "drive"), h.HOSTED) : CH[pl.channel].preview(pl);
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
+  if (media && !media.error && media.assetId && ACCEPTS[pl.channel] && !ACCEPTS[pl.channel].includes(media.kind)) problems.unshift(`${CH[pl.channel].name} cannot take a ${media.kind === "file" ? "file like this" : media.kind} item. Pick a place that can, such as Google Drive`);
   if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
@@ -113,17 +130,17 @@ function channelList(h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
   const seg = p.split("/").filter(Boolean);
-  if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h));
+  if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h).map((c) => ({ ...c, accepts: ACCEPTS[c.id] || [] })));
   if (req.method === "POST" && p === "/preview") {
     if (!CH[body.channel]) return h.json(res, 400, { error: "unknown channel" });
     sweep();
-    const media = mediaFromJob(h.doc(JOBS, () => ({ items: [] })).items, body.mediaJobId);
+    const media = body.mediaAssetId ? mediaFromAsset(body.mediaProjectId, body.mediaAssetId) : mediaFromJob(h.doc(JOBS, () => ({ items: [] })).items, body.mediaJobId);
     const pl = buildPayload(body, media);
     const pv = previewOf(h, pl, media);
     const ready = readyFor(h, pl.channel);
     const previewId = "pv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, createdAt: Date.now() });
-    const mediaOut = media && !media.error ? { jobId: media.jobId, kind: media.kind, url: pl.mediaUrl, files: pl.files.length } : null;
+    const mediaOut = media && !media.error ? { jobId: media.jobId, assetId: media.assetId, kind: media.kind, url: pl.mediaUrl, files: pl.files.length } : null;
     return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut });
   }
   if (req.method === "POST" && p === "/post") {
@@ -143,7 +160,7 @@ export async function routes(req, res, url, body, h) {
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
-    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
+    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {
       if (!ready) { entry.status = "dry-run"; entry.note = "No credentials for this channel: recorded, not sent."; }
       else {
@@ -156,6 +173,8 @@ export async function routes(req, res, url, body, h) {
     } catch (e) { entry.status = "failed"; entry.error = e.message; }
     const d = h.doc(HIST, () => ({ items: [] })); d.items.unshift(entry); d.items = d.items.slice(0, 500); h.putDoc(HIST, d);
     logPost(h, entry);
+    // the item remembers where it went, with the link and the time (MindMedia)
+    try { recordPublishResult({ projectId: pl.mediaProjectId, assetId: pl.mediaAssetId, mediaJobId: pl.mediaJobId, entry }); } catch (e) { console.error("[publish] mindmedia write-back", e.message); }
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));

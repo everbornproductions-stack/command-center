@@ -43,7 +43,7 @@ test("flag is on by default and env turns it off or on", () => {
 });
 
 test("the three buttons and the one Send to menu use plain words", () => {
-  assert.deepEqual(NEXT_ACTIONS.map((a) => a.label), ["Make 3 variations", "Add to project", "Send to Finish"]);
+  assert.deepEqual(NEXT_ACTIONS.map((a) => a.label), ["Make 3 variations", "Add to project", "Finish"]);
   assert.deepEqual(SEND_TO.map((r) => r.label), ["Project", "Remix", "Finish", "Copy prompt"]);
   assert.equal(MENU_LABEL, "Send to...");
   assert.deepEqual(sendRows("image").map((r) => r.id), ["project", "remix", "finish", "prompt"]);
