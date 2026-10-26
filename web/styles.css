@@ -309,7 +309,7 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .edge.hot { stroke-width: 2; opacity: .95; }
 .hub-ring { fill: none; stroke: #22d3ee44; stroke-width: 1; }
 .tasks { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.task { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #0d1420; border: 1px solid var(--line); font-size: 0.7813rem; }
+.task { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #0d1420; border: 1px solid var(--line); font-size: 0.7813rem; }
 .task .st { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); justify-self: center; }
 .task .st.running { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: blink 1s steps(2) infinite; }
 .task .st.review { background: var(--violet); box-shadow: 0 0 10px var(--violet); animation: blink 1s steps(2) infinite; }
@@ -337,6 +337,9 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .reply-box .btn { align-self: flex-start; }
 .reply-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; min-width: 0; }
 .reply-turn, .reply-part, .task-answer, .reply-live { min-width: 0; overflow-wrap: anywhere; }
+/* Words stay inside their box: Live ops task rows, each AI's answer card, and the text inside them. */
+.task, .task > *, .ans, .ans .body, .md, .md p, .md li, .md h1, .md h2, .md h3, .md blockquote { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.md table { display: block; max-width: 100%; overflow-x: auto; }
 .grok-wait { color: var(--amber); font-size: 0.8125rem; padding: 6px 0; }
 .graduate-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid var(--line); border-left: 3px solid var(--violet); background: var(--panel-solid); border-radius: 10px; padding: 10px 12px; }
 .graduate-banner p { margin: 0; flex: 1 1 180px; }
