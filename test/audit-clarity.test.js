@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { chatRows, isInternalPrompt } from "../server/desk.js";
 import { plainPaths } from "../server/projects.js";
 
@@ -21,12 +22,12 @@ test("raw file paths become plain words", () => {
 });
 
 test("the connect wizard does not reopen after welcome", () => {
-  const src = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
+  const src = fs.readFileSync(fileURLToPath(new URL("../web/app.js", import.meta.url)), "utf8");
   assert.match(src, /!S\.visitedConnect && !S\.settings\?\.onboarded && S\.connectSetup\?\.show/);
 });
 
 test("no window.prompt is left in the web app (Electron does not support it)", () => {
-  const dir = new URL("../web/", import.meta.url).pathname;
+  const dir = fileURLToPath(new URL("../web/", import.meta.url)).replace(/[\\/]$/, "");
   const files = [];
   const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = d + "/" + e.name; if (e.isDirectory()) { if (e.name !== "vendor") walk(p); } else if (p.endsWith(".js")) files.push(p); } };
   walk(dir);
