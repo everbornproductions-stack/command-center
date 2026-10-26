@@ -113,10 +113,10 @@ function wireJobs(el, again) {
 // ---------- Settings > Integrations > Grok Bot ----------
 async function renderSettings(el) {
   // drawn at once so a click on the Grok Bot tile can scroll here before the data arrives
-  if (!el.querySelector("#prov-grokbot")) el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Integrations: Grok Bot</h3><div class="dim small">Loading...</div></div>`;
-  try { await load(); } catch (e) { el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Integrations: Grok Bot</h3><div class="dim small">${esc(e.message)}</div></div>`; return; }
+  if (!el.querySelector("#prov-grokbot")) el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Grok Bot assistant (optional)</h3><div class="dim small">Loading...</div></div>`;
+  try { await load(); } catch (e) { el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Grok Bot assistant (optional)</h3><div class="dim small">${esc(e.message)}</div></div>`; return; }
   const c = data.config, card = data.card;
-  el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Integrations: Grok Bot <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
+  el.innerHTML = `<div class="panel" id="prov-grokbot"><h3>Grok Bot assistant (optional) <span class="right">${light(card.status.status)} ${esc(card.status.detail)}</span></h3>
     <div class="small muted">Grok Bot is your own assistant with its own computer, signed-in browser, Gmail, Drive, Calendar and teammate bots. When a council or mission needs one of those (${c.tags.map((t) => esc(t.label)).join(", ")}), Meldmind hands Grok Bot that part as a job. It is never picked for plain text work another AI does as well. Nothing is sent without your orders or a click.</div>
     <div class="grid" data-plumbing="1" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
       <div><label class="lbl" for="gb-url">${esc(plainLabel("webhook"))} ${c.urlSaved ? `<span class="chip green">saved</span>` : ""}</label><input type="password" id="gb-url" aria-label="${esc(plainLabel("webhook"))}" placeholder="${c.urlSaved ? "saved in the vault (type to replace)" : "https://..."}" autocomplete="off"><div class="hint">${esc(plainExplain("webhook"))}</div></div>
