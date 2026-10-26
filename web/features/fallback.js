@@ -31,6 +31,9 @@ async function renderCommand(el) {
     <span class="small muted">work goes to the next-best AI; each comes back on its own</span></div>`;
 }
 
+// "via OpenRouter" or "via MCP", whichever route stood in (it used to say OpenRouter for everything).
+const viaLabel = (v) => (String(v).toLowerCase() === "mcp" ? "via MCP" : String(v).toLowerCase() === "openrouter" ? "via OpenRouter" : `via ${v}`);
+
 // ---------- Deliverable: who stood in ----------
 function fallbacksOfLive() {
   const l = S.live; if (!l?.id) return [];
@@ -41,7 +44,7 @@ function renderDeliverable(el) {
   const fb = fallbacksOfLive();
   if (!fb.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<div class="cc-fb-stand"><span class="small muted" style="width:100%">Stood in · ${fb.length === 1 ? "one hand-off" : `${fb.length} hand-offs`}: the job went on when a provider could not take it</span>
-    ${fb.map((f) => `<span class="chip" title="${esc(f.reason)}"><span class="dot" style="background:${pcolor(f.to.provider)}"></span> ${esc(f.to.name || pname(f.to.provider))}${f.via ? ` <span class="via">via OpenRouter</span>` : ""} for <span class="dot" style="background:${pcolor(f.from.provider)}"></span> ${esc(pname(f.from.provider))} · ${esc(KIND_LABEL[f.kind] || f.kind)}${f.taskId ? ` · ${esc(f.taskId)}` : ""}</span>`).join("")}</div>`;
+    ${fb.map((f) => `<span class="chip" title="${esc(f.reason)}"><span class="dot" style="background:${pcolor(f.to.provider)}"></span> ${esc(f.to.name || pname(f.to.provider))}${f.via ? ` <span class="via">${esc(viaLabel(f.via))}</span>` : ""} for <span class="dot" style="background:${pcolor(f.from.provider)}"></span> ${esc(pname(f.from.provider))} · ${esc(KIND_LABEL[f.kind] || f.kind)}${f.taskId ? ` · ${esc(f.taskId)}` : ""}</span>`).join("")}</div>`;
 }
 
 // ---------- Settings ----------
@@ -68,7 +71,7 @@ async function renderSettings(el) {
       <td class="small dim">${t.keyed ? `${t.usedToday} today · ${t.usedMinute} this minute${t.on ? (t.eligibleNow ? ` · <span style="color:var(--green)">in use</span>` : ` · allowance used or skipped`) : ""}` : "no key"}</td>
     </tr><tr><td colspan="5" class="dim small" style="border-bottom:1px solid var(--line);padding-top:0">${esc(t.note)}</td></tr>`).join("")}</table>
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm primary" id="fb-save">Save</button><button class="btn sm" id="fb-clear-all" style="margin-left:auto">Put everyone back in the rotation</button></div>
-    ${d.recent.length ? `<div class="cat-h" style="margin-top:14px">Recent stand-ins</div>${d.recent.slice(0, 8).map((r) => `<div class="row small" style="gap:8px;padding:3px 0"><span class="dim mono">${new Date(r.ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span><span class="dot" style="background:${pcolor(r.provider)}"></span>${esc(pname(r.provider))} · ${esc(r.model)}${r.via ? ` <span class="chip">via OpenRouter</span>` : ""} for <span class="dot" style="background:${pcolor(r.from)}"></span>${esc(pname(r.from))} · ${esc(KIND_LABEL[r.kind] || r.kind)} <span class="dim" style="margin-left:auto">${r.role || ""} · ${money(r.cost, 4)}</span></div>`).join("")}` : ""}
+    ${d.recent.length ? `<div class="cat-h" style="margin-top:14px">Recent stand-ins</div>${d.recent.slice(0, 8).map((r) => `<div class="row small" style="gap:8px;padding:3px 0"><span class="dim mono">${new Date(r.ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span><span class="dot" style="background:${pcolor(r.provider)}"></span>${esc(pname(r.provider))} · ${esc(r.model)}${r.via ? ` <span class="chip">${esc(viaLabel(r.via))}</span>` : ""} for <span class="dot" style="background:${pcolor(r.from)}"></span>${esc(pname(r.from))} · ${esc(KIND_LABEL[r.kind] || r.kind)} <span class="dim" style="margin-left:auto">${r.role || ""} · ${money(r.cost, 4)}</span></div>`).join("")}` : ""}
   </div>`;
   const save = async () => {
     const freeTiers = {};
