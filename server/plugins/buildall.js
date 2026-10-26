@@ -72,6 +72,8 @@ function startPlan(body) {
   let walkId = String(body?.walkId || "");
   let walk = null;
   const read = async () => check(await callRoute("GET", `/api/walkthrough/${encodeURIComponent(walkId)}${q}`), "Reading the project");
+  // Stop must really stop: tell the project to start no new step, so no more AI calls are paid for.
+  const halt = async () => { if (walkId) { try { await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/halt${q}`, {}); } catch { /* the job is stopped either way */ } } };
   return {
     title: "Start a project",
     steps: [
@@ -96,12 +98,14 @@ function startPlan(body) {
       { id: "plan", label: STEP_LABELS.plan, run: async ({ stopped }) => {
         check(await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/plan${q}`, { experience: exp }), "Planning");
         walk = await waitFor(read, (w) => w && w.status !== "planning", { stopped });
+        if (stopped()) await halt();
         if (walk?.status === "failed") throw new Error(walk.error || "The plan did not finish.");
         return { note: `${walk?.plan?.steps?.length || 0} steps planned.` };
       } },
       { id: "build", label: STEP_LABELS.build, run: async ({ stopped }) => {
         check(await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/build${q}`, { experience: exp }), "Building");
         walk = await waitFor(read, (w) => w && w.status !== "building", { stopped });
+        if (stopped()) await halt();
         if (walk?.status === "failed") throw new Error(walk.error || "The build did not finish.");
         return { note: "Built." };
       } },

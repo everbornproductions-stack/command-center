@@ -118,9 +118,10 @@ export function assertSpendAllowed({ provider, estimate = 0, free = false } = {}
   const meta = PROVIDERS[provider];
   const local = meta ? isLocalFree({ provider }, meta) : false;
   const demo = !!meta?.demo || id.startsWith("demo-");
-  if (free || local || demo || !(Number(estimate) > 0)) return { ok: true, level: snapshot().level };
+  if (free || local || demo) return { ok: true, level: snapshot().level };
   const snap = snapshot();
-  if (snap.spent >= cap || snap.spent + Number(estimate) > cap) {
+  // With no estimate the call is still stopped once the month's budget is used up.
+  if (snap.spent >= cap || (Number(estimate) > 0 && snap.spent + Number(estimate) > cap)) {
     const err = new Error("This month's budget is used up. Raise the cap, or wait until next month. Free runs still work.");
     err.status = 402;
     err.code = "budget_cap";

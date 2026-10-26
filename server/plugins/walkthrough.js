@@ -449,6 +449,13 @@ export async function routes(req, res, url, body, h) {
   if (req.method !== "POST") return false;
   const sub = parts[1];
 
+  // Stop from Build it all for me: nothing new starts after the step that is running. No view or flow changes.
+  if (sub === "halt") {
+    w.paused = true;
+    if (w.status === "building" || w.status === "planning") w.haltedByStop = true;
+    persist(h, w);
+    return h.json(res, 200, { ok: true, id: w.id });
+  }
   if (sub === "pause") {
     w.paused = true;
     w.status = "paused";

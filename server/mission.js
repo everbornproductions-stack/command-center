@@ -994,7 +994,18 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       log(`Applied queued direction: ${consumed.summary}`);
       update();
     };
+    // The run's own limit is a hard stop: once what was spent reaches it, no new step or assembly starts.
+    const limitNote = () => {
+      const lim = Number(budgetUsd);
+      if (!(Number.isFinite(lim) && lim > 0 && mission.cost >= lim)) return "";
+      return `Stopped. This run reached its $${lim} spending limit and spent $${mission.cost.toFixed(2)}. Nothing more was spent. Raise the limit to continue.`;
+    };
+    const runLimit = () => {
+      const note = limitNote();
+      if (note) { const e = new Error(note); e.code = "run_budget"; throw e; }
+    };
     while (done.size < mission.tasks.length) {
+      runLimit();
       if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
       if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
       const hold = Number(process.env.CC_MISSION_WAVE_HOLD_MS) || 0;
@@ -1162,6 +1173,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       + (waitingMedia.length ? `\n\n---\n**Media waiting for your OK:** ${waitingMedia.map((t) => `"${t.title}" (${t.media.providerName} ${t.media.kind}, about $${t.media.usd})`).join(", ")}. Approve it on the Media tab; nothing is spent until you do, and the file is added to this mission when it is made.` : "");
     const mediaNote = madeMedia.length ? `\n\n${madeMedia.map((t) => mediaSection(t)).join("\n\n")}` : "";
     if (!finished.length) mission.deliverable = (mediaNote + pendingNote).trim();
+    else if (limitNote()) {
+      // the limit was reached: hand back the finished pieces as they are instead of paying for an assembly
+      log(limitNote());
+      mission.deliverable = `${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}\n\n---\n${limitNote()}`;
+      mission.limitReached = true;
+    }
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     mission.status = mission.tasks.some((t) => t.status === "failed") ? "done-with-errors" : "done";

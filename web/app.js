@@ -2474,9 +2474,9 @@ function renderSettings(v) {
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
         ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
-          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
+          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"><div class="dim small">Paid calls stop when this month's spending reaches it. Free and practice AIs keep working.</div></div>
           <div><label class="lbl">Default priority</label><select id="s-mode">${PRIORITY.map(([m, label]) => `<option value="${m}" ${(S.settings.defaultMode === m || (m === "savings" && S.settings.defaultMode === "economy")) ? "selected" : ""}>${label}</option>`).join("")}</select></div>
-          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
+          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"><div class="dim small">One run stops when it reaches this.</div></div>
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
@@ -2581,7 +2581,10 @@ function renderSettings(v) {
       missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
     };
     try {
+      const budgetChanged = Number.isFinite(body.budgetMonthly) && body.budgetMonthly > 0 && body.budgetMonthly !== S.settings.budgetMonthly;
       S.settings = await api("/settings", { method: "POST", body });
+      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label
+      if (budgetChanged) await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } });
       renderBudget(); toast("Saved");
     } catch (e) { toast(e.message, true); }
   });

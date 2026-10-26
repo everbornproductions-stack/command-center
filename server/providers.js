@@ -8,6 +8,7 @@ import { doc } from "./store.js";
 import { isLocalRoute, localStream } from "./local-routes.js";
 import { cacheSystem } from "./savings.js";
 import { localFetch, netTrace } from "./loopback-fetch.js";
+import { assertSpendAllowed } from "./cost-guard.js";
 
 export class ProviderError extends Error {
   constructor(provider, status, message, body) {
@@ -316,6 +317,9 @@ export function streamChat(opts) {
   const provider = typeof opts.provider === "string" ? PROVIDERS[opts.provider] : opts.provider;
   if (!provider || provider.kind !== "text") throw new ProviderError(opts.provider?.id || opts.provider, 400, "Unknown text provider");
   if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
+  // The account's monthly budget (Settings > Budget) stops every paid call, not only council and research.
+  try { assertSpendAllowed({ provider: provider.id }); }
+  catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; throw e; }
   const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
   if (provider.api === "anthropic") return anthropicStream(o);
   if (provider.api === "gemini" || provider.id === "google") return geminiStream(o);
