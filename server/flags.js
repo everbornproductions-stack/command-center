@@ -10,6 +10,7 @@ const DEFAULTS = {
   finishpath: true, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
   freechat: true, // Free signed-in people post to the shared Community room with a per-install device token (needs supabase/community_free_posting.sql)
   takeover: true, // Review and Take Over Tasks panel, project mirroring, Owner tools
+  templates: true, // Custom project templates: Save as template, Start from a template
   signalsend: false, // Sending anonymous quality signals. OFF: this repo has no receiver for /api/metrics/signals. Turn on with CC_FLAG_SIGNALSEND=1 once the metrics service has one.
 };
 export function flagOn(name) {
@@ -37,5 +38,12 @@ export function takeoverOn(settings = {}) {
   if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("takeover");
   if (settings && typeof settings.flag_takeover === "boolean") return settings.flag_takeover;
   return flagOn("takeover");
+}
+// The saved setting (flag_templates) is used only when no env var forces the flag.
+export function templatesOn(settings = {}) {
+  const v = process.env.CC_FLAG_TEMPLATES;
+  if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("templates");
+  if (settings && typeof settings.flag_templates === "boolean") return settings.flag_templates;
+  return flagOn("templates");
 }
 export const flagView = () => Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, flagOn(k)]));

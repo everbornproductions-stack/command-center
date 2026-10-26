@@ -707,6 +707,7 @@ export function present(walk, experience, opts = {}) {
     id: walk.id,
     type: walk.type,
     typeName: type?.name || walk.type,
+    ...(walk.templateName ? { templateName: walk.templateName } : {}),
     example: false,
     readonly: false,
     label: null,
