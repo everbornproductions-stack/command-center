@@ -191,8 +191,8 @@ test("Start a project comes right before Projects in Simple and Expert", () => {
   }
   const src = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
   const simple = src.slice(src.indexOf("function mountSimple"), src.indexOf("export function installNav"));
-  assert.ok(simple.indexOf('"start", "Start a project"') < simple.indexOf('"projects", "Projects"'), "Simple mounts Start a project before Projects");
-  assert.match(src, /projects\.insertAdjacentElement\("beforebegin", btn\)/);
+  assert.equal(simple.includes('"start", "Start a project"'), false, "0.4.20: Simple has Start a project under Create, not on the bar");
+  assert.match(src, /view: "start", label: LABELS\.start/);
 });
 
 test("layout follows the window from wide to normal to small and back", async () => {
@@ -437,7 +437,7 @@ test("Connect holds Apps and AIs, then People; Business keeps money and team pag
   assert.ok(labels.includes("Find my AIs") && labels.includes("Get everything connected"));
   assert.equal(labels.some((l) => /^(Setup|Run setup again)$/.test(l)), false);
   const more = simpleModel(views).find((g) => g.id === "more").items;
-  assert.deepEqual(more.filter((i) => i.section === PEOPLE_SECTION).map((i) => i.view), ["together", "community"]);
+  assert.deepEqual(more.filter((i) => i.section === PEOPLE_SECTION).map((i) => i.view), ["userchat", "together"]);
   const html = fs.readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
   assert.match(html, /id="tab-setup">Find my AIs</);
 });
