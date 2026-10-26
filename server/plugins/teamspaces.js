@@ -101,9 +101,12 @@ export function inviteMessage({ space, code, link, role }) {
   const lines = [
     `You are invited to join "${space}" on Meldmind as ${role === "viewer" ? "a viewer" : role === "admin" ? "an admin" : "a member"}.`,
     "",
+    "Before you start: this invite only works if you and the sender use the same hub. A hub is a shared address that lets Meldmind on different computers talk to each other. Ask the sender for their hub address first.",
+    "",
     "1. Open Meldmind on your computer.",
-    "2. Go to Together, then Team spaces.",
-    `3. Paste this code in the Join box and press Join: ${code}`,
+    "2. Go to Together, then People, press Set up hub, and paste the hub address.",
+    "3. Go to Together, then Team spaces.",
+    `4. Paste this code in the Join box and press Join: ${code}`,
   ];
   if (link) lines.push("", `Or open this link: ${link}`);
   lines.push("", "The code works once and expires in 14 days.");
@@ -133,6 +136,7 @@ export async function routes(req, res, url, body, h) {
       spaces: d.list.map((s) => viewSpace(h, s)),
       seats, roles: ROLES, me: me(h), hosted: HOSTED, hub: false,
       note: "Extreme includes 5 seats, counting you. Studio workspaces are separate and stay as they are.",
+      needsHub: "A team invite only works across computers when both people use the same hub. Open Together > People > Set up hub.",
     });
   }
 
@@ -156,7 +160,7 @@ export async function routes(req, res, url, body, h) {
       const m = s.members.find((x) => x.inviteHash === hash);
       if (m) { hit = m; space = s; break; }
     }
-    if (!hit) throw bad(404, "That invite link is not valid.", "invite");
+    if (!hit) throw bad(404, "This code is not on this computer. Ask for a hub address or use the same computer.", "invite");
     if (hit.expiresAt && hit.expiresAt < Date.now()) throw bad(410, "That invite link has expired. Ask for a new one.", "expired");
     hit.status = "active";
     hit.joinedAt = Date.now();
@@ -185,6 +189,8 @@ export async function routes(req, res, url, body, h) {
       const role = String(body.role || "member").toLowerCase();
       if (!validEmail(email)) throw bad(400, "Enter a real email address. Nothing is emailed.", "email");
       if (!INVITABLE.includes(role)) throw bad(400, "Pick admin, member, or viewer.", "role");
+      // Check before anything is made: your own address already counts as a seat.
+      if (me(h) !== "you" && email === me(h)) throw bad(400, "That is your own email. You already count as one seat.", "self");
       if (isBlocked(h, email)) throw bad(403, "You blocked this person. Unblock them before inviting.", "blocked");
       if (s.members.some((m) => m.email === email)) throw bad(409, "That person is already in this team space.", "duplicate");
       const known = d.list.some((sp) => sp.members.some((m) => m.email === email));

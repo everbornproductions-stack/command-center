@@ -38,6 +38,16 @@ function fallback(tier, occupied) {
 
 // occupied is how many seats are taken before this change, counting the owner.
 // Pass gateMod in tests. Omit it in the app so the real gate is used when it exists.
+// 0.4.21 wording. A full team says how many seats are used and how to free one. A buyer who already has a
+// license (Pro or Studio) is told to upgrade, never to "add a license key". Free is the only plan told to add one.
+export function seatMessage(result, tier, n) {
+  if (result.ok) return result.message;
+  const limit = Number(result.limit) || 0;
+  if (limit > 0) return `${n} of ${limit} seats used. Remove someone to invite another.`;
+  if (tier === "pro" || tier === "studio") return `Team spaces are part of Extreme. You are on ${tier === "studio" ? "Studio" : "Pro"}, so open Settings > Your plan to move up. Extreme includes ${EXTREME_TEAM_SEATS} people total, counting you.`;
+  return result.message;
+}
+
 export async function seatCheck(occupied, { gateMod, tier } = {}) {
   const current = tier || licenseState().tier;
   const n = Math.max(0, Number(occupied) || 0);
@@ -47,9 +57,13 @@ export async function seatCheck(occupied, { gateMod, tier } = {}) {
     const result = g.evaluateGate(limits, "teamSeats", { seats: n });
     const raw = limits.teamSeats;
     const limit = raw === Infinity ? Infinity : Number(raw) || 0;
-    return { ...result, tier: current, limit, seats: g.EXTREME_TEAM_SEATS || EXTREME_TEAM_SEATS, source: "feature-gate" };
+    const out = { ...result, tier: current, limit, seats: g.EXTREME_TEAM_SEATS || EXTREME_TEAM_SEATS, source: "feature-gate" };
+    if (!out.ok) out.message = seatMessage(out, current, n);
+    return out;
   }
-  return fallback(current, n);
+  const out = fallback(current, n);
+  if (!out.ok) out.message = seatMessage(out, current, n);
+  return out;
 }
 
 export async function assertSeats(occupied, opts) {
