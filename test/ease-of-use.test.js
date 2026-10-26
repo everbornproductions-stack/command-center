@@ -96,7 +96,8 @@ test("acting words wait for a click, and a reader is read-only only by its name"
     [{ name: "search_mail" }, false],
     [{ name: "read_calendar" }, false],
     [{ name: "lookup", description: "Find a row" }, false],
-    [{ name: "get_result", description: "Nothing new is sent" }, false],
+    [{ name: "get_result", description: "Nothing new is sent" }, true], // 0.4.21 E6: any acting word in the description asks, even a denial
+    [{ name: "get_result", description: "Shows the saved answer" }, false],
     [{ name: "search_docs" }, false],
     [{ name: "fetch_page" }, false],
     [{ name: "read_note" }, false],
