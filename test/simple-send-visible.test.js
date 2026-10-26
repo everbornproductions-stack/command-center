@@ -21,11 +21,14 @@ for (const [w, h] of SIZES) {
     const t = await bootPage({ width: w, height: h, mode: "simple" });
     try {
       await goChat(t.page);
-      const r = await t.page.evaluate(() => {
+      await t.page.waitForFunction(() => window.CC.layout, null, { timeout: 15000 });
+      await t.page.waitForSelector("#sc-team", { timeout: 10000 });
+      const measure = (pairs) => t.page.evaluate((list) => {
         const out = {};
-        for (const [k, sel] of [["send", "#go"], ["mic", "#vo-mic"], ["ais", "#cc-show-ais"]]) {
+        for (const [k, sel] of list) {
           const b = document.querySelector(sel);
           if (!b) { out[k] = null; continue; }
+          b.scrollIntoView({ block: "nearest" });
           const q = b.getBoundingClientRect();
           const el = document.elementFromPoint(q.x + q.width / 2, q.y + q.height / 2);
           out[k] = { x: q.x, y: q.y, w: q.width, h: q.height, hit: el === b || b.contains(el), inView: q.top >= 0 && q.bottom <= innerHeight && q.left >= 0 && q.right <= innerWidth };
@@ -33,7 +36,12 @@ for (const [w, h] of SIZES) {
         const box = document.querySelector("#orders").getBoundingClientRect();
         out.box = { w: box.width, h: box.height };
         return out;
-      });
+      }, pairs);
+      // Send and Mic are on the box itself.
+      const r = await measure([["send", "#go"], ["mic", "#vo-mic"]]);
+      // 0.4.21 (area H): "Show my AIs" is grouped behind the Auto team control, so open that first.
+      await t.page.click("#sc-team");
+      Object.assign(r, await measure([["ais", "#cc-show-ais"]]));
       for (const k of ["send", "mic", "ais"]) {
         assert.ok(r[k], `${k} exists`);
         assert.ok(r[k].inView, `${k} is inside the viewport at ${w}x${h}: ${JSON.stringify(r[k])}`);

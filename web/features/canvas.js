@@ -13,7 +13,7 @@ const ICON = { video: "▶", audio: "♪", site: "▤", file: "□", text: "¶",
 const SIZES = [["desktop", "Desktop"], ["tablet", "Tablet"], ["phone", "Phone"]];
 const HTML_START = /^\s*(?:<!doctype html|<html|<body|<main|<section|<div|<h1|<header|<style)/i;
 
-const cv = { el: null, open: false, items: [], sel: "live", size: "desktop", left: false, right: false, timer: 0, sig: "", busy: false, blob: new Map(), textCache: new Map(), returnFocus: null };
+const cv = { el: null, open: false, docked: false, feedSrc: null, items: [], sel: "live", size: "desktop", left: false, right: false, timer: 0, sig: "", busy: false, blob: new Map(), textCache: new Map(), returnFocus: null };
 
 const projId = () => S.project || "";
 const projName = () => (S.projects || []).find((p) => p.id === S.project)?.name || "My project";
@@ -23,9 +23,10 @@ const fileUrl = (it) => `/projectmedia/file?projectId=${encodeURIComponent(it.pr
 
 function liveText() {
   const l = S.live || {};
-  return String(l.deliverable || l.agents?.[l.primary]?.text || "");
+  const chat = String(l.deliverable || l.agents?.[l.primary]?.text || "");
+  return chat || String(cv.feedSrc?.text || "");
 }
-const liveStatus = () => (S.live?.status === "running" || S.awaitingRun ? "working" : "");
+const liveStatus = () => (S.live?.status === "running" || S.awaitingRun || cv.feedSrc?.working ? "working" : "");
 
 function build() {
   if (cv.el) return cv.el;
@@ -36,12 +37,15 @@ function build() {
   el.innerHTML = `
     <div class="cv-top">
       <button type="button" class="btn sm" id="cv-pages-toggle" aria-controls="cv-left" aria-expanded="false">Pages</button>
+      <span class="cv-vers" id="cv-vers" role="group" aria-label="Versions"><button type="button" id="cv-prev" aria-label="Older version">&lsaquo;</button><span id="cv-ver" aria-live="polite"></span><button type="button" id="cv-next" aria-label="Newer version">&rsaquo;</button></span>
       <span class="cv-title" id="cv-title"></span>
       <span class="cv-chip" id="cv-chip" role="status"></span>
       <span class="cv-gap"></span>
       <div class="cv-sizes" id="cv-sizes" role="group" aria-label="Preview size">${SIZES.map(([id, label]) => `<button type="button" data-size="${id}" aria-pressed="${id === "desktop"}">${label}</button>`).join("")}</div>
       <span class="cv-gap"></span>
       <button type="button" class="btn sm" id="cv-props-toggle" aria-controls="cv-right" aria-expanded="false">Properties</button>
+      <button type="button" class="btn sm" id="cv-preview" title="Open it full size in its own window">Preview</button>
+      <button type="button" class="btn sm" id="cv-download">Download</button>
       <button type="button" class="btn sm" id="cv-close">Close canvas</button>
       <button type="button" class="btn primary" id="cv-publish">Publish</button>
     </div>
@@ -57,7 +61,7 @@ function build() {
       <textarea id="cv-input" rows="1" placeholder="Tell Meldmind what to make or change. It appears above as it is made."></textarea>
       <button type="submit" class="btn primary" id="cv-send">Send</button>
     </form>`;
-  document.body.appendChild(el);
+  (document.getElementById("app") || document.body).appendChild(el);
   cv.el = el;
   const $ = (s) => el.querySelector(s);
   $("#cv-close").addEventListener("click", closeCanvas);
@@ -65,6 +69,10 @@ function build() {
   $("#cv-props-toggle").addEventListener("click", () => setPanel("right", !cv.right));
   $("#cv-sizes").addEventListener("click", (e) => { const b = e.target.closest("[data-size]"); if (b) setSize(b.dataset.size); });
   $("#cv-publish").addEventListener("click", publish);
+  $("#cv-prev").addEventListener("click", () => stepVersion(-1));
+  $("#cv-next").addEventListener("click", () => stepVersion(1));
+  $("#cv-preview").addEventListener("click", previewFull);
+  $("#cv-download").addEventListener("click", downloadCurrent);
   $("#cv-left").addEventListener("click", (e) => {
     const b = e.target.closest("[data-page]");
     if (b) { cv.sel = b.dataset.page; paint(true); if (window.innerWidth <= 900) setPanel("left", false); }
@@ -171,8 +179,37 @@ async function paintStage(force) {
   setView(HTML_START.test(t) ? "" : "text", HTML_START.test(t) ? htmlNode(t) : textNode(t || "This page has no preview."));
 }
 
+// Versions: the saved items that belong together (same family by parentId, else the same kind), oldest first.
+function versions() {
+  const it = current();
+  const by = new Map(cv.items.map((i) => [i.id, i]));
+  const rootOf = (i) => { let x = i, n = 0; while (x && x.parentId && by.has(x.parentId) && n++ < 30) x = by.get(x.parentId); return x?.id || i.id; };
+  const base = it || cv.items[0] || null;
+  if (!base) return { list: [], at: -1 };
+  const root = rootOf(base);
+  let list = cv.items.filter((i) => rootOf(i) === root);
+  if (list.length < 2) list = cv.items.filter((i) => i.kind === base.kind && i.projectId === base.projectId).slice(0, 12);
+  list = list.slice().sort((a, b) => (a.createdAt || a.date || 0) - (b.createdAt || b.date || 0));
+  const live = cv.sel === "live" ? list.length : -1;
+  return { list, at: it ? list.findIndex((i) => keyOf(i) === keyOf(it)) : live };
+}
+function stepVersion(dir) {
+  const { list, at } = versions();
+  if (!list.length) return;
+  const next = at + dir;
+  if (next < 0 || next >= list.length) return;
+  cv.sel = keyOf(list[next]);
+  paint(true);
+}
+
 function paintTop() {
   const it = current();
+  const vs = versions();
+  const verEl = cv.el.querySelector("#cv-ver");
+  if (verEl) verEl.textContent = vs.list.length > 1 && vs.at >= 0 ? `v${vs.at + 1} of ${vs.list.length}` : vs.list.length ? "v1" : "";
+  const prev = cv.el.querySelector("#cv-prev"), nextB = cv.el.querySelector("#cv-next");
+  if (prev) prev.disabled = !(vs.at > 0);
+  if (nextB) nextB.disabled = !(vs.list.length > 1 && vs.at >= 0 && vs.at < vs.list.length - 1);
   cv.el.querySelector("#cv-title").textContent = it ? `${projName()} / ${it.name}` : projName();
   const chip = cv.el.querySelector("#cv-chip");
   const w = liveStatus();
@@ -210,6 +247,31 @@ function paintProps() {
 function paint(force) {
   if (!cv.open) return;
   paintPages(); paintTop(); paintStage(force); paintProps();
+}
+
+async function currentBlobUrl() {
+  const it = current();
+  if (it && (it.kind === "image" || it.kind === "video" || it.kind === "audio")) return { url: await apiBlobUrl(fileUrl(it)), name: it.name, ext: it.kind === "image" ? "png" : it.kind === "video" ? "mp4" : "wav" };
+  const text = it ? await textOf(it) : liveText();
+  if (!text) return null;
+  const html = HTML_START.test(text);
+  return { url: URL.createObjectURL(new Blob([text], { type: html ? "text/html" : "text/plain" })), name: it?.name || projName(), ext: html ? "html" : "txt" };
+}
+async function previewFull() {
+  try {
+    const b = await currentBlobUrl();
+    if (!b) { toast("Make something first, then Preview.", true); return; }
+    window.open(b.url, "_blank", "noopener");
+  } catch (e) { toast(e.message || "Could not open the preview.", true); }
+}
+async function downloadCurrent() {
+  try {
+    const b = await currentBlobUrl();
+    if (!b) { toast("Make something first, then Download.", true); return; }
+    const a = document.createElement("a");
+    a.href = b.url; a.download = `${String(b.name || "meldmind").replace(/[\\/:*?"<>|]+/g, " ").trim() || "meldmind"}.${b.ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { toast(e.message || "Could not download it.", true); }
 }
 
 async function publish() {
@@ -260,37 +322,64 @@ async function tick() {
   if (cv.items.length !== before) paintPages();
 }
 
+// docked: the Build panel in the layout (the right column beside the chat) instead of the full-window overlay.
+// Both draw the same canvas: live view, versions, Preview, Download and one Publish button.
 export async function openCanvas(opts = {}) {
   build();
-  cv.returnFocus = document.activeElement;
+  const wasOpen = cv.open;
+  if (!wasOpen) cv.returnFocus = document.activeElement;
   const saved = (() => { try { return JSON.parse(localStorage.getItem("cc.canvas.panels") || "{}"); } catch { return {}; } })();
   cv.open = true;
+  cv.docked = !!opts.docked;
   cv.el.hidden = false;
-  document.body.classList.add("cc-canvas-on");
-  const top = document.querySelector(".topbar")?.getBoundingClientRect().bottom;
-  if (top) cv.el.style.setProperty("--cv-top", `${Math.round(top)}px`);
-  // Simple: canvas, prompt bar and Publish only. Expert opens both panels (remembered).
+  cv.el.classList.toggle("docked", cv.docked);
+  document.body.classList.toggle("cc-canvas-on", !cv.docked);
+  document.body.classList.toggle("mm-panel-open", cv.docked);
+  if (!cv.docked) {
+    const top = document.querySelector(".topbar")?.getBoundingClientRect().bottom;
+    if (top) cv.el.style.setProperty("--cv-top", `${Math.round(top)}px`);
+  }
+  // Simple: canvas, prompt bar and Publish only. Expert opens both panels (remembered). Docked: the chat is the prompt bar.
   const sm = simple();
-  setPanel("left", sm ? false : saved.mode === "expert" ? !!saved.left : true);
-  setPanel("right", sm ? false : saved.mode === "expert" ? !!saved.right : true);
+  setPanel("left", cv.docked ? false : sm ? false : saved.mode === "expert" ? !!saved.left : true);
+  setPanel("right", cv.docked ? false : sm ? false : saved.mode === "expert" ? !!saved.right : true);
   setSize(cv.size);
-  cv.sel = opts.select || "live";
+  if (opts.select || !wasOpen) cv.sel = opts.select || "live";
   await loadItems();
   if (cv.sel === "live" && !liveText() && !liveStatus() && cv.items[0]) cv.sel = keyOf(cv.items[0]);
   cv.sig = "";
   paint(true);
   clearInterval(cv.timer);
   cv.timer = setInterval(tick, 1000);
-  cv.el.querySelector("#cv-input").focus();
+  if (!cv.docked) cv.el.querySelector("#cv-input").focus();
 }
 
 export function closeCanvas() {
   if (!cv.el || !cv.open) return;
+  const wasDocked = cv.docked;
   cv.open = false;
+  cv.docked = false;
   cv.el.hidden = true;
+  cv.el.classList.remove("docked");
   clearInterval(cv.timer);
-  document.body.classList.remove("cc-canvas-on");
-  try { cv.returnFocus?.focus?.(); } catch {}
+  document.body.classList.remove("cc-canvas-on", "mm-panel-open");
+  try { window.dispatchEvent(new CustomEvent("cc:canvas-closed", { detail: { docked: wasDocked } })); } catch { /* nothing listens */ }
+  if (!wasDocked) { try { cv.returnFocus?.focus?.(); } catch {} }
+}
+
+// Show one saved item (a finished picture, a page) in the open canvas. The list is read again first, so a result that
+// was just saved is there.
+async function showItem(key) {
+  if (!cv.el || !cv.open) return;
+  await loadItems();
+  cv.sel = key && cv.items.some((i) => keyOf(i) === key) ? key : (cv.items[0] ? keyOf(cv.items[0]) : "live");
+  cv.sig = "";
+  paint(true);
+}
+// A build that is not in chat (Start a project) hands its newest text here, so the canvas shows it as it is made.
+function feed(src) {
+  cv.feedSrc = src && (src.text || src.working) ? { text: String(src.text || ""), working: !!src.working, name: src.name || "" } : null;
+  if (cv.open) { cv.sel = "live"; cv.sig = ""; paint(true); }
 }
 
 // The entry: an "Open canvas" button on the project bar, kept there after every redraw.
@@ -314,6 +403,6 @@ function watch() {
 
 CC.openCanvas = openCanvas;
 CC.closeCanvas = closeCanvas;
-CC.canvas = { open: openCanvas, close: closeCanvas, state: cv };
+CC.canvas = { open: openCanvas, close: closeCanvas, show: showItem, feed, state: cv, versions, stepVersion };
 CC.register({ id: "canvas", onState() { watch(); } });
 watch();

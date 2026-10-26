@@ -921,7 +921,7 @@ function render() {
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } S.renderedView = S.view; restoreViewDraft(S.view, v); syncBackBtn(); return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } S.renderedView = S.view; restoreViewDraft(S.view, v); syncBackBtn(); window.CC?.dock?.onRender?.(S.view); window.CC?.layout?.onRender?.(S.view); return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -934,6 +934,7 @@ function render() {
   syncBackBtn();
   window.CC?.syncAssetTray?.(S.view);
   window.CC?.dock?.onRender?.(S.view);
+  window.CC?.layout?.onRender?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
@@ -1353,26 +1354,36 @@ function mergedSingleTurns(run) {
 }
 function renderSimpleChat(v) {
   v.innerHTML = `
-  <div class="cmd simple-chat">
+  <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}">
     <div class="orders">
-      <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+      <div class="panel sc-panel" style="display:flex;flex-direction:column;gap:10px">
+        <h2 class="sc-hello" id="sc-hello">What do you want to make?</h2>
         <h3>Chat</h3>
-        <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
-        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
-        <div id="cc-emp-hint" aria-live="polite"></div>
-        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
-        ${projectField()}
-        <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
-        <div id="cmd-extras"></div>
-        <div class="row simple-send-row" style="padding-top:4px">
-          <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-          <button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button>
-          <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
-          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
+        <div class="sc-live" id="sc-live" role="status" hidden><span class="dock-pulse" aria-hidden="true"></span><span id="sc-live-text"></span><button type="button" class="btn sm" id="sc-live-open" aria-haspopup="dialog">See live</button></div>
+        <div class="sc-box">
+          <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+          <div class="row simple-send-row">
+            <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
+            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs and the price for you. Open to see the options.">Auto team</button>
+            <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+            <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
+            <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
+          </div>
+        </div>
+        <div class="sc-chips" id="sc-chips" role="group" aria-label="Start with">
+          <button type="button" class="btn sm" data-sc-chip="image">Image</button><button type="button" class="btn sm" data-sc-chip="video">Video</button><button type="button" class="btn sm" data-sc-chip="website">Website</button><button type="button" class="btn sm" data-sc-chip="campaign">Campaign</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+        <div id="cc-emp-hint" aria-live="polite"></div>
+        <div class="sc-more" id="sc-more">
+          <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+          <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
+          <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+          ${projectField()}
+          <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
+          <div class="row"><button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button></div>
+        </div>
+        <div id="cmd-extras"></div>
       </div>
     </div>
     <div class="panel output" id="simple-answer" ${S.live?.id ? "" : "hidden"}>
