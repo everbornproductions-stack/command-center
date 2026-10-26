@@ -350,6 +350,7 @@ function applyState(st) {
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
   if (S.flags?.finishpath) syncFinishBar();
+  syncMomentumBar();
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
 function handle(ev) {
@@ -1174,8 +1175,14 @@ function syncFinishBar() {
   if (!S.flags?.finishpath) { $("#fpbar")?.remove(); return; }
   import("./finishpath-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[finishpath]", e));
 }
+// Momentum Mode (flag momentum): the next step bar. Loaded only when on; it only suggests.
+function syncMomentumBar() {
+  if (!S.flags?.momentum) { $("#mmbar")?.remove(); return; }
+  import("./momentum-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[momentum]", e));
+}
 function syncProjectBar() {
   syncFinishBar();
+  syncMomentumBar();
   let bar = $("#projbar");
   if (!barShows(S.view, S.flags?.projectbar) || S.openProject) { bar?.remove(); return; }
   if (!bar) {
