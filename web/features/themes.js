@@ -78,7 +78,7 @@ export function apply(p = prefs) {
   const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = prefs.background || (theme === "dark" ? "#0b111b" : "#f3f5f9");
 }
 
-const BG_VARS = ["--bg", "--bg-2", "--text", "--muted", "--dim", "--panel", "--panel-solid", "--line", "--line-2"];
+const BG_VARS = ["--bg", "--bg-2", "--text", "--muted", "--dim", "--panel", "--panel-solid", "--line", "--line-2", "--card-bg", "--sunk-bg", "--card-hover"];
 function paintBackground(root, color) {
   if (!color) {
     root.removeAttribute("data-bg");
@@ -96,6 +96,10 @@ function paintBackground(root, color) {
   root.style.setProperty("--panel-solid", light ? "#ffffff" : "#111827");
   root.style.setProperty("--line", light ? "#d9dfe8" : "#1f2937");
   root.style.setProperty("--line-2", light ? "#c3ccd9" : "#273449");
+  // cards, wells and hover rows: light values on a light background, the built-in dark ones otherwise
+  for (const [v, lightValue] of [["--card-bg", "#ffffff"], ["--sunk-bg", "#eef2f7"], ["--card-hover", "#e8edf5"]]) {
+    if (light) root.style.setProperty(v, lightValue); else root.style.removeProperty(v);
+  }
 }
 
 function svgUri(body) {
@@ -242,6 +246,7 @@ html[data-theme="light"] {
   --bg: #f3f5f9; --bg-2: #ffffff; --panel: #ffffffd9; --panel-solid: #ffffff; --line: #d9dfe8; --line-2: #c3ccd9;
   --text: #111827; --muted: #566071; --dim: #7b8595; --green: #059669; --amber: #d97706; --red: #dc2626; --grey: #9ca3af; --violet: #7c3aed;
   --field-bg: #ffffff; --field-text: #111827; --field-border: #8794a8; --field-placeholder: #5b6575;
+  --card-bg: #ffffff; --sunk-bg: #eef2f7; --card-hover: #e8edf5;
   --focus-ring: color-mix(in srgb, var(--accent) 45%, #000000);
   color-scheme: light;
 }
@@ -256,6 +261,7 @@ html[data-theme="light"] .ev { background: #ffffff; border-color: #e3e8f0; }
 html[data-theme="light"] .ev .txt { color: #334155; }
 html[data-theme="light"] .strip { background: linear-gradient(180deg, #f7f9fc, #eef2f7); }
 html[data-theme="light"] .tile, html[data-theme="light"] .kpi .k, html[data-theme="light"] .task, html[data-theme="light"] .ans, html[data-theme="light"] .route, html[data-theme="light"] .linkt, html[data-theme="light"] .toast, html[data-theme="light"] .gate-card input { background: #ffffff; }
+html[data-theme="light"] .toast.err { color: #b91c1c; border-color: #f5b5b5; }
 html[data-theme="light"] .tile .meter, html[data-theme="light"] .task .bar { background: #e5e9f0; }
 html[data-theme="light"] .btn { background: #e8edf5; border-color: #cbd5e1; color: var(--text); }
 html[data-theme="light"] .btn:hover { background: #dde4ee; }

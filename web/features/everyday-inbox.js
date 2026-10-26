@@ -3,7 +3,7 @@ const { api, toast, esc, go } = window.CC;
 
 const css = `
 .ea-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 920px; }
-.ea-card { background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.ea-card { background: var(--card-bg, #0e1726); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .ea-card h3 { margin: 0 0 6px; font-size: 16px; }
 .ea-say { font-family: var(--mono); font-size: 13px; margin: 6px 0; }
 .ea-steps { margin: 6px 0 0; padding-left: 18px; }

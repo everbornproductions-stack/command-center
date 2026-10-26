@@ -8,8 +8,8 @@ const { S, api, toast, esc } = window.CC;
 
 const css = `
 #cc-mcp-approvals { position: fixed; right: 16px; bottom: 90px; z-index: 950; display: grid; gap: 10px; max-width: 440px; }
-.cc-mcp-ask { background: #0f1724; border: 1px solid var(--amber, #fbbf24); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 40px #000a; font-size: 12.5px; }
-.cc-mcp-ask pre { max-height: 160px; overflow: auto; background: #0a0f18; border: 1px solid var(--line, #243044); border-radius: 8px; padding: 8px; margin: 8px 0; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
+.cc-mcp-ask { background: var(--card-bg, #0f1724); border: 1px solid var(--amber, #fbbf24); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 40px #000a; font-size: 12.5px; }
+.cc-mcp-ask pre { max-height: 160px; overflow: auto; background: var(--card-bg, #0a0f18); border: 1px solid var(--line, #243044); border-radius: 8px; padding: 8px; margin: 8px 0; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
 .cc-mcp-tools { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
 .cc-mcp-tools td { padding: 5px 6px; border-top: 1px solid var(--line, #243044); vertical-align: top; }
 .cc-mcp-tools td.d { color: var(--muted, #8b96a8); max-width: 360px; }

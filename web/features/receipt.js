@@ -9,7 +9,7 @@ let creditsCache = null;
 let barAt = 0;
 
 const css = `
-.cc-money-saved { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-right: 2px; padding: 3px 8px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0a0f18; line-height: 1.15; max-width: 240px; min-width: 0; flex: 0 1 240px; cursor: help; }
+.cc-money-saved { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-right: 2px; padding: 3px 8px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: var(--card-bg, #0a0f18); line-height: 1.15; max-width: 240px; min-width: 0; flex: 0 1 240px; cursor: help; }
 .cc-money-saved .cc-ms-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
 .cc-money-saved .cc-ms-you, .cc-money-saved .cc-ms-when, .cc-money-saved .cc-ms-v, .cc-money-saved .cc-ms-est, .cc-money-saved .cc-ms-k, .cc-money-saved .cc-ms-all { white-space: nowrap; }
 .cc-money-saved .cc-ms-you { font-size: 12px; font-weight: 650; color: var(--text, #e5e7eb); }
@@ -22,7 +22,7 @@ const css = `
 .cc-money-saved .cc-ms-note { font-size: 9px; color: var(--muted, #8b95a7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* On document.body, not inside the top bar. backdrop-filter, transform, filter, or overflow on a parent
    builds a stacking context, and the Live ops panel (backdrop-filter) then paints over an absolute tip. */
-.cc-ms-tip { display: none; position: fixed; z-index: 1000; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: #0b111b; color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none; }
+.cc-ms-tip { display: none; position: fixed; z-index: 1000; width: min(380px, 78vw); padding: 8px 10px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: var(--card-bg, #0b111b); color: var(--text, #e5e7eb); font-size: 12px; font-weight: 450; line-height: 1.4; letter-spacing: 0; text-transform: none; white-space: normal; box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none; }
 .cc-ms-tip.cc-ms-on { display: block; }
 body[data-ui="simple"] .cc-money-saved { display: none; }
 .cc-ms-label { color: var(--muted, #8b95a7); font-size: 12px; margin-top: 6px; }

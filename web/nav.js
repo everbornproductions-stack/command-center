@@ -633,7 +633,7 @@ const CSS = `
 .nav-trigger { background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; }
 .nav-trigger:hover, .nav-trigger[aria-expanded="true"] { color: var(--text); }
 .nav-trigger.active { background: #1a2436; color: #fff; box-shadow: inset 0 0 0 1px #2b3a52; }
-.nav-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 220px; max-height: 70vh; overflow: auto; padding: 6px; background: #0d1420; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; display: none; }
+.nav-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 220px; max-height: 70vh; overflow: auto; padding: 6px; background: var(--card-bg, #0d1420); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; display: none; }
 .nav-menu.open .nav-panel { display: flex; flex-direction: column; gap: 2px; }
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
 .nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }

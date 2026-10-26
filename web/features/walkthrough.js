@@ -6,27 +6,27 @@ const { api, toast, esc, md, go } = window.CC;
 
 const css = `
 .sp-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 920px; }
-.sp-home { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
+.sp-home { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
 .sp-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-.sp-type { text-align: left; background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; }
+.sp-type { text-align: left; background: var(--card-bg, #0e1726); border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; }
 .sp-type:hover, .sp-type:focus { border-color: var(--accent); outline: none; }
 .sp-type h4 { margin: 0 0 4px; font-size: 15px; }
 .sp-rail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sp-rail span { font-size: 12px; color: var(--dim); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .sp-rail span.on { color: var(--text); border-color: var(--accent); }
 .sp-rail span.done { color: var(--muted); }
-.sp-crumb { max-width: 100%; overflow-wrap: anywhere; font-size: 12px; color: var(--dim); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #0e1726; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.sp-crumb { max-width: 100%; overflow-wrap: anywhere; font-size: 12px; color: var(--dim); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-bg, #0e1726); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .sp-crumb.on { color: var(--text); border-color: var(--accent); font-weight: 600; }
 .sp-crumb.done { color: var(--muted); border-color: #1e293b; }
 .sp-crumb.skipped { opacity: 0.6; text-decoration: line-through; }
 .sp-crumb-sep { color: var(--dim); font-size: 11px; border: none !important; padding: 0 2px !important; }
-.sp-flowchart { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #0b1320; }
-.sp-flow-node { min-width: 128px; overflow-wrap: anywhere; word-break: break-word; flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #0e1726; color: var(--text); text-align: left; cursor: pointer; }
+.sp-flowchart { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-bg, #0b1320); }
+.sp-flow-node { min-width: 128px; overflow-wrap: anywhere; word-break: break-word; flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-bg, #0e1726); color: var(--text); text-align: left; cursor: pointer; }
 .sp-flow-node.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .sp-flow-node.done { border-color: #10b981; }
 .sp-flow-node.skipped { opacity: 0.6; }
 .sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
-.sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
+.sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
 .sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

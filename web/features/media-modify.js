@@ -19,7 +19,7 @@ if (!document.getElementById("mm-style")) {
   const style = document.createElement("style");
   style.id = "mm-style";
   style.textContent = `.mm-panel { margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
-.mm-panel img, .mm-panel video { max-width: 240px; max-height: 160px; display: block; margin-top: 6px; background: #0b1220; }
+.mm-panel img, .mm-panel video { max-width: 240px; max-height: 160px; display: block; margin-top: 6px; background: var(--card-bg, #0b1220); }
 .mm-actions, .mm-save { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .mm-panel textarea, .mm-panel select { width: 100%; }`;
   document.head.appendChild(style);
