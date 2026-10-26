@@ -222,8 +222,8 @@ input:-webkit-autofill { -webkit-text-fill-color: var(--field-text); box-shadow:
 textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
 label.lbl { display: block; font-size: 0.6875rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 5px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.seg { display: inline-flex; background: #0a0f18; border: 1px solid var(--line-2); border-radius: 10px; padding: 3px; }
-.seg button { background: transparent; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 500; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; background: #0a0f18; border: 1px solid var(--line-2); border-radius: 10px; padding: 3px; }
+.seg button { background: transparent; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 500; white-space: nowrap; }
 .seg button.on { background: #1a2436; color: #fff; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; background: #16202f; border: 1px solid #243044; color: #c7d0dd; font-family: var(--mono); }
 .chip.green { color: var(--green); border-color: #1d4d3b; }
