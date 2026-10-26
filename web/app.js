@@ -9,6 +9,7 @@ import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
+import { askText } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -2003,7 +2004,7 @@ function wireRunRows(v) {
   $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -2070,7 +2071,7 @@ function renderProjects(v) {
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     const parentId = b.dataset.subprojectAdd;
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -2105,7 +2106,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -2163,14 +2164,14 @@ function renderProjectDetail(v, p) {
       await refresh();
     } catch (e) { toast(e.message, true); }
   });
-  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = prompt("Link URL"); if (!url) return; const name = prompt("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
+  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = await askText("Link URL"); if (!url) return; const name = await askText("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
-  $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
+  $("#addcat").addEventListener("click", async () => { const name = await askText("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
   $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -2340,7 +2341,7 @@ function renderSubscriptions(v) {
     $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
-  $("#addsub").addEventListener("click", async () => { const name = prompt("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
+  $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
 }
 
 // ----- Settings -----
@@ -3015,7 +3016,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

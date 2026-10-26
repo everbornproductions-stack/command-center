@@ -492,7 +492,7 @@ function wireProjectMediaEvents(box, p) {
           toast(e.message, true);
         }
       } else if (act === "new-collection") {
-        const name = prompt("New collection name (e.g. Hero Shots, Finals, Storyboard)");
+        const name = await window.CC.ask("New collection name (e.g. Hero Shots, Finals, Storyboard)");
         if (!name) return;
         try {
           await api(`/projectmedia/${encodeURIComponent(p.id)}/collections`, {
@@ -596,7 +596,7 @@ function wireProjectMediaEvents(box, p) {
 
   $$("[data-pm-addtag]", box).forEach((b) =>
     b.addEventListener("click", async () => {
-      const tag = prompt("Add tag (client-ready, draft, final, reference, or custom):", "client-ready");
+      const tag = await window.CC.ask("Add tag (client-ready, draft, final, reference, or custom):", "client-ready");
       if (!tag) return;
       try {
         await api(`/projectmedia/${encodeURIComponent(p.id)}/meta`, {
@@ -626,7 +626,7 @@ function wireProjectMediaEvents(box, p) {
 
   $$("[data-pm-usage]", box).forEach((b) =>
     b.addEventListener("click", async () => {
-      const kind = prompt("Mark usage badge (posted, site, video):", "posted");
+      const kind = await window.CC.ask("Mark usage badge (posted, site, video):", "posted");
       if (!kind) return;
       try {
         await api(`/projectmedia/${encodeURIComponent(p.id)}/send`, {
@@ -674,7 +674,7 @@ function wireProjectMediaEvents(box, p) {
       if (!assetIds.length) return;
       try {
         if (act === "tag") {
-          const tag = prompt("Tag to apply to selected assets:", "client-ready");
+          const tag = await window.CC.ask("Tag to apply to selected assets:", "client-ready");
           if (!tag) return;
           await api(`/projectmedia/${encodeURIComponent(p.id)}/bulk`, {
             method: "POST",
@@ -682,7 +682,7 @@ function wireProjectMediaEvents(box, p) {
           });
           toast(`Tagged ${assetIds.length} asset(s).`);
         } else if (act === "collection") {
-          const collection = prompt("Collection name for selected assets:");
+          const collection = await window.CC.ask("Collection name for selected assets:");
           if (!collection) return;
           await api(`/projectmedia/${encodeURIComponent(p.id)}/bulk`, {
             method: "POST",

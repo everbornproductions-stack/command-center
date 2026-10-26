@@ -148,7 +148,7 @@ async function render(v) {
   $$("[data-ws]", v).forEach((cardEl) => {
     const id = cardEl.dataset.ws;
     cardEl.querySelector("[data-del]")?.addEventListener("click", () => { if (confirm("Delete this workspace? Members lose access; your projects are not touched.")) act(() => api(`/workspaces/${id}`, { method: "DELETE" }), "Workspace deleted"); });
-    cardEl.querySelector("[data-rename]")?.addEventListener("click", () => { const name = prompt("New name for this workspace"); if (name?.trim()) act(() => api(`/workspaces/${id}`, { method: "PATCH", body: { name: name.trim() } }), "Renamed"); });
+    cardEl.querySelector("[data-rename]")?.addEventListener("click", async () => { const name = await window.CC.ask("New name for this workspace"); if (name?.trim()) act(() => api(`/workspaces/${id}`, { method: "PATCH", body: { name: name.trim() } }), "Renamed"); });
     cardEl.querySelector("[data-invite]")?.addEventListener("submit", (e) => { e.preventDefault(); const email = e.target.querySelector("input").value.trim(); const role = e.target.querySelector("select").value; if (email) invite(id, email, role); });
     cardEl.querySelectorAll("[data-relink]").forEach((b) => b.addEventListener("click", () => invite(id, b.dataset.relink, b.dataset.r)));
     cardEl.querySelectorAll("[data-role]").forEach((s) => s.addEventListener("change", () => act(() => api(`/workspaces/${id}/members/${encodeURIComponent(s.dataset.role)}`, { method: "PATCH", body: { role: s.value } }), `Role changed to ${s.value}`)));

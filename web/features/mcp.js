@@ -165,7 +165,7 @@ async function renderSettings(el) {
     const s = d.servers.find((x) => x.id === b.dataset.s); const t = s?.tools.find((x) => x.name === b.dataset.try); if (!t) return;
     const props = t.inputSchema?.properties || {};
     let args = {};
-    if (Object.keys(props).length) { const ex = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.type === "number" || v.type === "integer" ? 0 : v.type === "boolean" ? false : ""])); const typed = prompt(`Arguments for ${t.name} as JSON${t.inputSchema?.required?.length ? ` (required: ${t.inputSchema.required.join(", ")})` : ""}`, JSON.stringify(ex)); if (typed === null) return; try { args = JSON.parse(typed || "{}"); } catch { return toast("That is not valid JSON", true); } }
+    if (Object.keys(props).length) { const ex = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.type === "number" || v.type === "integer" ? 0 : v.type === "boolean" ? false : ""])); const typed = await window.CC.ask(`Arguments for ${t.name} as JSON${t.inputSchema?.required?.length ? ` (required: ${t.inputSchema.required.join(", ")})` : ""}`, JSON.stringify(ex)); if (typed === null) return; try { args = JSON.parse(typed || "{}"); } catch { return toast("That is not valid JSON", true); } }
     const out = el.querySelector(`[data-out="${CSS.escape(s.id)}"]`); out.textContent = `Running ${t.name}…`;
     try { const r = await api(`/tools/servers/${encodeURIComponent(s.id)}/call`, { method: "POST", body: { tool: t.name, args } }); out.textContent = `${t.name} ${r.ok ? "returned" : "failed"} in ${(r.ms / 1000).toFixed(1)}s:\n${r.text}`; }
     catch (e) { out.textContent = e.message; }

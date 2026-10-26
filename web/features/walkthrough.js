@@ -196,7 +196,7 @@ function wireFlowControls(root, w) {
         } else if (act === "move-up" || act === "move-down") {
           paintWalk(await api(`/walkthrough/${w.id}/reorder?${qexp()}`, { method: "POST", body: { stage: w.stage, direction: act === "move-up" ? "up" : "down", experience: clientExperience(), flag_flowstages: true } }));
         } else if (act === "add") {
-          const label = prompt("Step or stage name", "Custom check");
+          const label = await window.CC.ask("Step or stage name", "Custom check");
           if (!label) return;
           paintWalk(await api(`/walkthrough/${w.id}/add-stage?${qexp()}`, { method: "POST", body: { label, afterStage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
         } else if (act === "remove") {
