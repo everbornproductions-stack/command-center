@@ -1,14 +1,14 @@
 // Release feature flags for 0.4.19 slices. Each flag is forced with an env var, CC_FLAG_<NAME>=1 or =0.
-// A flag that is off leaves the older behaviour exactly as it was. The 0.4.19 build turns them on after review.
+// A flag that is off leaves the older behaviour exactly as it was. They are on by default in 0.4.19; CC_FLAG_<NAME>=0 turns one off.
 // To add a flag, add one line to DEFAULTS. flagView() lists every flag in the table by itself.
 const DEFAULTS = {
-  projectbar: false, // Working-in project bar, Continue this project, soft delete with Recently Deleted
-  promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
-  nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
-  projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
-  finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
-  finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
-  takeover: false, // Review and Take Over Tasks panel, project mirroring, Owner tools
+  projectbar: true, // Working-in project bar, Continue this project, soft delete with Recently Deleted
+  promptdrop: true, // Prompts dropdown under the boxes and the original video prompt pack
+  nextactions: true, // Next actions bar, Send to menu and the Remix fixes after a result
+  projectmedia: true, // Per-project Media tab, asset tray, version stacks, tags, links
+  finishrouter: true, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
+  finishpath: true, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
+  takeover: true, // Review and Take Over Tasks panel, project mirroring, Owner tools
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];

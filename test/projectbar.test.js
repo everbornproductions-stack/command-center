@@ -11,11 +11,11 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const body = (name) => ({ name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] });
 const DASH = String.fromCharCode(0x2014);
 
-test("flag is off by default and env turns it on or off", () => {
+test("flag is on by default and env turns it off or on", () => {
   const was = process.env.CC_FLAG_PROJECTBAR;
   try {
     delete process.env.CC_FLAG_PROJECTBAR;
-    assert.equal(flagOn("projectbar"), false);
+    assert.equal(flagOn("projectbar"), true);
     process.env.CC_FLAG_PROJECTBAR = "1";
     assert.equal(flagOn("projectbar"), true);
     process.env.CC_FLAG_PROJECTBAR = "0";

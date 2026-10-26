@@ -42,14 +42,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const DASHES = /[\u2013\u2014]/;
 
-test("flag_navstate defaults to false in tests and turns on via settings or env", () => {
-  assert.equal(SERVER_DEFAULT_FLAG, false);
-  assert.equal(WEB_DEFAULT_FLAG, false);
-  assert.equal(serverNavStateEnabled({}, {}), false);
+test("flag_navstate defaults to on in 0.4.19 and turns off via settings or env", () => {
+  assert.equal(SERVER_DEFAULT_FLAG, true);
+  assert.equal(WEB_DEFAULT_FLAG, true);
+  assert.equal(serverNavStateEnabled({}, {}), true);
+  assert.equal(serverNavStateEnabled({}, { CC_FLAG_NAVSTATE: "0" }), false);
   assert.equal(serverNavStateEnabled({ flag_navstate: true }, {}), true);
   assert.equal(serverNavStateEnabled({}, { CC_FLAG_NAVSTATE: "1" }), true);
   assert.equal(serverNavStateEnabled({ flag_navstate: false }, { CC_FLAG_NAVSTATE: "1" }), false);
-  assert.equal(webNavStateEnabled({}), false);
+  assert.equal(webNavStateEnabled({}), true);
+  assert.equal(webNavStateEnabled({ settings: { flag_navstate: false } }), false);
   assert.equal(webNavStateEnabled({ flags: { flag_navstate: true } }), true);
   assert.equal(webNavStateEnabled({ settings: { flag_navstate: true } }), true);
 });

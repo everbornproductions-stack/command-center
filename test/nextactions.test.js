@@ -28,12 +28,12 @@ const remixBody = () => ({
   confirm: true,
 });
 
-test("flag is off by default and env turns it on or off", () => {
+test("flag is on by default and env turns it off or on", () => {
   const was = process.env.CC_FLAG_NEXTACTIONS;
   try {
     delete process.env.CC_FLAG_NEXTACTIONS;
-    assert.equal(flagOn("nextactions"), false);
-    assert.equal(flagView().nextactions, false);
+    assert.equal(flagOn("nextactions"), true);
+    assert.equal(flagView().nextactions, true);
     process.env.CC_FLAG_NEXTACTIONS = "1";
     assert.equal(flagOn("nextactions"), true);
     assert.equal(flagView().nextactions, true);

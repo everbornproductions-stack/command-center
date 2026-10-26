@@ -486,7 +486,8 @@ test("demo mode: no keys, the built-in demo page, the OK prompt, nothing leaves 
     assert.equal(vFail.verified, false);
     assert.equal(vFail.needsScreenshot, true);
 
-    assert.equal((await s.api("/browser")).json.config.flag_agents, false, "flag_agents defaults to OFF in tests");
+    assert.equal((await s.api("/browser")).json.config.flag_agents, true, "flag_agents defaults to ON");
+    assert.equal((await s.api("/browser/config", { method: "POST", body: { flag_agents: false } })).json.flag_agents, false);
     const cfgOn = (await s.api("/browser/config", { method: "POST", body: { flag_agents: true, role: "navigator" } })).json;
     assert.equal(cfgOn.flag_agents, true);
     assert.equal(cfgOn.role, "navigator");

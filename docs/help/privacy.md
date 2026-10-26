@@ -2,7 +2,7 @@
 id: privacy
 title: Privacy
 summary: What leaves this computer, where it goes, the three learning levels, and how to turn each one off.
-lastUpdatedVersion: 0.4.18
+lastUpdatedVersion: 0.4.19
 ---
 
 # Privacy

@@ -74,8 +74,8 @@ test("a saved check is tied to the computer and screen", () => {
   assert.notEqual(signature(a), signature({ ...a, width: 3440 }));
 });
 
-test("flag_look is off by default and set by CC_FLAG_LOOK", () => {
-  assert.equal(lookFlag({}), false);
+test("flag_look is on by default and set by CC_FLAG_LOOK", () => {
+  assert.equal(lookFlag({}), true);
   assert.equal(lookFlag({ CC_FLAG_LOOK: "1" }), true);
   assert.equal(lookFlag({ CC_FLAG_LOOK: "0" }), false);
   assert.equal(normalize({ choice: "Classic" }).choice, "classic");
@@ -156,8 +156,8 @@ test("wiring: stylesheet links, shell feature row, and no em dashes in new files
 
 const api = (srv, p, opts = {}) => srv.api(p, opts);
 
-test("route: flag off by default blocks changes; flag on saves choice and check", async () => {
-  const off = await startServer();
+test("route: flag off blocks changes; flag on saves choice and check", async () => {
+  const off = await startServer({ env: { CC_FLAG_LOOK: "0" } });
   try {
     const g = await api(off, "/look");
     assert.equal(g.status, 200);

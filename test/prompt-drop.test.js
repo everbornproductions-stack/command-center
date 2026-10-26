@@ -20,8 +20,8 @@ function memory() {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
 }
 
-test("flag is off unless CC_FLAG_PROMPTDROP is 1", () => {
-  assert.equal(promptdropOn({}), false);
+test("flag is on unless CC_FLAG_PROMPTDROP is 0", () => {
+  assert.equal(promptdropOn({}), true);
   assert.equal(promptdropOn({ CC_FLAG_PROMPTDROP: "0" }), false);
   assert.equal(promptdropOn({ CC_FLAG_PROMPTDROP: "1" }), true);
 });
@@ -43,7 +43,7 @@ test("video pack: 50 original rows, valid, no dashes, no source links", () => {
 test("pack rows are hidden while the flag is off and listed when it is on", () => {
   const was = process.env.CC_FLAG_PROMPTDROP;
   try {
-    delete process.env.CC_FLAG_PROMPTDROP;
+    process.env.CC_FLAG_PROMPTDROP = "0";
     assert.equal(readPackDir().filter((r) => r.group === "video").length, 0);
     process.env.CC_FLAG_PROMPTDROP = "1";
     const on = readPackDir().filter((r) => r.group === "video");
@@ -105,8 +105,8 @@ test("recent list keeps newest first, no repeats, at most six", () => {
   assert.deepEqual(merged.map((g) => g.label), ["Recent", "Saved", "Video"]);
 });
 
-test("server: routes answer flag_off by default and groups when the flag is on", async () => {
-  const off = await startServer();
+test("server: routes answer flag_off when turned off and groups when the flag is on", async () => {
+  const off = await startServer({ env: { CC_FLAG_PROMPTDROP: "0" } });
   try {
     const a = await off.api("/prompts/drop?stage=orders");
     assert.equal(a.status, 404);

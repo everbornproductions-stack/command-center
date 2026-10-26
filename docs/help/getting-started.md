@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.18
+lastUpdatedVersion: 0.4.19
 ---
 
 # Getting started
@@ -134,6 +134,20 @@ Remove, Good, and Not good are written on those buttons.
 A practice answer says it is from a pretend AI. Nothing was spent. Get real answers sits on that note.
 
 On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
+## New in 0.4.19
+
+Safer links: the app now accepts only its own address, so a look-alike website cannot talk to it.
+
+A hand-edited license file no longer unlocks a paid plan. Real licenses keep working.
+
+Spending limits really stop a run, and Stop on Build it all for me really stops the project.
+
+Community chat updates on its own, tells you honestly when a message did not send, and works for anyone signed in.
+
+A News panel on the left or right edge, with links, that you can shrink out of the way.
+
+Finished projects stay editable and download as a zip. Asking the chat for a website or project starts the project steps.
 
 ## New in 0.4.18
 

@@ -61,7 +61,7 @@ export function agentsFlagOn() {
     const bhSettings = doc(SETTINGS, () => ({})) || {};
     if (typeof bhSettings.flag_agents === "boolean") return bhSettings.flag_agents;
   } catch {}
-  return process.env.CC_FLAG_AGENTS === "1" || process.env.flag_agents === "1" || process.env.CC_FLAG_AGENTS === "true";
+  return !(process.env.CC_FLAG_AGENTS === "0" || process.env.flag_agents === "0" || process.env.CC_FLAG_AGENTS === "false");
 }
 
 export function setAgentsFlag(on) {

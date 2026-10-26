@@ -17,7 +17,7 @@ const MARK = "PAUSEEDIT-QUILL-7741";
 
 test("gates: background and pause are Pro, ratings stay on Free, release is 0.4.16", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.18");
+  assert.equal(pkg.version, "0.4.19");
   assert.equal(gateAllows("free", "backgroundRuns"), false);
   assert.equal(gateAllows("free", "missionPause"), false);
   assert.equal(gateAllows("free", "learnedFromRatings"), true);
