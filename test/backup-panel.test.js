@@ -45,7 +45,7 @@ test("the setup step: status rows come from detection, website mode is off, and 
 
 test("website mode needs an explicit confirm in the page, and the step is in both setup flows", () => {
   const mod = read("web", "features", "answer-wait.js");
-  assert.match(mod, /if \(!confirm\(/);
+  assert.match(mod, /await window\.CC\.confirm\(/);
   assert.match(mod, /website: true, confirm: true/);
   const app = read("web", "app.js");
   // 0.4.17: Simple setup is one welcome screen, and the backup step fills its reserved slot.

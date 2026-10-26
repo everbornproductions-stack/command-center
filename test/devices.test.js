@@ -62,7 +62,7 @@ test("settings devices panel removes only after a click, and the tour names it",
   assert.match(ui, /id="settings-devices"/);
   assert.match(ui, /Settings > Devices|Devices/);
   assert.match(ui, /\/license\/devices\/remove/);
-  assert.match(ui, /if \(!confirm\(q\)\) return/);
+  assert.match(ui, /if \(!\(await window\.CC\.confirm\(q, /);
   assert.match(ui, /This computer drops to Free/);
   assert.match(features, /"devices"/);
   assert.match(tour, /#settings-devices/);
