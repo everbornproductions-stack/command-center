@@ -87,6 +87,7 @@ import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugin
 import { applyShareDefaults } from "./privacy.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
+import { plainMessage, looksRaw } from "./plain-error.js";
 let lastScan = null, lastKeys = null;
 
 // The daily check waits until plugins are loaded (custom providers exist) and the
@@ -211,6 +212,7 @@ function chatPriority(requested) {
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon", ".pdf": "application/pdf", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
 
 function json(res, status, body) {
+  if (status >= 400 && body && typeof body.error === "string" && looksRaw(body.error)) body = { ...body, error: plainMessage(body.error) }; // no raw JavaScript error reaches the person
   const buf = Buffer.from(JSON.stringify(body), "utf8");
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": buf.length });
   if (buf.length <= 60000) {
@@ -661,7 +663,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       emit("agent.error", { agent, provider, model, missionId: id, error: "Stopped by you." });
     } else {
     if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
-    if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
+    if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: plainMessage(err) });
     if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     if (shouldWait(err)) {
       // out of API credits and no API route left: the answer comes through the person's own plan
@@ -670,7 +672,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       m.status = "waiting"; m.deliverable = "";
       m.waiting = openWait({ kind: "single", runId: id, provider: asked.provider, model: asked.model, ask, system: toneAdd(system || "", tone), title });
     } else {
-      m.status = "failed"; m.error = (err.plain && (err.code === "empty" || (err.failures || []).length > 1)) ? err.plain : err.message;
+      m.status = "failed"; m.error = plainMessage((err.plain && (err.code === "empty" || (err.failures || []).length > 1)) ? err.plain : err);
       if (err.code === "empty" || err.failures) m.needsAttention = { reason: err.code === "empty" ? "empty" : "failed", failures: err.failures || [], retry: true };
       if (err.code === "paused") m.deliverable = err.message;
     }
@@ -785,7 +787,7 @@ async function api(req, res, url) {
       if (councilId) rememberBackground({ id: councilId, kind: "council", title: job.prompt });
     }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
-    promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
+    promise.catch((e) => emit("log", { text: `Council failed: ${plainMessage(e)}`, level: "error" }));
     return json(res, 202, councilId ? { ok: true, id: councilId, background: true } : { ok: true });
   }
   if (method === "POST" && p === "/mission") {
@@ -823,7 +825,7 @@ async function api(req, res, url) {
     try { promise = startMission(opts); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
     if (missionId) rememberBackground({ id: missionId, kind: "mission", title: job.goal });
-    promise.catch((e) => emit("log", { text: `Mission failed: ${e.message}`, level: "error" }));
+    promise.catch((e) => emit("log", { text: `Mission failed: ${plainMessage(e)}`, level: "error" }));
     return json(res, 202, missionId ? { ok: true, id: missionId, background: true } : { ok: true });
   }
   if (method === "POST" && seg[0] === "mission" && seg[2] === "pause") {
@@ -891,7 +893,7 @@ async function api(req, res, url) {
     if (job.background) rememberBackground({ id: runId, kind: "single", title: job.prompt });
     runChat({ ...job, ...staff, runId, private: !!job.private, tone: tone?.instruction || "", toneId: tone?.id || "" }).catch((e) => {
       netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
-      emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
+      emit("log", { text: `Chat failed: ${plainMessage(e)}`, level: "error" });
     });
     return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
   }
