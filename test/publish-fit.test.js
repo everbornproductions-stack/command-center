@@ -33,3 +33,9 @@ test("source: the panel sends link, channel, accounts and time; the old Publish 
   assert.match(pub, /practice only, nothing is sent/);
   assert.equal(parts.includes("—") || parts.includes("–"), false);
 });
+
+test("source: a failed send shows the plain reason, Try again and Open Settings (H9)", () => {
+  const parts = read("web", "features", "mindmedia-parts.js");
+  assert.match(parts, /data-retry>Try again/);
+  assert.match(parts, /Open Settings for/);
+});

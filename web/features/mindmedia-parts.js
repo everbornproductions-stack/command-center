@@ -138,7 +138,14 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
     try {
       const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } });
       const msg = r.status === "posted" ? `Sent${/^https:\/\//.test(r.result?.url || "") ? `: ${r.result.url}` : "."}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent." : `Did not send: ${r.error}`;
-      out.textContent = msg;
+      if (r.status === "failed") {
+        // plain reason, a retry, and the way to fix a connection (0.4.21, H9)
+        const nm = nameOf(fits.find((c) => c.id === channel) || { id: channel, name: channel });
+        out.innerHTML = `<span class="mm-warn">${esc(msg)}</span> <button type="button" class="btn sm" data-retry>Try again</button> <button type="button" class="btn sm" data-settings>Open Settings for ${esc(nm)}</button>`;
+        out.querySelector("[data-retry]").addEventListener("click", () => { stale(); box.querySelector('[data-a="preview"]').click(); });
+        out.querySelector("[data-settings]").addEventListener("click", () => window.CC.openSettings?.("[data-feature='publish']"));
+        go.disabled = false;
+      } else out.textContent = msg;
       toast(msg, r.status === "failed");
       onResult?.(r);
     } catch (e) { stale(); out.innerHTML = `<span class="mm-warn">${esc(e.message)}</span>`; }
