@@ -3,6 +3,7 @@ import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
+import { failureHtml, wireLimitButtons } from "./failure-cause.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
@@ -531,7 +532,7 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "" };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
@@ -1741,8 +1742,9 @@ function paintFailure() {
   const slot = $("#cc-fail-slot");
   if (!slot) return;
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = `<div class="route" id="cc-fail" style="margin-top:10px"><b>${esc(FAILURE.title)}</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" type="button" id="cc-fail-retry">${esc(FAILURE.retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(FAILURE.other)}</button></div></div>`;
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
+  wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
   $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
 }
 function outputFollowHtml() {
@@ -1962,6 +1964,8 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
+      // "Continue free" after a spending limit: this one answer goes to a free AI
+      if (S.forceFree?.provider) { packBody.provider = S.forceFree.provider; packBody.model = S.forceFree.model; S.forceFree = null; }
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;

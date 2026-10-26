@@ -7,6 +7,7 @@ import { doc, putDoc } from "./store.js";
 import { limitsFor, gate } from "./feature-gate.js";
 import { PROVIDERS } from "./registry.js";
 import { isLocalFree } from "./savings.js";
+import { hasSecret } from "./vault.js";
 
 const DOC = "cost.guard";
 
@@ -128,4 +129,49 @@ export function assertSpendAllowed({ provider, estimate = 0, free = false } = {}
     throw err;
   }
   return { ok: true, level: snap.level };
+}
+
+// 0.4.20: when the month's budget stops a paid run the person gets two local choices, never a charge.
+// "plus": raise the local budget cap by a little (default $1) and run again. This only edits the
+// number in this app. It does not buy anything or touch billing.
+export function continuePlus(amount = 1) {
+  const add = Number(amount);
+  if (!Number.isFinite(add) || add <= 0 || add > 100) {
+    const err = new Error("Pick an amount between $0.01 and $100.");
+    err.status = 400;
+    throw err;
+  }
+  const limits = limitsFor();
+  const state = load();
+  const snap = snapshot();
+  const base = Math.max(Number(snap.cap) || 0, Number(snap.spent) || 0);
+  state.cap = +(base + add).toFixed(2);
+  state.paused = false;
+  if (!limits.budgetIncluded) state.optedIn = true;
+  save(state);
+  return publicState();
+}
+
+// "free": the AIs that cost nothing and still run when the budget is used up (practice AIs and
+// local models). The page re-sends the same words to one of them.
+export function freeChoices() {
+  const out = [];
+  for (const p of Object.values(PROVIDERS)) {
+    if (!p || p.kind !== "text") continue;
+    const demo = !!p.demo || String(p.id).startsWith("demo-");
+    const local = isLocalFree({ provider: p.id }, p);
+    if (!demo && !local) continue;
+    if (!p.noKey && !hasSecret(p.id, p.keyEnv)) continue;
+    const models = Array.isArray(p.models) ? p.models : [];
+    const model = (models.find((m) => m.default) || models[0])?.id;
+    if (!model) continue;
+    out.push({ provider: p.id, name: p.name, model, practice: demo });
+  }
+  // a local model first, practice AIs last
+  return out.sort((a, b) => Number(a.practice) - Number(b.practice));
+}
+
+export function continueChoices() {
+  const snap = snapshot();
+  return { level: snap.level, spent: snap.spent, cap: snap.cap, plus: { amount: 1, newCap: +((Math.max(Number(snap.cap) || 0, snap.spent)) + 1).toFixed(2) }, free: freeChoices() };
 }
