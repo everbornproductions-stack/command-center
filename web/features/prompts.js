@@ -289,6 +289,11 @@ async function sendVote(id, dir, current) {
   return api("/prompts/vote", { method: "POST", body: { id, vote } });
 }
 
+// 0.4.20: the form opens far below the list; bring it into view so the click visibly did something.
+function scrollToForm(box) {
+  try { box.scrollIntoView({ behavior: "smooth", block: "start" }); } catch { /* old browser: the form is still there */ }
+}
+
 function openCustom(item) {
   const box = document.getElementById("pp-form");
   if (!box || !item) return;
@@ -297,6 +302,7 @@ function openCustom(item) {
     <pre class="small" style="white-space:pre-wrap;margin-top:8px">${esc(item.text || "")}</pre>
     <button class="btn sm primary" type="button" id="pp-custom-orders">Put in orders</button>
   </div>`;
+  scrollToForm(box);
   box.querySelector("#pp-custom-orders").addEventListener("click", () => {
     const text = item.text || item.name;
     const orders = document.getElementById("orders");
@@ -316,6 +322,7 @@ function openPack(item) {
     <div class="small dim" style="margin-top:6px">This pack stays in the Marketplace category. Nothing is installed or sent from here.</div>
     ${expert ? `<button class="btn sm" type="button" id="pp-pack-open">Open in Marketplace</button>` : ""}
   </div>`;
+  scrollToForm(box);
   box.querySelector("#pp-pack-open")?.addEventListener("click", () => go("marketplace"));
 }
 
@@ -357,7 +364,7 @@ async function renderTab(view) {
     const rows = (data.weekly || []).filter((row) => picked === "all" || row.category === picked);
     host.innerHTML = `<div class="panel"><h3>Weekly prompts</h3>
       <p class="small dim" style="margin:6px 0 0">New packs show up here, including Builders. Thumbs up or thumbs down. Use this opens the builder when it is installed, or puts the words in the chat. Nothing is sent.</p>
-      <label class="small" style="display:block;margin-top:8px">Category <select id="pp-pack-cat" aria-label="Prompt category"><option value="all">All categories</option>${cats.map((c) => `<option value="${esc(c)}"${c === picked ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+      <label class="small" style="display:block;margin-top:8px">Show weekly prompts from <select id="pp-pack-cat" aria-label="Weekly prompt category"><option value="all">All categories</option>${cats.map((c) => `<option value="${esc(c)}"${c === picked ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <div style="margin-top:8px">${rows.map((row) => `<div style="margin-top:10px"><b>${esc(row.title)}</b> ${row.fresh ? `<span class="chip">New this week</span>` : ""}
         <div class="small dim">${esc(row.category)}</div>
         <div class="small" style="margin-top:4px">${esc(row.prompt)}</div>
@@ -437,6 +444,7 @@ async function openTemplate(data, id) {
     <div class="dim small" style="margin-top:6px">Drafts stay here. Nothing is sent. ${t.kling ? "Media does not generate until you click Generate." : ""}</div>
   </div>`;
   bindSpeak(box);
+  scrollToForm(box);
   const inputs = () => readFields(box);
   const run = async (send) => {
     try {

@@ -1378,7 +1378,7 @@ function renderSimpleChat(v) {
     catch (e) { toast(e.message, true); }
   });
   // AI employees: the best helper for what was typed, one click to use it for this chat
-  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
+  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
