@@ -121,3 +121,27 @@ export function barProviders(providers, subscriptions = []) {
   const list = Array.isArray(providers) ? providers : [];
   return list.filter((p) => isOnBar(p, subscriptions));
 }
+
+// An AI that is working right now always has an icon, even when it would not normally be on the bar (a practice AI next to a
+// real one, or an AI used through someone else's account). The icon lights up while it works and leaves when it is done.
+// providers is the full list, ids the ids that are working (S.activeByProvider with a count above zero).
+export function withWorking(chips, providers, ids) {
+  const have = new Set((chips || []).map((c) => c.id));
+  const out = (chips || []).slice();
+  for (const id of ids || []) {
+    if (have.has(id)) continue;
+    const p = (providers || []).find((x) => x.id === id);
+    if (p && (!p.kind || p.kind === "text" || p.kind === "agent")) { out.push(chipOf(p)); have.add(id); }
+  }
+  return out;
+}
+export function withWorkingProviders(onBar, providers, ids) {
+  const have = new Set((onBar || []).map((p) => p.id));
+  const out = (onBar || []).slice();
+  for (const id of ids || []) {
+    if (have.has(id)) continue;
+    const p = (providers || []).find((x) => x.id === id);
+    if (p) { out.push(p); have.add(id); }
+  }
+  return out;
+}

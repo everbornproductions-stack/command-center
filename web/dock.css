@@ -23,7 +23,7 @@
 .cc-dock[data-collapsed="1"] .dock-row { display: none; }
 .cc-dock .dock-modes { display: inline-flex; flex-wrap: wrap; }
 .cc-dock .dock-modes button { min-height: 32px; }
-.cc-dock .dock-modes button.on { background: #1a2436; color: #fff; }
+.cc-dock .dock-modes button.on { background: var(--accent-soft, #1a2436); color: var(--text, #fff); }
 .cc-dock .dock-row #cc-dock-more { margin-left: auto; }
 /* Short windows (1366x768 laptops): the compact row, with the status line folded into it. */
 @media (max-height: 800px) { .cc-dock { padding: 4px 12px 6px; } .cc-dock textarea { height: 44px; } }

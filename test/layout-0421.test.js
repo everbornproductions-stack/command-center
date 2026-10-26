@@ -296,6 +296,21 @@ test("7. the AI icons light up while an AI works and go dark when it is done", {
   } finally { await t.close(); }
 });
 
+test("7b. pure: an AI that is working always has an icon, and only while it works", async () => {
+  const { withWorking, withWorkingProviders, composerAis } = await import("../web/composer-ais.js");
+  const providers = [{ id: "claude", name: "Claude", kind: "text", keyed: true }, { id: "demo-nova", name: "Nova", kind: "text", demo: true }, { id: "pixel", name: "Pixel", kind: "image" }];
+  const chips = composerAis(providers);
+  assert.deepEqual(chips.map((c) => c.id), ["claude"], "a practice AI next to a real one is not on the bar");
+  assert.deepEqual(withWorking(chips, providers, []).map((c) => c.id), ["claude"], "nothing working, nothing added");
+  assert.deepEqual(withWorking(chips, providers, ["demo-nova"]).map((c) => c.id), ["claude", "demo-nova"], "it appears while it works");
+  assert.deepEqual(withWorking(chips, providers, ["claude"]).map((c) => c.id), ["claude"], "no duplicate");
+  assert.deepEqual(withWorking(chips, providers, ["nobody"]).map((c) => c.id), ["claude"], "an unknown id is ignored");
+  assert.deepEqual(withWorkingProviders([providers[0]], providers, ["pixel"]).map((p) => p.id), ["claude", "pixel"]);
+  const app = read("web", "app.js");
+  assert.match(app, /withWorking\(composerAis\(S\.providers\), S\.providers, activeIds\(\)\)/);
+  assert.match(app, /class="composer-ai\$\{c\.demo \? " demo" : ""\}\$\{working \? " working" : ""\}"/);
+});
+
 // ---------- 8. big builds open the Build panel ----------
 test("8. a web page build opens the Build panel by itself with version arrows, Preview, Download and one Publish", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });

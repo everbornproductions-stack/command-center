@@ -107,11 +107,8 @@ function onSideClick(e) {
   if (b.id === "side-profile") { st.menuOpen ? closeMenu() : openMenu(); return; }
   if (b.dataset.chat) { openChat(b.dataset.chat); return; }
   if (b.dataset.sideAct === "orig") { runOriginal(b); return; }
-  const k = b.dataset.side;
-  if (k === "new") newChat();
-  else if (k === "projects") CC.go("projects");
-  else if (k === "mindmedia") CC.go("mindmedia");
-  else if (k === "create") toggleCreate();
+  const places = { "side-new": newChat, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia"), "side-create": () => toggleCreate() };
+  places[b.id]?.();
 }
 
 // "New": a fresh first screen. A run that is still going keeps going; the box just gets the focus.
@@ -534,7 +531,7 @@ function onRender(view) {
 document.addEventListener("click", onDocClick);
 window.addEventListener("resize", () => { clearTimeout(onRender.t); onRender.t = setTimeout(() => { applySide(); queuePanel(); }, 120); });
 
-CC.layout = { onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
+CC.layout = { onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
 CC.register({
   id: "layout",
   onEvent() { if (simple()) { syncChat(); queuePanel(); } },

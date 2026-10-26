@@ -8,7 +8,7 @@ import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STA
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
-import { composerAis, hideDemoBots, barProviders, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { composerAis, hideDemoBots, barProviders, withWorking, withWorkingProviders, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
 import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
@@ -620,7 +620,7 @@ function renderStrip() {
   const strip = $("#strip");
   // the AIs, then the outside agents (Grok Bot, the browser helper), then media tools
   // Only connected AIs get a tile (0.4.21). "+ Add an AI" is always there so more can be connected.
-  const onBar = barProviders(S.providers, S.subscriptions);
+  const onBar = withWorkingProviders(barProviders(S.providers, S.subscriptions), S.providers, activeIds());
   const order = onBar.filter((p) => p.kind === "text").concat(onBar.filter((p) => p.kind === "agent"), onBar.filter((p) => p.kind !== "text" && p.kind !== "agent"));
   const addTile = `<div class="tile add-ai" id="strip-add" role="button" tabindex="0" aria-label="Add an AI. Opens Find my AIs"><div class="top"><span class="name">+ Add an AI</span></div><div class="sub">${order.length ? "Connect another" : "None connected yet"}</div></div>`;
   strip.innerHTML = order.map((p) => {
@@ -1564,7 +1564,7 @@ function syncGraph(force = false) {
 function renderComposerAis() {
   const box = $("#cc-composer-ais");
   if (!box) return;
-  const chips = composerAis(S.providers);
+  const chips = withWorking(composerAis(S.providers), S.providers, activeIds());
   if (!chips.length) {
     // Right after Try it now the practice AIs can be a moment behind. Never say "No AI" then.
     box.innerHTML = S.demo ? `<div class="composer-empty dim small">Practice AIs are on. Nothing is spent.</div>` : `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
@@ -1579,6 +1579,7 @@ function renderComposerAis() {
   }).join("");
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => openProviderSetup(b.dataset.p)));
   addAiChip(box);
+  window.CC?.layout?.syncChat?.();
 }
 // A small "+ Add an AI" chip so more AIs can be connected from the chat box (0.4.21).
 function addAiChip(box) {
