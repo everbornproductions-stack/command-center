@@ -46,7 +46,7 @@ function injectStyles() {
   st.textContent = `
     .pm-subtabs { display:flex; gap:8px; margin-bottom:14px; border-bottom:1px solid var(--line); padding-bottom:8px; align-items:center; }
     .pm-subtab { padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; border:1px solid transparent; background:transparent; color:var(--muted); }
-    .pm-subtab.active { background:#112236; color:var(--fg); border-color:var(--accent, #22d3ee); font-weight:600; }
+    .pm-subtab.active { background:var(--accent-soft, #112236); color:var(--text); border-color:var(--accent, #22d3ee); font-weight:600; }
     .pm-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
     .pm-dropzone { border:1px dashed var(--line); border-radius:8px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card-bg, #0b111b); transition:border-color .15s, background .15s; }
     .pm-dropzone.dragover { border-color:var(--green, #22c55e); background:#0f241d; }

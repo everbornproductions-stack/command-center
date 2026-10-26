@@ -2185,7 +2185,7 @@ function renderProjectDetail(v, p) {
   const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
   const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
   const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
-  v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2>${statusChip(p)}<select id="proj-status" aria-label="Project status" style="width:auto">${PROJECT_STATUSES.map((st) => `<option value="${st}" ${st === projectStatus(p) ? "selected" : ""}>${st}</option>`).join("")}</select><span class="muted">${esc(p.summary || "")}</span>
+  v.innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:wrap"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2>${statusChip(p)}<select id="proj-status" aria-label="Project status" style="width:auto">${PROJECT_STATUSES.map((st) => `<option value="${st}" ${st === projectStatus(p) ? "selected" : ""}>${st}</option>`).join("")}</select><span class="muted">${esc(p.summary || "")}</span>
     <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
