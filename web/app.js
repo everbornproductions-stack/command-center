@@ -1333,7 +1333,7 @@ function renderSimpleChat(v) {
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
-        <div class="row" style="padding-top:4px">
+        <div class="row simple-send-row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
