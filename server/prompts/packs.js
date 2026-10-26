@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promptdropOn } from "../flags.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACK_DIR = path.join(here, "packs");
@@ -70,6 +71,12 @@ export function normalizePackRow(raw) {
     added_week: /^\d{4}-W\d{2}$/.test(week) ? week : "",
     builder: String(raw.builder || "").trim().slice(0, 40),
     feature,
+    // Video pack fields (flag_promptdrop): shown by the Prompts dropdown and the video tips.
+    group: String(raw.group || "").trim().slice(0, 20),
+    flag: String(raw.flag || "").trim().slice(0, 20),
+    when: String(raw.when || "").trim().slice(0, 200),
+    tips: String(raw.tips || "").trim().slice(0, 500),
+    realism: String(raw.realism || "").trim().slice(0, 500),
   };
 }
 
@@ -146,6 +153,7 @@ export function readPackDir(dir = PACK_DIR) {
     const list = Array.isArray(parsed) ? parsed : [parsed];
     for (const row of list) {
       const clean = normalizePackRow(row);
+      if (clean && clean.flag === "promptdrop" && !promptdropOn()) continue;
       if (clean) rows.push(clean);
     }
   }
