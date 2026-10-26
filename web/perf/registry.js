@@ -116,6 +116,7 @@ export const FEATURES = [
   { id: "builders", views: ["builders"], kind: "builder", home: true },
   { id: "webbuilders", views: ["webbuilders"], kind: "builder", home: true },
   { id: "export", deliverable: true },
+  { id: "pdfcard", deliverable: true },
   { id: "together", views: ["together"] },
   { id: "everyday-inbox", views: ["everyday-inbox"] },
   { id: "everyday-plan", views: ["everyday-plan"] },

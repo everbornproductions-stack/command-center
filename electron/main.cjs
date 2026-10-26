@@ -244,6 +244,9 @@ async function startServer() {
   // built-in browser helper (Phase 27): its own window and session; the server finds it on this global
   try { globalThis.__ccBrowserDriver = require("./browser-helper.cjs").createBrowserHelper({ log, icon: path.join(ROOT, "web", "icons", "icon-512.png") }); }
   catch (e) { log("browser helper window unavailable:", e && e.message); }
+  // real PDFs for document tasks: the server prints its pages with Electron (server/doc-pdf.js)
+  try { globalThis.__ccPdfRenderer = require("./pdf-render.cjs").createPdfRenderer({ BrowserWindow }); }
+  catch (e) { log("PDF renderer unavailable:", e && e.message); }
   // a file URL on every platform (pathToFileURL still encodes a space, as in "/Applications/Command AI.app/..."; the current bundle is Meldmind.app)
   await import(require("node:url").pathToFileURL(path.join(ROOT, "server", "index.js")).href);
   serverStarted = await waitForServer();
