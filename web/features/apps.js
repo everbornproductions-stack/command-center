@@ -1,5 +1,6 @@
 // Programs on this PC. The person turns desktop control on, allows each app, and can
 // dismiss a suggestion. Nothing is installed or bought from this card.
+import { allAppsAllowed, toggleAllAppsLabel } from "../nav-state.js";
 const { api, toast, esc } = window.CC;
 
 function safeUrl(url) {
@@ -22,11 +23,14 @@ function lockedPanel(title) {
   return `<div class="panel" id="app-discovery"><h3>${title}</h3><div class="dim small">${PRO_LINE} Nothing is installed or bought.</div></div>`;
 }
 
+
 function appRows(st) {
   const rows = st?.apps || [];
   if (!st?.optedIn) return `<div class="dim small">Desktop control is off. Turn it on to list programs on this PC.</div>`;
   if (!rows.length) return `<div class="dim small">No programs were found. Scan again after you install one, or update the app list.</div>`;
-  return rows.map((app) => {
+  const allOn = allAppsAllowed(rows);
+  const head = `<div class="row small" style="gap:8px;margin-bottom:6px;align-items:center"><span class="dim" data-allow-count>${rows.filter((a) => a.allowed).length} of ${rows.length} allowed</span>${window.CC.flag?.("flag_navstate") ? `<button type="button" class="btn sm" data-toggle-all="${allOn ? "0" : "1"}" title="Toggle All">${toggleAllAppsLabel(rows)}</button>` : ""}</div>`;
+  return head + rows.map((app) => {
     const href = safeUrl(app.url);
     const caps = (app.capabilities || []).join(", ");
     return `<label class="row small" style="gap:8px;padding:4px 0;align-items:flex-start">
@@ -38,6 +42,35 @@ function appRows(st) {
 }
 
 function wireAllow(root, reload) {
+  const syncToggleBtn = () => {
+    const boxes = [...root.querySelectorAll("[data-allow]")];
+    if (!boxes.length) return;
+    const checkedCount = boxes.filter((b) => b.checked).length;
+    const allOn = checkedCount === boxes.length;
+    const btn = root.querySelector("[data-toggle-all]");
+    if (btn) {
+      btn.dataset.toggleAll = allOn ? "0" : "1";
+      btn.textContent = allOn ? "Deselect All" : "Select All";
+    }
+    const cnt = root.querySelector("[data-allow-count]");
+    if (cnt) cnt.textContent = `${checkedCount} of ${boxes.length} allowed`;
+  };
+  const toggleBtn = root.querySelector("[data-toggle-all]");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", async () => {
+      const next = toggleBtn.dataset.toggleAll === "1";
+      try {
+        await api("/apps/allow-all", { method: "POST", body: { allowed: next } });
+        root.querySelectorAll("[data-allow]").forEach((b) => { b.checked = next; });
+        syncToggleBtn();
+        toast(next ? "All programs allowed" : "All programs deselected");
+        if (reload) reload();
+      } catch (e) { toast(e.message, true); if (reload) reload(); }
+    });
+  }
+  root.querySelectorAll("[data-allow]").forEach((box) => {
+    box.addEventListener("change", () => syncToggleBtn());
+  });
   root.querySelectorAll("[data-allow]").forEach((box) => {
     box.addEventListener("change", async () => {
       try { await api("/apps/allow", { method: "POST", body: { id: box.dataset.allow, allowed: box.checked } }); toast(box.checked ? "Allowed" : "Not allowed"); }

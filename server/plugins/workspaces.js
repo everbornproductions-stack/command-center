@@ -54,11 +54,17 @@ const month = (ts = Date.now()) => new Date(ts).toISOString().slice(0, 7);
 const q = (pathq, opts = {}) => rest(pathq, { ...opts, token: ctx().token });
 const clean = (email) => String(email || "").trim().toLowerCase();
 export const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254;
-const cleanRole = (r) => (INVITABLE.includes(String(r || "").toLowerCase()) ? String(r).toLowerCase() : null);
+export const ROLE_ALIASES = { collaborator: "member", client: "viewer" };
+export function normalizeInviteRole(r) {
+  const raw = String(r || "").trim().toLowerCase();
+  const mapped = ROLE_ALIASES[raw] || raw;
+  return INVITABLE.includes(mapped) ? mapped : null;
+}
+const cleanRole = (r) => normalizeInviteRole(r);
 export const hashCode = (code) => crypto.createHash("sha256").update(String(code)).digest("hex");
 const newCode = () => crypto.randomBytes(18).toString("base64url");
 const me = () => { try { return clean(ctx().email) || "you"; } catch { return "you"; } };
-const snapshot = (p) => ({ id: p.id, name: p.name, color: p.color, kind: p.kind, summary: p.summary || "", categories: (p.categories || []).map((c) => ({ id: c.id, name: c.name, links: (c.links || []).map((l) => ({ name: l.name, url: l.url })) })) });
+const snapshot = (p) => ({ id: p.id, name: p.name, color: p.color, kind: p.kind, summary: p.summary || "", categories: (p.categories || []).map((c) => ({ id: c.id, name: c.name, links: (c.links || []).map((l) => ({ name: l.name, url: l.url })) })), media: Array.isArray(p.media) ? p.media.map((m) => ({ id: m.id || "", kind: m.kind || "media", title: m.title || m.name || "", url: m.url || "" })) : [] });
 function inviteLink(code, h, req) {
   const hub = HOSTED ? (h?.hubUrl || process.env.CC_HUB_URL || "") : "";
   const origin = hub || (req?.headers?.host ? `http://${req.headers.host}` : "");

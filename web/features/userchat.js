@@ -9,7 +9,7 @@ let reportFor = "";
 function hubLine(d) {
   if (d.hub?.configured && d.hub.mode === "hosted") return "This computer is the hub, so messages are stored here.";
   if (d.hub?.configured && d.hub.host) return `A hub is set (${d.hub.host}). Send keeps a copy here and hands the message to that hub.`;
-  return "Messages stay on this computer until a hub is set.";
+  return "Local only until you set up a hub.";
 }
 
 async function renderTab(view) {
@@ -21,7 +21,7 @@ async function renderTab(view) {
   const spaces = d.spaces || [];
   view.innerHTML = `<div id="uc-root" class="grid" style="grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 14px">
     <div class="panel"><h3>People</h3>
-      <div class="small muted">${esc(hubLine(d))} ${esc(d.note || "")}</div>
+      <div class="row small muted" style="gap:8px;flex-wrap:wrap;align-items:center"><span>${esc(hubLine(d))}</span>${d.hub?.configured ? "" : `<button type="button" class="btn sm" id="uc-setup-hub">Set up hub</button>`}</div>
       ${spaces.length ? spaces.map((s) => `<div class="cat-h" style="margin-top:10px">${esc(s.name)}</div>
         ${(s.members || []).map((m) => `<div class="row small" style="gap:6px;padding:3px 0">
           <span style="flex:1">${esc(m.email)} <span class="dim">${esc(m.role)}</span></span>
@@ -49,6 +49,16 @@ async function renderTab(view) {
       ${(d.reports || []).length ? `<div class="dim small" style="margin-top:8px">${d.reports.length} report${d.reports.length === 1 ? "" : "s"} saved on this computer. Nothing was sent.</div>` : ""}
     </div>
   </div>`;
+  view.querySelector("#uc-setup-hub")?.addEventListener("click", () => {
+    const S = window.CC.S;
+    if (S) { S.settingsMore = true; S.navFocus = "phone-pair"; }
+    window.CC.go?.("settings", "phone-pair");
+    setTimeout(() => {
+      const target = document.getElementById("hub-addr") || document.getElementById("phone-pair");
+      target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      target?.focus?.();
+    }, 60);
+  });
   view.querySelector("#uc-plans")?.addEventListener("click", () => {
     const S = window.CC.S;
     if (S) { S.settingsMore = true; S.navFocus = "#settings-plan"; }

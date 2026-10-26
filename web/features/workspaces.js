@@ -7,8 +7,8 @@ let data = null; // last GET /api/workspaces
 const ROLE_HELP = {
   owner: "everything, including deleting the workspace",
   admin: "invite and remove members and viewers, share projects, see everyone's usage",
-  member: "sees shared projects; their AI calls count toward the workspace",
-  viewer: "read-only: sees shared projects, nothing else",
+  member: "collaborator: sees shared projects and shared project media; their AI calls count toward the workspace",
+  viewer: "client or viewer (read-only): sees shared projects and shared project media, nothing else",
 };
 
 async function load() { data = await api("/workspaces"); renderSwitcher(); return data; }
@@ -34,6 +34,13 @@ function renderSwitcher() {
 }
 
 function projectTiles(p) {
+  const mediaList = Array.isArray(p.media) && p.media.length
+    ? `<div class="small muted" style="margin:6px 0 2px">Shared project media</div><div class="links">${p.media.map((m) => `<span class="chip">${esc(m.kind || "media")}: ${esc(m.title || m.url || m.id)}</span>`).join(" ")}</div>`
+    : `<div class="dim small" style="margin-top:4px">Shared project media: included when media is saved to this project.</div>`;
+  return `<div class="cat-h" style="margin-top:8px">${esc(p.name)}</div>` + (p.categories || []).map((c) => `<div class="small muted" style="margin:4px 0 2px">${esc(c.name)}</div>
+    <div class="links">${(c.links || []).map((l) => `<a class="linkt" href="${esc(l.url)}" target="_blank" rel="noopener"><img src="${favicon(l.url)}" alt=""><span>${esc(l.name)}</span></a>`).join("") || `<div class="dim small">No links.</div>`}</div>`).join("") + mediaList;
+}
+function _unusedProjectTiles(p) {
   return `<div class="cat-h" style="margin-top:8px">${esc(p.name)}</div>` + (p.categories || []).map((c) => `<div class="small muted" style="margin:4px 0 2px">${esc(c.name)}</div>
     <div class="links">${(c.links || []).map((l) => `<a class="linkt" href="${esc(l.url)}" target="_blank" rel="noopener"><img src="${favicon(l.url)}" alt=""><span>${esc(l.name)}</span></a>`).join("") || `<div class="dim small">No links.</div>`}</div>`).join("");
 }
@@ -50,7 +57,11 @@ function usageTable(w) {
   </tbody></table><div class="dim small" style="margin-top:4px">This month, AI calls made while this workspace was picked in the header switcher${w.permissions["usage.viewAll"] ? "" : " (you see only your own)"}.</div>`;
 }
 
+const ROLE_LABELS = { owner: "owner", admin: "admin", member: "member (collaborator)", viewer: "viewer (client / viewer)" };
 function roleSelect(current, options, attrs = "") {
+  return `<select ${attrs} class="small">${options.map((r) => `<option value="${r}" ${r === current ? "selected" : ""}>${esc(ROLE_LABELS[r] || r)}</option>`).join("")}</select>`;
+}
+function _unusedRoleSelect(current, options, attrs = "") {
   return `<select ${attrs} class="small">${options.map((r) => `<option value="${r}" ${r === current ? "selected" : ""}>${r}</option>`).join("")}</select>`;
 }
 const grantable = (actor) => (actor === "owner" ? ["admin", "member", "viewer"] : actor === "admin" ? ["member", "viewer"] : []);
@@ -77,7 +88,8 @@ function manageCard(w) {
         <div class="dim small" style="margin-top:6px">No email is sent. You get an invite link to send yourself; it works for that address only and expires in 14 days.${data.hosted ? "" : " On this desktop copy, people join through your hosted hub."}</div>` : ""}
       </div>
       <div>
-        <label class="lbl">Shared projects</label>
+        <label class="lbl">Shared projects &amp; media</label>
+        <div class="dim small" style="margin-bottom:4px">Shared projects include their saved links and shared project media for collaborators, clients, and viewers.</div>
         ${perm["projects.share"] ? (mine.map((p) => `<label class="row small" style="padding:3px 0;gap:8px"><input type="checkbox" data-share="${esc(p.id)}" ${shared.has(p.id) ? "checked" : ""}><span class="dot" style="background:${esc(p.color || "#22d3ee")}"></span>${esc(p.name)}</label>`).join("") || `<div class="dim small">Create a project first (Projects tab).</div>`)
           : (w.projects || []).map(projectTiles).join("") || `<div class="dim small">Nothing shared yet.</div>`}
         ${perm["projects.share"] && data.hosted && shared.size ? `<button class="ghost small" data-sync style="margin-top:6px">push latest links to members</button>` : ""}
