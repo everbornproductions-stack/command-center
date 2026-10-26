@@ -59,4 +59,5 @@ test("light theme gives Send strong contrast and raises faint grey text", () => 
   const src = fs.readFileSync(path.join(root, "features", "themes.js"), "utf8").replace(/\r\n/g, "\n");
   assert.match(src, /html\[data-theme="light"\] #go[^{]*\{[^}]*color:\s*#ffffff/);
   assert.match(src, /html\[data-theme="light"\]\[data-text="large"\] \.dim/);
+  assert.match(src, /html\[data-theme="light"\] \.hint \{ color: #[0-6]/);
 });

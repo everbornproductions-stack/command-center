@@ -138,6 +138,8 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
   .top-right { gap: 8px; }
 }
 @media (max-width: 920px) and (min-width: 761px) { .brand-name { display: none; } }
+/* Phones (N10): the connection pill keeps only its dot so the header never ends past the screen edge. */
+@media (max-width: 420px) { #conn-txt { display: none; } .topbar { gap: 6px; padding: 0 8px; } .top-right { gap: 6px; } .brand-tag { display: none !important; } }
 /* Squeeze steps, set by squeezeTopbar() in app.js when the menus would not fit. */
 .nav-toggle { display: none; flex: 0 0 auto; }
 .topbar[data-squeeze="1"] .brand-name, .topbar[data-squeeze="2"] .brand-name, .topbar[data-squeeze="3"] .brand-name,

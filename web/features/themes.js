@@ -268,6 +268,7 @@ html[data-theme="light"] .btn:hover { background: #dde4ee; }
 html[data-theme="light"] .btn.primary { color: var(--accent-ink); }
 html[data-theme="light"] #go, html[data-theme="light"] .btn.primary { background: color-mix(in srgb, var(--accent) 55%, #000000); border-color: color-mix(in srgb, var(--accent) 45%, #000000); color: #ffffff; }
 html[data-theme="light"] .dim, html[data-theme="light"] .muted { color: #4b5563; }
+html[data-theme="light"] .hint { color: #374151; }
 html[data-theme="light"][data-text="large"] .dim, html[data-theme="light"][data-text="xlarge"] .dim, html[data-theme="light"][data-text="large"] .muted, html[data-theme="light"][data-text="xlarge"] .muted { color: #374151; }
 html[data-theme="light"] .btn.danger { background: #fde8e8; border-color: #f5b5b5; color: #b91c1c; }
 html[data-theme="light"] input[type=text], html[data-theme="light"] input[type=number], html[data-theme="light"] input[type=password], html[data-theme="light"] input[type=date], html[data-theme="light"] input[type=email], html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
