@@ -3,7 +3,7 @@
 // Ask sends only when the button is clicked. With no connected AI the server returns search hits.
 // What can Meldmind do? is the same guide as the tour. A row hides when its page is missing.
 import { liveProbe, matchesQuery, rememberWalks, visibleGuide } from "./guide.js";
-import { helpOrder, searchArticles, tryThese } from "../help-rank.js";
+import { helpOrder, searchArticles, tryThese, contextTipsForView, doThisNextForState, matchScreensForQuery, PERSONA_STARTER_PACKS, getPersonaStarterPack } from "../help-rank.js";
 
 const { api, toast, esc, md, go } = window.CC;
 
@@ -35,7 +35,24 @@ const CONTACT_EMAIL = "hello@everbornproductions.com";
 function renderTab(view) {
   const S = window.CC.S || {};
   const desk = S.mode !== "hosted";
+  const ctxInfo = contextTipsForView(S.lastView || S.view || "command", []);
+  const nextCards = doThisNextForState(S);
   view.innerHTML = `<div class="help-page">
+    <div class="panel" id="help-context">
+      <h3>Tips for this screen: ${esc(ctxInfo.title)}</h3>
+      <p class="dim small" style="margin:0 0 8px">${esc(ctxInfo.summary)}</p>
+      <ul class="small" style="margin:0 0 8px;padding-left:18px">${ctxInfo.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-help-go="${esc(ctxInfo.view)}">Return to ${esc(ctxInfo.title)}</button></div>
+    </div>
+    <div class="panel" id="help-do-next">
+      <h3>Do this next</h3>
+      <div class="grid cols-2" style="gap:8px">${nextCards.map((c) => `<div class="route"><div style="font-weight:600">${esc(c.title)}</div><div class="dim small" style="margin-top:4px">${esc(c.summary)}</div><div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-help-go="${esc(c.view)}" data-help-focus="${esc(c.focus || "")}">${esc(c.actionLabel)}</button></div></div>`).join("")}</div>
+    </div>
+    <div class="panel" id="help-persona-packs">
+      <h3>Persona starter packs</h3>
+      <p class="dim small" style="margin:0 0 8px">Pick a starter pack to pre-select recommended tools and open a ready sample project.</p>
+      <div class="grid cols-2" style="gap:8px">${PERSONA_STARTER_PACKS.map((p) => `<div class="route" data-pack-card="${esc(p.id)}"><b>${esc(p.label)}</b><div class="dim small" style="margin-top:4px">${esc(p.role)}</div><div class="dim small" style="margin-top:4px">Tools: ${esc(p.tools.join(", "))}</div><div class="row" style="margin-top:8px"><button type="button" class="btn sm primary" data-persona-pack="${esc(p.id)}">Use ${esc(p.label)} pack</button></div></div>`).join("")}</div>
+    </div>
     <div class="panel" id="help-article" hidden></div>
     <div class="panel" id="help-list-panel">
       <h3>Search help</h3>
@@ -44,6 +61,7 @@ function renderTab(view) {
       <label class="lbl" for="help-search">Search</label>
       <input id="help-search" type="search" placeholder="Try: how do I ask a question" autocomplete="off">
       <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
+      <div id="help-screen-hits" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
       <div id="help-list" class="help-list"></div>
     </div>
     <div class="panel" id="help-ask-panel">
@@ -128,6 +146,13 @@ function renderTab(view) {
   }
 
   function showList(q) {
+    const screenHitsBox = view.querySelector("#help-screen-hits");
+    if (screenHitsBox) {
+      const screenHits = String(q || "").trim() ? matchScreensForQuery(String(q || "").trim(), 4) : [];
+      screenHitsBox.innerHTML = screenHits.length
+        ? `<span class="dim small">Jump to screen:</span>` + screenHits.map((t) => `<button type="button" class="btn sm" data-help-go="${esc(t.view)}" data-help-focus="${esc(t.focus || "")}" title="${esc(t.summary)}">Open ${esc(t.label)}</button>`).join("")
+        : "";
+    }
     const query = String(q || "").trim();
     const rows = query ? searchArticles(articles, query, 12) : helpOrder(articles);
     if (!rows.length) {
@@ -163,6 +188,38 @@ function renderTab(view) {
   }
 
   view.addEventListener("click", (e) => {
+    const goBtn = e.target.closest("[data-help-go]");
+    if (goBtn) {
+      const targetView = goBtn.dataset.helpGo;
+      const targetFocus = goBtn.dataset.helpFocus || "";
+      if (targetView === "settings" && targetFocus) {
+        if (window.CC.S) window.CC.S.settingsMore = true;
+      }
+      follow({ view: targetView, focus: targetFocus });
+      return;
+    }
+    const packBtn = e.target.closest("[data-persona-pack]");
+    if (packBtn) {
+      const pack = getPersonaStarterPack(packBtn.dataset.personaPack);
+      if (pack) {
+        (async () => {
+          try {
+            const savedProj = await api("/projects", { method: "POST", body: pack.sampleProject });
+            if (window.CC.S) {
+              const idx = (window.CC.S.projects || []).findIndex((x) => x.id === savedProj.id);
+              if (idx >= 0) window.CC.S.projects[idx] = savedProj;
+              else (window.CC.S.projects = window.CC.S.projects || []).push(savedProj);
+              window.CC.S.project = savedProj.id;
+              window.CC.S.lastOrders = pack.sampleProject.starterPrompt || "";
+              window.CC.S.selectedPackTools = pack.tools.slice();
+            }
+            toast(`${pack.label} starter project ready`);
+            go("command");
+          } catch (err) { toast(err.message, true); }
+        })();
+      }
+      return;
+    }
     const partBtn = e.target.closest("[data-guide-part]");
     if (partBtn) {
       const [rowId, partId] = partBtn.dataset.guidePart.split(":");

@@ -4,6 +4,7 @@ import { marketplacePacks, mountPromptBoard, voteBar } from "./prompt-board.js";
 import { detectApplied } from "./prompt-order.js";
 import { applySuggestion } from "../prompt-suggest.js";
 import { plainExplain, plainLabel } from "../plain.js";
+import { saveProfileDraft, loadProfileDraft, clearProfileDraft, mergeProfileWithDraft } from "../nav-state.js";
 const { api, toast, esc, go } = window.CC;
 const S = () => window.CC.S;
 
@@ -46,7 +47,7 @@ function bindSpeak(root) {
     if (!input) return;
     const rec = new Ctor();
     rec.lang = "en-US";
-    rec.onresult = (ev) => { input.value = `${input.value ? input.value + " " : ""}${ev.results[0][0].transcript}`; };
+    rec.onresult = (ev) => { input.value = `${input.value ? input.value + " " : ""}${ev.results[0][0].transcript}`; if (window.CC.flag?.("flag_navstate")) saveProfileDraft(readFields(root)); };
     rec.start();
     toast("Listening. Speak, then pause.");
   }));
@@ -63,6 +64,8 @@ async function mountInterview(el) {
     fields = r.fields || [];
     steps = r.interview || [];
   } catch (e) { el.innerHTML = `<div class="dim small">${esc(e.message)}</div>`; return; }
+  const draft = window.CC.flag?.("flag_navstate") ? loadProfileDraft() : null;
+  if (draft) profile = mergeProfileWithDraft(profile, draft);
   const byKey = Object.fromEntries(fields.map((f) => [f.key, f]));
   el.innerHTML = `<div class="panel"><h3>Business Profile</h3>
     <div class="small dim">A short interview. Later prompts reuse it. Every field is optional. You can speak an answer when the mic is available.</div>
@@ -70,9 +73,15 @@ async function mountInterview(el) {
     <div class="row" style="margin-top:12px"><button class="btn sm primary" type="button" id="pp-save-profile">Save profile</button></div>
   </div>`;
   bindSpeak(el);
+  if (window.CC.flag?.("flag_navstate")) el.querySelectorAll("[data-k]").forEach((inp) => {
+    const syncDraft = () => saveProfileDraft(readFields(el));
+    inp.addEventListener("input", syncDraft);
+    inp.addEventListener("change", syncDraft);
+  });
   el.querySelector("#pp-save-profile").addEventListener("click", async () => {
     try {
       const saved = await api("/prompts/profile", { method: "POST", body: readFields(el) });
+      clearProfileDraft();
       toast(saved.profile?.businessName ? "Profile saved." : "Profile saved. Add the business name when you have it.");
     } catch (e) { toast(e.message, true); }
   });

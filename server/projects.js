@@ -14,6 +14,38 @@ const data = () => doc("projects", () => structuredClone(SEED));
 const save = () => putDoc("projects", data());
 export function loadProjects() { return data(); }
 export const listProjects = () => data().projects;
+export function normalizeProjectUiMode(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (m === "expert" || m === "simple") return m;
+  return null;
+}
+export function ensureSampleProject({ uiMode = "simple", force = false } = {}) {
+  const d = data();
+  const mode = normalizeProjectUiMode(uiMode) || "simple";
+  const existingSample = d.projects.find((x) => x.id === "sample-project" || x.sample === true);
+  if (existingSample && !force) return existingSample;
+  if (d.projects.length === 1 && d.projects[0].id === "my-project" && !force) {
+    d.projects[0] = {
+      ...d.projects[0],
+      uiMode: d.projects[0].uiMode || mode,
+      sample: true,
+      starterPrompt: d.projects[0].starterPrompt || "Plan three quick wins for this week and draft the first message.",
+    };
+    save();
+    return d.projects[0];
+  }
+  return saveProject({
+    id: "sample-project",
+    name: "Sample project",
+    color: "#22d3ee",
+    kind: "company",
+    summary: "Ready sample project created during setup. Try a prompt or add links to where your work lives.",
+    uiMode: mode,
+    sample: true,
+    starterPrompt: "Plan three quick wins for this week and draft the first message.",
+    categories: [{ id: "links", name: "Links", links: [] }],
+  });
+}
 
 function wouldCycle(projects, id, parentId) {
   if (!parentId || !id) return false;

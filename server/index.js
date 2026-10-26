@@ -41,7 +41,7 @@ import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
-import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
+import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
 import { flagOn, flagView } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
@@ -80,7 +80,7 @@ import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedule
 import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
-import { publicWebConfig } from "./web-config.js";
+import { publicWebConfig, isNavStateEnabled } from "./web-config.js";
 import { handleUsageHttp, isUsageHttp, freshUsageDoc } from "./usage.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { applyShareDefaults } from "./privacy.js";
@@ -501,6 +501,7 @@ function fullState() {
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
+    flags: { flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
@@ -907,6 +908,11 @@ async function api(req, res, url) {
     if (!gone) return json(res, 404, { error: "project not found" });
     return json(res, 200, { ok: true, soft: true, deleted: gone });
   }
+  if (method === "PUT" && seg[0] === "projects" && seg[1] && !seg[2]) {
+    const existing = listProjects().find((x) => x.id === seg[1]);
+    if (!existing) return json(res, 404, { error: "project not found" });
+    return json(res, 200, saveProject({ ...body, id: seg[1] }));
+  }
   if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) {
     try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true }) }); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
@@ -965,8 +971,12 @@ async function api(req, res, url) {
     if (firstRun) putDoc("desktop.prompt", applyDesktopPrompt(doc("desktop.prompt", () => ({ status: "pending", laterCount: 0 })), "quiet"));
     writeOnboarding(completeRecord(readOnboarding(), Date.now()));
     const s = saveSettings({ ...settings(), onboarded: true });
+    let sampleProject = null;
+    if (isNavStateEnabled(s) || body?.ensureSampleProject) {
+      try { sampleProject = ensureSampleProject({ uiMode: s.uiMode }); } catch { /* ignore */ }
+    }
     try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); }
-    return json(res, 200, s);
+    return json(res, 200, sampleProject ? { ...s, sampleProject } : s);
   }
   if (method === "GET" && p === "/onboarding") return json(res, 200, onboardingState());
   if (method === "POST" && p === "/onboarding/ack") {

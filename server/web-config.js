@@ -2,6 +2,17 @@
 // The service key is never copied into this object.
 import { DESKTOP_ONLY } from "../web/desktop-only.js";
 
+// Slice A5 feature flag: default OFF in tests, flip to true in the 0.4.19 build once reviewed.
+export const DEFAULT_FLAG_NAVSTATE = false;
+
+export function isNavStateEnabled(settingsObj, env = process.env) {
+  if (typeof settingsObj?.flag_navstate === "boolean") return settingsObj.flag_navstate;
+  const raw = String(env?.CC_FLAG_NAVSTATE || "").trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "off") return false;
+  return DEFAULT_FLAG_NAVSTATE;
+}
+
 export function clientSupabase(source) {
   const s = source || {};
   return {

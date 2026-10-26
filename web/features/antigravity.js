@@ -25,14 +25,16 @@ async function renderSettings(el) {
     return;
   }
   const c = data.card || {};
+  const isConnected = !!(c.found && c.light === "green");
+  const isInstalled = !!c.found;
   const jobs = (data.jobs || []).slice(0, 5).map((j) => `<div class="small" style="margin-top:4px"><b>${esc(j.status)}</b> ${esc(j.task || "")}${j.error ? ` <span style="color:var(--red)">${esc(j.error)}</span>` : ""}${j.text ? `<div class="dim">${esc(j.text.slice(0, 240))}</div>` : ""}</div>`).join("");
-  el.innerHTML = `<div class="panel" id="prov-antigravity"><h3>Google Antigravity <span class="right"><span class="light ${esc(c.light || "grey")}" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${esc(c.detail || "")}</span></h3>
+  el.innerHTML = `<div class="panel" id="prov-antigravity"><h3>Google Antigravity ${isConnected ? '<span class="chip green" id="agy-connected-badge">Connected</span>' : ""}<span class="right"><span class="light ${esc(c.light || "grey")}" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${esc(c.detail || "")}</span></h3>
     <div class="small muted">Antigravity runs on this PC through its agy command. Meldmind does not store a password, and it never puts a key on the command line. If agy cannot run, use the manual handoff instead.</div>
     <div class="cc-agy" style="margin-top:10px">
       <label class="row small"><input type="checkbox" id="agy-allow" ${c.allowed ? "checked" : ""}> Allow Meldmind to hand coding tasks to Antigravity</label>
       <div class="row" style="margin-top:8px">
-        <button class="btn sm primary" id="agy-install" type="button">Install and connect</button>
-        <button class="btn sm" id="agy-signin" type="button">Sign in</button>
+        <button class="btn sm primary" id="agy-install" type="button" ${isInstalled ? "hidden disabled" : ""}>${isInstalled ? "Installed" : "Install and connect"}</button>
+        <button class="btn sm" id="agy-signin" type="button" ${isConnected ? "hidden" : ""}>Sign in</button>
         <button class="btn sm" id="agy-check" type="button">Check</button>
         <button class="btn sm" id="agy-mcp" type="button">Add to Antigravity</button>
         <button class="btn sm" id="agy-handoff" type="button">Manual handoff</button>

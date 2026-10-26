@@ -48,6 +48,14 @@ export function resolveMode(settings, { fresh = false } = {}) {
   return "simple";
 }
 
+export function resolveProjectMode(project, settings, opts = {}) {
+  const projMode = normalizeMode(project?.uiMode);
+  if (projMode) return projMode;
+  return resolveMode(settings, opts);
+}
+
+export const resolveProjectUiMode = resolveProjectMode;
+
 export function shouldAskMode(settings, { fresh = false } = {}) {
   if (!fresh) return false;
   return settings?.uiModeChosen !== true;
