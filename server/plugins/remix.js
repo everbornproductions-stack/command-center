@@ -8,7 +8,9 @@ import { rate as rateBrain, brainSettings } from "../brain.js";
 import { STARTS, PART_PLAIN, publishPlan, publishVaultId, runTool, voiceCommand, clearArt, applyReuseReport, accessReport, externalCommandAllowed } from "../remix-abilities.js";
 import { projectFiles, safeRel, freshPage } from "../remix-build.js";
 import { commitVersion } from "../remix-git.js";
+import { flagOn } from "../flags.js";
 import { setSecret, hasSecret, getSecret } from "../vault.js";
+import { remixFolder, creditsRetry, freeStandIn } from "../next-actions.js";
 
 export const id = "remix";
 const KIND = "remix.runs";
@@ -28,6 +30,10 @@ function ranked(h) {
   try {
     return (h.rank({ capability: "code", difficulty: 2, mode: "economy", estIn: 700, estOut: 500 }) || []).slice(0, 4);
   } catch { return []; }
+}
+function scopeCount(body) {
+  const n = Number(body?.scopeCount);
+  return Number.isInteger(n) && n > 0 && n < 1000 ? n : 1;
 }
 function newId(prefix) {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -146,11 +152,14 @@ export async function routes(req, res, url, body, h) {
 
     const projectId = newId("remix-");
     const runId = newId("rx");
+    // Working-in bar: the remix stays its own project folder, but remembers which project it was made for.
+    const workingProjectId = flagOn("projectbar") && typeof body?.workingProjectId === "string" && h.listProjects().some((x) => x.id === body.workingProjectId) ? body.workingProjectId : "";
     h.saveProject({
       id: projectId,
       name: plan.projectName,
       color: "#22d3ee",
       kind: "remix",
+      ...(workingProjectId ? { parentId: workingProjectId } : {}),
       summary: plan.summary,
       categories: [{ id: "remix", name: "Remix", links: [] }],
     });
@@ -174,21 +183,35 @@ export async function routes(req, res, url, body, h) {
     }
     const ais = who.ais;
     let missionStarted = false;
-    if (ais.length && typeof h.runMission === "function") {
+    // Next actions (flag): with no paid AI connected, a free tier the person switched on can still answer,
+    // and when a provider runs out of credits the mission is tried once more without it.
+    const nextOn = flagOn("nextactions");
+    const stand = nextOn && !ais.length ? freeStandIn() : null;
+    const missionOpts = {
+      goal: plan.goal,
+      context: "Remix rebuilds from scratch. Use only the person's own characters, art, and ideas, and the free tools named in the goal.",
+      projectId,
+      mode: "economy",
+      budgetUsd: 1,
+      maxTasks: 4,
+      qa: true,
+      search: false,
+      tools: false,
+    };
+    if ((ais.length || stand) && typeof h.runMission === "function") {
       try {
-        const pending = h.runMission({
-          goal: plan.goal,
-          context: "Remix rebuilds from scratch. Use only the person's own characters, art, and ideas, and the free tools named in the goal.",
-          projectId,
-          mode: "economy",
-          budgetUsd: 1,
-          maxTasks: 4,
-          qa: true,
-          search: false,
-          tools: false,
-        });
+        const pending = h.runMission(missionOpts);
         missionStarted = true;
         if (pending && typeof pending.catch === "function") pending.catch(() => { try { h.emit("log", { text: "Remix mission stopped before it finished.", level: "error" }); } catch { /* already logged */ } });
+        if (nextOn && pending && typeof pending.then === "function") {
+          pending.then((done) => {
+            const again = creditsRetry(done);
+            if (!again.retry) return;
+            try { h.emit("log", { text: "A credit limit was hit. Trying again with a free AI.", missionId: done?.id }); } catch { /* bus optional */ }
+            const second = h.runMission({ ...missionOpts, skip: again.skip });
+            if (second && typeof second.catch === "function") second.catch(() => {});
+          }).catch(() => {});
+        }
       } catch { missionStarted = false; }
     }
     const row = publicRun({
@@ -205,6 +228,7 @@ export async function routes(req, res, url, body, h) {
       missionStarted,
       rating: null,
       fix: false,
+      workingProjectId,
     });
     const doc = runsOf(h);
     doc.items.unshift(row);
@@ -229,11 +253,35 @@ export async function routes(req, res, url, body, h) {
       closeness: plan.closeness,
       run: row,
       ai: missionStarted
-        ? { started: true, reason: "The AIs are building this from scratch." }
-        : { started: false, reason: "No AI is connected, so nothing was sent. The project and the CREDITS file are saved on this computer." },
+        ? { started: true, reason: stand ? `No paid AI is connected, so ${stand.name} is building this from scratch.` : "The AIs are building this from scratch.", ...(stand ? { free: stand } : {}) }
+        : { started: false, reason: nextOn ? "No AI is connected, so nothing was sent. The project and the CREDITS file are saved on this computer. A free AI can help: switch on a free tier in Settings, then build again." : "No AI is connected, so nothing was sent. The project and the CREDITS file are saved on this computer." },
+      ...(nextOn ? { scope: { items: scopeCount(body) }, folderSaved: !!rel } : {}),
       recipients: who,
       share: shareTotals(doc.items, { optedIn: optedIn() }),
     });
+  }
+
+  // Next actions (flag): open the saved folder, and file the saved remix under a project.
+  if (req.method === "POST" && (p === "/open-folder" || p === "/add-to-project")) {
+    if (!flagOn("nextactions")) return h.json(res, 404, { error: "That is turned off on this install.", code: "flag_off" });
+    const rid = String(body?.projectId || "");
+    if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
+    if (p === "/open-folder") {
+      if (h.HOSTED || !h.DATA_DIR) return h.json(res, 400, { error: "The folder is on the desktop app only.", code: "local" });
+      const folder = remixFolder(h.DATA_DIR, rid);
+      if (!folder || !fs.existsSync(folder)) return h.json(res, 404, { error: "The saved folder was not found.", code: "missing" });
+      const { execFile } = await import("node:child_process");
+      const cmd = process.platform === "win32" ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
+      if (!body?.dryRun) execFile(cmd, [folder], () => {});
+      return h.json(res, 200, { ok: true, folder: `projects/${rid}`, dryRun: !!body?.dryRun });
+    }
+    const target = String(body?.targetProjectId || "");
+    if (!h.listProjects().some((x) => x.id === target)) return h.json(res, 404, { error: "Pick a project first.", code: "project" });
+    h.saveProject({ id: rid, parentId: target });
+    const doc = runsOf(h);
+    const row = doc.items.find((r) => r.projectId === rid);
+    if (row) { row.workingProjectId = target; h.putDoc(KIND, doc); }
+    return h.json(res, 200, { ok: true, projectId: rid, targetProjectId: target });
   }
 
   if (req.method === "POST" && p === "/test") {

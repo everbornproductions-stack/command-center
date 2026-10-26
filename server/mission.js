@@ -25,9 +25,425 @@ import * as MEDIA from "./media-jobs.js";
 import { suggestApp, runLive, planLine } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
+import { consumeQueuedForRun } from "./phoneweb.js";
+import { isNavStateEnabled } from "./web-config.js";
+
+// ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
+// Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
+// Safety rule (PLAN.md Section 2): never bypass approvals for send, pay, delete, or sign,
+// and never touch billing or password screens.
+export const WORKAROUND_ORDER = ["installed_app", "browser_helper", "smaller_steps", "closest_option"];
+const SECRET_SCREEN_RE = /\b(password|passcode|2fa|billing|stripe|payment\s*method|checkout|credit\s*card|cvv|bank\s*account)\b/i;
+const APPROVAL_VERBS = [
+  ["pay", /\b(buy|purchase|pay|charge|subscribe|upgrade)\b/i],
+  ["delete", /\b(delete|remove|erase|wipe|drop)\b/i],
+  ["sign", /\b(sign\s+contract|sign\s+document|docusign|e-sign|countersign)\b/i],
+  ["send", /\b(send|submit|post|publish|email|message|reply|broadcast)\b/i],
+];
+
+export function checkWorkaroundSafety(text) {
+  const raw = String(text || "");
+  const touchesSecretScreen = SECRET_SCREEN_RE.test(raw);
+  let approvalKind = null;
+  for (const [kind, re] of APPROVAL_VERBS) {
+    if (re.test(raw)) { approvalKind = kind; break; }
+  }
+  const requiresApproval = approvalKind !== null;
+  const safetyNote = touchesSecretScreen
+    ? "Billing and password screens are never touched automatically. Complete any password or payment step yourself."
+    : requiresApproval
+      ? `Requires your approval before any ${approvalKind} action runs.`
+      : "Read and draft steps only; nothing is sent, paid, deleted, or signed without your OK.";
+  return {
+    safeToAutomate: !touchesSecretScreen,
+    touchesSecretScreen,
+    requiresApproval,
+    approvalKind,
+    neverBypassApproval: true,
+    neverTouchBillingOrPasswords: true,
+    safetyNote,
+  };
+}
+
+export function decomposeIntoSmallerSteps(goal, cls = {}) {
+  const cleanGoal = String(goal || "Complete the request").trim();
+  const cap = cls?.capability || "writing";
+  return [
+    {
+      id: "t1",
+      title: "Outline key inputs and scope",
+      capability: cap === "media" || cap === "agent" ? "writing" : cap,
+      difficulty: 1,
+      needWeb: false,
+      deps: [],
+      instructions: `List the exact inputs, constraints, and target outcome for: ${cleanGoal}`,
+      deliverable: "A short, concrete checklist of inputs and scope.",
+    },
+    {
+      id: "t2",
+      title: "Draft the core deliverable step by step",
+      capability: "writing",
+      difficulty: 1,
+      needWeb: false,
+      deps: ["t1"],
+      instructions: `Draft the main content or action steps for: ${cleanGoal}`,
+      deliverable: "The drafted content or step-by-step instructions.",
+    },
+    {
+      id: "t3",
+      title: "Review and prepare next actions",
+      capability: "analysis",
+      difficulty: 1,
+      needWeb: false,
+      deps: ["t2"],
+      instructions: `Check the draft against the goal and list the final actions the user can confirm: ${cleanGoal}`,
+      deliverable: "Final verified deliverable and confirmation checklist.",
+    },
+  ];
+}
+
+export function buildWorkaroundPlan({
+  goal,
+  cls = {},
+  mode = "balanced",
+  browser,
+  missionAgentFn = missionAgent,
+  suggestAppFn = suggestApp,
+  openRankFn = null,
+} = {}) {
+  const cleanGoal = String(goal || "").trim() || "Complete the task";
+  const title = cleanGoal.slice(0, 48);
+  const safety = checkWorkaroundSafety(cleanGoal);
+  const chainTried = [];
+
+  if (safety.touchesSecretScreen) {
+    chainTried.push(...WORKAROUND_ORDER);
+    const msg = `### Safe workaround plan\n\n${safety.safetyNote}\n\n1. Open the page or app yourself and handle the password or billing screen directly.\n2. Once signed in or past billing, ask Meldmind to draft or review the non-sensitive steps.`;
+    return {
+      step: "closest_option",
+      chainTried,
+      safety,
+      title,
+      assembly: "Present the safe manual steps clearly.",
+      tasks: [{
+        id: "t1",
+        title: "Safe manual step for protected screen",
+        capability: "writing",
+        difficulty: 1,
+        deps: [],
+        status: "done",
+        provider: "workaround",
+        model: "safety-gate",
+        agentName: "Safety gate (never touches billing or passwords)",
+        estCost: 0,
+        cost: 0,
+        output: msg,
+        review: null,
+        workaround: { step: "closest_option", safety },
+      }],
+      deliverable: msg,
+      workaround: {
+        step: "closest_option",
+        chainTried,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        neverBypassApproval: true,
+        neverTouchBillingOrPasswords: true,
+        safetyBlocked: true,
+        note: safety.safetyNote,
+      },
+    };
+  }
+
+  // Step 1: Try installed/allowed apps on this PC.
+  chainTried.push("installed_app");
+  const appPick = (typeof suggestAppFn === "function" && (suggestAppFn(cls?.capability || "") || suggestAppFn("code") || suggestAppFn("creative") || suggestAppFn("research"))) || null;
+  if (appPick) {
+    const t1 = {
+      id: "t1",
+      title: `Use ${appPick.name} for ${title}`,
+      capability: cls?.capability || "reasoning",
+      difficulty: 1,
+      deps: [],
+      instructions: cleanGoal,
+      deliverable: "Step prepared in the allowed app (waits for your confirmation before pressing controls).",
+      app: true,
+      appId: appPick.id,
+      status: "queued",
+      provider: "app",
+      model: appPick.name,
+      agentName: `${appPick.name} · workaround`,
+      estCost: 0,
+      cost: 0,
+      output: null,
+      review: null,
+      requiresApproval: safety.requiresApproval,
+      approvalKind: safety.approvalKind,
+      workaround: { step: "installed_app", appId: appPick.id, appName: appPick.name, safety },
+    };
+    return {
+      step: "installed_app",
+      chainTried,
+      safety,
+      title,
+      assembly: `Run through allowed app ${appPick.name}.`,
+      tasks: [t1],
+      deliverable: null,
+      workaround: {
+        step: "installed_app",
+        chainTried,
+        appId: appPick.id,
+        appName: appPick.name,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        neverBypassApproval: true,
+        neverTouchBillingOrPasswords: true,
+        note: `Routed to allowed app ${appPick.name}. ${safety.safetyNote}`,
+      },
+    };
+  }
+
+  // Step 2: Try the built-in browser helper.
+  chainTried.push("browser_helper");
+  const ma = browser === false ? null : (typeof missionAgentFn === "function" ? missionAgentFn({ browser }) : null);
+  if (ma) {
+    const t1 = {
+      id: "t1",
+      title: `Browser helper: ${title}`,
+      capability: "agent",
+      difficulty: 1,
+      deps: [],
+      needs: Array.isArray(ma.TAGS) && ma.TAGS.length ? [ma.TAGS[0]] : ["web"],
+      agent: true,
+      status: "queued",
+      provider: ma.id,
+      model: ma.id,
+      agentName: `${ma.name} · workaround`,
+      instructions: cleanGoal,
+      deliverable: "Step handled in the browser helper window (waits for your OK before any send, pay, delete, or sign).",
+      estCost: 0,
+      cost: 0,
+      output: null,
+      review: null,
+      requiresApproval: safety.requiresApproval,
+      approvalKind: safety.approvalKind,
+      workaround: { step: "browser_helper", agentId: ma.id, agentName: ma.name, safety },
+    };
+    return {
+      step: "browser_helper",
+      chainTried,
+      safety,
+      title,
+      assembly: `Use ${ma.name} with approval gates intact.`,
+      tasks: [t1],
+      deliverable: null,
+      workaround: {
+        step: "browser_helper",
+        chainTried,
+        agentId: ma.id,
+        agentName: ma.name,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        neverBypassApproval: true,
+        neverTouchBillingOrPasswords: true,
+        note: `Routed to ${ma.name}. ${safety.safetyNote}`,
+      },
+    };
+  }
+
+  // Step 3: Break into smaller difficulty-1 steps and check if any light/local/demo model can run them.
+  chainTried.push("smaller_steps");
+  const smallTasks = decomposeIntoSmallerSteps(cleanGoal, cls);
+  const smallPick = typeof openRankFn === "function" ? (openRankFn({ capability: "writing", difficulty: 1, mode })?.[0] || null) : null;
+  if (smallPick) {
+    const assigned = smallTasks.map((st) => ({
+      ...st,
+      status: "queued",
+      provider: smallPick.provider,
+      model: smallPick.model,
+      agentName: `${smallPick.providerName || smallPick.provider} · smaller step`,
+      estCost: smallPick.estCost || 0,
+      cost: 0,
+      output: null,
+      review: null,
+      requiresApproval: safety.requiresApproval,
+      approvalKind: safety.approvalKind,
+      workaround: { step: "smaller_steps", safety },
+    }));
+    return {
+      step: "smaller_steps",
+      chainTried,
+      safety,
+      title,
+      assembly: "Combine the smaller step outputs into one clear answer.",
+      tasks: assigned,
+      deliverable: null,
+      workaround: {
+        step: "smaller_steps",
+        chainTried,
+        provider: smallPick.provider,
+        model: smallPick.model,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        neverBypassApproval: true,
+        neverTouchBillingOrPasswords: true,
+        note: `Broke the job into ${assigned.length} smaller steps for ${smallPick.providerName || smallPick.provider}. ${safety.safetyNote}`,
+      },
+    };
+  }
+
+  // Step 4: Offer the closest viable option with an immediate actionable breakdown.
+  chainTried.push("closest_option");
+  const closestTasks = smallTasks.map((st, idx) => ({
+    ...st,
+    status: "done",
+    provider: "workaround",
+    model: "closest-option",
+    agentName: "Workaround planner · closest viable option",
+    estCost: 0,
+    cost: 0,
+    output: `**Step ${idx + 1}: ${st.title}**\n${st.instructions}\n- Deliverable: ${st.deliverable}`,
+    review: null,
+    requiresApproval: safety.requiresApproval,
+    approvalKind: safety.approvalKind,
+    workaround: { step: "closest_option", safety },
+  }));
+  const deliverable = [
+    `### Closest viable plan for: ${cleanGoal}`,
+    "",
+    "No live AI key or allowed desktop app was ready for automatic execution, so Meldmind broke your goal into smaller ready-to-run steps:",
+    "",
+    ...closestTasks.map((t) => t.output),
+    "",
+    "### Closest options to finish this automatically",
+    "1. **Use an app on this PC**: Open **Settings > Programs on this PC** and allow a matching app.",
+    "2. **Use the built-in browser helper**: Turn on the browser helper in **Command** for web steps.",
+    "3. **Connect one key or Practice AIs**: Add a free OpenRouter key in **Settings > My AIs**, or click **Try it now** in Setup.",
+    "",
+    `*Safety note: ${safety.safetyNote}*`,
+  ].join("\n");
+
+  return {
+    step: "closest_option",
+    chainTried,
+    safety,
+    title,
+    assembly: "Provide the decomposed steps and closest viable options.",
+    tasks: closestTasks,
+    deliverable,
+    workaround: {
+      step: "closest_option",
+      chainTried,
+      requiresApproval: safety.requiresApproval,
+      approvalKind: safety.approvalKind,
+      neverBypassApproval: true,
+      neverTouchBillingOrPasswords: true,
+      note: `Offered closest viable option with ${closestTasks.length} smaller steps. ${safety.safetyNote}`,
+    },
+  };
+}
+
+export function resolveTaskWorkaround(t, {
+  goal = "",
+  mode = "balanced",
+  browser,
+  MA = null,
+  suggestAppFn = suggestApp,
+  openRankFn = null,
+} = {}) {
+  const safety = checkWorkaroundSafety(`${t?.title || ""} ${t?.instructions || ""} ${goal}`);
+  const chainTried = [];
+
+  if (!safety.touchesSecretScreen) {
+    chainTried.push("installed_app");
+    const appPick = typeof suggestAppFn === "function" ? (suggestAppFn(t.capability || "") || suggestAppFn("writing")) : null;
+    if (appPick) {
+      return {
+        ...t,
+        app: true,
+        appId: appPick.id,
+        status: "queued",
+        provider: "app",
+        model: appPick.name,
+        agentName: `${appPick.name} · workaround`,
+        estCost: 0,
+        output: null,
+        review: null,
+        cost: 0,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        workaround: { step: "installed_app", chainTried, appId: appPick.id, safety },
+      };
+    }
+
+    chainTried.push("browser_helper");
+    if (MA && browser !== false) {
+      const needs = Array.isArray(MA.TAGS) && MA.TAGS.length ? [MA.TAGS[0]] : ["web"];
+      return {
+        ...t,
+        capability: "agent",
+        needs,
+        agent: true,
+        status: "queued",
+        provider: MA.id,
+        model: MA.id,
+        agentName: `${MA.name} · workaround`,
+        estCost: 0,
+        output: null,
+        review: null,
+        cost: 0,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        workaround: { step: "browser_helper", chainTried, agentId: MA.id, safety },
+      };
+    }
+
+    chainTried.push("smaller_steps");
+    const smallPick = typeof openRankFn === "function" ? (openRankFn({ capability: "writing", difficulty: 1, mode })?.[0] || null) : null;
+    if (smallPick) {
+      return {
+        ...t,
+        difficulty: 1,
+        status: "queued",
+        provider: smallPick.provider,
+        model: smallPick.model,
+        agentName: `${smallPick.providerName || smallPick.provider} · smaller step`,
+        estCost: smallPick.estCost || 0,
+        output: null,
+        review: null,
+        cost: 0,
+        requiresApproval: safety.requiresApproval,
+        approvalKind: safety.approvalKind,
+        workaround: { step: "smaller_steps", chainTried, provider: smallPick.provider, safety },
+      };
+    }
+  } else {
+    chainTried.push("installed_app", "browser_helper", "smaller_steps");
+  }
+
+  chainTried.push("closest_option");
+  const fallbackText = safety.touchesSecretScreen
+    ? `Skipped automatic control on "${t.title}": ${safety.safetyNote}`
+    : `**Closest viable option for "${t.title}"**\n- Action: ${t.instructions || t.title}\n- Expected result: ${t.deliverable || "Completed step"}\n- Tip: Allow a matching program in Settings > Programs on this PC or connect an AI key to run this step automatically.\n- Safety: ${safety.safetyNote}`;
+  return {
+    ...t,
+    status: "done",
+    provider: "workaround",
+    model: "closest-option",
+    agentName: "Workaround · closest viable option",
+    estCost: 0,
+    cost: 0,
+    output: fallbackText,
+    review: null,
+    requiresApproval: safety.requiresApproval,
+    approvalKind: safety.approvalKind,
+    workaround: { step: "closest_option", chainTried, safety },
+  };
+}
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
+export const liveMissionList = () => [...live.values()];
 const issued = new Set(); // ids handed to a run, so pause can find one that has not registered yet
 const pendingPause = new Set();
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -283,7 +699,27 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
 
     // ---- 1. Plan ----
     planner = openPick({ capability: "reasoning", difficulty: 3, mode: planning });
-    if (!planner) throw new Error("No AI is available to plan. Add an API key in Settings.");
+    const navFlag = isNavStateEnabled(doc("settings", () => ({})));
+    if (!planner) {
+      if (!navFlag) throw new Error("No AI is available to plan. Add an API key in Settings.");
+      const wPlan = buildWorkaroundPlan({ goal, cls, mode, browser, missionAgentFn: () => MA, suggestAppFn: suggestApp, openRankFn: openRank });
+      mission.workaround = wPlan.workaround;
+      mission.plan = { title: wPlan.title, assembly: wPlan.assembly };
+      mission.title = wPlan.title;
+      mission.tasks = wPlan.tasks;
+      mission.runContext = context;
+      mission.searchWasOn = searchOn;
+      log(`Workaround planner (${wPlan.step}): ${wPlan.workaround.note}`);
+      if (wPlan.deliverable) {
+        mission.deliverable = wPlan.deliverable;
+        mission.status = "done";
+        update();
+        return mission;
+      }
+      plan = { title: wPlan.title, assembly: wPlan.assembly, tasks: wPlan.tasks };
+      mission.status = "running";
+      update();
+    } else {
     mission.planner = { provider: planner.provider, model: planner.model };
     const pAgent = `${id}:planner`;
     emit("agent.start", { agent: pAgent, provider: planner.provider, model: planner.model, role: "plan", missionId: id, label: `${planner.providerName} planning` });
@@ -351,7 +787,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if ((used.get(c.provider) || 0) < 2 && c.score >= (ranked[0].score - 6)) { choice = c; break; }
       }
       if (!choice) choice = ranked[0];
-      if (!choice) throw new Error(`No AI available for task "${t.title}" (${t.capability}${t.needWeb ? ", needs web: turn on Search the web or add a Perplexity key" : ""}).`);
+      if (!choice) {
+        if (!navFlag) throw new Error(`No AI available for task "${t.title}" (${t.capability}${t.needWeb ? ", needs web: turn on Search the web or add a Perplexity key" : ""}).`);
+        const wt = resolveTaskWorkaround(t, { goal, mode, browser, MA, suggestAppFn: suggestApp, openRankFn: openRank });
+        mission.tasks.push(wt);
+        continue;
+      }
       used.set(choice.provider, (used.get(choice.provider) || 0) + 1);
       mission.tasks.push({ ...t, status: "queued", provider: choice.provider, model: choice.model, agentName: `${choice.providerName} · ${t.capability}`, estCost: choice.estCost, output: null, review: null, cost: 0 });
     }
@@ -362,6 +803,29 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
     const appNames = mission.tasks.filter((t) => t.app).map((t) => t.model);
     log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(appNames).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
+    if (est > budgetUsd) {
+      log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
+      for (const t of mission.tasks) {
+        if (t.agent || t.media || t.app || t.workaround) continue;
+        const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
+        if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
+      }
+    }
+    if (crew.length) {
+      let n = 0;
+      for (const t of mission.tasks) {
+        if (t.agent || t.media || t.app || t.workaround) continue;
+        const c = crewFor(crew, t, n++);
+        t.employee = { id: c.id, name: c.name };
+      }
+      log(`Team: ${mission.tasks.filter((t) => t.employee).map((t) => `${t.employee.name} on "${t.title}"`).join(", ")}.`);
+    }
+    mission.runContext = context;
+    mission.searchWasOn = searchOn;
+    mission.status = "running";
+    update();
+    }
+    if (false) {
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
@@ -383,6 +847,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.searchWasOn = searchOn;
     mission.status = "running";
     update();
+    }
+
     }
 
     // ---- 3. Execute in waves ----
@@ -515,7 +981,31 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
     };
+    const applyQueuedDirections = () => {
+      const consumed = consumeQueuedForRun(id, projectId, { emit });
+      if (!consumed) return;
+      mission.appliedDirections = [...(mission.appliedDirections || []), ...consumed.items];
+      for (const t of mission.tasks) {
+        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app) {
+          t.instructions = `${t.instructions || ""}\n\n${consumed.promptBlock}`.trim();
+        }
+      }
+      if (plan) plan.assembly = `${plan.assembly || ""}\n\n${consumed.promptBlock}`.trim();
+      log(`Applied queued direction: ${consumed.summary}`);
+      update();
+    };
+    // The run's own limit is a hard stop: once what was spent reaches it, no new step or assembly starts.
+    const limitNote = () => {
+      const lim = Number(budgetUsd);
+      if (!(Number.isFinite(lim) && lim > 0 && mission.cost >= lim)) return "";
+      return `Stopped. This run reached its $${lim} spending limit and spent $${mission.cost.toFixed(2)}. Nothing more was spent. Raise the limit to continue.`;
+    };
+    const runLimit = () => {
+      const note = limitNote();
+      if (note) { const e = new Error(note); e.code = "run_budget"; throw e; }
+    };
     while (done.size < mission.tasks.length) {
+      runLimit();
       if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
       if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
       const hold = Number(process.env.CC_MISSION_WAVE_HOLD_MS) || 0;
@@ -524,6 +1014,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
         if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
       }
+      applyQueuedDirections();
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
       if (!wave.length) {
         // unresolved deps (cycle or failed dep): run the rest without inputs
@@ -669,6 +1160,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // failed tasks count as resolved so the loop ends
       for (const t of mission.tasks) if (t.status === "failed") done.add(t.id);
     }
+    applyQueuedDirections();
 
     // ---- 4. Assemble ----
     // media steps are files, not text: they skip the assembler and get their own section at the end
@@ -681,6 +1173,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       + (waitingMedia.length ? `\n\n---\n**Media waiting for your OK:** ${waitingMedia.map((t) => `"${t.title}" (${t.media.providerName} ${t.media.kind}, about $${t.media.usd})`).join(", ")}. Approve it on the Media tab; nothing is spent until you do, and the file is added to this mission when it is made.` : "");
     const mediaNote = madeMedia.length ? `\n\n${madeMedia.map((t) => mediaSection(t)).join("\n\n")}` : "";
     if (!finished.length) mission.deliverable = (mediaNote + pendingNote).trim();
+    else if (limitNote()) {
+      // the limit was reached: hand back the finished pieces as they are instead of paying for an assembly
+      log(limitNote());
+      mission.deliverable = `${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}\n\n---\n${limitNote()}`;
+      mission.limitReached = true;
+    }
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     mission.status = mission.tasks.some((t) => t.status === "failed") ? "done-with-errors" : "done";
@@ -715,6 +1213,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const finished = mission.tasks.filter((t) => t.output && !t.media);
     mission.status = "assembling"; update();
     const asm = { ...(openPick({ capability: "writing", difficulty: 3, mode: planning }) || planner) };
+    if (!asm.provider) {
+      mission.deliverable = finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n");
+      return;
+    }
     mission.assembler = { provider: asm.provider, model: asm.model };
     const aAgent = `${id}:assembler`;
     emit("agent.start", { agent: aAgent, provider: asm.provider, model: asm.model, role: "assemble", missionId: id, label: `${asm.providerName} assembling the deliverable` });
@@ -750,10 +1252,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [] };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null };
 }
 function save(m) {
   saveDoc(m);

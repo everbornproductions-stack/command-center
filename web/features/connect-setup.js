@@ -153,7 +153,7 @@ function renderInto(v) {
             ${accountBlock(it)}
           </div>
           <div class="cs-actions">
-            <button type="button" class="btn sm primary" data-connect="${esc(it.id)}" ${["mcp", "browser-google", "mail", "publish", "library"].includes(it.flow?.type) ? `data-pw-login="1"` : ""}>Connect</button>
+            <button type="button" class="btn sm ${it.status === "Connected" ? "" : "primary"}" data-connect="${esc(it.id)}" data-connected="${it.status === "Connected" ? "1" : "0"}" ${["mcp", "browser-google", "mail", "publish", "library"].includes(it.flow?.type) ? `data-pw-login="1"` : ""}>${it.status === "Connected" ? "Connected" : "Connect"}</button>
             <button type="button" class="btn sm" data-skip="${esc(it.id)}" ${it.skipped ? "disabled" : ""}>${it.skipped ? "Skipped" : "Skip"}</button>
           </div>
         </div>`).join("") || `<div class="empty">No integrations are listed.</div>`}
@@ -173,6 +173,11 @@ function renderInto(v) {
   v.querySelectorAll("[data-connect]").forEach((b) => b.addEventListener("click", async () => {
     const item = items.find((x) => x.id === b.dataset.connect);
     if (!item || busy) return;
+    if (item.status === "Connected") {
+      if (window.CC.openProviderSetup) window.CC.openProviderSetup(item.id);
+      else { S.view = "settings"; S.settingsMore = true; S.focusProvider = item.id; render(); }
+      return;
+    }
     busy = true; b.disabled = true;
     try { await runFlow(item); }
     catch (e) { toast(e.message, true); }

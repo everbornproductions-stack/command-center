@@ -5,6 +5,7 @@
 import { listJobs, continueInfo, deliver, stopWait, resumeAll, waitOn } from "../answer-wait.js";
 import { routesView, saveRouteSettings, clearSignedOut } from "../sub-routes.js";
 import { saveFallbackSettings } from "../fallback.js";
+import { planMeterView } from "../plan-first.js";
 
 export const id = "answerwait";
 
@@ -13,7 +14,8 @@ export async function init() {
 }
 
 async function view({ refresh = false } = {}) {
-  return { on: waitOn(), jobs: listJobs(40), ...(await routesView({ refresh })) };
+  const rows = await routesView({ refresh });
+  return { on: waitOn(), jobs: listJobs(40), ...rows, planMeter: planMeterView() };
 }
 
 export async function routes(req, res, url, body, h) {

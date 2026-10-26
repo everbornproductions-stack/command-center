@@ -1,6 +1,9 @@
 // Remix. One path: what to make, a starting point, preview, Build, Test, Publish.
 // Extra choices stay under More options. Nothing runs until the main button is pressed.
+import { mountBar } from "../next-actions-ui.js";
+import { scopeLabel, statusLine, pushLog, cleanText } from "../next-actions.js";
 const { api, toast, esc } = window.CC;
+const nextOn = () => !!window.CC.S?.flags?.nextactions;
 
 const SCRATCH_NOTE = "Remix rebuilds from scratch. It does not copy the app or game you show. It does not decompile, extract, or reuse that app's code, assets, names, or brand.";
 const STEPS = ["make", "start", "preview", "built", "tested", "published"];
@@ -30,6 +33,8 @@ let picksTouched = false;
 let built = null;
 let tested = null;
 let published = null;
+let logLines = [];
+let liveRoot = null;
 
 function fieldValue(root, id) {
   return root.querySelector(id)?.value?.trim() || "";
@@ -85,6 +90,65 @@ function payload(root) {
     blend: blendName ? { name: blendName, looks: fieldValue(root, "#remix-blend-looks"), ideas: "" } : null,
     artFiles: artName ? [{ name: artName, source: fieldValue(root, "#remix-art-source") || "kenney", license: "CC0" }] : [],
   };
+}
+// Scope shown to the person: one item, or a selection when a second idea is added.
+function scopeCount(root) {
+  return 1 + (fieldValue(root, "#remix-blend-name") ? 1 : 0);
+}
+function paintLog(root) {
+  const box = root?.querySelector("#remix-log");
+  if (box) box.textContent = logLines.join(" | ") || "Waiting for the first update.";
+}
+function builtExtras(root, data) {
+  const box = root.querySelector("#remix-built");
+  if (!box || !nextOn() || !data?.projectId) return;
+  const projects = window.CC.S?.projects || [];
+  const scope = data.scope?.items || scopeCount(root);
+  const where = data.folderSaved ? "" : " (not written to disk here)";
+  box.insertAdjacentHTML("beforeend", `<p class="small" id="remix-scope">${esc(scopeLabel(scope))}</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-start">
+      <button type="button" class="btn sm" id="remix-open-folder" ${data.folderSaved ? "" : "disabled"}>Open saved location</button>
+      <span class="small dim" style="overflow-wrap:anywhere;min-width:0">projects/${esc(data.projectId)}${esc(where)}</span>
+    </div>
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
+      <label class="small">Project <select id="remix-add-proj" style="max-width:100%;min-width:0;width:auto"><option value="">Pick a project</option>${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === window.CC.S?.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+      <button type="button" class="btn sm" id="remix-add-btn">Add to Project</button>
+    </div>
+    <div class="small" style="margin-top:8px;min-width:0;overflow-wrap:anywhere"><b>Status</b> <span id="remix-log" aria-live="polite" role="status"></span></div>
+    <div id="remix-na"></div>`);
+  paintLog(root);
+  root.querySelector("#remix-open-folder")?.addEventListener("click", async () => {
+    try { await api("/remix/open-folder", { method: "POST", body: { projectId: data.projectId } }); toast("Opened the saved folder."); }
+    catch (e) { toast(e.message, true); }
+  });
+  root.querySelector("#remix-add-btn")?.addEventListener("click", () => addToProject(root, data.projectId, root.querySelector("#remix-add-proj")?.value));
+  if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair(root.querySelector("#remix-na"), { kind: "remix", text: fieldValue(root, "#remix-idea") || data.description?.looks || data.projectName, name: data.projectName || "Remix", onEdit: () => root.querySelector("#remix-idea")?.focus() })).catch(() => {});
+  mountBar(root.querySelector("#remix-na"), {
+    kind: "remix", text: fieldValue(root, "#remix-idea") || data.description?.looks || data.projectName, ref: data.projectId, name: data.projectName || "Remix",
+    addTo: (pid) => addToProject(root, data.projectId, pid),
+    finish: () => { step = "built"; paint(root); root.querySelector("#remix-next")?.focus(); toast("Press Test, then Publish."); },
+    onVariations: async (t) => {
+      try {
+        const r = await api("/nextactions/variations", { method: "POST", body: { text: t } });
+        const na = root.querySelector("#remix-na");
+        na.insertAdjacentHTML("beforeend", `<div class="row" id="remix-va" style="gap:6px;flex-wrap:wrap;margin-top:8px"><span class="small dim">Pick one to start a new remix with it:</span>${r.prompts.map((p, i) => `<button type="button" class="btn sm" data-rva="${i}">Try ${i + 1}</button>`).join("")}</div>`);
+        na.querySelectorAll("[data-rva]").forEach((b) => b.addEventListener("click", () => {
+          const idea = root.querySelector("#remix-idea");
+          if (idea) idea.value = cleanText(r.prompts[Number(b.dataset.rva)], 400);
+          step = "make"; preview = null; previewKey = ""; paint(root);
+          idea?.focus();
+        }));
+      } catch (e) { toast(e.message, true); }
+    },
+  });
+}
+async function addToProject(root, remixId, targetProjectId) {
+  if (!targetProjectId) return toast("Pick a project first.", true);
+  try {
+    await api("/remix/add-to-project", { method: "POST", body: { projectId: remixId, targetProjectId } });
+    const name = (window.CC.S?.projects || []).find((p) => p.id === targetProjectId)?.name || "the project";
+    toast(`Added to ${name}.`);
+  } catch (e) { toast(e.message, true); }
 }
 function formKey(body) {
   return JSON.stringify(body);
@@ -292,7 +356,7 @@ async function loadPreview(root) {
     preview = await api("/remix/preview", { method: "POST", body });
     previewKey = formKey(body);
     const box = root.querySelector("#remix-preview");
-    if (box) box.innerHTML = previewHtml(preview);
+    if (box) box.innerHTML = (nextOn() ? `<p class="small" id="remix-scope-preview">${esc(scopeLabel(scopeCount(root)))}</p>` : "") + previewHtml(preview);
     return true;
   } catch (e) { toast(e.message, true); return false; }
 }
@@ -301,9 +365,11 @@ async function build(root) {
   const body = payload(root);
   if (formKey(body) !== previewKey) return toast("Look at the preview again before you build.", true);
   try {
-    built = await api("/remix/run", { method: "POST", body: { ...body, confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked } });
+    logLines = [];
+    built = await api("/remix/run", { method: "POST", body: { ...body, ...(nextOn() ? { scopeCount: scopeCount(root) } : {}), ...(window.CC.S?.flags?.projectbar && window.CC.S.project ? { workingProjectId: window.CC.S.project } : {}), confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked } });
     const box = root.querySelector("#remix-built");
     if (box) box.innerHTML = `<p><b>${esc(built.projectName || "Project")}</b> is saved on this computer.</p><p class="small">${esc(built.ai?.reason || "")}</p>`;
+    builtExtras(root, built);
     step = "built";
     info = await api("/remix");
     const past = root.querySelector("#remix-past");
@@ -462,10 +528,28 @@ async function render(view) {
       toast(out.message || "Approved. Nothing was started.");
     } catch (e) { toast(e.message, true); }
   });
+  liveRoot = root;
+  logLines = [];
+  const pre = nextOn() ? window.CC._remixPrefill : null;
+  window.CC._remixPrefill = null;
+  if (pre?.idea) {
+    const idea = root.querySelector("#remix-idea");
+    if (idea) { idea.value = cleanText(pre.idea, 400); toast("Your words are in the box."); }
+  }
   root.querySelector("#remix-name")?.focus();
+}
+
+// Status log beside the action: the saved project's mission updates, newest last.
+function onEvent(ev) {
+  if (!nextOn() || ev?.type !== "mission.update" || !liveRoot?.isConnected || !built?.projectId) return;
+  const m = ev.mission;
+  if (!m || m.projectId !== built.projectId) return;
+  logLines = pushLog(logLines, statusLine(m));
+  paintLog(liveRoot);
 }
 
 CC.register({
   id: "remix",
+  onEvent,
   tab: { label: "Remix", short: "Remix", icon: "✦", order: 24, render },
 });

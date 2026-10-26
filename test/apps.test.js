@@ -169,6 +169,14 @@ test("opt in, allow, score, suggest, and dismiss", async () => {
 
   apps.installAppRoutes();
   apps.setAllowed("ffmpeg", true);
+  // Toggle All: allow every listed program, then none
+  let all = apps.setAllAllowed(true);
+  assert.ok(all.apps.length > 1 && all.apps.every((row) => all.allows[row.id] === true));
+  all = apps.setAllAllowed(false);
+  assert.ok(all.apps.every((row) => all.allows[row.id] === false));
+  all = apps.setAllAllowed(true, { ids: ["ffmpeg"] });
+  assert.equal(all.allows.ffmpeg, true);
+  assert.equal(all.allows.git, false);
   const shown = rank({ capability: "creative", difficulty: 2, mode: "balanced", includeApps: true });
   const app = shown.find((row) => row.kind === "app" && row.model === "app:ffmpeg");
   assert.ok(app, "allowed FFmpeg joins the router");
@@ -283,9 +291,9 @@ test("user-facing copy has no em dash and no install button", () => {
   const help = fs.readFileSync(path.join(ROOT, "docs", "help", "desktop-apps.md"), "utf8");
   assert.match(help, /lastUpdatedVersion: 0\.4\.9/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.18");
+  assert.equal(pkg.version, "0.4.19");
   const catalogJson = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "help", "catalog.json"), "utf8"));
-  assert.equal(catalogJson.lastUpdatedVersion, "0.4.18");
+  assert.equal(catalogJson.lastUpdatedVersion, "0.4.19");
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

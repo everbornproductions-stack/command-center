@@ -1,6 +1,6 @@
 // Deep Research routes: start a background run, export the report, continue it as a mission.
 // Continuing as a mission is a click. Nothing is sent or posted from here.
-import { abortResearch, beginDeep, loadResearch, exportReport } from "../research.js";
+import { abortResearch, beginDeep, loadResearch, exportReport, resumeDeep, readExternalMemory, scaleEffort, costWarning, agentsFlagOn, setAgentsFlag } from "../research.js";
 import { safeFileName } from "../research-export.js";
 import { researchSnapshot } from "../feature-gate.js";
 import { normalizeFilter } from "../search.js";
@@ -9,12 +9,15 @@ export const id = "research";
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/research/, "");
-  if (req.method === "GET" && (p === "" || p === "/")) return h.json(res, 200, { research: researchSnapshot() });
+  if (req.method === "GET" && (p === "" || p === "/")) return h.json(res, 200, { research: { ...researchSnapshot(), flag_agents: agentsFlagOn(), costWarning: costWarning() } });
+  if (req.method === "GET" && p === "/plan") { const ef = scaleEffort(url.searchParams.get("prompt") || "", { effort: url.searchParams.get("effort") || undefined }); return h.json(res, 200, { effort: ef, costWarning: costWarning(ef), flag_agents: agentsFlagOn() }); }
+  if (req.method === "POST" && p === "/flag") return h.json(res, 200, { ok: true, flag_agents: setAgentsFlag(!!body?.flag_agents) });
 
   if (req.method === "POST" && p === "/deep") {
     try {
-      const job = beginDeep({ prompt: body.prompt || body.goal, filter: body.filter, projectId: body.projectId });
-      return h.json(res, 202, { ok: true, id: job.id, runId: job.id });
+      const job = beginDeep({ prompt: body.prompt || body.goal, filter: body.filter, projectId: body.projectId, effort: body.effort, facets: body.facets, maxCostUsd: body.maxCostUsd });
+      return h.json(res, 202, { ok: true, id: job.id, runId: job.id, ...(job.effort ? { effort: job.effort } : {}), ...(job.costWarning ? { costWarning: job.costWarning } : {}) });
+
     } catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code }); }
   }
 
@@ -62,6 +65,17 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 202, { ok: true, from: m.id });
   }
 
+  const memMatch = p.match(/^\/(r-[a-z0-9]+)\/memory$/);
+  if (req.method === "GET" && memMatch) {
+    const mem = readExternalMemory(memMatch[1]);
+    if (!mem) return h.json(res, 404, { error: "not found" });
+    return h.json(res, 200, mem);
+  }
+  const resMatch = p.match(/^\/(r-[a-z0-9]+)\/resume$/);
+  if (req.method === "POST" && resMatch) {
+    try { return h.json(res, 202, { ok: true, ...(await resumeDeep(resMatch[1])) }); }
+    catch (e) { return h.json(res, e.status || 400, { error: e.message }); }
+  }
   const one = p.match(/^\/(r-[a-z0-9]+)$/);
   if (req.method === "GET" && one) {
     const m = await loadResearch(one[1]);

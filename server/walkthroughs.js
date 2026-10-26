@@ -6,6 +6,92 @@
 import { isFreshInstall, resolveMode } from "../web/mode.js";
 
 export const STAGES = ["idea", "questions", "plan", "build", "review", "done"];
+export const FLOW_STAGES = ["creative", "planning", "ai-movement", "build-mode", "testing", "finish"];
+
+export const FLOW_STAGE_BY_ID = Object.freeze({
+  idea: "creative",
+  questions: "planning",
+  plan: "ai-movement",
+  build: "build-mode",
+  review: "testing",
+  done: "finish",
+});
+
+export const STAGE_ALIASES = Object.freeze({
+  idea: "idea",
+  creative: "idea",
+  describe: "idea",
+  questions: "questions",
+  planning: "questions",
+  "clarifying-questions": "questions",
+  plan: "plan",
+  "ai-movement": "plan",
+  movement: "plan",
+  "council-plan": "plan",
+  build: "build",
+  "build-mode": "build",
+  "routed-steps": "build",
+  review: "review",
+  testing: "review",
+  "testing-and-tweaks": "review",
+  "testing-tweaks": "review",
+  test: "review",
+  done: "done",
+  finish: "done",
+  "finished-project": "done",
+  finished: "done",
+  publish: "done",
+  export: "done",
+});
+
+export const FLOW_STAGE_LABELS = {
+  simple: {
+    idea: "Creative",
+    questions: "Planning",
+    plan: "AI Movement",
+    build: "Build",
+    review: "Testing and Tweaks",
+    done: "Finish",
+  },
+  expert: {
+    idea: "Creative",
+    questions: "Planning",
+    plan: "AI Movement",
+    build: "Build Mode",
+    review: "Testing & Tweaks",
+    done: "Finished Project",
+  },
+};
+
+export const FLOW_STAGES_FLAG = "flag_flowstages";
+
+export function isFlowStagesEnabled({ settings, env = process.env, requested } = {}) {
+  if (requested === true || requested === "1" || requested === "true") return true;
+  if (requested === false || requested === "0" || requested === "false") return false;
+  const s = settings || {};
+  if (s.flag_flowstages === true || s.flags?.flag_flowstages === true) return true;
+  if (s.flag_flowstages === false || s.flags?.flag_flowstages === false) return false;
+  const e = String(env?.CC_FLAG_FLOWSTAGES || "").trim().toLowerCase();
+  return !(e === "0" || e === "false" || e === "off");
+}
+
+export function resolveStageId(value, customStages = []) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+  if (STAGE_ALIASES[raw]) return STAGE_ALIASES[raw];
+  const slug = raw.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (STAGE_ALIASES[slug]) return STAGE_ALIASES[slug];
+  const custom = (customStages || []).find((c) => c && (c.id === raw || c.id === slug || c.flowId === raw || c.flowId === slug));
+  return custom ? custom.id : null;
+}
+
+export function flowStageOf(value, customStages = []) {
+  const id = resolveStageId(value, customStages);
+  if (id && FLOW_STAGE_BY_ID[id]) return FLOW_STAGE_BY_ID[id];
+  const custom = (customStages || []).find((c) => c && (c.id === id || c.id === value));
+  if (custom?.flowId) return custom.flowId;
+  return String(value ?? "").trim().toLowerCase() || "creative";
+}
 
 export const STAGE_LABELS = {
   simple: {
@@ -172,7 +258,8 @@ export function resolveExperience({ settings, requested, onboarding } = {}) {
   return resolveMode(merged, { fresh: isFreshInstall({ onboarding, settings: merged }) });
 }
 
-export function labelsFor(experience) {
+export function labelsFor(experience, opts = {}) {
+  if (opts?.flowStages === true || isFlowStagesEnabled(opts)) return FLOW_STAGE_LABELS[experience === "expert" ? "expert" : "simple"];
   return STAGE_LABELS[experience === "expert" ? "expert" : "simple"];
 }
 
@@ -302,7 +389,318 @@ function publicStep(s, expert) {
   return { ...base, capability: s.capability, difficulty: s.difficulty, deps: s.deps || [], instructions: s.instructions, provider: s.provider, model: s.model, agentName: s.agentName, score: s.score, estCost: s.estCost };
 }
 
-export function present(walk, experience) {
+export function defaultStageOrder() {
+  return STAGES.map((id) => ({ id, flowId: FLOW_STAGE_BY_ID[id], custom: false }));
+}
+
+export function ensureStageOrder(walk) {
+  if (!Array.isArray(walk.stageOrder) || !walk.stageOrder.length) {
+    walk.stageOrder = defaultStageOrder();
+  }
+  if (!Array.isArray(walk.skippedStages)) walk.skippedStages = [];
+  if (!Array.isArray(walk.autofilledStages)) walk.autofilledStages = [];
+  if (!Array.isArray(walk.stackedSteps)) walk.stackedSteps = [];
+  return walk.stageOrder;
+}
+
+export function buildStageList(walk, experience, opts = {}) {
+  const expert = experience === "expert";
+  const mode = expert ? "expert" : "simple";
+  const flowOn = opts?.flowStages === true || isFlowStagesEnabled(opts) || walk?.flowStagesEnabled === true;
+  if (!flowOn) {
+    return STAGES.map((id) => ({ id, label: STAGE_LABELS[mode][id] }));
+  }
+  const order = Array.isArray(walk?.stageOrder) && walk.stageOrder.length ? walk.stageOrder : defaultStageOrder();
+  const skipped = new Set(walk?.skippedStages || []);
+  const autofilled = new Set(walk?.autofilledStages || []);
+  const atIdx = order.findIndex((s) => s.id === walk?.stage);
+  return order.map((entry, idx) => {
+    const id = entry.id;
+    const flowId = entry.flowId || flowStageOf(id, order);
+    const label = entry.label || FLOW_STAGE_LABELS[mode][id] || STAGE_LABELS[mode][id] || id;
+    let state = "pending";
+    if (skipped.has(id)) state = "skipped";
+    else if (id === walk?.stage) state = walk?.paused ? "paused" : (["planning", "building", "revising"].includes(walk?.status) ? "running" : "active");
+    else if (atIdx >= 0 && idx < atIdx) state = "done";
+    return {
+      id,
+      flowId,
+      label,
+      state,
+      clickable: true,
+      skipped: skipped.has(id),
+      autofilled: autofilled.has(id),
+      custom: !!entry.custom,
+      instructions: entry.instructions || "",
+    };
+  });
+}
+
+export function buildFlowchart(walk, experience, opts = {}) {
+  const expert = experience === "expert";
+  const stages = buildStageList(walk, experience, { ...opts, flowStages: true });
+  const nodes = stages.map((s, idx) => ({
+    id: s.id,
+    flowId: s.flowId,
+    index: idx + 1,
+    label: s.label,
+    state: s.state,
+    clickable: true,
+    skipped: s.skipped,
+    autofilled: s.autofilled,
+    custom: s.custom,
+  }));
+  const edges = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push({
+      from: nodes[i].id,
+      to: nodes[i + 1].id,
+      completed: nodes[i].state === "done" || nodes[i].state === "skipped",
+      active: nodes[i].state === "active" || nodes[i].state === "running",
+    });
+  }
+  return {
+    layout: "horizontal",
+    mode: expert ? "flowchart" : "breadcrumb",
+    nodes,
+    edges,
+  };
+}
+
+export function normalizeStackedSteps(raw, customStages = []) {
+  const list = Array.isArray(raw) ? raw.slice(0, 12) : [];
+  return list.map((item, i) => {
+    const obj = typeof item === "string" ? { prompt: item } : (item || {});
+    const stage = resolveStageId(obj.stage, customStages) || STAGES[Math.min(i, STAGES.length - 1)];
+    const prompt = clip(obj.prompt || obj.instructions || obj.text || obj.title || "", 1000);
+    const title = clip(obj.title || prompt || `Stacked step ${i + 1}`, 80);
+    return {
+      id: /^st\d+$/.test(String(obj.id || "")) ? String(obj.id) : `st${i + 1}`,
+      stage,
+      flowStage: flowStageOf(stage, customStages),
+      title,
+      prompt: prompt || title,
+      capability: cleanCapability(obj.capability),
+      status: ["queued", "running", "done", "skipped", "paused", "failed"].includes(obj.status) ? obj.status : "queued",
+      output: obj.output || null,
+    };
+  }).filter((s) => s.title || s.prompt);
+}
+
+export function nextStageAfter(walk, currentStageId) {
+  const order = ensureStageOrder(walk);
+  const skipped = new Set(walk.skippedStages || []);
+  const idx = order.findIndex((s) => s.id === currentStageId);
+  for (let i = idx + 1; i < order.length; i++) {
+    if (!skipped.has(order[i].id)) return order[i].id;
+  }
+  return order[order.length - 1]?.id || "done";
+}
+
+export function applyStageAction(walk, action, payload = {}, helpers = {}) {
+  ensureStageOrder(walk);
+  const act = String(action || "").trim().toLowerCase();
+  const type = typeById(walk.type) || TYPES[0];
+
+  if (act === "jump" || act === "goto" || act === "stage") {
+    const target = resolveStageId(payload.stage || payload.target, walk.stageOrder);
+    if (!target) throw new Error("Unknown stage.");
+    walk.stage = target;
+    walk.skippedStages = (walk.skippedStages || []).filter((id) => id !== target);
+    return walk;
+  }
+
+  if (act === "add") {
+    const target = String(payload.target || "stage").toLowerCase();
+    const label = clip(payload.label || payload.title || "Custom step", 60) || "Custom step";
+    const instructions = clip(payload.instructions || payload.prompt || "", 1000);
+    const capability = cleanCapability(payload.capability);
+    if (target === "step" || (walk.plan && Array.isArray(walk.plan.steps) && payload.planStep)) {
+      if (!walk.plan) walk.plan = scaffoldPlan(type, walk.idea || type.name);
+      const nextNum = (walk.plan.steps?.length || 0) + 1;
+      const newStep = {
+        id: `t${nextNum}`,
+        title: label,
+        capability,
+        difficulty: Math.min(3, Math.max(1, Number(payload.difficulty) || 2)),
+        instructions: instructions || `Complete ${label}. Mark unknown facts as [ASK].`,
+        deliverable: clip(payload.deliverable || label, 200),
+        deps: [],
+        status: "queued",
+        output: null,
+      };
+      const routed = assignRoute([...(walk.plan.steps || []), newStep], helpers.rank, walk.priority || "balanced");
+      walk.plan.steps = routed;
+      return walk;
+    }
+    const slug = "custom-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) + "-" + (walk.stageOrder.length + 1);
+    const entry = {
+      id: slug,
+      flowId: slug,
+      label,
+      custom: true,
+      capability,
+      instructions,
+    };
+    const afterId = resolveStageId(payload.afterStage || payload.after, walk.stageOrder);
+    const afterIdx = afterId ? walk.stageOrder.findIndex((s) => s.id === afterId) : -1;
+    if (afterIdx >= 0) walk.stageOrder.splice(afterIdx + 1, 0, entry);
+    else {
+      const doneIdx = walk.stageOrder.findIndex((s) => s.id === "done");
+      if (doneIdx >= 0) walk.stageOrder.splice(doneIdx, 0, entry);
+      else walk.stageOrder.push(entry);
+    }
+    if (walk.plan && Array.isArray(walk.plan.steps)) {
+      const nextNum = walk.plan.steps.length + 1;
+      walk.plan.steps = assignRoute([
+        ...walk.plan.steps,
+        {
+          id: `t${nextNum}`,
+          title: label,
+          capability,
+          difficulty: 2,
+          instructions: instructions || `Complete ${label}. Mark unknown facts as [ASK].`,
+          deliverable: label,
+          deps: [],
+          status: "queued",
+          output: null,
+        },
+      ], helpers.rank, walk.priority || "balanced");
+    }
+    return walk;
+  }
+
+  if (act === "remove") {
+    if (payload.stepId && walk.plan?.steps) {
+      walk.plan.steps = walk.plan.steps.filter((s) => s.id !== payload.stepId);
+      return walk;
+    }
+    const stageId = resolveStageId(payload.stage || payload.id, walk.stageOrder) || String(payload.stage || payload.id || "");
+    const idx = walk.stageOrder.findIndex((s) => s.id === stageId || s.flowId === stageId);
+    if (idx < 0) throw new Error("Stage not found.");
+    if (walk.stageOrder.length <= 1) throw new Error("At least one stage must remain.");
+    const removed = walk.stageOrder[idx];
+    walk.stageOrder.splice(idx, 1);
+    if (walk.stage === removed.id) {
+      walk.stage = walk.stageOrder[Math.min(idx, walk.stageOrder.length - 1)].id;
+    }
+    return walk;
+  }
+
+  if (act === "reorder") {
+    if (Array.isArray(payload.stepOrder) && walk.plan?.steps) {
+      const byId = new Map(walk.plan.steps.map((s) => [s.id, s]));
+      const reordered = payload.stepOrder.map((id) => byId.get(String(id))).filter(Boolean);
+      for (const s of walk.plan.steps) if (!reordered.includes(s)) reordered.push(s);
+      walk.plan.steps = reordered;
+      return walk;
+    }
+    if (Array.isArray(payload.order) && payload.order.length) {
+      const byId = new Map();
+      for (const s of walk.stageOrder) {
+        byId.set(s.id, s);
+        if (s.flowId) byId.set(s.flowId, s);
+      }
+      const nextOrder = [];
+      for (const raw of payload.order) {
+        const resolved = resolveStageId(raw, walk.stageOrder) || String(raw);
+        const found = byId.get(resolved) || byId.get(String(raw));
+        if (found && !nextOrder.includes(found)) nextOrder.push(found);
+      }
+      for (const s of walk.stageOrder) if (!nextOrder.includes(s)) nextOrder.push(s);
+      walk.stageOrder = nextOrder;
+      return walk;
+    }
+    const targetId = resolveStageId(payload.stage || walk.stage, walk.stageOrder);
+    const idx = walk.stageOrder.findIndex((s) => s.id === targetId);
+    if (idx < 0) throw new Error("Stage not found.");
+    const dir = String(payload.direction || "").toLowerCase();
+    const toIdx = typeof payload.toIndex === "number"
+      ? Math.max(0, Math.min(walk.stageOrder.length - 1, payload.toIndex))
+      : dir === "up" || dir === "left" ? Math.max(0, idx - 1)
+      : dir === "down" || dir === "right" ? Math.min(walk.stageOrder.length - 1, idx + 1)
+      : idx;
+    if (toIdx !== idx) {
+      const [item] = walk.stageOrder.splice(idx, 1);
+      walk.stageOrder.splice(toIdx, 0, item);
+    }
+    return walk;
+  }
+
+  if (act === "skip") {
+    const targetId = resolveStageId(payload.stage || walk.stage, walk.stageOrder) || walk.stage;
+    if (!walk.skippedStages.includes(targetId)) walk.skippedStages.push(targetId);
+    if (walk.stage === targetId && payload.advance !== false) {
+      walk.stage = nextStageAfter(walk, targetId);
+    }
+    return walk;
+  }
+
+  if (act === "autofill") {
+    const targetId = resolveStageId(payload.stage || walk.stage, walk.stageOrder) || walk.stage;
+    if (!walk.autofilledStages.includes(targetId)) walk.autofilledStages.push(targetId);
+    walk.skippedStages = (walk.skippedStages || []).filter((id) => id !== targetId);
+    if (targetId === "idea") {
+      if (!walk.idea || !walk.idea.trim()) {
+        walk.idea = clip(payload.hint || `${type.name}: ${type.blurb} Details to confirm: [ASK].`, 400);
+      }
+    } else if (targetId === "questions") {
+      if (!walk.idea || !walk.idea.trim()) {
+        walk.idea = `${type.name}: ${type.blurb} Details to confirm: [ASK].`;
+      }
+      const nextAnswers = { ...(walk.answers || {}) };
+      const assumed = [];
+      for (const q of type.questions || []) {
+        if (nextAnswers[q.key] && String(nextAnswers[q.key]).trim()) continue;
+        const val = helpers.fillAnswer ? helpers.fillAnswer(q, walk.idea) : (q.placeholder ? `${q.placeholder} [ASK]` : "Best guess from the idea. Check this. [ASK]");
+        nextAnswers[q.key] = val;
+        assumed.push({ key: q.key, label: q.label, value: val, required: !!q.required });
+      }
+      walk.answers = nextAnswers;
+      walk.assumedAnswers = assumed;
+    } else if (targetId === "plan") {
+      if (!walk.plan || !walk.plan.steps?.length) {
+        const plan = scaffoldPlan(type, walk.idea || type.name);
+        plan.steps = assignRoute(plan.steps, helpers.rank, walk.priority || "balanced");
+        walk.plan = plan;
+      }
+    } else if (targetId === "build") {
+      if (!walk.plan || !walk.plan.steps?.length) {
+        const plan = scaffoldPlan(type, walk.idea || type.name);
+        plan.steps = assignRoute(plan.steps, helpers.rank, walk.priority || "balanced");
+        walk.plan = plan;
+      }
+      for (const s of walk.plan.steps) {
+        if (!s.output) {
+          s.output = `Draft for ${s.title}: ${s.deliverable || s.instructions || "Outline ready."} [ASK]`;
+          s.status = "done";
+        }
+      }
+      if (!walk.deliverable) {
+        walk.deliverable = walk.plan.steps.map((s) => `## ${s.title}\n${s.output}`).join("\n\n");
+      }
+    } else if (targetId === "review") {
+      if (!walk.deliverable) {
+        const stepsText = (walk.plan?.steps || []).map((s) => `## ${s.title}\n${s.output || s.deliverable || "[ASK]"}`).join("\n\n");
+        walk.deliverable = stepsText || `# ${type.name}\n\n${walk.idea || "Draft ready for review. [ASK]"}`;
+      }
+    } else {
+      const custom = walk.stageOrder.find((s) => s.id === targetId);
+      if (custom) {
+        custom.output = `Auto-filled ${custom.label}: ${custom.instructions || "Ready for review."} [ASK]`;
+        custom.status = "done";
+      }
+    }
+    if (payload.advance !== false) {
+      walk.stage = nextStageAfter(walk, targetId);
+    }
+    return walk;
+  }
+
+  throw new Error(`Unknown stage action: ${act}`);
+}
+
+export function present(walk, experience, opts = {}) {
   const expert = experience === "expert";
   const type = typeById(walk.type);
   return {
@@ -316,7 +714,7 @@ export function present(walk, experience) {
     modeLabel: expert ? "Expert" : "Simple",
     stage: walk.stage,
     status: walk.status || "ready",
-    stages: STAGES.map((id) => ({ id, label: labelsFor(expert ? "expert" : "simple")[id] })),
+    stages: buildStageList(walk, expert ? "expert" : "simple", opts),
     idea: walk.idea || "",
     answers: walk.answers || {},
     questions: type?.questions || [],
@@ -334,6 +732,27 @@ export function present(walk, experience) {
     projectNote: walk.projectNote || "",
     error: walk.error || null,
     updatedAt: walk.updatedAt || walk.createdAt || null,
+    ...((opts?.flowStages === true || isFlowStagesEnabled(opts) || walk?.flowStagesEnabled === true) ? {
+      flowStagesEnabled: true,
+      flowStage: flowStageOf(walk.stage, walk.stageOrder),
+      breadcrumb: buildStageList(walk, expert ? "expert" : "simple", { ...opts, flowStages: true }).map((s, idx) => ({
+        id: s.id,
+        flowId: s.flowId,
+        index: idx + 1,
+        label: s.label,
+        state: s.state,
+        clickable: true,
+        skipped: s.skipped,
+        autofilled: s.autofilled,
+      })),
+      flowchart: buildFlowchart(walk, expert ? "expert" : "simple", { ...opts, flowStages: true }),
+      skippedStages: walk.skippedStages || [],
+      autofilledStages: walk.autofilledStages || [],
+      stackedSteps: walk.stackedSteps || [],
+      paused: !!walk.paused,
+      savedAt: walk.savedAt || null,
+      assumedAnswers: walk.assumedAnswers || [],
+    } : {}),
   };
 }
 

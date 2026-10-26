@@ -5,14 +5,18 @@
 //   GET  /api/buildall                 this person's recent runs
 //   GET  /api/buildall/:id             one run with its steps
 //   POST /api/buildall/:id/stop        Stop
+//   POST /api/buildall/:id/pause       Pause (when flag_flowstages is on or requested)
+//   POST /api/buildall/:id/resume      Resume a paused run
+//   POST /api/buildall/:id/save        Save job state
 // Each surface drives its own existing routes in this process, in order, so every
 // rule those routes already have (gates, compliance, previews) still applies.
 // Nothing here posts unless Also allow posting is on, and nothing spends money or
 // deletes for good.
 import {
-  loadPrefs, savePrefs, createJob, getJob, listJobs, stopJob, publicJob, runSteps, waitFor,
-  fillAnswers, answerFromDescription, STEP_LABELS, SURFACES, STOP_REASON,
+  loadPrefs, savePrefs, createJob, getJob, listJobs, stopJob, pauseJob, resumeJob, saveJob,
+  publicJob, runSteps, waitFor, fillAnswers, answerFromDescription, STEP_LABELS, SURFACES, STOP_REASON,
 } from "../build-all.js";
+import { isFlowStagesEnabled } from "../walkthroughs.js";
 import { needsRemote, requiredChecks } from "../builders/drafts.js";
 
 export const id = "buildall";
@@ -68,6 +72,8 @@ function startPlan(body) {
   let walkId = String(body?.walkId || "");
   let walk = null;
   const read = async () => check(await callRoute("GET", `/api/walkthrough/${encodeURIComponent(walkId)}${q}`), "Reading the project");
+  // Stop must really stop: tell the project to start no new step, so no more AI calls are paid for.
+  const halt = async () => { if (walkId) { try { await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/halt${q}`, {}); } catch { /* the job is stopped either way */ } } };
   return {
     title: "Start a project",
     steps: [
@@ -92,12 +98,14 @@ function startPlan(body) {
       { id: "plan", label: STEP_LABELS.plan, run: async ({ stopped }) => {
         check(await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/plan${q}`, { experience: exp }), "Planning");
         walk = await waitFor(read, (w) => w && w.status !== "planning", { stopped });
+        if (stopped()) await halt();
         if (walk?.status === "failed") throw new Error(walk.error || "The plan did not finish.");
         return { note: `${walk?.plan?.steps?.length || 0} steps planned.` };
       } },
       { id: "build", label: STEP_LABELS.build, run: async ({ stopped }) => {
         check(await callRoute("POST", `/api/walkthrough/${encodeURIComponent(walkId)}/build${q}`, { experience: exp }), "Building");
         walk = await waitFor(read, (w) => w && w.status !== "building", { stopped });
+        if (stopped()) await halt();
         if (walk?.status === "failed") throw new Error(walk.error || "The build did not finish.");
         return { note: "Built." };
       } },
@@ -296,6 +304,9 @@ export async function routes(req, res, url, body, h) {
   const seg = p.split("/").filter(Boolean);
   const m = req.method;
   const who = owner(h);
+  let settings = {};
+  try { settings = h.settings?.() || {}; } catch { settings = {}; }
+  const flowOn = isFlowStagesEnabled({ settings, requested: url.searchParams.get("flag_flowstages") ?? body?.flag_flowstages });
 
   if (m === "GET" && seg[0] === "prefs" && seg.length === 1) return h.json(res, 200, loadPrefs(h.doc));
   if (m === "POST" && seg[0] === "prefs" && seg.length === 1) return h.json(res, 200, savePrefs(h.doc, h.putDoc, { on: body?.on, allowPost: body?.allowPost }));
@@ -308,7 +319,15 @@ export async function routes(req, res, url, body, h) {
     const prefs = loadPrefs(h.doc);
     const allowPost = body?.allowPost === undefined ? prefs.allowPost : body.allowPost === true;
     const plan = planFor(surface, body);
-    const job = createJob({ surface, title: plan.title, steps: steps(plan.steps.map((s) => s.id)), allowPost, owner: who });
+    const job = createJob({
+      surface,
+      title: plan.title,
+      steps: steps(plan.steps.map((s) => s.id)),
+      allowPost,
+      owner: who,
+      flowStages: flowOn,
+      experience: body?.experience === "expert" ? "expert" : "simple",
+    });
     const tell = (view) => { try { h.emit("buildall.update", { job: view }); } catch { /* bus optional */ } };
     try { h.emit("log", { text: `Build it all for me started: ${plan.title}. It stops only to spend money, delete for good, or post in public.` }); } catch { /* bus optional */ }
     runSteps(job, plan.steps, { onProgress: tell }).then((view) => {
@@ -325,6 +344,21 @@ export async function routes(req, res, url, body, h) {
     stopJob(job.id);
     try { h.emit("buildall.update", { job: publicJob(job) }); } catch { /* bus optional */ }
     return h.json(res, 200, publicJob(job));
+  }
+  if (m === "POST" && seg.length === 2 && seg[1] === "pause") {
+    pauseJob(job.id);
+    try { h.emit("buildall.update", { job: publicJob(job) }); } catch { /* bus optional */ }
+    return h.json(res, 200, publicJob(job));
+  }
+  if (m === "POST" && seg.length === 2 && seg[1] === "resume") {
+    const tell = (view) => { try { h.emit("buildall.update", { job: view }); } catch { /* bus optional */ } };
+    resumeJob(job.id, { onProgress: tell }).catch(() => {});
+    return h.json(res, 200, publicJob(job));
+  }
+  if (m === "POST" && seg.length === 2 && seg[1] === "save") {
+    const saved = saveJob(h.doc, h.putDoc, job);
+    try { h.emit("buildall.update", { job: saved }); } catch { /* bus optional */ }
+    return h.json(res, 200, saved);
   }
   return false;
 }

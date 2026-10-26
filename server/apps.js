@@ -126,6 +126,24 @@ export function setAllowed(id, allowed) {
   return saveState({ ...cur, allows });
 }
 
+export function setAllAllowed(allowed, opts = {}) {
+  if (allowed) guard("appScan");
+  const cur = loadState();
+  if (!cur.optedIn) {
+    const err = new Error("Turn on desktop control before allowing an app.");
+    err.status = 400;
+    throw err;
+  }
+  const filterIds = Array.isArray(opts?.ids) && opts.ids.length ? new Set(opts.ids.map(String)) : null;
+  const allows = { ...cur.allows };
+  for (const app of cur.apps || []) {
+    if (filterIds && !filterIds.has(app.id)) continue;
+    allows[app.id] = !!allowed;
+  }
+  // Persist bulk allow map.
+  return saveState({ ...cur, allows });
+}
+
 export function dismissSuggestion(id) {
   const key = String(id || "").trim();
   if (!/^[a-z0-9-]{2,40}$/.test(key)) {

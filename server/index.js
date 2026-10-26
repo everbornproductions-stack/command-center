@@ -22,7 +22,7 @@ import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso
 import { bus, emit } from "./events.js";
 import {
   BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket,
-  lanCandidates, lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
+  lanCandidates, lanHostOk, tunnelHostOk, tunnelOriginOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
   preferredLanIPv4, probePort, readInterfaces, tokenFromPairPath, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
@@ -41,7 +41,8 @@ import { beginFollowup } from "./followup.js";
 import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
-import { loadProjects, listProjects, saveProject, addLink, removeLink, hqSnapshot } from "./projects.js";
+import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
+import { flagOn, flagView, projectmediaOn, takeoverOn } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -79,7 +80,7 @@ import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedule
 import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.js";
 import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
 import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
-import { publicWebConfig } from "./web-config.js";
+import { publicWebConfig, isNavStateEnabled } from "./web-config.js";
 import { handleUsageHttp, isUsageHttp, freshUsageDoc } from "./usage.js";
 import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugins/extension.js";
 import { applyShareDefaults } from "./privacy.js";
@@ -132,15 +133,17 @@ function tokenOk(presented) {
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+// The one tunnel host this app was told to use (Settings or CC_TUNNEL_HOST). Empty means no tunnel is allowed.
+const ownTunnelHost = () => process.env.CC_TUNNEL_HOST || settings().tunnelHost || "";
 const hostOk = (req) => {
   const host = req.headers.host || "";
-  return loopbackHost(host, PORT) || host.includes("trycloudflare.com") || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
+  return loopbackHost(host, PORT) || tunnelHostOk(host, ownTunnelHost()) || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
 };
 const originOk = (req) => {
   if (!req.headers.origin) return true;
   const o = String(req.headers.origin).toLowerCase();
   if ([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`].includes(o)) return true;
-  if (o.includes("trycloudflare.com")) return true;
+  if (tunnelOriginOk(o, ownTunnelHost())) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
 };
 function phonePair() {
@@ -181,8 +184,10 @@ const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true
 const settings = () => {
   const s = doc("settings", () => ({ ...DEFAULT_SETTINGS }));
   const mode = normalizeMode(s.defaultMode);
-  if (!mode || mode === s.defaultMode) return s;
-  return { ...s, defaultMode: mode };
+  const envFlag = process.env.CC_FLAG_PHONEWEB === "1" || process.env.CC_FLAG_PHONEWEB === "true";
+  const nextMode = mode && mode !== s.defaultMode ? mode : s.defaultMode;
+  if (nextMode === s.defaultMode && (!envFlag || s.flag_phoneweb !== undefined)) return s;
+  return { ...s, defaultMode: nextMode, ...(envFlag && s.flag_phoneweb === undefined ? { flag_phoneweb: true } : {}) };
 };
 const saveSettings = (s) => putDoc("settings", s);
 // The armed tone belongs to the next run only. Call this once, just before that run starts.
@@ -492,12 +497,13 @@ function fullState() {
   return {
     mode: MODE, user: HOSTED ? { email: c.email } : null, hub: HOSTED ? CFG.hubUrl : null,
     lastRun: c.lastRun, plugins: loadedPlugins(),
-    name: s.name, settings: s, demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
-    ...subsView(), projects: listProjects(), hq: hqSnapshot(),
+    name: s.name, settings: s, projectMedia: projectmediaOn(s), demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
+    ...subsView(), projects: listProjects(), deletedProjects: flagOn("projectbar") ? listDeleted() : [], hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
+    flags: { ...flagView(), takeover: takeoverOn(s), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
@@ -523,6 +529,14 @@ const publicConfig = () => publicWebConfig({ hosted: HOSTED, version: VERSION, s
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
+// Stop for a normal chat: the answer stops where it is and keeps what was written so far.
+const chatRuns = new Map();
+export function abortChat(id) {
+  const ctl = chatRuns.get(String(id || ""));
+  if (!ctl || ctl.signal.aborted) return false;
+  ctl.abort();
+  return true;
+}
 async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
@@ -591,11 +605,13 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const s = Date.now();
   const asked = { provider, model };
   let text = "";
+  const stopCtl = new AbortController();
+  chatRuns.set(id, stopCtl);
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -619,6 +635,12 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     }
     m.status = "done";
   } catch (err) {
+    if (stopCtl.signal.aborted) {
+      // the person pressed Stop: keep the partial answer, say so, and do not count it as the AI's fault
+      m.status = "aborted"; m.error = "Stopped by you.";
+      if (text) m.deliverable = text;
+      emit("agent.error", { agent, provider, model, missionId: id, error: "Stopped by you." });
+    } else {
     if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
     if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
     if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
@@ -632,7 +654,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       m.status = "failed"; m.error = err.message;
       if (err.code === "paused") m.deliverable = err.message;
     }
-  }
+    }
+  } finally { chatRuns.delete(id); }
   if (!m.deliverable) m.deliverable = text;
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
@@ -797,7 +820,7 @@ async function api(req, res, url) {
   }
   if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") {
     const id = seg[1];
-    if (abortMission(id)) return json(res, 200, { aborted: true });
+    if (abortMission(id) || abortChat(id)) return json(res, 200, { aborted: true });
     const stored = await ctx().store.getMission(id);
     if (stored?.kind === "mission" && stored.status === "paused") {
       stored.status = "aborted";
@@ -867,7 +890,47 @@ async function api(req, res, url) {
     }
     const id = body.id || projectSlug(name);
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
-    return json(res, 200, saveProject(body));
+    try { return json(res, 200, saveProject(body)); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  if (method === "GET" && p === "/projects/tree") return json(res, 200, { tree: projectTree() });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "subprojects") return json(res, 200, { subProjects: listSubProjects(seg[1]) });
+  if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "expand") {
+    const expanded = expandProject(seg[1], { missions: missionList() });
+    if (!expanded) return json(res, 404, { error: "project not found" });
+    return json(res, 200, expanded);
+  }
+  if (seg[0] === "projects-deleted") {
+    if (!flagOn("projectbar")) return json(res, 404, { error: "Recently Deleted is turned off on this install.", code: "flag_off" });
+    if (method === "GET" && !seg[1]) {
+      for (const id of expiredDeleted()) { try { const pr = deletedProject(id); if (pr) projectRemoval(id, { remove: true, project: pr }); } catch { /* it stays listed and is tried again next time */ } }
+      return json(res, 200, { projects: listDeleted() });
+    }
+    if (method === "POST" && seg[1] && seg[2] === "restore") {
+      try {
+        const existing = listProjects();
+        try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
+        const back = restoreProject(seg[1]);
+        if (!back) return json(res, 404, { error: "That project is not in Recently Deleted." });
+        return json(res, 200, { ok: true, project: back });
+      } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+    }
+    if (method === "DELETE" && seg[1] && !seg[2]) {
+      if (url.searchParams.get("confirm") !== "yes") return json(res, 400, { error: "Confirm before deleting for good.", code: "confirm" });
+      const pr = deletedProject(seg[1]);
+      if (!pr) return json(res, 404, { error: "That project is not in Recently Deleted." });
+      try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true, project: pr }) }); }
+      catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+    }
+  }
+  if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2] && flagOn("projectbar")) {
+    const gone = trashProject(seg[1]);
+    if (!gone) return json(res, 404, { error: "project not found" });
+    return json(res, 200, { ok: true, soft: true, deleted: gone });
+  }
+  if (method === "PUT" && seg[0] === "projects" && seg[1] && !seg[2]) {
+    const existing = listProjects().find((x) => x.id === seg[1]);
+    if (!existing) return json(res, 404, { error: "project not found" });
+    return json(res, 200, saveProject({ ...body, id: seg[1] }));
   }
   if (method === "DELETE" && seg[0] === "projects" && seg[1] && !seg[2]) {
     try { return json(res, 200, { ok: true, receipt: projectRemoval(seg[1], { remove: true }) }); }
@@ -927,8 +990,12 @@ async function api(req, res, url) {
     if (firstRun) putDoc("desktop.prompt", applyDesktopPrompt(doc("desktop.prompt", () => ({ status: "pending", laterCount: 0 })), "quiet"));
     writeOnboarding(completeRecord(readOnboarding(), Date.now()));
     const s = saveSettings({ ...settings(), onboarded: true });
+    let sampleProject = null;
+    if (isNavStateEnabled(s) || body?.ensureSampleProject) {
+      try { sampleProject = ensureSampleProject({ uiMode: s.uiMode }); } catch { /* ignore */ }
+    }
     try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); }
-    return json(res, 200, s);
+    return json(res, 200, sampleProject ? { ...s, sampleProject } : s);
   }
   if (method === "GET" && p === "/onboarding") return json(res, 200, onboardingState());
   if (method === "POST" && p === "/onboarding/ack") {

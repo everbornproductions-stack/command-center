@@ -1,0 +1,33 @@
+/* Shared look tokens (0.4.19). Variables only, so the app and the Meldmind site can both link this file. */
+:root {
+  --mm-blur: 14px;
+  --mm-radius: 14px;
+  --mm-glow-speed: 3.2s;
+  --mm-glass-fill: rgba(17, 24, 39, .78);
+  --mm-glass-fill-solid: #111827;
+  --mm-glass-line: rgba(255, 255, 255, .14);
+  --mm-glass-shadow: 0 18px 48px rgba(0, 0, 0, .38);
+  --mm-text-on-glass: #e5e7eb;
+  --mm-gold: #f5c542;
+  --mm-light-working: #8fd0ff;
+  --mm-light-done: #34d399;
+  --mm-light-waiting: #fbbf24;
+  --mm-light-error: #f87171;
+  --mm-grad-calm: linear-gradient(135deg, #0b1220 0%, #12243a 55%, #1a1536 100%);
+  --mm-grad-working: linear-gradient(135deg, #0b1626 0%, #0f2f52 55%, #14274a 100%);
+  --mm-grad-success: linear-gradient(135deg, #0b1a17 0%, #0f3a30 55%, #12302c 100%);
+  --mm-grad-attention: linear-gradient(135deg, #1a1409 0%, #3a2a0c 55%, #2c1d0a 100%);
+}
+:root[data-theme="light"] {
+  --mm-glass-fill: rgba(255, 255, 255, .78);
+  --mm-glass-fill-solid: #ffffff;
+  --mm-glass-line: rgba(15, 23, 42, .16);
+  --mm-glass-shadow: 0 18px 48px rgba(15, 23, 42, .18);
+  --mm-text-on-glass: #0f172a;
+  --mm-gold: #a67c00;
+  --mm-light-working: #1d6fd6;
+  --mm-grad-calm: linear-gradient(135deg, #eef3fb 0%, #e3ecf8 55%, #ece6f8 100%);
+  --mm-grad-working: linear-gradient(135deg, #e6f0fc 0%, #d3e5fa 100%);
+  --mm-grad-success: linear-gradient(135deg, #e6f6ef 0%, #d3efe3 100%);
+  --mm-grad-attention: linear-gradient(135deg, #fbf3df 0%, #f7e8c2 100%);
+}

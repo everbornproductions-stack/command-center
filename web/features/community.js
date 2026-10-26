@@ -10,6 +10,8 @@ let unread = false;
 let primed = false;
 let shareOverride = "";
 let busy = false;
+let liveTimer = null;
+const LIVE_MS = 5000;
 
 const css = `
 #cc-community { max-width: 1100px; margin: 0 auto; }
@@ -114,8 +116,10 @@ function messageHtml(m, owner) {
     <button class="btn sm" type="button" data-vote="up" data-id="${esc(m.id)}">Thumbs up</button>
     <button class="btn sm" type="button" data-vote="down" data-id="${esc(m.id)}">Thumbs down</button>` : "";
   const mine = m.mine || owner ? `<button class="btn sm" type="button" data-del="${esc(m.id)}">Delete</button>` : "";
+  const unsent = m.unsent ? `<div class="small cc-unsent" style="color:var(--warn,#f59e0b)">Not shared yet. ${esc(m.unsent.reason || "Only you can see this.")}</div>` : "";
   return `<div class="cc-msg" data-mid="${esc(m.id)}">
     <div><span class="who">${esc(m.username || m.displayName || "Member")}</span> <span class="dim small">${esc(m.kind || "text")}</span></div>
+    ${unsent}
     ${share}
     <div style="white-space:pre-wrap">${esc(m.body || "")}</div>
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
@@ -218,7 +222,61 @@ function moreHtml() {
   </details>`;
 }
 
+// Live refresh: while the Community page is open and the window is visible, check for new messages
+// every few seconds and redraw only the message list. A half-typed message and the scroll spot stay.
+function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+function startLive(view) {
+  stopLive();
+  if (channel === "news" || !room?.joined) return;
+  liveTimer = setInterval(async () => {
+    const feed = view.querySelector("#cc-feed");
+    if (!feed || !view.isConnected || document.hidden || channel === "news") { if (!feed || !view.isConnected) stopLive(); return; }
+    try {
+      const next = await api(`/community?channel=${encodeURIComponent(channel)}`);
+      if (next.channel !== channel) return;
+      const html = (next.messages || []).map((m) => messageHtml(m, next.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>`;
+      if (html === feed.dataset.html) return;
+      const atEnd = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+      const open = new Set([...feed.querySelectorAll(".cc-report:not([hidden])")].map((el) => el.closest(".cc-msg")?.dataset.mid));
+      feed.innerHTML = html;
+      feed.dataset.html = html;
+      feed.querySelectorAll(".cc-msg").forEach((el) => { if (open.has(el.dataset.mid)) el.querySelector(".cc-report")?.removeAttribute("hidden"); });
+      if (atEnd) feed.scrollTop = feed.scrollHeight;
+      room = next;
+      wireFeed(view, feed);
+    } catch {}
+  }, LIVE_MS);
+}
+
+function wireFeed(view, scope) {
+  scope.querySelectorAll("[data-report]").forEach((btn) => btn.addEventListener("click", () => {
+    btn.closest(".cc-msg")?.querySelector(".cc-report")?.removeAttribute("hidden");
+  }));
+  scope.querySelectorAll("[data-report-go]").forEach((btn) => btn.addEventListener("click", async () => {
+    const reason = btn.parentElement.querySelector("input")?.value || "";
+    try {
+      await api(`/community/messages/${encodeURIComponent(btn.dataset.reportGo)}/report`, { method: "POST", body: { reason } });
+      toast("Report sent.");
+    } catch (e) { toast(e.message, true); }
+  }));
+  scope.querySelectorAll("[data-vote]").forEach((btn) => btn.addEventListener("click", async () => {
+    try {
+      const voted = await api(`/community/messages/${encodeURIComponent(btn.dataset.id)}/vote`, { method: "POST", body: { vote: btn.dataset.vote } });
+      toast(voted.scoreLabel || "Vote saved.");
+      render(view);
+    } catch (e) { toast(e.message, true); }
+  }));
+  scope.querySelectorAll("[data-del]").forEach((btn) => btn.addEventListener("click", async () => {
+    try {
+      await api(`/community/messages/${encodeURIComponent(btn.dataset.del)}`, { method: "DELETE" });
+      toast("Removed.");
+      render(view);
+    } catch (e) { toast(e.message, true); }
+  }));
+}
+
 async function render(view) {
+  stopLive();
   view.innerHTML = `<div id="cc-community"><div class="empty">Loading community...</div></div>`;
   const root = view.querySelector("#cc-community");
   try { room = await api(`/community?channel=${encodeURIComponent(channel)}`); }
@@ -234,7 +292,7 @@ async function render(view) {
     </div>
     <div>
       <div class="panel">
-        ${room.needsLicence ? `<div class="small">Add a licence first. Community chat uses the email on your licence.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
+        ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your licence.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
           <div class="small">Pick a public username for your account. A friendly one is suggested. Your email is not shown.</div>
           <label>Username <input id="cc-name" name="cc-name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="off" value="${esc(room.suggestion || "")}" aria-label="Username"></label>
           <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News.</div>
@@ -242,7 +300,7 @@ async function render(view) {
         </form>`)}
         <div class="dim small">${esc(SHORT)}</div>
         ${onNews ? newsHtml(room.news) : `
-          <div id="cc-feed">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
+          <div id="cc-feed" style="max-height:60vh;overflow-y:auto">${joined ? (room.messages || []).map((m) => messageHtml(m, room.owner)).join("") || `<div class="empty">No messages in this channel yet.</div>` : `<div class="empty">Pick a username to read and post.</div>`}</div>
           ${joined ? `<form id="cc-send" class="grid" style="gap:8px;margin-top:10px">
             <textarea id="cc-body" rows="3" maxlength="2000" placeholder="Write a message. Nothing is posted until you click Send." aria-label="Message"></textarea>
             <div><button class="btn sm primary" type="submit" id="cc-send-go">Send</button></div>
@@ -279,8 +337,9 @@ async function render(view) {
     busy = true;
     if (button) button.disabled = true;
     try {
-      await api("/community/messages", { method: "POST", body: { channel, body } });
-      toast("Posted.");
+      const sent = await api("/community/messages", { method: "POST", body: { channel, body } });
+      if (sent && sent.delivered === true) toast("Posted.");
+      else toast(sent?.note || "Saved on this computer only. It was not shared.", true);
       render(view);
     } catch (e) {
       busy = false;
@@ -289,30 +348,7 @@ async function render(view) {
     } finally { busy = false; }
   });
 
-  root.querySelectorAll("[data-report]").forEach((btn) => btn.addEventListener("click", () => {
-    btn.closest(".cc-msg")?.querySelector(".cc-report")?.removeAttribute("hidden");
-  }));
-  root.querySelectorAll("[data-report-go]").forEach((btn) => btn.addEventListener("click", async () => {
-    const reason = btn.parentElement.querySelector("input")?.value || "";
-    try {
-      await api(`/community/messages/${encodeURIComponent(btn.dataset.reportGo)}/report`, { method: "POST", body: { reason } });
-      toast("Report sent.");
-    } catch (e) { toast(e.message, true); }
-  }));
-  root.querySelectorAll("[data-vote]").forEach((btn) => btn.addEventListener("click", async () => {
-    try {
-      const voted = await api(`/community/messages/${encodeURIComponent(btn.dataset.id)}/vote`, { method: "POST", body: { vote: btn.dataset.vote } });
-      toast(voted.scoreLabel || "Vote saved.");
-      render(view);
-    } catch (e) { toast(e.message, true); }
-  }));
-  root.querySelectorAll("[data-del]").forEach((btn) => btn.addEventListener("click", async () => {
-    try {
-      await api(`/community/messages/${encodeURIComponent(btn.dataset.del)}`, { method: "DELETE" });
-      toast("Removed.");
-      render(view);
-    } catch (e) { toast(e.message, true); }
-  }));
+  wireFeed(view, root);
   root.querySelectorAll("[data-react]").forEach((btn) => btn.addEventListener("click", async () => {
     try {
       await api("/community/news/react", { method: "POST", body: { issueId: room.news.issue.id, itemId: btn.dataset.item, reaction: btn.dataset.react } });
@@ -379,6 +415,9 @@ async function render(view) {
     } catch (e) { toast(e.message, true); }
   });
   wireMail(root, room.newsletter);
+  const feedEl = root.querySelector("#cc-feed");
+  if (feedEl) { feedEl.dataset.html = feedEl.innerHTML; feedEl.scrollTop = feedEl.scrollHeight; }
+  startLive(view);
 }
 
 function renderSettings(el) {

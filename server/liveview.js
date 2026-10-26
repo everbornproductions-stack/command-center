@@ -451,7 +451,7 @@ function jobsInRuns(runs, ledger) {
   return counts;
 }
 
-export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledger = [], reducedMotion = false, width = 680, height = 320 } = {}) {
+export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledger = [], reducedMotion = false, width = 680, height = 320, credit = null } = {}) {
   const ids = new Set();
   const active = new Set();
   for (const run of runs) {
@@ -505,7 +505,15 @@ export function makeFlow(runs, state, { providers = PROVIDERS, health = {}, ledg
       usageScale: at.usageScale ?? 1, tiny: !!at.tiny, radius: 18 * (at.usageScale ?? 1) * (at.fit || 1),
       tip: "", spin: false,
     };
+    // Slice A4 (flag_livebubble): credit badge from the credit backup state. Absent when the flag is off.
+    const cs = credit && credit[n.id];
+    if (cs) {
+      node.badge = cs.viaMcp ? "via MCP" : cs.outOfCredits ? "Out of credits" : "";
+      node.outOfCredits = !!cs.outOfCredits;
+      node.viaMcp = !!cs.viaMcp;
+    }
     node.tip = tipOf(node);
+    if (node.badge) node.tip += ` · ${node.badge}`;
     return node;
   });
   const summary = nodes.filter((n) => n.active).map((n) => n.tip).join(" · ") || "Nobody is working right now.";
@@ -550,8 +558,8 @@ function pack(runs, state, opts) {
   return { runs, flow, links, watchHere: watch, working, step, pending: round6(pending), cost, credits };
 }
 
-export function buildLiveView({ state = createState(), projects = [], missions = [], ledger = [], jobs = [], health = {}, providers = PROVIDERS, reducedMotion = false } = {}) {
-  const opts = { providers, health, ledger, reducedMotion };
+export function buildLiveView({ state = createState(), projects = [], missions = [], ledger = [], jobs = [], health = {}, providers = PROVIDERS, reducedMotion = false, extras = null } = {}) {
+  const opts = { providers, health, ledger, reducedMotion, credit: extras?.credit || null };
   const runs = assembleRuns(state, missions, jobs, ledger, health, providers);
   const known = new Set((projects || []).map((p) => p.id));
   const grouped = new Map();
@@ -561,13 +569,20 @@ export function buildLiveView({ state = createState(), projects = [], missions =
     if (run.projectId && known.has(run.projectId)) grouped.get(run.projectId).push(run);
     else unfiled.push(run);
   }
-  const projectViews = (projects || []).map((p) => {
+  let projectViews = (projects || []).map((p) => {
     const list = grouped.get(p.id) || [];
     const box = pack(list, state, opts);
     const spend = projectTotals(p.id, list, ledger);
     box.cost = spend.cost; box.credits = spend.credits;
     return { id: p.id, name: p.name || p.id, color: p.color || "#22d3ee", ...box };
   });
+  // Slice A4: idle projects the person cleared stay hidden until they have new activity.
+  let hiddenIdle = 0;
+  if (extras?.cleared) {
+    const split = extras.applyCleared(projectViews, extras.cleared);
+    projectViews = split.shown;
+    hiddenIdle = split.hidden.length;
+  }
   const loose = pack(unfiled, state, opts);
   loose.cost = round6(unfiled.reduce((s, r) => s + (r.cost || 0), 0));
   loose.credits = unfiled.reduce((s, r) => s + (r.credits || 0), 0);
@@ -577,5 +592,7 @@ export function buildLiveView({ state = createState(), projects = [], missions =
   let cost = 0, credits = 0;
   for (const p of projectViews) { cost += p.cost; credits += p.credits; }
   cost = round6(cost + loose.cost); credits += loose.credits;
-  return { note: HISTORY_NOTE, projects: projectViews, unfiled: loose, runs, flow, cost, credits, working: runs.some((r) => r.working) };
+  const out = { note: HISTORY_NOTE, projects: projectViews, unfiled: loose, runs, flow, cost, credits, working: runs.some((r) => r.working) };
+  if (extras) { out.hiddenIdle = hiddenIdle; out.idleCount = projectViews.filter((p) => !p.working).length; if (extras.free) out.freeAi = extras.free; }
+  return out;
 }

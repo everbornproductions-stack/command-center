@@ -17,6 +17,7 @@ export const CHAT_IDS = new Set(["general", "prompts", "builders", "help", "show
 export const SHARE_KINDS = new Set(["prompt", "builder", "mission", "news"]);
 export const SHARE_CHANNEL = { prompt: "prompts", builder: "builders", mission: "show", news: "general" };
 
+export const SIGN_IN_FIRST = "Sign in first. Community chat uses the email you signed in with (Google or Microsoft) or the email on your licence.";
 export const BURST_MAX = 5;
 export const BURST_MS = 8000;
 export const HOUR_MAX = 40;
@@ -128,7 +129,7 @@ export function suggestUsername(taken, now = Date.now()) {
 export function claimUsername({ username, email, names, current = "", changedAt = 0, now = Date.now(), localOk = false } = {}) {
   const lic = cleanEmail(email);
   const identity = validEmail(lic) ? lic : (localOk ? "local" : "");
-  if (!identity) return fail(400, "Add a licence first. Community chat uses the email on your licence.");
+  if (!identity) return fail(400, SIGN_IN_FIRST);
   const checked = checkUsername(username);
   if (!checked.ok) return checked;
   const key = checked.username.toLowerCase();
@@ -300,6 +301,7 @@ export function publicMessage(message, room, actor) {
     voted: counts.mine,
     voters: counts.voters || [],
   };
+  if (message.unsent && row.mine) row.unsent = { state: message.unsent, reason: message.unsentReason || "" };
   return row;
 }
 

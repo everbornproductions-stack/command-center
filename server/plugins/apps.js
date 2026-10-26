@@ -80,6 +80,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "GET" && p === "/suggestions") return h.json(res, 200, Apps.suggestFor(url.searchParams.get("prompt") || ""));
     if (m === "POST" && p === "/opt-in") return h.json(res, 200, { ...Apps.publicState(await Apps.optIn(!!body?.on)), ...Apps.appsView() });
     if (m === "POST" && p === "/allow") return h.json(res, 200, { ...Apps.publicState(Apps.setAllowed(String(body?.id || ""), !!body?.allowed)), ...Apps.appsView() });
+    if (m === "POST" && p === "/allow-all") return h.json(res, 200, { ...Apps.publicState(Apps.setAllAllowed(!!body?.allowed, { ids: Array.isArray(body?.ids) ? body.ids : null })), ...Apps.appsView() });
     if (m === "POST" && p === "/dismiss") return h.json(res, 200, { ok: true, dismissed: Apps.dismissSuggestion(String(body?.id || "")).dismissed });
     if (m === "POST" && p === "/settings") {
       if (typeof body?.suggestions !== "boolean") {

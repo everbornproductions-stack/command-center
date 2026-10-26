@@ -3,7 +3,7 @@ const { api, toast, esc, go } = window.CC;
 
 const css = `
 .ew-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 920px; }
-.ew-card { background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.ew-card { background: var(--card-bg, #0e1726); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .ew-card h3 { margin: 0 0 6px; font-size: 16px; }
 .ew-say { font-family: var(--mono); font-size: 13px; margin: 6px 0; }
 .ew-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

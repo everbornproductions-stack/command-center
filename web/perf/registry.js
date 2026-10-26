@@ -41,12 +41,19 @@ export const FEATURES = [
   { id: "app-signin", shell: true },
   { id: "privacy", shell: true },
   { id: "prompt-suggest", shell: true },
+  { id: "look", shell: true },
+  { id: "news-rail", shell: true },
 
+  { id: "next-actions", deliverable: true },
+  { id: "finish-router", views: ["publish"] },
+  { id: "finishpath", deliverable: true },
+  { id: "prompt-drop", views: ["images", "media", "remix", "builders", "webbuilders"], home: true },
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
   { id: "mcp", home: true, deliverable: true, settings: true },
   { id: "fallback", home: true, deliverable: true, settings: true },
   { id: "handoff", home: true, deliverable: true, settings: true, listen: true },
+  { id: "phoneweb", home: true, settings: true, listen: true },
   { id: "getdone", home: true, settings: true, listen: true },
   { id: "brain", views: ["brain"] },
   { id: "grokbot", home: true, deliverable: true, settings: true, listen: true },
@@ -116,6 +123,7 @@ export const FEATURES = [
   { id: "highlevel", settings: true },
   { id: "own-supabase", settings: true },
   { id: "usage", settings: true },
+  { id: "projectmedia", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"], home: true, settings: true },
 ];
 
 // Server plugins that stay out of startup. file is the name in server/plugins.
@@ -123,6 +131,8 @@ export const FEATURES = [
 // loads it even if the page forgot to ask.
 export const SERVER_DEMAND = [
   { id: "perf", file: "perf.js", views: ["settings"] },
+  { id: "takeover", file: "takeover.js", views: ["schedules"] },
+  { id: "projectmedia", file: "projectmedia.js", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"] },
 ];
 
 // Sizes are the download size shown before a click. These tools are not in

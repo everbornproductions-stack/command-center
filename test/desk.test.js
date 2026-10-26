@@ -219,7 +219,10 @@ test("home, readers, backup, delete receipt, double-check, and the Pro repeat ga
     assert.equal(preview.status, 200);
     assert.match(preview.json.lines.join("\n"), /AI keys were not touched/);
     assert.equal(preview.json.removed, false);
-    const deleted = await s.api(`/projects/${made.json.id}`, { method: "DELETE" });
+    const soft = await s.api(`/projects/${made.json.id}`, { method: "DELETE" });
+    assert.equal(soft.status, 200);
+    assert.equal(soft.json.soft, true, "the project bar keeps a deleted project in Recently Deleted");
+    const deleted = await s.api(`/projects-deleted/${made.json.id}?confirm=yes`, { method: "DELETE" });
     assert.equal(deleted.status, 200);
     assert.equal(deleted.json.receipt.removed, true);
     assert.match(deleted.json.receipt.lines.join("\n"), /stay in My chats/);

@@ -1,0 +1,888 @@
+MindMeld Implementation Guide    Page 1
+ MINDMELD
+ Implementation Guide & Feature Specifications
+ Organized, Expanded & Ready for Development
+Phone Companion  Flow Mode  Multi-AI Coordination  Specialized Tools
+ Prepared for Christopher John Magee
+ VMAX  Everborn Productions
+ October 2026
+
+MindMeld Implementation Guide    Page 2
+1. Core Behavior Principles
+These principles govern every interaction and should be enforced at the system level.
+Never Refuse — Always Find a Workaround
+MindMeld never says “no” to a request. When a direct path is blocked, it must automatically attempt alternative
+methods. Because MindMeld has desktop control, the preferred sequence is:
+  Use existing installed applications and desktop automation first.
+ Navigate the browser and interact with web interfaces the user already has access to.
+ Break the task into smaller steps that can be completed with available tools.
+ Only surface a limitation after all reasonable workarounds have been attempted, and always offer the
+closest viable alternative.
+Dual Control: Phone + Desktop
+The phone app remains fully interactive even while the desktop is executing long-running tasks. The user can
+continue issuing new instructions, corrections, or additional steps from the phone without interrupting or waiting
+for the current desktop action to complete. Input from both devices is queued and processed in order.
+2. Phone Companion App
+The phone app serves as both a remote interface and an active tool for the desktop instance of MindMeld.
+Core Capabilities
+  Voice & Text Conversation: Continuous speak-to-text and text chat with the desktop MindMeld
+instance.
+ Job Progress Monitoring: View real-time status of running tasks, current stage, and any errors or
+decisions the desktop has made.
+ Quick Actions: One-tap or voice commands for “Schedule this,” “Book this,” “Email this,” and “Post this
+to [platform].”
+ Image Generation & Editing: “Make this image,” adjust ambience, lighting, or request real photographic
+enhancements.
+ Phone Sensor Integration: Leverage location (“Find my home”), camera, and other device capabilities
+when relevant.
+ Content Posting: Post or schedule content to Instagram, X, Facebook, LinkedIn, or other connected
+platforms directly from the phone.
+ Parallel Input: Continue feeding new instructions while the desktop is working; the phone does not lock
+during desktop operations.
+Design Requirement: Keep the phone interface lightweight and responsive. Heavy processing stays on the
+desktop; the phone is primarily an input, monitoring, and lightweight command surface.
+3. Automated Self-Setup & Onboarding
+
+MindMeld Implementation Guide    Page 3
+The goal is to complete technical setup with minimal user effort so the final conversation can focus on the
+user’s actual work and preferences.
+Setup Sequence
+ 1. Scan browser history, recent emails, and connected accounts to identify which AI tools and services the
+user already uses (Find My AI).
+2. Automatically open the relevant API key, settings, or developer pages in the browser so the user can
+copy credentials with one click.
+3. For specific tools such as Anthropic: open the official site, guide the user to re-download or install, and
+navigate them directly there.
+4. Guide or automate (via PowerShell / scripts) the installation of recommended desktop AIs and tools,
+including free options. Proceed one tool after another with clear status updates.
+5. After technical items are addressed, run a focused interview that asks what the user actually does for
+work, their clients, preferred content styles, and recurring tasks.
+6. Store these preferences so that future prompts, suggestions, and default behaviors are weighted toward
+the user’s real use cases.
+End State: Technical setup is largely complete. The system then shifts emphasis to the user’s domain-specific
+needs and makes those prompts more prominent in the interface.
+4. Flow Mode — Project-Driven Workflow
+Flow Mode is the primary way work is organized and completed. Projects move through defined stages with
+clear visibility and control.
+Project Stages
+Visible Stages: Creative → Planning → AI Movement → Build Mode → Testing & Tweaks → Finished Project
+In Expert Mode, a horizontal live flowchart across the top of the interface shows the current stage and overall
+progress.
+Flow Mode Behaviors
+  Chat remains active and accepts new instructions even while work is running (except inside pure settings
+screens).
+ Steps can be stacked. Completing one step automatically advances the project to the next stage.
+ Users can add, remove, reorder, or edit prompts and steps at any time.
+ Users can skip a stage or instruct the AI to fill in a stage automatically.
+ A clear Finish button is always available. Pressing it initiates production of the final deliverable using all
+accumulated work.
+ Any project can be saved, paused, resumed, or used as a template for a new project.
+ Sub-projects can exist under a main project and are visible when the main project is expanded.
+ Projects can be expanded to show all constituent elements (prompts, images, videos, automations,
+documents, etc.).
+
+MindMeld Implementation Guide    Page 4
+Auto-Routing by Project Type
+Based on the type of work (image, video, reel, music, automation, document, etc.), MindMeld automatically
+opens the appropriate tools and places the project in the correct stage. Examples include image editor,
+video/music production, reel production with Instagram/other posting, and automation setup for recurring posts.
+Simple Mode vs Expert Mode
+Simple Mode: GPT-style layout with projects listed on the left and active work/chat on the right. Chats are
+auto-organized into categories and subcategories.
+Expert Mode: Adds the horizontal live flowchart and more granular stage controls.
+5. Specialized Tools
+Photography — Real Enhancement (Not Pure AI Generation)
+When users are performing real photographic enhancements rather than generative AI edits, MindMeld
+prioritizes Photoshop-style adjustment prompts.
+  Built-in prompts focused on real adjustments: contrast, ambient light, color grading, skin tone, clarity,
+exposure, and similar non-destructive changes.
+ Quick controls inside image generation for ambience, lighting, and mood.
+ Real face adjustments (contrast, ambient, tone) that preserve the original photograph rather than
+regenerating it.
+6. Multi-AI Coordination
+  Integrate cleanly with other AIs via API or MCP.
+ Automatically create and maintain a dedicated MindMeld project inside other AIs so work remains
+organized if the user switches back to them.
+ Review scheduled tasks that were created by other AIs.
+ Offer to take those tasks over and notify the originating AI when it does so.
+ Provide an on-demand “Review & Take Over Tasks” action inside the Scheduled area that can be run at
+any time.
+7. Owner Mode
+A special license level that unlocks direct builder access.
+  Extra prompt/chat space that talks directly to MindMeld itself.
+ Ability to make changes, adjust behavior, and refine the system from inside the app.
+ MindMeld can treat itself as a project and continue building or improving features within the application.
+8. UI, Navigation, State Persistence & Continuity
+
+MindMeld Implementation Guide    Page 5
+ When the user clicks an AI in the bottom menu, navigate directly to that AI’s setup page and focus on the
+relevant configuration item.
+ Always keep a clear Finish / Produce button available so the user can trigger final output at any time.
+ Auto-organize chats and projects into categories and subcategories.
+ Allow any completed project to be used as a template for a new project.
+ Define clear “what happens next” continuations for every major capability (e.g., after image generation
+offer real enhancement or posting options; after reel planning move into video production or scheduling).
+ Account for both pre-installed programs and programs the user has added.
+ Connected State Awareness: Once an AI or tool is already installed and connected (e.g., Antigravity or
+others), do not continue prompting the user to install or connect it. Recognize the connected state and
+remove those prompts.
+ Visual Indicator for Installed Items: Show a clear visual indicator (checkmark, badge, color change, or
+icon) next to any AI or tool that is already installed and connected so the user can immediately see its
+status.
+ Back Button & Form State: When a user is filling out a form or settings screen, navigating away must
+not discard their progress. A proper back button must restore the exact state so the user sees what
+happened and what they previously chose.
+ Persona / Ego Screen: Maintain a persistent “screen of their ego” (user persona/profile). State must
+survive navigation so the user does not lose context or selected options when returning to the screen.
+ In-App Upgrade & Payments: Support upgrading plans and handling payments directly inside the app.
+9. Performance Requirements
+The application must remain fast, especially when the phone and desktop are both active.
+  Compress or unload modules and assets that are not currently in use.
+ Tighten code paths and reduce background load.
+ Prioritize responsiveness of the phone interface even during heavy desktop processing.
+11. Enhanced Browser Capabilities
+Inspired by Mind Browser’s specialized agents and Claude’s Research / Duet systems. These should be built
+into MindMeld’s browser and agent layer.
+Specialized Sidebar Agents (Mind Browser model)
+  Planner: Breaks the user’s goal into a clear sequence of steps.
+ Navigator: Controls the browser — clicks, types, scrolls, switches tabs, and fills forms.
+ Researcher: Searches multiple sources, reads pages, and gathers information with citations.
+ Writer: Produces clean written output, summaries, and reports from the research.
+ Analyst: Compares sources, flags contradictions, and extracts insights.
+Core Browser Agent Behaviors
+
+MindMeld Implementation Guide    Page 6
+ Natural-language tasks that actually control the browser (click, type, scroll, switch tabs) while the user
+watches each step.
+ Page summaries and the ability to chat directly with the current page.
+ Multi-source research that returns cited answers instead of ungrounded responses.
+ Transparent execution — the user can see the agent open tabs, read pages, and cross-check sources in
+real time.
+ Support for both local models (Ollama-style) and cloud providers so prompts and page content can stay
+on-device when desired.
+ Built-in tools such as split view, notes, command palette, screenshots, and PDF annotation.
+ Strong privacy defaults: ad/tracker/fingerprinting blocking and optional local-only mode.
+Deep Research Mode (Claude Research style)
+  Agentic multi-step research that runs multiple searches building on each other.
+ Lead agent plans the research, then spawns parallel sub-agents that each investigate different angles.
+ Synthesizes findings into a structured report with clear citations so sources can be verified.
+ Works across the open web and any connected tools (email, calendar, documents, etc.).
+ Automatically enables deeper reasoning / extended thinking when research is active.
+ Ideal for market analysis, competitor research, technical synthesis, and any task that normally takes
+hours of manual searching.
+Proactive Agent Behaviors (Claude Duet style)
+  Morning brief that surfaces the most important items across connected apps.
+ Background work that continues even when the user steps away (using its own browser/session).
+ Single ongoing thread (plus optional topic channels) so context is never lost.
+ Asks for explicit approval before sending messages, making payments, signing documents, or deleting
+anything.
+ Uses connected apps and tools to complete real tasks (scheduling, drafting, research, reporting) rather
+than only answering questions.
+ Knows when to stay quiet versus when something actually needs the user’s attention.
+Implementation Note: Combine Mind Browser’s visible, specialized sidebar agents with Claude-style
+multi-agent deep research and Duet-style proactive background work. The user should always be able to watch
+the process, approve sensitive actions, and keep context across phone and desktop.
+Deep Implementation Architecture
+The following patterns are drawn from Anthropic’s published multi-agent Research system and modern
+browser-agent design. Use them as the blueprint for MindMeld’s browser and research layer.
+1. Orchestrator-Worker Research Pattern
+  LeadResearcher (Orchestrator): Receives the query, uses extended thinking to plan, decomposes the
+task into 2–5 independent facets, writes the plan to external memory (so it survives context limits), then
+
+MindMeld Implementation Guide    Page 7
+spawns sub-agents.
+ Research Sub-agents (Workers): Each runs in its own isolated context window. Given a specific
+objective, output format, tool list, and clear “done” boundary. They search, evaluate with interleaved
+thinking, and return condensed findings only.
+ Parallelism: Lead spawns 3–5 sub-agents at once. Each sub-agent can call multiple tools in parallel.
+This is what delivered ~90% better results than a single strong agent on Anthropic’s internal evals.
+ CitationAgent: Separate final pass that walks the synthesized report and source documents to attach
+precise citations to every claim. Prevents ungrounded statements.
+ Effort Scaling: Simple queries use 1 agent with few tool calls. Complex queries use more sub-agents.
+Hard-code scaling rules so the system does not over-spawn.
+ Memory & Continuity: Persist the plan and phase summaries externally. When context nears limits,
+spawn fresh sub-agents that retrieve the plan from memory.
+ Cost Awareness: Multi-agent research uses roughly 15× the tokens of a normal chat. Reserve it for
+high-value research tasks; use lighter single-agent paths for simple lookups.
+2. Browser Agent Perception & Action Loop
+  Observe–Reason–Act–Verify loop: Every browser step follows this cycle. Observe the current page,
+reason about the next action, act, then verify the result before continuing.
+ Preferred perception: Hybrid (DOM/Accessibility Tree first, Vision fallback). Accessibility tree is
+faster, cheaper, and more precise for text and interactive elements. Fall back to screenshots only when the
+page uses canvas, heavy shadow DOM, or visual-only content.
+ Action grounding: Prefer element IDs / roles / accessible names over pixel coordinates. This survives
+layout changes and is more reliable.
+ Transparent execution: Show the user every tab opened, every page read, and every decision in real
+time (Mind Browser style). Nothing should be hidden behind a spinner.
+ Specialized agents: Planner creates the step sequence; Navigator executes browser actions;
+Researcher gathers and cites; Writer produces clean output; Analyst compares sources and flags conflicts.
+ Local vs Cloud models: Support Ollama-style local models so page content and prompts can stay
+on-device when privacy is required, while still allowing cloud providers for heavier reasoning.
+3. Production Guardrails for MindMeld
+  Clear tool boundaries and explicit “done” conditions for every sub-agent to prevent endless searching or
+duplicated work.
+ Durable execution with checkpoints and retries so long-running research or browser tasks can recover
+from failures.
+ User-visible progress and the ability to interrupt or steer at any time (phone or desktop).
+ Mandatory approval before any sensitive action (send message, pay, delete, sign).
+ External memory / project state so research and browser work can be paused, resumed, and attached to
+a MindMeld project.
+ Keep the phone interface responsive while heavy research or browser work runs on the desktop.
+These patterns give MindMeld a concrete architecture: specialized visible agents for browser work, an
+orchestrator-worker system with external memory and a citation pass for deep research, hybrid DOM-first
+
+MindMeld Implementation Guide    Page 8
+perception for reliable automation, and production guardrails so the system stays controllable and efficient.
+12. Finish & Deploy — Post-Generation Editing and Publishing
+After a product is generated, MindMeld moves it into a manual edit and finishing stage before it is put into play.
+Each major category gets its own tailored tools and publishing options so the user can refine and deploy without
+leaving the project.
+Images
+Real photographic and generative images open in an editor with Photoshop-style non-destructive controls:
+  Sliders for lighting, exposure, contrast, highlights, shadows, ambient light, and color grading.
+ Skin tone, clarity, and texture adjustments that preserve the original face or subject.
+ Quick ambience and mood presets plus manual fine-tuning.
+ Ability to compare before/after and save versions inside the project.
+Videos
+  Dedicated sound line and text/subtitle line editors.
+ Production options for timing, transitions, overlays, and audio levels.
+ Ability to adjust voice, music, and on-screen text after generation.
+ Preview and export ready for posting or further editing.
+Programs & Code
+Generated programs open in a modify area where the user can review, edit, and test the output before
+deployment.
+Games
+Games receive their own item and asset editor so characters, levels, mechanics, or visual elements can be
+adjusted after initial generation.
+Social Media
+  Post immediately to one or more platforms, or schedule posts.
+ Create variations of captions, hashtags, and timing for different platforms.
+ Queue and manage a content calendar from inside the project.
+ Review and edit each post before it goes live.
+Websites
+  One-click publish options to Cloudflare Pages, Vercel, Netlify, or other connected hosts.
+ Guided setup of domain, environment variables, and required configuration so the site is live and running.
+ Preview before publish and the ability to update or roll back versions.
+
+MindMeld Implementation Guide    Page 9
+General Category Finishing Patterns
+For any major category, MindMeld should auto-detect the output type and surface the matching finish tools.
+Examples:
+  Accounting / Financial builds: Generate reports, then open in an editable table or dashboard with
+export to spreadsheet, PDF, or accounting software. Include review of numbers, categorization, and
+approval before finalizing.
+ Documents & Reports: Structured editor with section-level revisions, citations check, and export
+options.
+ Automations: Test-run panel, schedule editor, and activation toggle with confirmation.
+ Music / Audio: Waveform and track editor, volume, effects, and export.
+ Presentations: Slide-by-slide edit, reorder, and theme adjustments before export or present.
+ Always provide a clear “Ready to Deploy / Publish / Finish” action once the user is satisfied.
+General / Other Products
+  Any product that does not match a specific category opens in a flexible finishing workspace.
+ Core tools include text/content editing, file attachments, version history, and export options (PDF,
+common formats, download).
+ User can add custom notes, checklist items, or manual steps before marking it complete.
+ Clear “Ready to Finish / Export / Share” action that saves the final state into the project.
+ Supports linking or compiling with other project elements if the user wants to combine outputs.
+Flow Integration: The Finish button moves the project into this category-specific edit stage (or the general
+workspace if no specific match). From there the user can refine and then publish, schedule, or export. The
+project remains fully saved and can be reopened for later changes.
+Advanced Routing Logic for Finish Stage
+After generation, MindMeld automatically classifies the product and routes it to the correct finishing tools. The
+router is intentionally thin: it only decides the category and confidence, then hands off to specialized editors.
+  Classification signals: File type and MIME, presence of image/video/code/website/game assets, project
+tags, user prompt keywords, and a lightweight LLM or embedding classifier that returns category +
+confidence score.
+ Primary categories: Image, Video, Program/Code, Game, Social Media, Website, Accounting/Financial,
+Document/Report, Automation, Music/Audio, Presentation, and General/Other.
+ Confidence thresholds: High confidence (≥0.85) routes directly to the specialized editor. Medium
+confidence (0.60–0.84) shows a confirmation chip (“This looks like a website — open Website tools?”). Low
+confidence falls back to General/Other with a clear category picker.
+ User override: Always allow the user to switch category manually. The system learns from overrides
+over time (optional future improvement).
+ Multi-output projects: If a project contains mixed types (e.g., images + website), route the primary
+deliverable to its editor and surface secondary assets as linked items that can be opened separately.
+
+MindMeld Implementation Guide    Page 10
+ Thin router principle: The router does not edit content. It only classifies and dispatches. All
+domain-specific tools live inside the category editors.
+ Fallback & safety: Unknown or ambiguous outputs always land in General/Other. Sensitive categories
+(payments, publishing, scheduling) still require explicit user confirmation before final deploy actions.
+This routing layer keeps Flow Mode automatic while remaining transparent and controllable. The user sees why
+a product opened in a particular editor and can change it in one tap.
+Recommended Classification Approaches
+For reliable, low-latency routing in MindMeld, use a hybrid stack rather than relying solely on a large LLM.
+Practical options ranked by suitability:
+  1. Deterministic rules first (always): File extension, MIME type, presence of image/video/code/HTML
+assets, and project tags. These are instant and highly accurate for obvious cases.
+ 2. Embedding similarity (recommended default for text): Use a lightweight sentence transformer (e.g.,
+all-MiniLM-L6-v2 or similar ONNX model). Embed the user prompt or product description and match
+against labeled category examples. Fast (10–50 ms on CPU), no training required, easy to update
+categories by adding examples.
+ 3. Small fine-tuned classifier (best accuracy once data exists): DistilBERT, TinyBERT, or MiniLM +
+logistic regression head, exported to ONNX. Achieves 95%+ accuracy with sub-20 ms inference. Train on
+MindMeld’s own project history or synthetic examples. Ideal for high-volume, stable categories.
+ 4. Zero-shot LLM classifier (fallback only): For rare or ambiguous cases, call a small/fast model with a
+short classification prompt. Higher cost and latency; use only when rules + embedding confidence is low.
+ Confidence handling: Traditional classifiers and calibrated embeddings produce more reliable scores
+than raw LLM self-reported confidence. Apply temperature scaling if needed. Stick to the existing
+high/medium/low thresholds (≥0.85 direct, 0.60–0.84 confirm, below → General).
+ Multimodal note: For pure images or videos with no text, rely first on file type and asset detection.
+Optional lightweight vision model or “describe then classify” path can be added later if needed.
+ Deployment preference: Prefer local/ONNX models so classification stays fast, private, and
+offline-capable. Keep the router thin—classification only, no content generation.
+This hybrid approach gives MindMeld fast, accurate, and maintainable routing without heavy cloud
+dependency. Start with rules + embeddings; add a fine-tuned classifier once sufficient labeled examples exist.
+ONNX Runtime Optimization for Local Classifiers
+For the embedding and small classifier path, deploy models as optimized ONNX so classification stays fast and
+local:
+  Graph optimization: Enable ORT_ENABLE_ALL (or EXTENDED) when creating the InferenceSession.
+This fuses operators (attention, LayerNorm, GELU, MatMul+Add, etc.) and typically yields 40–70%
+speedup on transformer-style models.
+ Quantization: Prefer dynamic INT8 for small NLP/embedding models on CPU. Delivers ~4× size
+reduction and 2–4× speedup on hardware with VNNI or ARM dotprod instructions. Static quantization is an
+option if you have calibration data and accuracy holds.
+ Session reuse: Create the InferenceSession once at startup and reuse it. Avoid reloading the model per
+request.
+
+MindMeld Implementation Guide    Page 11
+ Execution provider: Default to CPUExecutionProvider for privacy and reliability. Optionally enable
+oneDNN (Intel), CoreML (Apple Silicon), DirectML (Windows), or CUDA/TensorRT when hardware is
+available and privacy allows.
+ Offline optimization: Save the optimized graph to disk after the first run so subsequent starts are faster.
+ Hardware note: INT8 gains depend on the CPU supporting efficient integer instructions. Test on target
+machines; on older CPUs without VNNI/dotprod the speedup can be smaller or negative.
+ MindMeld fit: MiniLM-class embedding models and DistilBERT/TinyBERT classifiers are ideal
+candidates. Keep the router model under 100–150 MB quantized so it loads instantly and runs in the
+background without impacting the UI.
+These ONNX optimizations let MindMeld run accurate product-type classification entirely on-device, keeping
+the Finish-stage routing fast, private, and reliable.
+Optional TensorRT Acceleration (NVIDIA GPUs)
+For users with NVIDIA GPUs, TensorRT can further accelerate the local classifier via the ONNX Runtime
+TensorRT Execution Provider. Treat this as an optional path, not the default.
+  When it helps: On NVIDIA GPUs, TensorRT typically delivers the highest throughput and lowest latency
+by optimizing the full graph, auto-tuning kernels, and applying aggressive fusion. FP16 is usually the best
+first step (large speedup, minimal accuracy loss). INT8 can go further but requires calibration and testing,
+especially on transformers.
+ Setup requirements: NVIDIA GPU + compatible CUDA + TensorRT installation. Use the
+TensorrtExecutionProvider in the provider list (ahead of CUDA, then CPU fallback). Enable engine caching
+so the slow first-run engine build is not repeated.
+ Key options: Enable trt_fp16_enable for most cases. Enable trt_engine_cache_enable and set a cache
+path. Optionally set workspace size and shape profiles if inputs are dynamic.
+ Trade-offs: Engine builds are slow and GPU-architecture specific (not portable across different NVIDIA
+cards). TensorRT only accelerates supported subgraphs; unsupported ops fall back to CUDA or CPU.
+Extra dependencies and larger install size.
+ MindMeld recommendation: Keep optimized CPU ONNX as the default for reliability and privacy.
+Auto-detect NVIDIA GPU + TensorRT availability at startup and offer it as an optional “High Performance”
+mode. For tiny models such as MiniLM or DistilBERT, measure real-world gain—CPU may already be fast
+enough that GPU overhead is not worth it for single-request classification.
+ Fallback order: TensorRT EP → CUDA EP → CPU EP. Always verify the active provider after session
+creation and log it.
+TensorRT is a powerful optional accelerator for NVIDIA users, but MindMeld’s routing layer should remain fully
+functional and fast on pure CPU.
+TensorRT INT8 Calibration Techniques
+If enabling INT8 via TensorRT (after validating FP16), calibration is required to set activation scales. Practical
+guidance for MindMeld’s small classification models:
+  Main calibrators: IInt8MinMaxCalibrator is recommended for NLP/transformer models (uses full
+activation range). IInt8EntropyCalibrator2 is preferred for CNNs (KL-divergence, suppresses outliers). Start
+with MinMax for MiniLM/DistilBERT-style models.
+
+MindMeld Implementation Guide    Page 12
+ Calibration dataset: Use a representative subset of real production prompts or product descriptions. Aim
+for diversity across categories. ~200–500 samples is often sufficient; more is not always better. Randomize
+batches and use the largest batch size that fits in GPU memory.
+ Process: TensorRT runs the model in FP32 on the calibration set, builds activation histograms, and
+selects scales that minimize quantization error. Cache the resulting calibration table so subsequent engine
+builds are fast. Tables are portable across devices when calibrated before fusion, but not across TensorRT
+versions.
+ Validation required: Always measure classification accuracy (and confidence calibration) on a held-out
+set after INT8 conversion. If accuracy drops unacceptably, try the other calibrator, a different sample count,
+or fall back to FP16.
+ MindMeld recommendation: Treat INT8 as an advanced optional step only after FP16 is confirmed fast
+and accurate. For tiny routing models, CPU ONNX or FP16 TensorRT is usually enough. Document the
+chosen calibrator and sample set so results are reproducible.
+Proper calibration keeps INT8 accuracy close to FP32 while unlocking the highest GPU performance. Prefer
+FP16 first; only invest in INT8 calibration when the measured speedup justifies the validation effort.
+Additional Routing & Operations Guidance
+Routing Observability & Debugging
+Every classification decision should be logged with the signals used (file type, embedding similarity, classifier
+scores), confidence value, chosen route, and whether the user later overrode it. In the Finish stage, show a
+simple “Why this editor?” panel that lists the top signals and confidence. Keep a short local history of recent
+decisions so mixed or ambiguous projects can be inspected and debugged without external tools.
+User Feedback Loop for the Classifier
+When a user overrides a route, record the correction locally (original prediction, corrected category, and key
+features of the input). In Owner Mode, provide a way to review these corrections and optionally use them to
+update embedding examples or trigger a lightweight retrain of the small classifier. All learning stays on-device
+by default; no data leaves the machine unless the user explicitly opts in.
+Mixed / Multi-Category Projects
+Projects that contain multiple product types (e.g., website + images, or video + social posts) need explicit
+handling. The router selects a primary category based on the strongest signal and opens that editor first, while
+listing secondary categories for one-tap switching or splitting. Users can also manually assign or re-order the
+categories. The project view should clearly show all detected elements and which editor is currently active.
+Fallback & Recovery Behavior
+If the classifier fails to load, returns an error, or produces confidence below the low threshold, route
+automatically to the General/Other workspace. Always provide a one-tap “Re-classify” button. If ONNX Runtime
+or TensorRT is unavailable, fall back cleanly to the next available provider (or pure CPU rules + embeddings)
+without blocking the user. Log the failure reason so it can be diagnosed later.
+Model & Calibration Management
+
+MindMeld Implementation Guide    Page 13
+Version the local classifier model, embedding examples, and any TensorRT engines or calibration tables. In
+Owner Mode, allow swapping models, clearing caches, forcing re-calibration, and viewing load times and model
+sizes. Enforce a size budget (recommended under 150 MB for the quantized router) so classification remains
+instant and does not impact the rest of the application.
+Testing Strategy for Routing
+Maintain a local test set of prompts and sample products that cover every category plus common ambiguous
+and edge cases. Before shipping any model or threshold change, measure accuracy and confidence calibration
+on this set. Include simple regression checks that verify high-confidence cases still route correctly after
+updates. Document the expected results so regressions are easy to spot.
+Performance & Resource Controls
+Optionally pre-load the classifier in the background at startup so the first Finish-stage request is instant. Provide
+a “Low Power” mode that forces CPU-only execution and disables TensorRT. Track classification latency
+internally and ensure it stays well under the threshold that would make the UI feel blocked. Expose basic
+metrics in Owner Mode for monitoring.
+Privacy & Local-Only Guarantees
+Routing, classification, override recording, and any local learning must remain fully on-device by default. No
+prompts, project content, embeddings, or corrections leave the machine unless the user explicitly enables an
+optional telemetry or sync feature. State this clearly in the UI and in Owner Mode so users understand the
+privacy boundary.
+Owner Mode Controls for Routing
+Owner Mode should include controls to adjust confidence thresholds, add or remove category examples, force
+a specific route for testing, view and clear the override history, and inspect recent classification logs. These
+tools let the owner refine behavior without editing code or rebuilding the entire application.
+Edge Cases & Special Handling
+Define clear behavior for edge cases: empty or very short prompts, pure binary assets with no accompanying
+text, projects that are still incomplete, and user-created custom categories. In these situations, prefer the
+General/Other workspace or a confirmation step rather than a low-confidence automatic route. Allow the user to
+manually assign a category at any time.
+Creative Flow Enhancements
+Flow Mode — Expanded
+Flow Mode is the persistent guided path that moves a project from idea to finished output. It preserves context
+between steps and surfaces the right tools for the current stage. Users can stay in a stage, advance, or jump
+back without losing work.
+  Creative — Open-ended generation and exploration. Emphasis on options, asset tray, and one-tap
+variations. Never-say-no is most active.
+
+MindMeld Implementation Guide    Page 14
+ Planning — Structure and direction. Organize created material, set constraints, mark elements
+keep/refine/discard. Context from Creative carries forward.
+ AI Movement — Coordinated multi-AI execution of higher-level instructions. Progress is visible; phone
+can continue directing while work runs.
+ Build Mode — Assembly of elements into a coherent product. Real editing tools become prominent.
+Sub-projects can be worked independently then merged.
+ Testing & Tweaks — Review and refinement against original intent. Quick adjustments are
+front-and-center. Pieces can be sent back to earlier stages.
+ Finished Project (Finish & Deploy) — Category-specific finalization via the router. Quick “Looks good
+— publish/export” path sits alongside full manual controls.
+Core mechanics include persistent state (forms, assets, UI position), context carry-forward, stage-aware
+interface changes, flexible movement between stages, and full phone + desktop synchronization to the same
+project and stage. Momentum Mode can run inside any stage to further reduce friction.
+Creative Momentum Mode — Expanded
+A lightweight always-on mode that keeps the user in creative flow by reducing navigation and decision steps
+between generation, editing, and the next action.
+  Auto-context lock keeps the current project, stage, last prompt, and open assets loaded.
+ Persistent action bar shows the 2–4 most likely next actions based on what was just done.
+ Background auto-save on every meaningful change; no manual save required while active.
+ One-tap variations generate 3–4 alternatives of the current result.
+ Phone directions queue and apply while desktop processes; phone shows live status.
+ Integrates with Flow Mode, Finish & Deploy, asset tray, and never-say-no workaround paths.
+ User can dismiss the bar or exit Momentum Mode at any time; project state is preserved.
+Momentum Mode Mechanics
+Activates after sustained activity inside an open project (configurable idle timer) or by manual toggle. Maintains
+a lightweight session object containing current stage, active assets, last prompt and parameters, recent action
+history, and predicted next actions. This object checkpoints into the project on every meaningful change.
+  Next-action prediction uses a thin local scorer (detailed below).
+ Selected actions package current context and hand off to the appropriate subsystem while the bar
+remains visible.
+ Phone sends lightweight intent packets that queue if desktop is busy; latest explicit direction wins.
+ On project reopen, user is offered “Resume Momentum” if a session was active.
+ Low Power mode simplifies prediction and pauses background generation.
+ Owner Mode can adjust timers, scoring rules, and inspect recent sessions.
+Prediction Scoring Logic
+A fast local scorer ranks a small catalog of candidate actions. All computation stays on-device.
+
+MindMeld Implementation Guide    Page 15
+ Signals: Stage affinity (strongest), result-type match, recency/repetition of user actions, explicit language
+in the last prompt, asset state (fresh vs already edited), optional local project history, and tool availability.
+ Formula (starting weights): stage_affinity × 3.0 + result_type_match × 2.5 + recency_boost × 1.5 +
+language_match × 2.0 + asset_state_bonus × 1.0 + history_bonus × 0.5 − penalties.
+ Only actions whose prerequisites are met are scored. Top 2–4 above a minimum threshold are shown;
+otherwise stage defaults appear.
+ Recency boosts and dismissal penalties decay quickly. Language match clears after the next
+non-matching action.
+ Owner Mode can adjust weights, edit the action catalog, or disable history boosting.
+ Empty or ambiguous context falls back to stage defaults. Scoring is throttled to prevent UI flicker.
+The design keeps prediction under 10 ms, fully local, explainable, and reversible while adapting to stage and
+recent behavior.
+UI Navigation & Prompt Helpers
+Menu Item Navigation
+Every menu item (bottom menu AIs, side menu tools, project actions, Remix, Live Mode, etc.) must navigate
+directly to the correct area it covers. Clicking or tapping an item opens its specific setup, workspace, or status
+view — never a generic list or intermediate screen. If the item is already connected or configured, open its
+settings or active view instead of prompting to install or connect again. A clear visual indicator (checkmark, filled
+icon, or badge) shows installed, connected, or ready status on the menu item itself. This rule applies to all menu
+entries so the user always lands exactly where the label says they will.
+Programs on This PC — Toggle All
+On the “Programs on This PC” screen (or equivalent list of local/installed programs and AIs), include a Toggle
+All button. It selects or deselects every item in the list in one action so the user can quickly enable, disable,
+install, or connect multiple programs without tapping each one individually. The button label should update to
+reflect the current state (e.g., “Select All” / “Deselect All”).
+Auto-Detected Prompts with Dropdown
+Prompts must be added under every chat window that is used to create something (image generation, video,
+text, websites, games, social posts, general builds, etc.). These prompts are auto-detected from the user’s
+prompt list, current project history, stage context, and any prompts pulled from external sources. They appear
+as a dropdown menu directly under or beside the chat input so the user can select and apply one instantly.
+Applying a prompt fills or appends to the current input without overwriting text the user has already typed. The
+dropdown stays unobtrusive and can be dismissed. Owner Mode can edit the underlying prompt list or disable
+specific sources.
+Remix, Live Mode & External Sources
+Remix Improvements
+Remix currently appears inactive. Required behavior:
+
+MindMeld Implementation Guide    Page 16
+ When Remix is used on an item, open the location where that item was originally saved so the user lands
+in context.
+ Provide a clear “Add to Project” button so remixed results can be attached to the current or a chosen
+project.
+ Support modification of structured content such as game levels, scenes, or similar layered assets when
+those are the source.
+ If Remix produces no result (credits exhausted, single-provider failure, or timeout), automatically route the
+request to available free or alternative AIs instead of failing silently.
+ Show the related chat or status log beside the Remix action so the user can see why nothing was added
+or what error occurred.
+ Confirm whether the action targets one item or can operate on a selection; make the scope visible before
+running.
+ Place a prompt dropdown directly in the Remix portion of the app. It should auto-detect and list relevant
+prompts (from the prompt list, project, and stage) so the user can select and apply one while designing the
+remix.
+Live Mode — Inactive Project Clearing
+In Live Mode, allow the user to clear projects that are not being actively worked on from the visible list. Cleared
+projects remain saved and reappear automatically (or via a simple restore action) once the user begins working
+on them again. This keeps the active list focused without deleting anything.
+Live Ops — Free AI Bubble
+In Live Ops, implement a Free AI bubble. It displays all free AIs that are currently working and available. The
+bubble should update live so the user can see at a glance which free options are online and ready to use.
+Tapping the bubble can expand the list or route a request to one of the available free AIs.
+Detection logic: Reuse the existing connection and health status already tracked for the bottom menu and
+Programs on This PC list. Periodically (on Live Ops open, every 15–30 seconds while visible, and after any
+install/connect/disconnect) check local processes or simple health endpoints for each free AI. Only AIs that
+pass the check and are marked free appear in the bubble. Failed checks simply omit the AI until the next
+successful result. Owner Mode can force-include or force-exclude specific free AIs for testing. No separate
+detection system is required.
+Robustness measures: Use short timeouts (2–3 seconds) per check so one slow AI cannot block the bubble.
+Retry a failed check once after a brief delay before marking it unavailable. Cache the last known good status for
+up to 60 seconds so temporary network or process blips do not cause flickering. If multiple AIs are checked, run
+the checks in parallel or with a small concurrency limit. Log failures quietly for Owner Mode debugging without
+showing errors to the regular user. If all checks fail, show an empty state with a manual “Refresh” action rather
+than a broken bubble.
+This same detection and status logic applies to other AI bubbles, especially those that use paid APIs. In
+addition to basic availability, check for credit or quota exhaustion when the API provides that information (via
+error response, usage endpoint, or status field). If credits are depleted, mark the AI as unavailable in its bubble,
+show a clear “Out of credits” state, and automatically prefer free or alternative AIs for new requests (consistent
+with the never-say-no and Remix fallback behavior). Owner Mode can still force-include an AI for testing even if
+credits are low.
+
+MindMeld Implementation Guide    Page 17
+Alternative credit detection: Live Ops already has separate bubbles for each AI. When an API does not clearly
+report credit status, detect an out-of-credits condition by other means: repeated quota or auth errors on recent
+requests, sudden consistent failures after previously successful calls, or a local usage counter crossing a
+known limit. When these signals appear, mark that AI’s existing bubble as “Out of credits” and stop sending it
+new work via the API. Owner Mode can review the signals that triggered the state.
+MCP fallback: If an AI’s API is out of credits, the program should use MCP instead when available. In that case,
+Live Ops must still show the AI as active in its existing bubble (or with a clear “via MCP” indicator) so the user
+can see that the AI is continuing to be used. The bubble should not go dark or appear unused simply because
+the transport switched from API to MCP.
+Fallback mechanism: On detecting out-of-credits signals, stop sending new requests through that AI’s API.
+Route subsequent requests for the same AI through MCP if an MCP connection is available and healthy. Keep
+the existing Live Ops bubble active and add a “via MCP” indicator so activity remains visible under the same AI.
+Responses return through MCP and display normally. If the API later regains credits, the system may switch
+back automatically or on the next request. If MCP is also unavailable, mark the bubble unavailable and allow
+never-say-no routing to a different free AI. Owner Mode can force API-only, MCP-only, or automatic mode.
+MCP Fallback Implementation
+Detailed flow and components:
+  State: Per-AI object tracking apiStatus (ok / out_of_credits / down), mcpStatus, lastChecked, and
+triggering signals. Shared by the router and Live Ops.
+ Router decision: Before each request, read state. API ok → normal API path. API out + MCP ok →
+rewrite call to MCP transport. Both unavailable → never-say-no to a free AI.
+ MCP transport: Reuse existing MCP client. Map original request (prompt, parameters, assets) to the
+equivalent MCP call while preserving request ID and project context. Handle MCP errors separately from
+API credit errors.
+ Live Ops bubble: Existing bubble subscribes to state. Shows normal active, active + “via MCP” badge,
+or inactive. Activity indicators continue regardless of transport. No new bubble is created.
+ Recovery: Recheck API on next request or background interval. Switch back automatically when healthy.
+Optional short cooldown to prevent flapping. Owner Mode can lock transport mode.
+ Observability: Log transport used per request. Show reason in status/chat log (“Switched to MCP — API
+credits exhausted”). Owner Mode can inspect recent decisions and signals.
+ Edge cases: MCP drop mid-request fails that request and marks MCP down. Concurrent requests
+respect current state. Manual refresh forces recheck of both paths.
+The AI identity and bubble stay stable; only the underlying transport changes. This integrates with existing
+never-say-no, Remix fallback, and health-status systems without altering project or Finish & Deploy routing.
+External Prompt & Update Sources
+MindMeld should check connected email accounts and tech newsletters for useful prompts. When relevant
+prompts are found, follow any links if needed, extract the prompt text, and make those prompts available inside
+the chat system used for creating things. They appear in the auto-detected prompt dropdown (or a dedicated
+“From sources” group) under chat boxes so the user can apply them directly while generating images, text,
+video, or other items. Scanning is on-demand or background, stays under user control, and can be limited to
+specific senders or labels. No emails are sent; this only pulls prompts in for creation use.
+
+MindMeld Implementation Guide    Page 18
+UI Gap & Next Changes
+Based on a live review of the browser version (source running on port 4747). These are the highest-value gaps
+between the current UI and the intended clean project flow.
+What Already Works Cleanly
+  Projects list shows type, sub-counts, last activity, and live cost.
+ Command → Marching Orders is the clear central input, with project picker, priority,
+Single/Council/Mission, and Get it done.
+ Remix has a multi-step path (Make → Start → Preview → Build → Test → Publish).
+ Live shows agents and project activity.
+ Your apps shows key status and free/paid per AI.
+ Simple/Expert toggle and main navigation are coherent.
+Priority Gaps
+  1. Prompt dropdown under every creation box — Missing under Marching Orders and Remix steps.
+Add a compact auto-detected dropdown (from prompt list, project, and stage) that applies on select.
+ 2. Remix: Add to Project + open saved location — After a result, provide an Add to Project button and
+open the location where the item was saved so the user stays in context.
+ 3. Persistent “Working in: [Project]” indicator — Once a project is selected, keep Marching Orders,
+Remix, and Create locked to it until changed. Show a small persistent indicator.
+ 4. Free AI bubble in Live — Add a bubble that lists only currently working free AIs, fed by the same
+status already tracked in Your apps. Tapping it can route work when a paid API is out.
+ 5. MCP fallback visibility — When an API is out of credits and work continues via MCP, keep the
+existing bubble active and show a “via MCP” indicator.
+ 6. Toggle All on Your apps — Add a Toggle All button so multiple AIs can be selected or connected in
+one action.
+ 7. Clear inactive projects from Live — Allow temporary removal of idle projects from the live list; they
+reappear automatically when activity resumes.
+ 8. AI tile → direct setup — Clicking an AI tile should open that AI’s setup/status directly and skip
+install/connect prompts if already connected. Show a connected badge on the tile.
+ 9. Clear Finish path — After generation, surface a consistent “Looks good — Finish” / “Edit further” pair
+that leads into category-specific manual edits.
+Recommended order: prompt dropdowns, Remix Add to Project + location, Working-in indicator, Free AI bubble
++ MCP indicator, Toggle All and inactive clearing, then direct AI setup and Finish path. These changes reduce
+extra clicks and lost context without restructuring the existing navigation.
+Flow Experience Additions
+Further suggestions for keeping project creation continuous and low-friction:
+  Continue this project — One-click return from Projects or Live into Marching Orders with the project
+selected, last prompt restored, and stage tools open.
+
+MindMeld Implementation Guide    Page 19
+ Clickable stage breadcrumb — Thin breadcrumb (Creative → Planning → Build → Testing → Finish) at
+the top of creation surfaces. Clicking a stage jumps there without losing assets.
+ Project asset tray — Persistent tray of everything generated in the current project. Drag an item into the
+current input or Remix step in one motion.
+ Smart next-action after every result — Immediately offer 2–3 contextual buttons (Make 3 variations,
+Send to Finish, Add to project) driven by the Momentum prediction logic.
+ Project templates — Save any project as a template. New projects can start from a template so
+structure, prompts, and preferred AIs carry over.
+ Inline progress — Show a slim progress pill inside the current view while work runs so the user can keep
+typing the next instruction.
+ Undo and branch — Undo last step and Branch from here on generation steps. Branch keeps
+experimentation inside the same project without destroying the main line.
+ Consistent Send to… menu — Every result gets the same menu: Send to Project, Send to Remix, Send
+to Finish, Copy prompt.
+ Quiet auto-organize — Chats and directions inside a project are auto-grouped by stage or asset type in
+the background.
+ Finish preview — Final step shows a single preview card of exactly what will be published or exported,
+with one confirm click.
+Highest daily-flow impact: Continue this project, the asset tray, and smart next-action buttons after each result.
+User Walkthrough & Flow Recommendations
+Findings from a full pass through the live browser version in both Simple and Expert modes, focused on making
+project creation continuous.
+Walkthrough Notes
+  Simple mode is Chat-first with quick actions (Reply to a customer, Fix my email, Write a post) and a clean
+project picker.
+ Expert mode unlocks all menus but adds confirmation friction when switching.
+ Images, Remix, Projects, Live, and Your apps are all present and functional.
+ Main friction points are loss of project context when navigating, missing prompt dropdowns, and no
+consistent next-action after results.
+Persistent Project Context Bar
+A thin, always-visible bar at the top of every creation surface (Chat, Images, Remix, Media, Publish, etc.).
+  Shows “Working in: [Project Name]” with a Change control.
+ Appears as soon as a project is selected and stays fixed across views.
+ All new work is automatically attached to the shown project.
+ Change opens the project picker without losing place.
+ If none selected, shows “No project — choose one.”
+
+MindMeld Implementation Guide    Page 20
+ Does not lock the user out of other projects; it only keeps the current choice visible and active.
+Implementation: store current project ID in session, render the bar in the shared layout, and attach every
+creation result to that ID. Updating or clearing the project refreshes the bar immediately.
+Detailed Flow Recommendations
+  1. Persistent Project Context Bar + Continue this project — Fixed bar plus one-click return from
+Projects or Live that restores last chat, prompt, and tools.
+ 2. Prompt dropdown under every creation field — Chat, Images, Remix “In one sentence,” and others.
+Grouped as Recent / Saved / Stage. Applies without clearing typed text.
+ 3. Smart next-action after every result — Same three buttons under any output: Make variations, Add
+to project, Send to Finish.
+ 4. Remix tightening — Keep project context, Add to Project + open saved location on final step, inline
+status/chat log on failure, free-AI fallback, and prompt dropdown on the Remix form.
+ 5. Images & Media — Consistent Send to… menu on gallery items. After Generate, stay on the result
+with editing controls immediately available. Edit/Variation inherit the current project.
+ 6. Live — Free AI bubble, Clear idle projects, and “via MCP” badge on existing nodes when API credits
+are exhausted.
+ 7. Your apps — Toggle All, AI tile click opens that AI’s setup directly, connected badge on tiles.
+ 8. Simple ↔ Expert — Remember last mode per project. Reduce or remove the Expert confirmation
+after first use. Simple mode still exposes Finish and Add to Project.
+ 9. Navigation continuity — Clickable stage breadcrumb, project asset tray with drag-into-prompt, inline
+progress pill, Undo/Branch on generation steps.
+ 10. Finish path — Every creation type ends with “Looks good — Finish” / “Edit further,” leading to
+category-specific tools and a final preview + confirm.
+Suggested build order: persistent bar + Continue this project, prompt dropdowns, smart next-actions, Remix
+Add to Project, Free AI bubble + MCP indicator, Toggle All + direct setup, then asset tray, breadcrumb, and
+Finish path.
+Expert Mode Walkthrough & Media Organization
+Observations from a first-time pass through Expert mode, plus recommendations for per-project media and
+advanced organization.
+First-Time Expert Experience
+  Expert presents a large menu. Command (Marching Orders) is powerful but dense before any input.
+ Media and Images are separate tools. Both offer a project dropdown, but neither feels like “this project’s
+assets.”
+ Artifacts provides a sandbox for generated code/HTML. Libraries holds reference documents for citation.
+Neither serves as a visual media home.
+ Projects display category counts but no single place to view, upload, or drag images, video, or audio
+belonging to that project.
+ Project selection does not persist visually across screens, making it easy to lose context.
+
+MindMeld Implementation Guide    Page 21
+Per-Project Media Folder
+Every project should have its own Media folder/tab. This is distinct from Libraries (reference documents) and
+from the global Images/Media tools.
+  Shows all images, video, audio, and uploads that belong to the project in one thumbnail grid.
+ Easy intake: drag-and-drop onto the folder, Upload button, “Add from last generation,” and automatic
+capture of anything generated while the project is active.
+ Easy reuse: drag an item into Chat, Images prompt, Remix, or Publish; every item has the standard Send
+to… menu.
+ Simple filters: All / Images / Video / Audio / Uploads, plus name and date.
+ Lives as a tab inside the project so it stays in context with the rest of that project’s work.
+Advanced Media Organization Strategies
+  Smart collections — Auto-group by type, date, source AI, or generation prompt. User can also create
+manual collections (e.g., “Hero shots,” “B-roll,” “Approved”).
+ Version stacks — Variations and edits of the same asset stack under the original. Expanding the stack
+shows the lineage.
+ Tags and quick filters — Lightweight tags (client-ready, draft, final, reference) with one-click filters. Tags
+can be applied in bulk.
+ Project templates with starter media — A template can include placeholder or example media slots
+that new projects inherit.
+ Cross-project references — Ability to link (not copy) an asset from another project’s Media folder when
+reuse is needed, with a clear “linked from” indicator.
+ Bulk actions — Select multiple items for move, tag, export, or send-to in one step.
+ Search inside project media — Search by filename, prompt text, tag, or AI that generated it.
+ Usage indicators — Small badge showing where an asset has already been used (posted, placed in a
+site, added to a video) so duplicates are avoided.
+ Offline / local cache note — Media remains local-first. Organization metadata stays with the project;
+large files are referenced, not duplicated unnecessarily.
+The per-project Media folder is the foundation. Advanced strategies (collections, version stacks, tags, bulk
+actions, and usage indicators) build on it to keep large creative projects organized without extra manual filing.
+Persona Analysis & Cross-Cutting Ease of Use
+Insights from walking through Simple and Expert modes as multiple user types, covering setup, help, settings,
+people, community, and creation flows.
+Persona Snapshots
+  YouTuber — Simple starts easily; Expert scatters thumbnails, scripts, and clips. Needs per-project
+media.
+ Viral marketer — Quick post actions help; campaign context is lost across Images, Publish, and Remix.
+
+MindMeld Implementation Guide    Page 22
+ Web designer — Can describe sites; Remix and Builders feel disconnected from the project.
+ Photographer — Caption help exists; real non-AI enhancement and per-project gallery are missing.
+ Game designer — Remix supports games; no in-project level or asset organization.
+ Business automations expert — Pipelines and Agents are powerful but buried; setup feels technical.
+ For fun only — Simple Chat is ideal; Expert menu is overwhelming.
+ Influencer — Fast ideas; hard to reuse assets across posts.
+ Hard-core AI expert — Wants Expert depth with less confirmation friction.
+ Real estate agent — Good for descriptions; needs client project templates and media + follow-up.
+ Business owner — Wants fast results and clear cost; Live and Credits feel separate from daily work.
+Area-by-Area Recommendations
+Setup / Find my AIs
+  Lead with AIs already detected on the machine.
+ Prominent one-click OpenRouter path for users who want it working immediately.
+ After keys are saved, land in a sample project instead of a blank state.
+ Skip install/connect prompts for anything already connected.
+Help Menu
+  Context-aware: open relevant tips for the current screen (Remix, Images, etc.).
+ Short “Do this next” cards alongside the full guide.
+ Search that jumps directly to the matching screen.
+ Persona starter packs that pre-select tools and a sample project.
+Settings
+  Group into My AIs, Projects & Media, Privacy, Notifications, Advanced.
+ Move rarely changed options lower.
+ Show and allow default mode (Simple/Expert) per project.
+People & Connections
+  Shorten the hub message and add a clear “Set up hub” action.
+ Simple invite link with roles (client, collaborator, viewer).
+ Make shared project media visibility obvious.
+Community
+  Surface templates and prompts by persona.
+ One-click share of a project template (no private data).
+ Keep Community optional and unobtrusive for casual users.
+
+MindMeld Implementation Guide    Page 23
+Cross-Cutting Priorities
+  Persistent project bar + per-project Media folder.
+ Context-aware Help and persona starter packs.
+ Setup that ends in a ready sample project.
+ Prompt dropdowns and smart next-actions after results.
+ Simpler People invites and optional Community templates.
+ Settings grouped by everyday versus advanced use.
+In-App Persona Sections & Peer Review
+Persona review is an optional last step after every project. Users can choose to share work for feedback once
+the project reaches Finish. A separate Personas menu handles adding and removing sections.
+  Last-step option — After Finish (or on the final preview), show “Share to a persona section for review?”
+Users can skip it with one click. It never blocks completion.
+ Persona sections — Dedicated areas for YouTuber, Marketer, Web Designer, Photographer, Game
+Designer, Automations, Influencer, Real Estate, Business Owner, AI Expert, and For Fun.
+ Choose section at share time — When sharing, the user picks which persona section receives the
+template or selected assets.
+ Review others’ work — Inside a persona section, users can browse shared templates and leave
+structured feedback. Reviews are optional.
+ Privacy — Only the template or explicitly selected assets are shared. Keys and private data are never
+included.
+Personas Menu
+A dedicated Personas item in the main menu (and linked from Settings) for managing sections without
+interrupting project work.
+  Lists all available persona sections with short descriptions.
+ Add persona — Propose a new section with a name and description. Appears after light approval, or
+immediately in Owner Mode.
+ Remove / hide persona — Users can hide sections they don’t use. Owner Mode can remove or archive
+a section for everyone.
+ Set my personas — Choose which sections are suggested by default at the end-of-project share step.
+ The menu is separate from the Finish flow so managing personas does not interrupt a project.
+The review prompt appears only as the final optional step. The Personas menu is the place to add, remove, or
+personalize sections at any time.
+Custom Project Templates
+Start a project currently offers preset types. Users must also be able to create and reuse their own templates.
+  From any finished or in-progress project, add “Save as template.”
+ Saved templates appear in the Start a project list alongside the presets.
+
+MindMeld Implementation Guide    Page 24
+ A template can include structure (stages, default prompts, preferred AIs, media folder layout, and persona
+tags).
+ Users can edit or delete their own templates at any time.
+ Optional: share a template to a persona section (same privacy rules as Share for review).
+ Starting from a template pre-fills the project so the user can begin immediately.
+Delete Projects
+Users must be able to delete projects from the Projects menu.
+  Each project card (or its overflow menu) includes a Delete action.
+ Deletion asks for confirmation and clearly states that the project and its attached media, chats, and
+generated items will be removed.
+ Optional short undo window or Recently Deleted area so accidental deletes can be recovered.
+ Deleted projects disappear from the Projects list, Live view, and all project pickers.
+ Owner Mode can restore or permanently purge items from Recently Deleted if that area is used.
+10. Suggested Implementation Priority
+Recommended build order to deliver the highest-value capabilities first:
+Priority
+Feature Area
+1
+Core “never say no + workaround” behavior and phone/desktop dual control
+2
+Flow Mode (stages, project system, Finish button, stacking)
+3
+Automated onboarding and self-setup
+4
+Photography real-enhancement tools
+5
+Multi-AI task review and takeover
+6
+Owner Mode and live flowchart (Expert Mode)
+7
+Performance tightening and UI polish
+This document consolidates and expands the requested features into actionable specifications. Each section
+can be used directly as development guidance or as the basis for system prompts and acceptance criteria.

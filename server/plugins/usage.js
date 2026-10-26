@@ -3,21 +3,35 @@
 import { HOSTED, allContexts, runAs } from "../store.js";
 import { localFetch } from "../loopback-fetch.js";
 import {
-  SHARE_LABEL, noteUse, osName, pingDestination, publicState, sendDuePing, setShare, startUsageLoop, usesFromEvent,
+  SHARE_LABEL, noteUse, osName, pingDestination, publicState, sendDuePing, sendDueSignals, setShare, startUsageLoop, usesFromEvent,
 } from "../usage.js";
+import { brainSettings, qualitySignalsPayload } from "../brain.js";
+import { validateQualitySignalPayload } from "../privacy.js";
 
 export const id = "usage";
 export { SHARE_LABEL };
 
 export function init(h) {
   startUsageLoop(async () => {
-    const go = () => sendDuePing({
-      tier: h.licenseState().tier,
-      version: h.VERSION,
-      os: osName({ hosted: HOSTED }),
-      destination: pingDestination(),
-      fetchImpl: localFetch,
-    });
+    const go = async () => {
+      await sendDuePing({
+        tier: h.licenseState().tier,
+        version: h.VERSION,
+        os: osName({ hosted: HOSTED }),
+        destination: pingDestination(),
+        fetchImpl: localFetch,
+      });
+      // Anonymous quality signals have their own switch (Who's best / Privacy). The desktop app only.
+      if (!HOSTED) {
+        await sendDueSignals({
+          consent: () => brainSettings().shareOptIn,
+          buildPayload: qualitySignalsPayload,
+          validate: validateQualitySignalPayload,
+          version: h.VERSION,
+          fetchImpl: localFetch,
+        }).catch((e) => console.error(`[usage] signals: ${e.message || e}`));
+      }
+    };
     if (HOSTED) {
       for (const c of allContexts()) await runAs(c, go);
       return;

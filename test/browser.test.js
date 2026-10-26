@@ -462,5 +462,62 @@ test("demo mode: no keys, the built-in demo page, the OK prompt, nothing leaves 
     const jd = await waitFor(async () => { const x = await job(j.id); return ["done", "failed"].includes(x.status) ? x : null; }, "demo done", 30000, s);
     assert.equal(jd.status, "done", jd.error); assert.match(jd.text, /sent after your OK/); assert.match(jd.text, /Sunny Side Bakery/);
     assert.ok(jd.cost >= 0 && jd.steps >= 5);
+    // ---- Slice D1: flag_agents (default OFF), 5 roles, observe-reason-act-verify, DOM-first + screenshot fallback ----
+    const bhMod = await import("../server/browser.js");
+    const { parsePage } = await import("../server/browser-reader.js");
+    assert.equal(bhMod.FLAG_AGENTS, "flag_agents");
+    assert.deepEqual(bhMod.ROLES, ["planner", "navigator", "researcher", "writer", "analyst"]);
+    assert.deepEqual(bhMod.ORAV_PHASES, ["observe", "reason", "act", "verify"]);
+    const rolePlan = bhMod.planBrowserTask("Research and compare solar panel prices across three stores");
+    assert.equal(rolePlan.steps.length, 5);
+    assert.equal(rolePlan.steps[0].role, "planner");
+    assert.equal(rolePlan.steps[3].role, "analyst");
+    assert.equal(rolePlan.steps[4].role, "writer");
+
+    const domPage = parsePage("<html><body><button>Click me</button></body></html>", "http://127.0.0.1/a");
+    assert.equal(bhMod.shouldFallbackToScreenshot(domPage).fallback, false, "DOM-first when interactive elements exist");
+    const canvasPage = parsePage("<html><body><canvas id='c'></canvas></body></html>", "http://127.0.0.1/c");
+    assert.equal(canvasPage.hasCanvas, true);
+    assert.equal(bhMod.shouldFallbackToScreenshot(canvasPage).fallback, true, "falls back to screenshot on canvas page with no DOM elements");
+
+    const vOk = bhMod.verifyStep({ action: "open", url: "http://127.0.0.1/a" }, { url: "about:blank" }, { url: "http://127.0.0.1/a", elements: [{}] }, "opened http://127.0.0.1/a");
+    assert.equal(vOk.verified, true);
+    const vFail = bhMod.verifyStep({ action: "click", ref: "e1" }, { url: "http://127.0.0.1/a", text: "same", elements: [{}] }, { url: "http://127.0.0.1/a", text: "same", elements: [{}], hasCanvas: true }, "nothing happens: this button needs JavaScript");
+    assert.equal(vFail.verified, false);
+    assert.equal(vFail.needsScreenshot, true);
+
+    assert.equal((await s.api("/browser")).json.config.flag_agents, true, "flag_agents defaults to ON");
+    assert.equal((await s.api("/browser/config", { method: "POST", body: { flag_agents: false } })).json.flag_agents, false);
+    const cfgOn = (await s.api("/browser/config", { method: "POST", body: { flag_agents: true, role: "navigator" } })).json;
+    assert.equal(cfgOn.flag_agents, true);
+    assert.equal(cfgOn.role, "navigator");
+    assert.equal(cfgOn.roles.length, 5);
+
+    const rolesRes = (await s.api("/browser/roles")).json;
+    assert.equal(rolesRes.roles.length, 5);
+    assert.deepEqual(rolesRes.phases, ["observe", "reason", "act", "verify"]);
+
+    const noteAdd = await s.api("/browser/notes", { method: "POST", body: { title: "Bakery note", text: "Cinnamon rolls $4", url: `http://127.0.0.1:${s.port}/browser-demo.html`, role: "researcher" } });
+    assert.equal(noteAdd.status, 201);
+    assert.equal(noteAdd.json.note.role, "researcher");
+    assert.equal((await s.api("/browser/notes")).json.notes.length, 1);
+    assert.equal((await s.api(`/browser/notes/${noteAdd.json.note.id}`, { method: "DELETE" })).status, 200);
+    assert.equal((await s.api("/browser/notes")).json.notes.length, 0);
+
+    const j2 = (await s.api("/browser/demo", { method: "POST" })).json.job;
+    const j2w = await waitFor(async () => { const x = await job(j2.id); return x.status === "needs_approval" ? x : null; }, "ORAV demo approval", 30000, s);
+    assert.ok(j2w.plan?.steps?.length === 5, "Planner created 5-step role plan");
+    assert.ok(j2w.oravSteps?.some((st) => st.phase === "observe" && st.mode === "dom"), "recorded DOM-first observe step");
+    assert.ok(j2w.oravSteps?.some((st) => st.phase === "reason"), "recorded reason step");
+    await s.api(`/browser/jobs/${j2.id}/approve`, { method: "POST", body: { approval: j2w.approval.id } });
+    const j2d = await waitFor(async () => { const x = await job(j2.id); return ["done", "failed"].includes(x.status) ? x : null; }, "ORAV demo done", 30000, s);
+    assert.equal(j2d.status, "done", j2d.error);
+    for (const rName of ["planner", "navigator", "analyst", "writer"]) {
+      assert.ok(j2d.rolesUsed.includes(rName), `used role ${rName}`);
+    }
+    for (const ph of ["observe", "reason", "act", "verify"]) {
+      assert.ok(j2d.oravSteps.some((st) => st.phase === ph), `recorded ORAV phase ${ph}`);
+    }
+    await s.api("/browser/config", { method: "POST", body: { flag_agents: false, role: "auto" } });
   } finally { await s.stop(); }
 });

@@ -214,7 +214,7 @@ async function drawRooms(v) {
     catch (err) { toast(err.message, true); }
   }));
   $$("[data-report]", v).forEach((b) => b.addEventListener("click", async () => {
-    const reason = prompt("Why are you reporting this?");
+    const reason = await window.CC.ask("Why are you reporting this?");
     if (!reason) return;
     try { await api(`/rooms/${open}/report`, { method: "POST", body: { targetType: b.dataset.type, targetId: b.dataset.report, reason } }); toast("Report saved on this PC. Nothing was sent."); }
     catch (err) { toast(err.message, true); }

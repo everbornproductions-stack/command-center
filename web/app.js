@@ -1,13 +1,17 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
-import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
+import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { projectIntent } from "./project-intent.js";
+import { askText } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
+import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
@@ -324,7 +328,7 @@ function noteOnboarding(ob) {
 }
 function syncUiMode() {
   const fresh = isFreshInstall({ onboarding: S.onboarding, settings: S.settings });
-  S.uiMode = resolveMode(S.settings, { fresh });
+  S.uiMode = resolveProjectMode((S.projects || []).find((p) => p.id === S.project), S.settings, { fresh });
   S.askMode = shouldAskMode(S.settings, { fresh });
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
@@ -333,13 +337,19 @@ function applyState(st) {
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   S.councilOffer = st.councilOffer || S.councilOffer || null;
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
+  S.flags = st.flags || S.flags || {};
+  if (!S.project && Array.isArray(S.projects) && S.projects.length) {
+    const sample = S.projects.find((p) => p.sample) || S.projects[0];
+    if (sample?.id) S.project = sample.id;
+  }
   S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
   renderDemoBanner();
   syncUiMode();
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
+  if (S.flags?.finishpath) syncFinishBar();
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
 function handle(ev) {
@@ -354,7 +364,7 @@ function handle(ev) {
       const runFinished = run && ["done", "done-with-errors", "failed", "aborted", "cancelled"].includes(run.status);
       if (run && !S.live.id && !runFinished) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
       if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
-      else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
+      else if (S.mode !== "hosted" && !S.visitedConnect && !S.settings?.onboarded && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
@@ -516,10 +526,10 @@ function onMission(m) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.(m.id);
-      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || (m.status === "aborted" && m.kind !== "single"));
       const cost = Number(m.cost) || 0;
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
-      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
+      const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
         if (S.view === "command") renderOutput();
@@ -618,16 +628,33 @@ function renderStrip() {
     if (needsOwnKey) line = "No key";
     const active = S.activeByProvider[p.id] > 0 && !quietProvider(p);
     if (active) badge = `${S.activeByProvider[p.id]} working`;
+    const isConnected = !!(p.keyed || p.access?.connected || p.connect?.mcp?.configured);
+    const connBadge = isNavStateEnabled(S) && !active && isConnected ? `<span class="badge ok tile-connected">Connected</span>` : "";
     const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
     const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
     return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
       <div class="meter"><i style="width:${meter.toFixed(0)}%;background:${p.color}"></i></div>
-      ${badge ? `<span class="badge">${badge}</span>` : ""}
+      ${badge ? `<span class="badge">${badge}</span>` : connBadge}
     </div>`;
   }).join("");
-  $$(".tile", strip).forEach((t) => t.addEventListener("click", () => { S.view = "settings"; S.focusProvider = t.dataset.p; render(); }));
+  $$(".tile", strip).forEach((t) => {
+    t.addEventListener("click", () => openProviderSetup(t.dataset.p));
+    t.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProviderSetup(t.dataset.p); } });
+  });
+  renderStripAfter();
+}
+function openProviderSetup(providerId) {
+  if (!providerId) return;
+  S.connectWizard = false;
+  S.openProject = null;
+  S.settingsMore = true;
+  S.view = "settings";
+  S.focusProvider = providerId;
+  render();
+}
+function renderStripAfter() {
   renderComposerAis();
 }
 function renderBudget() {
@@ -750,6 +777,14 @@ function setUiMode(mode, opts = {}) {
   api("/settings", { method: "POST", body: patch })
     .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
+  const activeProj = (S.projects || []).find((p) => p.id === S.project);
+  if (activeProj) {
+    activeProj.uiMode = mode;
+    api("/projects", { method: "POST", body: { id: activeProj.id, uiMode: mode } }).catch(() => {});
+  }
+  Promise.resolve({})
+    .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
+    .catch((e) => toast(e.message, true));
 }
 function toggleSimpleCreate() {
   let sheet = document.getElementById("simple-create");
@@ -784,6 +819,55 @@ function focusNavTarget() {
   S.navFocus = "";
   setTimeout(() => document.querySelector(sel)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
 }
+const navHistory = createNavHistory({ historyApi: typeof history !== "undefined" ? history : null });
+function goBackView() {
+  const v = $("#view");
+  if (S.renderedView && v) captureViewDraft(S.renderedView, v);
+  const prev = navHistory.back();
+  if (!prev) return false;
+  S.view = prev.view || "command";
+  S.openProject = prev.openProject ?? null;
+  if (typeof prev.settingsMore === "boolean") S.settingsMore = prev.settingsMore;
+  if (prev.navFocus !== undefined) S.navFocus = prev.navFocus;
+  if (prev.cmdMode) S.cmdMode = prev.cmdMode;
+  render();
+  return true;
+}
+function syncBackBtn() {
+  const v = $("#view");
+  if (!v) return;
+  let btn = $("#nav-back");
+  if (!isNavStateEnabled(S) || !navHistory.canGoBack()) {
+    if (btn) btn.hidden = true;
+    return;
+  }
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "nav-back";
+    btn.className = "ghost small";
+    btn.setAttribute("data-nav-back", "1");
+    btn.title = "Back to previous screen";
+    btn.textContent = "← Back";
+    btn.addEventListener("click", () => goBackView());
+    const topRight = $(".top-right") || $(".topbar");
+    if (topRight) topRight.prepend(btn);
+  }
+  btn.hidden = false;
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("popstate", (e) => {
+    if (!isNavStateEnabled(S)) return;
+    const st = navHistory.back();
+    if (!st) return;
+    const v = $("#view");
+    if (S.renderedView && v) captureViewDraft(S.renderedView, v);
+    S.view = st.view || "command";
+    S.openProject = st.openProject ?? null;
+    if (typeof st.settingsMore === "boolean") S.settingsMore = st.settingsMore;
+    render();
+  });
+}
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
@@ -799,12 +883,16 @@ function render() {
   syncChrome();
   renderAsk();
   markTabs();
+  syncProjectBar();
   $("#feed")?.classList.remove("open");
   const v = $("#view");
+  if (isNavStateEnabled(S) && S.renderedView && v) captureViewDraft(S.renderedView, v);
+  if (S.view === "help" && S.renderedView && S.renderedView !== "help") S.lastView = S.renderedView;
+  if (isNavStateEnabled(S)) navHistory.record({ view: S.view, openProject: S.openProject || null, settingsMore: !!S.settingsMore, navFocus: S.navFocus || "", cmdMode: S.cmdMode || "" });
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); focusNavTarget(); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } S.renderedView = S.view; restoreViewDraft(S.view, v); syncBackBtn(); return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -812,6 +900,10 @@ function render() {
   else if (S.view === "settings") renderSettings(v);
   else if (S.view === "setup" && S.connectWizard && window.CC.connectSetup) window.CC.connectSetup.render(v);
   else if (S.view === "setup") renderSetup(v);
+  S.renderedView = S.view;
+  if (isNavStateEnabled(S)) restoreViewDraft(S.view, v);
+  syncBackBtn();
+  window.CC?.syncAssetTray?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
@@ -1024,6 +1116,14 @@ function wireProjectPicker() {
     S.project = sel.value;
     localStorage.setItem("cc.project", S.project);
     if (renameBtn) renameBtn.hidden = !S.project;
+    syncProjectBar();
+    const pickedProj = (S.projects || []).find((p) => p.id === S.project);
+    if (pickedProj?.uiMode && pickedProj.uiMode !== S.uiMode) {
+      S.uiMode = pickedProj.uiMode;
+      syncChrome();
+      render();
+    }
+    if (renameBtn) renameBtn.hidden = !S.project;
   });
   renameBtn?.addEventListener("click", () => { if (!S.project) return; sel.value = S.project; open("rename"); });
   $("#proj-cancel")?.addEventListener("click", close);
@@ -1047,6 +1147,106 @@ function wireProjectPicker() {
       toastSaved(savedId);
     } catch (ex) { err.textContent = ex.message; saveBtn.disabled = false; }
   });
+}
+
+// ----- Working-in bar, Continue this project, Recently Deleted (flag: projectbar) -----
+function clearActiveProject(id) {
+  if (S.project !== id) return;
+  S.project = "";
+  try { localStorage.removeItem("cc.project"); } catch { /* storage can be blocked */ }
+}
+function syncOtherPickers() {
+  for (const sel of ["#proj", "#im-proj", "#md-proj"]) {
+    const el = $(sel);
+    if (el && [...el.options].some((o) => o.value === (S.project || ""))) el.value = S.project || "";
+  }
+  const rn = $("#proj-rename");
+  if (rn) rn.hidden = !S.project;
+}
+function setWorkingProject(id) {
+  S.project = id || "";
+  try { if (S.project) localStorage.setItem("cc.project", S.project); else localStorage.removeItem("cc.project"); } catch { /* storage can be blocked */ }
+  syncOtherPickers();
+  syncProjectBar();
+}
+// Finish path (flag finishpath): the always-visible Finish button and the progress pill. Loaded only when on.
+function syncFinishBar() {
+  if (!S.flags?.finishpath) { $("#fpbar")?.remove(); return; }
+  import("./finishpath-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[finishpath]", e));
+}
+function syncProjectBar() {
+  syncFinishBar();
+  let bar = $("#projbar");
+  if (!barShows(S.view, S.flags?.projectbar) || S.openProject) { bar?.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "projbar";
+    bar.className = "projbar";
+    bar.setAttribute("role", "region");
+    bar.setAttribute("aria-label", "Working in");
+    $("#view").before(bar);
+  }
+  const hadFocus = document.activeElement?.id === "pb-select";
+  bar.innerHTML = barHtml({ projects: S.projects || [], selected: S.project, view: S.view });
+  const sel = $("#pb-select", bar);
+  sel.addEventListener("change", () => setWorkingProject(sel.value));
+  if (hadFocus) sel.focus();
+  $("#pb-continue", bar)?.addEventListener("click", () => continueProject(S.project));
+  $$("[data-pb-go]", bar).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.pbGo; S.openProject = null; render(); }));
+}
+// One click: the project is selected, its last words are back in the box, and Chat is open
+// with the tools for that project one click away in the bar.
+async function continueProject(id) {
+  const p = (S.projects || []).find((x) => x.id === id);
+  if (!p) return;
+  setWorkingProject(id);
+  const last = lastRunFor(S.missions, id);
+  let words = last?.title || "";
+  if (last?.id) {
+    try { const m = await api(`/missions/${last.id}`); words = m?.prompt || m?.question || words; } catch { /* the short title is enough */ }
+  }
+  if (words) S.lastOrders = String(words);
+  S.openProject = null;
+  S.view = "command";
+  render();
+  toast(words ? `Back in ${p.name}. Your last request is in the box.` : `Back in ${p.name}.`);
+}
+async function restoreDeleted(id) {
+  try {
+    const r = await api(`/projects-deleted/${encodeURIComponent(id)}/restore`, { method: "POST", body: {} });
+    await refresh();
+    toast(`Brought back ${r?.project?.name || "the project"}.`);
+  } catch (e) { toast(e.message, true); }
+}
+async function deleteForGood(item) {
+  if (!confirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`)) return;
+  try {
+    const done = await api(`/projects-deleted/${encodeURIComponent(item.id)}?confirm=yes`, { method: "DELETE" });
+    toast((done.receipt?.lines || ["Project deleted for good."]).join(" "));
+    await refresh();
+  } catch (e) { toast(e.message, true); }
+}
+async function deleteProjectSoft(p) {
+  if (!confirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`)) return false;
+  try {
+    await api(`/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+    clearActiveProject(p.id);
+    if (S.openProject === p.id) S.openProject = null;
+    await refresh();
+    toast(`Deleted "${p.name}".`, false, { label: "Undo", onClick: () => restoreDeleted(p.id) });
+    return true;
+  } catch (e) { toast(e.message, true); return false; }
+}
+function recentlyDeletedHtml() {
+  const rows = S.deletedProjects || [];
+  if (!S.flags?.projectbar || !rows.length) return "";
+  return `<div class="panel" id="recently-deleted"><h3>Recently Deleted <span class="right">kept 30 days</span></h3>
+    ${rows.map((d) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px"><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(d.name)}</span><span class="dim">${ago(d.deletedAt)} ago</span><button type="button" class="btn sm" data-rd-restore="${esc(d.id)}">Bring back</button><button type="button" class="btn sm danger" data-rd-purge="${esc(d.id)}">Delete for good</button></div>`).join("")}
+  </div>`;
+}
+function wireRecentlyDeleted(v) {
+  $$("[data-rd-restore]", v).forEach((b) => b.addEventListener("click", () => restoreDeleted(b.dataset.rdRestore)));
+  $$("[data-rd-purge]", v).forEach((b) => b.addEventListener("click", () => { const item = (S.deletedProjects || []).find((d) => d.id === b.dataset.rdPurge); if (item) deleteForGood(item); }));
 }
 
 // ----- Command -----
@@ -1137,6 +1337,7 @@ function renderSimpleChat(v) {
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1179,6 +1380,7 @@ function renderSimpleChat(v) {
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
@@ -1237,6 +1439,7 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1271,6 +1474,7 @@ function renderCommand(v) {
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
@@ -1312,7 +1516,7 @@ function renderComposerAis() {
     const hint = c.demo ? "Demo AI. Connect a real one and this leaves." : "Connected. Open its settings.";
     return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}" data-p="${esc(c.id)}" title="${esc(hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
   }).join("");
-  $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => { S.view = "settings"; S.focusProvider = b.dataset.p; render(); }));
+  $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => openProviderSetup(b.dataset.p)));
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
 // Idle Live ops is one line. The graph shows only while a run is going.
@@ -1613,10 +1817,30 @@ function runBusy() {
   const st = S.live?.status;
   return !!(S.live?.id && BUSY_STATUS.has(st));
 }
+// Stop for a normal chat or a mission: the server stops the run and keeps what was written.
+async function stopChat() {
+  const id = S.live?.id || S.stopId;
+  if (!id) return;
+  const btn = $("#stop-chat");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api(`/mission/${encodeURIComponent(id)}/abort`, { method: "POST" });
+    toast(r?.aborted ? "Stopped. What was written so far is kept." : "Nothing is running to stop.");
+    if (r?.aborted) { S.awaitingRun = false; S.stopId = ""; }
+  } catch (e) { toast(e.message, true); }
+  if (btn) btn.disabled = false;
+  syncSendButton();
+}
 function syncSendButton() {
   const g = $("#go");
   if (!g) return;
   const busy = runBusy();
+  const stop = $("#stop-chat");
+  if (stop) {
+    const kind = S.live?.kind;
+    const stoppable = busy && (S.stopId || (S.live?.id && (kind === "single" || kind === "mission")));
+    stop.style.display = stoppable ? "" : "none";
+  }
   g.disabled = busy;
   g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
   g.setAttribute("aria-busy", busy ? "true" : "false");
@@ -1673,6 +1897,22 @@ async function sendOrders() {
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
+  // Asked to make a website, an app or another project: chat starts the project steps (idea, questions, plan, build, review).
+  if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
+    const kind = projectIntent(prompt);
+    if (kind) {
+      try {
+        await window.CC.ensureView?.("start");
+        if (window.CC.startProject?.startFromChat) {
+          await window.CC.startProject.startFromChat(kind, prompt);
+          $("#orders").value = "";
+          toast("Started a project for this. Answer a few questions to go on.");
+          return;
+        }
+      } catch (e) { toast(e.message, true); return; }
+    }
+  }
+  S.skipProjectStart = false;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
@@ -1726,6 +1966,7 @@ async function sendOrders() {
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      S.stopId = started?.runId || started?.id || "";
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
@@ -1760,6 +2001,17 @@ function recentRunRows(rows) {
 }
 function wireRunRows(v) {
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const name = await askText("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
 }
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
@@ -1770,23 +2022,68 @@ function renderProjects(v) {
       <div class="pcards">${S.projects.map((p) => {
         const runs = S.missions.filter((m) => m.projectId === p.id);
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
+        const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
+        const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
+        const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
+        const expanded = flowOn && S.expandedProjects?.has?.(p.id);
+        const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
           <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
-          <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
+          <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
+          ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
+          ${flowOn ? `<div class="row small" style="margin-top:8px;gap:6px"><button type="button" class="btn sm" data-pcard-expand="${esc(p.id)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Collapse" : "Expand"}</button><button type="button" class="btn sm" data-subproject-add="${esc(p.id)}">+ Sub-project</button></div>` : ""}
+          ${expanded ? `<div class="pcard-expand small" data-pcard-details="${esc(p.id)}" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+            <div><b>Prompts:</b> ${(expData?.prompts || runs).length} · <b>Images:</b> ${(expData?.images || []).length} · <b>Videos:</b> ${(expData?.videos || []).length} · <b>Automations:</b> ${(expData?.automations || []).length} · <b>Documents:</b> ${(expData?.documents || []).length}</div>
+            ${subProjects.length ? `<div style="margin-top:6px"><b>Sub-projects:</b> ${subProjects.map((sp) => `<button type="button" class="btn sm" data-subproject-open="${esc(sp.id)}" style="margin-left:4px">${esc(sp.name)}</button>`).join("")}</div>` : `<div class="dim" style="margin-top:4px">No sub-projects yet.</div>`}
+          </div>` : ""}
         </div>`; }).join("") || `<div class="empty">No projects yet. Click + New project to group links, runs and files for one client or campaign.</div>`}</div>
     </div>
     <div class="grid">
       <div class="panel"><h3>Waiting on you <span class="right">HQ board</span></h3>
-        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
+        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found in the linked folder.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
+      ${recentlyDeletedHtml()}
       <div class="panel"><h3>Recent runs</h3>
         <input id="run-search" placeholder="Search all history" value="${esc(S.runQuery || "")}" style="width:100%;margin-bottom:8px" aria-label="Search all history">
         <div id="run-search-note" class="dim small"></div>
         <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
-  $$(".pcard", v).forEach((c) => c.addEventListener("click", () => { S.openProject = c.dataset.id; render(); }));
+  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del]")) return; S.openProject = c.dataset.id; render(); }));
+  $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
+  $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
+  wireRecentlyDeleted(v);
+  $$("[data-pcard-expand]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const pid = b.dataset.pcardExpand;
+    if (!S.expandedProjects) S.expandedProjects = new Set();
+    if (!S.projectExpansions) S.projectExpansions = {};
+    if (S.expandedProjects.has(pid)) {
+      S.expandedProjects.delete(pid);
+      render();
+      return;
+    }
+    S.expandedProjects.add(pid);
+    try { S.projectExpansions[pid] = await api(`/projects/${encodeURIComponent(pid)}/expand`); } catch { /* fallback counts used */ }
+    render();
+  }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const parentId = b.dataset.subprojectAdd;
+    const name = await askText("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    S.openProject = b.dataset.subprojectOpen;
+    render();
+  }));
   wireRunRows(v);
   $("#run-search")?.addEventListener("input", async (e) => {
     const q = e.target.value;
@@ -1809,7 +2106,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -1817,8 +2114,11 @@ function renderProjectDetail(v, p) {
   const tasks = (S.hq?.tasks || []).filter((t) => t.client === p.hqClient);
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
+  const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
+  const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
+  const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
   v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
-    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button><button class="btn sm danger" id="del">Delete</button></div>
+    <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
       ${p.categories.map((c) => `<div class="cat-h">${esc(c.name)} <button class="ghost small" data-add="${c.id}">+ link</button></div>
@@ -1827,6 +2127,11 @@ function renderProjectDetail(v, p) {
     </div>
     <div class="grid">
       <div class="panel" id="proj-team"></div>
+      ${flowOn ? `<div class="panel" id="proj-subprojects"><h3>Sub-projects <span class="right">${subProjects.length}</span></h3>
+        ${parentProj ? `<div class="small dim" style="margin-bottom:6px">Parent: <button type="button" class="btn sm" data-subproject-open="${esc(parentProj.id)}">${esc(parentProj.name)}</button></div>` : ""}
+        ${subProjects.map((sp) => `<div class="row small" style="padding:4px 0;border-bottom:1px solid var(--line)"><button type="button" class="btn sm" data-subproject-open="${esc(sp.id)}">${esc(sp.name)}</button><span class="dim">${esc(sp.summary || "")}</span></div>`).join("") || `<div class="dim small">No sub-projects yet.</div>`}
+        <div style="margin-top:8px"><button type="button" class="btn sm" data-subproject-add="${esc(p.id)}">+ Sub-project</button></div>
+      </div>` : ""}
       <div class="panel"><h3>Open HQ tasks <span class="right">${tasks.length}</span></h3>${tasks.slice(0, 15).map((t) => `<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="mono dim">${t.id}</span> ${esc(t.title)} <span class="chip">${t.status.replace(/_/g, " ")}</span>${t.owner ? ` <span class="dim">${t.owner}</span>` : ""}</div>`).join("") || `<div class="dim small">None.</div>`}</div>
       ${projCredits.length ? `<div class="panel"><h3>Media credits (HQ log)</h3>${projCredits.map(([k, val]) => `<div class="row small"><span>${esc(k)}</span><span class="mono" style="margin-left:auto">${fmtN(val)}</span></div>`).join("")}</div>` : ""}
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
@@ -1834,7 +2139,9 @@ function renderProjectDetail(v, p) {
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
   renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
+  $("#pcont")?.addEventListener("click", () => continueProject(p.id));
   $("#del").addEventListener("click", async () => {
+    if (S.flags?.projectbar) { await deleteProjectSoft(p); return; }
     let lines = `Delete project "${p.name}"? Links on this card go away. Chats stay in My chats. AI keys are not touched.`;
     try {
       const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
@@ -1857,10 +2164,22 @@ function renderProjectDetail(v, p) {
       await refresh();
     } catch (e) { toast(e.message, true); }
   });
-  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = prompt("Link URL"); if (!url) return; const name = prompt("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
+  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = await askText("Link URL"); if (!url) return; const name = await askText("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
-  $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
+  $("#addcat").addEventListener("click", async () => { const name = await askText("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
+  $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const name = await askText("Sub-project name");
+    if (!name) return;
+    try {
+      await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
+      await refresh();
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+  window.CC?.mountProjectMedia?.(v, p);
 }
 async function openRun(id) {
   try {
@@ -2022,7 +2341,7 @@ function renderSubscriptions(v) {
     $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
-  $("#addsub").addEventListener("click", async () => { const name = prompt("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
+  $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
 }
 
 // ----- Settings -----
@@ -2181,11 +2500,14 @@ function renderSettings(v) {
       ${p.custom ? `<div class="dim small" style="margin-top:6px">Matching tasks go to this app or AI${p.addedCapabilities?.length ? ` (${p.addedCapabilities.join(", ")})` : ""}. ${p.addedStrengths?.length ? `Scores have raised ${[...new Set(p.addedStrengths.map((s) => s.capability))].join(", ")}.` : "Scores from your jobs make the pick sharper."}</div>` : ""}</div>` : ""}
   </div>`;
   const moreBar = S.uiMode === "simple" ? `<div class="panel" id="settings-more-bar"><div class="row" style="gap:8px"><button type="button" class="btn sm" id="settings-back">Back to basics</button><input type="search" id="settings-find" placeholder="Find a setting" aria-label="Find a setting" style="flex:1"></div></div>` : "";
+  const activeProjObj = (S.projects || []).find((p) => p.id === S.project);
+  const groupsNav = `<div class="panel" id="settings-groups-bar" style="margin-bottom:12px"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><span class="dim small">Sections:</span><button type="button" class="btn sm" data-settings-jump="#settings-group-my-ais">My AIs</button><button type="button" class="btn sm" data-settings-jump="#settings-group-projects-media">Projects &amp; Media</button><button type="button" class="btn sm" data-settings-jump="#settings-group-privacy">Privacy</button><button type="button" class="btn sm" data-settings-jump="#settings-group-notifications">Notifications</button><button type="button" class="btn sm" data-settings-jump="#settings-group-advanced">Advanced</button></div></div>`;
   v.innerHTML = `
   ${moreBar}
+  ${groupsNav}
   <div class="grid" style="grid-template-columns: 1fr 1fr">
     <div class="grid" style="align-content:start">
-      <div class="panel" id="settings-keys"><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
+      <div class="panel" id="settings-keys"><div id="settings-group-my-ais" class="cat-h" style="margin-bottom:4px">My AIs</div><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>
         ${openRouterStartCard()}
         ${anyKeyHtml()}
@@ -2195,9 +2517,9 @@ function renderSettings(v) {
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
         ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
-          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
+          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"><div class="dim small">Paid calls stop when this month's spending reaches it. Free and practice AIs keep working.</div></div>
           <div><label class="lbl">Default priority</label><select id="s-mode">${PRIORITY.map(([m, label]) => `<option value="${m}" ${(S.settings.defaultMode === m || (m === "savings" && S.settings.defaultMode === "economy")) ? "selected" : ""}>${label}</option>`).join("")}</select></div>
-          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
+          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"><div class="dim small">One run stops when it reaches this.</div></div>
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
@@ -2221,8 +2543,23 @@ function renderSettings(v) {
         ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
-      <div class="panel"><h3>Media &amp; creative tools <span class="right">credits tracked · API where one exists</span></h3>
+      <div class="panel" id="settings-group-projects-media"><h3>Projects &amp; Media <span class="right">credits tracked · API where one exists</span></h3>
+        <div class="row small" style="margin-bottom:10px;gap:10px;flex-wrap:wrap;align-items:center">
+          <span>Active project: <b>${esc(activeProjObj?.name || S.project || "None")}</b></span>
+          ${activeProjObj ? `<label class="row small" style="gap:6px">Project mode <select id="s-proj-uimode" data-proj-uimode="${esc(activeProjObj.id)}" aria-label="Project UI mode"><option value="" ${!activeProjObj.uiMode ? "selected" : ""}>Use global (${esc(S.uiMode)})</option><option value="simple" ${activeProjObj.uiMode === "simple" ? "selected" : ""}>Simple</option><option value="expert" ${activeProjObj.uiMode === "expert" ? "selected" : ""}>Expert</option></select></label>` : ""}
+        </div>
         <div class="grid" style="gap:10px">${mediaP.map(card).join("")}</div></div>
+      <div class="panel" id="settings-group-privacy"><h3>Privacy</h3>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="s-private-mode" ${S.settings?.privateMode ? "checked" : ""}> Private mode (keep chats on this computer)</label>
+        <div class="dim small" style="margin-top:6px">Keys and vault files stay sealed on this machine. Manage what leaves this PC in the Privacy controls above or in Help.</div>
+      </div>
+      <div class="panel" id="settings-group-notifications"><h3>Notifications</h3>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="s-notify-done" ${S.settings?.notifyOnDone !== false ? "checked" : ""}> Notify when a long mission or research run finishes</label>
+        <div class="dim small" style="margin-top:6px">Shows a quiet completion notice when background work finishes.</div>
+      </div>
+      <div class="panel" id="settings-group-advanced"><h3>Advanced</h3>
+        <div class="dim small">Spend caps, custom model pricing, MCP connections, and feature panels are grouped under Advanced.</div>
+      </div>
     </div>
   </div>`;
   $$("[data-plan]", v).forEach((sel) => sel.addEventListener("change", async () => {
@@ -2287,7 +2624,10 @@ function renderSettings(v) {
       missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
     };
     try {
+      const budgetChanged = Number.isFinite(body.budgetMonthly) && body.budgetMonthly > 0 && body.budgetMonthly !== S.settings.budgetMonthly;
       S.settings = await api("/settings", { method: "POST", body });
+      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label
+      if (budgetChanged) await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } });
       renderBudget(); toast("Saved");
     } catch (e) { toast(e.message, true); }
   });
@@ -2345,7 +2685,30 @@ function renderSettings(v) {
       p.hidden = !!q && !p.textContent.toLowerCase().includes(q);
     });
   });
-  if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); S.focusProvider = null; }
+  if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); el?.querySelector?.('[data-key], input:not([type="hidden"]):not([disabled])')?.focus?.(); S.focusProvider = null; }
+  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => { const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  $("#s-proj-uimode", v)?.addEventListener("change", async (e) => {
+    const pid = e.target.dataset.projUimode;
+    const modeVal = e.target.value || null;
+    const proj = (S.projects || []).find((p) => p.id === pid);
+    if (proj) proj.uiMode = modeVal;
+    try {
+      await api("/projects", { method: "POST", body: { id: pid, uiMode: modeVal } });
+      if (modeVal === "simple" || modeVal === "expert") { S.uiMode = modeVal; syncChrome(); }
+      toast("Project mode saved");
+    } catch (err) { toast(err.message, true); }
+  });
+  $("#s-private-mode", v)?.addEventListener("change", async (e) => {
+    try {
+      const r = await api("/desk/private", { method: "POST", body: { on: !!e.target.checked } });
+      S.settings.privateMode = !!r.privateMode;
+    } catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
+  $("#s-notify-done", v)?.addEventListener("change", async (e) => {
+    const notifyOnDone = !!e.target.checked;
+    S.settings = { ...(S.settings || {}), notifyOnDone };
+    api("/settings", { method: "POST", body: { notifyOnDone } }).catch(() => {});
+  });
   if (S.navFocus) { const el = document.querySelector(S.navFocus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); S.navFocus = ""; }
 }
 
@@ -2653,7 +3016,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
@@ -2683,6 +3046,15 @@ async function advanceFromScanToConnections() {
   try {
     const saved = await api("/setup/done", { method: "POST" });
     S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (saved?.sampleProject) {
+      const sp = saved.sampleProject;
+      S.projects = Array.isArray(S.projects) ? S.projects.filter((p) => p.id !== sp.id).concat([sp]) : [sp];
+      if (!S.project) {
+        S.project = sp.id;
+        try { localStorage.setItem("cc.project", sp.id); } catch {}
+      }
+      if (!S.lastOrders && sp.starterPrompt) S.lastOrders = sp.starterPrompt;
+    }
     if (S.onboarding) S.onboarding.show = false;
     S.visitedSetup = true;
   } catch (e) { toast(e.message, true); }
@@ -2752,7 +3124,13 @@ function welcomeLookHtml() {
 }
 function welcomeAiHtml(st) {
   const keyed = !!P("openrouter")?.keyed;
+  const connectedNames = (S.providers || []).filter((p) => p.keyed && !p.demo).map((p) => p.name);
+  const envDetected = Object.keys(st.detectedKeys || {}).map((id) => pname(id)).filter((n) => !connectedNames.includes(n));
+  const cliDetected = (st.detectedCli || S.cli || []).filter(Boolean);
+  const detectedList = [...new Set([...connectedNames, ...envDetected, ...cliDetected])];
+  const detectedRow = detectedList.length ? `<div class="route small" id="su-detected-ais" style="margin-bottom:10px"><b>Detected on this PC:</b> ${detectedList.map((n) => `<span class="chip green" style="margin-left:4px">${esc(n)}</span>`).join("")}</div>` : `<div class="dim small" id="su-detected-ais" style="margin-bottom:8px">Detected on this PC: checking for connected AIs and keys...</div>`;
   return `<div class="welcome-block" id="su-ai"><h3>${esc(WELCOME.aiTitle)}</h3>
+    ${detectedRow}
     <button type="button" class="btn primary" id="su-try">${esc(WELCOME.tryIt)}</button>
     <div class="dim small" style="margin-top:6px">${esc(WELCOME.tryLine)}</div>
     <div class="lbl" style="margin-top:12px">${esc(WELCOME.keyLabel)}</div>
@@ -2791,6 +3169,10 @@ function renderWelcome(v, st) {
       st.privacyKnown = true;
       if (S.view === "setup" && st.phase === "welcome") render();
     }).catch(() => { st.privacyKnown = true; }).finally(() => { st.privacyLoading = false; });
+  }
+  if (!st.detectChecked && !st.detectLoading) {
+    st.detectLoading = true;
+    api("/setup/detect").then((d) => { st.detectedKeys = d?.keys || {}; st.detectedCli = d?.cli || []; st.detectChecked = true; if (S.view === "setup" && st.phase === "welcome") render(); }).catch(() => { st.detectChecked = true; }).finally(() => { st.detectLoading = false; });
   }
   const qualityChecked = typeof st.qualitySignals === "boolean" ? st.qualitySignals : true;
   const contentChecked = st.contentOptIn === true;
@@ -3017,7 +3399,7 @@ function renderSetup(v) {
           <div class="dim small">Meldmind can use apps on this PC that have no API, after you allow each one. You confirm before a send, a buy, or a delete. A banner says Meldmind is using that app, with Stop. Passwords are not stored. Google Antigravity is the first app. Install and connect runs Google's installer, then opens sign-in in your browser. You sign in once. Skip this and change it later in Settings.</div>
           ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
             <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
-            <button class="btn sm" id="su-agy-install" type="button">Install and connect</button>
+            ${(S.cli || []).some((x) => /antigravity|agy/i.test(x)) || P("antigravity")?.status?.status === "green" ? `<span class="chip green" id="su-agy-connected">Antigravity connected</span>` : `<button class="btn sm" id="su-agy-install" type="button">Install and connect</button>`}
           </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
@@ -3110,7 +3492,7 @@ function renderSetup(v) {
       <div class="grid" style="gap:8px;margin-top:8px">${provRows || `<div class="empty">No known AI sites found in the history window. Add keys in Settings instead.</div>`}</div>
       ${anyKeyHtml()}
       <div class="dim small" style="margin-top:8px">Not listed? Paste the key above, or add any provider (Google Gemini, OpenRouter, Groq, Ollama...) in <a href="#" id="setup-settings">Settings</a>. "Open key page" opens the provider's API-key page in your browser. Copy the key, paste it here, Save. Keys are sealed by the operating system (${esc(S.vault?.method || "Windows DPAPI")}) and never leave this PC.</div></div>
-    ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
+    ${toolRows ? `<div class="panel"><h3>Other AI &amp; creative tools found <span class="right">tick to track as subscriptions</span></h3><div class="row" style="margin-bottom:6px;gap:8px;align-items:center">${isNavStateEnabled(S) ? `<button type="button" class="btn sm" id="su-tools-toggle" data-setup-tools-toggle="1">Select All</button><span class="dim small">Toggle all discovered tools</span>` : ""}</div>${toolRows}<div class="row" style="margin-top:8px"><button class="btn sm" id="su-track">Track selected</button></div></div>` : ""}
     ${st.bookmarks && folder.length ? `<div class="panel"><h3>Your AI bookmark folder <span class="right">${folder.reduce((a, c) => a + c.links.length, 0)} links</span></h3>
       <div class="grid cols-3" style="gap:10px">${folder.map((c) => `<div><div class="cat-h" style="margin:4px 0 6px">${esc(c.name)}</div>${c.links.map((l) => `<div class="small" style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><img src="${favicon(l.url)}" style="width:12px;height:12px;vertical-align:-1px;margin-right:6px">${esc(l.name)}</div>`).join("")}</div>`).join("")}</div>
       <div class="row" style="margin-top:14px"><button class="btn sm" id="su-dl">Download import file</button>
@@ -3131,6 +3513,12 @@ function renderSetup(v) {
   $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
+  $("#su-tools-toggle", v)?.addEventListener("click", (e) => {
+    const boxes = $$("[data-tool]", v);
+    const next = !boxes.every((c) => c.checked);
+    boxes.forEach((c) => { c.checked = next; });
+    e.currentTarget.textContent = next ? "Deselect All" : "Select All";
+  });
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
@@ -3155,6 +3543,15 @@ async function finishAiSetup(nextView, { quiet = false } = {}) {
   try {
     const saved = await api("/setup/done", { method: "POST" });
     S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (saved?.sampleProject) {
+      const sp = saved.sampleProject;
+      S.projects = Array.isArray(S.projects) ? S.projects.filter((p) => p.id !== sp.id).concat([sp]) : [sp];
+      if (!S.project) {
+        S.project = sp.id;
+        try { localStorage.setItem("cc.project", sp.id); } catch {}
+      }
+      if (!S.lastOrders && sp.starterPrompt) S.lastOrders = sp.starterPrompt;
+    }
     if (S.onboarding) S.onboarding.show = false;
     S.visitedSetup = true;
     S.connectWizard = false;

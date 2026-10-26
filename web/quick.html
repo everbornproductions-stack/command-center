@@ -8,9 +8,9 @@
      app's own local server (the session token is injected into this page like index.html); nothing goes anywhere else. -->
 <style>
   html, body { margin: 0; height: 100%; background: transparent; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; color: #e6edf3; overflow: hidden; }
-  .card { box-sizing: border-box; height: 100%; padding: 12px 14px; background: #0d131d; border: 1px solid #263244; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .card { box-sizing: border-box; height: 100%; padding: 12px 14px; background: var(--card-bg, #0d131d); border: 1px solid #263244; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
   .row { display: flex; gap: 8px; align-items: center; }
-  input { flex: 1; background: #090d14; color: inherit; border: 1px solid #263244; border-radius: 8px; padding: 10px 12px; font-size: 16px; outline: none; }
+  input { flex: 1; background: var(--card-bg, #090d14); color: inherit; border: 1px solid #263244; border-radius: 8px; padding: 10px 12px; font-size: 16px; outline: none; }
   input:focus { border-color: #4e8cff; }
   button { background: #162033; color: inherit; border: 1px solid #263244; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
   button.on { background: #1f3a66; border-color: #4e8cff; }
