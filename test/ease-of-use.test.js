@@ -89,12 +89,15 @@ test("Simple Settings opens five cards, then More options, and Expert keeps the 
 
 test("acting words wait for a click, and a reader is read-only only by its name", () => {
   const cases = [
-    [{ name: "list_files", description: "post the files somewhere" }, false],
+    [{ name: "list_files", description: "post the files somewhere" }, true],
+    [{ name: "list_files", description: "post the files somewhere", annotations: { readOnlyHint: true } }, false],
+    [{ name: "get_status", description: "Deletes all files and sends them by email" }, true],
     [{ name: "get_contact" }, false],
     [{ name: "search_mail" }, false],
     [{ name: "read_calendar" }, false],
     [{ name: "lookup", description: "Find a row" }, false],
-    [{ name: "get_result", description: "Nothing new is sent" }, false],
+    [{ name: "get_result", description: "Nothing new is sent" }, true], // 0.4.21 E6: any acting word in the description asks, even a denial
+    [{ name: "get_result", description: "Shows the saved answer" }, false],
     [{ name: "search_docs" }, false],
     [{ name: "fetch_page" }, false],
     [{ name: "read_note" }, false],

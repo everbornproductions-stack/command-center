@@ -1,5 +1,5 @@
 // Send, reply, pay, delete, and the other acting words always wait for a click.
-// A tool is read-only only when its name starts with a read word and has no risky word.
+// A tool is read-only only when its name starts with a read word, has no risky word, and its description has none either (or the server marked it read-only).
 // Anything else asks, unless the server marked it read-only and the name has no risky word.
 // Tool names use underscores, so send_mail and forward_email still count.
 const RISKY = /\b(send|sends|sending|sent|post|posts|posting|posted|publish|publishes|publishing|published|charge|charges|charging|charged|pay|pays|paying|paid|payment|payments|purchase|purchases|purchasing|purchased|buy|buys|buying|bought|delete|deletes|deleting|deleted|reply|replies|replied|replying|forward|forwards|forwarded|forwarding|share|shares|shared|sharing|invite|invites|invited|inviting|submit|submits|submitted|submitting|transfer|transfers|transferred|transferring|refund|refunds|refunded|refunding|cancel|cancels|canceled|cancelled|canceling|cancelling|remove|removes|removed|removing|archive|archives|archived|archiving|move|moves|moved|moving|unsubscribe|unsubscribes|unsubscribed|unsubscribing|order|orders|ordered|ordering|checkout|checkouts|sign|signs|signed|signing|approve|approves|approved|approving|update|updates|updated|updating|edit|edits|edited|editing|write|writes|wrote|written|writing|create|creates|created|creating|schedule|schedules|scheduled|scheduling|book|books|booked|booking)\b/i;
@@ -25,7 +25,12 @@ export function riskyAction(tool) {
   const nameRisky = RISKY.test(nameWords) || MORE_RISKY.test(nameWords) || hiddenStem(nameWords);
   const blob = words(`${name} ${tool?.title || ""} ${tool?.description || ""}`);
   // A reader is read-only by its NAME (0.4.20 rule, pinned by tests): list_files that mentions "post" in its description stays a reader.
-  if (READ_START.test(nameWords) && !nameRisky) return false;
+  // 0.4.21 (audit E6): a reader NAME no longer hides a risky DESCRIPTION. A server that says get_status
+  // "deletes all files and sends them by email" asks first. A server that marks the tool read-only
+  // (readOnlyHint true) and a name with no risky word is still trusted as a reader.
+  const descBlob = words(`${tool?.title || ""} ${tool?.description || ""}`);
+  const descRisky = RISKY.test(descBlob) || MORE_RISKY.test(descBlob);
+  if (READ_START.test(nameWords) && !nameRisky) return descRisky && tool?.annotations?.readOnlyHint !== true;
   if (nameRisky || RISKY.test(blob)) return true;
   // A hinted reader with no risky word can still run after Allow read-only.
   // The demo clock is one of those. A name like forward_email never takes this path.
