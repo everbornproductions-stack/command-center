@@ -145,6 +145,8 @@ function offerBar(text, buttons) {
     bar.append(el);
   }
   document.body.appendChild(bar);
+  // One quiet line: it goes away by itself so it can never sit over a button for long.
+  setTimeout(() => { try { bar.remove(); } catch {} }, 20000);
 }
 
 function maybeOffer() {
