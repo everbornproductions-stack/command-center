@@ -19,12 +19,28 @@ async function download(kind, run) {
   } catch (e) { toast(e.message, true); }
 }
 
+function keepName(run) {
+  const p = String(run?.mission?.prompt || run?.prompt || run?.mission?.title || "").replace(/\s+/g, " ").trim();
+  return (p ? p.slice(0, 60) : "Answer") + " (kept)";
+}
+// Keep: files the answer in MindMedia as Review. The same key is used by the automatic keep on agent runs, so it never doubles.
+async function keep(run, text, btn) {
+  const id = run?.id || window.CC.S.live?.id;
+  try {
+    const r = await window.CC.saveToMindMedia({ kind: "text", text, name: keepName(run), status: "Review", source: "Answer", dedupeKey: id ? `mission:${id}` : undefined, projectId: run?.mission?.projectId || undefined });
+    if (btn) btn.textContent = "Kept";
+    return r;
+  } catch (e) { /* saveToMindMedia already showed the message */ }
+}
+
 CC.register({
   id: "export",
   deliverable: { order: 7, render(el, run) {
     const text = run?.deliverable || run?.verdict?.text;
     if (!text) { el.innerHTML = ""; return; }
-    el.innerHTML = `<div class="row small" id="ex-bar" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="ex-pdf">Download PDF</button><button class="btn sm" type="button" id="ex-docx">Download Word</button><span class="dim">Headings, bold text, and lists stay in the file. Keys are left out. Pro.</span></div>`;
+    el.innerHTML = `<div class="row small" id="ex-bar" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" id="ex-keep" title="Keeps this answer in MindMedia as Review. Nothing is sent.">Keep</button><button class="btn sm" type="button" id="ex-pdf">Download PDF</button><button class="btn sm" type="button" id="ex-docx">Download Word</button><span class="dim">Headings, bold text, and lists stay in the file. Keys are left out. Pro.</span></div>`;
+    window.CC._lastResult = { kind: "text", text, name: keepName(run), source: "Answer" };
+    el.querySelector("#ex-keep").addEventListener("click", () => keep(run, text, el.querySelector("#ex-keep")));
     el.querySelector("#ex-pdf").addEventListener("click", () => download("pdf", run));
     el.querySelector("#ex-docx").addEventListener("click", () => download("docx", run));
   } },
