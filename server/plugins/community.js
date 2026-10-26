@@ -305,7 +305,21 @@ async function refreshNews(h, actor, { force = false } = {}) {
     news.published = remote;
     saveNews(h, news);
   }
-  return publicNews(news, actor);
+  const out = publicNews(news, actor);
+  if (!out.issue) out.shipped = shippedThisWeek();
+  return out;
+}
+
+// "No issue yet" still shows something useful: the newest notes of what Meldmind shipped, from the app's own change list.
+function shippedThisWeek() {
+  try {
+    const data = readChangelog();
+    const key = Object.keys(data).filter((k) => /^\d+(\.\d+)*$/.test(k))
+      .sort((x, y) => { const a = x.split(".").map(Number), b = y.split(".").map(Number); for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (b[i] || 0) - (a[i] || 0); if (d) return d; } return 0; })[0];
+    const row = key ? data[key] : null;
+    const bullets = Array.isArray(row?.bullets) ? row.bullets.map((t) => String(t).slice(0, 220)).slice(0, 5) : [];
+    return bullets.length ? { version: key, title: String(row.title || "What's new in Meldmind").slice(0, 80), bullets } : null;
+  } catch { return null; }
 }
 
 function reply(h, res, result) {
