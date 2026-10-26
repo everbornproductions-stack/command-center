@@ -1,4 +1,4 @@
-// Release feature flags for 0.4.19 slices. Each flag is forced with an env var, CC_FLAG_<NAME>=1 or =0.
+﻿// Release feature flags for 0.4.19 slices. Each flag is forced with an env var, CC_FLAG_<NAME>=1 or =0.
 // A flag that is off leaves the older behaviour exactly as it was. The 0.4.19 build turns them on after review.
 // To add a flag, add one line to DEFAULTS. flagView() lists every flag in the table by itself.
 const DEFAULTS = {
@@ -6,6 +6,7 @@ const DEFAULTS = {
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
+  photoeditor: false, // Photo editor: non-destructive sliders, before/after, versions in the project, enhancement prompts
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
   finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
   momentum: false, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
