@@ -15,6 +15,7 @@ const DEFAULTS = {
   photoeditor: true, // Photo editor: non-destructive sliders, before/after, versions in the project, enhancement prompts
   videoeditor: true, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
   publish: true, // Publish plus: caption variations, content calendar with approval, website publish with preview and rollback
+  finishers: true, // Category finishers: documents, accounting, automations, music, presentations, programs, games
   signalsend: false, // Sending anonymous quality signals. OFF: this repo has no receiver for /api/metrics/signals. Turn on with CC_FLAG_SIGNALSEND=1 once the metrics service has one.
 };
 export function flagOn(name) {

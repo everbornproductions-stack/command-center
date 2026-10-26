@@ -141,6 +141,7 @@ CC.register({
       <div class="panel" id="pb-sendlog"><h3>Send log <span class="right">${sends.length}</span></h3><div class="dim small">Everything Meldmind sent for you: when, where, the words, and whether a warning was overridden. Private numbers are hidden.</div>${sends.map((x) => `<div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><b>${esc(x.channel)}${x.to ? ` to ${esc(x.to)}` : ""}</b>${x.rules?.length ? `<span class="chip amber" title="${esc(x.rules.join(", "))}">${x.sendAnyway ? "sent anyway" : "warned"}</span>` : ""}<span class="dim" style="margin-left:auto">${new Date(x.at).toLocaleString()}</span></div><div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.title || x.text || "")}</div></div>`).join("") || `<div class="dim small">Nothing sent yet.</div>`}</div></div>`;
     if (S.flags?.publish) { try { await import("/features/publish-plus.js"); window.CC.mountPublishPlus?.(view); } catch {} }
     if (S.flags?.finishrouter) { try { await import("/features/finish-router.js"); window.CC.mountFinishRouter?.(view); } catch {} }
+    if (S.flags?.finishers) { try { await import("/features/finishers.js"); window.CC.mountFinishers?.(view); } catch {} }
   } },
   settings: { order: 50, render: renderSettings },
 });
