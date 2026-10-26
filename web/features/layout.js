@@ -271,7 +271,28 @@ function syncChat() {
   }
   const go = document.getElementById("go");
   if (go) go.title = "Send (Ctrl+Enter)";
+  syncBuilt();
   paintEstimate();
+}
+
+// A web page answer is shown in the Build panel, not as code in the chat: the chat gets a short card, and the code is one click away.
+function syncBuilt() {
+  const ans = document.getElementById("simple-answer");
+  if (!ans) return;
+  const html = hasHtml() && !ans.hidden;
+  if (ans.dataset.html !== (html ? "1" : "0")) ans.dataset.html = html ? "1" : "0";
+  let card = document.getElementById("sc-built");
+  if (!html) { card?.remove(); if (ans.classList.contains("show-code")) ans.classList.remove("show-code"); return; }
+  const open = panelOpen();
+  if (!card) {
+    card = document.createElement("div");
+    card.id = "sc-built"; card.className = "sc-built";
+    (document.getElementById("out-md") || ans).before(card);
+  }
+  const busyNow = busy();
+  const want = `<b>${busyNow ? "Building your page..." : "Your page is ready."}</b> <span>${open ? "It is open in the Build panel, where you can look at it, step through versions, download it and publish it." : "Open it to look at it, step through versions, download it and publish it."}</span>
+    <span class="sc-built-row">${open ? "" : `<button type="button" class="btn sm primary" id="sc-built-open">Open it</button>`}<button type="button" class="btn sm" id="sc-code" aria-pressed="${ans.classList.contains("show-code")}">${ans.classList.contains("show-code") ? "Hide the code" : "Show the code"}</button></span>`;
+  if (card.dataset.sig !== want) { card.dataset.sig = want; card.innerHTML = want; }
 }
 
 // "Auto team, about $0.04": the real cost of the best-fit AI for what is typed (or a short default request).
@@ -377,6 +398,8 @@ function onDocClick(e) {
   if (t.closest?.("#sc-team")) { setMore(!document.querySelector("#view .sc-panel")?.classList.contains("more-open")); return; }
   if (t.closest?.("#sc-live-open")) { seeLive(); return; }
   if (t.closest?.("#sc-media-all")) { CC.go("mindmedia"); return; }
+  if (t.closest?.("#sc-built-open")) { openInPanel(); return; }
+  if (t.closest?.("#sc-code")) { document.getElementById("simple-answer")?.classList.toggle("show-code"); syncBuilt(); return; }
   const m = t.closest?.("[data-sc-media]");
   if (m) { openInPanel(m.dataset.scMedia); return; }
   const p = t.closest?.("[data-sc-proj]");

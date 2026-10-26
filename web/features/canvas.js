@@ -46,7 +46,7 @@ function build() {
       <button type="button" class="btn sm" id="cv-props-toggle" aria-controls="cv-right" aria-expanded="false">Properties</button>
       <button type="button" class="btn sm" id="cv-preview" title="Open it full size in its own window">Preview</button>
       <button type="button" class="btn sm" id="cv-download">Download</button>
-      <button type="button" class="btn sm" id="cv-close">Close canvas</button>
+      <button type="button" class="btn sm" id="cv-close" title="Close the Build panel">Close</button>
       <button type="button" class="btn primary" id="cv-publish">Publish</button>
     </div>
     <nav class="cv-left" id="cv-left" aria-label="Pages"></nav>
@@ -179,26 +179,30 @@ async function paintStage(force) {
   setView(HTML_START.test(t) ? "" : "text", HTML_START.test(t) ? htmlNode(t) : textNode(t || "This page has no preview."));
 }
 
-// Versions: the saved items that belong together (same family by parentId, else the same kind), oldest first.
+// Versions: the saved items that belong together (same family by parentId, else the same kind), oldest first, then the
+// newest answer on screen (the live one) as the last version when there is one.
 function versions() {
   const it = current();
   const by = new Map(cv.items.map((i) => [i.id, i]));
   const rootOf = (i) => { let x = i, n = 0; while (x && x.parentId && by.has(x.parentId) && n++ < 30) x = by.get(x.parentId); return x?.id || i.id; };
   const base = it || cv.items[0] || null;
-  if (!base) return { list: [], at: -1 };
-  const root = rootOf(base);
-  let list = cv.items.filter((i) => rootOf(i) === root);
-  if (list.length < 2) list = cv.items.filter((i) => i.kind === base.kind && i.projectId === base.projectId).slice(0, 12);
-  list = list.slice().sort((a, b) => (a.createdAt || a.date || 0) - (b.createdAt || b.date || 0));
-  const live = cv.sel === "live" ? list.length : -1;
-  return { list, at: it ? list.findIndex((i) => keyOf(i) === keyOf(it)) : live };
+  let list = [];
+  if (base) {
+    const root = rootOf(base);
+    list = cv.items.filter((i) => rootOf(i) === root);
+    if (list.length < 2) list = cv.items.filter((i) => i.kind === base.kind && i.projectId === base.projectId).slice(0, 12);
+    list = list.slice().sort((a, b) => (a.createdAt || a.date || 0) - (b.createdAt || b.date || 0));
+  }
+  const hasLive = !!liveText();
+  const seq = hasLive ? list.concat([null]) : list;
+  const at = it ? list.findIndex((i) => keyOf(i) === keyOf(it)) : (hasLive ? list.length : -1);
+  return { list, seq, at, total: seq.length };
 }
 function stepVersion(dir) {
-  const { list, at } = versions();
-  if (!list.length) return;
+  const { seq, at } = versions();
   const next = at + dir;
-  if (next < 0 || next >= list.length) return;
-  cv.sel = keyOf(list[next]);
+  if (!seq.length || next < 0 || next >= seq.length) return;
+  cv.sel = seq[next] ? keyOf(seq[next]) : "live";
   paint(true);
 }
 
@@ -206,10 +210,10 @@ function paintTop() {
   const it = current();
   const vs = versions();
   const verEl = cv.el.querySelector("#cv-ver");
-  if (verEl) verEl.textContent = vs.list.length > 1 && vs.at >= 0 ? `v${vs.at + 1} of ${vs.list.length}` : vs.list.length ? "v1" : "";
+  if (verEl) verEl.textContent = vs.total > 1 && vs.at >= 0 ? `v${vs.at + 1} of ${vs.total}` : vs.total ? "v1" : "";
   const prev = cv.el.querySelector("#cv-prev"), nextB = cv.el.querySelector("#cv-next");
   if (prev) prev.disabled = !(vs.at > 0);
-  if (nextB) nextB.disabled = !(vs.list.length > 1 && vs.at >= 0 && vs.at < vs.list.length - 1);
+  if (nextB) nextB.disabled = !(vs.total > 1 && vs.at >= 0 && vs.at < vs.total - 1);
   cv.el.querySelector("#cv-title").textContent = it ? `${projName()} / ${it.name}` : projName();
   const chip = cv.el.querySelector("#cv-chip");
   const w = liveStatus();
