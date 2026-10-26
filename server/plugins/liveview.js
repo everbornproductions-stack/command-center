@@ -5,6 +5,8 @@ import { getContext } from "../store.js";
 import { allEntries } from "../ledger.js";
 import { applyLiveEvent, buildLiveView, createState, openIn, HISTORY_NOTE } from "../liveview.js";
 import { mapTutorials } from "../map-tutorials.js";
+import { PROVIDERS } from "../registry.js";
+import { liveBubbleOn } from "../live-flag.js";
 
 export const id = "liveview";
 const WATCH = new Set(["mission.update", "council.update", "agent.start", "agent.done", "agent.error", "agent.msg", "task.update", "ledger.entry", "external.handoff"]);
@@ -25,9 +27,34 @@ function inputs(h, state, reducedMotion) {
   return { state, projects: h.listProjects(), missions, ledger: allEntries(), jobs, health: c.health || {}, reducedMotion: !!reducedMotion };
 }
 
+// Slice A4 (flag_livebubble): the extras load only when the flag is on, so a build with it off
+// never pulls in the checker, the scheduler job or the credit lookups.
+let bubble = null;
+let checker = null;
+async function loadBubble() {
+  if (!bubble) {
+    bubble = await import("../live-bubble.js");
+  }
+  if (!checker) checker = bubble.createFreeChecker();
+  return bubble;
+}
+function extrasFor(h, input) {
+  if (!bubble || !checker || !liveBubbleOn()) return null;
+  const c = h.ctx();
+  const key = c.userId || "local";
+  checker.watch(key, (fn) => h.runAs(c, async () => { await fn(); publish(h, c.userId || null); }));
+  return {
+    credit: bubble.creditStates(Object.keys(PROVIDERS), input.health),
+    cleared: bubble.clearedMap(),
+    applyCleared: bubble.applyCleared,
+    free: checker.snapshot(),
+  };
+}
+
 function viewFor(h, userId, reducedMotion) {
   const state = stateFor(userId || h.ctx().userId || "local");
-  return buildLiveView(inputs(h, state, reducedMotion));
+  const input = inputs(h, state, reducedMotion);
+  return buildLiveView({ ...input, extras: extrasFor(h, input) });
 }
 
 function fullView(h, userId, reducedMotion) {
@@ -41,6 +68,7 @@ function publish(h, userId) {
 
 export function onEvent(ev, h) {
   if (!WATCH.has(ev?.type)) return;
+  if (liveBubbleOn() && !bubble) { loadBubble().catch(() => {}); }
   const user = ev.user || null;
   const state = stateFor(user || "local");
   if (!applyLiveEvent(state, ev)) return;
@@ -50,8 +78,31 @@ export function onEvent(ev, h) {
 }
 
 export async function routes(req, res, url, _body, h) {
-  if (req.method !== "GET") return false;
   const p = url.pathname.replace(/^\/api\/liveview\/?/, "");
+  if (liveBubbleOn()) await loadBubble();
+  // Slice A4 routes. Off means they do not exist (404 from the router, same as before the slice).
+  if (p === "free" || p === "clear-idle" || p === "show-all") {
+    if (!liveBubbleOn()) return false;
+    const b = await loadBubble();
+    if (p === "free" && (req.method === "GET" || req.method === "POST")) {
+      const c = h.ctx();
+      checker.watch(c.userId || "local", (fn) => h.runAs(c, async () => { await fn(); publish(h, c.userId || null); }));
+      if (req.method === "POST" || url.searchParams.get("refresh") === "1") await checker.refresh({ force: true });
+      else if (!checker.cache.size) await checker.refresh({ force: false });
+      return h.json(res, 200, checker.snapshot());
+    }
+    if (p === "clear-idle" && req.method === "POST") {
+      const view = viewFor(h, h.ctx().userId, false);
+      const n = b.clearIdle(view);
+      return h.json(res, 200, { cleared: n, view: fullView(h, h.ctx().userId, false) });
+    }
+    if (p === "show-all" && req.method === "POST") {
+      b.unclearAll();
+      return h.json(res, 200, { view: fullView(h, h.ctx().userId, false) });
+    }
+    return false;
+  }
+  if (req.method !== "GET") return false;
   const reduced = url.searchParams.get("motion") === "reduce";
   if (p === "" || p === "/") return h.json(res, 200, fullView(h, h.ctx().userId, reduced));
   if (p === "link") {
@@ -76,3 +127,6 @@ export async function routes(req, res, url, _body, h) {
   }
   return false;
 }
+
+// Tests and shutdown: stop the Free AI timer.
+export function stopLiveBubble() { try { checker?.stopAll(); } catch { /* nothing running */ } }

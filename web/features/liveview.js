@@ -57,6 +57,17 @@ const css = `
 .lv-reduced .lv-halo, .lv-reduced .lv-spin, .lv-reduced .lv-stream, .lv-reduced .lv-edge, .lv-reduced .lv-glow-stroke, .lv-reduced .lv-node { animation: none !important; }
 .lv-reduced .lv-particle, .lv-reduced .lv-dot, .lv-reduced .lv-stream { display: none !important; }
 .lv-reduced .lv-node.lv-live .lv-halo { opacity: .4; }
+/* Slice A4 (flag_livebubble): Free AI bubble, credit badges, Clear idle projects. Words wrap inside their box. */
+.lv-wrap, .lv-wrap > *, .lv-free, .lv-free *, .lv-hand, .lv-hand > *, .lv-idle-bar, .lv-idle-bar * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.lv-free { display: flex; flex-direction: column; gap: 8px; }
+.lv-free-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-free-bubbles { display: flex; flex-wrap: wrap; gap: 8px; }
+.lv-free-bubble { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2, #334155); background: #0d1420; font-size: 12.5px; max-width: 100%; }
+.lv-free-bubble.ok { border-color: #34d399; }
+.lv-free-bubble.down { opacity: .6; }
+.lv-free-empty { margin: 0; }
+.lv-idle-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-node .lv-badge { font-size: 9.5px; font-weight: 700; text-anchor: middle; pointer-events: none; }
 .lv-ops-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
 .lv-ops-foot .btn { font-weight: 600; }
 `;
@@ -249,6 +260,7 @@ function syncMap(map, flow) {
       g.appendChild(svgEl("circle", { class: "lv-spin" }));
       g.appendChild(svgEl("text", { class: "lv-init" }));
       g.appendChild(svgEl("text", { class: "lv-name" }));
+      g.appendChild(svgEl("text", { class: "lv-badge" }));
       g.appendChild(svgEl("title"));
       nodeG.appendChild(g);
     }
@@ -276,6 +288,10 @@ function syncMap(map, flow) {
     const name = g.querySelector(".lv-name");
     name.setAttribute("fill", ghost ? "#64748b" : "#e2e8f0");
     name.textContent = n.name || "";
+    const bd = g.querySelector(".lv-badge");
+    bd.textContent = n.badge || "";
+    bd.setAttribute("fill", n.viaMcp ? "#67e8f9" : "#fbbf24");
+    bd.setAttribute("x", n.x); bd.setAttribute("y", n.y + r + 28);
     aimNode(g, n.x, n.y, r, reduced);
   }
   nodeG.querySelectorAll("[data-id]").forEach((g) => {
@@ -352,6 +368,20 @@ function tutorialsHtml(list) {
     </div>`).join("")}
   </div>`;
 }
+function freeHtml(f) {
+  if (!f) return "";
+  const bubbles = (f.members || []).map((m) => `<span class="lv-free-bubble ${m.ok ? "ok" : "down"}" title="${esc(m.detail || "")}"><span class="dot ${m.ok ? "green" : "grey"}"></span>${esc(m.name)}</span>`).join("");
+  const empty = f.state === "ok" ? "" : `<p class="dim small lv-free-empty">${esc(f.state === "checking" ? "Checking the free AIs." : (f.empty || "No free AI is answering right now."))}</p>`;
+  return `<div class="panel lv-free" id="lv-free"><div class="lv-free-head"><b>Free AI</b><span class="chip ${f.state === "ok" ? "green" : ""}">${esc(f.label || "")}</span><button type="button" class="btn sm" id="lv-free-refresh" style="margin-left:auto">Refresh</button></div>
+    ${bubbles ? `<div class="lv-free-bubbles">${bubbles}</div>` : ""}${empty}
+    <p class="dim small" style="margin:0">${esc(f.note || "")}</p></div>`;
+}
+function idleHtml(view) {
+  if (!view || view.hiddenIdle == null) return "";
+  const clear = view.idleCount ? `<button type="button" class="btn sm" id="lv-clear-idle">Clear idle projects</button>` : "";
+  const back = view.hiddenIdle ? `<button type="button" class="btn sm" id="lv-show-idle">Show ${view.hiddenIdle} hidden</button><span class="dim small">Hidden projects come back when they start working.</span>` : "";
+  return clear || back ? `<div class="lv-idle-bar">${clear}${back}</div>` : "";
+}
 function tabInner(view) {
   const { focus, runs, links, handoffs } = bits(view);
   const picks = [`<button class="btn sm ${focus ? "" : "on"}" data-proj="*">All</button>`]
@@ -370,12 +400,14 @@ function tabInner(view) {
     <div class="row"><h3 style="margin:0">Live</h3><span class="dim small">who is working, the step, and what it has cost</span></div>
     ${noteHtml()}
     <div class="lv-picks">${picks}</div>
+    ${idleHtml(view)}
+    ${freeHtml(view.freeAi)}
     <div class="lv-stage"><div class="lv-map-slot"></div>${captions()}</div>
     ${tutorialsHtml(view.tutorials)}
     ${linksHtml(links)}
     <p class="dim small" style="margin:0">Open in the service when it has a page for the job.</p>
     ${handoffHtml(handoffs)}
-    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 12px">${cards || `<div class="dim small">No projects yet.</div>`}</div>
+    <div class="grid" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px">${cards || `<div class="dim small">No projects yet.</div>`}</div>
     <div class="panel"><h3>Runs <span class="right">${(runs || []).length}</span></h3>${runRows}</div>
   </div>`;
 }
@@ -421,6 +453,10 @@ function wire(root) {
   root.querySelectorAll("[data-begin]").forEach((b) => b.addEventListener("click", () => window.CC.startProject?.begin?.(b.dataset.begin)));
   root.querySelectorAll("[data-proj]").forEach((b) => b.addEventListener("click", () => { selected = b.dataset.proj === "*" ? "*" : b.dataset.proj; paint(); }));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { S.view = "projects"; S.openProject = b.dataset.open; window.CC.render(); }));
+  const post = async (path, done) => { try { const r = await api(path, { method: "POST" }); done(r); } catch (e) { toast(e.message, true); } };
+  root.querySelector("#lv-free-refresh")?.addEventListener("click", () => post("/liveview/free", (f) => { if (cache) { cache = { ...cache, freeAi: f }; paint(); } }));
+  root.querySelector("#lv-clear-idle")?.addEventListener("click", () => post("/liveview/clear-idle", (r) => { if (r.view) { cache = r.view; paint(); } toast(r.cleared ? `${r.cleared} idle project${r.cleared === 1 ? "" : "s"} hidden` : "No idle projects"); }));
+  root.querySelector("#lv-show-idle")?.addEventListener("click", () => post("/liveview/show-all", (r) => { if (r.view) { cache = r.view; paint(); } }));
   mountOpsButton();
 }
 function paint() {
