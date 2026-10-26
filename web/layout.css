@@ -50,6 +50,7 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
   .side-lock { color: var(--muted, #8b95a7); font-size: .6875rem; white-space: nowrap; }
   .side-sec { margin: 8px 10px 2px; font-size: .6875rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #8b95a7); }
   #cc-side .side-h { margin: 14px 10px 4px; font-size: .6875rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #8b95a7); }
+  #cc-side .side-search { margin: 0 10px 6px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line-2, #243044); background: var(--bg-2, #0d1420); color: var(--text, #e5e7eb); font-size: .8125rem; min-width: 0; }
   #cc-side .side-recent { display: grid; gap: 1px; align-content: start; min-height: 0; flex: 1 1 auto; overflow: auto; }
   #cc-side .side-chat { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text, #e5e7eb); padding: 6px 10px; cursor: pointer; font-size: .875rem; min-width: 0; }
   #cc-side .side-chat i { font-style: normal; font-size: .5rem; color: var(--dim, #5b667a); flex: none; }
@@ -67,7 +68,7 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
   html[data-look="glass"][data-blur="off"] body #cc-side, html[data-look="glass"] body.light-mode #cc-side { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--mm-glass-fill-solid); }
 
   /* icons only: narrow windows and when collapsed */
-  body[data-side="c"] #cc-side .side-item span, body[data-side="c"] #cc-side .side-h, body[data-side="c"] #cc-side .side-recent { display: none; }
+  body[data-side="c"] #cc-side .side-item span, body[data-side="c"] #cc-side .side-h, body[data-side="c"] #cc-side .side-search, body[data-side="c"] #cc-side .side-recent { display: none; }
   body[data-side="c"] #cc-side .side-item { justify-content: center; padding: 8px 0; }
   body[data-side="c"] #cc-side .side-top { justify-content: center; }
   body[data-side="c"] #cc-side .side-sub { position: fixed; left: 62px; top: 160px; z-index: 60; padding: 6px; min-width: 220px; background: var(--panel-solid, #111827); border: 1px solid var(--line-2, #273449); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, .45); max-height: 70vh; overflow: auto; }
