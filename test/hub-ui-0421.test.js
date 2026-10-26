@@ -34,8 +34,8 @@ test("hub in a real browser: smart views, Trash and Restore, a #mindmedia link, 
     const b = await t.api("/mindmedia/save", { body: { kind: "text", text: "Beta words for the hub", name: "Beta note" } });
     assert.equal(a.status, 200);
     await t.api("/mindmedia/delete", { body: { items: [{ projectId: b.json.projectId, assetId: b.json.items[0].id }] } });
-    await t.page.evaluate(() => { location.hash = "#mindmedia"; });
-    await t.page.waitForSelector(".mmh-rail", { timeout: waitBudget(30000) });
+    // shell modules (and the hash listener) arrive after first paint; set the hash again until the hub draws
+    await t.page.waitForFunction(() => { if (document.querySelector(".mmh-rail")) return true; if (typeof window.CC.saveToMindMedia === "function") { location.hash = ""; location.hash = "#mindmedia"; } return false; }, null, { timeout: waitBudget(30000), polling: 700 });
     const rail = await t.page.textContent(".mmh-rail");
     assert.match(rail, /Smart views/);
     assert.match(rail, /Needs my OK/);
