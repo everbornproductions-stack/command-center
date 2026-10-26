@@ -3,6 +3,7 @@
 //   CC.publishPanel(box, { projectId, assetId, kind, title, text, onResult })  -> pick a place, preview, confirm
 //   CC.mmStatusChip(status) -> html for one status chip (one vocabulary: Draft, Review, Approved, Published)
 // Colours come from the theme variables only, so light and dark both work.
+import { fitFixes, fieldsFor } from "/publish-fit.js";
 const { api, toast, esc } = window.CC;
 
 export const STATUS_TONE = { Draft: "", Review: "amber", Approved: "green", Published: "violet" };
@@ -73,17 +74,46 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
     ${fits.map((c) => `<button type="button" class="mm-ch" data-ch="${esc(c.id)}" aria-pressed="false"><b>${esc(nameOf(c))}</b><small>${c.ready ? "Connected" : "Practice only, nothing is sent"}</small></button>`).join("")}
     <div class="mm-more" hidden>
       ${kind === "text" ? `<label class="lbl" for="mm-pub-text">Words to send</label><textarea id="mm-pub-text">${esc(text.slice(0, 2200))}</textarea>` : `<label class="lbl" for="mm-pub-text">Caption (optional)</label><textarea id="mm-pub-text">${esc(text.slice(0, 2200))}</textarea>`}
+      <div class="mm-fields"></div>
       <div class="row"><button type="button" class="btn sm" data-a="preview">Preview</button><button type="button" class="btn sm primary" data-a="go" disabled>Send</button></div>
       <div class="mm-out mm-note" role="status" aria-live="polite"></div>
     </div>`;
   const more = box.querySelector(".mm-more"), out = box.querySelector(".mm-out"), go = box.querySelector('[data-a="go"]');
-  const bodyOf = () => ({ channel, title: title || "From MindMedia", text: box.querySelector("#mm-pub-text").value, mediaAssetId: assetId || undefined, mediaProjectId: projectId || undefined, projectId: projectId && projectId !== "unfiled" ? projectId : undefined });
+  const extra = () => {
+    const link = box.querySelector("#mm-pub-link")?.value.trim();
+    const room = box.querySelector("#mm-pub-room");
+    const when = box.querySelector("#mm-pub-time")?.value;
+    const accountIds = [...box.querySelectorAll("[data-acc]:checked")].map((x) => x.dataset.acc);
+    return { ...(link ? { mediaUrl: link } : {}), ...(room?.value ? { channelId: room.value, channelName: room.selectedOptions[0]?.dataset.name } : {}), ...(when ? { when } : {}), ...(accountIds.length ? { accountIds } : {}) };
+  };
+  const bodyOf = () => ({ ...extra(), channel, title: title || "From MindMedia", text: box.querySelector("#mm-pub-text").value, mediaAssetId: assetId || undefined, mediaProjectId: projectId || undefined, projectId: projectId && projectId !== "unfiled" ? projectId : undefined });
+  const fieldsBox = box.querySelector(".mm-fields");
+  const drawFields = async () => {
+    const want = fieldsFor(channel, kind);
+    let html = "";
+    for (const f of want) {
+      if (f.id === "link") html += `<label class="lbl" for="mm-pub-link">${esc(f.label)}</label><input type="text" id="mm-pub-link" placeholder="https://">`;
+      else if (f.id === "time") html += `<label class="lbl" for="mm-pub-time">${esc(f.label)}</label><input type="text" id="mm-pub-time" placeholder="2026-11-02 09:00">`;
+      else if (f.id === "room") {
+        let rooms = [];
+        try { rooms = await api("/publish/slack-channels"); } catch {}
+        html += `<label class="lbl" for="mm-pub-room">${esc(f.label)}</label>${rooms.length ? `<select id="mm-pub-room">${rooms.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}">#${esc(c.name)}${c.member ? "" : " (invite the app first)"}</option>`).join("")}</select>` : `<div class="mm-note">No channels yet. Connect Slack in Settings, or this stays a practice run.</div>`}`;
+      } else if (f.id === "account") {
+        let accs = [];
+        try { accs = await api("/publish/ghl-accounts"); } catch {}
+        html += `<div class="lbl">${esc(f.label)}</div>${accs.length ? accs.map((a) => `<label class="row small"><input type="checkbox" data-acc="${esc(a.id)}" checked> ${esc(a.name)}</label>`).join("") : `<div class="mm-note">No social accounts yet. Connect HighLevel in Settings, or this stays a practice run.</div>`}`;
+      }
+    }
+    fieldsBox.innerHTML = html;
+    fieldsBox.querySelectorAll("input, select").forEach((i) => { i.addEventListener("input", stale); i.addEventListener("change", stale); });
+  };
   const stale = () => { previewId = ""; go.disabled = true; go.textContent = "Send"; };
   box.querySelector("#mm-pub-text").addEventListener("input", stale);
   box.querySelectorAll("[data-ch]").forEach((b) => b.addEventListener("click", () => {
     channel = b.dataset.ch;
     box.querySelectorAll("[data-ch]").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
     more.hidden = false; stale(); out.textContent = "";
+    drawFields();
   }));
   box.querySelector('[data-a="preview"]').addEventListener("click", async () => {
     if (!channel) return toast("Pick a place first.", true);
@@ -91,7 +121,13 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
       const r = await api("/publish/preview", { method: "POST", body: bodyOf() });
       previewId = r.previewId;
       const probs = r.problems || [];
-      out.innerHTML = `${esc(r.summary || "")}${probs.length ? `<div class="mm-warn">${probs.map(esc).join(" / ")}</div>` : ""}${r.dryRun ? `<div class="mm-note">Practice only, nothing is sent. This place is not connected, so Meldmind only records the practice run.</div>` : ""}`;
+      out.innerHTML = `${esc(r.summary || "")}${fitFixes(probs, channel).map((f, i) => `<div class="mm-warn">${esc(f.text)}${f.fix ? ` <button type="button" class="btn sm" data-fix="${i}:fix">${esc(f.fix.label)}</button>` : ""}${f.alt ? ` <button type="button" class="btn sm" data-fix="${i}:alt">${esc(f.alt.label)}</button>` : ""}</div>`).join("")}${r.dryRun ? `<div class="mm-note">Practice only, nothing is sent. This place is not connected, so Meldmind only records the practice run.</div>` : ""}`;
+      out.querySelectorAll("[data-fix]").forEach((b) => b.addEventListener("click", () => {
+        const f = fitFixes(probs, channel)[Number(b.dataset.fix.split(":")[0])];
+        const id = (b.dataset.fix.endsWith(":alt") ? f.alt : f.fix)?.id;
+        if (id === "drive") { box.querySelector('[data-ch="drive"]')?.click(); return; }
+        box.querySelector({ link: "#mm-pub-link", time: "#mm-pub-time", room: "#mm-pub-room", account: "[data-acc]" }[id])?.focus();
+      }));
       go.textContent = r.dryRun ? "Practice run" : "Send now";
       go.disabled = probs.length > 0 && !r.dryRun;
     } catch (e) { stale(); out.innerHTML = `<span class="mm-warn">${esc(e.message)}</span>`; }

@@ -45,14 +45,14 @@ async function openPreview(el, channel, run) {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });
       previewId = r.previewId;
-      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · will record a dry run</span>' : ' <span class="chip green">ready</span>'}`;
+      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
       go.disabled = r.problems.length > 0 && !r.dryRun; go.title = go.disabled ? "Fix the problems above, then preview again" : "";
     } catch (e) { previewId = null; go.disabled = true; toast(e.message, true); }
   });
   go.addEventListener("click", async () => {
     if (!previewId) return toast("Preview first", true);
     go.disabled = true;
-    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Recorded as a dry run (not connected)" : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
+    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent (not connected)." : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
     catch (e) { previewId = null; toast(e.message, true); out.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   });
 }
@@ -128,7 +128,7 @@ CC.register({
     let hist = [], chans = []; try { hist = await api("/publish/history"); chans = await api("/publish/channels"); } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
     const link = (u) => /^https:\/\//.test(u || "") ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>` : u ? `<span class="dim">${esc(u)}</span>` : "";
     view.innerHTML = `<div class="grid" id="pub-tour" style="grid-template-columns: 320px minmax(0,1fr)">
-      <div class="panel"><h3>Channels</h3>${chans.map((c) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(c.name)}</span><span class="chip ${c.ready ? "green" : ""}" style="margin-left:auto">${c.ready ? "ready" : "dry run"}</span></div><div class="dim small">${esc(c.needs)}</div>`).join("")}<div class="dim small" style="margin-top:8px">Connect services in Settings, Publishing.</div></div>
+      <div class="panel"><h3>Channels</h3>${chans.map((c) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(c.name)}</span><span class="chip ${c.ready ? "green" : ""}" style="margin-left:auto">${c.ready ? "ready" : "practice only"}</span></div><div class="dim small">${esc(c.needs)}</div>`).join("")}<div class="dim small" style="margin-top:8px">Connect services in Settings, Publishing.</div></div>
       <div class="panel"><h3>History <span class="right">${hist.length}</span></h3>${hist.map((h) => `<div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><b>${esc(h.channel)}${h.channelName ? ` #${esc(h.channelName)}` : ""}</b><span class="chip ${h.status === "posted" ? "green" : h.status === "failed" ? "red" : "amber"}">${esc(h.status)}</span><span class="dim" style="margin-left:auto">${new Date(h.ts).toLocaleString()}</span></div><div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.title || h.text || "")}</div>${link(h.result?.url)}${h.error ? `<div style="color:var(--red)">${esc(h.error)}</div>` : ""}</div>`).join("") || `<div class="dim small">Nothing published yet.</div>`}</div></div>`;
     if (S.flags?.finishrouter) { try { await import("/features/finish-router.js"); window.CC.mountFinishRouter?.(view); } catch {} }
   } },
