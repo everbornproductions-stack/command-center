@@ -182,8 +182,10 @@ const DEFAULT_SETTINGS = { budgetMonthly: 100, defaultMode: "balanced", qa: true
 const settings = () => {
   const s = doc("settings", () => ({ ...DEFAULT_SETTINGS }));
   const mode = normalizeMode(s.defaultMode);
-  if (!mode || mode === s.defaultMode) return s;
-  return { ...s, defaultMode: mode };
+  const envFlag = process.env.CC_FLAG_PHONEWEB === "1" || process.env.CC_FLAG_PHONEWEB === "true";
+  const nextMode = mode && mode !== s.defaultMode ? mode : s.defaultMode;
+  if (nextMode === s.defaultMode && (!envFlag || s.flag_phoneweb !== undefined)) return s;
+  return { ...s, defaultMode: nextMode, ...(envFlag && s.flag_phoneweb === undefined ? { flag_phoneweb: true } : {}) };
 };
 const saveSettings = (s) => putDoc("settings", s);
 // The armed tone belongs to the next run only. Call this once, just before that run starts.
