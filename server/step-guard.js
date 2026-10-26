@@ -203,3 +203,9 @@ export function namedFile(goal) {
   const name = m[1].replace(/\.markdown$/i, ".md");
   return /^(?:www|e\.g|i\.e)\./i.test(name) ? "" : name;
 }
+
+// An AI may write "Saved as index.html (project root)" about a file it cannot write. Those lines are removed;
+// the real result (path, or "not saved") is shown by the app from what was actually written.
+export function stripSaveClaims(text) {
+  return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file saved|saved to|saved in|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
+}
