@@ -22,6 +22,10 @@ import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memor
 import { normalizeMode, planMode, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, toneAdd } from "./desk.js";
 import * as MEDIA from "./media-jobs.js";
+import * as MSW from "./media-switch.js";
+import { demoActive as mediaDemoOn } from "./mock.js";
+import { demosHidden as mediaDemosHidden } from "./demo-visibility.js";
+import { guardUsd as mediaGuardUsd } from "./make-it.js";
 import { suggestApp, runLive, planLine } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
@@ -895,7 +899,22 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // voice speaks the script it was handed; video and image use the planner's prompt
       const words = t.media.kind === "voice" && inputs ? inputs.replace(/[#*>`|_]/g, "").replace(/\s+/g, " ").trim() : (t.media.prompt || t.instructions || t.title);
       try {
-        const job = MEDIA.createJob({ provider: t.media.provider, kind: t.media.kind, params: { prompt: words.slice(0, MEDIA.MAX_PROMPT), text: words.slice(0, MEDIA.MAX_PROMPT) }, projectId, missionId: id, missionTaskId: t.id, approve: false, origin: "mission" });
+        // any connected maker, another one when the first fails, never a quiet placeholder (practice only in demo mode)
+        const practice = mediaDemoOn() && !mediaDemosHidden() && !MSW.status(t.media.kind).ok;
+        const sw = practice ? null : await MSW.missionMediaStep({ kind: t.media.kind, prompt: words, projectId, missionId: id, missionTaskId: t.id, guardUsd: mediaGuardUsd() });
+        if (sw?.image) {
+          const raw = MEDIA.getJob(sw.image.row.id);
+          t.media.provider = sw.image.maker.id; t.media.jobId = sw.image.row.id; t.media.status = "done"; t.media.dryRun = false; t.media.usd = sw.image.maker.usd;
+          t.media.files = raw ? MEDIA.publicJob(raw).files : [];
+          t.output = `${sw.image.maker.name} made the picture (about $${sw.image.maker.usd}).${sw.image.tried.length > 1 ? ` ${sw.image.tried.filter((x) => !x.ok).map((x) => x.name).join(" and ")} could not, so it stepped in.` : ""} Saved to the project. Open it on the Media tab.`;
+          t.status = "done"; t.error = null; t.cost = +(Number(sw.image.maker.usd) || 0).toFixed(5);
+          outputs[t.id] = t.output; spend({ cost: t.cost });
+          done.add(t.id); t.finishedAt = Date.now();
+          emit("task.update", { missionId: id, task: pubTask(t) }); update();
+          return;
+        }
+        const job = sw?.job || MEDIA.createJob({ provider: t.media.provider, kind: t.media.kind, params: { prompt: words.slice(0, MEDIA.MAX_PROMPT), text: words.slice(0, MEDIA.MAX_PROMPT) }, projectId, missionId: id, missionTaskId: t.id, approve: false, origin: "mission" });
+        if (sw?.maker) t.media.provider = sw.maker.id;
         t.media.jobId = job.id; t.media.usd = job.estimate?.usd ?? t.media.usd;
         const fin = job.status === "awaiting_ok" ? null : await MEDIA.awaitJob(job.id, 60000);
         mediaOnTask(t, fin || MEDIA.getJob(job.id) || job);
@@ -1277,10 +1296,12 @@ function mediaPlan(t) {
   const kind = String(t.media?.kind || "").toLowerCase();
   if (!MEDIA.KINDS.includes(kind)) return null;
   try {
-    const provider = MEDIA.chooseProvider(kind);
     const prompt = String(t.media?.prompt || t.instructions || t.title || "").slice(0, MEDIA.MAX_PROMPT);
+    const st = MSW.status(kind);
+    if (st.provider) return { kind, prompt, provider: st.provider, providerName: st.providerName, usd: st.usd ?? MEDIA.estimate({ provider: st.provider, kind, params: { prompt, text: prompt } }).usd, note: st.alternatives.length ? `If it fails, ${st.alternatives.join(" or ")} steps in.` : "", dryRun: false, jobId: null, status: null, files: [] };
+    const provider = MEDIA.chooseProvider(kind);
     const est = MEDIA.estimate({ provider, kind, params: { prompt, text: prompt } });
-    return { kind, prompt, provider, providerName: est.providerName, usd: est.usd, note: est.estimate.note || "", dryRun: est.dryRun, jobId: null, status: null, files: [] };
+    return { kind, prompt, provider, providerName: est.providerName, usd: est.usd, note: st.message, needsKey: st.message, dryRun: est.dryRun, jobId: null, status: null, files: [] };
   } catch { return null; }
 }
 // a job's state onto its task: made (or a dry run, or declined) is done, still waiting is waiting
