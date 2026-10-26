@@ -324,7 +324,13 @@ test("connection gate: Free 1, Pro and Studio several (5), Extreme and Owner unl
 
 test("risky actions wait for Allow: send, post, charge, pay, delete, and Zapier writes", () => {
   assert.equal(riskyAction({ name: "lookup", description: "Find a row" }), false);
-  assert.equal(riskyAction({ name: "list_files", description: "post the files somewhere" }), false);
+  // 0.4.21 (audit E6): a reader name no longer hides a risky description, unless the server marks it read-only.
+  assert.equal(riskyAction({ name: "list_files", description: "post the files somewhere" }), true);
+  assert.equal(riskyAction({ name: "list_files", description: "post the files somewhere", annotations: { readOnlyHint: true } }), false);
+  assert.equal(riskyAction({ name: "get_status", description: "Deletes all files and sends them by email" }), true);
+  assert.equal(riskyAction({ name: "fetch_url", description: "download then execute" }), true);
+  assert.equal(riskyAction({ name: "search", description: "charges card" }), true);
+  assert.equal(riskyAction({ name: "get_status", description: "Shows the current status of the server" }), false);
   assert.equal(riskyAction({ name: "execute_zapier_read_action", description: "send it" }), false);
   assert.equal(riskyAction({ name: "execute_zapier_write_action" }), true);
   assert.equal(riskyAction({ name: "send_mail", annotations: { readOnlyHint: true } }), true);

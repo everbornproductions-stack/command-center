@@ -89,7 +89,9 @@ test("Simple Settings opens five cards, then More options, and Expert keeps the 
 
 test("acting words wait for a click, and a reader is read-only only by its name", () => {
   const cases = [
-    [{ name: "list_files", description: "post the files somewhere" }, false],
+    [{ name: "list_files", description: "post the files somewhere" }, true],
+    [{ name: "list_files", description: "post the files somewhere", annotations: { readOnlyHint: true } }, false],
+    [{ name: "get_status", description: "Deletes all files and sends them by email" }, true],
     [{ name: "get_contact" }, false],
     [{ name: "search_mail" }, false],
     [{ name: "read_calendar" }, false],
