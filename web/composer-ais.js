@@ -105,8 +105,13 @@ export function isOnBar(p, subscriptions = []) {
   if (!p) return false;
   if (isDemoAi(p)) return true;
   if (isConnectedAi(p)) return true;
-  if (p.access?.connected) return true;
+  const up = p.status?.status === "green" || p.status?.status === "amber";
+  // Handoff and local-app AIs are "connected" by design in Settings, but nothing is linked until the
+  // app is seen working (status) or a subscription is tracked, so they stay off the bar until then.
+  const handsOff = ["handoff", "local"].includes(p.access?.auth);
+  if (p.access?.connected && !handsOff) return true;
   if (p.connect?.mcp?.configured) return true;
+  if (handsOff && up) return true;
   if (p.kind === "agent") return p.status?.status === "green" || p.status?.status === "amber";
   const subs = Array.isArray(subscriptions) ? subscriptions : [];
   return subs.some((s) => s.provider === p.id && (s.credits != null || s.renews));

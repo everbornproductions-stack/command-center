@@ -928,6 +928,7 @@ function render() {
   if (isNavStateEnabled(S)) restoreViewDraft(S.view, v);
   syncBackBtn();
   window.CC?.syncAssetTray?.(S.view);
+  window.CC?.dock?.onRender?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
