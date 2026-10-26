@@ -2,7 +2,7 @@
 // saved choice stays on Expert, so an update does not hide the console they already use.
 // The choice itself is not "history": answering it must not skip first-run setup.
 
-export const CREATE_VIEWS = ["prompts", "images", "media", "publish", "remix", "builders", "webbuilders"];
+export const CREATE_VIEWS = ["prompts", "images", "media", "mindmedia", "publish", "remix", "builders", "webbuilders"];
 
 // Inbox, day plan, and People. Simple reaches them from My day. Expert menus are unchanged.
 export const DAY_VIEWS = ["everyday-inbox", "everyday-plan", "userchat"];
