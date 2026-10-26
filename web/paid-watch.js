@@ -1,6 +1,6 @@
-// "I paid" re-check. After the person opens an Upgrade link, ask the licence check again every few
+// "I paid" re-check. After the person opens an Upgrade link, ask the license check again every few
 // seconds for two minutes, and again whenever the window comes back into focus, until the tier goes
-// up. No timers run until start() is called. check() returns the licence state from the server
+// up. No timers run until start() is called. check() returns the license state from the server
 // (POST /api/license/recheck). Nothing here reads or logs an email or a key.
 export const WATCH_EVERY_MS = 5000;
 export const WATCH_FOR_MS = 2 * 60 * 1000;

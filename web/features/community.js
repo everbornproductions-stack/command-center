@@ -293,7 +293,7 @@ async function render(view) {
     </div>
     <div>
       <div class="panel">
-        ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your licence.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
+        ${room.needsLicence ? `<div class="small">Sign in first. Community chat uses the email you signed in with (Google or Microsoft, under Connect) or the email on your license.${room.username ? ` Your public username is ${esc(room.username)}.` : ""}</div>` : (joined ? `<div class="small">You are posting as <b>${esc(room.profile?.username || room.username || "")}</b>. This name is on your account. Change it in Settings.</div>` : `<form id="cc-join" class="grid" style="gap:8px;margin-bottom:12px" autocomplete="off">
           <div class="small">Pick a public username for your account. A friendly one is suggested. Your email is not shown.</div>
           <label>Username <input id="cc-name" name="cc-name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="off" value="${esc(room.suggestion || "")}" aria-label="Username"></label>
           <div class="dim small">3 to 20 characters. Letters, numbers, and underscore. It has to be unique. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News.</div>

@@ -210,7 +210,7 @@ export const MENU_ACTIONS = {
 };
 
 // Pages that need a paid plan. The menu item still opens the page, which explains
-// the plan. The note is only a label. cap is the licence limit that unlocks it.
+// the plan. The note is only a label. cap is the license limit that unlocks it.
 export const VIEW_LOCKS = {
   pipelines: { cap: "missions", plan: "Pro" },
   schedules: { cap: "scheduler", plan: "Pro" },
@@ -220,7 +220,7 @@ export const VIEW_LOCKS = {
 };
 
 // The plan a view needs on these limits, or "" when it is open. No limits means
-// the licence has not loaded yet, so nothing is marked.
+// the license has not loaded yet, so nothing is marked.
 export function lockFor(view, limits) {
   const lock = VIEW_LOCKS[view];
   if (!lock || !limits || typeof limits !== "object") return "";
@@ -230,7 +230,7 @@ export function lockFor(view, limits) {
 }
 
 export function lockNote(plan) {
-  return plan ? `Part of ${plan}. The page explains the plan. Add a licence key in Settings.` : "";
+  return plan ? `Part of ${plan}. The page explains the plan. Add a license key in Settings.` : "";
 }
 
 // What the Settings menu is allowed to hold, in every layout: settings pages only.
@@ -1033,7 +1033,7 @@ export function placeNavItem(root, view, label) {
   else panel.appendChild(btn);
 }
 
-// Adds or clears the plan note on locked pages. Called after each licence load.
+// Adds or clears the plan note on locked pages. Called after each license load.
 export function markLocks(root, limits) {
   if (!root) return;
   root.querySelectorAll("button[data-view]").forEach((b) => {

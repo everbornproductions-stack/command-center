@@ -90,7 +90,7 @@ function renderTab(view) {
         <h3 style="margin:0">User guide: What can Meldmind do?</h3>
         <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="margin-left:auto;text-decoration:none">Download the guide (PDF)</a>
       </div>
-      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a licence happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
+      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a license happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
       <label class="lbl" for="can-do-search">Search what Meldmind can do</label>
       <input id="can-do-search" type="search" placeholder="Try councils, remix, or phone" autocomplete="off">
       <div id="can-do-list" class="help-list"></div>

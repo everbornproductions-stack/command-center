@@ -13,7 +13,7 @@ async function render(el) {
   const packs = data.packs || [];
   el.innerHTML = `<div class="panel"><h3>Industry packs <span class="right">${data.open ? esc(data.tier || "") : "Pro"}</span></h3>
     <p class="small" style="margin:6px 0 0">${esc(data.message || "Picking a prompt fills Marching orders. Nothing runs until you send it.")}</p>
-    ${data.open ? "" : `<div class="small" style="margin-top:8px">These packs are part of Pro. Add a licence key in Settings.</div>`}
+    ${data.open ? "" : `<div class="small" style="margin-top:8px">These packs are part of Pro. Add a license key in Settings.</div>`}
     ${packs.map((p) => `<div style="margin-top:12px"><b>${esc(p.name)}</b>${p.scf ? ` <span class="chip amber">SCF</span>` : ""}
       <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">${(p.prompts || []).map((t) => `<button class="btn sm" type="button" data-ind="${esc(t.id)}" ${data.open ? "" : "disabled"}>${esc(t.name)}${t.outbound ? " (draft)" : ""}</button>`).join("")}</div>
     </div>`).join("")}

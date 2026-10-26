@@ -167,7 +167,7 @@ async function mergeRemote(h, channel) {
 // Returns what really happened, so the page never says "Posted." for a message nobody else can see.
 // delivered: the shared room took it. retry: worth trying again later (offline). reason: plain words.
 async function syncPost(message, key) {
-  if (!key) return { delivered: false, retry: false, reason: "Saved on this computer only. Sharing with everyone needs a licence for now." };
+  if (!key) return { delivered: false, retry: false, reason: "Saved on this computer only. Sharing with everyone needs a license for now." };
   const sent = await Cloud.pushPost({
     p_key: key,
     p_channel: message.channel,
@@ -444,7 +444,7 @@ export async function routes(req, res, url, body, h) {
       pending: row.pending,
       synced,
       note: row.pending
-        ? "Saved on this computer. It will use the email on your licence once that email is on file. Nothing is sent."
+        ? "Saved on this computer. It will use the email on your license once that email is on file. Nothing is sent."
         : (optedIn ? "You are on the list. Nothing is sent from this app." : "You are off the list."),
     });
   }

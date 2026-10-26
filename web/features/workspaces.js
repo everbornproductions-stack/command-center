@@ -111,7 +111,7 @@ async function render(v) {
   v.innerHTML = `<div class="empty">Loading workspaces...</div>`;
   try { await load(); } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const gateCard = !data.studio ? `<div class="panel" style="border-color:var(--violet)"><h3>Studio feature <span class="right">your tier: ${esc(data.tier)}</span></h3>
-      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Studio</b>; add a Studio licence in Settings. Workspaces others shared with you still show below.</div></div>` : "";
+      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Studio</b>; add a Studio license in Settings. Workspaces others shared with you still show below.</div></div>` : "";
   const localNote = !data.hosted ? `<div class="dim small" style="margin-bottom:12px">Desktop copy: workspaces you set up here are kept on this PC and work offline. Teammates join through the hosted hub (docs/hosted-hub.md).</div>` : "";
   const roleKey = `<details class="small" style="margin-top:4px"><summary class="dim">What each role can do</summary>${Object.entries(ROLE_HELP).map(([r, t]) => `<div><b>${r}</b>: ${esc(t)}</div>`).join("")}</details>`;
   const active = all().find((w) => w.id === data.active);

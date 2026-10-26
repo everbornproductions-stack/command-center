@@ -9,7 +9,7 @@ lastUpdatedVersion: 0.4.13
 
 Community is in the Connect menu, in the People section with People and Together. In Simple it is on the bar when there is room, or under More.
 
-Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.
+Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your license email and a display name. Click Send to post. Keys and private files are refused.
 
 Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. It is 3 to 20 characters, letters, numbers, and underscore, and it has to be unique. Names like meldmind, admin, and everborn are refused. Your email is never shown. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. You can change it in Settings, then wait an hour before the next change.
 
@@ -19,7 +19,7 @@ Email me the weekly note is off until you tick it in Settings or during setup. T
 
 ## How to join
 
-Use the email on your licence to join chat. The public name is the one username on your account. Nothing is posted until you click Send. A comment is a click too.
+Use the email on your license to join chat. The public name is the one username on your account. Nothing is posted until you click Send. A comment is a click too.
 
 Share a prompt, a builder, or a mission with Share in chat. That click is the post. If you have not joined, the app opens Community and does not post.
 

@@ -11,16 +11,16 @@ process.env.CC_MODE = "";
 const { looksLikeLicenceKey, plainLicenceError } = await import("../server/license.js");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("a licence key is EVB-XXXX-XXXX-XXXX; promo codes are not keys", () => {
+test("a license key is EVB-XXXX-XXXX-XXXX; promo codes are not keys", () => {
   assert.equal(looksLikeLicenceKey("EVB-AAAA-BBBB-CCCC"), true);
   assert.equal(looksLikeLicenceKey(" evb-a2b3-c4d5-e6f7 "), true);
   assert.equal(looksLikeLicenceKey("EVERBORN-OWNER"), false);
   assert.equal(looksLikeLicenceKey("TEST-ABCD-EFGH"), false);
 });
 
-test("licence server replies become plain sentences", () => {
+test("license server replies become plain sentences", () => {
   assert.match(plainLicenceError("Code is invalid, used up, or expired", "code"), /^This code was already used/);
-  assert.match(plainLicenceError("Licence key not found", "key"), /not found.*promo code/);
+  assert.match(plainLicenceError("License key not found", "key"), /not found.*promo code/);
   assert.match(plainLicenceError("Enter the email this code is for", "code"), /Enter your email/);
 });
 
@@ -49,7 +49,7 @@ test("server: Redeem with an empty promo box says so and never activates", async
     assert.equal(calls.filter((c) => c.fn === "verify_license" && c.body.p_key === "EVB-AAAA-BBBB-CCCC").length, 0);
     const empty = await s.api("/license", { method: "POST", body: {} });
     assert.equal(empty.status, 400);
-    assert.equal(empty.json.error, "Enter your licence key or promo code.");
+    assert.equal(empty.json.error, "Enter your license key or promo code.");
   } finally { await s.stop(); }
 });
 
@@ -77,13 +77,13 @@ test("server: a used-up code says it was already used; an unknown key says not f
     assert.equal(used.status, 400);
     assert.match(used.json.error, /^This code was already used/);
     const unknown = await s.api("/license", { method: "POST", body: { key: "EVB-ZZZZ-ZZZZ-ZZZZ" } });
-    assert.match(unknown.json.message, /licence key was not found/);
+    assert.match(unknown.json.message, /license key was not found/);
   } finally { await s.stop(); }
 });
 
 test("Plan panel: one box, one Activate button, no separate Redeem row", () => {
   const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
-  assert.match(app, /Licence key or promo code/);
+  assert.match(app, /License key or promo code/);
   assert.match(app, /id="lic-go" data-busy-label="Checking\.\.\."/);
   assert.doesNotMatch(app, /id="lic-redeem"/);
   assert.doesNotMatch(app, /id="lic-code"/);

@@ -360,11 +360,11 @@ export const SENDERS = [
   },
   {
     id: "licence",
-    name: "Licence check",
-    what: "Your licence key, a random device id, this computer's name, the operating system, and the app version.",
-    to: "Everborn's licence server (Supabase).",
-    when: "When you add a licence key, then about every 12 hours while a key is saved.",
-    off: "Do not add a licence key (the app runs on Free), or remove this computer from the licence in Settings.",
+    name: "License check",
+    what: "Your license key, a random device id, this computer's name, the operating system, and the app version.",
+    to: "Everborn's license server (Supabase).",
+    when: "When you add a license key, then about every 12 hours while a key is saved.",
+    off: "Do not add a license key (the app runs on Free), or remove this computer from the license in Settings.",
     state: "when-used",
   },
   {

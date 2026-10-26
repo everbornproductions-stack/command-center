@@ -36,7 +36,7 @@ export function ownSupabaseView() {
     publishableMask: mask(d.publishable),
     serviceKeySet: serviceKeySaved(),
     using: ready ? "yours" : "everborn",
-    note: "Off by default. The normal app uses Everborn's Supabase. Customers do not need their own project. This is separate from the licence server connection and is not part of setup. Nothing is charged.",
+    note: "Off by default. The normal app uses Everborn's Supabase. Customers do not need their own project. This is separate from the license server connection and is not part of setup. Nothing is charged.",
   };
 }
 
