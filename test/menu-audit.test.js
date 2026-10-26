@@ -121,7 +121,7 @@ test("Settings holds settings only, and Help holds the help actions in order", (
   const simple = simpleModel(VIEWS());
   assert.deepEqual(simple.find((g) => g.label === "Help").items.map((i) => i.label), want);
   assert.deepEqual(simple.find((g) => g.label === "Settings").items.map((i) => i.view), ["settings"]);
-  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Start a project", "Projects", "My day", "Create", "More", "Help", "Settings"]);
+  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"]);
   const web = helpItems("web").map((i) => i.label);
   assert.equal(web.includes("Get everything connected") || web.includes("Check for updates"), false);
 });
@@ -197,9 +197,13 @@ test("Simple More ends with Connections: Zapier, Make, and the other connectors"
 test("Start a project sits right before Projects in every Simple and Expert menu", () => {
   for (const opts of LAYOUTS) {
     const items = allMenuItems(VIEWS(), opts).filter((i) => i.view === "start" || i.view === "projects");
-    assert.deepEqual(items.map((i) => i.view), ["start", "projects"], `${opts.mode}/${opts.layout}`);
+    // 0.4.20: Simple has Projects on the bar and Start a project first under Create.
+    assert.deepEqual(items.map((i) => i.view), opts.mode === "simple" ? ["projects", "start"] : ["start", "projects"], `${opts.mode}/${opts.layout}`);
   }
   const simple = simpleModel(VIEWS()).map((g) => g.label);
   assert.equal(simple[0], "Chat", "Chat is the first Simple item");
-  assert.equal(simple.indexOf("Start a project") + 1, simple.indexOf("Projects"));
+  assert.equal(simple.includes("Start a project"), false, "Simple has no Start a project button on the bar");
+  const create = simpleModel(VIEWS()).find((g) => g.id === "create").items;
+  assert.equal(create[0].view, "start", "Start a project is first under Create");
+  assert.ok(create.some((i) => i.view === "prompts") && create.some((i) => i.view === "builders"), "Pro prompts and Builders sit under Create");
 });

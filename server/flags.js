@@ -8,7 +8,9 @@ const DEFAULTS = {
   projectmedia: true, // Per-project Media tab, asset tray, version stacks, tags, links
   finishrouter: true, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
   finishpath: true, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
+  freechat: true, // Free signed-in people post to the shared Community room with a per-install device token (needs supabase/community_free_posting.sql)
   takeover: true, // Review and Take Over Tasks panel, project mirroring, Owner tools
+  signalsend: false, // Sending anonymous quality signals. OFF: this repo has no receiver for /api/metrics/signals. Turn on with CC_FLAG_SIGNALSEND=1 once the metrics service has one.
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];

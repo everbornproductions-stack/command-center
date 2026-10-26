@@ -825,29 +825,6 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.status = "running";
     update();
     }
-    if (false) {
-    if (est > budgetUsd) {
-      log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
-      for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app) continue;
-        const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
-        if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
-      }
-    }
-    if (crew.length) {
-      let n = 0;
-      for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app) continue;
-        const c = crewFor(crew, t, n++);
-        t.employee = { id: c.id, name: c.name };
-      }
-      log(`Team: ${mission.tasks.filter((t) => t.employee).map((t) => `${t.employee.name} on "${t.title}"`).join(", ")}.`);
-    }
-    mission.runContext = context;
-    mission.searchWasOn = searchOn;
-    mission.status = "running";
-    update();
-    }
 
     }
 
@@ -1005,6 +982,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (note) { const e = new Error(note); e.code = "run_budget"; throw e; }
     };
     while (done.size < mission.tasks.length) {
+      // 0.4.20: at the limit, keep what is finished and hand it back (below) instead of failing with nothing.
+      if (limitNote() && mission.tasks.some((t) => t.output && !t.media)) { mission.limitReached = true; break; }
       runLimit();
       if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
       if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
@@ -1181,7 +1160,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     }
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
-    mission.status = mission.tasks.some((t) => t.status === "failed") ? "done-with-errors" : "done";
+    mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached ? "done-with-errors" : "done";
   } catch (err) {
     if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
       mission.status = "paused";

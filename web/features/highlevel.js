@@ -18,6 +18,7 @@ async function render(el) {
     <label class="lbl" style="margin-top:10px">Action</label>
     <select id="hl-action" aria-label="HighLevel action">${actions.map((a) => `<option value="${esc(a.id)}">${esc(a.description)}</option>`).join("")}</select>
     ${FIELDS.map((k) => `<label class="small" style="display:block;margin-top:8px">${esc(k)}<input id="hl-${esc(k)}" style="width:100%"></label>`).join("")}
+    <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="hl-consent"> This person agreed to get texts or emails from me.</label>
     <div class="row" style="gap:8px;margin-top:10px">
       <button class="btn sm" type="button" id="hl-preview">Preview</button>
       <button class="btn sm primary" type="button" id="hl-go" hidden>Confirm</button>
@@ -28,6 +29,7 @@ async function render(el) {
   const read = () => {
     const body = { action: el.querySelector("#hl-action").value };
     for (const k of FIELDS) body[k] = el.querySelector(`#hl-${k}`).value;
+    body.consent = !!el.querySelector("#hl-consent")?.checked;
     return body;
   };
   el.querySelector("#hl-preview").addEventListener("click", async () => {
@@ -41,6 +43,11 @@ async function render(el) {
         planId = r.planId;
         go.hidden = false;
         out.textContent = `${r.summary} Nothing was sent. Confirm when this is what you want.`;
+        if ((r.warnings || []).some((w) => w.level !== "info")) {
+          go.hidden = true;
+          const { showReview } = await import("../compliance-ui.js");
+          showReview(out, r.warnings, { onFix: () => el.querySelector("#hl-text")?.focus(), onSendAnyway: async () => { go.hidden = false; go.dataset.anyway = "1"; go.click(); } });
+        }
       } else {
         out.textContent = `${r.summary} ${JSON.stringify(r.result || {})}`;
       }
@@ -48,11 +55,12 @@ async function render(el) {
   });
   el.querySelector("#hl-go").addEventListener("click", async () => {
     const out = el.querySelector("#hl-out");
+    const go = el.querySelector("#hl-go");
     if (!planId) return;
     try {
-      const r = await api("/highlevel/run", { method: "POST", body: { planId, confirmed: true } });
+      const r = await api("/highlevel/run", { method: "POST", body: { planId, confirmed: true, sendAnyway: go.dataset.anyway === "1" } });
       out.textContent = `${r.summary || "Done."} ${JSON.stringify(r.result || {})}`;
-      el.querySelector("#hl-go").hidden = true;
+      go.hidden = true; delete go.dataset.anyway;
       planId = "";
       toast(r.sent ? "Sent after your click." : "Saved after your click.");
     } catch (e) { out.textContent = e.message; toast(e.message, true); }

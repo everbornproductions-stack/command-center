@@ -20,3 +20,7 @@ Simple shows Chat, Projects, Create, Help, and Settings. Create holds Pro prompt
 Expert keeps the debate, the scores, spend caps, the live map, marketplace, MCP, webhooks, and every menu. Anything Simple hides is one click away in Expert. Keyboard shortcuts keep working in both.
 
 The chips under the chat box list only AIs you have connected. Demo stays there only until a real AI is connected.
+
+After you switch to Expert, a note says You are in Expert, and you can go back to Simple any time. If you switch while you are on Settings, you stay on Settings. The first-time Expert setup opens only from other screens, and you can skip it.
+
+On Settings, More options, the section chips (My AIs, Projects and Media, Privacy, Notifications, Advanced) show only that section. Choose Show all to see the whole page again.

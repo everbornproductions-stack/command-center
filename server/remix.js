@@ -81,7 +81,7 @@ allow("BSD-2-Clause", true, "bsd-2-clause", "bsd-2");
 allow("BSD-3-Clause", true, "bsd-3-clause", "bsd-3");
 allow("ISC", true, "isc");
 allow("Zlib", true, "zlib", "zlib-libpng");
-allow("MPL-2.0", true, "mpl-2.0", "mpl-2");
+allow("MPL-2.0", true, "mpl-2.0", "mpl-2", "mozilla-public-2.0");
 allow("CC0-1.0", false, "cc0", "cc0-1.0", "cc-0");
 allow("CC-BY-4.0", true, "cc-by", "cc-by-4.0");
 allow("CC-BY-3.0", true, "cc-by-3.0");
@@ -107,7 +107,8 @@ const BAD = [
   new RegExp(`${NOT_BEFORE}\\bdecompile\\b`, "i"),
   new RegExp(`${NOT_BEFORE}\\bdisassembl`, "i"),
   new RegExp(`${NOT_BEFORE}\\breverse[\\s-]?engineer`, "i"),
-  new RegExp(`${NOT_BEFORE}\\bunpack(?:ing)?\\b`, "i"),
+  // "unpacking the box" is fine; unpacking someone's app, game or build is not
+  new RegExp(`${NOT_BEFORE}\\bunpack(?:ing)?\\s+(?:the\\s+|their\\s+|its\\s+|an?\\s+)?(?:apk|ipa|app|game|binary|bundle|build|assets?|files?|data|exe|pak)\\b`, "i"),
   new RegExp(`${NOT_BEFORE}\\basset\\s*rip`, "i"),
   new RegExp(`${NOT_BEFORE}\\b(?:il2cpp|dnspy|jadx|apktool|assetstudio|ghidra)\\b`, "i"),
   new RegExp(`${NOT_BEFORE}\\brip(?:ping)?\\s+(?:the\\s+|their\\s+)?(?:assets|sprites|art|textures|code|audio|files)\\b`, "i"),
@@ -126,7 +127,8 @@ function normLic(raw) {
   let s = String(raw || "").trim().toLowerCase();
   if (!s) return "";
   s = s.replace(/[_\s]+/g, "-").replace(/[^a-z0-9.+-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  return s.replace(/-license$/, "");
+  // "Apache License 2.0", "MIT License", "BSD 3-Clause License", "Version 2.0" all reduce to the short name
+  return s.replace(/-(?:software-)?licen[sc]e(?=-|$)/g, "").replace(/-version(?=-)/g, "").replace(/^the-/, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 function splitLicense(raw) {
   const s = String(raw || "").trim();
@@ -263,7 +265,14 @@ export function noCopyGuard(raw) {
   else collectText(raw, parts);
   const text = parts.join("\n").slice(0, 20000);
   if (/data:(?:image|video|application)\//i.test(text.slice(0, 8000))) return { ok: false, message: SCRATCH_NOTE };
-  if (BAD.some((re) => re.test(text))) return { ok: false, message: SCRATCH_NOTE };
+  for (const re of BAD) {
+    const hit = text.match(re);
+    if (hit) {
+      // 0.4.20: say which words stopped it, so the person can reword
+      const word = hit[0].trim().slice(0, 40);
+      return { ok: false, word, message: `${SCRATCH_NOTE} The words "${word}" stopped this. Reword that part, for example describe what you want it to look like or do.` };
+    }
+  }
   return { ok: true, message: "" };
 }
 
@@ -536,6 +545,7 @@ export function planRemix(raw, { learned } = {}) {
     steps,
     closeness: near,
     projectName,
+    own: { name: own.name, characters: own.characters, look: own.look, ideas: own.ideas },
     summary,
     start: input.start || "",
     abilityIds: decorated.ids,

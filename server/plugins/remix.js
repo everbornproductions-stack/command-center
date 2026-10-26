@@ -1,5 +1,6 @@
 // Remix any app (Phase 96). Preview first. A click saves the project and the CREDITS file.
 // The address is never opened. Installed files are never read. Nothing is posted.
+import { finishRemix, testRun, zipStore, standardFiles } from "../remix-output.js";
 import fs from "node:fs";
 import path from "node:path";
 import { SCRATCH_NOTE, SOURCES, CATALOG, MOD_TOOLS, planRemix, recipients, publicRun, suggest, library, shareTotals } from "../remix.js";
@@ -34,6 +35,17 @@ function ranked(h) {
 function scopeCount(body) {
   const n = Number(body?.scopeCount);
   return Number.isInteger(n) && n > 0 && n < 1000 ? n : 1;
+}
+const BUILDING = new Map();
+function listFiles(root, rel = "") {
+  const out = [];
+  for (const e of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+    if (e.name === "node_modules" || e.name === ".git") continue;
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...listFiles(root, r));
+    else if (e.isFile()) out.push(r);
+  }
+  return out.sort();
 }
 function newId(prefix) {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -139,6 +151,8 @@ export async function routes(req, res, url, body, h) {
         start: plan.start,
         abilityIds: plan.abilityIds,
         abilityGate,
+        // 0.4.20: name each paid choice before Build, so the person is not stopped after pressing it
+        proChoices: (plan.abilityIds || []).filter((id) => REMIX_PART_TIER[id]).map((id) => ({ id, tier: REMIX_PART_TIER[id], plain: PART_PLAIN[id] || id, allowed: remixAbilityAllowed(tierOf(h), id) })),
       });
     }
     if (!g.ok) return h.json(res, g.status, { error: g.message, code: g.code, gate: g, scratchNote: SCRATCH_NOTE });
@@ -175,6 +189,11 @@ export async function routes(req, res, url, body, h) {
       fs.mkdirSync(paths.folder, { recursive: true });
       fs.writeFileSync(paths.file, creditsBody);
       writeProjectFiles(paths.folder, savedPlan);
+      // the files a real project has: package.json, Playwright config, README, LICENSE, .gitignore, characters
+      for (const [rel, text] of Object.entries(standardFiles(savedPlan))) {
+        const f = path.join(paths.folder, rel);
+        if (!fs.existsSync(f)) fs.writeFileSync(f, text);
+      }
       rel = paths.rel;
       if (auto.ids.includes("forks")) {
         try { version = await commitVersion(paths.folder); }
@@ -203,6 +222,18 @@ export async function routes(req, res, url, body, h) {
         const pending = h.runMission(missionOpts);
         missionStarted = true;
         if (pending && typeof pending.catch === "function") pending.catch(() => { try { h.emit("log", { text: "Remix mission stopped before it finished.", level: "error" }); } catch { /* already logged */ } });
+        // 0.4.20: what the AIs made is written into the remix folder, with a real test run
+        if (pending && typeof pending.then === "function" && !h.HOSTED && h.DATA_DIR) {
+          BUILDING.set(projectId, { state: "working", missionId: "" });
+          pending.then((done) => {
+            try {
+              const text = done?.deliverable || done?.verdict?.text || "";
+              const made = finishRemix(creditsFile(h.DATA_DIR, projectId).folder, savedPlan, text);
+              BUILDING.set(projectId, { state: made.hasOutput ? "done" : "empty", missionId: done?.id || "", status: done?.status || "" });
+              try { h.emit("log", { text: made.hasOutput ? `Remix wrote ${made.files.length} files into projects/${projectId}.` : "The AIs finished but wrote no files. The starter page is still there.", missionId: done?.id }); } catch { /* bus optional */ }
+            } catch { BUILDING.set(projectId, { state: "failed", missionId: "" }); }
+          }).catch(() => { BUILDING.set(projectId, { state: "failed", missionId: "" }); });
+        }
         if (nextOn && pending && typeof pending.then === "function") {
           pending.then((done) => {
             const again = creditsRetry(done);
@@ -284,6 +315,34 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { ok: true, projectId: rid, targetProjectId: target });
   }
 
+  // 0.4.20: what was made and where, for the last step. Works after a restart, from the folder itself.
+  if (req.method === "GET" && p.startsWith("/result/")) {
+    const rid = p.slice("/result/".length);
+    if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
+    if (h.HOSTED || !h.DATA_DIR) return h.json(res, 200, { projectId: rid, state: "hosted", files: [] });
+    const folder = creditsFile(h.DATA_DIR, rid).folder;
+    const files = fs.existsSync(folder) ? listFiles(folder) : [];
+    let test = null;
+    try { test = JSON.parse(fs.readFileSync(path.join(folder, "TESTRUN.json"), "utf8")); } catch { /* not run yet */ }
+    const live = BUILDING.get(rid);
+    const state = live?.state || (test ? "done" : "starter");
+    return h.json(res, 200, { projectId: rid, state, folder: `projects/${rid}`, savedAt: `projects/${rid}`, files, test, zip: `/api/remix/zip/${rid}`, hasOutput: files.includes("OUTPUT.md") || files.includes("package.json") });
+  }
+
+  if (req.method === "GET" && p.startsWith("/zip/")) {
+    const rid = p.slice("/zip/".length);
+    if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
+    if (h.HOSTED || !h.DATA_DIR) return h.json(res, 400, { error: "The zip is on the desktop app only.", code: "local" });
+    const folder = creditsFile(h.DATA_DIR, rid).folder;
+    if (!fs.existsSync(folder)) return h.json(res, 404, { error: "The saved folder was not found.", code: "missing" });
+    const tree = {};
+    for (const rel of listFiles(folder)) tree[`${rid}/${rel}`] = fs.readFileSync(path.join(folder, rel));
+    const buf = zipStore(tree);
+    res.writeHead(200, { "content-type": "application/zip", "content-length": buf.length, "content-disposition": `attachment; filename="${rid}.zip"` });
+    res.end(buf);
+    return true;
+  }
+
   if (req.method === "POST" && p === "/test") {
     if (body?.confirm !== true) return h.json(res, 400, { error: "Press Test to check this. Nothing was launched.", code: "confirm" });
     const g = gate();
@@ -299,7 +358,14 @@ export async function routes(req, res, url, body, h) {
     }
     if (!html) html = freshPage({ projectName: "My remix", description: { looks: "A new page.", plays: "", works: "" }, start: "description" });
     const report = accessReport(html);
-    return h.json(res, 200, { ok: true, ranExternal: false, sent: false, report, smoke: true });
+    // 0.4.20: a real run of the generated files, so "Ready" is not from the accessibility check alone
+    let run = null;
+    if (!h.HOSTED && h.DATA_DIR && /^remix-[a-z0-9]+$/.test(projectId) && fs.existsSync(creditsFile(h.DATA_DIR, projectId).folder)) {
+      run = testRun(creditsFile(h.DATA_DIR, projectId).folder);
+      try { fs.writeFileSync(path.join(creditsFile(h.DATA_DIR, projectId).folder, "TESTRUN.json"), JSON.stringify(run, null, 2) + "\n"); } catch { /* folder is read only */ }
+    }
+    if (run && run.failed) report.grade = "Needs a look";
+    return h.json(res, 200, { ok: true, ranExternal: false, sent: false, report, smoke: true, run });
   }
 
   if (req.method === "POST" && p === "/publish") {

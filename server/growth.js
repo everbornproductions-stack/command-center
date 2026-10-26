@@ -202,9 +202,9 @@ export async function redeemReferral(code) {
   const d = refDoc();
   if (k === d.code) throw err(400, "That is your own code. Share it with a friend instead.", "own_code");
   if (d.redeemed?.status === "confirmed") throw err(409, "A referral code was already used on this install.", "already_redeemed");
-  d.redeemed = { code: k, at: Date.now(), status: "pending", message: "Waiting for the licence server to confirm." };
+  d.redeemed = { code: k, at: Date.now(), status: "pending", message: "Waiting for the license server to confirm." };
   if (!cloudConfigured()) {
-    d.redeemed.message = "No licence server is configured, so the code is saved as pending. No credit is added until it is confirmed.";
+    d.redeemed.message = "No license server is configured, so the code is saved as pending. No credit is added until it is confirmed.";
     saveRef(d);
     return overview();
   }
@@ -222,7 +222,7 @@ export async function redeemReferral(code) {
     }
   } catch (e) {
     if (e.status) throw e;
-    d.redeemed = { ...d.redeemed, message: `Could not reach the licence server (${e.message}). Saved as pending; no credit added.` };
+    d.redeemed = { ...d.redeemed, message: `Could not reach the license server (${e.message}). Saved as pending; no credit added.` };
     saveRef(d);
   }
   return overview();
@@ -244,7 +244,7 @@ export async function refreshReferrals() {
     const have = creditsDoc().lines.filter((l) => l.kind === "referral-reward").length;
     for (let i = have; i < confirmed; i++) addCredit("referral-reward", PLACEHOLDER.referralRewardUsd, `A friend joined with your code (placeholder $${PLACEHOLDER.referralRewardUsd})`);
   } catch (e) {
-    d.statsError = `Could not reach the licence server (${e.message}).`;
+    d.statsError = `Could not reach the license server (${e.message}).`;
     saveRef(d);
   }
   return overview();

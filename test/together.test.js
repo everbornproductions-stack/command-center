@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, ROOT } from "./helpers.js";
+import { startServer, startMockOpenAI, ROOT } from "./helpers.js";
 import { seatCheck, EXTREME_TEAM_SEATS } from "../server/team-seat.js";
 import { can, canManageMember, hashCode, validEmail, PERMISSIONS } from "../server/plugins/teamspaces.js";
 import { SUPPORT_NOTE, PERSONAS, repliesFrom, MAX_AIS } from "../server/plugins/groupchat.js";
@@ -146,7 +146,9 @@ test("free copy: team spaces stay closed, rooms and the news list still open", a
 });
 
 test("owner copy: five seats, group chat, live recipe, report and block, news rows", async () => {
-  const s = await startServer({ env: { CC_DEV_OWNER: "1" } });
+  // A spend row needs real spend: practice AIs add $0 (0.4.20), so the capped AI is OpenAI on a loopback mock.
+  const mock = await startMockOpenAI();
+  const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: mock.base } });
   try {
     const created = await s.api("/teamspaces", { method: "POST", body: { name: "Shop team" } });
     assert.equal(created.status, 200, JSON.stringify(created.json));
@@ -157,12 +159,12 @@ test("owner copy: five seats, group chat, live recipe, report and block, news ro
       const inv = await s.api(`/teamspaces/${id}/members`, { method: "POST", body: { email, role: "member" } });
       assert.equal(inv.status, 200, JSON.stringify(inv.json));
       assert.equal(inv.json.emailed, false);
-      link = inv.json.link;
+      link = inv.json.code;
     }
     const full = await s.api(`/teamspaces/${id}/members`, { method: "POST", body: { email: "e@example.com", role: "viewer" } });
     assert.equal(full.status, 402);
     assert.match(full.json.error, /5 people total/);
-    const code = link.match(/teamjoin=([A-Za-z0-9_-]+)/)?.[1];
+    const code = link;
     const stored = fs.readFileSync(path.join(s.dir, "teamspaces.json"), "utf8");
     assert.equal(stored.includes(code), false);
     assert.ok(stored.includes(hashCode(code)));
@@ -256,7 +258,10 @@ test("owner copy: five seats, group chat, live recipe, report and block, news ro
     fs.writeFileSync(path.join(s.dir, "missions", "m-done.json"), JSON.stringify({
       id: "m-done", kind: "mission", title: "Bakery plan", status: "done", finishedAt: Date.now(), tasks: [],
     }));
-    const caps = await s.api("/alerts/caps", { method: "POST", body: { caps: { "demo-nova": 0.0000001 } } });
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-test-not-a-real-key-0001" } })).json.status.status, "green");
+    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line tagline for a bakery.", provider: "openai", model: "gpt-6-luna" } })).status, 202);
+    for (let i = 0; i < 120 && !((await s.api("/state")).json.ledger.byProvider.openai?.month > 0); i++) await new Promise((r) => setTimeout(r, 250));
+    const caps = await s.api("/alerts/caps", { method: "POST", body: { caps: { openai: 0.0000001 } } });
     assert.equal(caps.status, 200, JSON.stringify(caps.json));
     const note = await s.api("/newsfeed/model", { method: "POST", body: { title: "Example model 2", note: "A note only. No provider was called." } });
     assert.equal(note.status, 200);
@@ -264,7 +269,7 @@ test("owner copy: five seats, group chat, live recipe, report and block, news ro
     const feed = await s.api("/newsfeed");
     const kinds = new Set(feed.json.items.map((i) => i.kind));
     for (const kind of ["job", "spend", "model", "update"]) assert.ok(kinds.has(kind), [...kinds].join(","));
-    assert.ok(feed.json.items.some((i) => i.kind === "spend" && /demo-nova|Nova/.test(i.title)));
+    assert.ok(feed.json.items.some((i) => i.kind === "spend" && /ChatGPT|openai/i.test(i.title)));
     assert.match(feed.json.note, /Nothing is sent/);
-  } finally { await s.stop(); }
+  } finally { await s.stop(); await mock.close(); }
 });

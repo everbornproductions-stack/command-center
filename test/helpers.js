@@ -177,7 +177,7 @@ async function closeQuiet(close) {
 
 // A tiny local stand-in for Supabase, the update feed and the OpenRouter models list (404 unless a test serves one). `rpc` decides what verify_license /
 // redeem_promo answer; every request is recorded in `hits`.
-export async function startStub({ rpc = () => ({ ok: false, tier: "free", status: "unknown", message: "stub: not found" }) } = {}) {
+export async function startStub({ rpc = () => ({ ok: false, tier: "free", status: "unknown", message: "stub: not found" }), auth = null } = {}) {
   const port = await freePort();
   const hits = [];
   const server = http.createServer(async (req, res) => {
@@ -188,6 +188,8 @@ export async function startStub({ rpc = () => ({ ok: false, tier: "free", status
     if (url.pathname === "/latest.json") return send(200, { version: "0.0.1", notes: "stub", url: null });
     const m = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/);
     if (m) { const out = rpc(m[1], body ? JSON.parse(body) : {}, req); return send(out?.httpStatus || 200, out?.rows ?? [out]); }
+    // Supabase Auth token endpoint (id_token exchange and refresh); only when a test gives `auth`.
+    if (auth && url.pathname === "/auth/v1/token") { const out = auth(url.searchParams.get("grant_type"), body ? JSON.parse(body) : {}); return send(out?.httpStatus || 200, out?.body ?? out); }
     send(404, { message: "stub: no route" });
   });
   await new Promise((r) => server.listen(port, "127.0.0.1", r));
@@ -285,4 +287,38 @@ async function startServerOnce({ env = {}, dataDir, cloud, seed } = {}) {
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
     },
   };
+}
+
+// A loopback OpenAI-compatible server for tests that need REAL-priced spend. Practice (demo) AIs add $0
+// to the ledger totals (0.4.20), so a spend cap, a savings receipt or a weekly report has to run on a
+// priced provider. Point a test server at it with env CC_BASE_URL_OPENAI (and _XAI, _GROQ ...), save a
+// fake key with POST /keys, then chat with provider "openai". Replies are streamed with token usage;
+// /embeddings returns small fixed vectors and reports usage so the ledger line has a cost.
+export async function startMockOpenAI({ inTok = 200000, outTok = 80000 } = {}) {
+  const calls = [];
+  const srv = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const c of req) body += c;
+    const url = new URL(req.url, "http://127.0.0.1");
+    calls.push(url.pathname);
+    const send = (obj) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(obj)); };
+    if (url.pathname.endsWith("/models")) return send({ data: [{ id: "mock" }] });
+    if (url.pathname.endsWith("/embeddings")) {
+      const j = JSON.parse(body || "{}");
+      const input = Array.isArray(j.input) ? j.input : [j.input];
+      const vec = (t) => { const v = new Array(16).fill(0); for (const w of String(t).toLowerCase().match(/[a-z0-9]+/g) || []) { let h = 0; for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) >>> 0; v[h % 16] += 1; } return v; };
+      return send({ data: input.map((t, index) => ({ index, embedding: vec(t) })), usage: { prompt_tokens: inTok, total_tokens: inTok } });
+    }
+    if (!url.pathname.endsWith("/chat/completions")) { res.writeHead(404, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "no route" })); }
+    const j = JSON.parse(body || "{}");
+    const sys = (j.messages || []).find((m) => m.role === "system")?.content || "";
+    const text = /Reply with JSON only/.test(sys) ? '{"capability":"writing","difficulty":1,"needWeb":false,"summary":"note"}' : "Fresh bread, warm hearts.\nYour neighbourhood bakery, open early.";
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: inTok, completion_tokens: outTok } })}\n\n`);
+    res.write("data: [DONE]\n\n");
+    res.end();
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  return { base: `http://127.0.0.1:${srv.address().port}/v1`, calls, close: () => new Promise((r) => srv.close(r)) };
 }

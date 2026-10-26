@@ -139,7 +139,7 @@ test("surfaces: Agents tab, Command view, Simple chat, projects", () => {
   assert.match(agents, /mountMissionTeam\(/);
   const app = read("web", "app.js");
   assert.match(app, /<div id="cc-emp-hint" aria-live="polite"><\/div>/);
-  assert.match(app, /wireEmployeeHint\(\{ box: \$\("#cc-emp-hint"\), input: \$\("#orders"\), state: S, api, esc \}\)/);
+  assert.match(app, /wireEmployeeHint\(\{ box: \$\("#cc-emp-hint"\), input: \$\("#orders"\), state: S, api, esc, onPick: /);
   assert.match(app, /if \(simple && S\.employee\?\.id\) packBody\.employee = S\.employee\.id;/);
   assert.match(app, /employees: S\.missionEmployees\?\.length \? S\.missionEmployees : undefined/);
   assert.match(app, /<div class="panel" id="proj-team"><\/div>/);

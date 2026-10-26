@@ -4,6 +4,7 @@
 
 import crypto from "node:crypto";
 import { scrub, CROA, RESPA } from "../prompts/safety.js";
+import { checkOutgoing } from "../compliance-guard.js";
 
 export const STEPS = ["Describe", "Preview the AIs", "Build", "Test", "Publish"];
 
@@ -205,6 +206,8 @@ export function makeDraft(id, input) {
     return {
       ...base, channel: input.channel, message: campaignMessage(input), recipients: input.recipients,
       sendTime: input.sendTime, creditRepair: isCreditRepair(text),
+      // The permission box is a required tick at Publish, so consent is counted here.
+      compliance: checkOutgoing({ text, channel: input.channel, consent: true, sendTime: input.sendTime }),
     };
   }
   if (id === "hl-workflows") {

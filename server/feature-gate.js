@@ -20,7 +20,7 @@ export const EXTREME_TEAM_SEATS = 5;
 export const PRO_DESKTOP_APPS = 3;
 export const PRO_RECIPES = 5;
 
-const TAIL = " Add a licence key in Settings.";
+const TAIL = " Add a license key in Settings.";
 export const PRO_PRICE = proMonthlyLabel;
 
 export const FEATURES = {
@@ -387,7 +387,7 @@ export function guardFeature(id, tier = "free") {
     throw e;
   }
   if (name === "free" || !tierPaid(name)) {
-    const e = new Error(`${row.label} is part of Pro (${PRO_PRICE}). Add a licence key in Settings.`);
+    const e = new Error(`${row.label} is part of Pro (${PRO_PRICE}). Add a license key in Settings.`);
     e.status = 402;
     e.code = "pro_required";
     throw e;
@@ -454,7 +454,7 @@ export function featureOpen(id) {
 export function requirePro(id) {
   const r = featureOpen(id);
   if (r.ok) return r;
-  const err = new Error(`${r.label} is part of Pro (${PRO_PRICE}). Add a licence key in Settings.`);
+  const err = new Error(`${r.label} is part of Pro (${PRO_PRICE}). Add a license key in Settings.`);
   err.status = 402;
   err.code = "pro_required";
   err.feature = id;
@@ -560,11 +560,11 @@ export function requireResearch(feature, now = Date.now()) {
     return block ? deny(block, "search_daily") : { ok: true, plan };
   }
   if (feature === "proSearch") {
-    if (!plan.proSearch) return deny(`Pro search is part of Pro (${proMonthlyLabel}). It runs a few searches and folds them into one cited answer. Add a licence key in Settings.`, "pro_required");
+    if (!plan.proSearch) return deny(`Pro search is part of Pro (${proMonthlyLabel}). It runs a few searches and folds them into one cited answer. Add a license key in Settings.`, "pro_required");
     return { ok: true, plan };
   }
   if (feature === "deepResearch") {
-    if (!plan.deepResearch) return deny(`Deep research is part of Pro (${proMonthlyLabel}). It reads sources, writes a cited report, and a second AI from another company cross-checks it. Add a licence key in Settings.`, "pro_required");
+    if (!plan.deepResearch) return deny(`Deep research is part of Pro (${proMonthlyLabel}). It reads sources, writes a cited report, and a second AI from another company cross-checks it. Add a license key in Settings.`, "pro_required");
     if (plan.deepMonthly == null) return { ok: true, plan, limit: null };
     const used = deepUsedThisMonth(now);
     if (used >= plan.deepMonthly) return deny(`Pro includes ${plan.deepMonthly} deep research runs a month (${used} used). Extreme is unlimited. This one waits until next month, or run a Pro search instead.`, "deep_limit");
@@ -596,7 +596,7 @@ export function flagsFor(tier) {
 export function gateError(name) {
   const label = GATES[name]?.label || "This feature";
   return Object.assign(
-    new Error(`${label} is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`),
+    new Error(`${label} is part of Pro (${proMonthlyLabel}). Add a license key in Settings.`),
     { status: 402, code: "pro_required" },
   );
 }
@@ -616,7 +616,7 @@ const REBUILD_TIERS = new Set(["extreme", "owner"]);
 
 function refocusNotes() {
   return {
-    pro: `Refocus is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`,
+    pro: `Refocus is part of Pro (${proMonthlyLabel}). Add a license key in Settings.`,
     extreme: "The full rebuild is part of Extreme. Your plan can find the work and list it. It does not start the rebuild.",
   };
 }
@@ -711,7 +711,7 @@ export function gate(feature, info = {}) {
   if (feature === "learnTune" || feature === "phoneApprovals") return limitsFor();
   if (feature === "desktop" || feature === "desktopApps") {
     const limits = limitsFor();
-    if (!limits.desktop) throw paidFail(`Desktop control is part of Pro (${proMonthlyLabel}). Add a licence key in Settings.`, "pro_required");
+    if (!limits.desktop) throw paidFail(`Desktop control is part of Pro (${proMonthlyLabel}). Add a license key in Settings.`, "pro_required");
     const n = Number(info.count ?? 0);
     if (Number.isFinite(limits.desktopApps) && n >= limits.desktopApps) {
       throw paidFail(`Pro includes ${PRO_DESKTOP_APPS} desktop control apps. Unlimited desktop control apps are part of Extreme.`, "extreme_required");
@@ -1018,6 +1018,8 @@ export function webBuilderGate(need, tier = currentTier()) {
   return {
     ok: false, status: 402, code: "plan_required", tier: have, need: want,
     message: `This is part of ${needLabel}. You are on ${haveLabel}.`,
+    // 0.4.20: the page shows the plan and price before the form, not after the work
+    priceNote: `${needLabel} is ${proMonthlyLabel} or ${proYearlyLabel}. You can fill this in and look first; building needs ${needLabel}.`,
   };
 }
 

@@ -98,7 +98,8 @@ test("the no-copy guard blocks decompile, extract, and copy, and allows a visibl
   const blocked = planRemix(sample({ looks: "decompile the game and extract the assets" }));
   assert.equal(blocked.ok, false);
   assert.equal(blocked.code, "no_copy");
-  assert.equal(blocked.error, SCRATCH_NOTE);
+  assert.ok(blocked.error.startsWith(SCRATCH_NOTE), "the note still leads");
+  assert.match(blocked.error, /The words "(decompile|extract the assets)" stopped this/, "it names the blocked words");
 });
 
 test("a plan rebuilds from the person's own words and drops anything that fails the license check", () => {

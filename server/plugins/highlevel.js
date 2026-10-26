@@ -37,14 +37,14 @@ export async function routes(req, res, url, body, h) {
     access("highlevelTools");
     const planned = planHighlevel(String(body?.action || ""), body || {});
     if (planned.writes) {
-      return h.json(res, 200, { writes: true, planId: planned.planId, summary: planned.summary, needsClick: true, sent: false });
+      return h.json(res, 200, { writes: true, planId: planned.planId, summary: planned.summary, needsClick: true, sent: false, warnings: planned.warnings || [] });
     }
     const done = await resolvePlan(planned);
     return h.json(res, 200, { writes: false, summary: done.summary, result: done.result, sent: false });
   }
   if (req.method === "POST" && p === "/run") {
     access("highlevelTools");
-    const out = await runHighlevelPlan(body?.planId, body?.confirmed);
+    const out = await runHighlevelPlan(body?.planId, body?.confirmed, body?.sendAnyway === true);
     return h.json(res, 200, out);
   }
   return false;

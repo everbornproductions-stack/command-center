@@ -300,7 +300,9 @@ function previewHtml(data) {
   const dropped = (data.rejected || []).map((p) => `<li>${esc(p.name)}: ${esc(p.reason)}</li>`).join("");
   const warnings = (data.closeness?.warnings || []).map((w) => `<li>${esc(w)}</li>`).join("");
   const block = data.abilityGate && data.abilityGate.ok === false ? `<p class="small">${esc(data.abilityGate.message || "")}</p>` : "";
-  return `${block}<p class="small">${esc(data.gate?.message || "")}</p>
+  const paid = (data.proChoices || []).map((c) => `<li>${esc(c.plain)}: ${esc(String(c.tier).replace(/^./, (x) => x.toUpperCase()))}${c.allowed ? ", included on your plan" : ", not on your plan. Pick Upgrade in Settings, or turn this choice off under More options, before you press Build."}</li>`).join("");
+  const proList = paid ? `<div class="lbl" id="remix-pro-choices">Paid choices in this build</div><ul class="small">${paid}</ul>` : "";
+  return `${block}${proList}<p class="small">${esc(data.gate?.message || "")}</p>
     <div class="lbl">Who will see your words</div><ul class="small">${ais}</ul>
     <div class="lbl">Not sent</div><ul class="small">${(who.withheld || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
     <div class="lbl">Pieces that passed</div><ul class="small">${used}</ul>
@@ -401,6 +403,7 @@ async function publish(root) {
     if (tokenBox) tokenBox.value = "";
     const box = root.querySelector("#remix-published");
     if (box) box.innerHTML = `<p>${esc(published.message || "Nothing was posted.")}</p>`;
+    await showMade(root, built?.projectId, built?.projectName);
     step = "published";
     toast("Nothing was posted.");
     return true;
@@ -419,6 +422,38 @@ async function loadRate(root, id, up) {
 }
 function wirePast(root) {
   root.querySelectorAll("[data-rate]").forEach((btn) => btn.addEventListener("click", () => loadRate(root, btn.dataset.rate, btn.dataset.up === "1")));
+}
+
+// 0.4.20: the last step says what was made and where, with Open folder and a zip.
+function madeHtml(res, name) {
+  const files = res.files || [];
+  const test = res.test;
+  const state = res.state === "working" ? "The AIs are still writing the files. Check again in a minute." : res.state === "empty" ? "The AIs finished but wrote no files, so the starter page is what you have." : res.state === "starter" ? "No AI was asked to write more, so this is the starter page and the project files." : "The AIs wrote their files into the folder.";
+  const tr = test ? `<p class="small"><b>Test run:</b> ${esc(test.grade)}. ${test.passed} of ${test.checks.length} checks passed.${test.failed ? ` Needs a look: ${esc(test.checks.filter((c) => !c.ok).map((c) => c.name).join("; "))}.` : ""}</p>` : "";
+  return `<div id="remix-made"><p><b>${esc(name || "Your project")}</b> is saved.</p><p class="small">${esc(state)}</p>
+    <p class="small">Saved at <code>${esc(res.savedAt || res.folder || "")}</code> on this computer.</p>
+    <div class="row" style="gap:8px;margin:8px 0"><button type="button" class="btn sm primary" id="remix-open-folder">Open folder</button><button type="button" class="btn sm" id="remix-zip">Download zip</button></div>
+    ${tr}<details><summary class="small">${files.length} files</summary><ul class="small">${files.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></details></div>`;
+}
+
+async function showMade(root, projectId, name) {
+  const box = root.querySelector("#remix-published");
+  if (!box || !projectId) return;
+  let res;
+  try { res = await api(`/remix/result/${encodeURIComponent(projectId)}`); } catch (e) { return toast(e.message, true); }
+  box.innerHTML = (box.innerHTML || "") + madeHtml(res, name);
+  box.querySelector("#remix-open-folder")?.addEventListener("click", async () => {
+    try { await api("/remix/open-folder", { method: "POST", body: { projectId } }); } catch (e) { toast(e.message, true); }
+  });
+  box.querySelector("#remix-zip")?.addEventListener("click", async () => {
+    try { window.CC.downloadBlob(await window.CC.apiBlobUrl(`/remix/zip/${encodeURIComponent(projectId)}`), `${projectId}.zip`); } catch (e) { toast(e.message, true); }
+  });
+  // the MindMedia hub (built by another worker) keeps a copy when it is there
+  try {
+    if (window.CC.saveToMindMedia && res.files?.includes("index.html")) {
+      window.CC.saveToMindMedia({ source: "Remix", kind: "site", name: name || projectId, files: [{ name: "index.html", path: `projects/${projectId}/index.html` }], dedupeKey: projectId, status: "Draft", quiet: false }).catch(() => {});
+    }
+  } catch { /* the hub is optional */ }
 }
 
 async function onNext(root) {
@@ -479,7 +514,19 @@ async function render(view) {
   import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(root.querySelector("#remix-build-all"), {
     surface: "remix",
     payload: () => ({ remix: payload(root), description: fieldValue(root, "#remix-idea") }),
-    onEnd: (j) => toast(j.status === "done" ? "Built it all. The project is in Projects." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+    onEnd: async (j) => {
+      toast(j.status === "done" ? "Built it all. The project is in Projects." : (j.waiting?.reason || j.error || "Build it all for me stopped."));
+      const pid = j.result?.projectId || (j.steps || []).map((x) => x.projectId).filter(Boolean).pop();
+      if (j.status === "done" && pid && root.isConnected) {
+        // land on the last step with what was made and where, instead of the first form step
+        const box = root.querySelector("#remix-published");
+        if (box) box.innerHTML = "";
+        built = { projectId: pid, projectName: fieldValue(root, "#remix-name") || "Your project" };
+        step = "published";
+        await showMade(root, pid, built.projectName);
+        paint(root);
+      }
+    },
   })).catch(() => { /* the step by step button still works */ });
   const engine = root.querySelector("#remix-engine");
   if (engine) engine.value = "scratch-page";

@@ -1,6 +1,7 @@
 // Settings switch and the daily anonymous ping. Counts come from event ids only.
 // The ping is not sent when the switch is off, and nothing here calls Stripe.
 import { HOSTED, allContexts, runAs } from "../store.js";
+import { flagOn } from "../flags.js";
 import { localFetch } from "../loopback-fetch.js";
 import {
   SHARE_LABEL, noteUse, osName, pingDestination, publicState, sendDuePing, sendDueSignals, setShare, startUsageLoop, usesFromEvent,
@@ -22,7 +23,7 @@ export function init(h) {
         fetchImpl: localFetch,
       });
       // Anonymous quality signals have their own switch (Who's best / Privacy). The desktop app only.
-      if (!HOSTED) {
+      if (!HOSTED && flagOn("signalsend")) {
         await sendDueSignals({
           consent: () => brainSettings().shareOptIn,
           buildPayload: qualitySignalsPayload,

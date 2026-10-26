@@ -12,8 +12,10 @@ export async function routes(req, res, url, body, h) {
       if (!payload) return h.json(res, 404, { error: "That approval is not waiting." });
       return h.json(res, 200, payload);
     }
+    // A request to this route comes from this PC. The paired phone answers through its own
+    // token-checked route, so a "from: phone" field in the body is never believed.
     if (req.method === "POST" && p === "/decide") {
-      return h.json(res, 200, decide(String(body?.id || ""), !!body?.yes, body?.from === "phone" ? "phone" : "pc"));
+      return h.json(res, 200, decide(String(body?.id || ""), !!body?.yes, "pc"));
     }
   } catch (e) {
     return h.json(res, e.status || 500, { error: e.message, code: e.code });

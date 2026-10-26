@@ -91,7 +91,13 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .view:has(> .cmd.simple-chat) { overflow: auto; }
 .cmd.simple-chat .output { overflow: visible; }
 .cmd.simple-chat > [hidden] { display: none; }
-.cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow-y: auto; max-height: 16rem; }
+.cmd.simple-chat .orders { grid-row: auto; align-self: start; overflow: visible; max-height: none; }
+/* Send sits right under the box, so it is never pushed below the fold by the project picker or the starters. */
+.cmd.simple-chat .orders > .panel > * { order: 5; }
+.cmd.simple-chat .orders > .panel > h3 { order: 0; }
+.cmd.simple-chat .orders > .panel > #orders { order: 1; }
+.cmd.simple-chat .orders > .panel > .simple-send-row { order: 2; }
+.cmd.simple-chat .orders > .panel > #mask-line { order: 3; }
 #cc-mode-ask, #cc-upgrade { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card, #cc-upgrade .card { width: 560px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-mode-ask h4, #cc-upgrade h4 { margin: 0 0 8px; font-size: 1.125rem; }
@@ -132,6 +138,8 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
   .top-right { gap: 8px; }
 }
 @media (max-width: 920px) and (min-width: 761px) { .brand-name { display: none; } }
+/* Phones (N10): the connection pill keeps only its dot so the header never ends past the screen edge. */
+@media (max-width: 420px) { #conn-txt { display: none; } .topbar { gap: 6px; padding: 0 8px; } .top-right { gap: 6px; } .brand-tag { display: none !important; } }
 /* Squeeze steps, set by squeezeTopbar() in app.js when the menus would not fit. */
 .nav-toggle { display: none; flex: 0 0 auto; }
 .topbar[data-squeeze="1"] .brand-name, .topbar[data-squeeze="2"] .brand-name, .topbar[data-squeeze="3"] .brand-name,
@@ -353,6 +361,10 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .cursor::after { content: "▍"; color: var(--accent); animation: blink .8s steps(2) infinite; }
 
 /* ---- projects ---- */
+/* two columns only when there is room (1366 px wide screens were clipping the right column) */
+.projects-grid { grid-template-columns: minmax(0, 1fr); }
+.projects-grid > * { min-width: 0; }
+@media (min-width: 1500px) { .projects-grid { grid-template-columns: minmax(0, 1fr) 360px; } }
 .pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .pcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; cursor: pointer; border-top: 3px solid var(--c); transition: transform .15s, border-color .2s; }
 .pcard:hover { transform: translateY(-2px); border-color: var(--line-2); }
@@ -526,3 +538,9 @@ body[data-ui="simple"] #deliv-extras .cc-written { display: none; }
 .projbar select { width: auto; min-width: 160px; max-width: 100%; }
 .projbar .pb-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .projbar .pb-tools .btn.on { border-color: var(--accent); }
+
+/* One project picker named Project (0.4.20): on Chat the chat card owns the picker, the bar keeps the project tools. */
+.projbar .pb-lbl-tools{display:none}
+.projbar[data-view="command"] #pb-select{display:none}
+.projbar[data-view="command"] .pb-lbl-pick{display:none}
+.projbar[data-view="command"] .pb-lbl-tools{display:inline}

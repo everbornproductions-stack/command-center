@@ -892,6 +892,18 @@ async function api(req, res, url) {
     if (!existing.some((x) => x.id === id)) { try { guard("projects", { count: existing.length }); } catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); } }
     try { return json(res, 200, saveProject(body)); } catch (e) { return json(res, 400, { error: e.message }); }
   }
+  if (method === "GET" && p === "/projects/summary") {
+    // What is inside each project: media count (from the media index) and link count. Used by the Projects cards.
+    let index = null;
+    try { index = (await import("./project-media.js")).indexProjectMedia; } catch { /* media index unavailable */ }
+    const summary = {};
+    for (const pr of listProjects()) {
+      let media = 0;
+      try { media = index ? index(pr.id).length : 0; } catch { media = 0; }
+      summary[pr.id] = { media, links: (pr.categories || []).reduce((n, c) => n + (c.links || []).length, 0) };
+    }
+    return json(res, 200, { summary });
+  }
   if (method === "GET" && p === "/projects/tree") return json(res, 200, { tree: projectTree() });
   if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "subprojects") return json(res, 200, { subProjects: listSubProjects(seg[1]) });
   if (method === "GET" && seg[0] === "projects" && seg[1] && seg[2] === "expand") {

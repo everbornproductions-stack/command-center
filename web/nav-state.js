@@ -140,6 +140,8 @@ export function restoreViewDraft(viewId, rootEl, store = defaultDraftStore) {
         restored += 1;
       }
     } else if (typeof saved.value === "string" && el.value !== saved.value) {
+      // 0.4.20: an empty saved chat box never wipes words a page just filled in ("Use this").
+      if (saved.value === "" && el.value !== "" && el.id === "orders") continue;
       el.value = saved.value;
       restored += 1;
     }
@@ -286,7 +288,8 @@ export function mergeProfileWithDraft(savedProfile = {}, draft = null) {
 }
 
 export function allAppsAllowed(rows) {
-  return Array.isArray(rows) && rows.length > 0 && rows.every((app) => !!app.allowed);
+  const list = Array.isArray(rows) ? rows.filter((app) => !app.sensitive) : [];
+  return list.length > 0 && list.every((app) => !!app.allowed);
 }
 
 export function toggleAllAppsLabel(rows) {

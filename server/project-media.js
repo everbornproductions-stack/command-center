@@ -26,6 +26,9 @@ export const USAGE_KINDS = {
   project: "Linked to project",
 };
 
+// One vocabulary for the status chips everywhere (hub, project Media tab, Finish).
+export const STATUSES = ["Draft", "Review", "Approved", "Published"];
+export const UNFILED = "unfiled";
 const DOC_KEY = "project.media";
 const JOBS_KEY = "media.jobs";
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB per file
@@ -115,7 +118,7 @@ function inferKind(mime, jobKind, isUpload = false) {
 function safeStat(filePath) {
   if (!filePath || typeof filePath !== "string") return null;
   try {
-    const resolved = path.resolve(filePath);
+    const resolved = path.resolve(DATA_DIR, filePath);
     const root = path.resolve(DATA_DIR);
     if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
     if (!fs.existsSync(resolved)) return null;
@@ -160,6 +163,9 @@ function getAssetMeta(state, projectId, assetId) {
     name: m.name ? String(m.name) : null,
     prompt: m.prompt != null ? String(m.prompt) : null,
     deleted: Boolean(m.deleted),
+    status: STATUSES.includes(m.status) ? m.status : null,
+    destinations: Array.isArray(m.destinations) ? m.destinations : [],
+    kept: Boolean(m.kept),
   };
 }
 
@@ -188,6 +194,22 @@ function setAssetMeta(state, projectId, assetId, patch) {
   if (patch.prompt !== undefined) next.prompt = patch.prompt != null ? String(patch.prompt).slice(0, 2000) : null;
   if (patch.deleted !== undefined) next.deleted = Boolean(patch.deleted);
   if (Array.isArray(patch.usage)) next.usage = patch.usage;
+  if (patch.status !== undefined) {
+    const want = STATUSES.find((x) => x.toLowerCase() === String(patch.status || "").toLowerCase());
+    if (!want) { const err = new Error(`Status must be one of: ${STATUSES.join(", ")}.`); err.status = 400; throw err; }
+    next.status = want;
+  }
+  if (patch.kept !== undefined) next.kept = Boolean(patch.kept);
+  if (patch.addDestination && typeof patch.addDestination === "object") {
+    const d = patch.addDestination;
+    next.destinations = [...next.destinations, {
+      channel: String(d.channel || "other").slice(0, 32),
+      label: String(d.label || d.channel || "Sent").slice(0, 80),
+      link: typeof d.link === "string" ? d.link.slice(0, 500) : "",
+      status: ["posted", "dry-run", "failed", "saved"].includes(d.status) ? d.status : "saved",
+      at: Number(d.at) || Date.now(),
+    }].slice(-30);
+  }
   if (patch.addUsage && typeof patch.addUsage === "object") {
     const u = {
       kind: String(patch.addUsage.kind || "used").slice(0, 32),
@@ -212,10 +234,14 @@ function collectNativeAssets(projectId, state, allJobs) {
   if (!pid) return [];
   const items = [];
   const trackedPaths = new Set();
+  // A file another project or an upload record already owns is never picked up again by the folder scan
+  // (a result moved out of Unfiled stays in its old folder on disk).
+  for (const u of state.uploads) if (typeof u.filePath === "string" && u.filePath) trackedPaths.add(path.resolve(u.filePath));
+  for (const j of allJobs) for (const o of Array.isArray(j.outputs) ? j.outputs : []) if (typeof o === "string" && !/^https?:\/\//i.test(o)) trackedPaths.add(path.resolve(o));
 
   // 1. Media & Image jobs from doc("media.jobs")
   for (const job of allJobs) {
-    if (safeProjectId(job.projectId || "") !== pid) continue;
+    if ((safeProjectId(job.projectId || "") || UNFILED) !== pid) continue;
     const outputs = Array.isArray(job.outputs) ? job.outputs : [];
     const mimes = Array.isArray(job.mimes) ? job.mimes : [];
     const prompt = String(job.params?.prompt || job.params?.text || "");
@@ -284,15 +310,19 @@ function collectNativeAssets(projectId, state, allJobs) {
     if (st) trackedPaths.add(st.path);
     if (meta.deleted) continue;
     const mime = up.mime || inferMime(up.name);
-    const kind = inferKind(mime, "upload", true);
+    const kind = up.kind || inferKind(mime, "upload", true);
     items.push({
       id: assetId,
       projectId: pid,
-      sourceType: "upload",
+      sourceType: up.source ? "saved" : "upload",
+      savedSource: up.source || null,
+      provenance: up.provenance || null,
+      folderPath: up.folderPath || null,
+      textPreview: up.textPreview || "",
       jobId: null,
       fileIndex: 0,
       kind,
-      isUpload: true,
+      isUpload: !up.source,
       isLink: false,
       linkedFrom: null,
       name: meta.name || up.name || path.basename(up.filePath || "upload"),
@@ -419,7 +449,26 @@ function collectNativeAssets(projectId, state, allJobs) {
     }
   }
 
+  const upById = new Map(state.uploads.map((u) => [`upload:${u.id}`, u]));
+  for (const it of items) decorate(it, state, upById.get(it.id), allJobs);
   return items;
+}
+
+const SOURCE_LABELS = { images: "Images", "media-job": "Media", "media-modify": "Media edit", upload: "Upload", disk: "Project media", "project-file": "Project file" };
+// Hub fields on every item: one status vocabulary, where it came from, where it went, how it was made.
+function decorate(it, state, up, allJobs) {
+  const meta = getAssetMeta(state, it.projectId, it.id);
+  const posted = (it.usage || []).some((u) => u.kind === "posted");
+  it.status = meta.status || up?.status || (posted || (meta.destinations || []).some((d) => d.status === "posted") ? "Published" : "Draft");
+  it.destinations = meta.destinations;
+  it.kept = meta.kept;
+  it.source = up?.source || SOURCE_LABELS[it.sourceType] || "Project media";
+  if (!it.provenance) {
+    const job = it.jobId ? allJobs.find((j) => j.id === it.jobId) : null;
+    const cost = Number(job?.cost ?? job?.estCost);
+    it.provenance = { prompt: it.prompt || "", model: it.model || "", provider: it.providerName || it.provider || "", cost: Number.isFinite(cost) ? cost : null };
+  }
+  return it;
 }
 
 // Collect all assets for projectId including cross-project links.
@@ -577,7 +626,16 @@ function matchesFilter(item, query = {}, now = Date.now()) {
       if (item.kind !== "audio") return false;
     } else if (type === "uploads" || type === "upload") {
       if (!item.isUpload && item.kind !== "upload") return false;
+    } else if (type === "text" || type === "site" || type === "file") {
+      if (item.kind !== type) return false;
     }
+  }
+
+  if (query.status && String(query.status).toLowerCase() !== "all") {
+    if (String(item.status || "").toLowerCase() !== String(query.status).toLowerCase()) return false;
+  }
+  if (query.source && String(query.source).toLowerCase() !== "all") {
+    if (String(item.source || "").toLowerCase() !== String(query.source).toLowerCase()) return false;
   }
 
   if (query.tag) {
@@ -624,6 +682,9 @@ function matchesFilter(item, query = {}, now = Date.now()) {
         item.providerName || "",
         item.model || "",
         item.linkedFrom?.projectName || "",
+        item.source || "",
+        item.status || "",
+        item.kind === "text" ? String(item.textPreview || "") : "",
       ].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -1178,4 +1239,291 @@ export function resolveAssetFile(projectId, assetId) {
     mime: found.mime || inferMime(found.name),
     name: found.name || path.basename(st.path),
   };
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// MindMedia hub (0.4.20): one place for everything Meldmind makes.
+// saveToMindMedia({ kind, files|text, projectId, provenance, source, status }) is the one entry
+// every flow calls. Items without a project go to projects/unfiled. Text results become items too
+// (a Markdown file). Files are copied into the project's media folder unless they already live
+// under the data folder (a builder's site folder), in which case they are referenced in place.
+// ---------------------------------------------------------------------------------------------
+export const HUB_KINDS = ["image", "video", "audio", "text", "site", "file"];
+
+function slug(t, fallback = "result") {
+  const w = String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  return w || fallback;
+}
+function hubProjectId(projectId) {
+  const id = safeProjectId(projectId || "");
+  return id || UNFILED;
+}
+function projectLabel(pid, projectMap) {
+  if (pid === UNFILED) return "Unfiled";
+  return projectMap?.get(pid)?.name || pid;
+}
+function cleanProvenance(p) {
+  if (!p || typeof p !== "object") return null;
+  const cost = Number(p.cost);
+  return {
+    prompt: String(p.prompt || "").slice(0, 2000),
+    model: String(p.model || "").slice(0, 120),
+    provider: String(p.provider || "").slice(0, 80),
+    cost: Number.isFinite(cost) ? cost : null,
+  };
+}
+
+export function saveToMindMedia(opts = {}) {
+  const pid = hubProjectId(opts.projectId);
+  const source = String(opts.source || "Meldmind").slice(0, 60);
+  let status = STATUSES.find((x) => x.toLowerCase() === String(opts.status || "").toLowerCase()) || "Draft";
+  const files = Array.isArray(opts.files) ? opts.files.filter(Boolean) : [];
+  const hasText = typeof opts.text === "string" && opts.text.trim().length > 0;
+  if (!files.length && !hasText) {
+    const err = new Error("Nothing to save: send a file or some text.");
+    err.status = 400;
+    throw err;
+  }
+  const state = mediaDoc();
+  const dir = projectMediaDir(pid);
+  const provenance = cleanProvenance(opts.provenance);
+  const baseName = String(opts.name || opts.title || "").trim().slice(0, 140);
+  const created = [];
+
+  // dedupe: saving the same thing again (same key) updates the item instead of stacking copies
+  const dedupeKey = opts.dedupeKey ? String(opts.dedupeKey).slice(0, 200) : "";
+  if (dedupeKey) {
+    const prev = state.uploads.find((u) => u.dedupeKey === dedupeKey && safeProjectId(u.projectId) === pid);
+    if (prev && !getAssetMeta(state, pid, `upload:${prev.id}`).deleted) {
+      if (hasText && prev.filePath) { try { fs.writeFileSync(prev.filePath, opts.text, "utf8"); prev.sizeBytes = Buffer.byteLength(opts.text); } catch { /* keep the old text */ } }
+      prev.updatedAt = Date.now();
+      saveMediaDoc(state);
+      return finishSave(pid, [`upload:${prev.id}`], { reused: true });
+    }
+  }
+
+  const make = ({ name, mime, filePath, sizeBytes, kind, folderPath }) => {
+    const upId = "up-" + Date.now().toString(36) + "-" + crypto.randomBytes(3).toString("hex");
+    state.uploads.unshift({
+      id: upId, projectId: pid, name, filePath, mime, sizeBytes, kind,
+      prompt: String(provenance?.prompt || opts.prompt || "").slice(0, 2000),
+      provider: "upload", model: provenance?.model || "",
+      source, status, provenance, folderPath: folderPath || null, dedupeKey: dedupeKey || undefined,
+      textPreview: kind === "text" ? String(opts.text || "").slice(0, 300) : undefined,
+      createdAt: Date.now(),
+    });
+    const assetId = `upload:${upId}`;
+    const patch = {};
+    if (opts.tags) patch.tags = opts.tags;
+    if (opts.parentId) patch.parentId = opts.parentId;
+    if (baseName && files.length <= 1) patch.name = baseName;
+    if (Object.keys(patch).length) setAssetMeta(state, pid, assetId, patch);
+    if (Array.isArray(opts.destinations)) for (const d of opts.destinations) setAssetMeta(state, pid, assetId, { addDestination: d });
+    created.push(assetId);
+  };
+
+  if (hasText) {
+    const name = `${slug(baseName || opts.text.split("\n")[0])}.md`;
+    const filePath = path.join(dir, `up-${Date.now().toString(36)}-${crypto.randomBytes(2).toString("hex")}-${name}`);
+    fs.writeFileSync(filePath, opts.text, "utf8");
+    make({ name: baseName ? `${baseName}.md` : name, mime: "text/markdown", filePath, sizeBytes: Buffer.byteLength(opts.text), kind: "text" });
+  }
+
+  for (const f of files) {
+    const rawName = String(f.name || (f.path ? path.basename(String(f.path)) : "file")).trim();
+    const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+/, "").slice(0, 100) || "file";
+    let filePath, sizeBytes, buf = null;
+    if (typeof f.path === "string" && f.path) {
+      const st = safeStat(f.path);
+      if (!st) {
+        const err = new Error(`"${safeName}" is not inside the Meldmind data folder, so it cannot be kept.`);
+        err.status = 400;
+        throw err;
+      }
+      filePath = st.path;
+      sizeBytes = st.sizeBytes;
+    } else {
+      if (typeof f.data === "string" && f.data) buf = Buffer.from(f.data.replace(/^data:[^;]+;base64,/, ""), "base64");
+      else if (typeof f.text === "string") buf = Buffer.from(f.text, "utf8");
+      else {
+        const err = new Error(`"${safeName}" has no content.`);
+        err.status = 400;
+        throw err;
+      }
+      if (buf.length > MAX_UPLOAD_BYTES) {
+        const err = new Error(`File "${safeName}" is larger than 25 MB.`);
+        err.status = 400;
+        throw err;
+      }
+      filePath = path.join(dir, `up-${Date.now().toString(36)}-${crypto.randomBytes(2).toString("hex")}-${safeName}`);
+      fs.writeFileSync(filePath, buf);
+      sizeBytes = buf.length;
+    }
+    const mime = f.mime || inferMime(safeName);
+    let kind = HUB_KINDS.includes(opts.kind) && files.length === 1 ? opts.kind : null;
+    if (!kind) {
+      const k = inferKind(mime, "upload", true);
+      kind = k === "upload" ? (/^text\/|json$/.test(mime) ? "text" : "file") : k;
+    }
+    make({ name: safeName, mime, filePath, sizeBytes, kind, folderPath: typeof f.folder === "string" ? f.folder : (typeof opts.folder === "string" ? opts.folder : null) });
+  }
+
+  saveMediaDoc(state);
+  return finishSave(pid, created, {});
+}
+
+function finishSave(pid, assetIds, extra) {
+  const projects = listProjects() || [];
+  const map = new Map(projects.map((p) => [p.id, p]));
+  const items = indexProjectMedia(pid).filter((a) => assetIds.includes(a.id)).map(stripPublicAsset);
+  const where = projectLabel(pid, map);
+  return {
+    ok: true, projectId: pid, where, count: items.length, items, ...extra,
+    savedWhere: `Saved in MindMedia, ${pid === UNFILED ? "Unfiled" : where}.`,
+    link: `#mindmedia/${encodeURIComponent(pid)}/${encodeURIComponent(items[0]?.id || "")}`,
+  };
+}
+
+function allProjectIds(state, allJobs) {
+  const ids = new Set([UNFILED]);
+  for (const p of listProjects() || []) ids.add(p.id);
+  for (const u of state.uploads) ids.add(hubProjectId(u.projectId));
+  for (const j of allJobs) if (Array.isArray(j.outputs) && j.outputs.length) ids.add(hubProjectId(j.projectId));
+  return [...ids];
+}
+
+// Everything, across all projects and Unfiled. Query: project (id | "unfiled" | "all"), type, status, source, tag, q, sort.
+export function listMindMedia(query = {}) {
+  const state = mediaDoc();
+  const allJobs = jobsDoc().items || [];
+  const projects = listProjects() || [];
+  const map = new Map(projects.map((p) => [p.id, p]));
+  const now = Date.now();
+  let items = [];
+  const perProject = {};
+  for (const pid of allProjectIds(state, allJobs)) {
+    const native = collectNativeAssets(pid, state, allJobs);
+    perProject[pid] = native.length;
+    for (const it of native) items.push({ ...it, projectName: projectLabel(pid, map) });
+  }
+  const projectQ = String(query.project || "all");
+  const scoped = projectQ === "all" ? items : items.filter((i) => i.projectId === hubProjectId(projectQ));
+  const filtered = sortItems(scoped.filter((i) => matchesFilter(i, query, now)), query.sort).map(stripPublicAsset);
+  const statusCounts = Object.fromEntries(STATUSES.map((x) => [x, 0]));
+  const typeCounts = {};
+  for (const i of scoped) { statusCounts[i.status] = (statusCounts[i.status] || 0) + 1; typeCounts[i.kind] = (typeCounts[i.kind] || 0) + 1; }
+  const tagSet = new Set(PRESET_TAGS);
+  for (const i of items) for (const t of i.tags || []) tagSet.add(t);
+  const sources = [...new Set(items.map((i) => i.source).filter(Boolean))].sort();
+  const needsEnding = items
+    .filter((i) => needsAnEnding(i))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 12).map(stripPublicAsset);
+  return {
+    total: items.length,
+    filteredTotal: filtered.length,
+    items: filtered,
+    projects: [
+      { id: UNFILED, name: "Unfiled", count: perProject[UNFILED] || 0 },
+      ...projects.map((p) => ({ id: p.id, name: p.name || p.id, count: perProject[p.id] || 0 })),
+    ],
+    unfiledCount: perProject[UNFILED] || 0,
+    statuses: STATUSES, statusCounts, typeCounts, sources,
+    tags: [...tagSet],
+    needsEnding,
+  };
+}
+
+// A result "needs an ending" when nothing has been done with it: still a Draft, never sent anywhere,
+// not kept on purpose, and made by Meldmind (not a file the person uploaded).
+function needsAnEnding(i) {
+  if (i.kept || i.isUpload || i.isLink) return false;
+  if (i.status !== "Draft") return false;
+  if ((i.destinations || []).length) return false;
+  if ((i.usage || []).length) return false;
+  return true;
+}
+
+// Keep, Publish (handled by the publish route), Discard on the "Needs an ending" shelf.
+export function endingAction(projectId, assetId, action) {
+  const { id: pid } = assertProject(hubProjectId(projectId));
+  const state = mediaDoc();
+  if (action === "keep") setAssetMeta(state, pid, String(assetId), { kept: true });
+  else if (action === "discard") setAssetMeta(state, pid, String(assetId), { deleted: true });
+  else { const err = new Error("Choose keep or discard."); err.status = 400; throw err; }
+  saveMediaDoc(state);
+  return { ok: true, action, projectId: pid, assetId };
+}
+
+// Promote an item (usually from Unfiled) into a project. Saved files and generations move in place;
+// anything else becomes a link, so no file is ever copied or broken.
+export function moveToProject(projectId, assetId, targetProjectId) {
+  const from = hubProjectId(projectId);
+  const to = hubProjectId(targetProjectId);
+  if (from === to) return { ok: true, mode: "same", projectId: to, assetId };
+  const state = mediaDoc();
+  const aid = String(assetId);
+  if (aid.startsWith("upload:")) {
+    const up = state.uploads.find((u) => `upload:${u.id}` === aid && hubProjectId(u.projectId) === from);
+    if (up) {
+      const old = metaKey(from, aid), nu = metaKey(to, aid);
+      if (state.meta[old]) { state.meta[nu] = state.meta[old]; delete state.meta[old]; }
+      up.projectId = to;
+      saveMediaDoc(state);
+      return { ok: true, mode: "moved", projectId: to, assetId: aid };
+    }
+  }
+  const m = /^job:(.+):(\d+)$/.exec(aid);
+  if (m) {
+    const jd = jobsDoc();
+    const job = jd.items.find((j) => j.id === m[1] && hubProjectId(j.projectId) === from);
+    if (job) {
+      const old = metaKey(from, aid), nu = metaKey(to, aid);
+      if (state.meta[old]) { state.meta[nu] = state.meta[old]; delete state.meta[old]; saveMediaDoc(state); }
+      job.projectId = to === UNFILED ? null : to;
+      saveJobsDoc(jd);
+      return { ok: true, mode: "moved", projectId: to, assetId: aid };
+    }
+  }
+  const linked = linkAssetToProject({ sourceProjectId: from, assetId: aid, targetProjectId: to });
+  return { ok: true, mode: "linked", projectId: to, assetId: linked.asset?.id || aid };
+}
+
+// What the publish routes need: a stored item resolved to a local file (and its text, for text items).
+export function assetForPublish(projectId, assetId) {
+  const pid = hubProjectId(projectId);
+  const found = indexProjectMedia(pid).find((a) => a.id === String(assetId || ""));
+  if (!found) return null;
+  const st = found.filePath ? safeStat(found.filePath) : null;
+  let text = "";
+  if (found.kind === "text" && st) { try { text = fs.readFileSync(st.path, "utf8"); } catch { text = ""; } }
+  return { projectId: pid, assetId: found.id, name: found.name, kind: found.kind, mime: found.mime, file: st?.path || null, text, remote: found.provider === "remote" ? found.filePath : null };
+}
+
+// Publish writes its result back to the item: destination (with link and time), status Published
+// after a real post, and the "Posted" usage badge. A practice run records the destination only.
+export function recordPublishResult({ projectId, assetId, mediaJobId, entry }) {
+  const state = mediaDoc();
+  const ref = [];
+  if (assetId) ref.push([hubProjectId(projectId), String(assetId)]);
+  if (mediaJobId) {
+    const job = (jobsDoc().items || []).find((j) => j.id === mediaJobId);
+    if (job) ref.push([hubProjectId(job.projectId), `job:${job.id}:0`]);
+  }
+  if (!ref.length) return 0;
+  const label = { instagram: "Instagram", ghl: "HighLevel", slack: "Slack", drive: "Google Drive" }[entry.channel] || entry.channel;
+  const link = /^https?:\/\//.test(entry.result?.url || entry.result?.link || "") ? (entry.result.url || entry.result.link) : "";
+  const dest = {
+    channel: entry.channel,
+    label: entry.status === "dry-run" ? `${label} (practice, nothing sent)` : entry.status === "failed" ? `${label} (did not send)` : label,
+    link, status: entry.status, at: entry.ts || Date.now(),
+  };
+  for (const [pid, aid] of ref) {
+    const patch = { addDestination: dest };
+    if (entry.status === "posted") { patch.status = "Published"; patch.addUsage = { kind: "posted", label: `Posted to ${label}`, targetId: entry.id }; }
+    setAssetMeta(state, pid, aid, patch);
+  }
+  saveMediaDoc(state);
+  return ref.length;
 }

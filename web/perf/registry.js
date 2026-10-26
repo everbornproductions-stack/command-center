@@ -43,7 +43,10 @@ export const FEATURES = [
   { id: "prompt-suggest", shell: true },
   { id: "look", shell: true },
   { id: "news-rail", shell: true },
+  { id: "mindmedia-save", shell: true },
+  { id: "finish-drawer", shell: true },
 
+  { id: "mindmedia", views: ["mindmedia"] },
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
   { id: "finishpath", deliverable: true },

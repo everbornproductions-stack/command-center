@@ -9,6 +9,7 @@ import {
   cleanInput, fingerprint, makeDraft, requiredChecks, missingChecks, needsRemote, quietHoursOk, aiRecipients,
 } from "../builders/drafts.js";
 import { builderGate } from "../feature-gate.js";
+import { checkOutgoing } from "../compliance-guard.js";
 import { readReceipt, readInvoiceText, readWhisper, readPipeline, publishExternal } from "../builders/adapters.js";
 
 export const id = "builders";
@@ -245,6 +246,11 @@ export async function routes(req, res, url, body, h) {
     if (!quietHoursOk(input.sendTime) || body?.checks?.quiet !== true) {
       return h.json(res, 409, { error: "That time is during quiet hours, from 9:00 pm to 8:00 am. Pick a time from 8:00 am until 9:00 pm. Nothing was sent.", code: "quiet_hours", posted: false });
     }
+  }
+  if (builderId === "hl-campaign") {
+    const g = checkOutgoing({ text: input.text, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime });
+    if (!g.ok) return h.json(res, 422, { error: `Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`, code: "compliance_block", warnings: g.warnings, posted: false });
+    if (g.needsAck && body?.sendAnyway !== true) return h.json(res, 409, { error: "Review the warnings first. Press Fix it, or Send anyway if you are sure. Nothing was sent.", code: "compliance_review", warnings: g.warnings, posted: false });
   }
   if (builderId === "biz-contract" && (!input.templateId || !input.email)) {
     return h.json(res, 400, { error: "Add your template number and the email. Nothing was sent.", code: "template", posted: false });

@@ -28,7 +28,7 @@ async function renderTab(view) {
     </div>
   </div>`;
   view.querySelectorAll("[data-pl]").forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-del]")) return; showForm(view, list.find((p) => p.id === c.dataset.pl)); }));
-  view.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async (e) => { e.stopPropagation(); if (!confirm("Delete this pipeline?")) return; await api(`/pipelines/${b.dataset.del}`, { method: "DELETE" }); renderTab(view); }));
+  view.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async (e) => { e.stopPropagation(); if (!(await window.CC.confirm("Delete this pipeline?", { danger: true, ok: "Delete" }))) return; await api(`/pipelines/${b.dataset.del}`, { method: "DELETE" }); renderTab(view); }));
   view.querySelector("#pl-new").addEventListener("click", () => newFromMission(view));
 }
 

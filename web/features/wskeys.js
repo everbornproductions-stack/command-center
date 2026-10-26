@@ -26,7 +26,7 @@ async function renderSettings(el) {
     catch (e) { toast(e.message, true); }
   });
   el.querySelectorAll("[data-wk-rm]").forEach((b) => b.addEventListener("click", async () => {
-    if (!confirm(`Remove the workspace's ${pname(b.dataset.wkRm)} key? Members fall back to their own key.`)) return;
+    if (!(await window.CC.confirm(`Remove the workspace's ${pname(b.dataset.wkRm)} key? Members fall back to their own key.`, { danger: true, ok: "Remove" }))) return;
     try { await api(`/wskeys/${encodeURIComponent(pick)}/${encodeURIComponent(b.dataset.wkRm)}`, { method: "DELETE" }); toast("Removed"); renderSettings(el); } catch (e) { toast(e.message, true); }
   }));
 }

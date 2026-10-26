@@ -12,6 +12,9 @@ import { HOSTED } from "./store.js";
 
 const SEAL_FILE = () => path.join(process.env.CC_DATA_DIR || DATA_DIR, "license.seal");
 const PUBKEY_FILE = path.join(ROOT, "server", "license-pubkey.json");
+// Written the first time the seal key is made. If the key file is later missing while this note exists,
+// someone deleted the key, so an edited record is not sealed again.
+const MARK_FILE = () => path.join(process.env.CC_DATA_DIR || DATA_DIR, "license.sealed");
 
 export const strictMode = () => !HOSTED && (process.env.CC_PACKAGED === "1" || process.env.CC_LICENSE_STRICT === "1");
 
@@ -34,7 +37,9 @@ export function sealKey() {
   const key = crypto.randomBytes(32).toString("hex");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, key + "\n", { mode: 0o600 });
-  return { key, created: true };
+  let marked = false;
+  try { marked = fs.existsSync(MARK_FILE()); fs.writeFileSync(MARK_FILE(), new Date().toISOString() + "\n"); } catch { /* best effort */ }
+  return { key, created: !marked };
 }
 
 const mac = (l, key) => crypto.createHmac("sha256", key).update(sealPayload(l)).digest("hex");
@@ -69,8 +74,20 @@ export function isTrusted(l) {
 }
 
 // An install from before the seal existed: seal what is there, once, when the key file is new.
+// The one-time step ends: after CC_LICENSE_GRANDFATHER_UNTIL / "grandfatherUntil" in license-pubkey.json
+// (an ISO date), or as soon as the server signs licences (requireServerSignature). Then a record without
+// a valid signature or seal is Free, and deleting license.seal does not seal an edited record.
+export function grandfatherOpen(now = Date.now()) {
+  const cfg = readJson(PUBKEY_FILE, {}) || {};
+  if (cfg.requireServerSignature === true) return false;
+  const until = String((process.env.CC_PACKAGED === "1" ? "" : process.env.CC_LICENSE_GRANDFATHER_UNTIL) || cfg.grandfatherUntil || "").trim();
+  if (!until) return true;
+  const t = Date.parse(until);
+  return Number.isFinite(t) ? now <= t : false;
+}
 export function sealOnce(l) {
   if (!strictMode() || !l?.tier || l.seal) return null;
+  if (!grandfatherOpen()) return null;
   const { key, created } = sealKey();
   return created ? mac(l, key) : null;
 }

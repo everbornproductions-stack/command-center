@@ -54,6 +54,11 @@ export function pushPost(payload) {
   return anonRpc("community_post", payload);
 }
 
+// A free account has no licence key: the install's own device token stands in. See supabase/community_free_posting.sql.
+export function pushFreePost(payload) {
+  return anonRpc("community_post_free", payload);
+}
+
 export function pullChannel(channel) {
   return anonRpc("community_list", { p_channel: channel }, { keepArray: true });
 }

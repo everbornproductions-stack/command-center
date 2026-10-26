@@ -56,7 +56,7 @@ async function run(shareOptIn) {
   let s;
   try {
     s = await startServer({
-      env: { CC_USAGE_URL: `http://127.0.0.1:${port}/api/metrics/ping`, CC_USAGE_CHECK_MS: "200" },
+      env: { CC_USAGE_URL: `http://127.0.0.1:${port}/api/metrics/ping`, CC_USAGE_CHECK_MS: "200", CC_FLAG_SIGNALSEND: "1" },
       seed(dir) {
         fs.writeFileSync(path.join(dir, "brain.json"), JSON.stringify(brainDoc(shareOptIn)));
         fs.writeFileSync(path.join(dir, "usage.json"), JSON.stringify({ v: 1, share: false, installId: "c".repeat(32), day: TODAY, counts: {}, seen: [], lastSentDay: null }));
@@ -75,4 +75,12 @@ test("live: switch on posts the signals once, switch off posts nothing", async (
   assert.equal(on[0].json.signals[0].provider, "openai");
   assert.equal(validateQualitySignalPayload(on[0].json).ok, true);
   assert.equal((await run(false)).length, 0);
+});
+
+test("by default the app does not send signals (no receiver in this repo)", async () => {
+  const { flagOn } = await import("../server/flags.js");
+  delete process.env.CC_FLAG_SIGNALSEND;
+  assert.equal(flagOn("signalsend"), false);
+  const src = fs.readFileSync(new URL("../server/plugins/usage.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  assert.match(src, /flagOn\("signalsend"\)/);
 });

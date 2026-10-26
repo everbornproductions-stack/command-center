@@ -96,11 +96,8 @@ test("Edge through Playwright refuses a password and a Stripe screen, shows the 
   });
   assert.equal(stopped.status, "stopped");
   assert.equal(stopped.steps.length, 1);
-  const pay = Apps.addApp({ name: "Driver Pay", kind: "website", capabilities: ["analysis"], origin: "https://buy.stripe.com/pay" });
-  Apps.setAllowed(pay.id, true);
-  const refused = await Apps.runLive(pay.id, { actions: [{ action: "click", ref: "b0" }] });
-  assert.equal(refused.status, "refused");
-  assert.match(refused.reason, /Stripe/);
+  // A payment address is refused when the app is added (0.4.20); a payment page reached by a click is refused above.
+  assert.throws(() => Apps.addApp({ name: "Driver Pay", kind: "website", capabilities: ["analysis"], origin: "https://buy.stripe.com/pay" }), /Stripe, payment and billing screens are refused\./);
   dropAgents();
 });
 
@@ -280,7 +277,7 @@ test("suggestApp is how the planner assigns an app step, and writing stays with 
   assert.match(drivers, /UIAutomationClient/);
   assert.match(drivers, /IsPasswordProperty/);
   assert.equal(drivers.includes("\u2014"), false);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.19");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.20");
   dropAgents();
 });
 

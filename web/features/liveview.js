@@ -6,6 +6,7 @@ const { S, api, esc, money, go, toast } = window.CC;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const css = `
+.lv-strip > summary { cursor: pointer; } .lv-strip > summary .dim { color: var(--muted); }
 .lv-wrap { display: flex; flex-direction: column; gap: 12px; }
 .lv-map { position: relative; border-radius: 14px; background: radial-gradient(420px 220px at 50% 42%, #132033 0%, #070b12 68%); border: 1px solid #1e293b; box-shadow: inset 0 1px 0 #ffffff10, 0 18px 40px -28px #000; overflow: hidden; }
 .lv-map svg { width: 100%; height: 300px; display: block; }
@@ -495,7 +496,8 @@ function decorate() {
       header.insertAdjacentElement("afterend", d);
     }
     const kept = d.querySelector(".lv-map");
-    d.innerHTML = `<div class="lv-stage"><div class="lv-map-slot"></div>${captions()}</div>${linksHtml(p.links)}<div style="margin-top:8px">${handoffHtml(p.runs?.flatMap((r) => r.handoffs || []) || [])}</div><div style="margin-top:8px">${noteHtml()}</div><p class="dim small" style="margin:8px 0 0">Open in the service when it has a page for the job.</p>`;
+    const wasOpen = !!d.querySelector("details.lv-strip[open]");
+    d.innerHTML = `<details class="lv-strip panel"${wasOpen ? " open" : ""}><summary class="small"><b>Live flow map</b> <span class="dim">${esc(p.flow?.summary || "Nobody is working right now.")}</span></summary><div style="margin-top:8px"><div class="lv-stage"><div class="lv-map-slot"></div>${captions()}</div>${linksHtml(p.links)}<div style="margin-top:8px">${handoffHtml(p.runs?.flatMap((r) => r.handoffs || []) || [])}</div><div style="margin-top:8px">${noteHtml()}</div><p class="dim small" style="margin:8px 0 0">Open in the service when it has a page for the job.</p></div></details>`;
     const slot = d.querySelector(".lv-map-slot");
     if (kept && slot) slot.appendChild(kept);
     mountSlot(slot, p.flow, false);

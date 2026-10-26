@@ -5,8 +5,8 @@
 
 export const MAIN_ACTIONS = [
   { id: "copy", label: "Copy" },
-  { id: "check", label: "Double-check", find: "#cc-check" },
-  { id: "personas", label: "Test with personas", find: "[data-feature='personas'] button" },
+  { id: "check", label: "Double-check", find: "#cc-check", tip: "A second AI reads this answer and points out anything that looks wrong." },
+  { id: "personas", label: "Test with personas", find: "[data-feature='personas'] button", tip: "Pretend readers (like a busy customer) react to this answer, so you can see how it lands." },
 ];
 
 // Blocks that stay in view because they say something about the answer (the practice label,
@@ -49,6 +49,7 @@ export function arrangeAnswerActions(box, { onCopy, open = false, onToggle } = {
     const btn = box.querySelector(action.find);
     if (!btn) continue;
     btn.textContent = action.label;
+    if (action.tip) btn.title = action.tip;
     btn.classList.add("btn", "sm");
     main.appendChild(btn);
   }

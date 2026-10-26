@@ -51,7 +51,8 @@ test("the shell asks for a mode inside setup, hides the old popup, and prompts o
   assert.match(app, /S\.view = "settings"/);
   assert.match(app, /expertConfirmed/);
   assert.match(app, /Not connected\. A free allowance needs your own AI Studio key\./);
-  assert.match(app, /id="cc-fail"/);
+  assert.match(read("web", "failure-cause.js"), /id="cc-fail"/, "the failure card moved to failure-cause.js (0.4.20)");
+  assert.match(app, /failureHtml\(\{/);
   assert.doesNotMatch(app, /function renderAsk\(\) \{\s*let box/);
   const tour = read("web", "features", "tour.js");
   const invite = tour.slice(tour.indexOf("function maybeInvite"), tour.indexOf("function showNews"));

@@ -1,16 +1,18 @@
-// Phase 2: savings receipt per job (R7). The running server in a temp data dir, demo AIs only (local mock,
-// no real key or URL): a finished chat has a receipt priced against the flagship, the Credits tab totals and
+// Phase 2: savings receipt per job (R7). The running server in a temp data dir, a priced AI on a local mock
+// (no real key or URL): a finished chat has a receipt priced against the flagship, the Credits tab totals and
 // recent list include it, and the browser code exports a PNG and mounts on the Credits tab.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { startServer, ROOT, tmpDir } from "./helpers.js";
+import { startServer, startMockOpenAI, ROOT, tmpDir } from "./helpers.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test("savings receipt: per run, totals, recent list", { timeout: 120000 }, async () => {
-  const s = await startServer();
+  // Practice AIs add $0 to the totals (0.4.20), so the run uses a priced AI (OpenAI on a loopback mock).
+  const mock = await startMockOpenAI();
+  const s = await startServer({ env: { CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: mock.base } });
   try {
     assert.equal((await s.api("/receipt/totals", { noToken: true })).status, 401);
     assert.equal((await s.api("/receipt/nothing-here")).status, 404, "no calls, no receipt");
@@ -18,8 +20,8 @@ test("savings receipt: per run, totals, recent list", { timeout: 120000 }, async
     assert.equal(t.runs, 0); assert.equal(t.month.saved, 0);
     assert.deepEqual((await s.api("/receipt/recent")).json, []);
 
-    await s.api("/demo", { method: "POST", body: { on: true } });
-    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line tagline for a bakery.", provider: "demo-nova", model: "nova-lite" } })).status, 202);
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-test-not-a-real-key-0001" } })).json.status.status, "green");
+    assert.equal((await s.api("/chat", { method: "POST", body: { prompt: "Write a two-line tagline for a bakery.", provider: "openai", model: "gpt-6-luna" } })).status, 202);
     let m = null;
     for (let i = 0; i < 240 && !m; i++) { m = (await s.api("/missions")).json.find((x) => x.kind === "single" && x.status === "done"); if (!m) await sleep(250); }
     assert.ok(m, "the chat finished");
@@ -32,7 +34,7 @@ test("savings receipt: per run, totals, recent list", { timeout: 120000 }, async
     assert.ok(r.flagshipCost >= r.actual, "the cheap demo model costs less than the flagship would");
     assert.ok(Math.abs(r.saved - Math.max(0, r.flagshipCost - r.actual)) < 1e-4);
     assert.ok(r.savedPct >= 0 && r.savedPct <= 100);
-    assert.ok(r.byModel["nova-lite"]?.calls >= 1, "per-model breakdown");
+    assert.ok(r.byModel["gpt-6-luna"]?.calls >= 1, "per-model breakdown");
 
     assert.equal(r.label, "Estimated, based on token counts and list prices.");
     assert.equal(r.baseline, r.flagshipCost);
@@ -73,7 +75,7 @@ test("savings receipt: per run, totals, recent list", { timeout: 120000 }, async
     assert.equal(switched.priceAsOf, r.priceAsOf);
     assert.equal((await s.api("/receipt/reference")).json.current.model, "claude-haiku-5-5");
     assert.equal((await s.api("/receipt/reference")).json.current.auto, false);
-  } finally { await s.stop(); }
+  } finally { await s.stop(); await mock.close(); }
 });
 
 test("receipt UI: PNG export, Credits tab panel, top bar, no em-dashes", () => {

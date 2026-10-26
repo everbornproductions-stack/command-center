@@ -280,9 +280,9 @@ export const SHARE_PERMISSIONS = {
   "agents.manage": ["owner", "admin"],                    // update or remove anything shared in the workspace
 };
 export const canShare = (role, action) => !!SHARE_PERMISSIONS[action]?.includes(role);
-const STUDIO = new Set(["studio", "owner"]);
+const STUDIO = new Set(["pro", "studio", "extreme", "owner"]);
 function studioGate() {
-  if (!STUDIO.has(licenseState().tier)) throw err(402, "Sharing agents and prompts with a workspace is part of Studio, like the workspaces themselves.", { code: "studio" });
+  if (!STUDIO.has(licenseState().tier)) throw err(402, "Sharing agents and prompts with a workspace is part of Pro and Extreme, like the workspaces themselves.", { code: "studio" });
 }
 const q = (pathq, opts = {}) => rest(pathq, { ...opts, token: ctx().token });
 const localWorkspaces = () => doc("workspaces", () => ({ list: [] })).list || [];

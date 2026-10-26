@@ -9,7 +9,7 @@ const { S, api, toast, esc, go } = window.CC;
 export const SIMPLE_STEPS = [
   { id: "s-type", for: "simple", target: "#orders", view: "command", title: "Type your question here", body: "Type what you want in the box. Then tap Send. Meldmind picks an AI for you." },
   { id: "s-example", for: "simple", target: "#cc-starters", view: "command", title: "Or tap an example", body: "Or tap an example under the box. It fills the words. You can change them before you send." },
-  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Your answer shows here. Tap Read aloud to hear it." },
+  { id: "s-answer", for: "simple", target: "#out-md", view: "command", title: "Your answer shows here", body: "Send a question and your answer will show here. Tap Read aloud to hear it." },
   { id: "s-help", for: "simple", target: "#help-search", view: "help", title: "Help is here, any time", body: "Help is here, any time. Type a question in your own words." },
   { id: "s-text", for: "simple", target: "#basics-reading", view: "settings", title: "Make text bigger", body: "Make text bigger in Settings. Open Text and reading, then pick Large or Extra large." },
 ];
@@ -18,7 +18,7 @@ const css = `
 #cc-tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
 #cc-tour .spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(3,6,12,.58), 0 0 0 2px var(--accent); transition: all .25s ease; }
 #cc-tour .spot.none { box-shadow: 0 0 0 9999px rgba(3,6,12,.58); width: 0; height: 0; left: 50%; top: 50%; }
-#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
+#cc-tour .card { max-height: calc(100vh - 20px); overflow-y: auto; position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
 #cc-tour .card h4 { margin: 0 0 6px; font-size: 1rem; }
 #cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 0.6875rem; margin-left: auto; }
 #cc-tour .plan { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; }
@@ -31,7 +31,7 @@ const css = `
 #cc-desktop-prompt .card { position: relative; }
 #cc-desktop-prompt h4 { padding-right: 72px; }
 #cc-desktop-prompt .x { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.8125rem; line-height: 1.2; cursor: pointer; }
-#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: #1a2436; color: var(--text); }
+#cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: var(--card-hover, #1a2436); color: var(--text); }
 #cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
 #cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
@@ -62,7 +62,7 @@ const APP_STEPS = [
   { id: "orders", target: "#orders", view: "command", title: "Marching orders", body: "Type what you want in plain words. After a few letters, prompts that match what you are making show under this box. Picking one keeps your words, and Undo puts them back. Nothing is sent until you click Send. Upload adds a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words before you send. A picture or video can be retouched or described after you see the plan. Auto-detect can suggest a Pro prompt from what you type and show it as a chip. Remove the chip if you want your own words only. The router still classifies the job and sends each part to the best available AI." },
   { id: "plain-request", for: "both", target: "#plain-request", view: "command", title: "Try saying...", body: "Try saying: email this client and put it on my calendar. A cheap fast AI drafts the email and the event. You see the cost, usually a fraction of a cent. Meldmind sends the email and adds the event only after you click Approve once. No outside AI touches your Gmail or Calendar." },
   { id: "desktop-apps", for: "both", target: "#app-discovery", view: "settings", title: "Programs on this PC", body: "When you turn on desktop control, Meldmind lists installed programs. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. Allow each app you want. Allowed apps are scored and join the router's choices, the same as a tool you add. While you plan a mission or client work, a card can suggest a program with a short reason, Free or Paid, and the official link. Dismiss hides that suggestion. Nothing is installed or bought. Program scan is part of Pro. Turn suggestions off in Settings." },
-  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your licence. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
+  { id: "devices", for: "both", target: "#settings-devices", view: "settings", title: "Computers on this key", body: "Settings, Devices, lists the computers using your license. A key works on 2 computers, a PC and a laptop. Remove one there to free a spot. Each person has their own key, including each Extreme team seat." },
   { id: "builders", for: "both", target: "#builders-root", view: "builders", title: "Builders", body: "Builders show up when a need is detected. Describe what you want, preview which AIs would see it, then Build, Test, and Publish. Nothing is sent, posted, or charged until you click Publish. HighLevel, receipts, invoices, a booking, meeting notes, a contract, a review, or a website chat each bring up their own builder." },
   { id: "report-back", for: "both", view: "command", title: "When another AI finishes", body: "When you hand a job to another AI, that AI can tell Meldmind it is finished. You get a notice, and the summary shows in the job. If it cannot call back, use Paste result. Nothing is saved from that paste until you click Save." },
   { id: "get-it-done", for: "both", view: "command", title: "Get it done", body: "Get it done lets one job run its steps without asking. It ends when the job ends. You can also say get it done, don't ask me. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. Always for this kind of job is in Settings, and you can revoke it any time." },
@@ -327,6 +327,7 @@ function position() {
     if (top + ch > vh - 10) top = r.top - ch - pad;
     if (top < 10) { top = Math.max(10, Math.min(vh - ch - 10, r.top)); left = r.right + pad; }
     if (left + cw > vw - 10) left = Math.max(10, vw - cw - 10);
+    top = Math.max(10, Math.min(vh - ch - 10, top)); // the Next button always stays inside the window (bug 15)
     card.style.left = `${left}px`; card.style.top = `${top}px`;
   } else {
     spot.className = "spot none";

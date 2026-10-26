@@ -1,5 +1,7 @@
 // Grouped main menu. Every existing view stays reachable in Expert and in Simple.
-// Simple shows Chat, Start a project, Projects, My day, Create, More, Help, and Settings.
+// Simple shows Chat, Projects, Create, Community, More, Help, and Settings (0.4.20: a shorter row).
+// Start a project, Pro prompts and Builders sit under Create; My day sits under More. A feature that
+// needs a Simple top slot (the Media hub) registers it with registerNavItem(); nothing is hard-coded for it.
 // Zapier, Make, and the other connectors are under More > Connections in Simple.
 // Settings holds settings only (Settings, Find my AIs). Help holds the tour, Get everything
 // connected, updates, What's new, the user guide, contact, and About. Each action has one name
@@ -17,7 +19,7 @@
 // Priority-plus: free space left after the menus promotes the most used pages
 // onto the bar as direct buttons, in a fixed order, as many as fit. A promoted
 // page leaves its menu (Create, More, Work, ...) so it is never listed twice.
-// Simple: Pro prompts, Builders, Community, Connections. Expert: Command, Start a
+// Simple: none (its row is fixed and short). Expert: Command, Start a
 // project, Projects, Pro prompts, Builders, Community, Missions, Councils,
 // Research, Remix. A promoted row uses normal gaps instead of spreading out.
 
@@ -77,6 +79,7 @@ const HOME = {
   prompts: "create",
   images: "create",
   media: "create",
+  mindmedia: "create",
   publish: "create",
   remix: "create",
   builders: "create",
@@ -154,6 +157,7 @@ export const LABELS = {
   prompts: "Pro prompts",
   images: "Images",
   media: "Media",
+  mindmedia: "MindMedia",
   publish: "Publish",
   remix: "Remix",
   builders: "Builders",
@@ -210,7 +214,7 @@ export const MENU_ACTIONS = {
 };
 
 // Pages that need a paid plan. The menu item still opens the page, which explains
-// the plan. The note is only a label. cap is the licence limit that unlocks it.
+// the plan. The note is only a label. cap is the license limit that unlocks it.
 export const VIEW_LOCKS = {
   pipelines: { cap: "missions", plan: "Pro" },
   schedules: { cap: "scheduler", plan: "Pro" },
@@ -220,7 +224,7 @@ export const VIEW_LOCKS = {
 };
 
 // The plan a view needs on these limits, or "" when it is open. No limits means
-// the licence has not loaded yet, so nothing is marked.
+// the license has not loaded yet, so nothing is marked.
 export function lockFor(view, limits) {
   const lock = VIEW_LOCKS[view];
   if (!lock || !limits || typeof limits !== "object") return "";
@@ -230,7 +234,7 @@ export function lockFor(view, limits) {
 }
 
 export function lockNote(plan) {
-  return plan ? `Part of ${plan}. The page explains the plan. Add a licence key in Settings.` : "";
+  return plan ? `Part of ${plan}. The page explains the plan. Add a license key in Settings.` : "";
 }
 
 // What the Settings menu is allowed to hold, in every layout: settings pages only.
@@ -468,12 +472,21 @@ export const PROMOTE_GAP = 8;
 
 // Promotion order. view + focus or runMode opens Command set up for that kind of
 // run. Those three are shortcuts, not menu items, so nothing leaves a menu for them.
-export const SIMPLE_PROMOTE = [
-  { id: "prompts", label: LABELS.prompts, view: "prompts" },
-  { id: "builders", label: LABELS.builders, view: "builders" },
-  { id: "community", label: LABELS.community, view: "community" },
-  { id: "connections", label: "Connections", menu: true },
-];
+export const SIMPLE_PROMOTE = [];
+
+// Nav registry: other features add a Simple top slot (or a Create item) without editing this file.
+// { id, label, view, slot: "top" | "create" }. A slot only shows when its page exists in this install.
+const NAV_REGISTRY = [];
+export function registerNavItem(item) {
+  if (!item || !item.id || !item.view || !item.label) return false;
+  const slot = item.slot === "create" ? "create" : "top";
+  const at = NAV_REGISTRY.findIndex((i) => i.id === item.id);
+  const row = { id: String(item.id), label: String(item.label), view: String(item.view), slot };
+  if (at >= 0) NAV_REGISTRY[at] = row; else NAV_REGISTRY.push(row);
+  return true;
+}
+export function navRegistry(slot = "") { return NAV_REGISTRY.filter((i) => !slot || i.slot === slot).map((i) => ({ ...i })); }
+export function resetNavRegistry() { NAV_REGISTRY.length = 0; }
 
 export const COMMAND_MODES = {
   mission: "Mission mode: describe the goal",
@@ -508,7 +521,7 @@ export const EXPERT_PROMOTE = [
   { id: "remix", label: LABELS.remix, view: "remix" },
 ];
 
-const SIMPLE_ROW = ["Chat", "Start a project", "Projects", "\u2600 My day", "Create", "More", "Help", "Settings"];
+const SIMPLE_ROW = ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"];
 
 // The candidates this install has, in promotion order.
 export function promotable(mode, views, surface = "") {
@@ -632,11 +645,11 @@ const CSS = `
 .tabs.nav-ready.nav-promoted .nav-trigger, .tabs.nav-ready.nav-promoted button.nav-direct { padding-left: 8px; padding-right: 8px; }
 .nav-trigger { background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; }
 .nav-trigger:hover, .nav-trigger[aria-expanded="true"] { color: var(--text); }
-.nav-trigger.active { background: #1a2436; color: #fff; box-shadow: inset 0 0 0 1px #2b3a52; }
+.nav-trigger.active { background: var(--card-hover, #1a2436); color: var(--text, #fff); box-shadow: inset 0 0 0 1px #2b3a52; }
 .nav-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 220px; max-height: 70vh; overflow: auto; padding: 6px; background: var(--card-bg, #0d1420); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; display: none; }
 .nav-menu.open .nav-panel { display: flex; flex-direction: column; gap: 2px; }
 .nav-panel button { text-align: left; background: transparent; border: 0; border-radius: 8px; color: var(--text); padding: 8px 10px; cursor: pointer; }
-.nav-panel button:hover, .nav-panel button:focus { background: #1a2436; outline: none; }
+.nav-panel button:hover, .nav-panel button:focus { background: var(--card-hover, #1a2436); outline: none; }
 .nav-panel button.active { color: var(--accent-2); }
 .nav-section { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 2px; border-top: 1px solid var(--line-2); margin-top: 4px; }
 .nav-lock { color: var(--amber, #f59e0b); font-size: 12px; margin-left: 4px; }
@@ -706,24 +719,33 @@ function buttonFor(buttons, view, label) {
 
 // Simple keeps a short row. Pages that are not on it are under More, grouped the
 // same way as Expert, so every page is still one click away.
-const SIMPLE_TOP = new Set(["command", "start", "projects", "help", "settings", ...CREATE_VIEWS, ...DAY_VIEWS]);
+const SIMPLE_FIXED = new Set(["command", "start", "projects", "help", "settings", "community", ...CREATE_VIEWS]);
+const isSimpleTop = (view) => SIMPLE_FIXED.has(view) || NAV_REGISTRY.some((i) => i.view === view);
 
 export function simpleModel(views, surface = "", promote = []) {
   const web = surface === "web";
   const have = new Set(web ? (views || []).filter((view) => !isDesktopOnly(view)) : (views || []));
   const up = promotedItems("simple", views, surface, promote);
   const gone = new Set(up.filter(leavesMenu).map((p) => p.view));
-  const day = [["everyday-inbox", "Inbox and tasks"], ["everyday-plan", "Day plan"], ["userchat", "People"]]
-    .filter(([view]) => have.has(view)).map(([view, label]) => ({ view, label, home: true }));
-  const create = CREATE_VIEWS.filter((view) => have.has(view) && !gone.has(view)).map((view) => ({ view, label: LABELS[view], home: true }));
+  const day = [["everyday-inbox", "Inbox and tasks"], ["everyday-plan", "Day plan"]]
+    .filter(([view]) => have.has(view)).map(([view, label]) => ({ view, label, home: true, section: "My day" }));
+  const registered = NAV_REGISTRY.filter((i) => have.has(i.view) && !gone.has(i.view));
+  // Create: Start a project first, then the rest in the usual order, then anything registered for Create.
+  const create = [
+    { view: "start", label: LABELS.start, home: true },
+    ...CREATE_VIEWS.filter((view) => have.has(view) && !gone.has(view)).map((view) => ({ view, label: LABELS[view], home: true })),
+    ...registered.filter((i) => i.slot === "create").map((i) => ({ view: i.view, label: i.label, home: true })),
+  ];
+  const top = registered.filter((i) => i.slot === "top").map((i) => ({ id: `reg-${i.id}`, label: i.label, direct: true, items: [{ view: i.view, label: i.label, home: true }] }));
   const more = [];
   const people = [];
   for (const view of have) {
-    if (SIMPLE_TOP.has(view) || gone.has(view)) continue;
+    if (isSimpleTop(view) || gone.has(view) || day.some((d) => d.view === view)) continue;
     if (PEOPLE_ORDER.includes(view)) people.push({ view, label: LABELS[view] || view, home: true, section: PEOPLE_SECTION });
     else more.push({ view, label: LABELS[view] || view, home: true });
   }
-  // Same order as Expert: People pages in their own section, after the plain pages.
+  // The day pages (My day), then the People pages, then Connections: each in its own section.
+  more.push(...day);
   more.push(...people.sort((a, b) => PEOPLE_ORDER.indexOf(a.view) - PEOPLE_ORDER.indexOf(b.view)));
   const connections = up.some((p) => p.menu);
   if (!connections) for (const link of SIMPLE_CONNECT_LINKS) more.push({ ...link, home: false });
@@ -732,11 +754,11 @@ export function simpleModel(views, surface = "", promote = []) {
     : { id: `up-${p.id}`, label: p.label, direct: true, promoted: true, items: [{ view: p.view, label: p.label, home: true }] });
   return [
     { id: "chat", label: "Chat", direct: true, items: [{ view: "command", label: "Chat", home: true }] },
-    { id: "start", label: "Start a project", direct: true, items: [{ view: "start", label: "Start a project", home: true }] },
     { id: "projects", label: "Projects", direct: true, items: [{ view: "projects", label: "Projects", home: true }] },
-    { id: "myday", label: "My day", items: day },
     ...promoted,
     { id: "create", label: "Create", items: create },
+    ...top,
+    ...(have.has("community") ? [{ id: "community", label: "Community", direct: true, items: [{ view: "community", label: "Community", home: true }] }] : []),
     { id: "more", label: "More", items: more },
     { id: "guides", label: "Help", items: helpItems(surface) },
     { id: "settings", label: "Settings", direct: true, items: [{ view: "settings", label: "Settings", home: true }] },
@@ -790,7 +812,6 @@ function mountSimple(root, views, buttons, surface, promote) {
       const item = group.items[0];
       let btn;
       if (item.view === "command") btn = buttonFor(buttons, "command", "Chat");
-      else if (item.view === "start") btn = buttonFor(buttons, "start", "Start a project");
       else if (item.view === "projects") btn = buttonFor(buttons, "projects", "Projects");
       else btn = buttonFor(buttons, item.view, item.label);
       btn.classList.add("nav-direct");
@@ -798,13 +819,9 @@ function mountSimple(root, views, buttons, surface, promote) {
       root.appendChild(btn);
       continue;
     }
-    // My day, Create, and More hide when they would be empty.
+    // Create and More hide when they would be empty.
     if (!group.items.length && group.id !== "guides") continue;
     const shell = menuShell(group.id, group.label);
-    if (group.id === "myday") {
-      const trigger = shell.menu.querySelector(".nav-trigger");
-      if (trigger) trigger.textContent = "\u2600 My day";
-    }
     mountItems(shell.panel, buttons, group.items);
     root.appendChild(shell.menu);
   }
@@ -985,19 +1002,22 @@ export function placeNavItem(root, view, label) {
   if (root.dataset.uiMode === "simple") {
     if (view === "help" || view === "settings") return;
     if (root.querySelector(`button[data-view="${globalThis.CSS.escape(view)}"]:not([data-focus])`)) return;
-    if (view === "start") {
-      const btn = itemButton({ view, label: label || "Start a project" });
+    const reg = NAV_REGISTRY.find((i) => i.view === view);
+    if (reg && reg.slot === "top") {
+      const btn = itemButton({ view, label: reg.label });
       btn.classList.add("nav-direct");
       btn.removeAttribute("role");
-      const projects = root.querySelector('button[data-view="projects"]');
-      if (projects) projects.insertAdjacentElement("beforebegin", btn);
+      const community = root.querySelector('button[data-view="community"]');
+      const more = root.querySelector(".nav-menu[data-menu='more']");
+      const anchor = community || more;
+      if (anchor) (anchor.matches?.(".nav-menu") ? anchor : anchor).insertAdjacentElement("beforebegin", btn);
       else root.appendChild(btn);
       return;
     }
-    const gid = CREATE_VIEWS.includes(view) ? "create" : DAY_VIEWS.includes(view) ? "myday" : "more";
+    const gid = CREATE_VIEWS.includes(view) || view === "start" || reg?.slot === "create" ? "create" : "more";
     let panel = root.querySelector(`#nav-panel-${gid}`);
     if (!panel) {
-      const shell = menuShell(gid, gid === "more" ? "More" : gid === "create" ? "Create" : "My day");
+      const shell = menuShell(gid, gid === "more" ? "More" : "Create");
       const help = root.querySelector(".nav-menu[data-menu='guides']");
       if (help) root.insertBefore(shell.menu, help);
       else root.appendChild(shell.menu);
@@ -1033,7 +1053,7 @@ export function placeNavItem(root, view, label) {
   else panel.appendChild(btn);
 }
 
-// Adds or clears the plan note on locked pages. Called after each licence load.
+// Adds or clears the plan note on locked pages. Called after each license load.
 export function markLocks(root, limits) {
   if (!root) return;
   root.querySelectorAll("button[data-view]").forEach((b) => {
@@ -1075,10 +1095,9 @@ export function markNav(root, view, menuId, runMode = "") {
     const id = t.closest(".nav-menu")?.dataset.menu;
     let on = menuId ? id === menuId : !!t.closest(".nav-menu")?.querySelector(`button[data-view="${view}"]:not([data-focus])`);
     if (root.dataset.uiMode === "simple" && !menuId) {
-      if (id === "create") on = CREATE_VIEWS.includes(view);
+      if (id === "create") on = CREATE_VIEWS.includes(view) || view === "start" || NAV_REGISTRY.some((i) => i.slot === "create" && i.view === view);
       else if (id === "guides") on = view === "help";
-      else if (id === "myday") on = DAY_VIEWS.includes(view);
-      else if (id === "more") on = !SIMPLE_TOP.has(view);
+      else if (id === "more") on = !isSimpleTop(view);
     }
     // A promoted page is lit on the bar, not on the menu it left.
     if (onBar && !menuId) on = false;

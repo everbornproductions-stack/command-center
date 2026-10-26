@@ -21,7 +21,7 @@ test("resolveTier: nothing known → free, never owner", () => {
   assert.equal(resolveTier({ lic: { tier: "owner", status: "revoked", lastOkAt: now }, now }).tier, "free");
 });
 
-test("resolveTier: an active licence row gives its tier, including owner", () => {
+test("resolveTier: an active license row gives its tier, including owner", () => {
   assert.equal(resolveTier({ lic: { tier: "pro", status: "active", lastOkAt: now - DAY }, now }).tier, "pro");
   assert.equal(resolveTier({ lic: { tier: "owner", status: "active", lastOkAt: now - DAY }, now }).tier, "owner");
   assert.equal(resolveTier({ lic: { tier: "pro", status: "active", lastOkAt: now - DAY }, now }).reason, "active");
@@ -107,7 +107,7 @@ test("server: no cloud configured → tier free; empty cloud values → 400 and 
   } finally { await s.stop(); }
 });
 
-test("server: shipped defaults are used when settings are empty (licence check goes to the shipped URL)", async () => {
+test("server: shipped defaults are used when settings are empty (license check goes to the shipped URL)", async () => {
   const s = await startServer({
     cloud: { rpc: (fn) => (fn === "verify_license" ? { ok: true, tier: "pro", status: "active", email: "t@example.com", period_end: null, message: "ok" } : {}) },
     seed: (dir) => fs.writeFileSync(path.join(dir, "license.json"), JSON.stringify({ key: "EVB-AAAA-BBBB-CCCC", deviceId: "dev1", tier: null, status: null })),

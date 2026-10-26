@@ -69,7 +69,7 @@ async function renderTab(view) {
     window.CC.openHelp?.("getting-started");
   });
   view.querySelector("#br-reset").addEventListener("click", async () => {
-    if (!confirm("Reset what the router has learned? Picks start again from the built-in scores. Your runs and ledger are kept.")) return;
+    if (!(await window.CC.confirm("Reset what the router has learned? Picks start again from the built-in scores. Your runs and ledger are kept.", { danger: true, ok: "Reset" }))) return;
     try { await api("/brain/reset", { method: "POST", body: { confirm: true, mode } }); toast("Learning router reset"); renderTab(view); } catch (e) { toast(e.message, true); }
   });
   view.querySelector("#br-export").addEventListener("click", async () => {

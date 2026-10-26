@@ -18,6 +18,7 @@ import {
 } from "../build-all.js";
 import { isFlowStagesEnabled } from "../walkthroughs.js";
 import { needsRemote, requiredChecks } from "../builders/drafts.js";
+import { checkOutgoing } from "../compliance-guard.js";
 
 export const id = "buildall";
 
@@ -156,7 +157,7 @@ function builderPlan(body) {
       } },
       { id: "plan", label: STEP_LABELS.plan, run: async () => {
         const r = await callRoute("POST", `${base}/preview`, input);
-        if (r.status === 400 && r.json?.code === "legal") return needs(r.json.error);
+        if (r.status >= 400 && r.status < 500) return needs(r.json?.error || "The preview needs you.");
         const out = check(r, "The preview");
         jobId = out.job.id;
         draft = out.draft;
@@ -177,6 +178,10 @@ function builderPlan(body) {
       { id: "publish", label: STEP_LABELS.publish, risk: "none", run: async ({ job }) => {
         const remote = needsRemote(builderId, draft);
         if (remote && !job.allowPost) return { stop: { kind: "post", reason: STOP_REASON.post } };
+        if (builderId === "hl-campaign") {
+          const g = checkOutgoing({ text: input.text, channel: input.channel, consent: false, sendTime: input.sendTime });
+          if (!g.ok) return needs(`Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`);
+        }
         if (requiredChecks(builderId, input).length) return needs("This send has boxes only you can tick. Open the builder and tick them, then click Publish.");
         const r = await callRoute("POST", `${base}/publish`, { ...input, jobId, confirm: true, checks: {} });
         if (r.status >= 400) return needs(r.json?.error || "Publish needs you.");
@@ -272,7 +277,10 @@ function remixPlan(body) {
         return { note: assumed.length ? `Filled from your description. ${assumed.length} assumed.` : "Filled from your description." };
       } },
       { id: "plan", label: STEP_LABELS.plan, run: async () => {
-        check(await callRoute("POST", "/api/remix/preview", payload), "The preview");
+        const r = await callRoute("POST", "/api/remix/preview", payload);
+        // 0.4.20: a fix the person can make (name it, reword it) is "Waiting for you", not "Did not finish"
+        if (r.status >= 400 && r.status < 500) return needs(r.json?.error || "The preview needs you.");
+        check(r, "The preview");
         return { note: "Previewed. Nothing was sent." };
       } },
       { id: "build", label: STEP_LABELS.build, run: async () => {
@@ -280,7 +288,17 @@ function remixPlan(body) {
         if (r.status === 409 && r.json?.code === "too_close") return needs(r.json.error);
         if (r.status >= 400) return needs(r.json?.error || "The build needs you.");
         payload.projectId = r.json.projectId;
-        return { projectId: r.json.projectId, note: r.json?.ai?.reason || "Saved." };
+        // 0.4.20: wait for the AIs to finish writing into the folder, so the test checks what they made
+        let waited = 0;
+        if (r.json?.ai?.started) {
+          const deadline = Date.now() + 5 * 60 * 1000;
+          while (Date.now() < deadline) {
+            const st = await callRoute("GET", `/api/remix/result/${r.json.projectId}`, {});
+            if (st.status >= 400 || st.json?.state !== "working") { waited = st.json?.hasOutput ? 1 : 0; break; }
+            await new Promise((ok) => setTimeout(ok, 1500));
+          }
+        }
+        return { projectId: r.json.projectId, note: waited ? "Built. The AIs wrote their files into the project folder." : (r.json?.ai?.reason || "Saved.") };
       } },
       { id: "test", label: STEP_LABELS.test, run: async () => {
         const r = await callRoute("POST", "/api/remix/test", { projectId: payload.projectId, confirm: true });

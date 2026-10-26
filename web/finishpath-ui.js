@@ -7,7 +7,8 @@ import { BAR_VIEWS } from "./projectbar.js";
 const STYLE = `
 .fp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; min-width: 0; }
 .fp-bar > * { min-width: 0; }
-.fp-bar .fp-finish { overflow-wrap: anywhere; white-space: normal; }
+.fp-bar .fp-finish { overflow-wrap: anywhere; white-space: normal; order: 2; margin-left: auto; }
+.fp-bar .fp-pill { order: 1; }
 .fp-pill { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--accent, #22d3ee); background: var(--panel, #0e1726); color: var(--text, #e6edf6); font-size: 0.8125rem; overflow-wrap: anywhere; min-width: 0; }
 .fp-pill[hidden] { display: none; }
 .fp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent, #22d3ee); animation: fp-pulse 1.4s ease-in-out infinite; }
@@ -37,10 +38,11 @@ function projectName() {
   return (S.projects || []).find((p) => p.id === S.project)?.name || "";
 }
 
-// One confirm. Opens Publish with the result. Remembers it the same way Send to Finish does.
+// One confirm. Opens the Finish drawer with the result. Remembers it the same way Send to Finish does.
 export function confirmFinish(result) {
   const cc = CC();
   cc._finishText = { kind: result.kind, text: result.text };
+  if (cc.openFinishDrawer) { cc.openFinishDrawer({ kind: result.kind, text: result.text, name: result.name, source: "Finish" }); return; }
   cc.toast("Finish is ready. Pick where it goes, then press the button there.");
   cc.go("publish");
 }

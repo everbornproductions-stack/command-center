@@ -71,6 +71,7 @@ async function renderPanel() {
       <button class="btn sm primary" id="art-run">${isPy ? "Run Python" : "Re-run"}</button>
       <button class="btn sm" id="art-edit">${st.editing ? "Close editor" : "Edit"}</button>
       <button class="btn sm" id="art-export">Export file</button>
+      <button class="btn sm" id="art-keep" title="Keep this version in MindMedia">Save to MindMedia</button>
       <label class="small" title="Lets the artifact load scripts, styles and images from https:// addresses (CDNs). Never this app's own server."><input type="checkbox" id="art-net" ${a.net ? "checked" : ""}> Allow internet</label>
       <span style="flex:1"></span>
       <button class="btn sm" id="art-del">Delete</button></div>
@@ -90,9 +91,15 @@ async function renderPanel() {
   $("#art-run").addEventListener("click", () => { $("#art-err").textContent = ""; st.python = true; if (st.editing) preview(); else renderPanel(); });
   $("#art-edit").addEventListener("click", () => { st.editing = !st.editing; st.draft = ver.content; renderPanel(); });
   $("#art-export").addEventListener("click", () => exportVersion(a, ver.v));
+  $("#art-keep").addEventListener("click", async () => {
+    try {
+      const f = await api(`/artifacts/${a.id}/export?v=${ver.v}&format=json`);
+      await window.CC.saveToMindMedia({ files: [{ name: f.filename, text: f.body, mime: f.mime }], kind: "file", name: a.title, source: "Artifacts", dedupeKey: `artifact:${a.id}` });
+    } catch (e) { toast(e.message, true); }
+  });
   $("#art-net").addEventListener("change", async (e) => { try { st.open = await api(`/artifacts/${a.id}/versions`, { method: "POST", body: { net: e.target.checked } }); renderPanel(); } catch (err) { toast(err.message, true); } });
   $("#art-del").addEventListener("click", async () => {
-    if (!confirm(`Delete "${a.title}" and all ${a.versions.length} versions?`)) return;
+    if (!(await window.CC.confirm(`Delete "${a.title}" and all ${a.versions.length} versions?`, { danger: true, ok: "Delete" }))) return;
     try { await api(`/artifacts/${a.id}`, { method: "DELETE" }); closePanel(); toast("Artifact deleted."); refreshTab(); } catch (e) { toast(e.message, true); }
   });
   async function preview() {

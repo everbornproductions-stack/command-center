@@ -38,6 +38,16 @@ function renderTab(view) {
   const ctxInfo = contextTipsForView(S.lastView || S.view || "command", []);
   const nextCards = doThisNextForState(S);
   view.innerHTML = `<div class="help-page">
+    <div class="panel" id="help-list-panel">
+      <h3>Search help</h3>
+      <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
+      <p class="hint" role="note">You can type in any language.</p>
+      <label class="lbl" for="help-search">Search</label>
+      <input id="help-search" type="search" placeholder="Try: how do I ask a question" autocomplete="off">
+      <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
+      <div id="help-screen-hits" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="help-list" class="help-list"></div>
+    </div>
     <div class="panel" id="help-context">
       <h3>Tips for this screen: ${esc(ctxInfo.title)}</h3>
       <p class="dim small" style="margin:0 0 8px">${esc(ctxInfo.summary)}</p>
@@ -54,16 +64,6 @@ function renderTab(view) {
       <div class="grid cols-2" style="gap:8px">${PERSONA_STARTER_PACKS.map((p) => `<div class="route" data-pack-card="${esc(p.id)}"><b>${esc(p.label)}</b><div class="dim small" style="margin-top:4px">${esc(p.role)}</div><div class="dim small" style="margin-top:4px">Tools: ${esc(p.tools.join(", "))}</div><div class="row" style="margin-top:8px"><button type="button" class="btn sm primary" data-persona-pack="${esc(p.id)}">Use ${esc(p.label)} pack</button></div></div>`).join("")}</div>
     </div>
     <div class="panel" id="help-article" hidden></div>
-    <div class="panel" id="help-list-panel">
-      <h3>Search help</h3>
-      <p class="dim" style="margin:0 0 10px">Search the guides, or ask a connected AI. Ask Meldmind answers only from these articles. With no connected AI, you get the search.</p>
-      <p class="hint" role="note">You can type in any language.</p>
-      <label class="lbl" for="help-search">Search</label>
-      <input id="help-search" type="search" placeholder="Try: how do I ask a question" autocomplete="off">
-      <p class="hint"><button type="button" class="btn sm" id="help-pdf">Security summary (PDF)</button></p>
-      <div id="help-screen-hits" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-      <div id="help-list" class="help-list"></div>
-    </div>
     <div class="panel" id="help-ask-panel">
       <h3>Ask Meldmind</h3>
       <label class="lbl" for="help-q">Question</label>
@@ -90,7 +90,7 @@ function renderTab(view) {
         <h3 style="margin:0">User guide: What can Meldmind do?</h3>
         <a class="btn sm" href="/what-meldmind-can-do.pdf" download="What Meldmind can do.pdf" style="margin-left:auto;text-decoration:none">Download the guide (PDF)</a>
       </div>
-      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a licence happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
+      <p class="dim" style="margin:10px 0">A short list of what is in this app. Each row is Free, Pro, or Extreme. Pro is $18.99 a month. Extreme is $29.99 a month. These are the plan prices. Adding a license happens on the Subscriptions page, and this list does not charge you. A row stays hidden when that page is not here, so nothing points at a missing feature. The guide is the same list, saved as a PDF.</p>
       <label class="lbl" for="can-do-search">Search what Meldmind can do</label>
       <input id="can-do-search" type="search" placeholder="Try councils, remix, or phone" autocomplete="off">
       <div id="can-do-list" class="help-list"></div>

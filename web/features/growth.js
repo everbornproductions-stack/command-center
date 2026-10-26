@@ -16,7 +16,7 @@ function upgradeBox(g) {
   if (!g.upgrade?.show) return "";
   const table = planCompareHtml(g.upgrade.compare);
   const spots = g.upgrade.spotsLine ? `<div class="dim small" data-founder-spots>${esc(g.upgrade.spotsLine)}</div>` : "";
-  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}<div class="dim small" style="margin-top:4px">Upgrading means adding a licence key in Settings. Nothing is charged from here.</div></div>`;
+  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}<div class="dim small" style="margin-top:4px">Upgrading means adding a license key in Settings. Nothing is charged from here.</div></div>`;
 }
 
 function trialLine(g) {
@@ -61,9 +61,9 @@ function settingsHtml(g) {
     const r = g.referrals;
     const red = r.redeemed;
     parts.push(`<div class="route" style="margin-top:8px"><div class="row"><b>Referral rewards</b> ${PH}</div>
-      <div class="small muted" style="margin-top:4px">A friend who joins with your code gets ${money(g.placeholder.referralFriendUsd)} of credits, and you get ${money(g.placeholder.referralRewardUsd)} once the licence server confirms it. Copying the link sends nothing.</div>
+      <div class="small muted" style="margin-top:4px">A friend who joins with your code gets ${money(g.placeholder.referralFriendUsd)} of credits, and you get ${money(g.placeholder.referralRewardUsd)} once the license server confirms it. Copying the link sends nothing.</div>
       <div class="row" style="margin-top:8px;gap:8px"><span class="mono">${esc(r.code)}</span><input type="text" readonly value="${esc(r.link)}" style="flex:1" data-g-link><button class="btn sm" data-g-copy>Copy link</button></div>
-      <div class="small" style="margin-top:6px">${r.stats ? `${r.stats.confirmed} friend${r.stats.confirmed === 1 ? "" : "s"} confirmed · ${r.stats.pending} pending` : r.server ? "Not checked yet." : "No licence server is configured, so rewards cannot be confirmed."}${r.statsAt ? ` <span class="dim">· checked ${esc(ago(r.statsAt))}</span>` : ""}${r.statsError ? ` <span class="dim">· ${esc(r.statsError)}</span>` : ""} ${r.server ? `<button class="ghost small" data-g-refresh>Check now</button>` : ""}</div>
+      <div class="small" style="margin-top:6px">${r.stats ? `${r.stats.confirmed} friend${r.stats.confirmed === 1 ? "" : "s"} confirmed · ${r.stats.pending} pending` : r.server ? "Not checked yet." : "No license server is configured, so rewards cannot be confirmed."}${r.statsAt ? ` <span class="dim">· checked ${esc(ago(r.statsAt))}</span>` : ""}${r.statsError ? ` <span class="dim">· ${esc(r.statsError)}</span>` : ""} ${r.server ? `<button class="ghost small" data-g-refresh>Check now</button>` : ""}</div>
       ${red?.status === "confirmed" ? `<div class="small" style="margin-top:6px"><span class="chip green">used ${esc(red.code)}</span></div>` : `<div class="row" style="margin-top:8px;gap:8px"><input type="text" placeholder="A friend's code: REF-XXXXXXXX" data-g-code value="${esc(red?.code || "")}" style="flex:1;font-family:var(--mono)"><button class="btn sm" data-g-redeem>Use code</button></div>${red ? `<div class="dim small" style="margin-top:4px">${esc(red.code)}: ${esc(red.message || red.status)}</div>` : ""}`}</div>`);
   }
   const lines = g.credits.lines;

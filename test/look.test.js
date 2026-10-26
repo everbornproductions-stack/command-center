@@ -181,3 +181,21 @@ test("route: flag off blocks changes; flag on saves choice and check", async () 
     assert.equal(again.json.check.fps, 22);
   } finally { await on.stop(); }
 });
+
+test("startup screen: stays at least twice as long as before and twice the load time, fades out slowly (0.4.20)", () => {
+  const js = read("web", "features", "look.js").replace(/\r\n/g, "\n"), css = read("web", "look.css").replace(/\r\n/g, "\n");
+  const consts = js.match(/const SPLASH_BASE_MS[^\n]*\n/)[0];
+  const fn = js.match(/function splashHold[\s\S]*?\n}\n/)[0];
+  const splashHold = new Function(`${consts}\n${fn}\nreturn splashHold;`)();
+  assert.equal(splashHold(0, false), 5200, "normal look: twice the old 2.6 s");
+  assert.equal(splashHold(0, true), 3600, "quiet look: twice the old 1.8 s");
+  assert.equal(splashHold(NaN, false), 5200);
+  assert.equal(splashHold(4000, false), 8000, "twice a slow load");
+  assert.equal(splashHold(60000, false), 12000, "never longer than 12 s");
+  assert.match(js, /performance\.now\(\)/, "load time is measured");
+  assert.match(css, /#cc-startup \{[^}]*transition: opacity \.9s/, "smooth fade");
+  assert.match(css, /#cc-startup \.mm-name \{[^}]*clamp\(3\.2rem, 13vw, 7\.5rem\)/, "title text twice the old size");
+  assert.match(css, /#cc-startup \.mm-tag \{[^}]*clamp\(2\.5rem, 8vw, 4rem\)/);
+  assert.match(css, /#cc-startup \.mm-sub \{[^}]*clamp\(1\.25rem, 4\.4vw, 1\.875rem\)/);
+  assert.match(css, /#cc-startup \{[^}]*text-align: center/, "centered on small windows");
+});

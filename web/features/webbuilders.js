@@ -233,6 +233,20 @@ function boot(view, openId) {
       ${fixes}
       ${publishNote ? `<p class="small">${esc(publishNote)}</p>` : ""}
       ${draft?.artifact ? `<div class="row small" id="bd-personas" style="margin-top:8px"></div>` : ""}`;
+    // Every finished build ends in a result card: where the files went and what to do next.
+    if (step === "done" && window.CC.resultCard) {
+      const mm = draft?.mindmedia;
+      const card = window.CC.resultCard({
+        what: draft?.name ? `${draft.name} is ready` : "Your build is ready",
+        detail: (draft?.written || []).length ? `${draft.written.length} file${draft.written.length === 1 ? "" : "s"} written on this computer.` : "",
+        savedWhere: mm ? `Saved in MindMedia, ${mm.where || "Unfiled"}.` : "Not saved in MindMedia.",
+        item: mm ? { projectId: mm.projectId, assetId: mm.assetId } : null,
+        actions: [
+          { label: "Finish", primary: true, onClick: () => window.CC.openFinishDrawer?.({ kind: "site", text: pageText(draft?.artifact), name: draft?.name, projectId: mm?.projectId, item: mm ? { projectId: mm.projectId, assetId: mm.assetId, kind: "site" } : null, source: "Web builder" }) },
+        ],
+      });
+      box.appendChild(card);
+    }
     // Test with personas: the panel reads the page's words and suggests fixes
     const pt = box.querySelector("#bd-personas");
     if (pt && window.CC.personaButton) pt.appendChild(window.CC.personaButton({ getText: () => pageText(draft?.artifact), kind: current?.builder?.id === "ad-copy" ? "post" : "page" }));
@@ -316,7 +330,8 @@ function boot(view, openId) {
       const tools = (detail.builder?.tools || []).map((tool) => `${tool.name} (${tool.license})`).join(", ");
       root.querySelector("#bd-form").innerHTML = `<h3 style="margin-top:0">${esc(detail.builder.title)}</h3>
         <p class="small" style="margin-top:0">${esc(detail.builder.summary)}</p>
-        <p class="dim small">${esc(detail.gate?.message || "")} ${esc(tools)}</p>
+        ${detail.gate && detail.gate.ok === false ? `<p class="small" id="bd-pro-note" role="status" style="margin:6px 0;padding:8px;border:1px solid var(--line);border-radius:8px"><b>${esc(String(detail.gate.need || "pro").replace(/^./, (c) => c.toUpperCase()))}</b> ${esc(detail.gate.message || "")} ${esc(detail.gate.priceNote || "")}</p>` : ""}
+        <p class="dim small">${detail.gate && detail.gate.ok === false ? "" : esc(detail.gate?.message || "") + " "}${esc(tools)}</p>
         ${fields.main.map((field) => fieldHtml(field, defaults)).join("")}
         <div id="bd-boxes" hidden>
           <p class="small">Meldmind does not give legal, credit, or insurance advice. These boxes are a reminder, not a review.</p>

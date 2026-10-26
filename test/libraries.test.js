@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import http from "node:http";
-import { startServer, ROOT, tmpDir, freePort } from "./helpers.js";
+import { startServer, startMockOpenAI, ROOT, tmpDir, freePort } from "./helpers.js";
 
 // the server modules are imported with a throwaway data folder (they create it on import), never data/
 process.env.CC_DATA_DIR = tmpDir("cc-lib-unit-");
@@ -92,7 +92,9 @@ async function waitRun(s, kind, ms = 120000) {
 const ledger = async (s) => (await s.api("/state")).json.ledger.recent;
 
 test("libraries: index a fixture folder, cited answers, keyword and vector search, caps, delete", { timeout: 240000 }, async () => {
-  const s = await startServer();
+  // The cap part runs on a priced embedder (OpenAI on a loopback mock): practice AIs add $0 (0.4.20).
+  const mock = await startMockOpenAI({ inTok: 100000, outTok: 10 });
+  const s = await startServer({ env: { CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: mock.base } });
   const folder = fixtureCopy();
   try {
     assert.equal((await s.api("/libraries", { noToken: true })).status, 401, "session token required");
@@ -170,20 +172,27 @@ test("libraries: index a fixture folder, cited answers, keyword and vector searc
     assert.ok(council.librarySources.some((x) => x.title === "policies/fleet.html"), "council has the library sources");
 
     // spend cap: indexing refused before any call; questions fall back to keyword search
-    const cap = await s.api("/alerts/caps", { method: "POST", body: { caps: { "demo-nova": 0.000001 } } });
-    assert.ok(cap.json.stop.includes("demo-nova"));
+    assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-test-not-a-real-key-0001" } })).json.status.status, "green");
+    const lib2 = (await s.api("/libraries", { method: "POST", body: { name: "Priced", provider: "openai", model: "text-embedding-3-small" } })).json;
+    assert.match(lib2.id, /^lib-[a-f0-9]{12}$/, JSON.stringify(lib2));
+    const stgP = (await s.api(`/libraries/${lib2.id}/stage`, { method: "POST", body: { kind: "folder", path: folder } })).json;
+    assert.equal((await s.api(`/libraries/${lib2.id}/index`, { method: "POST", body: { stageId: stgP.stageId } })).status, 202);
+    assert.equal((await waitJob(s, lib2.id)).job.status, "done");
+    const cap = await s.api("/alerts/caps", { method: "POST", body: { caps: { openai: 0.000001 } } });
+    assert.ok(cap.json.stop.includes("openai"));
     const ov2 = (await s.api("/libraries")).json;
-    assert.equal(ov2.embedders.find((e) => e.model === "nova-embed").capped, true);
+    assert.equal(ov2.embedders.find((e) => e.model === "text-embedding-3-small").capped, true);
     fs.writeFileSync(path.join(folder, "extra.txt"), "Parking is free for visitors on weekends.");
-    const stg2 = (await s.api(`/libraries/${lib.id}/stage`, { method: "POST", body: { kind: "folder", path: folder } })).json;
+    const stg2 = (await s.api(`/libraries/${lib2.id}/stage`, { method: "POST", body: { kind: "folder", path: folder } })).json;
     assert.equal(stg2.files.length, 1); assert.equal(stg2.estimate.capped, true);
     const n0 = (await ledger(s)).length;
-    const refused = await s.api(`/libraries/${lib.id}/index`, { method: "POST", body: { stageId: stg2.stageId } });
+    const refused = await s.api(`/libraries/${lib2.id}/index`, { method: "POST", body: { stageId: stg2.stageId } });
     assert.equal(refused.status, 402); assert.match(refused.json.error, /spend cap/);
-    const fb = (await s.api(`/libraries/${lib.id}/search?${new URLSearchParams({ q: "ZX-4471 gasket" })}`)).json;
+    const fb = (await s.api(`/libraries/${lib2.id}/search?${new URLSearchParams({ q: "ZX-4471 gasket" })}`)).json;
     assert.equal(fb.mode, "keyword"); assert.match(fb.note, /Keyword search only.*spend cap/); assert.equal(fb.results[0]?.title, "parts.csv");
-    assert.equal((await s.api(`/libraries/${lib.id}/search?${new URLSearchParams({ q: "car", mode: "vector" })}`)).status, 402);
+    assert.equal((await s.api(`/libraries/${lib2.id}/search?${new URLSearchParams({ q: "car", mode: "vector" })}`)).status, 402);
     assert.equal((await ledger(s)).length, n0, "a capped embedder is never called");
+    assert.equal((await s.api(`/libraries/${lib2.id}`, { method: "DELETE" })).status, 200);
     await s.api("/alerts/caps", { method: "POST", body: { caps: {} } });
 
     // remove one document
@@ -200,7 +209,7 @@ test("libraries: index a fixture folder, cited answers, keyword and vector searc
     assert.equal((await s.api("/libraries")).json.libraries.length, 0);
     assert.deepEqual((await s.api("/libraries/attached")).json.ids, []);
     assert.equal((await s.api(`/libraries/${lib.id}/search?q=x`)).status, 404);
-  } finally { await s.stop(); fs.rmSync(folder, { recursive: true, force: true }); }
+  } finally { await s.stop(); await mock.close(); fs.rmSync(folder, { recursive: true, force: true }); }
 });
 
 // ---------- Google Drive and Notion: a local mock of both ----------

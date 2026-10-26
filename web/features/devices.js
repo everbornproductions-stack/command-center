@@ -1,4 +1,4 @@
-// Settings > Devices. The licence server is the list of computers on this key.
+// Settings > Devices. The license server is the list of computers on this key.
 // Removing one is a click. Nothing is removed until the person confirms.
 const { S, api, toast, esc, refresh } = window.CC;
 

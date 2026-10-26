@@ -60,6 +60,20 @@ function renderCols(view) {
   box.innerHTML = `<div class="panel"><h3>${esc(run.prompt.slice(0, 120))}${run.prompt.length > 120 ? "…" : ""} <span class="right small">${done ? `${run.status === "done" ? "finished" : run.status === "waiting" ? "waiting on your plan" : "failed"} · total ${money(run.cost, 5)}` : "running"}</span></h3>
       <div class="small dim">${done && !run.winner && run.status === "done" ? "Pick the winner: it counts as a thumbs-up for that model on this kind of work, and the router learns from it." : run.winner ? `Winner: ${esc(run.winner.name)}. The router will favour it for ${esc(run.capability)} work.` : "Answers stream in as each model writes."}</div></div>
     <div style="display:grid;grid-template-columns:repeat(${run.columns.length}, minmax(240px, 1fr));gap:12px;overflow-x:auto;align-items:stretch">${run.columns.map((c) => columnHtml(c, run)).join("")}</div>`;
+  const winCol = run.winner ? run.columns.find((c) => c.i === run.winner.i) : null;
+  if (winCol?.text && window.CC.resultCard) {
+    const text = winCol.text;
+    const name = `Compare winner: ${run.prompt.slice(0, 60)}`;
+    box.firstElementChild?.after(window.CC.resultCard({
+      what: `Winner: ${run.winner.name}`, detail: "Keep the winning answer or take it to Finish.",
+      savedWhere: "Not saved in MindMedia yet.",
+      actions: [
+        { label: "Copy", onClick: async () => { await navigator.clipboard?.writeText(text); toast("Copied."); } },
+        { label: "Finish", primary: true, onClick: () => window.CC.openFinishDrawer?.({ kind: "text", text, name, source: "Compare" }) },
+        { label: "Save to MindMedia", onClick: () => window.CC.saveToMindMedia({ kind: "text", text, name, source: "Compare", provenance: { prompt: run.prompt, model: run.winner.name }, dedupeKey: `compare:${run.id}` }) },
+      ],
+    }));
+  }
   box.querySelectorAll("[data-win]").forEach((b) => b.addEventListener("click", async () => {
     try { const r = await api(`/compare/${run.id}/winner`, { method: "POST", body: { column: Number(b.dataset.win) } }); st.run = r.run; toast(`${r.run.winner.name} picked. The router will favour it for this kind of work.`); renderCols(view); renderHistory(view); }
     catch (e) { toast(e.message, true); }
@@ -121,7 +135,7 @@ async function renderTab(view) {
   view.querySelectorAll("[data-load]").forEach((b) => b.addEventListener("click", () => { const p = st.presets.find((x) => x.id === b.dataset.load); if (!p) return; st.cols = p.columns.map((c) => ({ ...c })); renderTab(view); }));
   view.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
     const p = st.presets.find((x) => x.id === b.dataset.del);
-    if (!p || !confirm(`Delete the set "${p.name}"?`)) return;
+    if (!p || !(await window.CC.confirm(`Delete the set "${p.name}"?`, { danger: true, ok: "Delete" }))) return;
     try { st.presets = (await api(`/compare/presets/${p.id}`, { method: "DELETE" })).items; renderTab(view); } catch (e) { toast(e.message, true); }
   }));
 }

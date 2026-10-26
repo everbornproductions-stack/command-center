@@ -3,13 +3,14 @@ import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
 import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
+import { failureHtml, wireLimitButtons } from "./failure-cause.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
-import { askText } from "./ask-dialog.js";
+import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -59,6 +60,15 @@ const HUB = (() => {
   return v && v !== location.origin ? v : "";
 })();
 const hubAddress = () => HUB || location.origin;
+// A team invite link ends in #teamjoin=CODE. Keep the code for the Join card on the Together page
+// and clear it from the address bar so it is not left in history.
+const TEAM_JOIN = (() => {
+  try {
+    const m = /(?:^#|&)teamjoin=([A-Za-z0-9_-]{8,80})/.exec(location.hash || "");
+    if (m) { sessionStorage.setItem("cc.teamjoin", m[1]); history.replaceState(null, "", location.pathname + location.search); }
+    return !!sessionStorage.getItem("cc.teamjoin");
+  } catch { return false; }
+})();
 let CONFIG = { mode: "local" };
 // Local mode: the server injects a per-launch session token into index.html; every /api call carries it
 // (X-CC-Token) and it is the first WebSocket message, so a foreign web page cannot drive this console.
@@ -112,6 +122,7 @@ async function apiCall(path, opts = {}) {
     const err = new Error(httpError(r, j));
     if (j?.code) err.code = j.code;
     if (j?.missing) err.missing = j.missing;
+    if (j?.warnings) err.warnings = j.warnings;
     if (j?.questions) err.questions = j.questions;
     if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
@@ -159,7 +170,7 @@ function showUpgrade(message) {
   if (document.getElementById("cc-upgrade")) return;
   const box = document.createElement("div");
   box.id = "cc-upgrade";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a licence key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
   document.body.appendChild(box);
   box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
   box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
@@ -186,7 +197,7 @@ function toastNeedKey() {
   $("#toasts").appendChild(t);
   setTimeout(() => t.remove(), 8000);
 }
-function toast(msg, err = false, link = null) {
+function toast(msg, err = false, link = null, ttl = 0) {
   noteToast();
   if (err && !link && document.getElementById("cc-upgrade") && /part of Pro/.test(String(msg || ""))) return;
   const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
@@ -200,7 +211,7 @@ function toast(msg, err = false, link = null) {
     t.append(a);
   }
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
-  $("#toasts").appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3500);
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), ttl || (err ? 6000 : 3500));
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
@@ -531,7 +542,7 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "" };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
@@ -754,7 +765,8 @@ function setUiMode(mode, opts = {}) {
   S.askMode = false;
   const patch = { uiMode: mode, uiModeChosen: true };
   if (mode === "expert") patch.expertConfirmed = true;
-  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done;
+  // Switching while on Settings keeps Settings in view: no "Expert setup 1 of 5" over it (bug 7).
+  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
   S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
@@ -774,6 +786,7 @@ function setUiMode(mode, opts = {}) {
   if (root) root.dataset.nav = "";
   render();
   window.CC?.tour?.onMode?.();
+  if (mode === "expert" && prev === "simple" && !opts.fromSetup) toast("You are in Expert. Back to Simple any time.");
   api("/settings", { method: "POST", body: patch })
     .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
@@ -907,7 +920,7 @@ function render() {
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
-const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "marketplace", "images", "media", "publish", "remix", "builders", "webbuilders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "community", "help", "settings", "setup"];
+const NAV_ORDER = ["command", "projects", "compare", "pipelines", "agents", "liveview", "schedules", "libraries", "artifacts", "history", "everyday-inbox", "everyday-plan", "everyday-work", "refocus", "brain", "prompts", "marketplace", "images", "media", "mindmedia", "publish", "remix", "builders", "webbuilders", "subscriptions", "credits", "workspaces", "together", "userchat", "reports", "community", "help", "settings", "setup"];
 function knownViews() {
   const have = new Set(NAV_ORDER);
   for (const b of $$("#tabs button[data-view]")) if (!b.dataset.focus) have.add(b.dataset.view);
@@ -1183,9 +1196,10 @@ function syncProjectBar() {
     bar.id = "projbar";
     bar.className = "projbar";
     bar.setAttribute("role", "region");
-    bar.setAttribute("aria-label", "Working in");
+    bar.setAttribute("aria-label", "Project");
     $("#view").before(bar);
   }
+  bar.dataset.view = S.view; // on Chat the picker lives in the chat card, so the bar shows one picker only
   const hadFocus = document.activeElement?.id === "pb-select";
   bar.innerHTML = barHtml({ projects: S.projects || [], selected: S.project, view: S.view });
   const sel = $("#pb-select", bar);
@@ -1219,7 +1233,7 @@ async function restoreDeleted(id) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteForGood(item) {
-  if (!confirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`)) return;
+  if (!(await askConfirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`, { danger: true, ok: "Delete" }))) return;
   try {
     const done = await api(`/projects-deleted/${encodeURIComponent(item.id)}?confirm=yes`, { method: "DELETE" });
     toast((done.receipt?.lines || ["Project deleted for good."]).join(" "));
@@ -1227,7 +1241,7 @@ async function deleteForGood(item) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteProjectSoft(p) {
-  if (!confirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`)) return false;
+  if (!(await askConfirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`, { danger: true, ok: "Delete" }))) return false;
   try {
     await api(`/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
     clearActiveProject(p.id);
@@ -1328,12 +1342,13 @@ function renderSimpleChat(v) {
         <h3>Chat</h3>
         <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
         <div id="cc-emp-hint" aria-live="polite"></div>
         <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
         ${projectField()}
         <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
         <div id="cmd-extras"></div>
-        <div class="row" style="padding-top:4px">
+        <div class="row simple-send-row" style="padding-top:4px">
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
@@ -1351,12 +1366,13 @@ function renderSimpleChat(v) {
       <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
-    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
+    <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
   </div>`;
   wireProjectPicker();
+  paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
-  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "myday"; S.openProject = null; render(); }));
+  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
     if (!item) return;
@@ -1378,7 +1394,7 @@ function renderSimpleChat(v) {
     catch (e) { toast(e.message, true); }
   });
   // AI employees: the best helper for what was typed, one click to use it for this chat
-  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
+  wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
@@ -1396,6 +1412,20 @@ function simpleDayHtml() {
   if (!items.length) return "";
   return `<div class="panel" id="simple-day"><h3>My day</h3><div class="row" style="flex-wrap:wrap;gap:6px">${items.map((view) => `<button type="button" class="btn sm" data-day="${esc(view)}">${esc(labels[view])}</button>`).join("")}</div></div>`;
 }
+// "Continue where I left off" (0.4.20, I13): the newest Start a project build that is not finished.
+const PLAIN_STEP_OF = { idea: "Idea", questions: "Idea", plan: "Plan", build: "Plan", review: "Result" };
+async function paintContinueCard() {
+  const slot = $("#simple-continue");
+  if (!slot || S.uiMode !== "simple") return;
+  let walks = [];
+  try { walks = (await api("/walkthrough?experience=simple")).walks || []; } catch { return; }
+  const w = walks.filter((x) => !x.example && x.stage && x.stage !== "done" && x.idea).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0];
+  const again = $("#simple-continue");
+  if (!w || !again) return;
+  const title = w.plan?.title || w.idea;
+  again.innerHTML = `<div class="panel" id="cc-continue"><h3>Continue where I left off</h3><div class="row" style="gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:180px">${esc(w.typeName || "Project")}: ${esc(String(title).slice(0, 80))} <span class="chip">${esc(PLAIN_STEP_OF[w.stage] || "Idea")}</span></span><button type="button" class="btn sm primary" id="cc-continue-go">Continue</button></div></div>`;
+  $("#cc-continue-go")?.addEventListener("click", () => { if (window.CC?.startProject?.openWalk) window.CC.startProject.openWalk(w.id); else { S.view = "start"; render(); } });
+}
 function paintStarters() {
   const box = $("#cc-starters");
   if (!box) return;
@@ -1412,6 +1442,7 @@ function renderCommand(v) {
         <h3 id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))} <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
         <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
@@ -1741,8 +1772,9 @@ function paintFailure() {
   const slot = $("#cc-fail-slot");
   if (!slot) return;
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = `<div class="route" id="cc-fail" style="margin-top:10px"><b>${esc(FAILURE.title)}</b><div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" type="button" id="cc-fail-retry">${esc(FAILURE.retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(FAILURE.other)}</button></div></div>`;
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
+  wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
   $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
 }
 function outputFollowHtml() {
@@ -1862,7 +1894,7 @@ async function confirmRisky(text) {
   }
   const hits = riskyHits(text, { neverSay, scf });
   if (!hits.length) return true;
-  return confirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`);
+  return (await askConfirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`));
 }
 async function copyDeliverable() {
   const t = S.live.deliverable || $("#out-md")?.innerText || "";
@@ -1901,15 +1933,20 @@ async function sendOrders() {
   if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
     const kind = projectIntent(prompt);
     if (kind) {
+      // The chat box is cleared first: the Start screen replaces the chat view, so #orders may no longer exist afterwards.
+      const draftBox = $("#orders");
+      if (draftBox) draftBox.value = "";
+      S.lastOrders = "";
       try {
         await window.CC.ensureView?.("start");
         if (window.CC.startProject?.startFromChat) {
           await window.CC.startProject.startFromChat(kind, prompt);
-          $("#orders").value = "";
           toast("Started a project for this. Answer a few questions to go on.");
           return;
         }
-      } catch (e) { toast(e.message, true); return; }
+      } catch (e) { S.lastOrders = prompt; toast(e.message, true); return; }
+      S.lastOrders = prompt;
+      if (draftBox && draftBox.isConnected) draftBox.value = prompt;
     }
   }
   S.skipProjectStart = false;
@@ -1962,6 +1999,8 @@ async function sendOrders() {
       S.pendingAvoid = "";
       S.simpleFail = null;
       if (avoid) packBody.avoid = avoid;
+      // "Continue free" after a spending limit: this one answer goes to a free AI
+      if (S.forceFree?.provider) { packBody.provider = S.forceFree.provider; packBody.model = S.forceFree.model; S.forceFree = null; }
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
@@ -1996,8 +2035,59 @@ async function sendOrders() {
 }
 
 // ----- Projects -----
+// Internal planning prompts and the steps of a Start a project build are not chats a person wrote.
+function isInternalRunText(text) { return /^\s*(WALKTHROUGH_[A-Z_]+|[A-Z]{3,}(?:_[A-Z]+)+)\b/.test(String(text || "")); }
+function isStepRun(m) { return /^sp-.+-[^-]+$/.test(String(m?.id || "")); }
+// One row per Start a project build instead of one per step; internal prompts are dropped.
+function visibleRuns(rows) {
+  const out = [], groups = new Map();
+  for (const m of rows || []) {
+    if (!m || isInternalRunText(m.title) || isInternalRunText(m.prompt)) continue;
+    if (isStepRun(m)) {
+      const key = String(m.id).replace(/-[^-]+$/, "");
+      let g = groups.get(key);
+      if (!g) {
+        const proj = (S.projects || []).find((x) => x.id === m.projectId);
+        g = { ...m, kind: "project", title: `Start a project: ${proj?.name || "your steps"}`, cost: 0, steps: 0, _failed: false, _running: false };
+        groups.set(key, g); out.push(g);
+      }
+      g.steps++; g.cost = (Number(g.cost) || 0) + (Number(m.cost) || 0);
+      if (String(m.status || "").startsWith("fail")) g._failed = true;
+      if (m.status === "running") g._running = true;
+      if ((m.startedAt || 0) > (g.startedAt || 0)) g.startedAt = m.startedAt;
+      continue;
+    }
+    out.push(m);
+  }
+  for (const g of groups.values()) { g.status = g._failed ? "failed" : g._running ? "running" : "done"; g.title = `${g.title} (${g.steps} step${g.steps === 1 ? "" : "s"})`; }
+  return out;
+}
+// One status vocabulary for projects, shown as colored chips (0.4.20, I12).
+const PROJECT_STATUS_CLASS = { Draft: "", Review: "amber", Approved: "green", Scheduled: "violet", Published: "green" };
+const PROJECT_STATUSES = Object.keys(PROJECT_STATUS_CLASS);
+function projectStatus(p) { return PROJECT_STATUSES.includes(p?.status) ? p.status : "Draft"; }
+function statusChip(p) { const st = projectStatus(p); return `<span class="chip ${PROJECT_STATUS_CLASS[st]}" data-pstatus="${st}" title="Project status">${st}</span>`; }
+// "What is inside": runs, media (from the media index), links. Media fills in after /projects/summary answers.
+function insideLine(p, runs) {
+  const sum = S.projectSummary?.[p.id];
+  const links = sum ? sum.links : (p.categories || []).reduce((n, c) => n + (c.links || []).length, 0);
+  const parts = [`${runs.length} run${runs.length === 1 ? "" : "s"}`];
+  if (sum) parts.push(`${sum.media} media`);
+  parts.push(`${links} link${links === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+async function loadProjectSummary(v) {
+  try {
+    const r = await api("/projects/summary");
+    S.projectSummary = r.summary || {};
+    for (const el of $$("[data-inside]", v)) {
+      const p = (S.projects || []).find((x) => x.id === el.dataset.inside);
+      if (p) el.textContent = insideLine(p, visibleRuns((S.missions || []).filter((m) => m.projectId === p.id)));
+    }
+  } catch { /* the card keeps its runs and links line */ }
+}
 function recentRunRows(rows) {
-  return (rows || []).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
+  return visibleRuns(rows).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
 }
 function wireRunRows(v) {
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
@@ -2016,11 +2106,11 @@ function wireRunRows(v) {
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
-  v.innerHTML = `<div class="grid" style="grid-template-columns: 1fr 360px">
+  v.innerHTML = `<div class="grid projects-grid">
     <div>
       <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Projects</h3><button class="btn sm" id="newp" style="margin-left:auto">+ New project</button></div>
       <div class="pcards">${S.projects.map((p) => {
-        const runs = S.missions.filter((m) => m.projectId === p.id);
+        const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
         const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
         const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
@@ -2028,7 +2118,8 @@ function renderProjects(v) {
         const expanded = flowOn && S.expandedProjects?.has?.(p.id);
         const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
-          <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <h4>${esc(p.name)} ${statusChip(p)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
           ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
@@ -2054,6 +2145,7 @@ function renderProjects(v) {
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);
+  loadProjectSummary(v);
   $$("[data-pcard-expand]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     const pid = b.dataset.pcardExpand;
@@ -2110,14 +2202,14 @@ function renderProjects(v) {
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
-  const runs = S.missions.filter((m) => m.projectId === p.id);
+  const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
   const tasks = (S.hq?.tasks || []).filter((t) => t.client === p.hqClient);
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
   const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
   const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
   const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
-  v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
+  v.innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:wrap"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2>${statusChip(p)}<select id="proj-status" aria-label="Project status" style="width:auto">${PROJECT_STATUSES.map((st) => `<option value="${st}" ${st === projectStatus(p) ? "selected" : ""}>${st}</option>`).join("")}</select><span class="muted">${esc(p.summary || "")}</span>
     <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
@@ -2137,6 +2229,10 @@ function renderProjectDetail(v, p) {
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
+  $("#proj-status")?.addEventListener("change", async (e) => {
+    try { await api("/projects", { method: "POST", body: { id: p.id, status: e.target.value } }); p.status = e.target.value; toast(`Status: ${e.target.value}.`); await refresh(); }
+    catch (err) { toast(err.message, true); }
+  });
   renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
   $("#pcont")?.addEventListener("click", () => continueProject(p.id));
@@ -2147,7 +2243,7 @@ function renderProjectDetail(v, p) {
       const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
       if (preview?.lines?.length) lines = preview.lines.join("\n");
     } catch { /* the short line above is enough to confirm */ }
-    if (!confirm(`${lines}\n\nDelete this project?`)) return;
+    if (!(await askConfirm(`${lines}\n\nDelete this project?`))) return;
     try {
       const done = await api(`/projects/${p.id}`, { method: "DELETE" });
       const file = done.receipt?.file;
@@ -2246,7 +2342,7 @@ function renderCredits(v) {
       <div class="panel"><h3>Discount windows <span class="right">time-of-day pricing</span></h3>
         ${(S.rules || []).map((r) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="gap:6px"><input type="checkbox" data-rule="${r.id}" ${r.enabled ? "checked" : ""}></label><span class="dot" style="background:${r.color || "#4b5563"}"></span><span><b>${esc(r.providerName)}</b> · ${esc(r.name)} · ${r.pct}% off</span><span style="margin-left:auto" class="${r.activeNow ? "chip green" : "chip"}">${r.activeNow ? "active now" : r.nextStart ? "next " + new Date(r.nextStart).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) : r.enabled ? "no window in 48h" : "off"}</span></div><div class="dim small" style="margin-left:26px">${esc(r.note || "")}</div>`).join("") || `<div class="dim small">No rules.</div>`}
         <div class="dim small" style="margin-top:6px">Rules live in data/pricing-rules.json (provider, % off, peak hours, time zone). Pick "Off-peak" under When in Command to queue a mission for the next window.${(S.scheduled || []).length ? ` <b>${S.scheduled.length} mission${S.scheduled.length === 1 ? "" : "s"} queued.</b>` : ""}</div></div>
-      <div class="panel"><h3>Recent calls <span class="right">✓ = exact billed amount</span></h3><table class="tbl"><tbody>${L.recent.filter((e) => e.kind === "call").slice(0, 12).map((e) => `<tr><td class="dim mono small">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td><span class="dot" style="background:${pcolor(e.provider)}"></span> ${esc(e.model)}</td><td class="dim small">${e.role || ""}</td><td class="right mono dim">${fmtN(e.inTok)}/${fmtN(e.outTok)}</td><td class="right mono">${money(e.cost, 4)}${e.exact ? " ✓" : e.estimated ? "~" : ""}</td></tr>`).join("") || `<tr><td class="dim">No calls yet.</td></tr>`}</tbody></table></div>
+      <div class="panel"><h3>Every call <span class="right">✓ = exact billed amount</span></h3><div class="dim small" style="margin-bottom:6px">Each time an AI was asked: when, which AI, its job in the run, which run, and what it cost. Practice AIs always show $0.</div><table class="tbl" id="cc-call-table"><thead><tr><th>When</th><th>AI</th><th>Job</th><th>Run</th><th class="right">Tokens in / out</th><th class="right">Cost</th></tr></thead><tbody>${L.recent.filter((e) => e.kind === "call").slice(0, 40).map((e) => `<tr><td class="dim mono small">${new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td><span class="dot" style="background:${pcolor(e.provider)}"></span> ${esc(e.model)}${e.demo ? " (practice)" : ""}</td><td class="dim small">${e.role || ""}</td><td class="dim mono small">${e.missionId ? esc(String(e.missionId).slice(-6)) : ""}</td><td class="right mono dim">${fmtN(e.inTok)}/${fmtN(e.outTok)}</td><td class="right mono">${money(e.demo ? 0 : e.cost, 4)}${e.exact ? " ✓" : e.estimated ? "~" : ""}</td></tr>`).join("") || `<tr><td class="dim">No calls yet.</td></tr>`}</tbody></table></div>
     </div>
   </div>`;
   renderExtras("credits", "#credits-extras");
@@ -2273,7 +2369,7 @@ function chooseProPlan(which) {
   const name = plan.button || plan.label || "This plan";
   toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
-// After an Upgrade link opens, re-check the licence every few seconds for two minutes, and on focus.
+// After an Upgrade link opens, re-check the license every few seconds for two minutes, and on focus.
 const paidWatch = createPaidWatch({
   current: () => S.license,
   check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
@@ -2286,15 +2382,15 @@ function bindProPlans(root) {
   $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
     const before = S.license?.tier || "free";
     const lic = await paidWatch.check();
-    if (!lic) { toast("Could not reach the licence server. Try again in a moment.", true); return; }
+    if (!lic) { toast("Could not reach the license server. Try again in a moment.", true); return; }
     if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
-    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your licence key.", true);
+    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your license key.", true);
   }));
 }
 function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a licence key</button></div>
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a license key</button></div>
       ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
       <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
@@ -2327,7 +2423,7 @@ function renderSubscriptions(v) {
     <td><input type="text" data-f="plan" aria-label="${esc(s.name)} plan" value="${esc(s.plan || "")}" style="width:150px;padding:4px 6px"></td>
     <td><input type="number" data-f="monthly" aria-label="${esc(s.name)} dollars per month" value="${s.monthly ?? ""}" placeholder="${s.listPrice != null ? "~" + s.listPrice : "?"}" style="width:80px;padding:4px 6px"></td>
     <td><input type="date" data-f="renews" aria-label="${esc(s.name)} renews on" value="${s.renews || ""}" style="width:140px;padding:4px 6px"></td>
-    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:#1a2333;border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
+    <td><div class="row" style="gap:4px"><input type="number" data-f="credits" aria-label="${esc(s.name)} credits left" value="${s.credits ?? ""}" style="width:80px;padding:4px 6px"><span class="dim">/</span><input type="number" data-f="creditsTotal" aria-label="${esc(s.name)} credits in the plan" value="${s.creditsTotal ?? ""}" style="width:80px;padding:4px 6px"></div>${s.pctLeft != null ? `<div class="meter" style="height:3px;background:var(--sunk-bg,#1a2333);border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:${s.pctLeft}%;background:${s.pctLeft < 20 ? "var(--red)" : "var(--green)"}"></i></div>` : ""}</td>
     <td class="mono small">${s.burnPerDay != null ? `${s.burnPerDay}${s.runway != null ? ` · ${s.runway}d left` : ""}` : "<span class='dim'>-</span>"}</td>
     <td><span class="sig ${s.signal}">${s.signal}</span><div class="dim small">${esc(s.why || "")}</div></td>
     <td class="right"><button class="ghost small" data-save>save</button> <button class="ghost small" data-del style="color:var(--red)" aria-label="Remove ${esc(s.name)} from the tracker">Remove</button></td>
@@ -2338,7 +2434,7 @@ function renderSubscriptions(v) {
     const id = tr.dataset.id;
     const collect = () => { const o = { id }; $$("[data-f]", tr).forEach((i) => { o[i.dataset.f] = i.value === "" ? null : i.type === "number" ? Number(i.value) : i.value; }); return o; };
     $("[data-save]", tr).addEventListener("click", async () => { await api("/subscriptions", { method: "POST", body: collect() }); toast("Saved"); await refresh(); });
-    $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
+    $("[data-del]", tr).addEventListener("click", async () => { if (!(await askConfirm("Remove this subscription from the tracker?", { danger: true, ok: "Remove" }))) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
   $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
@@ -2380,12 +2476,12 @@ function phonePanel() {
 function licenceCloudFields() {
   if (S.mode === "hosted") return "";
   if (S.uiMode !== "expert") {
-    return `<div class="dim small" style="margin-top:8px">The licence connection ships with the app. The setup fields stay in Expert.</div>`;
+    return `<div class="dim small" style="margin-top:8px">The license connection ships with the app. The setup fields stay in Expert.</div>`;
   }
-  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No licence server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
-  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Licence server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
+  const missing = S.license?.configured ? "" : `<div class="dim small" style="margin-top:8px">No license server is configured, so this copy runs on the Free tier. The desktop build ships with the connection built in. When running from source, enter the project URL and publishable key below, or set CC_SUPABASE_URL and CC_SUPABASE_ANON_KEY.</div>`;
+  return `${missing}<details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">License server connection${S.license?.cloudSource ? ` · using ${esc(S.license.cloudSource)}` : ""}</summary>
     <div class="row" style="margin-top:8px"><input type="text" id="cl-url" placeholder="https://your-project.example" value="${esc(S.settings.cloud?.url || S.license?.cloudUrl || "")}" style="flex:1"><input type="password" id="cl-key" placeholder="publishable key (required)" style="flex:1" autocomplete="off"><button class="btn sm" id="cl-save">Save</button></div>
-    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the licence is re-checked against the new server.</div></details>`;
+    <div class="dim small" style="margin-top:6px">Both fields are required. Changing the project never raises the tier: the license is re-checked against the new server.</div></details>`;
 }
 function openSettingsMore(focus) {
   S.settingsMore = true;
@@ -2523,7 +2619,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · <a href="#" id="s-find-ais">Find my AIs</a> · `}Version, Check for updates, and About are in Help.</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · ${S.uiMode === "simple" ? "" : `<a href="#" id="s-find-ais">Find my AIs</a> · `}`}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2533,13 +2629,13 @@ function renderSettings(v) {
       ${S.mode === "hosted" ? `<div class="panel"><h3>Account <span class="right">${esc(S.user?.email || "")}</span></h3>
         <div class="row"><span class="small muted">Signed in to the hub at <span class="mono">${esc(hubAddress())}</span>.</span><button class="btn sm" id="acct-out" style="margin-left:auto">Sign out</button></div></div>` : ""}
       ${phonePanel()}
-      <div class="panel" id="settings-plan"><h3>Licence &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no licence server"}</span></h3>
-        <label class="small" for="lic-key"><b>Licence key or promo code</b></label>
+      <div class="panel" id="settings-plan"><h3>License &amp; cloud <span class="right">tier: ${esc(S.license?.tier || "free")}${S.license?.configured ? "" : " · no license server"}</span></h3>
+        <label class="small" for="lic-key"><b>License key or promo code</b></label>
         <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
         <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
         ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}</div>`}
-        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my license</button></div>
         ${licenceCloudFields()}
       </div>
       <div id="settings-extras" class="grid" style="gap:16px"></div>
@@ -2583,13 +2679,13 @@ function renderSettings(v) {
     const wsOnly = !key && wsEl && P(id)?.keyed && workspaceId !== (P(id)?.workspaceId || "");
     if (!key && !wsOnly) return toast("Paste the key first", true);
     const sug = key ? await suggestKey(key) : null;
-    if (sug && sug.provider !== id && sug.confidence === "high" && confirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`)) return saveKeyAs(sug, key);
+    if (sug && sug.provider !== id && sug.confidence === "high" && (await askConfirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`))) return saveKeyAs(sug, key);
     b.disabled = true; b.textContent = "Testing…";
     try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
-  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`)) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
+  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`, { danger: true, ok: "Remove" }))) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
   $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {
     try { await api("/connect/active", { method: "POST", body: { provider: b.dataset.prov, mode: b.dataset.conn } }); await refresh(); }
     catch (e) { toast(e.message, true); }
@@ -2635,7 +2731,7 @@ function renderSettings(v) {
   $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); restartFullSetup(); });
   $("#s-find-ais")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
-  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
+  $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); toast("Checking the hub..."); fetch(v + "/api/config", { redirect: "manual" }).then((r) => { if (!r.ok) throw new Error("no hub"); localStorage.setItem("cc.hub", v); location.reload(); }).catch(() => toast("Meldmind could not reach a hub at that address, so nothing was changed. Check the address and try again.", true)); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
   $("#hub-copy")?.addEventListener("click", () => { navigator.clipboard.writeText(hubAddress()); toast("Link copied"); });
   if ($("#hub-qr")) apiBlobUrl(`/pair/qr.svg?u=${encodeURIComponent(hubAddress())}`).then((u) => { const img = $("#hub-qr"); if (img) img.src = u; }).catch(() => {});
@@ -2661,21 +2757,21 @@ function renderSettings(v) {
   if ($("#pair-qr")) apiBlobUrl("/pairing/qr.svg").then((u) => { const img = $("#pair-qr"); if (img) img.src = u; }).catch((e) => { const el = $("#pair-error"); if (el) el.textContent = e.message; });
   bindProPlans(v);
   $("#sub-lic")?.addEventListener("click", () => { $("#lic-key")?.focus(); });
-  // One box: the server tells a licence key from a promo code (EVERBORN-OWNER, TEST-...).
+  // One box: the server tells a license key from a promo code (EVERBORN-OWNER, TEST-...).
   $("#lic-go")?.addEventListener("click", async () => {
     const value = $("#lic-key").value.trim();
-    if (!value) { toast("Enter your licence key or promo code.", true); $("#lic-key").focus(); return; }
-    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `Licence active: ${S.license.tier}` : (S.license.message || "Licence checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
+    if (!value) { toast("Enter your license key or promo code.", true); $("#lic-key").focus(); return; }
+    try { S.license = await api("/license", { method: "POST", body: { key: value, email: $("#lic-email")?.value || S.user?.email } }); toast(S.license.status === "active" ? `License active: ${S.license.tier}` : (S.license.message || "License checked"), S.license.status !== "active"); render(); } catch (e) { toast(e.message, true); }
   });
   $("#lic-re")?.addEventListener("click", async () => { try { S.license = await api("/license/recheck", { method: "POST" }); toast(S.license.message || "Re-checked"); render(); } catch (e) { toast(e.message, true); } });
-  $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("Licence server saved; re-checking the licence"); render(); } catch (e) { toast(e.message, true); } });
+  $("#cl-save")?.addEventListener("click", async () => { try { const r = await api("/cloud", { method: "POST", body: { url: $("#cl-url").value, anonKey: $("#cl-key").value } }); S.settings.cloud = r.cloud; S.license = r.license; toast("License server saved; re-checking the license"); render(); } catch (e) { toast(e.message, true); } });
   renderUpdateBox();
   $("#s-demo").addEventListener("change", async (e) => { const r = await api("/demo", { method: "POST", body: { on: e.target.checked } }); S.demo = r.demo; toast(r.demo ? "Demo AIs online" : "Demo AIs offline"); await refresh(); });
   wireOpenRouterStart(v);
   wireAnyKey(v);
   $("#cp-add")?.addEventListener("click", () => openCustomForm());
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
-  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
+  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`, { danger: true, ok: "Delete" }))) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
   $("#settings-back")?.addEventListener("click", () => { S.settingsMore = false; S.navFocus = ""; render(); });
   $("#settings-find")?.addEventListener("input", (e) => {
@@ -2686,7 +2782,28 @@ function renderSettings(v) {
     });
   });
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); el?.querySelector?.('[data-key], input:not([type="hidden"]):not([disabled])')?.focus?.(); S.focusProvider = null; }
-  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => { const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  // Section chips filter the long page: pick one and only that section shows; "Show all" brings the rest back (bug 12).
+  const groupIds = ["settings-group-my-ais", "settings-group-projects-media", "settings-group-privacy", "settings-group-notifications", "settings-group-advanced"];
+  const groupOf = new Map();
+  const first = $("#settings-keys", v);
+  if (first?.parentElement) {
+    let cur = "";
+    for (const child of first.parentElement.children) {
+      if (child.id === "settings-groups-bar") continue;
+      const hit = groupIds.find((g) => child.id === g || child.querySelector?.(`#${g}`));
+      if (hit) cur = hit;
+      groupOf.set(child, cur);
+    }
+  }
+  const showGroup = (g) => { for (const [el, grp] of groupOf) el.hidden = !!g && grp !== g; $("#settings-show-all", v)?.toggleAttribute("hidden", !g); };
+  const chipBar = $("#settings-groups-bar .row", v);
+  if (chipBar && groupOf.size) chipBar.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm" id="settings-show-all" hidden>Show all</button>`);
+  $("#settings-show-all", v)?.addEventListener("click", () => showGroup(""));
+  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => {
+    const g = b.dataset.settingsJump.slice(1);
+    if (groupOf.size && groupIds.includes(g)) showGroup(g);
+    const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   $("#s-proj-uimode", v)?.addEventListener("change", async (e) => {
     const pid = e.target.dataset.projUimode;
     const modeVal = e.target.value || null;
@@ -2713,6 +2830,16 @@ function renderSettings(v) {
 }
 
 async function refresh() { applyState(await api("/state")); renderStrip(); renderBudget(); render(); }
+// Pull the project list and runs again without repainting the page (a Start a project build adds a project).
+async function syncProjects() {
+  try {
+    const st = await api("/state");
+    if (Array.isArray(st.projects)) S.projects = st.projects;
+    if (Array.isArray(st.missions)) S.missions = st.missions;
+    if (Array.isArray(st.deletedProjects)) S.deletedProjects = st.deletedProjects;
+    if (S.view === "projects" && !S.openProject && document.querySelector(".pcards")) render();
+  } catch { /* the next refresh will catch up */ }
+}
 
 // ----- Keys for any provider (v0.3.1) -----
 function keyToast(id, r) {
@@ -2773,7 +2900,7 @@ function wireAnyKey(root) {
       return;
     }
     out.textContent = `Looks like a ${sug.name} key${sug.confidence === "high" ? "" : " (best guess)"}.`;
-    if (sug.confidence !== "high" && !confirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`)) return;
+    if (sug.confidence !== "high" && !(await askConfirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`))) return;
     await saveKeyAs(sug, key);
   });
 }
@@ -3016,7 +3143,8 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
@@ -3087,7 +3215,7 @@ async function saveSetupUsername(useDefault) {
   const saved = st?.usernameSaved || "";
   if (saved) {
     if (useDefault || !st?.usernameTouched || !typed || typed === saved) return;
-    if (!confirm(`Change your saved username from "${saved}" to "${typed}"?`)) return;
+    if (!(await askConfirm(`Change your saved username from "${saved}" to "${typed}"?`))) return;
   }
   const username = useDefault ? (suggestion || typed) : (typed || suggestion);
   if (!username) return;
@@ -3149,7 +3277,7 @@ function welcomeAppsHtml() {
 async function saveWelcomeKey(st) {
   const key = ($("#su-or-key")?.value || st.orKey || "").trim();
   if (!key) return false;
-  if (P("openrouter")?.keyed && !confirm("An OpenRouter key is already saved in the vault. Replace it?")) return false;
+  if (P("openrouter")?.keyed && !(await askConfirm("An OpenRouter key is already saved in the vault. Replace it?"))) return false;
   const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
   st.orKey = "";
   keyToast("openrouter", r);
@@ -3392,7 +3520,7 @@ function renderSetup(v) {
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-h" ${st.history ? "checked" : ""} style="margin-top:4px"><div><b>Look at my browser history to find the AIs and creative tools I use</b><div class="dim small">Reads Chrome / Edge / Brave history files locally for the last <input type="number" id="su-days" value="${st.days}" style="width:64px;padding:2px 6px;display:inline"> days, counts visits to known AI sites, then deletes the temporary copy. You see the list and choose what to connect.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-k" ${st.keys ? "checked" : ""} style="margin-top:4px"><div><b>Check whether any AI API keys are already on this PC</b><div class="dim small">Looks at environment variables such as ANTHROPIC_API_KEY or OPENAI_API_KEY. Found keys are shown masked; you decide which to import into the sealed vault.</div></div></label>
           <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-b" ${st.bookmarks ? "checked" : ""} style="margin-top:4px"><div><b>Organize my AI bookmarks</b><div class="dim small">Builds a "🤖 AI" bookmark folder (chat, video, music, dev, billing pages) from what was found. You can download it as an import file or let the app add it to Chrome directly (that closes and reopens Chrome). The next page also offers to sort the bookmarks you already have into folders by topic, with a preview before anything changes.</div></div></label>
-          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a licence key in Settings. Nothing is installed or bought."}</div></div></label>
+          <label class="route row" style="gap:14px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="su-desktop" ${S.license?.limits?.appScan && st.desktop ? "checked" : ""} ${S.license?.limits?.appScan ? "" : "disabled"} style="margin-top:4px"><div><b>Let Meldmind use your desktop</b><div class="dim small">${S.license?.limits?.appScan ? "Lists installed programs by name. On Windows that is the uninstall list and the Start menu, plus command-line tools on PATH. File contents are not read. You allow each app on the next page. Nothing is installed or bought." : "Program scan is part of Pro. Add a license key in Settings. Nothing is installed or bought."}</div></div></label>
         </div>
         <div class="panel" id="su-desktop-card" style="margin-top:16px">
           <h3 style="margin:0 0 6px">Let Meldmind use your desktop</h3>
@@ -3400,7 +3528,7 @@ function renderSetup(v) {
           ${S.license?.limits?.desktop ? `<div class="row" style="margin-top:10px">
             <button class="btn sm primary" id="su-agy-allow" type="button">Allow Antigravity</button>
             ${(S.cli || []).some((x) => /antigravity|agy/i.test(x)) || P("antigravity")?.status?.status === "green" ? `<span class="chip green" id="su-agy-connected">Antigravity connected</span>` : `<button class="btn sm" id="su-agy-install" type="button">Install and connect</button>`}
-          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a licence key in Settings.</div>`}
+          </div>` : `<div class="dim small" style="margin-top:8px">Desktop control is part of Pro. Add a license key in Settings.</div>`}
         </div>
         <div id="su-prompts" style="margin-top:16px"></div>
         <div class="row" style="margin-top:22px"><button class="btn primary" id="su-go" ${st.busy ? "disabled" : ""}>${st.busy ? "Scanning…" : "Start"}</button><button class="btn" id="su-skip">Skip, I'll add keys myself</button><span class="dim small" style="margin-left:auto">You can run this again from Settings.</span></div>
@@ -3446,7 +3574,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
     });
     $("#su-agy-install")?.addEventListener("click", async () => {
-      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      if (!(await askConfirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password."))) return;
       try {
         const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
         toast(r.message || "Installer finished", !r.ok);
@@ -3510,7 +3638,7 @@ function renderSetup(v) {
   renderExtras("setup", "#su-extras");
   renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !(await askConfirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`))) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-tools-toggle", v)?.addEventListener("click", (e) => {
@@ -3519,7 +3647,7 @@ function renderSetup(v) {
     boxes.forEach((c) => { c.checked = next; });
     e.currentTarget.textContent = next ? "Deselect All" : "Select All";
   });
-  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
+  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!(await askConfirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`))) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => {
@@ -3558,7 +3686,7 @@ async function finishAiSetup(nextView, { quiet = false } = {}) {
     // After the welcome screen: no desktop card and no tour this session (0.4.17).
     if (S.setup?.phase === "welcome") { S.setup.phase = ""; S.firstRunDone = true; window.CC?.tour?.sync?.(); }
     S.view = nextView;
-    if (nextView === "command" && !quiet) toast("Setup complete");
+    if (nextView === "command" && !quiet) toast("Setup complete. You are in Chat. Type below.", false, null, 6000);
     render();
   } catch (e) { toast(e.message, true); }
 }

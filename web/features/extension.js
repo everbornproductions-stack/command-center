@@ -51,7 +51,7 @@ async function renderSettings(el) {
       el.querySelector("#ext-copy").addEventListener("click", () => navigator.clipboard.writeText(r.code).then(() => toast("Copied")).catch(() => {}));
     } catch (e) { toast(e.message, true); }
   });
-  el.querySelectorAll("[data-ext-unpair]").forEach((b) => b.addEventListener("click", async () => { if (!confirm("Unpair this browser? Its code stops working at once.")) return; await api(`/extension/pairings/${b.dataset.extUnpair}`, { method: "DELETE" }); toast("Unpaired"); renderSettings(el); }));
+  el.querySelectorAll("[data-ext-unpair]").forEach((b) => b.addEventListener("click", async () => { if (!(await window.CC.confirm("Unpair this browser? Its code stops working at once.", { danger: true, ok: "Unpair" }))) return; await api(`/extension/pairings/${b.dataset.extUnpair}`, { method: "DELETE" }); toast("Unpaired"); renderSettings(el); }));
 }
 
 window.CC.register({

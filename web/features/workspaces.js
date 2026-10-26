@@ -107,12 +107,14 @@ function readCard(w) {
 }
 const card = (w) => (w.permissions["members.invite"] || w.permissions["projects.share"] ? manageCard(w) : readCard(w));
 
+const planName = (t) => ({ free: "Free", pro: "Pro", studio: "Pro", extreme: "Extreme", owner: "Owner" }[t] || String(t || "Free"));
+
 async function render(v) {
   v.innerHTML = `<div class="empty">Loading workspaces...</div>`;
   try { await load(); } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  const gateCard = !data.studio ? `<div class="panel" style="border-color:var(--violet)"><h3>Studio feature <span class="right">your tier: ${esc(data.tier)}</span></h3>
-      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Studio</b>; add a Studio licence in Settings. Workspaces others shared with you still show below.</div></div>` : "";
-  const localNote = !data.hosted ? `<div class="dim small" style="margin-bottom:12px">Desktop copy: workspaces you set up here are kept on this PC and work offline. Teammates join through the hosted hub (docs/hosted-hub.md).</div>` : "";
+  const gateCard = !data.studio ? `<div class="panel" style="border-color:var(--violet)"><h3>Teams are part of Pro and Extreme <span class="right">your plan: ${esc(planName(data.tier))}</span></h3>
+      <div>Teams let you invite teammates or clients with a role, share only the projects you choose, and see each member's AI usage. Creating a workspace is part of <b>Pro</b> and <b>Extreme</b>. Choose a plan in Settings. Workspaces others shared with you still show below.</div></div>` : "";
+  const localNote = !data.hosted ? `<div class="dim small" style="margin-bottom:12px">Desktop copy: workspaces you set up here are kept on this PC and work offline. Teammates join with an invite code from you, or through a hosted hub if your team has one.</div>` : "";
   const roleKey = `<details class="small" style="margin-top:4px"><summary class="dim">What each role can do</summary>${Object.entries(ROLE_HELP).map(([r, t]) => `<div><b>${r}</b>: ${esc(t)}</div>`).join("")}</details>`;
   const active = all().find((w) => w.id === data.active);
   v.innerHTML = `<div style="max-width:1100px;margin:0 auto" class="grid">
@@ -147,12 +149,12 @@ async function render(v) {
   $("#ws-new", v)?.addEventListener("submit", (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (name) act(() => api("/workspaces", { method: "POST", body: { name } }), "Workspace created"); });
   $$("[data-ws]", v).forEach((cardEl) => {
     const id = cardEl.dataset.ws;
-    cardEl.querySelector("[data-del]")?.addEventListener("click", () => { if (confirm("Delete this workspace? Members lose access; your projects are not touched.")) act(() => api(`/workspaces/${id}`, { method: "DELETE" }), "Workspace deleted"); });
+    cardEl.querySelector("[data-del]")?.addEventListener("click", async () => { if ((await window.CC.confirm("Delete this workspace? Members lose access; your projects are not touched.", { danger: true, ok: "Delete" }))) act(() => api(`/workspaces/${id}`, { method: "DELETE" }), "Workspace deleted"); });
     cardEl.querySelector("[data-rename]")?.addEventListener("click", async () => { const name = await window.CC.ask("New name for this workspace"); if (name?.trim()) act(() => api(`/workspaces/${id}`, { method: "PATCH", body: { name: name.trim() } }), "Renamed"); });
     cardEl.querySelector("[data-invite]")?.addEventListener("submit", (e) => { e.preventDefault(); const email = e.target.querySelector("input").value.trim(); const role = e.target.querySelector("select").value; if (email) invite(id, email, role); });
     cardEl.querySelectorAll("[data-relink]").forEach((b) => b.addEventListener("click", () => invite(id, b.dataset.relink, b.dataset.r)));
     cardEl.querySelectorAll("[data-role]").forEach((s) => s.addEventListener("change", () => act(() => api(`/workspaces/${id}/members/${encodeURIComponent(s.dataset.role)}`, { method: "PATCH", body: { role: s.value } }), `Role changed to ${s.value}`)));
-    cardEl.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => { if (confirm(`Remove ${b.dataset.rm} from this workspace?`)) act(() => api(`/workspaces/${id}/members/${encodeURIComponent(b.dataset.rm)}`, { method: "DELETE" }), "Member removed"); }));
+    cardEl.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => { if ((await window.CC.confirm(`Remove ${b.dataset.rm} from this workspace?`, { danger: true, ok: "Remove" }))) act(() => api(`/workspaces/${id}/members/${encodeURIComponent(b.dataset.rm)}`, { method: "DELETE" }), "Member removed"); }));
     cardEl.querySelectorAll("[data-share]").forEach((cb) => cb.addEventListener("change", () => act(() => cb.checked ? api(`/workspaces/${id}/projects`, { method: "POST", body: { projectId: cb.dataset.share } }) : api(`/workspaces/${id}/projects/${encodeURIComponent(cb.dataset.share)}`, { method: "DELETE" }), cb.checked ? "Project shared" : "Project unshared")));
     cardEl.querySelector("[data-sync]")?.addEventListener("click", () => act(() => api(`/workspaces/${id}/sync`, { method: "POST" }), "Members now see the latest links"));
   });

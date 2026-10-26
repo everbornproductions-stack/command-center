@@ -100,7 +100,7 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
         assert.equal(r.ok, !!value, `${tier} ${key}`);
         if (!value) {
           assert.ok(r.code === "pro_required" || r.code === "extreme_required", `${tier} ${key} ${r.code}`);
-          assert.match(r.message, /Add a licence key in Settings/);
+          assert.match(r.message, /Add a license key in Settings/);
         }
         continue;
       }
@@ -116,7 +116,7 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
       }
       const at = evaluateGate(limits, key, infoFor(key, value));
       assert.equal(at.ok, false, `${tier} ${key} at ${value}`);
-      assert.match(at.message, /Add a licence key in Settings/);
+      assert.match(at.message, /Add a license key in Settings/);
     }
   }
 
@@ -171,7 +171,7 @@ test("every gate allows under the cap and denies at the cap on Free, Pro, and Ex
   assert.equal(LIMITS.studio.label, "Studio");
 
   const ws = fs.readFileSync(path.join(ROOT, "server", "plugins", "workspaces.js"), "utf8");
-  assert.match(ws, /const STUDIO = new Set\(\["studio", "owner"\]\)/);
+  assert.match(ws, /const STUDIO = new Set\(TEAM_TIERS\)/);
 });
 
 test("the comparison table is Free, Pro, and Extreme", () => {
@@ -417,7 +417,7 @@ test("phase gates: second opinion, HighLevel, own Supabase are open; packs are P
   assert.equal(decide("free", "not-a-feature").code, "pro_required");
 });
 
-test("a stored Extreme licence opens the phase gates", async () => {
+test("a stored Extreme license opens the phase gates", async () => {
   const s = await startServer({
     seed: (dir) => {
       fs.writeFileSync(path.join(dir, "license.json"), JSON.stringify({

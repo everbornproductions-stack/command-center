@@ -9,17 +9,17 @@ lastUpdatedVersion: 0.4.13
 
 Community is in the Connect menu, in the People section with People and Together. In Simple it is on the bar when there is room, or under More.
 
-Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your licence email and a display name. Click Send to post. Keys and private files are refused.
+Community chat has channels for General, Prompts, Builders, Help, and Show and tell. Sign in with your license email and a display name. Click Send to post. Keys and private files are refused.
 
 Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. It is 3 to 20 characters, letters, numbers, and underscore, and it has to be unique. Names like meldmind, admin, and everborn are refused. Your email is never shown. The same name is used in community chat, on shared and voted prompts, in the Builders gallery, and on AI News reactions and comments. You can change it in Settings, then wait an hour before the next change.
 
-AI News sits next to those channels. It updates weekly from Supabase, so a new issue does not need an app update. It lists model releases, price changes, and new features from major AI providers, each with a source link, plus Meldmind features, top voted prompts, and community highlights. An unread badge shows until you open it. You can react and share an item into chat. A draft waits for the owner before it is published.
+AI News sits next to those channels. It updates weekly from Supabase, so a new issue does not need an app update. It lists model releases, price changes, and new features from major AI providers, each with a source link, plus Meldmind features, top voted prompts, and community highlights. An unread badge shows until you open it. On a wide window the AI News panel starts open in its own column (left or right, it remembers), with a Refresh button and, before the first issue, what Meldmind shipped this week; on a phone it is a small AI News button above the bottom menu. Anyone signed in can post to Community, free or paid; if the shared room cannot be reached you can read, and your message stays on your computer. You can react and share an item into chat. A draft waits for the owner before it is published.
 
 Email me the weekly note is off until you tick it in Settings or during setup. The app writes the note and does not send email. The note has an unsubscribe link and an Everborn Productions address placeholder.
 
 ## How to join
 
-Use the email on your licence to join chat. The public name is the one username on your account. Nothing is posted until you click Send. A comment is a click too.
+Use the email on your license to join chat. The public name is the one username on your account. Nothing is posted until you click Send. A comment is a click too.
 
 Share a prompt, a builder, or a mission with Share in chat. That click is the post. If you have not joined, the app opens Community and does not post.
 

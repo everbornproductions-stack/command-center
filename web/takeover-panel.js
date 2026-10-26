@@ -9,6 +9,30 @@ export function isOwnerTier(S) {
   return S?.license?.tier === "owner";
 }
 
+// Words that make a line in a copied task worth a second look: it sends, deletes, pays or shares.
+const RISKY_LINE = /\b(send|sends|sending|email|emails|mail|forward|post|posts|publish|share|upload|text|sms|delete|deletes|remove|erase|wipe|drop|pay|pays|payment|charge|buy|purchase|transfer|wire|refund|invoice|password|api[ -]?key|token|secret|credentials?|install|download|run|execute)\b/gi;
+export function riskyLines(prompt) {
+  return String(prompt || "").split("\n").filter((line) => { RISKY_LINE.lastIndex = 0; return RISKY_LINE.test(line); });
+}
+// A copy with every send, delete or pay line removed. Nothing is changed until the person copies it.
+export function saferCopy(prompt) {
+  const bad = new Set(riskyLines(prompt));
+  return String(prompt || "").split("\n").filter((line) => !bad.has(line) && line.trim()).join("\n");
+}
+function markRisky(text) {
+  return esc(text).replace(new RegExp(RISKY_LINE.source, "gi"), (m) => `<mark style="background:#f5d76e;color:#111;padding:0 2px">${m}</mark>`);
+}
+function promptBlock(t) {
+  if (!t.prompt) return "";
+  const full = String(t.prompt);
+  const risky = riskyLines(full).length;
+  const note = risky ? `<div style="font-size:14px;margin-bottom:4px">${risky} line${risky === 1 ? "" : "s"} below ${risky === 1 ? "sends, deletes or pays" : "send, delete or pay"}. They are highlighted.</div>` : "";
+  const open = full.length <= 240 ? " open" : "";
+  const safer = risky ? `<button type="button" class="btn sm" data-tk-safer="${esc(t.id)}" data-tk-safer-text="${esc(saferCopy(full))}">Safer copy</button>` : "";
+  return `<details class="tk-prompt"${open} style="margin:4px 0"><summary style="font-size:14px;cursor:pointer">Show all (${full.length} characters)</summary>
+    ${note}<div style="font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere">${markRisky(full)}</div>${safer}</details>`;
+}
+
 export function taskRowHtml(t) {
   const when = t.when ? esc(t.when) : "time not found";
   const state = t.takenSchedule ? `<span class="pill green">Taken over (paused in Schedules)</span>` : t.active ? "" : `<span class="pill">Paused there</span>`;
@@ -18,7 +42,7 @@ export function taskRowHtml(t) {
   return `<div class="tk-row" style="padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere">
     <div class="row" style="gap:8px;flex-wrap:wrap"><b>${esc(t.name)}</b><span class="small dim">from ${esc(t.sourceName)}</span>${state}</div>
     <div class="small muted">Runs: ${when}</div>
-    ${t.prompt ? `<div class="small dim" style="white-space:pre-wrap;max-height:80px;overflow:auto">${esc(t.prompt.slice(0, 300))}</div>` : ""}
+    ${promptBlock(t)}
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${buttons}</div></div>`;
 }
 
@@ -74,33 +98,36 @@ export async function mount(host) {
     q("#tk-paste-toggle")?.addEventListener("click", () => { const p = q("#tk-paste"); p.hidden = !p.hidden; });
     q("#tk-paste-go")?.addEventListener("click", guarded(async () => { st.review = await api("/takeover/import", { method: "POST", body: { text: q("#tk-paste-text").value, label: "Pasted export" } }); st.msg = "Read the export."; draw(); }));
     host.querySelectorAll("[data-tk-take]").forEach((b) => b.addEventListener("click", guarded(async () => {
-      if (!confirm("Copy this task into Schedules? It starts paused, so nothing runs twice.")) return;
+      if (!(await window.CC.confirm("Copy this task into Schedules? It starts paused, so nothing runs twice."))) return;
       const cron = host.querySelector(`[data-tk-cron="${b.dataset.tkTake}"]`)?.value || "";
       const r = await api(`/takeover/task/${b.dataset.tkTake}/take`, { method: "POST", body: { confirm: true, cron } });
       st.review = r.view; st.msg = "Taken over. Find it in Schedules, paused."; draw();
     })));
+    host.querySelectorAll("[data-tk-safer]").forEach((b) => b.addEventListener("click", guarded(async () => {
+      try { await navigator.clipboard.writeText(b.dataset.tkSaferText || ""); toast("Safer copy is on your clipboard. Nothing was changed."); } catch { toast("Could not copy. Select the text and copy it yourself.", true); }
+    })));
     host.querySelectorAll("[data-tk-skip]").forEach((b) => b.addEventListener("click", guarded(async () => { st.review = await api(`/takeover/task/${b.dataset.tkSkip}/dismiss`, { method: "POST", body: {} }); draw(); })));
     host.querySelectorAll("[data-tk-pause]").forEach((b) => b.addEventListener("click", guarded(async () => {
-      if (!confirm("Ask the other AI to pause its own copy of this task?")) return;
+      if (!(await window.CC.confirm("Ask the other AI to pause its own copy of this task?"))) return;
       const r = await api(`/takeover/task/${b.dataset.tkPause}/pause-original`, { method: "POST", body: { confirm: true } });
       st.review = r.view; draw();
     })));
     q("#tk-prev")?.addEventListener("click", guarded(async () => { const id = q("#tk-proj").value; if (!id) return; st.mirror = await api(`/takeover/mirror/${encodeURIComponent(id)}`); draw(); q("#tk-proj").value = id; }));
     host.querySelectorAll("[data-tk-mirror]").forEach((b) => b.addEventListener("click", guarded(async () => {
       const [kind, id] = b.dataset.tkMirror.split("|");
-      if (!confirm("Send this project brief? It has the name, summary and section names only.")) return;
+      if (!(await window.CC.confirm("Send this project brief? It has the name, summary and section names only."))) return;
       const r = await api(`/takeover/mirror/${encodeURIComponent(b.dataset.tkProj)}`, { method: "POST", body: { kind, id, confirm: true } });
       toast(`Sent to ${r.target}`);
     })));
     q("#tk-own-save")?.addEventListener("click", guarded(async () => {
       const patch = {};
       host.querySelectorAll("[data-tk-own]").forEach((el) => { patch[el.dataset.tkOwn] = el.value; });
-      if (!confirm("Save these owner settings?")) return;
+      if (!(await window.CC.confirm("Save these owner settings?"))) return;
       await api("/takeover/owner/change", { method: "POST", body: { patch, confirm: true } });
       toast("Saved"); refresh();
     }));
     q("#tk-own-undo")?.addEventListener("click", guarded(async () => {
-      if (!confirm("Put the last owner change back?")) return;
+      if (!(await window.CC.confirm("Put the last owner change back?"))) return;
       await api("/takeover/owner/undo", { method: "POST", body: { confirm: true } });
       toast("Put back"); refresh();
     }));

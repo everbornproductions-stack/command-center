@@ -65,9 +65,10 @@ export function mountBar(el, opts = {}) {
   const addTo = async (projectId) => {
     try {
       if (opts.addTo) await opts.addTo(projectId);
+      else if (CC().saveToMindMedia && text) await CC().saveToMindMedia({ kind: kind === "command" ? "text" : undefined, text, projectId, source: "Add to project", name: opts.name || text.slice(0, 60), quiet: true });
       else await api("/nextactions/add", { method: "POST", body: { projectId, kind, ref: opts.ref || "", name: opts.name || text.slice(0, 60) } });
       const name = (S.projects || []).find((p) => p.id === projectId)?.name || "the project";
-      toast(`Added to ${name}.`);
+      toast(`Added to ${name}. Find it in MindMedia.`);
       pick.hidden = true;
     } catch (e) { toast(e.message, true); }
   };
@@ -85,6 +86,7 @@ export function mountBar(el, opts = {}) {
   const toFinish = () => {
     if (opts.finish) { opts.finish(); return; }
     CC()._finishText = { kind, text };
+    if (CC().openFinishDrawer) { CC().openFinishDrawer({ kind, text, name: opts.name, source: "Finish" }); return; }
     toast("Sent to Finish. Check it, then publish.");
     go("publish");
   };

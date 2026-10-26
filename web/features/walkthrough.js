@@ -27,7 +27,7 @@ const css = `
 .sp-flow-node.skipped { opacity: 0.6; }
 .sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
 .sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
-.sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
+.sp-banner { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, #f59e0b 16%, var(--card-bg, #3a2a12)); border: 1px solid #a16207; color: color-mix(in srgb, #b45309 60%, var(--text, #fde68a)); }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #sp-root textarea, #sp-root input[type="text"] { width: 100%; }
@@ -144,6 +144,19 @@ function rail(w) {
   }).join("")}</nav>`;
 }
 
+// Simple (0.4.20, N12): three plain steps. The six internal stages fold into Idea, Plan, Result.
+const PLAIN_STEPS = [["Idea", ["idea", "questions"]], ["Plan", ["plan", "build"]], ["Result", ["review", "done"]]];
+function plainRail(w) {
+  const at = PLAIN_STEPS.findIndex(([, ids]) => ids.includes(w.stage));
+  return `<div class="sp-rail sp-plain" aria-label="Steps">${PLAIN_STEPS.map(([label], i) => `<span class="${i === at ? "on" : i < at ? "done" : ""}"${i === at ? ' aria-current="step"' : ""}>${i + 1}. ${label}</span>`).join("")}</div>`;
+}
+// Simple hides the stage editor behind "Customize steps". Expert keeps it open.
+function stepsHtml(w, expert) {
+  if (expert) return `${rail(w)}${flowControlsHtml(w)}`;
+  const more = clientFlowStages(w) ? `<details class="panel" id="sp-customize"><summary class="small"><b>Customize steps</b></summary><div style="margin-top:8px">${rail(w)}${flowControlsHtml(w)}</div></details>` : "";
+  return `${plainRail(w)}${more}`;
+}
+
 function flowControlsHtml(w) {
   if (!clientFlowStages(w) || w.example || w.readonly) return "";
   const isPaused = w.paused || w.status === "paused";
@@ -165,12 +178,12 @@ function flowControlsHtml(w) {
     </span>
   </div>
   <details class="panel" id="sp-stack-panel" ${stacked.length ? "open" : ""}>
-    <summary class="small"><b>Stacked steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
+    <summary class="small"><b>Queued steps</b> <span class="dim">(${stacked.length} queued to auto-advance across stages)</span></summary>
     <div class="sp-actions" style="margin-top:8px">
       <select id="sp-stack-stage" aria-label="Stage for stacked step" style="width:auto">${stageOptions}</select>
       <input id="sp-stack-input" type="text" placeholder="Prompt or instruction for this stage" style="flex:1;min-width:180px">
       <button class="btn sm" type="button" data-stack-add>Stack step</button>
-      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run stacked steps</button>` : ""}
+      ${stacked.length ? `<button class="btn sm primary" type="button" data-stack-run>Run queued steps</button>` : ""}
     </div>
     ${stacked.length ? `<ol class="small" style="margin:8px 0 0 18px;padding:0">${stacked.map((st) => `<li><b>${esc(st.flowStage || st.stage)}</b>: ${esc(st.prompt || st.title)} <span class="chip">${esc(st.status || "queued")}</span></li>`).join("")}</ol>` : ""}
   </details>`;
@@ -349,6 +362,15 @@ async function toggleHelp() {
 }
 
 let pendingWalk = null;
+// Start a project files its work under a project. Refresh the list so the Projects page shows it at once, and link to it.
+const notedProjects = new Set();
+async function noteProject(w) {
+  const cc = window.CC;
+  if (!w?.projectId || w.example || notedProjects.has(w.projectId)) return;
+  notedProjects.add(w.projectId);
+  try { await cc.syncProjects?.(); } catch { /* the page catches up on its next refresh */ }
+  if (/was created/.test(w.projectNote || "")) cc.toast("A project was created for this work.", false, { label: "Open it", onClick: () => cc.openProjectById?.(w.projectId) });
+}
 async function begin(type) {
   try {
     const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
@@ -378,6 +400,7 @@ function paintWalk(w) {
   if (!root) return;
   const busy = ["planning", "building", "revising"].includes(w.status);
   if (busy) startPoll(w.id);
+  noteProject(w);
   const expert = w.experience === "expert";
   root.innerHTML = `
     <div class="sp-actions">
@@ -387,8 +410,7 @@ function paintWalk(w) {
       ${w.paused || w.status === "paused" ? `<span class="chip amber">Paused</span>` : ""}
       ${w.example ? `<span class="chip amber">Example data</span>` : ""}
     </div>
-    ${rail(w)}
-    ${flowControlsHtml(w)}
+    ${stepsHtml(w, expert)}
     <p class="small dim" style="margin:0">${esc(modeNote(w))}</p>
     ${w.error ? `<div class="sp-banner" role="alert">${esc(w.error)}</div>` : ""}
     ${w.projectNote ? `<div class="small dim">${esc(w.projectNote)}</div>` : ""}
@@ -533,6 +555,7 @@ function paintReview(stage, w, busy) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
+  mountDoneCard(stage, w);
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
@@ -589,6 +612,24 @@ function paintDone(stage, w) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
+}
+// The done screen ends in one Result card: what you got, where it was saved, and the next click.
+function mountDoneCard(stage, w) {
+  const CC = window.CC;
+  if (!CC.resultCard) return;
+  const title = w.plan?.title || "Your project";
+  const card = CC.resultCard({
+    what: `${title} is ready`, detail: "", savedWhere: "Not saved in MindMedia yet.",
+    actions: [
+      { label: "Save to MindMedia", primary: true, onClick: async (b, el) => {
+        const r = await CC.saveToMindMedia({ kind: "text", text: w.deliverable || "", name: title, projectId: w.projectId || CC.S.project || "", source: "Start a project", dedupeKey: `walk:${w.id}`, quiet: true });
+        const it = r.items?.[0] || {};
+        el.replaceWith(CC.resultCard({ what: `${title} is ready`, savedWhere: `Saved in MindMedia, ${r.where || "Unfiled"}.`, item: { projectId: r.projectId, assetId: it.id }, actions: [{ label: "Finish", primary: true, onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, item: { projectId: r.projectId, assetId: it.id, kind: "text" } }) }] }));
+      } },
+      { label: "Finish", onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }) },
+    ],
+  });
+  stage.querySelector("#sp-done-view")?.after(card);
 }
 async function downloadWalk(id, format) {
   try {
@@ -691,4 +732,6 @@ window.CC.startProject = {
   examples: () => { wantExamples = true; go("start"); },
   begin,
   startFromChat,
+  // Opens one saved build at its current step (used by the Continue card on Chat).
+  openWalk: async (id) => { try { pendingWalk = await api(`/walkthrough/${encodeURIComponent(id)}?${qexp()}`); } catch { pendingWalk = null; } go("start"); },
 };

@@ -105,7 +105,7 @@ export function tryThese(articles) {
 export const SCREEN_TIPS = {
   command: {
     view: "command",
-    title: "Command and Chat",
+    title: "Chat",
     summary: "Ask one question in Simple mode, or run a Council, Mission, Research, or Second opinion in Expert mode.",
     tips: [
       "Pick a starter button under the chat box to fill a ready prompt.",
@@ -141,7 +141,7 @@ export const SCREEN_TIPS = {
     title: "Credits and Spend",
     summary: "Track monthly API spend, per-AI call costs, and time-of-day discount windows.",
     tips: [
-      "Use Off-peak in Expert Command to queue non-urgent missions for discount windows.",
+      "Use Off-peak in Expert Chat to queue non-urgent missions for discount windows.",
       "Log media credits (Kling, Suno, Flow) to keep your burn rate and runway accurate.",
     ],
     keywords: ["credits", "cost", "spend", "budget", "discount"],
@@ -244,8 +244,8 @@ export const DO_THIS_NEXT_CARDS = [
   {
     id: "run-sample",
     title: "Run a starter prompt in your sample project",
-    summary: "Open Command with a ready sample project and send your first request.",
-    actionLabel: "Open Command",
+    summary: "Open Chat with a ready sample project and send your first request.",
+    actionLabel: "Open Chat",
     view: "command",
     focus: "#orders",
   },
@@ -278,8 +278,8 @@ export function doThisNextForState(state = {}) {
 }
 
 export const SCREEN_JUMP_TARGETS = [
-  { view: "command", label: "Command (Chat)", keywords: ["chat", "command", "ask", "orders", "council", "mission", "research"], summary: "Ask questions, run councils, or launch missions." },
-  { view: "projects", label: "Projects", keywords: ["project", "client", "links", "workspace", "folder", "memory"], summary: "Manage projects, links, and per-project Simple/Expert mode." },
+  { view: "command", label: "Chat", keywords: ["chat", "command", "ask", "orders", "council", "mission", "research"], summary: "Ask questions, run councils, or launch missions." },
+  { view: "projects", label: "Projects", keywords: ["project", "links", "workspace", "folder", "memory"], summary: "Manage projects, links, and per-project Simple/Expert mode." },
   { view: "settings", label: "Settings > My AIs", focus: "#settings-group-my-ais", keywords: ["key", "api", "openrouter", "claude", "gemini", "gpt", "grok", "provider", "ai"], summary: "Add or test API keys and local AIs." },
   { view: "settings", label: "Settings > Programs on this PC", focus: "#app-discovery", keywords: ["program", "app", "desktop", "installed", "toggle", "select all", "allow"], summary: "Allow installed programs on this PC." },
   { view: "settings", label: "Settings > Privacy & Notifications", focus: "#settings-group-privacy", keywords: ["privacy", "private", "notification", "alert", "vault"], summary: "Control private mode and completion alerts." },
@@ -289,6 +289,8 @@ export const SCREEN_JUMP_TARGETS = [
   { view: "images", label: "Images", keywords: ["image", "picture", "photo", "art", "draw", "thumbnail"], summary: "Create images with your connected generators." },
   { view: "media", label: "Media (Video, Music, Voice)", keywords: ["media", "video", "music", "song", "voice", "audio", "kling", "suno"], summary: "Create video, music, and voice files." },
   { view: "userchat", label: "People & Rooms", keywords: ["people", "room", "friend", "dm", "hub", "message", "team chat"], summary: "Chat in local rooms or set up a shared hub." },
+  { view: "settings", label: "Settings > Your apps", focus: "[data-feature='byo']", keywords: ["gmail", "email", "connect", "connection", "connections", "calendar", "drive", "app"], summary: "Connect your own apps and accounts." },
+  { view: "settings", label: "Settings > Phone companion", focus: "#settings-phoneweb", keywords: ["phone", "mobile", "companion", "devices", "tablet"], summary: "Use Meldmind from your phone." },
   { view: "setup", label: "Find My AIs (Setup)", keywords: ["setup", "welcome", "scan", "detect", "install", "start over"], summary: "Scan this PC for AIs or run setup again." },
 ];
 
@@ -300,8 +302,10 @@ export function matchScreensForQuery(query, limit = 4) {
     let score = 0;
     for (const w of all) {
       const weight = base.includes(w) ? 1 : 0.5;
-      if ((target.keywords || []).some((k) => k.includes(w))) score += 4 * weight;
-      else if (hay.includes(w)) score += 2 * weight;
+      // Whole-word or word-start matches only, so "gmail" no longer lands on "Images" (bug 5).
+      const startsWord = (text) => text.split(/[^a-z0-9]+/).some((t) => t === w || (w.length >= 4 && t.startsWith(w)));
+      if ((target.keywords || []).some((k) => startsWord(k.toLowerCase()))) score += 4 * weight;
+      else if (startsWord(hay)) score += 2 * weight;
     }
     return { target, score };
   }).filter((r) => r.score > 0);

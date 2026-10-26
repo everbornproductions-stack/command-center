@@ -8,7 +8,7 @@ export const KINDS = ["command", "image", "media", "remix"];
 export const NEXT_ACTIONS = [
   { id: "variations", label: "Make 3 variations" },
   { id: "project", label: "Add to project" },
-  { id: "finish", label: "Send to Finish" },
+  { id: "finish", label: "Finish" },
 ];
 
 // The one Send to menu. The same four rows everywhere.

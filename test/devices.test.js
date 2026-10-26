@@ -16,7 +16,7 @@ const between = (start, end) => sql.slice(sql.indexOf(start), sql.indexOf(end));
 test("device limit message matches the sentence a new computer sees", () => {
   assert.equal(deviceLimitMessage(2), "This key is already on 2 computers. Remove one in Settings > Devices.");
   assert.equal(deviceLimitMessage(1), "This key is already on 1 computer. Remove one in Settings > Devices.");
-  assert.equal(deviceRpcMessage(new Error("Could not find the function public.list_license_devices in the schema cache")), "The computer list is not available on the licence server yet.");
+  assert.equal(deviceRpcMessage(new Error("Could not find the function public.list_license_devices in the schema cache")), "The computer list is not available on the license server yet.");
 });
 
 test("migration: cap is 2 per person, a new computer past the cap is not stored, codes can lock to one email", () => {
@@ -70,13 +70,13 @@ test("settings devices panel removes only after a click, and the tour names it",
   for (const file of [ui, tour]) assert.equal(file.includes("\u2014"), false);
 });
 
-test("server: no licence server means an empty computer list", async () => {
+test("server: no license server means an empty computer list", async () => {
   const s = await startServer();
   try {
     const r = await s.api("/license/devices");
     assert.equal(r.status, 200);
     assert.deepEqual(r.json.devices, []);
-    assert.match(r.json.message, /No licence server/);
+    assert.match(r.json.message, /No license server/);
     const rm = await s.api("/license/devices/remove", { method: "POST", body: { deviceId: "dev1" } });
     assert.equal(rm.status, 400);
   } finally { await s.stop(); }
@@ -167,7 +167,7 @@ test("server: a missing device function says the list is not on the server yet",
   try {
     const r = await s.api("/license/devices");
     assert.equal(r.status, 200);
-    assert.match(r.json.message, /not available on the licence server yet/);
+    assert.match(r.json.message, /not available on the license server yet/);
     assert.deepEqual(r.json.devices, []);
   } finally { await s.stop(); }
 });

@@ -71,7 +71,7 @@ function renderSettings(el) {
   };
   api("/ratings/learned").then(paint).catch((e) => { box.textContent = e.message; });
   el.querySelector("#rt-reset").addEventListener("click", async () => {
-    if (!confirm("Clear what your ratings taught? Council scores stay. Runs and the ledger stay.")) return;
+    if (!(await window.CC.confirm("Clear what your ratings taught? Council scores stay. Runs and the ledger stay.", { danger: true, ok: "Clear" }))) return;
     try {
       paint(await api("/ratings/reset", { method: "POST", body: { confirm: true } }));
       toast("Ratings reset. Council scores stay.");
