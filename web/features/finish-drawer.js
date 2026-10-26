@@ -54,7 +54,7 @@ export function openFinishDrawer(opts = {}) {
     <div class="fd-row"><button type="button" class="btn sm primary" data-a="save">Save to MindMedia</button></div>
     <div data-saved></div>
     <div class="fd-h">Send it somewhere (you see a preview first)</div>
-    <div class="fd-row"><button type="button" class="btn sm primary" data-a="publish">Publish</button></div>
+    <div class="fd-row"><button type="button" class="btn sm primary" data-a="publish">Publish</button><button type="button" class="btn sm" data-a="share" title="Posts a card in Community. Nothing else is sent.">Share to Community</button></div>
     <div data-pub></div></aside>`;
   document.body.appendChild(back);
   const box = back.querySelector(".fd");
@@ -85,6 +85,10 @@ export function openFinishDrawer(opts = {}) {
     pdf: async () => download(await api("/mindmedia/export", { method: "POST", body: { text, title: name, format: "pdf" } })),
     docx: async () => download(await api("/mindmedia/export", { method: "POST", body: { text, title: name, format: "docx" } })),
     save: async () => { await keep(); toast("Saved in MindMedia."); },
+    share: async () => {
+      const it = await keep();
+      await CC.shareMindMediaItem?.({ projectId: it.projectId, assetId: it.assetId, name, text });
+    },
     publish: async () => {
       const it = await keep();
       CC.publishPanel(box.querySelector("[data-pub]"), { projectId: it.projectId, assetId: it.assetId, kind: it.kind, title: name });

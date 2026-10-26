@@ -14,8 +14,8 @@ export const CHANNELS = [
 ];
 
 export const CHAT_IDS = new Set(["general", "prompts", "builders", "help", "show"]);
-export const SHARE_KINDS = new Set(["prompt", "builder", "mission", "news"]);
-export const SHARE_CHANNEL = { prompt: "prompts", builder: "builders", mission: "show", news: "general" };
+export const SHARE_KINDS = new Set(["prompt", "builder", "mission", "news", "mindmedia"]);
+export const SHARE_CHANNEL = { prompt: "prompts", builder: "builders", mission: "show", news: "general", mindmedia: "show" };
 
 export const SIGN_IN_FIRST = "Sign in first. Community chat uses the email you signed in with (Google or Microsoft) or the email on your license.";
 export const BURST_MAX = 5;
@@ -165,7 +165,7 @@ export function cleanShare(raw) {
     }
   }
   const kind = String(raw.kind || "");
-  if (!SHARE_KINDS.has(kind)) return fail(400, "Share a prompt, a builder, or a mission.");
+  if (!SHARE_KINDS.has(kind)) return fail(400, "Share a prompt, a builder, a mission, or a MindMedia item.");
   const id = String(raw.id || "").trim().slice(0, 80);
   const title = String(raw.title || "").trim().slice(0, 120);
   const text = String(raw.text || "").trim().slice(0, 2000);

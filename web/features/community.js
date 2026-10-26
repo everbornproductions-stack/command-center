@@ -130,6 +130,13 @@ async function shareInChat(input = {}) {
   }
 }
 window.CC.shareInChat = shareInChat;
+// Share a hub item as a card in Community: the words and where it lives. Files and keys stay here.
+window.CC.shareMindMediaItem = (item = {}) => shareInChat({
+  kind: "mindmedia",
+  id: `${item.projectId || "unfiled"}/${item.assetId || item.id || "item"}`,
+  title: String(item.name || item.title || "Shared item").slice(0, 120),
+  text: String(item.text || "").replace(/\s+/g, " ").slice(0, 600),
+});
 // Other panels (the AI News side panel) open the Community page on a channel, News included.
 window.CC.openCommunity = (ch) => {
   if (ch) channel = String(ch);
@@ -172,6 +179,8 @@ function wireMail(root, row) {
 
 function messageHtml(m, owner) {
   const share = m.share ? `<div class="dim small">${esc(m.kind)} · ${esc(m.share.title || "")}</div>` : "";
+  // A shared MindMedia item is a card: Open it, or make your own copy of the shared words.
+  const card = m.share?.kind === "mindmedia" ? `<div class="mm-card" data-share-card="${esc(m.id)}" data-t="${esc(m.share.title || "")}" data-x="${esc(m.share.text || "")}" style="margin:6px 0"><h4 style="margin:0">${esc(m.share.title || "Shared item")}</h4><div class="mm-where">${esc(String(m.share.text || "").slice(0, 160))}</div><div class="mm-actions"><button class="btn sm" type="button" data-share-open="${esc(m.share.id)}">Open</button><button class="btn sm primary" type="button" data-share-copy="${esc(m.id)}">Make my own copy</button></div></div>` : "";
   const names = (m.voters || []).slice(0, 8).join(", ");
   const votes = m.kind === "prompt" ? `<span class="dim small">${m.up || 0} up, ${m.down || 0} down${names ? ` · ${esc(names)}` : ""}</span>
     <button class="btn sm" type="button" data-vote="up" data-id="${esc(m.id)}">Thumbs up</button>
@@ -182,6 +191,7 @@ function messageHtml(m, owner) {
     <div><span class="who">${esc(m.username || m.displayName || "Member")}</span> <span class="dim small">${esc(m.kind || "text")}</span></div>
     ${unsent}
     ${share}
+    ${card}
     <div style="white-space:pre-wrap">${esc(m.body || "")}</div>
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
       ${votes}
@@ -341,6 +351,17 @@ function wireFeed(view, scope) {
       toast(voted.scoreLabel || "Vote saved.");
       render(view);
     } catch (e) { toast(e.message, true); }
+  }));
+  scope.querySelectorAll("[data-share-open]").forEach((btn) => btn.addEventListener("click", () => {
+    // #mindmedia/<project>/<id> opens the item in the hub (the hub reads this route).
+    location.hash = `#mindmedia/${btn.dataset.shareOpen}`;
+  }));
+  scope.querySelectorAll("[data-share-copy]").forEach((btn) => btn.addEventListener("click", async () => {
+    const card = btn.closest("[data-share-card]");
+    try {
+      await window.CC.saveToMindMedia({ kind: "text", text: card?.dataset.x || card?.dataset.t || "", name: `${card?.dataset.t || "Shared item"} (my copy)`, source: "Community", dedupeKey: `community:${btn.dataset.shareCopy}` });
+      btn.textContent = "Copied to MindMedia";
+    } catch { /* saveToMindMedia already showed why */ }
   }));
   scope.querySelectorAll("[data-del]").forEach((btn) => btn.addEventListener("click", async () => {
     try {
