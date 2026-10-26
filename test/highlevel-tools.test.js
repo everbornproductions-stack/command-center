@@ -90,7 +90,7 @@ test("HighLevel writes wait for a click and the token stays in the vault", async
     assert.equal(contactHit.query.locationId, "loc-1");
 
     const before = writes(mock.hits).length;
-    const preview = await s.api("/highlevel/preview", { method: "POST", body: { action: "send_message", contactId: "c1", channel: "Email", text: "Hello from the test" } });
+    const preview = await s.api("/highlevel/preview", { method: "POST", body: { action: "send_message", contactId: "c1", channel: "Email", text: "Hello from the test", consent: true } });
     assert.equal(preview.status, 200, preview.text);
     assert.equal(preview.json.needsClick, true);
     assert.equal(preview.json.sent, false);
@@ -105,6 +105,20 @@ test("HighLevel writes wait for a click and the token stays in the vault", async
     const msg = mock.hits.filter((h) => h.path === "/conversations/messages");
     assert.equal(msg.length, 1);
     assert.equal(msg[0].json.message, "Hello from the test");
+
+    // compliance guard: a guarantee is refused, no consent tick needs Send anyway
+    const hard = await s.api("/highlevel/preview", { method: "POST", body: { action: "send_message", contactId: "c1", channel: "Email", text: "We guarantee your collections will be deleted", consent: true } });
+    assert.equal(hard.status, 422, hard.text);
+    assert.equal(hard.json.code, "compliance_block");
+    const soft = await s.api("/highlevel/preview", { method: "POST", body: { action: "send_message", contactId: "c1", channel: "Email", text: "Hi [NAME], see you Friday" } });
+    assert.equal(soft.status, 200, soft.text);
+    assert.ok(soft.json.warnings.some((w) => w.rule === "missing_consent") && soft.json.warnings.some((w) => w.rule === "raw_marker"));
+    const held = await s.api("/highlevel/run", { method: "POST", body: { planId: soft.json.planId, confirmed: true } });
+    assert.equal(held.status, 409);
+    assert.equal(held.json.code, "compliance_review");
+    assert.equal(mock.hits.filter((h) => h.path === "/conversations/messages").length, 1);
+    const anyway = await s.api("/highlevel/run", { method: "POST", body: { planId: soft.json.planId, confirmed: true, sendAnyway: true } });
+    assert.equal(anyway.status, 200, anyway.text);
 
     const bill = await s.api("/highlevel/preview", { method: "POST", body: { action: "create_invoice", contactId: "c1", amount: "25.00", title: "Test invoice" } });
     assert.equal(bill.json.needsClick, true);
@@ -140,3 +154,4 @@ test("HighLevel files use plain words", () => {
     assert.doesNotMatch(fs.readFileSync(new URL(`../${rel}`, import.meta.url), "utf8"), /\u2014/, rel);
   }
 });
+

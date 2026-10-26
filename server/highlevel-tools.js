@@ -4,6 +4,7 @@
 import crypto from "node:crypto";
 import { API, fresh } from "./publish/oauth.js";
 import { getSecret } from "./vault.js";
+import { checkOutgoing } from "./compliance-guard.js";
 
 const VAULT = "ghl-crm";
 const VERSION = "2021-07-28";
@@ -197,6 +198,7 @@ async function perform(name, a) {
 }
 
 const plans = new Map();
+const guardOf = (name, args, raw) => (name === "send_message" ? checkOutgoing({ text: args.text, channel: /sms|text/i.test(args.channel) ? "sms" : "email", consent: raw?.consent === true }) : null);
 
 export function planHighlevel(name, raw) {
   const spec = ACTIONS[name];
@@ -205,8 +207,10 @@ export function planHighlevel(name, raw) {
   const args = argsFor(name, raw);
   if (!spec.writes) return { writes: false, summary: spec.summary(args), result: null, pending: perform(name, args) };
   const planId = "hl-" + crypto.randomBytes(6).toString("hex");
-  plans.set(planId, { name, args, at: Date.now() });
-  return { writes: true, planId, summary: spec.summary(args), needsClick: true };
+  const guard = guardOf(name, args, raw);
+  if (guard && !guard.ok) throw err(422, `Not sent. ${guard.blocked[0].plain} ${guard.blocked[0].why}`, "compliance_block");
+  plans.set(planId, { name, args, at: Date.now(), warnings: guard?.warnings || [] });
+  return { writes: true, planId, summary: spec.summary(args), needsClick: true, warnings: guard?.warnings || [] };
 }
 
 export async function resolvePlan(planned) {
@@ -214,10 +218,11 @@ export async function resolvePlan(planned) {
   return planned;
 }
 
-export async function runHighlevelPlan(planId, confirmed) {
+export async function runHighlevelPlan(planId, confirmed, sendAnyway = false) {
   if (confirmed !== true) throw err(400, "Preview first, then confirm. Nothing was sent.", "confirm_required");
   const plan = plans.get(String(planId || ""));
   if (!plan || Date.now() - plan.at > 30 * 60 * 1000) throw err(409, "Preview first (or the preview expired). Nothing was sent.", "preview_required");
+  if (plan.warnings?.length && sendAnyway !== true) throw err(409, "Review the warnings first. Press Fix it, or Send anyway if you are sure. Nothing was sent.", "compliance_review");
   plans.delete(String(planId));
   const result = await perform(plan.name, plan.args);
   return { summary: ACTIONS[plan.name].summary(plan.args), result, sent: plan.name === "send_message" };
@@ -228,6 +233,7 @@ export async function runHighlevelAction(name, raw, { confirmed = false } = {}) 
   const spec = ACTIONS[name];
   if (!spec) return { text: "Unknown HighLevel action.", isError: true };
   if (spec.writes && confirmed !== true) return { text: "This waits for a click. Nothing was sent.", isError: true, denied: true };
+  { const g = guardOf(name, argsFor(name, raw), { consent: true }); if (g && !g.ok) return { text: `Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`, isError: true, denied: true }; }
   try {
     const result = await perform(name, argsFor(name, raw));
     return { text: JSON.stringify(result), isError: false };

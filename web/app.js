@@ -121,6 +121,7 @@ async function apiCall(path, opts = {}) {
     const err = new Error(httpError(r, j));
     if (j?.code) err.code = j.code;
     if (j?.missing) err.missing = j.missing;
+    if (j?.warnings) err.warnings = j.warnings;
     if (j?.questions) err.questions = j.questions;
     if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
