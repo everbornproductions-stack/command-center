@@ -2579,3 +2579,4 @@ No locked decision was changed. Square, Stripe and billing were not touched. dat
 
 ## 0.4.21 lead notes
 - Areas A-J were built in worktrees and merged into integration/0.4.21; layout is docs/layout-0421.md. Old tests changed on purpose are listed in the PR body. Expert-mode browser tests click #mode-expert because the sample project keeps its own mode.
+- PR #125 opened; final push carries no skip-ci tag so Windows CI runs.
