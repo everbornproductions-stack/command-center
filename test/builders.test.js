@@ -62,7 +62,7 @@ test("gates: Free, Pro, Studio, Extreme, Owner", () => {
   assert.equal(builderGate({ tier: "owner", need: "extreme" }).ok, true);
   for (const g of [builderGate({ tier: "free", need: "pro" }), builderGate({ tier: "pro", need: "extreme" }), builderGate({ tier: "owner", need: "free" })]) {
     assert.equal(g.message.includes(EM), false);
-    assert.equal(/\$|Square/.test(g.message), false);
+    assert.equal(/\$|Stripe/.test(g.message), false);
   }
 });
 

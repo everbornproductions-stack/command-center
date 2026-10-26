@@ -1,5 +1,5 @@
 // Test with personas (0.4.14). The Meldmind persona panel (the 18 people Chris reviews every release
-// with, docs: persona-feedback/PANEL.md, plus Max the developer, added 2026-10-21) reads any output: a chat answer, a mission result, a draft, a
+// with, docs: persona-feedback/PANEL.md, plus Max the developer and Rin the interface designer, 20 people in all) reads any output: a chat answer, a mission result, a draft, a
 // post, a page, or a design brief. Each picked persona reacts in their own words and suggests fixes.
 // Apply (one fix) or Apply all makes a revised output. Reactions are simulated by an AI and say so.
 //
@@ -30,6 +30,7 @@ export const PANEL = [
   { id: "priya-n", name: "Priya Natarajan", who: "31, indie app developer", cares: "code quality, licenses, and whether this saves a real developer time" },
   { id: "dorothy", name: "Dorothy", who: "74, retired, has barely used technology", cares: "plain words, big clear steps, and whether she could follow it without help" },
   { id: "max", name: "Max", who: "36, senior full-stack developer and heavy AI user who builds programs and tools every day and runs several coding agents (Claude Code, Codex, Cursor)", cares: "speed, keyboard shortcuts, clear errors, cost per call, rate limits, privacy of code and keys, reliable output formats, and no fluff. He scores 5 only when it works the first time and says exactly what it does" },
+  { id: "rin", name: "Rin", who: "33, product and interface designer who has shipped desktop and web apps and designs for both beginners and power users", cares: "menu structure and naming (one name per thing), visual hierarchy, spacing and alignment, contrast and readable text, consistency between Simple and Expert, keyboard and focus behavior, and how every screen holds up on a normal laptop screen (1366x768, 1920x1080) and a very wide monitor (2560x1080, 3440x1440): no stretched lines of text, no huge empty gutters, nothing cut off or crammed" },
 ];
 const BY_ID = new Map(PANEL.map((p) => [p.id, p]));
 export const personaById = (id) => BY_ID.get(String(id || "")) || null;
@@ -42,11 +43,19 @@ export const KINDS = {
   draft: { label: "a draft", panel: ["helen", "derek", "carla"] },
   email: { label: "an email", panel: ["derek", "helen", "dana"] },
   post: { label: "a post", panel: ["dana", "kai", "jordan"] },
-  page: { label: "a page", panel: ["dorothy", "carla", "elena"] },
-  design: { label: "a design", panel: ["elena", "sofia", "kai"] },
+  page: { label: "a page", panel: ["dorothy", "carla", "elena", "rin"] },
+  design: { label: "a design", panel: ["elena", "sofia", "kai", "rin"] },
   script: { label: "a script", panel: ["kai", "jaylen", "dana"] },
   code: { label: "code", panel: ["max", "priya", "priya-n", "jaylen"] },
-  app: { label: "an app", panel: ["max", "priya-n", "carla"] },
+  app: { label: "an app", panel: ["max", "priya-n", "carla", "rin"] },
+};
+const KIND_ALIASES = {
+  "design brief": "design",
+  "design-brief": "design",
+  ui: "design",
+  layout: "design",
+  screen: "page",
+  website: "page",
 };
 export const MAX_PERSONAS = 6;
 export const MAX_TEXT = 20000;
@@ -61,26 +70,36 @@ const TOPICS = [
   [/\b(hvac|technician|dispatch|sop|work order)\b/i, "nadia"],
   // APIs, MCP, scripts, apps and developer settings bring the developer
   [/\b(api|apis|mcp|sdk|endpoint|webhook|cli|json|npm|repo|github|bash|powershell|shell script|python|javascript|typescript|developer settings?|api keys?|rate limits?|tokens? per)\b/i, "max"],
+  // Menus, layouts, screens, buttons, navigation, design and UI bring the interface designer
+  [/\b(?:(?<!\b(?:fall|lunch|dinner|drink|food|bakery)\s)menus?|layouts?|screens?|buttons?|navigation|designs?|design brief|ui)\b/i, "rin"],
 ];
 
 // A good guess at the output type when the caller did not say.
 export function guessKind(text) {
   const t = String(text || "");
   if (/```|\bfunction\s*\(|=>|\bconst\s+\w+\s*=|<\/?(div|script|style)\b/i.test(t) && !/<html|<body/i.test(t)) return "code";
-  if (/<html|<body|^#\s.*\n[\s\S]*\b(home page|landing page|hero|call to action|cta)\b/im.test(t)) return "page";
+  if (/<html|<body|^#\s.*\n[\s\S]*\b(home page|landing page|hero|call to action|cta|website|screen)\b/im.test(t)) return "page";
   if (/^subject:/im.test(t)) return "email";
   if (/\b(hook|b-roll|on-screen text|voiceover)\b/i.test(t)) return "script";
-  if (/\b(aspect ratio|image prompt|thumbnail|layout:|color palette|hex)\b/i.test(t)) return "design";
+  if (/\b(aspect ratio|image prompt|thumbnail|layout:|color palette|hex|design brief|wireframe|screen layout|ui layout)\b/i.test(t)) return "design";
   if (/#\w+/.test(t) && t.length < 1500) return "post";
   return "chat";
 }
-export const normalizeKind = (kind, text) => (KINDS[kind] ? kind : guessKind(text));
+export function normalizeKind(kind, text) {
+  const k = String(kind || "").trim().toLowerCase();
+  if (KINDS[k]) return k;
+  if (KIND_ALIASES[k]) return KIND_ALIASES[k];
+  return guessKind(text);
+}
 
 // The smart default: the panel for this kind, then topic experts, at most 4.
 export function smartPick(kind, text = "") {
   const k = normalizeKind(kind, text);
-  const out = [...KINDS[k].panel];
-  for (const [re, id] of TOPICS) if (re.test(String(text || "").slice(0, MAX_TEXT)) && !out.includes(id)) out.push(id);
+  const base = KINDS[k].panel;
+  const out = base.slice(0, 3);
+  const sample = String(text || "").slice(0, MAX_TEXT);
+  for (const [re, id] of TOPICS) if (re.test(sample) && !out.includes(id)) out.push(id);
+  for (const id of base.slice(3)) if (!out.includes(id)) out.push(id);
   return out.slice(0, 4);
 }
 

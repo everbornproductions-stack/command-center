@@ -8,6 +8,7 @@ import {
   SIMPLE_PROMOTE, EXPERT_PROMOTE, PROMOTE_GAP, NAV_LAYOUT_WAIT_MS, NAV_CSS,
   promoteFor, promotedItems, promotable, currentNavPromote, simpleModel, menuModel,
   navLayout, navAvailable, NAV_TRIM_AT, menusWidth, rowLabels, watchNavLayout, resetNavMeasure, measureMenuSlot,
+  COMMAND_MODES, shortcutModeOf, commandHeading, markNav,
 } from "../web/nav.js";
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -175,4 +176,110 @@ test("app.js fits the real bar and Missions and Councils pick the run mode", () 
   assert.match(app, /currentNavPromote\(mode, knownViews\(\)/, "a width change that changes the row rebuilds it");
   const nav = fs.readFileSync(new URL("../web/nav.js", import.meta.url), "utf8");
   assert.equal(nav.includes("\u2014"), false, "no em-dashes");
+});
+
+test("wide-screen promoted shortcuts (Missions, Councils, Research) highlight, show mode banner, select mode, focus orders, and clear on leaving", () => {
+  assert.deepEqual(COMMAND_MODES, {
+    mission: "Mission mode: describe the goal",
+    council: "Council mode: ask several AIs",
+    research: "Research: ask with sources",
+  });
+  assert.equal(commandHeading("mission", "expert"), "Mission mode: describe the goal");
+  assert.equal(commandHeading("council", "expert"), "Council mode: ask several AIs");
+  assert.equal(commandHeading("research", "expert"), "Research: ask with sources");
+  assert.equal(commandHeading("", "expert"), "Marching orders");
+  assert.equal(commandHeading("mission", "simple"), "Chat");
+
+  const makeBtn = (label, { view = "command", runMode = "", focus = "", promoted = true } = {}) => {
+    const classes = new Set(promoted ? ["nav-direct", "nav-promoted"] : []);
+    const attrs = new Map();
+    const dataset = { view };
+    if (runMode) dataset.runMode = runMode;
+    if (focus) dataset.focus = focus;
+    return {
+      label,
+      dataset,
+      classList: {
+        toggle(c, on) { if (on) classes.add(c); else classes.delete(c); },
+        contains(c) { return classes.has(c); },
+      },
+      setAttribute(k, v) { attrs.set(k, String(v)); },
+      removeAttribute(k) { attrs.delete(k); },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+    };
+  };
+
+  const cmdBtn = makeBtn("Command", { view: "command" });
+  const projBtn = makeBtn("Projects", { view: "projects" });
+  const missionsBtn = makeBtn("Missions", { view: "command", runMode: "mission" });
+  const councilsBtn = makeBtn("Councils", { view: "command", runMode: "council" });
+  const researchBtn = makeBtn("Research", { view: "command", focus: "#cc-search-cmd", runMode: "research" });
+  const buttons = [cmdBtn, projBtn, missionsBtn, councilsBtn, researchBtn];
+
+  const root = {
+    dataset: { uiMode: "expert", navLayout: "normal" },
+    querySelectorAll(sel) {
+      if (sel === "button[data-view]") return buttons;
+      if (sel === ".nav-trigger") return [];
+      return [];
+    },
+    querySelector() { return null; },
+  };
+
+  assert.equal(shortcutModeOf(missionsBtn), "mission");
+  assert.equal(shortcutModeOf(councilsBtn), "council");
+  assert.equal(shortcutModeOf(researchBtn), "research");
+  assert.equal(shortcutModeOf(makeBtn("Research", { view: "command", focus: "#cc-search-cmd" })), "research");
+  assert.equal(shortcutModeOf(cmdBtn), "");
+  assert.equal(shortcutModeOf(projBtn), "");
+
+  for (const [btn, mode, heading] of [
+    [missionsBtn, "mission", "Mission mode: describe the goal"],
+    [councilsBtn, "council", "Council mode: ask several AIs"],
+    [researchBtn, "research", "Research: ask with sources"],
+  ]) {
+    markNav(root, "command", "", mode);
+    assert.equal(btn.classList.contains("active"), true, `${btn.label} is active`);
+    assert.equal(btn.getAttribute("aria-current"), "page", `${btn.label} has aria-current=page`);
+    assert.equal(commandHeading(mode, "expert"), heading);
+    for (const other of buttons) {
+      if (other === btn) continue;
+      assert.equal(other.classList.contains("active"), false, `${other.label} is not active when ${btn.label} is picked`);
+      assert.equal(other.getAttribute("aria-current"), null, `${other.label} has no aria-current when ${btn.label} is picked`);
+    }
+    // A second click on the same shortcut keeps it active and does not toggle it off.
+    markNav(root, "command", "", mode);
+    assert.equal(btn.classList.contains("active"), true, `${btn.label} stays active on second click`);
+    assert.equal(btn.getAttribute("aria-current"), "page");
+  }
+
+  // Leaving to another page clears the shortcut highlight and marks the new page.
+  markNav(root, "projects", "", "mission");
+  assert.equal(projBtn.classList.contains("active"), true);
+  assert.equal(projBtn.getAttribute("aria-current"), "page");
+  for (const b of [missionsBtn, councilsBtn, researchBtn, cmdBtn]) {
+    assert.equal(b.classList.contains("active"), false, `${b.label} cleared after leaving Command`);
+    assert.equal(b.getAttribute("aria-current"), null);
+  }
+
+  // Clicking plain Command highlights Command and clears shortcut tabs.
+  markNav(root, "command", "", "");
+  assert.equal(cmdBtn.classList.contains("active"), true);
+  assert.equal(cmdBtn.getAttribute("aria-current"), "page");
+  for (const b of [missionsBtn, councilsBtn, researchBtn]) {
+    assert.equal(b.classList.contains("active"), false);
+    assert.equal(b.getAttribute("aria-current"), null);
+  }
+
+  // Simple mode stays unchanged even if a runMode string is passed.
+  root.dataset.uiMode = "simple";
+  markNav(root, "command", "", "mission");
+  assert.equal(cmdBtn.classList.contains("active"), true);
+  assert.equal(missionsBtn.classList.contains("active"), false);
+
+  const app = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
+  assert.match(app, /id="cmd-mode-banner"/);
+  assert.match(app, /commandHeading\(S\.cmdShortcut, S\.uiMode\)/);
+  assert.match(app, /<button data-m="research" class="\$\{modeSel === "research" \? "on" : ""\}"/);
+  assert.match(app, /\$\("#orders"\)\?\.focus\(\)/);
 });

@@ -1,7 +1,7 @@
 // Free, Pro, and Extreme gates. Rows in the server match the Free vs Pro table.
 // A free install is refused on Pro routes. An owner install is not.
 // Upgrade, downgrade, a lapsed trial, and a lifetime buyer use a local licence stub.
-// Nothing calls Square. Waits are real setTimeout calls.
+// Nothing calls Stripe. Waits are real setTimeout calls.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -30,8 +30,8 @@ test("the feature map matches the Free vs Pro table", () => {
   const billing = fs.readFileSync(path.join(ROOT, "docs", "billing.md"), "utf8");
   assert.match(billing, /server\/feature-gate\.js/);
   assert.equal(billing.includes("\u2014"), false);
-  assert.match(billing, /\$15\.99/);
-  assert.match(billing, /square\.link\/u\/dbU38mQC/);
+  assert.match(billing, /\$18\.99/);
+  assert.match(billing, /buy\.stripe\.com/);
 });
 
 test("free tier is refused on share links and schedules; owner is not", async () => {
@@ -251,7 +251,6 @@ test("Pro upgrades to Extreme, drops back, and a lifetime row tagged Extreme sta
   try {
     const pro = await waitForTier(s, "pro");
     assert.equal(pro.json.license.plan, "pro-monthly-1899");
-    assert.equal(pro.json.license.grandfathered, false);
     const audit = await s.api("/billing-plans/check", { method: "POST", body: { feature: "auditLog" } });
     assert.equal(audit.status, 402);
     assert.equal(audit.json.code, "extreme_required");
@@ -291,7 +290,7 @@ test("Pro upgrades to Extreme, drops back, and a lifetime row tagged Extreme sta
     assert.equal((await s.api("/mission", { method: "POST", body: { goal: "still pro" } })).status, 202);
 
     box.tier = "extreme";
-    box.plan = "founder-lifetime";
+    box.plan = "lifetime-349";
     await s.api("/license/recheck", { method: "POST" });
     const life = await waitForTier(s, "pro");
     assert.equal(life.json.license.lifetime, true);
@@ -302,13 +301,10 @@ test("Pro upgrades to Extreme, drops back, and a lifetime row tagged Extreme sta
     assert.equal(capped.json.code, "extreme_required");
 
     box.tier = "pro";
-    box.plan = "pro-monthly-1599";
+    box.plan = "pro-monthly-1899";
     await s.api("/license/recheck", { method: "POST" });
-    const grand = await waitForTier(s, "pro");
-    assert.equal(grand.json.license.grandfathered, true);
-    assert.equal(grand.json.license.lifetime, false);
-    assert.match(grand.json.license.message, /15\.99/);
-    assert.match(grand.json.license.message, /stays/);
+    const monthly = await waitForTier(s, "pro");
+    assert.equal(monthly.json.license.lifetime, false);
     assert.equal((await s.api("/billing-plans/check", { method: "POST", body: { feature: "missions" } })).status, 200);
   } finally { await s.stop(); }
 });

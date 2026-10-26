@@ -1,6 +1,6 @@
 -- Everborn Command: cloud schema (Supabase / Postgres)
 -- Run in the Supabase SQL editor. Everything the hosted side needs for a paid product:
--- accounts (Supabase Auth), licences tied to Square subscriptions, paired devices/hubs,
+-- accounts (Supabase Auth), licences tied to Stripe subscriptions and payments, paired devices/hubs,
 -- the update feed, and optional cross-device sync of projects and subscriptions.
 -- Row Level Security: a signed-in user sees only their own rows; service role (webhooks) sees all.
 
@@ -13,9 +13,9 @@ create table if not exists public.licenses (
   email         text not null,
   tier          text not null default 'pro' check (tier in ('free','pro','extreme','studio','owner')),
   status        text not null default 'active' check (status in ('active','past_due','cancelled','revoked')),
-  source        text not null default 'square' check (source in ('square','manual','promo')),
-  square_customer_id     text,
-  square_subscription_id text unique,
+  source        text not null default 'stripe' check (source in ('stripe','manual','promo')),
+  stripe_customer_id     text,
+  stripe_subscription_id text unique,
   max_devices   int not null default 3,
   current_period_end timestamptz,
   created_at    timestamptz not null default now(),
@@ -67,12 +67,13 @@ create table if not exists public.promo_codes (
   created_at  timestamptz not null default now()
 );
 
--- ---------- audit of webhook events (idempotency) ----------
-create table if not exists public.square_events (
+-- ---------- audit of webhook events (idempotency; supabase/functions/stripe-webhook) ----------
+-- find_active_license_by_email and activate_license_by_email (unlock by signed-in email) are in
+-- supabase/migrations/20261025_stripe.sql, after the plan column exists.
+create table if not exists public.stripe_events (
   event_id    text primary key,
   type        text,
-  received_at timestamptz not null default now(),
-  payload     jsonb
+  received_at timestamptz not null default now()
 );
 
 -- ---------- helpers ----------
@@ -130,7 +131,9 @@ alter table public.devices enable row level security;
 alter table public.releases enable row level security;
 alter table public.user_sync enable row level security;
 alter table public.promo_codes enable row level security;
-alter table public.square_events enable row level security;
+alter table public.stripe_events enable row level security;
+revoke all on public.stripe_events from public, anon, authenticated;
+grant select, insert, update, delete on public.stripe_events to service_role;
 
 -- licences: a signed-in user can read licences on their own email; nobody can write except service role
 drop policy if exists "own licence by email" on public.licenses;

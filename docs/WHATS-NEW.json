@@ -1,4 +1,14 @@
 {
+  "0.4.18": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Pay on the website with Stripe and unlock in the app: sign in with the same email and your plan turns on. Upgrade in the app opens checkout with your email filled in.",
+      "Get everything connected now has a Run the whole setup again button, so you can redo setup from one place.",
+      "Helping Meldmind get smarter: anonymous results (counts only, never your text) are on by default with a note on the welcome screen, and off by default in the EU and UK. Sharing your own prompts and answers stays opt-in. Settings, Privacy lists everything that leaves this computer.",
+      "New helper persona Rin tests how the menus and buttons feel, and the Missions, Councils and Research menus now open correctly on large screens.",
+      "This note shows once after an update. Take the tour again any time from Help."
+    ]
+  },
   "0.4.17": {
     "title": "What's new in Meldmind",
     "bullets": [

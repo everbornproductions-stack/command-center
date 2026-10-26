@@ -1,17 +1,18 @@
-// Checkout choices. This module never calls Square, never opens a network connection, and never charges.
+// Checkout choices. This module never calls Stripe, never opens a network connection, and never charges.
 // Prices come from server/price-config.js. Yearly and lifetime are not derived from monthly.
 import { publicCompare } from "./feature-gate.js";
 import {
   EXTREME_MONTHLY, EXTREME_MONTHLY_PAY_LINK, EXTREME_MONTHLY_PLAN_ID, EXTREME_YEARLY, EXTREME_YEARLY_PAY_LINK, EXTREME_YEARLY_PLAN_ID,
   extremeMonthlyLabel, extremeYearlyLabel,
   FOUNDER_LIMITED_LINE, FOUNDER_SPOTS_HIDDEN_UNTIL,
-  GRANDFATHER_NOTE, GRANDFATHER_PAY_LINK, GRANDFATHER_PLAN_ID, GRANDFATHER_PRO_MONTHLY,
+  DEVELOPER_MONTHLY, DEVELOPER_MONTHLY_PAY_LINK, DEVELOPER_MONTHLY_PLAN_ID, DEVELOPER_YEARLY, DEVELOPER_YEARLY_PAY_LINK, DEVELOPER_YEARLY_PLAN_ID,
+  developerMonthlyLabel, developerYearlyLabel, payLinkWithEmail,
   LIFETIME_CAP, LIFETIME_EARLY_PRICE, LIFETIME_EARLY_SEATS, LIFETIME_LATER_PRICE, LIFETIME_PAY_LINK, LIFETIME_PLAN_ID, LIFETIME_RULE, LIFETIME_TIER,
   PRICE_SET, PRO_MONTHLY, PRO_MONTHLY_PAY_LINK, PRO_MONTHLY_PLAN_ID, PRO_YEARLY, PRO_YEARLY_PAY_LINK, PRO_YEARLY_PLAN_ID,
   proMonthlyLabel, proYearlyLabel, spotsLeftPhrase,
 } from "./price-config.js";
 
-// New Pro monthly. The grandfather $15.99 link is not a buy button.
+// Pro monthly.
 export const MONTHLY_LINK = PRO_MONTHLY_PAY_LINK;
 export const MONTHLY_AMOUNT = PRO_MONTHLY;
 export const YEARLY_AMOUNT = PRO_YEARLY;
@@ -45,17 +46,16 @@ export const EXTREME_YEARLY_PLAN = publishedPlan({
   label: extremeYearlyLabel, button: `Extreme yearly, ${extremeYearlyLabel}`, payLink: EXTREME_YEARLY_PAY_LINK,
 });
 
-export const GRANDFATHER_PLAN = {
-  id: GRANDFATHER_PLAN_ID,
-  name: "Pro monthly (existing subscribers)",
-  tier: "pro",
-  amount: GRANDFATHER_PRO_MONTHLY,
-  cadence: "month",
-  label: `$${GRANDFATHER_PRO_MONTHLY.toFixed(2)}/month`,
-  payLink: GRANDFATHER_PAY_LINK,
-  checkout: false,
-  note: GRANDFATHER_NOTE,
-};
+// Developer carries the Extreme limits in this app. Its price is its own.
+export const DEVELOPER_MONTHLY_PLAN = publishedPlan({
+  id: DEVELOPER_MONTHLY_PLAN_ID, name: "Developer", tier: "extreme", amount: DEVELOPER_MONTHLY, cadence: "month",
+  label: developerMonthlyLabel, button: `Go Developer, ${developerMonthlyLabel}`, payLink: DEVELOPER_MONTHLY_PAY_LINK,
+});
+
+export const DEVELOPER_YEARLY_PLAN = publishedPlan({
+  id: DEVELOPER_YEARLY_PLAN_ID, name: "Developer yearly", tier: "extreme", amount: DEVELOPER_YEARLY, cadence: "year",
+  label: developerYearlyLabel, button: `Developer yearly, ${developerYearlyLabel}`, payLink: DEVELOPER_YEARLY_PAY_LINK,
+});
 
 // sold null means this install has no seat count, so no number is shown.
 export function founderQuote(sold, opts = {}) {
@@ -123,24 +123,28 @@ function lifetimePayLink(life) {
   return LIFETIME_PAY_LINK;
 }
 
-export function proPlanCatalog(sold = null) {
+// email is the signed-in address, when there is one. Every pay link then carries ?prefilled_email=
+// so the buyer lands on the email the app unlocks by. The email is only put in the link.
+export function proPlanCatalog(sold = null, { email = null } = {}) {
   const life = founderQuote(sold);
   const lifeLink = lifetimePayLink(life);
+  const withMail = (plan) => ({ ...plan, payLink: plan.payLink ? payLinkWithEmail(plan.payLink, email) : plan.payLink });
   return {
-    monthly: { ...MONTHLY_PLAN },
-    yearly: { ...YEARLY_PLAN },
-    extremeMonthly: { ...EXTREME_MONTHLY_PLAN },
-    extremeYearly: { ...EXTREME_YEARLY_PLAN },
+    monthly: withMail(MONTHLY_PLAN),
+    yearly: withMail(YEARLY_PLAN),
+    extremeMonthly: withMail(EXTREME_MONTHLY_PLAN),
+    extremeYearly: withMail(EXTREME_YEARLY_PLAN),
+    developerMonthly: withMail(DEVELOPER_MONTHLY_PLAN),
+    developerYearly: withMail(DEVELOPER_YEARLY_PLAN),
     lifetime: {
       id: LIFETIME_PLAN_ID,
       name: "Lifetime founder",
       kind: "one_time",
       button: lifetimeButton(life),
       ...life,
-      payLink: lifeLink,
+      payLink: lifeLink ? payLinkWithEmail(lifeLink, email) : lifeLink,
       pendingLink: !lifeLink && life.open !== false,
     },
-    grandfather: { ...GRANDFATHER_PLAN },
     compare: publicCompare(),
     priceSet: PRICE_SET,
     charged: false,
@@ -152,14 +156,16 @@ function planKey(planId) {
   if (planId === "yearly" || planId === "pro-yearly" || planId === PRO_YEARLY_PLAN_ID) return "yearly";
   if (planId === "extreme" || planId === "extreme-monthly" || planId === EXTREME_MONTHLY_PLAN_ID) return "extremeMonthly";
   if (planId === "extreme-yearly" || planId === EXTREME_YEARLY_PLAN_ID) return "extremeYearly";
+  if (planId === "developer" || planId === "developer-monthly" || planId === DEVELOPER_MONTHLY_PLAN_ID) return "developerMonthly";
+  if (planId === "developer-yearly" || planId === DEVELOPER_YEARLY_PLAN_ID) return "developerYearly";
   if (planId === "lifetime" || planId === LIFETIME_PLAN_ID) return "lifetime";
   return null;
 }
 
-// Test stand-in for a Square checkout call. It records the plan and returns it.
+// Test stand-in for a Stripe checkout. It records the plan and returns it.
 // It does not charge and it does not use the network. client.checkout is optional.
-export function mockSquareCheckout(planId, { sold = null, client } = {}) {
-  const plans = proPlanCatalog(sold);
+export function mockStripeCheckout(planId, { sold = null, client, email = null } = {}) {
+  const plans = proPlanCatalog(sold, { email });
   const key = planKey(planId);
   if (!key) {
     const e = new Error("Unknown plan.");

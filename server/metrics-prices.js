@@ -1,10 +1,11 @@
 // List prices for the owner metrics report only.
-// This file does not call Square, does not open a checkout, and does not change what the app charges.
+// This file does not call Stripe, does not open a checkout, and does not change what the app charges.
 // The live checkout stays in server/billing-plans.js.
 
 export const METRICS_PRICES = {
   pro: { monthly: 18.99, yearly: 189 },
   extreme: { monthly: 29.99, yearly: 299 },
+  developer: { monthly: 34.99, yearly: 349 },
   lifetime: { 349: 349, 499: 499 },
   legacyTier: { studio: "extreme" },
 };

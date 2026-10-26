@@ -175,9 +175,9 @@ test("app cards, scores, MCP, website, profile, window tree, and the $1 screensh
   assert.equal(pictures.steps[0].width, 1280);
   assert.deepEqual(pictures.sentImages, ["two"]);
   assert.match(pictures.reason, /cap/);
-  const square = Apps.runJob(shot.id, { seenEstimate: true, shots: [{ id: "pay", title: "Square checkout", width: 800, height: 600 }] });
-  assert.equal(square.status, "refused");
-  assert.match(square.reason, /Square/);
+  const stripe = Apps.runJob(shot.id, { seenEstimate: true, shots: [{ id: "pay", title: "Stripe checkout", width: 800, height: 600 }] });
+  assert.equal(stripe.status, "refused");
+  assert.match(stripe.reason, /Stripe/);
 
   const mcp = Apps.addApp({ name: "Tools", kind: "mcp", capabilities: ["analysis"], mcpServerId: "demo-tools" });
   Apps.setAllowed(mcp.id, true);
@@ -282,7 +282,7 @@ test("smarter control files stay plain and the version is unchanged", () => {
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 57: Recipes/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 59: Cost guard/);
   assert.match(fs.readFileSync(path.join(ROOT, "docs/BUILD-PLAN.md"), "utf8"), /Phase 60: Phone approvals/);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.17");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.18");
 });
 
 test("routes: a free copy cannot add an app, a Pro copy can run a fixture step", async () => {

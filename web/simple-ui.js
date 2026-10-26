@@ -26,16 +26,31 @@ export const WELCOME = {
   getKey: "Get a key",
   appsTitle: "Connect your apps",
   appsLine: "Optional. Gmail, Calendar, Drive, and Outlook. You can do this later in Settings.",
-  privacyLine: "Anonymous track records and usage counts are off until you turn them on.",
+  privacyLine: "Helping Meldmind get smarter: anonymous results only, never your text.",
+  privacyDetail: "Counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id. No prompts, answers, file names, emails, keys, or identifying ids.",
+  qualitySwitch: "Share anonymous quality signals and usage counts",
+  contentOptInLabel: "Share real prompts and answers for our own-AI program",
+  contentOptInLine: "Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded. Nothing collects prompts or answers without a clear yes.",
   privacyLink: "What leaves this computer",
 };
 
 export const TEXT_SIZES = [["default", "Default"], ["large", "Large"], ["xlarge", "Extra large"]];
 
-// Which setup page to draw. A fresh install always gets the one welcome screen.
-// "Run setup again" (requested = "scan") and an Expert setup that was left half done keep
-// the older pages, which are not part of the first run.
-export function setupPhase({ fresh = false, requested = "", expertSetup = null } = {}) {
+export const RESTART_SETUP_LABEL = "Run the whole setup again";
+export const RESTART_SETUP_LINE = "Start over: welcome screen, Find my AIs, then connections. Nothing you saved is changed without asking.";
+
+// Full setup restart walks welcome -> scan (Find my AIs) -> connections (Get everything connected).
+export function nextRestartPhase(currentPhase) {
+  if (currentPhase === "welcome") return "scan";
+  if (currentPhase === "scan") return "connections";
+  return "";
+}
+
+// Which setup page to draw. A fresh install or full restart always starts at the welcome screen.
+// Direct "Find my AIs" (requested = "scan") and an Expert setup that was left half done open
+// their own step.
+export function setupPhase({ fresh = false, requested = "", fullRestart = false, expertSetup = null } = {}) {
+  if (fullRestart) return "welcome";
   if (requested) return requested;
   if (fresh) return "welcome";
   if (expertSetup && !expertSetup.done) return expertSetup.pendingScan ? "scan" : "expert";

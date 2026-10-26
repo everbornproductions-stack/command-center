@@ -21,4 +21,4 @@ People who already have several AI apps, and who do not want another credit wall
 
 ## What we do not say
 
-No income claims. No "it posts for you." Nothing posts, sends, or spends without a click. Square and billing stay out of this story.
+No income claims. No "it posts for you." Nothing posts, sends, or spends without a click. Stripe and billing stay out of this story.

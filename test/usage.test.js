@@ -1,6 +1,6 @@
 // Anonymous usage counts: the daily ping, the off switch, and the owner report.
 // Waits are real timers. Every server and stub is closed, and the temp data dir is removed.
-// No real URL, no service key from production, no Square call.
+// No real URL, no service key from production, no Stripe call.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -51,20 +51,20 @@ test("report math: cohorts, activity, features, paying users, and no personal da
       { installId: "e".repeat(32), day: "2026-10-22", version: "0.4.8", os: "linux", tier: "pro", features: { council: 9 } },
     ],
     licenses: [
-      { tier: "pro", status: "active", source: "square" },
+      { tier: "pro", status: "active", source: "stripe" },
       { tier: "pro", status: "active", source: "promo" },
       { tier: "owner", status: "active", source: "promo" },
       { tier: "studio", status: "active", source: "manual" },
-      { tier: "pro", status: "past_due", source: "square" },
-      { tier: "pro", status: "cancelled", source: "square" },
-      { tier: "free", status: "active", source: "square" },
-      { tier: "pro", status: "active", source: "square", email: "hidden@example.com", key: "EVB-AAAA-BBBB-CCCC" },
-      { tier: "pro", status: "active", source: "square", plan: "pro-yearly" },
+      { tier: "pro", status: "past_due", source: "stripe" },
+      { tier: "pro", status: "cancelled", source: "stripe" },
+      { tier: "free", status: "active", source: "stripe" },
+      { tier: "pro", status: "active", source: "stripe", email: "hidden@example.com", key: "EVB-AAAA-BBBB-CCCC" },
+      { tier: "pro", status: "active", source: "stripe", plan: "pro-yearly" },
       { tier: "studio", status: "active", source: "manual", plan: "extreme-yearly" },
       { tier: "pro", status: "active", source: "manual", plan: "lifetime-349" },
-      { tier: "studio", status: "active", source: "square", plan: "lifetime-499" },
+      { tier: "studio", status: "active", source: "stripe", plan: "lifetime-499" },
       { tier: "pro", status: "active", source: "promo", plan: "lifetime-349" },
-      { tier: "pro", status: "active", source: "square", plan: "mystery" },
+      { tier: "pro", status: "active", source: "stripe", plan: "mystery" },
     ],
   });
   assert.equal(report.dau, 1);
@@ -110,7 +110,7 @@ test("report math: cohorts, activity, features, paying users, and no personal da
   assert.match(report.mrrNote, /\$349 or \$499/);
   assert.match(report.mrrNote, /add 0 to MRR/);
   assert.match(report.mrrNote, /legacy name for Extreme/);
-  assert.match(report.mrrNote, /does not call Square/);
+  assert.match(report.mrrNote, /does not call Stripe/);
   const dumped = JSON.stringify(report);
   assert.equal(dumped.includes("a".repeat(32)), false);
   assert.equal(dumped.includes("hidden@example.com"), false);
@@ -254,7 +254,7 @@ test("the hub stores a ping and the owner report is JSON, with the secret requir
   const dbPort = await freePort();
   const pings = [];
   const licenses = [
-    { tier: "pro", status: "active", source: "square", email: "hidden@example.com", key: "EVB-SECRET-KEY" },
+    { tier: "pro", status: "active", source: "stripe", email: "hidden@example.com", key: "EVB-SECRET-KEY" },
     { tier: "pro", status: "active", source: "promo", email: "friend@example.com" },
     { tier: "studio", status: "active", source: "manual", plan: "extreme-yearly" },
     { tier: "pro", status: "active", source: "manual", plan: "lifetime-499", email: "founder@example.com" },

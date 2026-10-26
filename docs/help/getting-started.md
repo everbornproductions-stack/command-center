@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.17
+lastUpdatedVersion: 0.4.18
 ---
 
 # Getting started
@@ -12,9 +12,9 @@ A new install starts in Simple. The first time you open Meldmind you see one wel
 - How it looks: Simple or Expert (Simple is picked for you) and the text size, with a sample line.
 - Connect your first AI: Try it now gives practice answers from pretend AIs, and nothing is spent. Or paste an OpenRouter key (Get a key opens the OpenRouter page).
 - Connect your apps: Sign in with Google or Sign in with Microsoft.
-- What leaves this computer: a link to the plain list of what is sent where.
+- Helping Meldmind get smarter: anonymous results only, never your text (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id; no prompts, answers, file names, emails, keys, or identifying ids), with one clear off switch, plus an optional explicit opt-in (never pre-checked) to share real prompts and answers for our own-AI program, and a link to What leaves this computer.
 
-Skip setup takes you straight to chat. Escape does the same when you are not typing in a box. The welcome screen shows once. Settings, Find my AIs (the Run setup again page) opens the longer setup (keys on this PC, browser history, bookmarks).
+Skip setup takes you straight to chat. Escape does the same when you are not typing in a box. The welcome screen shows once. At the top of Get everything connected (and in Settings) is Run the whole setup again, which starts over through the welcome screen, Find my AIs, and connections without changing anything you already saved without asking. Settings, Find my AIs and Help, Get everything connected stay separate direct entries when you only want one part.
 
 Nothing else pops up on the first run. Desktop control waits in Settings until you want it. The tour is offered once, later, as a small link under the chat after a few answers.
 
@@ -54,19 +54,19 @@ When you come back, Home shows your recent chats and projects. Private mode keep
 
 ## Learning from each job
 
-Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
+Meldmind learns from every job you run. On-device learning is on by default and stays on this PC. Anonymous track records help it pick the best AI for everyone.
 
-A new install leaves I am willing to share anonymous track records off until you tick it. You can change this any time in Settings. On Who's best, tick or clear I am willing to share anonymous track records.
+Anonymous quality signals (I am willing to share anonymous track records) start on by default with an up-front notice on the welcome screen and in Settings, except in consent-first regions (such as the EU and the UK, chosen from the OS locale and region) where they start off and ask. Existing installs see the notice once and keep their current choice unless they never made one. You can change this any time in Settings. On Who's best, tick or clear I am willing to share anonymous track records.
 
 ## What we share
 
-We share only anonymous track records: the task type, which AI, and the score. We never share prompts, content, or keys.
+We share only anonymous track records: the task type, which AI, and the score (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id). We never share prompts, content, or keys (no prompts, answers, file names, emails, keys, or identifying ids). Sharing real prompts and answers for our own-AI program is a separate explicit opt-in that is never pre-checked.
 
 While the box is clear, this note appears: Meldmind learns from the community. With this off, your jobs won't help make it smarter for everyone, but you'll still benefit from what others share.
 
 ## Anonymous usage counts
 
-Settings includes Share anonymous usage counts to help improve Meldmind. On a new install the switch is off until you turn it on. An install that had it on keeps it on. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, chats, emails, or files.
+Settings includes Share anonymous usage counts to help improve Meldmind. It follows the same regional rule (on with an up-front notice, or off and ask in consent-first regions such as the EU and the UK), and existing installs keep their choice. Once a day it can send a random install id, the version, the operating system, your plan, and feature counts. It does not send prompts, answers, chats, file names, emails, keys, or identifying ids.
 
 Clear the switch under Privacy in Settings and the daily ping stops.
 
@@ -134,6 +134,16 @@ Remove, Good, and Not good are written on those buttons.
 A practice answer says it is from a pretend AI. Nothing was spent. Get real answers sits on that note.
 
 On a Mac with macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway.
+
+## New in 0.4.18
+
+Pay on the website with Stripe and your plan unlocks in the app. Sign in with the same email you paid with, and the plan turns on. Upgrade in the app opens checkout with your email filled in.
+
+Get everything connected has a Run the whole setup again button, so you can redo setup from one place.
+
+Helping Meldmind get smarter: anonymous results (counts only, never your text) are on by default with a note on the welcome screen, and off by default in the EU and UK. Sharing your own prompts and answers stays opt-in. Settings, Privacy lists everything that leaves this computer.
+
+A new helper persona, Rin, tests how the menus and buttons feel. The Missions, Councils and Research menus now open correctly on large screens.
 
 ## New in 0.4.17
 

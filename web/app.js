@@ -1,8 +1,8 @@
 import { AgentGraph } from "/graph.js";
 import { usageFromSummary, isUsageJob, windowStart } from "/graph-usage.js";
-import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows } from "./nav.js";
+import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUPS, currentNavLayout, currentNavPromote, promotable, watchNavLayout, rowOverflows, COMMAND_MODES, shortcutModeOf, commandHeading } from "./nav.js";
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, shouldAskMode, simpleAllows } from "./mode.js";
-import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, STARTERS, TEXT_SIZES, WELCOME, setupPhase, spendLine } from "./simple-ui.js";
+import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
@@ -11,7 +11,8 @@ import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-pic
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
-import { extremeExtrasHtml, founderSpotsHtml, grandfatherHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
+import { createPaidWatch } from "./paid-watch.js";
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
@@ -687,7 +688,7 @@ async function installUpdate() {
 }
 function renderAll() { renderStrip(); renderBudget(); renderFeed(); renderUpdateBar(); render(); }
 // The active tab is marked for screen readers as well as by colour.
-function markTabs() { $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); $$("#tabs button[data-view]").forEach((b) => { if (b.dataset.view === S.view && !b.dataset.focus && !b.dataset.runMode) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); }
+function markTabs() { if (S.view !== "command" || S.uiMode !== "expert") S.cmdShortcut = ""; $$("#mobile-nav button[data-view], #mobile-more button").forEach((b) => { const on = b.dataset.view === S.view; b.classList.toggle("active", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }); markNav($("#tabs"), S.view, S.navMenu, S.cmdShortcut); }
 function btnLabel(btn, text) {
   if (!btn) return;
   const icon = btn.querySelector("i");
@@ -904,7 +905,7 @@ function ensureFeatureTabs() {
     b.addEventListener("click", () => { more.classList.remove("open"); S.view = f.id; S.navMenu = gid; S.openProject = null; render(); });
     group.appendChild(b);
   }
-  markNav(root, S.view, S.navMenu);
+  markNav(root, S.view, S.navMenu, S.cmdShortcut);
   markLocks(root, S.license?.limits);
   markTabs();
   $("#mobile-more")?.classList.remove("open");
@@ -1206,7 +1207,7 @@ function renderCommand(v) {
     <div class="orders">
       <div class="panel orders-panel">
         <div id="graduate-slot"></div>
-        <h3>Marching orders <span class="right" id="cls-hint"></span></h3>
+        <h3 id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))} <span class="right" id="cls-hint"></span></h3>
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <div id="pp-popular"></div>
@@ -1215,6 +1216,7 @@ function renderCommand(v) {
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
           <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
         <label class="lbl">Priority</label>
@@ -1261,7 +1263,7 @@ function renderCommand(v) {
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); });
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
@@ -1285,6 +1287,8 @@ function renderCommand(v) {
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+  focusNavTarget();
+  if (S.focusOrders) { S.focusOrders = false; $("#orders")?.focus(); }
 }
 function syncGraph(force = false) {
   if (!graph || S.view !== "command") return;
@@ -1711,7 +1715,7 @@ async function sendOrders() {
       S.awaitingRun = false;
     }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
-    else if (mode === "single") {
+    else if (mode === "single" || mode === "research") {
       // The Command bar choice counts only after a click. Simple mode has no priority bar, so it keeps Default.
       const picked = !simple && S.costMode ? { mode: S.costMode } : {};
       const avoid = S.pendingAvoid || "";
@@ -1720,7 +1724,8 @@ async function sendOrders() {
       if (avoid) packBody.avoid = avoid;
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
-      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
+      const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
@@ -1947,18 +1952,33 @@ function chooseProPlan(which) {
   if (plan.open === false) { toast("Lifetime founder is sold out at 500. Nothing was charged."); return; }
   if (plan.payLink && plan.checkout !== false && openPayLink(plan.payLink)) return;
   const name = plan.button || plan.label || "This plan";
-  toast(name + ". The Square checkout link is not published yet. Nothing was charged.");
+  toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
+// After an Upgrade link opens, re-check the licence every few seconds for two minutes, and on focus.
+const paidWatch = createPaidWatch({
+  current: () => S.license,
+  check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
+  onUnlock: (lic) => { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); },
+});
+window.addEventListener("focus", () => { paidWatch.focus(); });
 function bindProPlans(root) {
   $$("[data-pro-plan]", root).forEach((b) => b.addEventListener("click", () => chooseProPlan(b.dataset.proPlan)));
+  $$("[data-upgrade-link]", root).forEach((a) => a.addEventListener("click", () => paidWatch.start()));
+  $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
+    const before = S.license?.tier || "free";
+    const lic = await paidWatch.check();
+    if (!lic) { toast("Could not reach the licence server. Try again in a moment.", true); return; }
+    if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your licence key.", true);
+  }));
 }
 function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
-      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" id="sub-lic">I have a licence key</button></div>
-      ${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}
+      <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a licence key</button></div>
+      ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
-      <div class="dim small" style="margin-top:8px">Pro, Extreme, and the $349 lifetime button open their Square pay page. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
+      <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
 }
 
 function renderSubscriptions(v) {
@@ -2074,7 +2094,9 @@ function renderSimpleBasics(v) {
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
       <p class="dim small" id="basics-private-line" style="margin:6px 0">${on ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer."}</p>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-share"> Share anonymous track records</label>
-      <p class="dim small" style="margin:6px 0">This shares the task type, which AI, and the score. It never shares your words or keys.</p>
+      <p class="dim small" style="margin:6px 0">Helping Meldmind get smarter: anonymous results only, never your text. This shares the task type, which AI, and the score (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id). It never shares your words or keys (no prompts, answers, file names, emails, keys, or identifying ids).</p>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="basics-content-optin"> Share real prompts and answers for our own-AI program</label>
+      <p class="dim small" style="margin:6px 0">Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded.</p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
@@ -2100,12 +2122,18 @@ function renderSimpleBasics(v) {
       if (line) line.textContent = r.line || (next ? "Private mode is on. This stays on this computer." : "A chat can stay on this computer.");
     } catch (err) { e.target.checked = !next; toast(err.message, true); }
   });
-  api("/brain/settings").then((d) => {
+  api("/privacy").then((d) => {
     const box = $("#basics-share");
-    if (box) box.checked = !!d?.settings?.shareOptIn;
+    if (box) box.checked = !!d?.levels?.qualitySignals;
+    const cbox = $("#basics-content-optin");
+    if (cbox) cbox.checked = d?.levels?.contentOptIn === true;
   }).catch(() => {});
   $("#basics-share").addEventListener("change", async (e) => {
-    try { await api("/brain/settings", { method: "POST", body: { shareOptIn: !!e.target.checked } }); }
+    try { await api("/privacy", { method: "POST", body: { qualitySignals: !!e.target.checked } }); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
+  $("#basics-content-optin")?.addEventListener("change", async (e) => {
+    try { await api("/privacy", { method: "POST", body: { contentOptIn: !!e.target.checked } }); }
     catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
   });
   $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
@@ -2173,7 +2201,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">Run setup again (Find my AIs)</a> · `}Version, Check for updates, and About are in Help.</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · <a href="#" id="s-find-ais">Find my AIs</a> · `}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2188,7 +2216,7 @@ function renderSettings(v) {
         <div class="row" style="margin-top:4px"><input type="text" id="lic-key" placeholder="${S.license?.key ? `active: ${esc(S.license.key)}` : "EVB-XXXX-XXXX-XXXX or a promo code"}" style="flex:1;font-family:var(--mono)" autocomplete="off">${S.mode === "hosted" ? "" : `<input type="email" id="lic-email" placeholder="your email (for promo codes)" value="${esc(S.license?.email || "")}" style="flex:1">`}<button class="btn sm primary" id="lic-go" data-busy-label="Checking...">Activate</button></div>
         <div class="dim small" style="margin-top:4px">Paste the key or code you were given into this one box. ${S.mode === "hosted" ? `Codes are linked to ${esc(S.user?.email || "your account")}.` : "A promo code also needs your email."}</div>
         <div class="small muted" style="margin-top:6px">${esc(S.license?.message || "")} ${S.license?.email ? `· ${esc(S.license.email)}` : ""} ${(S.license?.tier || "free") === "free" ? `· Free tier: Single mode, ${S.license?.limits?.councilsPerMonth ?? 5} councils/month, ${S.license?.limits?.projects ?? 3} projects, ${S.license?.limits?.connectedServices ?? 1} connected service.` : ""}</div>
-        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}${grandfatherHtml(S.proPlans, S.license)}</div>`}
+        ${(S.license?.tier || "free") === "free" || (S.license?.tier || "free") === "pro" ? `<div style="margin-top:10px">${upgradeBlock(false)}</div>` : `<div style="margin-top:10px">${planCompareHtml(S.proPlans?.compare)}${extremeExtrasHtml()}${founderSpotsHtml(S.proPlans)}</div>`}
         <div class="row" style="margin-top:8px"><button class="btn sm" id="lic-re" data-busy-label="Checking...">Re-check my licence</button></div>
         ${licenceCloudFields()}
       </div>
@@ -2264,7 +2292,8 @@ function renderSettings(v) {
     } catch (e) { toast(e.message, true); }
   });
   $("#s-check").addEventListener("click", async () => { toast("Checking every AI…"); await api("/check", { method: "POST" }); await refresh(); });
-  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.phase = "scan"; S.view = "setup"; render(); });
+  $("#s-setup")?.addEventListener("click", (e) => { e.preventDefault(); restartFullSetup(); });
+  $("#s-find-ais")?.addEventListener("click", (e) => { e.preventDefault(); S.connectWizard = false; S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; S.view = "setup"; render(); });
   $("#acct-out")?.addEventListener("click", () => signOut(true, "Signed out."));
   $("#hub-save")?.addEventListener("click", () => { const v = $("#hub-addr").value.trim().replace(/\/$/, ""); if (!/^https?:\/\//.test(v)) return toast("Enter a full address, e.g. https://your-hub.fly.dev", true); localStorage.setItem("cc.hub", v); location.reload(); });
   $("#hub-reset")?.addEventListener("click", () => { localStorage.removeItem("cc.hub"); location.reload(); });
@@ -2439,11 +2468,15 @@ $("#tabs").addEventListener("click", (e) => {
   if (b.dataset.action === "demo-on") { closeNav(root); if (S.demo) toast("Demo mode is already on. Use Exit demo mode at the top to leave it."); else setDemo(true); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
+  if (b.dataset.view === "setup") { S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; }
   S.view = b.dataset.view;
   S.openProject = null;
   S.navFocus = b.dataset.focus || "";
   // Missions and Councils on a wide Expert bar open Command with that run mode picked.
   if (b.dataset.runMode) S.cmdMode = b.dataset.runMode;
+  const sc = S.uiMode === "expert" ? shortcutModeOf(b) : "";
+  if (sc) { S.cmdMode = sc; S.cmdShortcut = sc; S.focusOrders = true; }
+  else S.cmdShortcut = "";
   // A Connect or Connections link opens Settings past the Simple basics, at that panel.
   if (b.dataset.view === "settings" && S.navFocus) S.settingsMore = true;
   // A promoted page is lit on the bar, not on the menu it left.
@@ -2510,6 +2543,7 @@ $("#mobile-nav").addEventListener("click", (e) => {
   if (b.hasAttribute("data-feed")) { $("#feed").classList.toggle("open"); return; }
   if (!b.dataset.view) return;
   S.connectWizard = false;
+  if (b.dataset.view === "setup") { S.setup = S.setup || {}; S.setup.fullFlow = false; S.setup.phase = "scan"; }
   S.view = b.dataset.view; S.openProject = null; render();
 });
 // PWA (browser / phone only): a new service worker waits until the person clicks Refresh; only that
@@ -2619,12 +2653,48 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { withBusy, get S() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();
 
 // ----- Setup (first run) -----
+function restartFullSetup() {
+  S.connectWizard = false;
+  S.setup = {
+    ...(S.setup || {}),
+    step: 1,
+    result: null,
+    busy: false,
+    phase: setupPhase({ fresh: false, fullRestart: true }),
+    fullFlow: true,
+    afterScan: "",
+  };
+  S.firstRunDone = true;
+  S.view = "setup";
+  window.CC?.tour?.sync?.();
+  render();
+}
+async function advanceFromScanToConnections() {
+  if (S.setup) {
+    S.setup.fullFlow = false;
+    S.setup.phase = "";
+  }
+  try {
+    const saved = await api("/setup/done", { method: "POST" });
+    S.settings = { ...(S.settings || {}), ...(saved || {}), onboarded: true };
+    if (S.onboarding) S.onboarding.show = false;
+    S.visitedSetup = true;
+  } catch (e) { toast(e.message, true); }
+  if (window.CC.connectSetup?.open) {
+    await window.CC.connectSetup.open();
+  } else {
+    S.connectWizard = true;
+    S.visitedConnect = true;
+    S.view = "setup";
+    render();
+  }
+}
 async function saveShareChoice() {
   const st = S.setup;
   const on = !!$("#su-share")?.checked;
@@ -2638,9 +2708,15 @@ async function saveNewsChoice() {
   await api("/community/newsletter", { method: "POST", body: { optedIn: true } });
 }
 async function saveSetupUsername(useDefault) {
+  const st = S.setup;
   const input = $("#su-username");
-  const suggestion = input?.dataset.suggestion || S.setup?.usernameDefault || "";
+  const suggestion = input?.dataset.suggestion || st?.usernameDefault || "";
   const typed = input?.value?.trim() || "";
+  const saved = st?.usernameSaved || "";
+  if (saved) {
+    if (useDefault || !st?.usernameTouched || !typed || typed === saved) return;
+    if (!confirm(`Change your saved username from "${saved}" to "${typed}"?`)) return;
+  }
   const username = useDefault ? (suggestion || typed) : (typed || suggestion);
   if (!username) return;
   await api("/account/username", { method: "POST", body: { username } });
@@ -2695,6 +2771,7 @@ function welcomeAppsHtml() {
 async function saveWelcomeKey(st) {
   const key = ($("#su-or-key")?.value || st.orKey || "").trim();
   if (!key) return false;
+  if (P("openrouter")?.keyed && !confirm("An OpenRouter key is already saved in the vault. Replace it?")) return false;
   const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
   st.orKey = "";
   keyToast("openrouter", r);
@@ -2706,6 +2783,17 @@ function openPrivacyList() {
   import("/features/privacy.js").then((m) => (window.CC.openPrivacy || m.openPrivacy)?.()).catch((e) => toast(e.message, true));
 }
 function renderWelcome(v, st) {
+  if (!st.privacyKnown && !st.privacyLoading) {
+    st.privacyLoading = true;
+    api("/privacy").then((d) => {
+      if (!st.qualityTouched && typeof d?.levels?.qualitySignals === "boolean") st.qualitySignals = d.levels.qualitySignals;
+      if (!st.contentTouched) st.contentOptIn = d?.levels?.contentOptIn === true;
+      st.privacyKnown = true;
+      if (S.view === "setup" && st.phase === "welcome") render();
+    }).catch(() => { st.privacyKnown = true; }).finally(() => { st.privacyLoading = false; });
+  }
+  const qualityChecked = typeof st.qualitySignals === "boolean" ? st.qualitySignals : true;
+  const contentChecked = st.contentOptIn === true;
   v.innerHTML = `<div class="welcome" id="su-welcome">
     <div class="panel" style="padding:22px">
       <div class="row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -2719,12 +2807,32 @@ function renderWelcome(v, st) {
         <!-- Reserved slot: 0.4.16 adds "Backup when credits run out" here with CC.register({ welcome: { order, render(el) } }). -->
         <section class="welcome-slot" id="su-backup-slot" data-slot="credit-backup" aria-label="More setup"></section>
       </div>
+      <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
+        <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">
+          <input type="checkbox" id="su-quality-signals" ${qualityChecked ? "checked" : ""}>
+          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span></span>
+        </label>
+        <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start;margin-top:8px">
+          <input type="checkbox" id="su-content-optin" ${contentChecked ? "checked" : ""}>
+          <span><b>${esc(WELCOME.contentOptInLabel)}</b> <span class="dim">${esc(WELCOME.contentOptInLine)}</span></span>
+        </label>
+      </div>
       <div class="row" style="margin-top:16px;gap:10px;flex-wrap:wrap;align-items:center">
         <span class="dim small">${esc(WELCOME.privacyLine)} <a href="#" id="su-privacy">${esc(WELCOME.privacyLink)}</a></span>
         <button type="button" class="btn primary" id="su-start" style="margin-left:auto">${esc(WELCOME.start)}</button>
       </div>
     </div>
   </div>`;
+  $("#su-quality-signals")?.addEventListener("change", (e) => {
+    st.qualityTouched = true;
+    st.qualitySignals = !!e.target.checked;
+    api("/privacy", { method: "POST", body: { qualitySignals: st.qualitySignals, noticeSeen: true } }).catch(() => {});
+  });
+  $("#su-content-optin")?.addEventListener("change", (e) => {
+    st.contentTouched = true;
+    st.contentOptIn = !!e.target.checked;
+    api("/privacy", { method: "POST", body: { contentOptIn: st.contentOptIn } }).catch(() => {});
+  });
   $("#su-mode").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-ui-pick]");
     if (!b) return;
@@ -2781,6 +2889,17 @@ async function finishWelcome({ skipped = false } = {}) {
     const mode = S.uiMode === "expert" ? "expert" : "simple";
     S.settings = { ...(S.settings || {}), uiMode: mode, uiModeChosen: true };
     api("/settings", { method: "POST", body: { uiMode: mode, uiModeChosen: true } }).catch(() => {});
+  }
+  if (S.setup?.fullFlow) {
+    S.setup.phase = nextRestartPhase("welcome");
+    S.setup.step = 1;
+    S.setup.result = null;
+    S.firstRunDone = true;
+    S.connectWizard = false;
+    S.view = "setup";
+    window.CC?.tour?.sync?.();
+    render();
+    return;
   }
   await finishAiSetup("command", { quiet: skipped });
 }
@@ -2862,6 +2981,7 @@ function renderSetup(v) {
   if (!st.usernameKnown && !st.usernameLoading) {
     st.usernameLoading = true;
     api("/account").then((d) => {
+      st.usernameSaved = d?.username || "";
       st.usernameDefault = d?.username || d?.suggestion || "";
       if (!st.usernameTouched) st.usernameValue = st.usernameDefault;
       st.usernameKnown = true;
@@ -2961,6 +3081,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
       try { await saveShareChoice(); await saveNewsChoice(); }
       catch (e) { toast(e.message, true); return; }
+      if (st.fullFlow) { await advanceFromScanToConnections(); return; }
       finishAiSetup("settings");
     });
     window.CC.mountPromptInterview?.($("#su-prompts"));
@@ -3007,13 +3128,17 @@ function renderSetup(v) {
   renderExtras("setup", "#su-extras");
   renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => {
+    if (st.fullFlow) {
+      await advanceFromScanToConnections();
+      return;
+    }
     if ((st.afterScan === "expert" || S.settings?.expertSetup?.pendingScan) && !S.settings?.expertSetup?.done) {
       st.afterScan = "";
       st.phase = "expert";

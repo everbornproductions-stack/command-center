@@ -60,7 +60,7 @@ When a handoff-only AI gains its own API or MCP route, the chat asks once: "X ca
 
 ## 0.4.9 Welcome email
 
-Send a branded welcome email when someone gets the app: a website download signup, a Square Pro purchase (the Pro licence), or an in-app account. The template is emails/welcome.html and emails/welcome.txt with {{FIRST_NAME}} and {{INSTALL_URL}}. The install link is one page for Windows and Mac. The mail provider is pluggable and off until it is configured. Tests never send. The Supabase service key stays server-only. See docs/welcome-email.md.
+Send a branded welcome email when someone gets the app: a website download signup, a Stripe Pro purchase (the Pro licence), or an in-app account. The template is emails/welcome.html and emails/welcome.txt with {{FIRST_NAME}} and {{INSTALL_URL}}. The install link is one page for Windows and Mac. The mail provider is pluggable and off until it is configured. Tests never send. The Supabase service key stays server-only. See docs/welcome-email.md.
 
 ## Release order (Chris, 2026-10-21)
 

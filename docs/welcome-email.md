@@ -1,6 +1,6 @@
 # Welcome email
 
-Chris asked for this on 2026-10-21. The locked spec in docs/DECISIONS.md (item 22) is unchanged and still says it is not in the run order. This page is how the sender works. It does not deploy anything, and it does not touch Square.
+Chris asked for this on 2026-10-21. The locked spec in docs/DECISIONS.md (item 22) is unchanged and still says it is not in the run order. This page is how the sender works. It does not deploy anything, and it does not touch Stripe.
 
 ## When it sends
 
@@ -8,7 +8,7 @@ The app queues one welcome per email address:
 
 - Website download signup: `POST /api/welcome/signup` with `{ email, firstName, source: "download" }`.
 - In-app account creation: the same route with `source: "account"`.
-- A licence that activates: `server/license.js` queues the welcome after a successful check. Tier `pro` is recorded as a Pro purchase (that is how a Square Pro purchase shows up). Any other tier is a licence redeem. A mail problem does not fail the licence check. The same email is not sent again on a later recheck.
+- A licence that activates: `server/license.js` queues the welcome after a successful check. Tier `pro` is recorded as a Pro purchase (that is how a Stripe Pro purchase shows up). Any other tier is a licence redeem. A mail problem does not fail the licence check. The same email is not sent again on a later recheck.
 
 The provider is `none` until it is changed. In that state the queue returns `{ sent: false, reason: "disabled" }` and nothing leaves the machine.
 

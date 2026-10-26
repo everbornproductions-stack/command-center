@@ -99,6 +99,9 @@ test("the page, Help menu, and Settings can run setup again, and Simple hides th
   const help = read("web", "features", "help.js");
   const main = read("electron", "main.cjs");
   assert.match(ui, /Get everything connected/);
+  assert.match(ui, /id="cs-restart-all">Run the whole setup again</);
+  assert.match(ui, /Start over: welcome screen, Find my AIs, then connections\. Nothing you saved is changed without asking\./);
+  assert.match(ui, /window\.CC\.restartFullSetup/);
   assert.match(ui, /keysetup\?\.open/);
   assert.match(ui, /\/connect\/mcp/);
   assert.match(ui, /\/browser\/google\/start/);
