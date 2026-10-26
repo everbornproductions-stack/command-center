@@ -55,6 +55,7 @@ export const FEATURES = [
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
   { id: "finishpath", deliverable: true },
+  { id: "momentum", deliverable: true },
   { id: "prompt-drop", views: ["images", "media", "remix", "builders", "webbuilders"], home: true },
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },

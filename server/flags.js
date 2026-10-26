@@ -11,6 +11,7 @@ const DEFAULTS = {
   freechat: true, // Free signed-in people post to the shared Community room with a per-install device token (needs supabase/community_free_posting.sql)
   takeover: true, // Review and Take Over Tasks panel, project mirroring, Owner tools
   templates: true, // Custom project templates: Save as template, Start from a template
+  momentum: true, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
   signalsend: false, // Sending anonymous quality signals. OFF: this repo has no receiver for /api/metrics/signals. Turn on with CC_FLAG_SIGNALSEND=1 once the metrics service has one.
 };
 export function flagOn(name) {
