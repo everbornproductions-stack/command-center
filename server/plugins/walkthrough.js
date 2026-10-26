@@ -10,6 +10,7 @@ import {
 } from "../walkthroughs.js";
 import { normalizeMode } from "../modes.js";
 import { fillAnswers, answerFromDescription } from "../build-all.js";
+import { zipStore } from "../doc-export.js";
 
 export const id = "walkthrough";
 const KIND = "walkthrough.items";
@@ -443,7 +444,19 @@ export async function routes(req, res, url, body, h) {
     const view = presentWalk(w, exp, flowOpts);
     if (w.stage === "done" || w.stage === "review") view.nextSteps = typeById(w.type)?.nextSteps || [];
     const markdown = exportMarkdown({ ...view, example: false });
-    return h.json(res, 200, { filename: `${slugTitle(w.plan?.title || typeById(w.type)?.name)}.md`, markdown, example: false });
+    const slug = slugTitle(w.plan?.title || typeById(w.type)?.name);
+    if (url.searchParams.get("format") === "zip") {
+      // One zip: the whole write-up, the finished deliverable, and each step's own output as a file.
+      const pad = (n) => String(n).padStart(2, "0");
+      const entries = [
+        { name: `${slug}/${slug}.md`, data: markdown },
+        { name: `${slug}/deliverable.md`, data: String(w.deliverable || "") },
+        ...(w.plan?.steps || []).filter((st) => st.output).map((st, i) => ({ name: `${slug}/steps/${pad(i + 1)}-${slugTitle(st.title || "step")}.md`, data: `# ${st.title || "Step"}\n\n${st.output}\n` })),
+        { name: `${slug}/README.txt`, data: "Made with Meldmind. These files are plain text and stay on this computer until you move them. Nothing was posted or sent.\n" },
+      ];
+      return h.json(res, 200, { filename: `${slug}.zip`, zipBase64: zipStore(entries).toString("base64"), files: entries.length, example: false });
+    }
+    return h.json(res, 200, { filename: `${slug}.md`, markdown, example: false });
   }
 
   if (req.method !== "POST") return false;
@@ -612,6 +625,17 @@ export async function routes(req, res, url, body, h) {
     h.json(res, 202, presentWalk(w, exp, flowOpts));
     runRevise(h, w, note).finally(() => running.delete(w.id));
     return true;
+  }
+  // Your own edit of the finished text. Allowed in Review and after Finish, so a finished project is never locked.
+  if (sub === "edit") {
+    if (w.stage !== "review" && w.stage !== "done") return h.json(res, 400, { error: "Editing is available after the steps finish." });
+    const text = typeof body?.deliverable === "string" ? body.deliverable : "";
+    if (!text.trim()) return h.json(res, 400, { error: "The text cannot be empty." });
+    if (text.length > 200000) return h.json(res, 400, { error: "That text is too long." });
+    w.deliverable = text;
+    w.revisions = [...(w.revisions || []), { note: "Edited by you.", at: Date.now(), by: "you" }];
+    persist(h, w);
+    return h.json(res, 200, presentWalk(w, exp, flowOpts));
   }
   if (sub === "finish" || sub === "done" || sub === "finished-project") {
     if (!w.deliverable) return h.json(res, 400, { error: "There is no deliverable to finish." });

@@ -497,6 +497,7 @@ function paintReview(stage, w, busy) {
     <div class="sp-actions" style="margin-top:8px">
       <button class="btn sm" type="button" id="sp-rev" ${busy ? "disabled" : ""}>${busy ? "Revising…" : "Revise"}</button>
       <button class="btn sm" type="button" id="sp-exp">Export</button>
+      <button class="btn sm" type="button" id="sp-exp-zip">Export as a zip</button>
       <button class="btn sm" type="button" id="sp-chat">Share in chat</button>
       <button class="btn sm primary" type="button" id="sp-fin" ${busy ? "disabled" : ""}>${window.CC.S?.flags?.finishpath ? "Looks good, Finish" : "Finish"}</button>
       ${window.CC.S?.flags?.finishpath ? `<button class="btn sm" type="button" id="sp-edit-further" ${busy ? "disabled" : ""}>Edit further</button>` : ""}
@@ -508,6 +509,7 @@ function paintReview(stage, w, busy) {
     catch (e) { toast(e.message, true); }
   });
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
+  stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
     window.CC.shareInChat?.({
       kind: "mission",
@@ -531,26 +533,52 @@ function stepTools(stage, w) {
 }
 function paintDone(stage, w) {
   stage.innerHTML = `<h3 style="margin:0 0 6px">${esc(w.plan?.title || "Deliverable")}</h3>
-    <div class="md">${md(w.deliverable || "")}</div>
+    <div class="md" id="sp-done-view">${md(w.deliverable || "")}</div>
+    <details id="sp-done-edit" style="margin-top:10px"><summary>Edit this project</summary>
+      <label class="lbl" for="sp-done-text">Edit the text yourself</label>
+      <textarea id="sp-done-text" rows="12" style="width:100%">${esc(w.deliverable || "")}</textarea>
+      <div class="sp-actions" style="margin-top:6px"><button class="btn sm primary" type="button" id="sp-done-save">Save my edit</button></div>
+      <label class="lbl" for="sp-done-note" style="margin-top:10px">Or ask the AI for a change</label>
+      <textarea id="sp-done-note" rows="2" placeholder="Say what to change. Nothing is sent."></textarea>
+      <div class="sp-actions" style="margin-top:6px"><button class="btn sm" type="button" id="sp-done-rev">Revise with AI</button></div>
+    </details>
     <h4>Next steps</h4>
     <ul>${(w.nextSteps || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
     <div class="sp-actions">
-      <button class="btn sm primary" type="button" id="sp-exp">Export</button>
+      <button class="btn sm primary" type="button" id="sp-exp-zip">Export as a zip</button>
+      <button class="btn sm" type="button" id="sp-exp">Export as text</button>
       <button class="btn sm" type="button" id="sp-live">Open live view</button>
     </div>
     <p class="small dim">The file stays on this computer until you move it. Nothing is posted or emailed.</p>`;
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
+  stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  stage.querySelector("#sp-done-save").addEventListener("click", async () => {
+    try {
+      paintWalk(await api(`/walkthrough/${w.id}/edit?${qexp()}`, { method: "POST", body: { deliverable: stage.querySelector("#sp-done-text").value, experience: clientExperience() } }));
+      toast("Saved your edit.");
+    } catch (e) { toast(e.message, true); }
+  });
+  stage.querySelector("#sp-done-rev").addEventListener("click", async () => {
+    const note = stage.querySelector("#sp-done-note").value;
+    try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
+    catch (e) { toast(e.message, true); }
+  });
 }
-async function downloadWalk(id) {
+async function downloadWalk(id, format) {
   try {
-    const file = await api(`/walkthrough/${id}/export?${qexp()}`);
-    download(file.filename || "project.md", file.markdown || "");
+    const file = await api(`/walkthrough/${id}/export?${qexp()}${format === "zip" ? "&format=zip" : ""}`);
+    if (file.zipBase64) {
+      const bin = atob(file.zipBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      downloadBlob(file.filename || "project.zip", new Blob([bytes], { type: "application/zip" }));
+    } else download(file.filename || "project.md", file.markdown || "");
     toast("Exported. Nothing was sent.");
   } catch (e) { toast(e.message, true); }
 }
-function download(filename, markdown) {
-  const blob = new Blob([markdown], { type: "text/markdown" });
+function download(filename, markdown) { downloadBlob(filename, new Blob([markdown], { type: "text/markdown" })); }
+function downloadBlob(filename, blob) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
