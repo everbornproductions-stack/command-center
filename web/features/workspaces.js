@@ -102,8 +102,11 @@ function manageCard(w) {
 function readCard(w) {
   return `<div class="panel" data-ws="${esc(w.id)}"><h3>${esc(w.name)} <span class="chip">${esc(w.role)}</span><span class="right">shared with you</span></h3>
     <div class="dim small" style="margin-bottom:6px">Your role: ${esc(w.role)}, ${esc(ROLE_HELP[w.role] || "")}.</div>
-    ${(w.projects || []).map(projectTiles).join("") || `<div class="dim small">The owner has not shared a project yet.</div>`}
-    ${w.permissions["usage.count"] ? `<div style="margin-top:12px"><label class="lbl">Your usage</label>${usageTable(w)}</div>` : ""}</div>`;
+    ${w.across ? `<div class="small" style="margin:6px 0"><b>Team</b>: ${(w.members || []).map((m) => esc(`${m.label} (${m.role})`)).join(", ") || "just you"}</div>
+      ${(w.recipes || []).length ? `<div class="small"><b>Shared recipes</b>: ${(w.recipes || []).map((r) => esc(r.name || "Recipe")).join(", ")}</div>` : `<div class="dim small">No shared recipes yet.</div>`}
+      ${w.error ? `<div class="small" style="color:var(--amber)">${esc(w.error)}</div>` : ""}` : ""}
+    ${w.across ? "" : (w.projects || []).map(projectTiles).join("") || `<div class="dim small">The owner has not shared a project yet.</div>`}
+    ${w.permissions["usage.count"] && !w.across ? `<div style="margin-top:12px"><label class="lbl">Your usage</label>${usageTable(w)}</div>` : ""}</div>`;
 }
 const card = (w) => (w.permissions["members.invite"] || w.permissions["projects.share"] ? manageCard(w) : readCard(w));
 
@@ -127,6 +130,10 @@ async function render(v) {
     ${data.memberOf.length ? `<div class="cat-h">Shared with you</div>` : ""}
     ${data.memberOf.map(card).join("")}
     ${!data.owned.length && !data.memberOf.length && data.studio ? `<div class="empty">No workspaces yet. Create one, invite someone with a role, tick the projects to share.</div>` : ""}
+    ${!data.hosted ? `<div class="panel" id="ws-join"><h3>Join with a code <span class="right">another computer</span></h3>
+      ${data.across?.ready ? `<form class="row" id="ws-join-form" style="gap:6px"><input type="text" required placeholder="Paste the invite code" style="flex:1" maxlength="64" aria-label="Invite code"><button class="btn sm primary" type="submit">Join</button></form>
+        <div class="dim small" style="margin-top:6px">Your teammate gives you a code from their Meldmind. It works once and expires in 14 days.</div>`
+        : `<div class="dim small">${esc(data.across?.note || "Teams across computers need the Meldmind cloud address in Settings.")}</div>`}</div>` : ""}
     <div id="team-spaces"></div>
   </div>`;
   window.CC.mountTeamSpaces?.(v.querySelector("#team-spaces"));
@@ -134,8 +141,9 @@ async function render(v) {
   const showLink = (cardEl, r) => {
     if (!r?.link) return;
     const box = cardEl.querySelector("[data-link]"); if (!box) return;
+    const codeLine = r.code ? `<div class="small" style="margin-top:6px">${r.acrossOk ? `Code for another computer: <b class="mono">${esc(r.code)}</b>. ${esc(r.acrossNote || "")}` : esc(r.acrossNote || "")}</div>` : "";
     box.innerHTML = `<div class="small" style="margin-top:8px;padding:8px;border:1px solid var(--line-2);border-radius:10px">Invite link for <b>${esc(r.email)}</b> as ${esc(r.role)} (shown once):
-      <div class="row" style="gap:6px;margin-top:4px"><input class="mono" readonly value="${esc(r.link)}" style="flex:1" aria-label="Invite link"><button class="btn sm" type="button" data-copy>Copy</button></div></div>`;
+      <div class="row" style="gap:6px;margin-top:4px"><input class="mono" readonly value="${esc(r.link)}" style="flex:1" aria-label="Invite link"><button class="btn sm" type="button" data-copy>Copy</button></div>${codeLine}</div>`;
     box.querySelector("[data-copy]").addEventListener("click", () => { navigator.clipboard?.writeText(r.link); toast("Invite link copied"); });
   };
   const invite = async (id, email, role) => {
@@ -146,6 +154,7 @@ async function render(v) {
       toast(`${email} invited as ${role}. Copy the link and send it yourself.`);
     } catch (e) { toast(e.message, true); }
   };
+  $("#ws-join-form", v)?.addEventListener("submit", (e) => { e.preventDefault(); const code = e.target.querySelector("input").value.trim(); if (code) act(() => api("/workspaces/join", { method: "POST", body: { code } }), "You joined the team"); });
   $("#ws-new", v)?.addEventListener("submit", (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (name) act(() => api("/workspaces", { method: "POST", body: { name } }), "Workspace created"); });
   $$("[data-ws]", v).forEach((cardEl) => {
     const id = cardEl.dataset.ws;

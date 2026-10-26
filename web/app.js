@@ -2434,7 +2434,14 @@ function chooseProPlan(which) {
   toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
 // After an Upgrade link opens, re-check the license every few seconds for two minutes, and on focus.
+const PAID_WAIT = {
+  waiting: "Waiting for your purchase to confirm. This usually takes under a minute. Have a license key instead? Type it under Settings > Your plan and you are unlocked right away.",
+  timeout: "Your purchase has not shown up yet. Use the same email you signed in with, then press I paid, check now. Or type your license key under Settings > Your plan. Your plan stays Free until one of these works.",
+  unlocked: "",
+};
+function paintPaidWait() { $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; }); }
 const paidWatch = createPaidWatch({
+  onState: (st) => { S.paidWait = st; paintPaidWait(); },
   current: () => S.license,
   check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
   onUnlock: (lic) => { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); },
@@ -2445,9 +2452,11 @@ function bindProPlans(root) {
   $$("[data-upgrade-link]", root).forEach((a) => a.addEventListener("click", () => paidWatch.start()));
   $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
     const before = S.license?.tier || "free";
+    S.paidWait = "waiting"; paintPaidWait();
     const lic = await paidWatch.check();
-    if (!lic) { toast("Could not reach the license server. Try again in a moment.", true); return; }
-    if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    if (!lic) { S.paidWait = "timeout"; paintPaidWait(); toast("Could not reach the license server. Try again in a moment.", true); return; }
+    if ((lic.tier || "free") !== before && lic.status === "active") { S.paidWait = "unlocked"; paintPaidWait(); toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    S.paidWait = "timeout"; paintPaidWait();
     toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your license key.", true);
   }));
 }
@@ -2455,6 +2464,7 @@ function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
       <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a license key</button></div>
+      <div class="small" data-paid-wait aria-live="polite" role="status" style="margin-top:10px;text-align:center" ${PAID_WAIT[S.paidWait] ? "" : "hidden"}>${esc(PAID_WAIT[S.paidWait] || "")}</div>
       ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
       <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
@@ -2535,6 +2545,7 @@ function phonePanel() {
     <details style="margin-top:12px"><summary class="small muted" style="cursor:pointer">Use a hosted hub instead</summary>
       <div style="margin-top:8px">${hubFields()}</div>
       <div class="dim small" style="margin-top:8px">A hosted hub is a server elsewhere. The phone can use that address when this PC is off.</div>
+      <div class="small" data-hub-soon style="margin-top:6px"><span class="chip">Coming soon</span> Using your phone while this PC is off: Needs the Meldmind hub (coming soon). Your phone works while this PC is on.</div>
     </details></div>`;
 }
 function licenceCloudFields() {

@@ -18,7 +18,7 @@ import { emit } from "./events.js";
 import { recordCall } from "./ledger.js";
 import { fallbackSettings, troubleKind } from "./fallback.js";
 import { listTargets, stripSecrets } from "./handoff.js";
-import { workerOn, hubRoute } from "./reportback.js";
+import { hubOn, hubRoute } from "./reportback.js";
 import { CHAIN, WEBSITE_LATER, readyRoutesFor, routeSettings, askApp, stopApp, noteSignedOut } from "./sub-routes.js";
 
 export const DOC = "answerwait.jobs";
@@ -108,7 +108,10 @@ export function buildCopyPrompt(job, { hub = null } = {}) {
     `Meldmind is waiting for this answer and checks for it on its own. The job id is ${job.id}. Use the first way that works for you:`,
   ];
   let n = 1;
-  if (hub?.url && hub?.token) {
+  if (hub?.sbBlock) {
+    lines.push(`${n++}. ${hub.sbBlock.split("\n")[0].replace(/^When finished, let Meldmind know: /, "If you can make web requests, tell Meldmind with: ")}`);
+    lines.push(`   ${hub.sbBlock.split("\n").filter((l) => l.startsWith("curl")).join(" ")}`);
+  } else if (hub?.url && hub?.token) {
     const payload = JSON.stringify({ status: "done", summary: "<your full answer>" });
     lines.push(`${n++}. If you can make web requests, post your full answer to Meldmind: POST ${hub.url} with header Authorization: Bearer ${hub.token} and JSON {"status": "done", "summary": "<your full answer>"}.`);
     lines.push(`   curl -sS -X POST "${hub.url}" -H "Authorization: Bearer ${hub.token}" -H "Content-Type: application/json" -d '${payload}'`);
@@ -238,7 +241,7 @@ export async function advance(jobId) {
     }
     if (step === "copy") {
       let hub = null;
-      if (workerOn()) { try { hub = await hubRoute({ jobId, kind: "answer", threadId: job.runId }); } catch { hub = null; } }
+      if (hubOn()) { try { hub = await hubRoute({ jobId, kind: "answer", threadId: job.runId }); } catch { hub = null; } }
       job = findJob(jobId);
       if (!job || job.status !== "waiting") return;
       job = patch(jobId, { trying: null, hub: !!hub?.hub, prompt: buildCopyPrompt(job, { hub: hub?.hub ? hub : null }) });
