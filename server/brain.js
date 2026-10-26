@@ -15,7 +15,7 @@
 //    so it is exported and deleted with the rest of their data. Reset clears it and the older skills table.
 //  - Sharing: an anonymous aggregate could train a small routing model of our own. A new install starts
 //    with it off until the person opts in (Chris, 2026-10-21). An existing install keeps its choice
-//    (server/privacy.js applyShareDefaults). Nothing is sent anywhere by this build; the preview shows
+//    (server/privacy.js applyShareDefaults). The daily send (server/plugins/usage.js) runs only while shareOptIn is on; the preview shows
 //    what it would contain.
 import { CAPABILITIES, PROVIDERS, findModel } from "./registry.js";
 import { doc, putDoc } from "./store.js";
@@ -293,7 +293,7 @@ export function resetBrain() {
   return next;
 }
 // What an opt-in share would contain: per model and capability only counts and averages; no run ids,
-// no user id, no dates finer than the month. Nothing is sent by this build.
+// no user id, no dates finer than the month. Sent only while the switch is on.
 export function sharePreview() {
   const b = brain(), rows = [];
   for (const [model, m] of Object.entries(b.stats)) for (const cap of TASK_CAPS) {

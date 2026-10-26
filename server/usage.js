@@ -526,9 +526,43 @@ export async function fetchReport({ asOf = utcDay(), env = process.env, fetchImp
   });
 }
 
+// Where the anonymous quality signals go: next to the daily ping on the same hub, or the same mock in tests.
+export function signalsDestination(env = process.env) {
+  const ping = pingDestination(env);
+  if (!ping) return "";
+  return /\/ping\/?$/.test(ping) ? ping.replace(/\/ping\/?$/, "/signals") : `${ping.replace(/\/$/, "")}/signals`;
+}
+
+// Once a day, only while the person has the track-record switch on (brain settings shareOptIn === true).
+// The payload is rebuilt and checked against the allowed keys right before it leaves. Nothing sends on a failed check.
+export async function sendDueSignals({ consent, buildPayload: build, validate, version, destination, fetchImpl, now = new Date() } = {}) {
+  const url = destination ?? signalsDestination();
+  if (!url) return { sent: false, reason: "no_destination" };
+  if (consent() !== true) return { sent: false, reason: "off" };
+  const s = loadState();
+  const today = utcDay(now);
+  if (s.signalsDay === today) return { sent: false, reason: "already" };
+  const payload = build({ installId: s.installId, version });
+  if (!payload.signals.length) return { sent: false, reason: "nothing_yet" };
+  const checked = validate(payload);
+  if (!checked.ok) return { sent: false, reason: "invalid" };
+  if (consent() !== true) return { sent: false, reason: "off" };
+  await postPing(url, payload, fetchImpl);
+  const saved = loadState();
+  saved.signalsDay = today;
+  putDoc(KIND, saved);
+  return { sent: true, count: payload.signals.length };
+}
+
 export function startUsageLoop(run, env = process.env) {
   const wait = checkIntervalMs(env);
-  const tick = () => { Promise.resolve().then(run).catch((e) => console.error(`[usage] ${e.message || e}`)); };
+  let busy = false;
+  // a slow send never overlaps the next tick, so one day never sends twice
+  const tick = () => {
+    if (busy) return;
+    busy = true;
+    Promise.resolve().then(run).catch((e) => console.error(`[usage] ${e.message || e}`)).finally(() => { busy = false; });
+  };
   const first = setTimeout(tick, firstDelayMs(env));
   first.unref?.();
   const timer = setInterval(tick, wait);
