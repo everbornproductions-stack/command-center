@@ -1996,8 +1996,35 @@ async function sendOrders() {
 }
 
 // ----- Projects -----
+// Internal planning prompts and the steps of a Start a project build are not chats a person wrote.
+function isInternalRunText(text) { return /^\s*(WALKTHROUGH_[A-Z_]+|[A-Z]{3,}(?:_[A-Z]+)+)\b/.test(String(text || "")); }
+function isStepRun(m) { return /^sp-.+-[^-]+$/.test(String(m?.id || "")); }
+// One row per Start a project build instead of one per step; internal prompts are dropped.
+function visibleRuns(rows) {
+  const out = [], groups = new Map();
+  for (const m of rows || []) {
+    if (!m || isInternalRunText(m.title) || isInternalRunText(m.prompt)) continue;
+    if (isStepRun(m)) {
+      const key = String(m.id).replace(/-[^-]+$/, "");
+      let g = groups.get(key);
+      if (!g) {
+        const proj = (S.projects || []).find((x) => x.id === m.projectId);
+        g = { ...m, kind: "project", title: `Start a project: ${proj?.name || "your steps"}`, cost: 0, steps: 0, _failed: false, _running: false };
+        groups.set(key, g); out.push(g);
+      }
+      g.steps++; g.cost = (Number(g.cost) || 0) + (Number(m.cost) || 0);
+      if (String(m.status || "").startsWith("fail")) g._failed = true;
+      if (m.status === "running") g._running = true;
+      if ((m.startedAt || 0) > (g.startedAt || 0)) g.startedAt = m.startedAt;
+      continue;
+    }
+    out.push(m);
+  }
+  for (const g of groups.values()) { g.status = g._failed ? "failed" : g._running ? "running" : "done"; g.title = `${g.title} (${g.steps} step${g.steps === 1 ? "" : "s"})`; }
+  return out;
+}
 function recentRunRows(rows) {
-  return (rows || []).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
+  return visibleRuns(rows).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
 }
 function wireRunRows(v) {
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
@@ -2016,11 +2043,11 @@ function wireRunRows(v) {
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
-  v.innerHTML = `<div class="grid" style="grid-template-columns: 1fr 360px">
+  v.innerHTML = `<div class="grid projects-grid">
     <div>
       <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Projects</h3><button class="btn sm" id="newp" style="margin-left:auto">+ New project</button></div>
       <div class="pcards">${S.projects.map((p) => {
-        const runs = S.missions.filter((m) => m.projectId === p.id);
+        const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
         const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
         const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
@@ -2713,6 +2740,16 @@ function renderSettings(v) {
 }
 
 async function refresh() { applyState(await api("/state")); renderStrip(); renderBudget(); render(); }
+// Pull the project list and runs again without repainting the page (a Start a project build adds a project).
+async function syncProjects() {
+  try {
+    const st = await api("/state");
+    if (Array.isArray(st.projects)) S.projects = st.projects;
+    if (Array.isArray(st.missions)) S.missions = st.missions;
+    if (Array.isArray(st.deletedProjects)) S.deletedProjects = st.deletedProjects;
+    if (S.view === "projects" && !S.openProject && document.querySelector(".pcards")) render();
+  } catch { /* the next refresh will catch up */ }
+}
 
 // ----- Keys for any provider (v0.3.1) -----
 function keyToast(id, r) {
@@ -3016,7 +3053,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

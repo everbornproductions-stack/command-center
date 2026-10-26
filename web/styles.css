@@ -353,6 +353,10 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .cursor::after { content: "▍"; color: var(--accent); animation: blink .8s steps(2) infinite; }
 
 /* ---- projects ---- */
+/* two columns only when there is room (1366 px wide screens were clipping the right column) */
+.projects-grid { grid-template-columns: minmax(0, 1fr); }
+.projects-grid > * { min-width: 0; }
+@media (min-width: 1500px) { .projects-grid { grid-template-columns: minmax(0, 1fr) 360px; } }
 .pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .pcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; cursor: pointer; border-top: 3px solid var(--c); transition: transform .15s, border-color .2s; }
 .pcard:hover { transform: translateY(-2px); border-color: var(--line-2); }

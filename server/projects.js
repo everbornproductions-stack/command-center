@@ -230,7 +230,7 @@ export function hqSnapshot() {
   if (out.available) {
     const st = readJson(stateFile, {});
     out.updated = st.updated || null;
-    out.tasks = (st.tasks || []).filter((t) => t.status !== "done").map((t) => ({ id: t.id, title: t.title, owner: t.owner, client: t.client, status: t.status, priority: t.priority, due: t.due || null }));
+    out.tasks = (st.tasks || []).filter((t) => t.status !== "done").map((t) => ({ id: t.id, title: plainPaths(t.title), owner: t.owner, client: t.client, status: t.status, priority: t.priority, due: t.due || null }));
     out.decisions = (st.decisions_for_chris || []).filter((d) => d.status === "open").map((d) => ({ id: d.id, question: plainPaths(d.question), recommendation: d.recommendation == null ? d.recommendation : plainPaths(d.recommendation), date: d.date }));
     out.agents = (st.agents || []).map((a) => ({ id: a.id, name: a.name, dept: a.dept, status: a.status, current: (a.current || []).length }));
   }

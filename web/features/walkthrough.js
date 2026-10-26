@@ -349,6 +349,15 @@ async function toggleHelp() {
 }
 
 let pendingWalk = null;
+// Start a project files its work under a project. Refresh the list so the Projects page shows it at once, and link to it.
+const notedProjects = new Set();
+async function noteProject(w) {
+  const cc = window.CC;
+  if (!w?.projectId || w.example || notedProjects.has(w.projectId)) return;
+  notedProjects.add(w.projectId);
+  try { await cc.syncProjects?.(); } catch { /* the page catches up on its next refresh */ }
+  if (/was created/.test(w.projectNote || "")) cc.toast("A project was created for this work.", false, { label: "Open it", onClick: () => cc.openProjectById?.(w.projectId) });
+}
 async function begin(type) {
   try {
     const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
@@ -378,6 +387,7 @@ function paintWalk(w) {
   if (!root) return;
   const busy = ["planning", "building", "revising"].includes(w.status);
   if (busy) startPoll(w.id);
+  noteProject(w);
   const expert = w.experience === "expert";
   root.innerHTML = `
     <div class="sp-actions">
