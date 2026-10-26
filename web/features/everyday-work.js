@@ -77,9 +77,9 @@ function render(root) {
       <div class="ew-row" style="margin-top:8px"><button type="button" class="btn sm" id="ew-draft">Draft the follow-up</button></div>
       ${lead ? `<label class="small">Email to ${esc(lead.drafts?.email?.to || "")}<textarea id="ew-email-body" rows="4">${esc(lead.drafts?.email?.body || "")}</textarea></label>
         <div class="dim small">Subject: ${esc(lead.drafts?.email?.subject || "")}</div>
-        <button type="button" class="btn sm primary" id="ew-send-email">Send email</button>
+        <button type="button" class="btn sm primary" id="ew-send-email">Save email draft</button><span class="dim small"> Draft saved, not sent. Copy it into your own email.</span>
         <label class="small">Text to ${esc(lead.drafts?.sms?.to || "")}<textarea id="ew-sms-body" rows="3">${esc(lead.drafts?.sms?.body || "")}</textarea></label>
-        <button type="button" class="btn sm primary" id="ew-send-sms">Send text</button>` : ""}
+        <button type="button" class="btn sm primary" id="ew-send-sms">Save text draft</button><span class="dim small"> Draft saved, not sent. Copy it into your own text app.</span>` : ""}
     </div>
     <h3 style="margin:0">How to</h3>
     ${(data?.howto || []).map((h) => `<div class="ew-card"><h3>How to: ${esc(h.title)}</h3><div class="ew-say">Try saying: ${esc(h.say)}</div><ol>${(h.steps || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>`).join("")}
@@ -158,7 +158,7 @@ async function sendLead(root, channel) {
   const body = channel === "email" ? (root.querySelector("#ew-email-body")?.value || draft.body) : (root.querySelector("#ew-sms-body")?.value || draft.body);
   try {
     const r = await api(`/everyday-work/leads/${encodeURIComponent(lead.id)}/send`, { method: "POST", body: { confirm: true, channel, to: draft.to, subject: draft.subject || "", body } });
-    toast(r.notice || "Recorded on this computer.");
+    toast(r.delivered ? "Handed to your test inbox." : "Draft saved on this computer. Not sent.");
     await load(); render(root);
   } catch (e) { toast(e.message, true); }
 }
