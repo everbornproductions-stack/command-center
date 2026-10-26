@@ -9,6 +9,7 @@ import * as Votes from "../community-votes.js";
 import * as News from "../ai-news.js";
 import * as Cloud from "../community-cloud.js";
 import * as Account from "../account-name.js";
+import { signedInEmail } from "../signed-in-email.js";
 
 export const id = "community";
 
@@ -21,6 +22,11 @@ const LIST = "newsletter.subscriber";
 function licenceEmail() {
   try { return Chat.cleanEmail(licenseState().email); }
   catch { return ""; }
+}
+// Who the person is in chat: the email on a licence, or the verified Google or Microsoft sign-in.
+// Chat is open to anyone signed in, not only paid plans.
+function identityEmail() {
+  return licenceEmail() || Chat.cleanEmail(signedInEmail());
 }
 function isOwner() {
   try { return licenseState().tier === "owner"; }
@@ -84,7 +90,7 @@ function takenNames(h) {
 }
 function actorOf() {
   const profile = Account.readProfile();
-  const lic = licenceEmail();
+  const lic = identityEmail();
   const owner = isOwner();
   const username = profile.username || "";
   const changedAt = Number(profile.usernameChangedAt) || 0;
@@ -93,7 +99,7 @@ function actorOf() {
   return { email: lic, username, displayName: username, owner, cooldownUntil };
 }
 function needActor(h) {
-  if (!licenceEmail()) return { error: "Add a licence first. Community chat uses the email on your licence.", status: 400 };
+  if (!identityEmail()) return { error: Chat.SIGN_IN_FIRST, status: 400 };
   const actor = actorOf(h);
   if (!actor.email || !actor.username) return { error: "Pick a username first.", status: 401 };
   return { actor };
@@ -158,9 +164,11 @@ async function mergeRemote(h, channel) {
   if (changed) saveRoom(h, room);
 }
 
+// Returns what really happened, so the page never says "Posted." for a message nobody else can see.
+// delivered: the shared room took it. retry: worth trying again later (offline). reason: plain words.
 async function syncPost(message, key) {
-  if (!key) return;
-  await Cloud.pushPost({
+  if (!key) return { delivered: false, retry: false, reason: "Saved on this computer only. Sharing with everyone needs a licence for now." };
+  const sent = await Cloud.pushPost({
     p_key: key,
     p_channel: message.channel,
     p_name: message.displayName,
@@ -168,6 +176,26 @@ async function syncPost(message, key) {
     p_kind: message.kind,
     p_share: message.share || null,
   });
+  if (sent.offline) return { delivered: false, retry: true, reason: "Could not reach the community. It is saved here and will be sent when the connection is back." };
+  if (sent.body?.ok === false) return { delivered: false, retry: false, reason: String(sent.body.message || "The community did not accept that message.").slice(0, 200) };
+  return { delivered: true, retry: false, reason: "" };
+}
+
+// Messages that could not be sent are tried again on the next refresh, while the licence key is on file.
+async function retryUnsent(h, actor) {
+  const key = rawLicenceKey(h);
+  if (!key || !actor.email) return;
+  const room = loadRoom(h);
+  const waiting = room.messages.filter((m) => m.unsent === "retry" && m.email === actor.email && !m.deleted).slice(0, 5);
+  if (!waiting.length) return;
+  let changed = false;
+  for (const m of waiting) {
+    const r = await syncPost(m, key);
+    if (r.delivered) { delete m.unsent; changed = true; }
+    else if (!r.retry) { m.unsent = "rejected"; m.unsentReason = r.reason; changed = true; }
+    else break;
+  }
+  if (changed) saveRoom(h, room);
 }
 
 function publicNews(news, actor) {
@@ -217,6 +245,7 @@ export async function routes(req, res, url, body, h) {
   if (method === "GET" && (p === "" || p === "/")) {
     const requested = url.searchParams.get("channel") || "general";
     const channel = Chat.CHAT_IDS.has(requested) ? requested : "general";
+    await retryUnsent(h, actor);
     await mergeRemote(h, channel);
     const room = loadRoom(h);
     const news = await refreshNews(h, actor);
@@ -226,7 +255,8 @@ export async function routes(req, res, url, body, h) {
       conduct: Chat.CONDUCT,
       joined: !!actor.email,
       owner: actor.owner,
-      needsLicence: !licenceEmail(),
+      needsLicence: !identityEmail(),
+      needsSignIn: !identityEmail(),
       username: actor.username || Account.usernameOf(),
       profile: (actor.username || Account.usernameOf()) ? { username: actor.username || Account.usernameOf(), displayName: actor.username || Account.usernameOf() } : null,
       suggestion: actor.username ? "" : Chat.suggestUsername(takenNames(h)),
@@ -254,9 +284,13 @@ export async function routes(req, res, url, body, h) {
       : { channel: body?.channel, body: body?.body, share: body?.share };
     const posted = Chat.postMessage(loadRoom(h), who.actor, input);
     if (!posted.ok) return reply(h, res, posted);
+    const sync = await syncPost(posted.message, rawLicenceKey(h));
+    if (!sync.delivered) {
+      posted.message.unsent = sync.retry ? "retry" : "local";
+      if (sync.reason) posted.message.unsentReason = sync.reason;
+    }
     saveRoom(h, posted.room);
-    await syncPost(posted.message, rawLicenceKey(h));
-    return h.json(res, 200, { ok: true, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
+    return h.json(res, 200, { ok: true, delivered: sync.delivered, note: sync.delivered ? "" : sync.reason, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
   }
 
   const parts = p.split("/").filter(Boolean);
@@ -381,9 +415,13 @@ export async function routes(req, res, url, body, h) {
       },
     });
     if (!posted.ok) return reply(h, res, posted);
+    const sync = await syncPost(posted.message, rawLicenceKey(h));
+    if (!sync.delivered) {
+      posted.message.unsent = sync.retry ? "retry" : "local";
+      if (sync.reason) posted.message.unsentReason = sync.reason;
+    }
     saveRoom(h, posted.room);
-    await syncPost(posted.message, rawLicenceKey(h));
-    return h.json(res, 200, { ok: true, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
+    return h.json(res, 200, { ok: true, delivered: sync.delivered, note: sync.delivered ? "" : sync.reason, message: Chat.publicMessage(posted.message, posted.room, who.actor) });
   }
 
   if (method === "GET" && p === "/newsletter") return h.json(res, 200, clientList(loadList(h), { token: true }));

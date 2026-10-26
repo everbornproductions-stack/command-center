@@ -256,7 +256,7 @@ test("one account username is used in chat, votes, and AI News, and email stays 
     assert.equal(JSON.stringify(again.json).includes("@"), false);
     const chat = await bare.api("/community/join", { method: "POST", body: { username: "Kind_Robin" } });
     assert.equal(chat.status, 400);
-    assert.match(chat.json.error, /Add a licence first/);
+    assert.match(chat.json.error, /Sign in first/);
     const state = await bare.api("/state");
     assert.ok(state.json.plugins.includes("account"));
   } finally { await bare.stop(); }
