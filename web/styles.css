@@ -107,6 +107,7 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 #simple-create.open { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 #simple-create button { background: var(--card-bg, #111a28); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 10px 6px; font-size: 0.8125rem; }
 .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card-bg, #0a0f18); padding: 5px 11px; border-radius: 999px; font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; min-width: 0; }
+.pill[hidden] { display: none; }
 #budget-pill { flex: 0 0 auto; overflow: hidden; }
 @media (max-width: 1280px) { #budget-pill { display: none; } }
 #conn-pill { flex: 0 0 auto; }
