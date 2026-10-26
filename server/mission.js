@@ -25,9 +25,11 @@ import * as MEDIA from "./media-jobs.js";
 import { suggestApp, runLive, planLine } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
+import { consumeQueuedForRun } from "./phoneweb.js";
 
 const running = new Map(); // id -> AbortController (ids are unique across users)
 const live = new Map(); // id -> the mission object while it runs (a media job finished meanwhile lands on it)
+export const liveMissionList = () => [...live.values()];
 const issued = new Set(); // ids handed to a run, so pause can find one that has not registered yet
 const pendingPause = new Set();
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
@@ -515,6 +517,19 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
     };
+    const applyQueuedDirections = () => {
+      const consumed = consumeQueuedForRun(id, projectId, { emit });
+      if (!consumed) return;
+      mission.appliedDirections = [...(mission.appliedDirections || []), ...consumed.items];
+      for (const t of mission.tasks) {
+        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app) {
+          t.instructions = `${t.instructions || ""}\n\n${consumed.promptBlock}`.trim();
+        }
+      }
+      if (plan) plan.assembly = `${plan.assembly || ""}\n\n${consumed.promptBlock}`.trim();
+      log(`Applied queued direction: ${consumed.summary}`);
+      update();
+    };
     while (done.size < mission.tasks.length) {
       if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
       if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
@@ -524,6 +539,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (shouldPause(mission)) { armPause(mission, ctl); throw new MissionPause(); }
         if (ctl.signal.aborted && !mission.pauseRequested) throw new Error("Mission aborted");
       }
+      applyQueuedDirections();
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
       if (!wave.length) {
         // unresolved deps (cycle or failed dep): run the rest without inputs
@@ -669,6 +685,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // failed tasks count as resolved so the loop ends
       for (const t of mission.tasks) if (t.status === "failed") done.add(t.id);
     }
+    applyQueuedDirections();
 
     // ---- 4. Assemble ----
     // media steps are files, not text: they skip the assembler and get their own section at the end
@@ -753,7 +770,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [] };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [] };
 }
 function save(m) {
   saveDoc(m);
