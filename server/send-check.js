@@ -8,6 +8,7 @@ import { hasSecret } from "./vault.js";
 import { availableModels, rank, heuristicClassify } from "./router.js";
 import { trouble } from "./fallback.js";
 import { describePause } from "./pause.js";
+import { creditCheck } from "./free-first.js";
 
 const nameOf = (pid) => PROVIDERS[pid]?.name || pid;
 const WHY = {
@@ -42,43 +43,56 @@ export function whyOut(pid) {
   return null;
 }
 
-export function sendCheck({ prompt = "", explicit = false, priority } = {}) {
+// 0.4.21 Auto picks the mode. Quick answers stay Single; coding and multi-part jobs become a Mission; judgment calls
+// become a Council. Needs two or more AIs that can really work, otherwise it stays Single.
+const JUDGMENT = /\b(should (i|we)|which (is|one is|option|should)|better,? .{1,40}\bor\b|pros and cons|what do you think|your opinion|second opinion|decide between|recommend (one|between)|\bvs\.?\b|compare .{1,60}\b(and|with|to)\b|is it (worth|a good idea))/i;
+const MULTI = /(\b(and then|step by step|plan,? (build|write)|then (write|build|make|create)|each of|for every|campaign|content calendar|full (plan|report)|end[- ]to[- ]end)\b|(^|\n)\s*(\d+[.)]|[-*])\s+\S[\s\S]*(\n\s*(\d+[.)]|[-*])\s+\S)[\s\S]*(\n\s*(\d+[.)]|[-*])\s+\S))/i;
+export function chooseMode(prompt, { coding, workers }) {
+  const t = String(prompt || "");
+  if (workers < 2) return { mode: "single", line: workers === 1 ? "Auto picked Single: only one AI is ready right now." : "" };
+  if (coding) return { mode: "mission", line: `Auto picked Mission: this looks like a coding job, so it is split across ${workers} AIs (plan, build, review). Change it under More options.` };
+  if (JUDGMENT.test(t)) return { mode: "council", line: `Auto picked Council: this is a judgment call, so ${Math.min(workers, 3)} AIs weigh in and one writes the verdict. Change it under More options.` };
+  if (t.length > 700 || MULTI.test(t)) return { mode: "mission", line: `Auto picked Mission: this has several parts, so it is split across ${workers} AIs. Change it under More options.` };
+  return { mode: "single", line: "Auto picked Single: a quick answer from one AI. Change it under More options." };
+}
+
+export async function sendCheck({ prompt = "", explicit = false, priority, force = false } = {}) {
   const ais = connectedAis();
-  const out = [];
-  const working = [];
-  for (const a of ais) {
-    const w = whyOut(a.provider);
-    if (w) out.push({ ...a, kind: w.kind, why: `${a.name} ${WHY[w.kind] || WHY.server}`, billing: w.billing || PROVIDERS[a.provider]?.links?.billing || null });
-    else working.push(a);
-  }
+  const check = await creditCheck({ force, connected: ais, whyOut });
+  const out = check.out.map((o) => ({ ...o }));
+  const outIds = new Set(out.map((o) => o.provider));
+  const working = ais.filter((a) => !outIds.has(a.provider) && check.ready.some((r) => r.provider === a.provider));
   const coding = isCodingJob(prompt);
   // the next working AI for this job, ranked as a normal send would
   let next = null;
-  try { const best = rank({ ...heuristicClassify(String(prompt || "")), mode: priority || "balanced" })[0]; if (best && !whyOut(best.provider)) next = { provider: best.provider, model: best.model, name: best.providerName || nameOf(best.provider) }; } catch {}
-  if (!next && working[0]) next = { provider: working[0].provider, model: working[0].model, name: working[0].name };
-  // Auto splits a coding job (plan, build, review) when two or more AIs can really work. A person who chose Single keeps Single.
-  const autoMode = !explicit && coding && working.length >= 2 ? "mission" : "single";
+  try { const best = rank({ ...heuristicClassify(String(prompt || "")), mode: priority || "balanced" })[0]; if (best && !outIds.has(best.provider) && !whyOut(best.provider)) next = { provider: best.provider, model: best.model, name: best.providerName || nameOf(best.provider) }; } catch {}
+  if (!next && check.ready[0]) next = { provider: check.ready[0].provider, model: check.ready[0].model, name: check.ready[0].name };
+  const workers = Math.max(working.length, check.ready.length);
+  const picked = chooseMode(prompt, { coding, workers });
+  // a person who chose Single (or any mode) keeps it; Auto only decides when nothing was chosen
+  const autoMode = explicit ? "single" : picked.mode;
   let banner = null;
   if (out.length) {
     const names = out.map((o) => o.name);
     const first = out[0];
-    const allDown = !working.length;
+    const allDown = !check.ready.length;
     banner = {
       kind: allDown ? "all-out" : "some-out",
       providers: out.map((o) => o.provider),
+      summary: check.summary,
       title: allDown
         ? `${names.join(" and ")} cannot take work right now.`
         : `${out.map((o) => o.why).join(". ")}.`,
       text: allDown
-        ? "No connected AI can answer right now. Add credits or a key in Settings, then send again."
-        : `Meldmind will use ${next?.name || working[0].name} for this instead.`,
+        ? "No connected AI can answer right now. Add a free key from Get free AIs, add credits, then send again."
+        : `${check.replace || `Meldmind will use ${next?.name || working[0]?.name} for this instead.`}`,
       fix: {
         switchTo: next,
         addCredits: first.billing || null,
         settings: true,
+        freeAis: true,
       },
     };
   }
-  return { coding, autoMode, working: working.map((w) => ({ provider: w.provider, name: w.name })), out: out.map((o) => ({ provider: o.provider, name: o.name, kind: o.kind, why: o.why })), next, banner, allDown: !working.length && ais.length > 0 };
+  return { coding, autoMode, autoLine: explicit ? "" : picked.line, working: working.map((w) => ({ provider: w.provider, name: w.name })), ready: check.ready.map((r) => ({ provider: r.provider, name: r.name, free: r.free, tier: r.tier })), out: out.map((o) => ({ provider: o.provider, name: o.name, kind: o.kind, why: o.why })), summary: check.summary, freeOnly: check.freeOnly, next, banner, allDown: !check.ready.length && ais.length > 0, nothingReady: check.nothingReady };
 }
-

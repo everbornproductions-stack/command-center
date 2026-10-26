@@ -101,6 +101,7 @@ function beforeSend({ mode, prompt }) {
           <h3 id="cc-readers-title">${esc(info.title || "Who will read this")}</h3>
           <p>${esc(info.line || "")}</p>
           <div id="cc-reader-list">${rows || `<p class="dim">No AI is connected yet. Add a key in Settings.</p>`}</div>
+          ${(info.out || []).length ? `<div id="cc-reader-out" class="small" aria-label="Not used right now">${info.out.map((o) => `<div class="row cc-reader-out" data-id="${esc(o.id)}"><span class="dim">${esc(o.name)}</span><span class="chip amber">${esc(o.tag || "out of credits")}</span><span class="dim small">not used</span></div>`).join("")}</div>` : ""}
           <p>${esc(info.toolsLine || "No tools are on.")}</p>
           <p>${esc(info.servicesLine || "No connected service will receive this prompt.")}</p>
           ${info.explain ? `<p>${esc(info.explain)}</p>` : ""}

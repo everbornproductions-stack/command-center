@@ -317,7 +317,10 @@ function paintEstimate() {
   const b = document.getElementById("sc-team");
   if (!b) return;
   const open = b.getAttribute("aria-expanded") === "true";
-  const text = `${st.estimate || "Auto team"}`;
+  // 0.4.21: a mode picked under More options replaces "Auto team" on the button
+  const picked = window.CC?.S?.simpleRunMode;
+  const base = `${st.estimate || "Auto team"}`;
+  const text = picked && picked !== "auto" ? base.replace(/^Auto team/, `${picked[0].toUpperCase()}${picked.slice(1)} mode`) : base;
   const label = `${text} ${open ? "▴" : "▾"}`;
   if (b.textContent !== label) b.textContent = label;
 }

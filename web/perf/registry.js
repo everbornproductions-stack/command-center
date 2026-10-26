@@ -38,6 +38,7 @@ export const FEATURES = [
   { id: "access", shell: true },
   { id: "personas", shell: true },
   { id: "answer-wait", shell: true },
+  { id: "free-ais", shell: true },
   { id: "app-signin", shell: true },
   { id: "privacy", shell: true },
   { id: "prompt-suggest", shell: true },

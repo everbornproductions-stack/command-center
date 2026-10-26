@@ -14,6 +14,7 @@ import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
+import { freeOnlyOn, hasPaidKey, freeOnlyError, calibratedEstimate, noteActual, stepLine, creditCheck } from "./free-first.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
@@ -698,6 +699,12 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
       ? `\nA step that must act in the person's signed-in browser, Gmail, Google Drive, Google Calendar or with their teammate bots gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; their own assistant, ${MA.name}, does those steps. Never use "agent" for plain writing, research or analysis.`
       : `\nA step that must act on a website (signed-in pages, forms), in the person's Gmail or in their Google Drive gets capability "agent" and "needs": a list from ${JSON.stringify(MA.TAGS)}; the built-in ${MA.name} does those steps in its own browser window (every send, post or form submit waits for the person's OK). Never use "agent" for plain writing, research or analysis.`;
 
+    // 0.4.21: a live credit check BEFORE planning, so the plan and the estimate use only AIs that work
+    try {
+      const cc = await creditCheck({});
+      mission.creditCheck = { summary: cc.summary, out: cc.out.map((o) => o.name), replace: cc.replace || "", freeOnly: cc.freeOnly };
+      log(`Credit check: ${cc.summary}.${cc.replace ? ` ${cc.replace}` : ""}${cc.freeOnly ? " Free only is on." : ""}`);
+    } catch { /* the check is a help, never a blocker */ }
     // ---- 1. Plan ----
     planner = openPick({ capability: "reasoning", difficulty: 3, mode: planning });
     const navFlag = isNavStateEnabled(doc("settings", () => ({})));
@@ -789,6 +796,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       if (!choice) choice = ranked[0];
       if (!choice) {
+        if (!navFlag && freeOnlyOn() && hasPaidKey()) throw freeOnlyError();
         if (!navFlag) throw new Error(`No AI available for task "${t.title}" (${t.capability}${t.needWeb ? ", needs web: turn on Search the web or add a Perplexity key" : ""}).`);
         const wt = resolveTaskWorkaround(t, { goal, mode, browser, MA, suggestAppFn: suggestApp, openRankFn: openRank });
         mission.tasks.push(wt);
@@ -797,7 +805,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       used.set(choice.provider, (used.get(choice.provider) || 0) + 1);
       mission.tasks.push({ ...t, status: "queued", provider: choice.provider, model: choice.model, agentName: `${choice.providerName} · ${t.capability}`, estCost: choice.estCost, output: null, review: null, cost: 0 });
     }
-    const est = mission.tasks.reduce((a, t) => a + t.estCost, 0) * (qa ? 1.6 : 1.1);
+    // 0.4.21: dogfood estimates ran 3 to 5 times low. A step-count multiplier (or the observed actual / estimate ratio
+    // once there are real runs) sits on top of the old QA factor. The raw number is kept to learn from.
+    const cal = calibratedEstimate(mission.tasks.reduce((a, t) => a + t.estCost, 0), { qa, steps: mission.tasks.length });
+    const est = cal.value;
+    mission.estimateRaw = +cal.raw.toFixed(6); mission.estimateFactor = +cal.factor.toFixed(2);
     mission.estimatedCost = +est.toFixed(4);
     const agentTasks = mission.tasks.filter((t) => t.agent).length;
     const mediaTasks = mission.tasks.filter((t) => t.media);
@@ -1187,6 +1199,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (mission.status !== "paused") { mission.finishedAt = Date.now(); endGrant(id); }
     update();
     log(`Mission ${mission.status} in ${((Date.now() - t0) / 1000).toFixed(0)}s, $${mission.cost.toFixed(4)}.`);
+    try { if (mission.status === "done" || mission.status === "done-with-errors") noteActual(mission.estimateRaw, mission.cost); } catch { /* calibration is optional */ }
     for (const job of lateWhileRunning.get(id) || []) lateResult(job).catch((e) => console.error("[mission] late result:", e.message));
     lateWhileRunning.delete(id);
   }
@@ -1235,10 +1248,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null };
+}
+// 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
+export function stepsReport(m) {
+  return (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean);
+}
+function totalCostText(m) {
+  const c = Number(m.cost) || 0;
+  const rows = (m.tasks || []).filter((t) => !t.agent && !t.media && !t.app);
+  if (c > 0) return `$${c < 0.01 ? c.toFixed(4) : c.toFixed(2)} (${[...new Set(rows.filter((t) => t.cost > 0).map((t) => PROVIDERS[t.provider]?.name || t.provider))].join(", ") || "paid AIs"})`;
+  return rows.length ? "$0 (free AIs only)" : "$0";
 }
 function save(m) {
   saveDoc(m);

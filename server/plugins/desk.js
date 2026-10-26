@@ -8,6 +8,7 @@ import { ctx } from "../store.js";
 import { allStatus } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
+import { connectedAis, whyOut } from "../send-check.js";
 import { searchSettings } from "../search.js";
 import {
   FIRST_COUNCIL, PRIVATE_LINE, TONES, armTone, backupDocument, chatRows, consumeTone, creditsView, homeCard,
@@ -34,10 +35,14 @@ function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
-  const ranked = rank({ ...cls, mode: priority });
+  // 0.4.21: an AI that is out of credits is not a reader. It is dropped from the list and shown with an "out of credits" tag.
+  const outRows = [];
+  for (const ai of connectedAis()) { const w = whyOut(ai.provider); if (w) outRows.push({ id: ai.provider, name: ai.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : w.kind === "key" ? "key not accepted" : "not available" }); }
+  const outIds = new Set(outRows.map((o) => o.id));
+  const ranked = rank({ ...cls, mode: priority }).filter((m) => !outIds.has(m.provider));
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
   const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
-  return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "" };
+  return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "", out: outRows };
 }
 
 // Tools that are already on, and services this prompt would actually reach. No MCP start, no search, no spend.
@@ -82,6 +87,7 @@ export async function routes(req, res, url, body, h) {
     if (mode === "council" && !s.councilIntro) view.explain = FIRST_COUNCIL;
     if (s.privateMode) view.private = PRIVATE_LINE;
     view.privateOn = !!s.privateMode;
+    view.out = picked.out || [];
     return h.json(res, 200, view), true;
   }
 

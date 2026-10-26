@@ -18,6 +18,7 @@ import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSel
 import { extraRouteModels } from "./route-extras.js";
 import { searchCoversAnyModel } from "./search.js";
 import { applyTune } from "./learn-tune.js";
+import { freeOnlyOn, isFreeModel, costTier } from "./free-first.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -148,6 +149,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
+  // 0.4.21 Free only (never spend money): only this PC and free-allowance AIs are ranked. Nothing paid, even when it is the only AI.
+  const freeOnly = freeOnlyOn();
+  if (freeOnly) list = list.filter((m) => isFreeModel(m.provider, m.model));
   // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
   // Prefer-free is skipped so a cheaper model does not replace that flagship.
   if (mode === "max") list = bestModelEach(list, capability);
@@ -170,7 +174,15 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     if (m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 5) { health += 8; warnings.push(`only $${m.balance.left} left`); }
     // small jobs (classify, QA, titles) go to a free tier the person has while its allowance lasts (Phase 26)
     const free = small && freeNow(m.provider, m.model);
-    const bonus = free ? 40 : 0;
+    // 0.4.21 free first for every job, not only small ones: this PC and free allowances with room left get a lift,
+    // smaller for hard jobs, none when the person asked for Quality or Max quality. A paid AI wins when it pays off.
+    const tier = costTier(m.provider, m.model);
+    let freeFirst = 0;
+    if (!small && mode !== "max" && mode !== "quality") {
+      if (tier === 0) freeFirst = difficulty >= 3 ? 10 : 25;
+      else if (tier === 1 && freeNow(m.provider, m.model)) freeFirst = difficulty >= 3 ? 6 : 18;
+    }
+    const bonus = (free ? 40 : 0) + freeFirst;
     const skipReason = skip[m.provider]?.reason || null;
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
@@ -178,7 +190,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const meta = PROVIDERS[m.provider];
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   };
   const scored = list.map(scoreOf);
   let ordered = applyPlanFirst(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));

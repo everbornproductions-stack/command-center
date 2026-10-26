@@ -25,15 +25,16 @@ import { chatWithTools } from "./mcp.js";
 import { rank, heuristicClassify } from "./router.js";
 import { allEntries } from "./ledger.js";
 import { describePause } from "./pause.js";
+import { freeOnlyOn, freeOnlyView, freeOnlyError, isFreeModel, costTier, lastResortChoices, planFirstForCode } from "./free-first.js";
 
 export const KIND = "fallback.settings";
 export const STATE = "fallback.state";
 export const KINDS = ["credits", "rate", "key", "unreachable", "server", "cap"];
 // how long a provider is skipped for new work after each kind of failure; a green health light ends it early
 export const COOLDOWN_MS = { credits: 15 * 60 * 1000, rate: 90 * 1000, key: 30 * 60 * 1000, unreachable: 3 * 60 * 1000, server: 3 * 60 * 1000, cap: 0 };
-export const REASON = { credits: "out of credits or spending limit", rate: "rate limited", key: "key rejected", unreachable: "unreachable", server: "provider error", cap: "monthly spend cap reached", empty: "sent back an empty answer" };
+export const REASON = { credits: "out of credits or spending limit", rate: "rate limited", key: "key rejected", unreachable: "unreachable", server: "provider error", cap: "monthly spend cap reached", empty: "sent back an empty answer", refused: "refused or cut off the job", freeonly: "Free only is on, so a free AI took it" };
 // 0.4.21: plain words for "Nothing came back" (one short phrase per AI that failed)
-const PLAIN_FAIL = { credits: (n) => `${n} is out of quota or credits`, rate: (n) => `${n} is busy and asked us to slow down`, key: (n) => `${n} did not accept its key`, unreachable: (n) => `${n} could not be reached`, server: (n) => `${n} had a problem on its side`, cap: (n) => `${n} is at its spending limit`, empty: (n) => `${n} sent back nothing` };
+const PLAIN_FAIL = { credits: (n) => `${n} is out of quota or credits`, rate: (n) => `${n} is busy and asked us to slow down`, key: (n) => `${n} did not accept its key`, unreachable: (n) => `${n} could not be reached`, server: (n) => `${n} had a problem on its side`, cap: (n) => `${n} is at its spending limit`, empty: (n) => `${n} sent back nothing`, refused: (n) => `${n} refused the job or cut it off` };
 export function nothingCameBack(failures = []) {
   const seen = new Set();
   const parts = [];
@@ -53,11 +54,11 @@ export function nothingCameBack(failures = []) {
 export const FREE_TIERS = {
   google: { name: "Google AI Studio free tier", models: ["gemini-3.8-flash", "gemini-3.5-flash-lite"], perDay: 250, perMinute: 10, defaultOn: true, note: "Flash models with an AI Studio key and no card. Untick if your key has billing on, so the ledger counts those calls." },
   openrouter: { name: "OpenRouter free route", models: ["openrouter/free"], perDay: 50, perMinute: 20, defaultOn: true, note: "openrouter/free picks the best free model; the daily count is small without credits on the account." },
-  groq: { name: "Groq free tier", models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b"], perDay: 1000, perMinute: 30, defaultOn: false, note: "Groq keys start on a free tier with rate limits; tick this if you have not added a card." },
+  groq: { name: "Groq free tier", models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b"], perDay: 1000, perMinute: 30, defaultOn: true, note: "Groq keys start on a free tier with rate limits. On by default so Groq is used as a free helper; untick it if your Groq account has a card on it." },
 };
 // subscriptions: when API credits run out and no API route is left, answer through the person's own plan
 // (server/answer-wait.js). Off means a slot fails as before.
-export const DEFAULTS = { on: true, openrouterFirst: true, maxHops: 3, subscriptions: true, freeTiers: Object.fromEntries(Object.entries(FREE_TIERS).map(([k, v]) => [k, { on: v.defaultOn, perDay: v.perDay, perMinute: v.perMinute }])) };
+export const DEFAULTS = { on: true, openrouterFirst: true, maxHops: 3, subscriptions: true, freeOnly: null, freeTiers: Object.fromEntries(Object.entries(FREE_TIERS).map(([k, v]) => [k, { on: v.defaultOn, perDay: v.perDay, perMinute: v.perMinute }])) };
 
 // ---------- settings ----------
 export function fallbackSettings() {
@@ -72,6 +73,8 @@ export function saveFallbackSettings(patch = {}) {
   if (patch.on !== undefined) next.on = !!patch.on;
   if (patch.openrouterFirst !== undefined) next.openrouterFirst = !!patch.openrouterFirst;
   if (patch.subscriptions !== undefined) next.subscriptions = !!patch.subscriptions;
+  // 0.4.21 Free only: true or false is the person's choice; null or "auto" goes back to "on while no paid key is saved"
+  if (patch.freeOnly !== undefined) next.freeOnly = patch.freeOnly === true || patch.freeOnly === "true" ? true : patch.freeOnly === false || patch.freeOnly === "false" ? false : null;
   if (patch.maxHops !== undefined) { const n = Number(patch.maxHops); if (!Number.isInteger(n) || n < 1 || n > 6) throw Object.assign(new Error("maxHops must be a whole number from 1 to 6"), { status: 400 }); next.maxHops = n; }
   if (patch.freeTiers && typeof patch.freeTiers === "object") {
     for (const [k, v] of Object.entries(patch.freeTiers)) {
@@ -230,18 +233,35 @@ export function nextChoice({ provider, model, tried = [], cls = {}, mode = "bala
   const triedProviders = new Set(tried.map((t) => t.provider));
   const triedModels = tried.map((t) => t.model);
   const capped = cappedNow();
-  // 1. the same model through OpenRouter
-  if (settings.openrouterFirst && !triedProviders.has("openrouter") && openrouterReady() && !capped.includes("openrouter")) {
+  const freeOnly = freeOnlyOn();
+  // 0. a coding job reaches Claude Code (the person's own plan) first
+  const code = planFirstForCode({ tried, cls, freeOnly });
+  if (code && !freeOnly) return code;
+  // 1. the same model through OpenRouter (a paid route: never while Free only is on)
+  if (!freeOnly && settings.openrouterFirst && !triedProviders.has("openrouter") && openrouterReady() && !capped.includes("openrouter")) {
     const id = openrouterId(provider, model);
     if (id) return { provider: "openrouter", model: id, name: `${modelName(provider, model)} via OpenRouter`, via: "openrouter", priceModel: model };
   }
-  // 2. the next-best model for the job, from a provider not yet tried, not troubled, not capped
+  // 2. the next-best model for the job, from a provider not yet tried, not troubled, not capped.
+  //    Free first: this PC, then free allowances, then paid. Quality and Max quality keep the ranking as it is.
   const skip = troubled();
-  const ok = (m) => !triedProviders.has(m.provider) && !triedModels.includes(m.model) && !skip[m.provider] && !capped.includes(m.provider) && m.provider !== provider;
+  const ok = (m) => !triedProviders.has(m.provider) && !triedModels.includes(m.model) && !skip[m.provider] && !capped.includes(m.provider) && m.provider !== provider && (!freeOnly || isFreeModel(m.provider, m.model));
   let list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, needWeb: !!cls.needWeb, small, exclude: triedModels }).filter(ok);
   if (!list.length && cls.needWeb) list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, small, exclude: triedModels }).filter(ok);
+  const qualityFirst = mode === "quality" || mode === "max";
+  if (!qualityFirst && list.length > 1) list = list.map((m, i) => [m, i]).sort((a, b) => costTier(a[0].provider, a[0].model) - costTier(b[0].provider, b[0].model) || a[1] - b[1]).map((x) => x[0]);
   const m = list[0];
   return m ? { provider: m.provider, model: m.model, name: m.name, via: null, priceModel: null, free: !!m.free } : null;
+}
+
+// A refusal ("I can't help with that") or an answer that was cut off before it said anything useful.
+const REFUSAL = /^\s*(i['’]?m sorry,? but i (can['’]?t|cannot|am unable)|i (can['’]?t|cannot|am unable to|won['’]?t) (help|assist|comply|provide|do)|sorry,? (but )?i (can['’]?t|cannot)|as an ai[^.]{0,40}(cannot|can['’]?t)|i['’]?m unable to (help|assist|comply|provide))/i;
+export function badAnswer(text, doneEv = {}) {
+  const t = String(text || "").trim();
+  if (t.length < 400 && REFUSAL.test(t)) return true;
+  const stop = String(doneEv.stop || "").toLowerCase();
+  if (/length|max_tokens|truncat/.test(stop) && t.length < 120) return true;
+  return false;
 }
 
 // ---------- the call wrapper ----------
@@ -257,28 +277,47 @@ export async function* fallbackChat(opts, run = {}) {
   const cls = run.cls || heuristicClassify(typeof lastUser?.content === "string" ? lastUser.content : "");
   const mode = run.mode || "balanced";
   const freeTier = !!PROVIDERS[provider]?.demo || freeNow(provider, model);
-  assertSpendAllowed({ provider, estimate: freeTier ? 0 : estimateCostAt(model, 1500, 800), free: freeTier });
+  const freeOnly = freeOnlyOn();
+  // Free only: a paid first pick is swapped for a free AI before anything is sent (below). It never spends.
+  const wantsPaid = freeOnly && !isFreeModel(provider, model);
+  if (!wantsPaid) assertSpendAllowed({ provider, estimate: freeTier ? 0 : estimateCostAt(model, 1500, 800), free: freeTier });
   // run.avoid: models already busy on this job (other council members), never picked as a stand-in
   const tried = (run.avoid || []).filter((a) => a?.provider && a?.model).map((a) => ({ provider: a.provider, model: a.model, avoid: true }));
   const chain = [];
   let via = null, priceModel = null, hop = 0;
 
+  let lastResortHops = 0;
   const switchTo = (next, kind, detail, restart) => {
     const from = { provider, model, name: modelName(provider, model), providerName: nameOf(provider) };
     const to = { provider: next.provider, model: next.model, name: next.name || modelName(next.provider, next.model), providerName: nameOf(next.provider), via: next.via || null };
     const reason = `${REASON[kind]}${detail ? `: ${String(detail).replace(/\s+/g, " ").trim().slice(0, 140)}` : ""}`;
-    chain.push({ from, to, kind, reason, via: next.via || null, hop: ++hop, at: Date.now(), role: run.role || null, taskId: run.taskId || null });
+    // last-resort free hops are numbered after the counted ones but never use up maxHops
+    if (next.lastResort) lastResortHops++; else hop++;
+    chain.push({ from, to, kind, reason, via: next.via || null, hop: hop + lastResortHops, at: Date.now(), role: run.role || null, taskId: run.taskId || null, lastResort: !!next.lastResort, why: next.why || null });
     emit("log", { text: `${from.providerName} could not take this job (${reason}). ${to.name}${to.via ? "" : ` (${to.providerName})`} is standing in.`, missionId: run.missionId || null });
     provider = next.provider; model = next.model; via = next.via || null; priceModel = next.priceModel || null;
-    return { type: "fallback", from, to, kind, reason, via: next.via || null, hop, restart: !!restart, taskId: run.taskId || null };
+    return { type: "fallback", from, to, kind, reason, via: next.via || null, hop: hop + lastResortHops, restart: !!restart, taskId: run.taskId || null, lastResort: !!next.lastResort, why: next.why || null };
   };
 
+  // the next stand-in: the counted ranking first (until maxHops), then the built-in free AIs, which never use up a hop
+  const stand = () => {
+    const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings }) : null;
+    return counted || lastResortChoices({ tried, cls, freeOnly })[0] || null;
+  };
+
+  // Free only: never start on a paid AI
+  if (wantsPaid) {
+    tried.push({ provider, model });
+    const next = nextChoice({ provider, model, tried, cls, mode, small, settings }) || lastResortChoices({ tried, cls, freeOnly })[0];
+    if (!next) throw freeOnlyError();
+    yield switchTo(next, "freeonly", "", false);
+  }
   // known trouble before the first call: do not even try
   if (settings.on) {
     const t = trouble(provider);
     if (t) {
       tried.push({ provider, model });
-      const next = nextChoice({ provider, model, tried, cls, mode, small, settings });
+      const next = stand();
       if (next) yield switchTo(next, t.kind, `skipped, ${t.detail || "known problem"}`, false);
       else if (t.kind === "credits" || t.kind === "rate") {
         const info = describePause(provider);
@@ -304,25 +343,28 @@ export async function* fallbackChat(opts, run = {}) {
       }
       // 0.4.21: a job that ends with no words and no tool work is a failure, never "done" with an empty deliverable
       if (doneEv && !text.trim() && !sawTool && !run.allowEmpty) throw Object.assign(new Error(`${nameOf(provider)} sent back an empty answer.`), { code: "empty", status: 502 });
+      // 0.4.21: a refusal or an answer cut off before it said anything is a failure too: the next AI takes it
+      if (doneEv && !sawTool && !run.allowEmpty && badAnswer(text, doneEv)) throw Object.assign(new Error(`${nameOf(provider)} refused the job or cut it off.`), { code: "refused", status: 502 });
       if (doneEv) {
         const usage = { ...(doneEv.usage || {}) };
         if (free) usage.free = true;
         if (priceModel && typeof usage.cost !== "number") usage.priceModel = priceModel;
-        if (chain.length) usage.fallback = { from: chain[0].from.provider, fromModel: chain[0].from.model, kind: chain[chain.length - 1].kind, via, hops: chain.length };
+        if (chain.length) usage.fallback = { from: chain[0].from.provider, fromModel: chain[0].from.model, kind: chain[chain.length - 1].kind, via, hops: chain.length, ...(chain.some((c) => c.lastResort) ? { lastResort: true } : {}) };
         yield { ...doneEv, usage, provider, model, via, fallback: chain.length ? chain : null };
       }
       return;
     } catch (e) {
       if (opts.signal?.aborted) throw e;
       // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
-      const kind = e.code === "empty" ? "empty" : e.code === "cap" ? "cap" : troubleKind(e);
+      const kind = e.code === "empty" ? "empty" : e.code === "refused" ? "refused" : e.code === "cap" ? "cap" : troubleKind(e);
       if (kind) failures.push({ provider, kind });
-      if (!kind || !settings.on || hop >= settings.maxHops) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty") e.message = e.plain; } throw e; }
+      if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
       if (kind === "empty") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null }); }
+      else if (kind === "refused") noteCall(provider, false, Date.now() - t0, e); // the AI is fine; this one job went to another
       else if (kind !== "cap") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null }); }
       tried.push({ provider, model });
-      const next = nextChoice({ provider, model, tried, cls, mode, small, settings });
-      if (!next) { e.failures = failures; e.plain = nothingCameBack(failures); if (kind === "empty") e.message = e.plain; throw e; }
+      const next = stand();
+      if (!next) { e.failures = failures; e.plain = nothingCameBack(failures); if (kind === "empty" || kind === "refused") e.message = e.plain; throw e; }
       yield switchTo(next, kind, e.message, text.length > 0);
     }
   }
@@ -365,6 +407,7 @@ export function fallbackView() {
     skipped: Object.entries(skip).map(([pid, t]) => ({ provider: pid, providerName: nameOf(pid), kind: t.kind, reason: t.reason, detail: t.detail || "", since: t.since, until: t.until, leftMs: t.until ? Math.max(0, t.until - now) : null })),
     openrouter: { keyed: !!PROVIDERS.openrouter && hasSecret("openrouter", PROVIDERS.openrouter.keyEnv), ready: openrouterReady() },
     freeTiers: freeTierView(),
+    freeOnly: freeOnlyView(),
     recent, standInsMonth, freeMonth, reasons: REASON,
   };
 }

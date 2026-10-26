@@ -371,6 +371,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     } };
     s2 = await startServer({ env: envFor(m), seed: (dir) => fs.writeFileSync(path.join(dir, "brain.json"), JSON.stringify(seeded)) });
     await keys(s2);
+    await s2.api("/fallback/settings", { method: "POST", body: { freeTiers: { google: { on: false }, openrouter: { on: false }, groq: { on: false } } } });
     let ranked = (await s2.api("/brain/pick?capability=writing&difficulty=2&mode=balanced")).json.ranked;
     assert.equal(ranked[0].model, dark, `the record lifts ${dark} to the top`);
     const favAt = ranked.findIndex((r) => r.model === fav);
