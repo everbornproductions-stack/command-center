@@ -93,13 +93,13 @@ function overview(doc, pages, meta) {
     doc.font("Helvetica").fontSize(10).fillColor(INK).text(plan.price, x + 12, boxY + 34, { lineBreak: false, width: boxW - 20 });
   });
 
-  doc.font("Helvetica").fontSize(9).fillColor(MUTED).text(`Version ${meta.version}   |   ${meta.date}   |   Only pages that are in this app.`, M, 246, { width: W - M * 2 });
+  doc.font("Helvetica").fontSize(9).fillColor(MUTED).text(`Version ${meta.version}   |   ${meta.date}   |   Only pages that are in this app.`, M, 240, { width: W - M * 2 });
 
-  let y = 272;
+  let y = 262;
   const listBottom = H - 78;
   pages.forEach((page, i) => {
     const bodyH = doc.font("Helvetica").fontSize(10).heightOfString(page.body, { width: W - M * 2 - 150 });
-    const rowH = Math.max(36, bodyH + 16);
+    const rowH = Math.max(32, bodyH + 14);
     if (y + rowH > listBottom) throw new Error("The overview does not fit on one page.");
     doc.roundedRect(M, y, W - M * 2, rowH, 6).fill(CARD);
     doc.font("Helvetica-Bold").fontSize(10).fillColor(CYAN).text(String(i + 1).padStart(2, "0"), M + 10, y + 8, { lineBreak: false });
@@ -111,7 +111,7 @@ function overview(doc, pages, meta) {
     doc.roundedRect(W - M - pw - 10, y + 8, pw, 14, 7).fill(look.bg);
     doc.fillColor(look.fg).text(pill, W - M - pw - 4, y + 11, { lineBreak: false });
     doc.font("Helvetica").fontSize(10).fillColor(MUTED).text(page.body, M + 40, y + 22, { width: W - M * 2 - 150 });
-    y += rowH + 6;
+    y += rowH + 4;
   });
   doc.font("Helvetica").fontSize(10).fillColor(INK).text("Each page after this one is one area: the steps, the plan, and how to start.", M, H - 64, { width: W - M * 2 });
   footer(doc, meta, 2, pages.length + 2);

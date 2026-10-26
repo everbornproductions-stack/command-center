@@ -179,6 +179,46 @@ export const GUIDE = [
     ],
   },
   {
+    id: "results",
+    title: "Finish and MindMedia",
+    helpId: "where-results-saved",
+    tier: "free",
+    sentence: () => "Press Finish under any result. Copy it, print it, save it as a PDF or Word file, or keep it in MindMedia, the one list of everything you make.",
+    note: blankNote,
+    badge: () => "free",
+    prefer: (parts) => parts[0].open,
+    parts: [
+      {
+        id: "mindmedia",
+        name: "MindMedia",
+        tier: "free",
+        open(p) {
+          return has(p.views, "mindmedia") ? { view: "mindmedia", focus: "" } : null;
+        },
+      },
+    ],
+  },
+  {
+    id: "textsize",
+    title: "Text size and reading",
+    helpId: "text-size",
+    tier: "free",
+    sentence: () => "Make the text bigger, turn on high contrast, or have an answer read aloud.",
+    note: blankNote,
+    badge: () => "free",
+    prefer: (parts) => parts[0].open,
+    parts: [
+      {
+        id: "reading",
+        name: "Reading",
+        tier: "free",
+        open(p) {
+          return has(p.views, "settings") && has(p.features, "a11y") ? { view: "settings", focus: "#a11y-panel" } : null;
+        },
+      },
+    ],
+  },
+  {
     id: "missions",
     title: "Missions and councils",
     helpId: "missions-and-councils",
@@ -530,6 +570,24 @@ export function visibleGuide(probe) {
 // Plain steps and a how-to-start line for the downloadable guide.
 // The same parts as the tour, so a hidden feature never gets a step.
 const GUIDE_COPY = {
+  results: {
+    steps: () => [
+      "Make something, such as an answer, a picture or a page.",
+      "Press Finish under it.",
+      "Pick Copy, Print, Save as PDF, Save as Word, or Save to MindMedia.",
+      "Open Create, then MindMedia, any time to find it again.",
+    ],
+    start: () => "Press Finish under your next result. Nothing is sent or posted without your click.",
+  },
+  textsize: {
+    steps: () => [
+      "Open Settings.",
+      "Find Reading.",
+      "Pick a text size, or turn on high contrast.",
+      "Use Read aloud under an answer to hear it.",
+    ],
+    start: () => "Open Settings, then Reading, and pick a size. The change shows at once.",
+  },
   hub: {
     steps: () => [
       "Open the chat box.",
