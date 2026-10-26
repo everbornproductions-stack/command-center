@@ -807,7 +807,9 @@ export async function loadResearch(id) {
 
 export function exportReport(m, format) {
   const title = m.title || "Research report";
-  const body = `${m.deliverable || ""}\n\nSources\n${(m.sources || []).map((s) => `[${s.n}] ${s.title} ${s.url}`).join("\n")}`;
+  // no sources, no "Sources" heading (an empty list used to print a bare heading)
+  const src = (m.sources || []).map((s) => `[${s.n}] ${s.title} ${s.url}`);
+  const body = `${m.deliverable || ""}${src.length ? `\n\nSources\n${src.join("\n")}` : ""}`;
   if (format === "pdf") return { bytes: reportPdf({ title, body }), type: "application/pdf", ext: "pdf" };
   if (format === "docx") return { bytes: reportDocx({ title, body }), type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ext: "docx" };
   const e = new Error("Export pdf or docx.");

@@ -25,6 +25,7 @@ import * as MEDIA from "./media-jobs.js";
 import { suggestApp, runLive, planLine } from "./control-apps.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
+import { keepEmployeeWork } from "./mindmedia-employees.js";
 import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 
@@ -1162,6 +1163,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached ? "done-with-errors" : "done";
+    try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {
     if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
       mission.status = "paused";
