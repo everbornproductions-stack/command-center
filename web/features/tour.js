@@ -18,7 +18,7 @@ const css = `
 #cc-tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
 #cc-tour .spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(3,6,12,.58), 0 0 0 2px var(--accent); transition: all .25s ease; }
 #cc-tour .spot.none { box-shadow: 0 0 0 9999px rgba(3,6,12,.58); width: 0; height: 0; left: 50%; top: 50%; }
-#cc-tour .card { position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
+#cc-tour .card { max-height: calc(100vh - 20px); overflow-y: auto; position: fixed; width: 380px; max-width: calc(100vw - 24px); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.45); pointer-events: auto; font-size: 0.8438rem; line-height: 1.5; }
 #cc-tour .card h4 { margin: 0 0 6px; font-size: 1rem; }
 #cc-tour .card .step { color: var(--dim); font-family: var(--mono); font-size: 0.6875rem; margin-left: auto; }
 #cc-tour .plan { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; }
@@ -327,6 +327,7 @@ function position() {
     if (top + ch > vh - 10) top = r.top - ch - pad;
     if (top < 10) { top = Math.max(10, Math.min(vh - ch - 10, r.top)); left = r.right + pad; }
     if (left + cw > vw - 10) left = Math.max(10, vw - cw - 10);
+    top = Math.max(10, Math.min(vh - ch - 10, top)); // the Next button always stays inside the window (bug 15)
     card.style.left = `${left}px`; card.style.top = `${top}px`;
   } else {
     spot.className = "spot none";

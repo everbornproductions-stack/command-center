@@ -2696,7 +2696,28 @@ function renderSettings(v) {
     });
   });
   if (S.focusProvider) { const el = $(`#prov-${S.focusProvider}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "none" }], { duration: 1600 }); el?.querySelector?.('[data-key], input:not([type="hidden"]):not([disabled])')?.focus?.(); S.focusProvider = null; }
-  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => { const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+  // Section chips filter the long page: pick one and only that section shows; "Show all" brings the rest back (bug 12).
+  const groupIds = ["settings-group-my-ais", "settings-group-projects-media", "settings-group-privacy", "settings-group-notifications", "settings-group-advanced"];
+  const groupOf = new Map();
+  const first = $("#settings-keys", v);
+  if (first?.parentElement) {
+    let cur = "";
+    for (const child of first.parentElement.children) {
+      if (child.id === "settings-groups-bar") continue;
+      const hit = groupIds.find((g) => child.id === g || child.querySelector?.(`#${g}`));
+      if (hit) cur = hit;
+      groupOf.set(child, cur);
+    }
+  }
+  const showGroup = (g) => { for (const [el, grp] of groupOf) el.hidden = !!g && grp !== g; $("#settings-show-all", v)?.toggleAttribute("hidden", !g); };
+  const chipBar = $("#settings-groups-bar .row", v);
+  if (chipBar && groupOf.size) chipBar.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm" id="settings-show-all" hidden>Show all</button>`);
+  $("#settings-show-all", v)?.addEventListener("click", () => showGroup(""));
+  $$("[data-settings-jump]", v).forEach((b) => b.addEventListener("click", () => {
+    const g = b.dataset.settingsJump.slice(1);
+    if (groupOf.size && groupIds.includes(g)) showGroup(g);
+    const target = $(b.dataset.settingsJump, v); target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   $("#s-proj-uimode", v)?.addEventListener("change", async (e) => {
     const pid = e.target.dataset.projUimode;
     const modeVal = e.target.value || null;

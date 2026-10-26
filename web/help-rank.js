@@ -290,6 +290,7 @@ export const SCREEN_JUMP_TARGETS = [
   { view: "media", label: "Media (Video, Music, Voice)", keywords: ["media", "video", "music", "song", "voice", "audio", "kling", "suno"], summary: "Create video, music, and voice files." },
   { view: "userchat", label: "People & Rooms", keywords: ["people", "room", "friend", "dm", "hub", "message", "team chat"], summary: "Chat in local rooms or set up a shared hub." },
   { view: "settings", label: "Settings > Your apps", focus: "[data-feature='byo']", keywords: ["gmail", "email", "connect", "connection", "connections", "calendar", "drive", "app"], summary: "Connect your own apps and accounts." },
+  { view: "settings", label: "Settings > Phone companion", focus: "#settings-phoneweb", keywords: ["phone", "mobile", "companion", "devices", "tablet"], summary: "Use Meldmind from your phone." },
   { view: "setup", label: "Find My AIs (Setup)", keywords: ["setup", "welcome", "scan", "detect", "install", "start over"], summary: "Scan this PC for AIs or run setup again." },
 ];
 
