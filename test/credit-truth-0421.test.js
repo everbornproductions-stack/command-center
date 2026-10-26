@@ -121,3 +121,30 @@ test("the probe can be switched off for tests and never runs for a provider with
     assert.deepEqual(await H.probeCompletion({ id: "x", kind: "text", models: [] }, null), { inconclusive: true });
   } finally { delete process.env.CC_HEALTH_PROBE; p.baseUrl = old; delete process.env.GROQ_API_KEY; m.server.close(); }
 });
+
+test("Who will read this lists only AIs that can run and names the AI that will really plan", async () => {
+  const { markTrouble, clearTrouble } = await import("../server/fallback.js");
+  const { canRun, runnableOnly } = await import("../server/runnable.js");
+  const { whoWillRead } = await import("../server/readers.js");
+  const seen = [];
+  const rankFn = (o) => {
+    seen.push(o.capability);
+    return [{ provider: "openai", providerName: "ChatGPT", model: "gpt-6.1-sol", score: 90 }, { provider: "anthropic", providerName: "Claude", model: "claude-opus-5-5", score: 80 }, { provider: "xai", providerName: "Grok", model: "grok-4.7", score: 70 }];
+  };
+  let w = whoWillRead({ prompt: "plan a launch", mode: "balanced", rankFn, search: false, agent: { use: false } });
+  assert.equal(w.planner.name, "ChatGPT");
+  assert.ok(seen.includes("reasoning"), "the planner is picked like the Mission planner does (reasoning)");
+  markTrouble("openai", "credits", "Payment required", { quiet: true });
+  try {
+    assert.equal(canRun("openai"), false); assert.equal(canRun("anthropic"), true);
+    assert.deepEqual(runnableOnly([{ provider: "openai" }, { provider: "xai" }]).map((m) => m.provider), ["xai"]);
+    w = whoWillRead({ prompt: "plan a launch", mode: "balanced", rankFn, search: false, agent: { use: false } });
+    assert.deepEqual(w.readers.map((r) => r.name), ["Claude", "Grok"], "the paused AI is not listed");
+    assert.equal(w.planner.name, "Claude");
+    assert.equal(w.readers.find((r) => r.name === "Claude").role, "plan");
+  } finally { clearTrouble("openai"); }
+  assert.equal(canRun("openai"), true);
+  const src = (await import("node:fs")).readFileSync(new URL("../server/plugins/desk.js", import.meta.url), "utf8");
+  assert.match(src, /runnableOnly\(rank\(\{ \.\.\.cls, mode: priority \}\)\)/);
+  assert.match(src, /capability: "reasoning", difficulty: 3/);
+});

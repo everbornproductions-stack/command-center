@@ -4,6 +4,7 @@ import { rank, heuristicClassify } from "./router.js";
 import { councilPlan, planMode, reviewMode, normalizeMode } from "./modes.js";
 import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
+import { runnableOnly } from "./runnable.js";
 
 function takeUnique(list, n) {
   const out = [];
@@ -18,7 +19,7 @@ function takeUnique(list, n) {
 }
 
 function safeRank(rankFn, cls, mode) {
-  try { return rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []; }
+  try { return runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
   catch { return []; }
 }
 
@@ -68,7 +69,8 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const cls = classification || heuristicClassify(String(prompt || ""));
   const useRank = rankFn || rank;
   const seats = takeUnique(safeRank(useRank, cls, priority), councilPlan(priority).members);
-  const planner = safeRank(useRank, cls, planMode(priority))[0] || null;
+  // the AI that will really plan: the same pick the Mission planner makes (reasoning, hard), among AIs that can run
+  const planner = safeRank(useRank, { ...cls, capability: "reasoning", difficulty: 3 }, planMode(priority))[0] || null;
   const reviewer = safeRank(useRank, cls, reviewMode(priority))[0] || null;
   const missionIds = new Set(seats.map((m) => m.provider));
   for (const m of [planner, reviewer]) if (m?.provider) missionIds.add(m.provider);
@@ -103,7 +105,8 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const ordered = orderReaders(readers, record);
   return {
     heading: "Who will read this",
-    readers: ordered,
+    planner: planner ? { id: planner.provider, name: planner.providerName || planner.name || planner.provider } : null,
+    readers: ordered.map((r) => (planner && r.id === planner.provider ? { ...r, role: "plan" } : r)),
     note: ordered.length ? "Nothing is sent until you click." : "No AI is available yet. Add a key in Settings. Nothing was sent.",
   };
 }
