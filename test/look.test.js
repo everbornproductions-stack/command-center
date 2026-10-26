@@ -183,7 +183,7 @@ test("route: flag off blocks changes; flag on saves choice and check", async () 
 });
 
 test("startup screen: stays at least twice as long as before and twice the load time, fades out slowly (0.4.20)", () => {
-  const js = read("web", "features", "look.js"), css = read("web", "look.css");
+  const js = read("web", "features", "look.js").replace(/\r\n/g, "\n"), css = read("web", "look.css").replace(/\r\n/g, "\n");
   const consts = js.match(/const SPLASH_BASE_MS[^\n]*\n/)[0];
   const fn = js.match(/function splashHold[\s\S]*?\n}\n/)[0];
   const splashHold = new Function(`${consts}\n${fn}\nreturn splashHold;`)();
