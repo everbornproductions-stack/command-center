@@ -1,11 +1,12 @@
 // AI News side panel. Docked in its own column on wide windows (open by default), a floating card on mid windows,
 // and a small pill on phones that opens the News screen. It only reads the published issue; nothing is posted or sent here.
-import { readRail, saveRail, railLinks, railMode, togglePin } from "/news-rail.js";
+import { readRail, saveRail, railLinks, railMode, togglePin, appRows, isAppUrl } from "/news-rail.js";
 
 const { api, esc, go } = window.CC;
 const mode = () => railMode(window.innerWidth);
 let state = readRail(localStorage, window.innerWidth);
 let links = [];
+let inApp = appRows(null);
 let shipped = null;
 let unread = false;
 let checkedAt = 0;
@@ -50,6 +51,10 @@ function applyDock(el) {
 
 function linkRow(l) {
   const pinned = state.pins.some((p) => p.url === l.url);
+  if (isAppUrl(l.url)) {
+    return `<div class="rail-link"><a href="#" data-app-open="${esc(l.url.slice(4))}">${esc(l.title)}${l.source ? `<div class="rail-src">${esc(l.source)}</div>` : ""}</a>
+    <button type="button" class="rail-pin" data-pin="${esc(l.url)}" data-title="${esc(l.title)}" aria-pressed="${pinned ? "true" : "false"}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(l.title)}">${pinned ? "Pinned" : "Pin"}</button></div>`;
+  }
   return `<div class="rail-link"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}${l.source ? `<div class="rail-src">${esc(l.source)}</div>` : ""}</a>
     <button type="button" class="rail-pin" data-pin="${esc(l.url)}" data-title="${esc(l.title)}" aria-pressed="${pinned ? "true" : "false"}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(l.title)}">${pinned ? "Pinned" : "Pin"}</button></div>`;
 }
@@ -57,15 +62,27 @@ function linkRow(l) {
 function bodyHtml() {
   const pins = state.pins.length ? `<div class="rail-h">Pinned</div>${state.pins.map(linkRow).join("")}` : "";
   const list = links.filter((l) => !state.pins.some((p) => p.url === l.url));
+  const mine = inApp.filter((l) => !state.pins.some((p) => p.url === l.url));
+  const inside = mine.length ? `<div class="rail-h">In Meldmind</div>${mine.map(linkRow).join("")}` : "";
   let main;
   if (links.length) main = `${pins ? `<div class="rail-h">This week</div>` : ""}${list.map(linkRow).join("")}`;
   else {
     main = `<div class="dim small">No issue yet. A new one is published each week.</div>`;
     if (shipped?.bullets?.length) main += `<div class="rail-h">What Meldmind shipped (${esc(shipped.version)})</div><ul class="rail-ship">${shipped.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`;
   }
-  return `${pins}${main}<div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap">
+  return `${pins}${main}${inside}<div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap">
       <button type="button" class="btn sm" data-rail="open">Open AI News</button>
       <button type="button" class="btn sm" data-rail="refresh" ${refreshing ? "disabled" : ""}>${refreshing ? "Checking..." : "Refresh"}</button></div>`;
+}
+
+// Opens what an in-app row points at: the What's new card, a Help article, a page, or a prompt template.
+function openInApp(target) {
+  const CC = window.CC;
+  if (target === "whatsnew") { if (CC.tour?.openNews) CC.tour.openNews(); else go("help"); return; }
+  const [kind, id] = target.split(":");
+  if (kind === "help") { CC.S.helpArticle = id; go("help"); return; }
+  if (kind === "template") { CC.S.openTemplateId = id; go("prompts"); return; }
+  if (kind === "view") go(id);
 }
 
 function mount() {
@@ -98,6 +115,8 @@ function mount() {
     </div>
     ${min ? "" : `<div class="rail-body">${bodyHtml()}</div>`}`;
   el.onclick = async (ev) => {
+    const app = ev.target.closest("[data-app-open]");
+    if (app) { ev.preventDefault(); openInApp(app.dataset.appOpen); return; }
     const pin = ev.target.closest("[data-pin]");
     if (pin) {
       state.pins = togglePin(state.pins, { url: pin.dataset.pin, title: pin.dataset.title });
@@ -125,6 +144,7 @@ async function load(fresh = false) {
   try {
     const news = await api(`/community/news${fresh ? "?fresh=1" : ""}`);
     links = railLinks(news);
+    inApp = appRows(news);
     shipped = news?.shipped || null;
     unread = !!news?.unread;
     checkedAt = Date.now();

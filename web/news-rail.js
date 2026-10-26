@@ -14,7 +14,12 @@ export function railMode(width) {
   return w >= WIDE_MIN ? "dock" : "float";
 }
 
-const safePin = (p) => p && typeof p.url === "string" && /^https:\/\//i.test(p.url) && typeof p.title === "string" && p.title
+// Rows can open something inside Meldmind. The target is "app:" plus one of: whatsnew, help:<article>, view:<page>, template:<id>.
+export const APP_TARGET = /^(whatsnew|help:[a-z0-9-]{1,60}|view:[a-z-]{1,30}|template:[a-z0-9-]{1,60})$/;
+export const appUrl = (target) => `app:${target}`;
+export const isAppUrl = (url) => typeof url === "string" && url.startsWith("app:") && APP_TARGET.test(url.slice(4));
+
+const safePin = (p) => p && typeof p.url === "string" && (/^https:\/\//i.test(p.url) || isAppUrl(p.url)) && typeof p.title === "string" && p.title
   ? { title: p.title.slice(0, 90), url: p.url.slice(0, 500) } : null;
 
 // width is optional: on a wide window the panel starts open unless the person has chosen otherwise.
@@ -59,4 +64,24 @@ export function railLinks(news) {
     }
   }
   return out;
+}
+
+// Rows that open inside Meldmind: a built-in What's new row and help row, plus any news item that carries
+// an "open" target. Never an external link, so these are safe without a https check.
+export const BUILTIN_APP_ROWS = [
+  { id: "app-whatsnew", title: "What's new in Meldmind", open: "whatsnew", source: "In Meldmind" },
+  { id: "app-results", title: "Where your results are saved", open: "help:where-results-are-saved", source: "Help" },
+];
+export function appRows(news) {
+  const out = [...BUILTIN_APP_ROWS];
+  const sections = news?.issue?.sections || {};
+  for (const key of ["meldmind", "ai", "highlights", "prompts"]) {
+    for (const item of sections[key] || []) {
+      const open = String(item?.open || "");
+      if (!APP_TARGET.test(open) || !item?.title || out.some((r) => r.open === open)) continue;
+      out.push({ id: String(item.id || open), title: String(item.title).slice(0, 90), open, source: "In Meldmind" });
+      if (out.length >= 5) return out.map((r) => ({ ...r, url: appUrl(r.open) }));
+    }
+  }
+  return out.map((r) => ({ ...r, url: appUrl(r.open) }));
 }

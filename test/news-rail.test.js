@@ -75,3 +75,23 @@ test("the docked panel reserves a gutter, refreshes, shows what shipped, and ope
   for (const needle of ["rail-dock-right", "rail-dock-left", "padding-right: 288px", 'data-rail="refresh"', "What Meldmind shipped", "WEEKLY_CHECK_MS", "openCommunity", "data-pin"]) assert.ok(ui.includes(needle), needle);
 }
 );
+
+test("0.4.21: rows can open in-app objects (What's new, Help article, template) and can be pinned", async () => {
+  const { appRows, isAppUrl, APP_TARGET } = await import("../web/news-rail.js");
+  const rows = appRows({ issue: { sections: { meldmind: [
+    { id: "a", title: "Try the email template", open: "template:email-reply" },
+    { id: "b", title: "Bad one", open: "javascript:alert(1)" },
+    { id: "c", title: "Plain external", sourceUrl: "https://x.example" },
+  ] } } });
+  assert.equal(rows[0].open, "whatsnew");
+  assert.ok(rows.some((r) => r.open === "template:email-reply"));
+  assert.equal(rows.some((r) => /javascript/.test(r.open)), false);
+  assert.ok(rows.every((r) => isAppUrl(r.url)));
+  assert.equal(APP_TARGET.test("view:help"), true);
+  const pins = togglePin([], { title: "What's new", url: "app:whatsnew" });
+  assert.equal(pins.length, 1);
+  assert.equal(togglePin([], { title: "x", url: "app:evil()" }).length, 0);
+  const ui = read("web", "features", "news-rail.js");
+  assert.match(ui, /data-app-open/); assert.match(ui, /openNews/); assert.match(ui, /openTemplateId/);
+  assert.match(read("web", "features", "prompts.js"), /openTemplateId/);
+});
