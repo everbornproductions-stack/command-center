@@ -104,7 +104,7 @@ function wireJobs(el, again) {
       try { await api(`/grokbot/jobs/${encodeURIComponent(id)}/result`, { method: "POST", body: { text } }); toast("Result saved"); again(); } catch (e) { toast(e.message, true); }
     });
     box.querySelector("[data-cancel]")?.addEventListener("click", async () => {
-      if (!confirm("Cancel this Grok Bot job here? Grok Bot is not told; a late result will be refused.")) return;
+      if (!(await window.CC.confirm("Cancel this Grok Bot job here? Grok Bot is not told; a late result will be refused."))) return;
       try { await api(`/grokbot/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); again(); } catch (e) { toast(e.message, true); }
     });
   });
@@ -144,7 +144,7 @@ async function renderSettings(el) {
     try { await api("/grokbot/config", { method: "POST", body }); toast("Grok Bot settings saved"); await CC.refresh(); } catch (e) { toast(e.message, true); }
   });
   el.querySelector("#gb-test").addEventListener("click", async () => { try { const r = await api("/grokbot/test", { method: "POST" }); toast(r.job.status === "failed" ? r.job.error : `Test job sent. ${ASYNC}`, r.job.status === "failed"); renderSettings(el); } catch (e) { toast(e.message, true); } });
-  el.querySelector("#gb-rm")?.addEventListener("click", async () => { if (!confirm("Remove the Grok Bot webhook URL and sender key from the vault?")) return; try { await api("/grokbot/config", { method: "POST", body: { remove: true } }); toast("Removed"); await CC.refresh(); } catch (e) { toast(e.message, true); } });
+  el.querySelector("#gb-rm")?.addEventListener("click", async () => { if (!(await window.CC.confirm("Remove the Grok Bot webhook URL and sender key from the vault?", { danger: true, ok: "Remove" }))) return; try { await api("/grokbot/config", { method: "POST", body: { remove: true } }); toast("Removed"); await CC.refresh(); } catch (e) { toast(e.message, true); } });
   const jb = el.querySelector("#gb-jobs"); if (jb) wireJobs(jb, () => renderSettings(el));
 }
 

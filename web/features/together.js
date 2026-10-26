@@ -103,7 +103,7 @@ async function drawSpaces(v) {
       catch (err) { toast(err.message, true); }
     });
     card.querySelector("[data-del]")?.addEventListener("click", async () => {
-      if (!confirm("Delete this team space? Shared links are removed. Your projects stay.")) return;
+      if (!(await window.CC.confirm("Delete this team space? Shared links are removed. Your projects stay.", { danger: true, ok: "Delete" }))) return;
       try { await api(`/teamspaces/${id}`, { method: "DELETE" }); toast("Team space deleted"); drawSpaces(v); }
       catch (err) { toast(err.message, true); }
     });

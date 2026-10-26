@@ -93,7 +93,7 @@ async function renderPanel(el) {
     }
     if (remove) {
       const name = remove.closest("[data-addon]")?.querySelector("b")?.textContent || "this add-on";
-      if (!confirm(`Remove ${name} from this PC?`)) return;
+      if (!(await window.CC.confirm(`Remove ${name} from this PC?`, { danger: true, ok: "Remove" }))) return;
       remove.disabled = true;
       try {
         await api(`/perf/addons/${encodeURIComponent(remove.dataset.remove)}`, { method: "DELETE" });

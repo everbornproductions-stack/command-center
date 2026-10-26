@@ -135,7 +135,7 @@ async function renderTab(view) {
   view.querySelectorAll("[data-load]").forEach((b) => b.addEventListener("click", () => { const p = st.presets.find((x) => x.id === b.dataset.load); if (!p) return; st.cols = p.columns.map((c) => ({ ...c })); renderTab(view); }));
   view.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
     const p = st.presets.find((x) => x.id === b.dataset.del);
-    if (!p || !confirm(`Delete the set "${p.name}"?`)) return;
+    if (!p || !(await window.CC.confirm(`Delete the set "${p.name}"?`, { danger: true, ok: "Delete" }))) return;
     try { st.presets = (await api(`/compare/presets/${p.id}`, { method: "DELETE" })).items; renderTab(view); } catch (e) { toast(e.message, true); }
   }));
 }

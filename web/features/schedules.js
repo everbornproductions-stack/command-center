@@ -223,8 +223,8 @@ async function renderTab(view) {
   act("[data-catch]", async (b) => { await api(`/schedules/${b.dataset.catch}/run`, { method: "POST", body: { catchUp: true } }); toast("Run queued"); renderTab(view); });
   act("[data-toggle]", async (b) => { await api(`/schedules/${b.dataset.toggle}/${b.dataset.on === "1" ? "resume" : "pause"}`, { method: "POST" }); renderTab(view); });
   act("[data-edit]", async (b) => { st.edit = b.dataset.edit; renderTab(view); });
-  act("[data-token]", async (b) => { if (!confirm("Make a new token? The old one stops working right away.")) return; const r = await api(`/schedules/${b.dataset.token}/token`, { method: "POST" }); st.token = { id: r.schedule.id, token: r.token }; renderTab(view); });
-  act("[data-del]", async (b) => { if (!confirm("Delete this schedule? Its run history stays.")) return; await api(`/schedules/${b.dataset.del}`, { method: "DELETE" }); renderTab(view); });
+  act("[data-token]", async (b) => { if (!(await window.CC.confirm("Make a new token? The old one stops working right away."))) return; const r = await api(`/schedules/${b.dataset.token}/token`, { method: "POST" }); st.token = { id: r.schedule.id, token: r.token }; renderTab(view); });
+  act("[data-del]", async (b) => { if (!(await window.CC.confirm("Delete this schedule? Its run history stays.", { danger: true, ok: "Delete" }))) return; await api(`/schedules/${b.dataset.del}`, { method: "DELETE" }); renderTab(view); });
   act("[data-approve]", async (b) => { const r = await api(`/schedules/runs/${b.dataset.approve}/approve`, { method: "POST" }); toast(r.status === "done" ? "Sent" : r.error || "Could not send", r.status !== "done"); renderTab(view); });
   act("[data-reject]", async (b) => { await api(`/schedules/runs/${b.dataset.reject}/reject`, { method: "POST" }); toast("Not sent"); renderTab(view); });
 }

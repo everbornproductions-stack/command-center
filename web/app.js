@@ -10,7 +10,7 @@ import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
-import { askText } from "./ask-dialog.js";
+import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -1233,7 +1233,7 @@ async function restoreDeleted(id) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteForGood(item) {
-  if (!confirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`)) return;
+  if (!(await askConfirm(`Delete "${item.name}" for good?\n\nIts links and project files are removed. Chats stay in My chats. AI keys are not touched.\nThis cannot be undone.`, { danger: true, ok: "Delete" }))) return;
   try {
     const done = await api(`/projects-deleted/${encodeURIComponent(item.id)}?confirm=yes`, { method: "DELETE" });
     toast((done.receipt?.lines || ["Project deleted for good."]).join(" "));
@@ -1241,7 +1241,7 @@ async function deleteForGood(item) {
   } catch (e) { toast(e.message, true); }
 }
 async function deleteProjectSoft(p) {
-  if (!confirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`)) return false;
+  if (!(await askConfirm(`Delete project "${p.name}"?\n\nIt moves to Recently Deleted for 30 days, and you can bring it back there. Chats and AI keys are not touched.`, { danger: true, ok: "Delete" }))) return false;
   try {
     await api(`/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
     clearActiveProject(p.id);
@@ -1366,12 +1366,13 @@ function renderSimpleChat(v) {
       <div id="cc-fail-slot"></div>
       <div id="deliv-extras"></div>
     </div>
-    <div id="simple-home">${simpleDayHtml()}<div id="simple-recent"></div></div>
+    <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
   </div>`;
   wireProjectPicker();
+  paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
-  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "myday"; S.openProject = null; render(); }));
+  $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
     if (!item) return;
@@ -1410,6 +1411,20 @@ function simpleDayHtml() {
   const items = DAY_VIEWS.filter((view) => have.has(view));
   if (!items.length) return "";
   return `<div class="panel" id="simple-day"><h3>My day</h3><div class="row" style="flex-wrap:wrap;gap:6px">${items.map((view) => `<button type="button" class="btn sm" data-day="${esc(view)}">${esc(labels[view])}</button>`).join("")}</div></div>`;
+}
+// "Continue where I left off" (0.4.20, I13): the newest Start a project build that is not finished.
+const PLAIN_STEP_OF = { idea: "Idea", questions: "Idea", plan: "Plan", build: "Plan", review: "Result" };
+async function paintContinueCard() {
+  const slot = $("#simple-continue");
+  if (!slot || S.uiMode !== "simple") return;
+  let walks = [];
+  try { walks = (await api("/walkthrough?experience=simple")).walks || []; } catch { return; }
+  const w = walks.filter((x) => !x.example && x.stage && x.stage !== "done" && x.idea).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0];
+  const again = $("#simple-continue");
+  if (!w || !again) return;
+  const title = w.plan?.title || w.idea;
+  again.innerHTML = `<div class="panel" id="cc-continue"><h3>Continue where I left off</h3><div class="row" style="gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:180px">${esc(w.typeName || "Project")}: ${esc(String(title).slice(0, 80))} <span class="chip">${esc(PLAIN_STEP_OF[w.stage] || "Idea")}</span></span><button type="button" class="btn sm primary" id="cc-continue-go">Continue</button></div></div>`;
+  $("#cc-continue-go")?.addEventListener("click", () => { if (window.CC?.startProject?.openWalk) window.CC.startProject.openWalk(w.id); else { S.view = "start"; render(); } });
 }
 function paintStarters() {
   const box = $("#cc-starters");
@@ -1879,7 +1894,7 @@ async function confirmRisky(text) {
   }
   const hits = riskyHits(text, { neverSay, scf });
   if (!hits.length) return true;
-  return confirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`);
+  return (await askConfirm(`This includes a word to avoid: ${hits.map((h) => h.word).join(", ")}. Continue anyway?`));
 }
 async function copyDeliverable() {
   const t = S.live.deliverable || $("#out-md")?.innerText || "";
@@ -2020,8 +2035,59 @@ async function sendOrders() {
 }
 
 // ----- Projects -----
+// Internal planning prompts and the steps of a Start a project build are not chats a person wrote.
+function isInternalRunText(text) { return /^\s*(WALKTHROUGH_[A-Z_]+|[A-Z]{3,}(?:_[A-Z]+)+)\b/.test(String(text || "")); }
+function isStepRun(m) { return /^sp-.+-[^-]+$/.test(String(m?.id || "")); }
+// One row per Start a project build instead of one per step; internal prompts are dropped.
+function visibleRuns(rows) {
+  const out = [], groups = new Map();
+  for (const m of rows || []) {
+    if (!m || isInternalRunText(m.title) || isInternalRunText(m.prompt)) continue;
+    if (isStepRun(m)) {
+      const key = String(m.id).replace(/-[^-]+$/, "");
+      let g = groups.get(key);
+      if (!g) {
+        const proj = (S.projects || []).find((x) => x.id === m.projectId);
+        g = { ...m, kind: "project", title: `Start a project: ${proj?.name || "your steps"}`, cost: 0, steps: 0, _failed: false, _running: false };
+        groups.set(key, g); out.push(g);
+      }
+      g.steps++; g.cost = (Number(g.cost) || 0) + (Number(m.cost) || 0);
+      if (String(m.status || "").startsWith("fail")) g._failed = true;
+      if (m.status === "running") g._running = true;
+      if ((m.startedAt || 0) > (g.startedAt || 0)) g.startedAt = m.startedAt;
+      continue;
+    }
+    out.push(m);
+  }
+  for (const g of groups.values()) { g.status = g._failed ? "failed" : g._running ? "running" : "done"; g.title = `${g.title} (${g.steps} step${g.steps === 1 ? "" : "s"})`; }
+  return out;
+}
+// One status vocabulary for projects, shown as colored chips (0.4.20, I12).
+const PROJECT_STATUS_CLASS = { Draft: "", Review: "amber", Approved: "green", Scheduled: "violet", Published: "green" };
+const PROJECT_STATUSES = Object.keys(PROJECT_STATUS_CLASS);
+function projectStatus(p) { return PROJECT_STATUSES.includes(p?.status) ? p.status : "Draft"; }
+function statusChip(p) { const st = projectStatus(p); return `<span class="chip ${PROJECT_STATUS_CLASS[st]}" data-pstatus="${st}" title="Project status">${st}</span>`; }
+// "What is inside": runs, media (from the media index), links. Media fills in after /projects/summary answers.
+function insideLine(p, runs) {
+  const sum = S.projectSummary?.[p.id];
+  const links = sum ? sum.links : (p.categories || []).reduce((n, c) => n + (c.links || []).length, 0);
+  const parts = [`${runs.length} run${runs.length === 1 ? "" : "s"}`];
+  if (sum) parts.push(`${sum.media} media`);
+  parts.push(`${links} link${links === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+async function loadProjectSummary(v) {
+  try {
+    const r = await api("/projects/summary");
+    S.projectSummary = r.summary || {};
+    for (const el of $$("[data-inside]", v)) {
+      const p = (S.projects || []).find((x) => x.id === el.dataset.inside);
+      if (p) el.textContent = insideLine(p, visibleRuns((S.missions || []).filter((m) => m.projectId === p.id)));
+    }
+  } catch { /* the card keeps its runs and links line */ }
+}
 function recentRunRows(rows) {
-  return (rows || []).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
+  return visibleRuns(rows).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : m.status?.startsWith("fail") ? "red" : ""}">${m.kind}</span>${m.demo ? `<span class="chip" title="Made with the pretend demo AIs">demo</span>` : ""}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`;
 }
 function wireRunRows(v) {
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
@@ -2040,11 +2106,11 @@ function wireRunRows(v) {
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
-  v.innerHTML = `<div class="grid" style="grid-template-columns: 1fr 360px">
+  v.innerHTML = `<div class="grid projects-grid">
     <div>
       <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Projects</h3><button class="btn sm" id="newp" style="margin-left:auto">+ New project</button></div>
       <div class="pcards">${S.projects.map((p) => {
-        const runs = S.missions.filter((m) => m.projectId === p.id);
+        const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
         const tasks = (hq?.tasks || []).filter((t) => t.client === p.hqClient);
         const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
         const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
@@ -2052,7 +2118,8 @@ function renderProjects(v) {
         const expanded = flowOn && S.expandedProjects?.has?.(p.id);
         const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
-          <h4>${esc(p.name)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <h4>${esc(p.name)} ${statusChip(p)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
           ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
@@ -2078,6 +2145,7 @@ function renderProjects(v) {
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);
+  loadProjectSummary(v);
   $$("[data-pcard-expand]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     const pid = b.dataset.pcardExpand;
@@ -2134,14 +2202,14 @@ function renderProjects(v) {
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
-  const runs = S.missions.filter((m) => m.projectId === p.id);
+  const runs = visibleRuns(S.missions.filter((m) => m.projectId === p.id));
   const tasks = (S.hq?.tasks || []).filter((t) => t.client === p.hqClient);
   const credits = S.hq?.credits?.byProject || {};
   const projCredits = Object.entries(credits).filter(([k]) => p.id.includes(k.split("-")[0]) || k.includes(p.id));
   const flowOn = !!(S.settings?.flag_flowstages || S.settings?.flags?.flag_flowstages);
   const subProjects = flowOn ? S.projects.filter((x) => x.parentId === p.id) : [];
   const parentProj = flowOn && p.parentId ? S.projects.find((x) => x.id === p.parentId) : null;
-  v.innerHTML = `<div class="row" style="margin-bottom:14px"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2><span class="muted">${esc(p.summary || "")}</span>
+  v.innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:wrap"><button class="ghost" id="back">← Projects</button><h2 style="margin:0;font-size:20px;border-left:4px solid ${p.color};padding-left:10px">${esc(p.name)}</h2>${statusChip(p)}<select id="proj-status" aria-label="Project status" style="width:auto">${PROJECT_STATUSES.map((st) => `<option value="${st}" ${st === projectStatus(p) ? "selected" : ""}>${st}</option>`).join("")}</select><span class="muted">${esc(p.summary || "")}</span>
     <select id="proj-sel" style="width:auto;margin-left:auto"><option value="${p.id}">Set as active project</option></select><button class="btn sm" id="use">${S.uiMode === "simple" ? "Use in Chat" : "Use in Command"}</button>${S.flags?.projectbar ? `<button class="btn sm primary" id="pcont">Continue this project</button>` : ""}<button class="btn sm danger" id="del">Delete</button></div>
   <div class="grid" style="grid-template-columns: 1fr 340px">
     <div>
@@ -2161,6 +2229,10 @@ function renderProjectDetail(v, p) {
       <div class="panel"><h3>AI runs <span class="right">${runs.length}</span></h3>${runs.slice(0, 20).map((m) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" data-run="${m.id}" role="button" tabindex="0"><span class="chip ${m.status === "done" ? "green" : ""}">${m.kind}</span><span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(m.title)}</span><span class="mono dim">${money(m.cost, 3)}</span></div>`).join("") || `<div class="dim small">Pick this project in Command and send orders.</div>`}</div>
     </div></div>`;
   $("#back").addEventListener("click", () => { S.openProject = null; render(); });
+  $("#proj-status")?.addEventListener("change", async (e) => {
+    try { await api("/projects", { method: "POST", body: { id: p.id, status: e.target.value } }); p.status = e.target.value; toast(`Status: ${e.target.value}.`); await refresh(); }
+    catch (err) { toast(err.message, true); }
+  });
   renderProjectTeam($("#proj-team"), p, { api, esc, toast, onSaved: (ids) => { p.team = ids; } });
   $("#use").addEventListener("click", () => { S.project = p.id; localStorage.setItem("cc.project", p.id); S.view = "command"; render(); });
   $("#pcont")?.addEventListener("click", () => continueProject(p.id));
@@ -2171,7 +2243,7 @@ function renderProjectDetail(v, p) {
       const preview = await api(`/desk/project-receipt?id=${encodeURIComponent(p.id)}`);
       if (preview?.lines?.length) lines = preview.lines.join("\n");
     } catch { /* the short line above is enough to confirm */ }
-    if (!confirm(`${lines}\n\nDelete this project?`)) return;
+    if (!(await askConfirm(`${lines}\n\nDelete this project?`))) return;
     try {
       const done = await api(`/projects/${p.id}`, { method: "DELETE" });
       const file = done.receipt?.file;
@@ -2362,7 +2434,7 @@ function renderSubscriptions(v) {
     const id = tr.dataset.id;
     const collect = () => { const o = { id }; $$("[data-f]", tr).forEach((i) => { o[i.dataset.f] = i.value === "" ? null : i.type === "number" ? Number(i.value) : i.value; }); return o; };
     $("[data-save]", tr).addEventListener("click", async () => { await api("/subscriptions", { method: "POST", body: collect() }); toast("Saved"); await refresh(); });
-    $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
+    $("[data-del]", tr).addEventListener("click", async () => { if (!(await askConfirm("Remove this subscription from the tracker?", { danger: true, ok: "Remove" }))) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
   $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
@@ -2547,7 +2619,7 @@ function renderSettings(v) {
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
-        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · <a href="#" id="s-find-ais">Find my AIs</a> · `}Version, Check for updates, and About are in Help.</div>
+        <div class="dim small" style="margin-top:6px">${S.mode === "hosted" ? "" : `${S.hqDir ? `HQ folder: ${esc(S.hqDir)} · ` : ""}<a href="#" id="s-setup">${esc(RESTART_SETUP_LABEL)}</a> · ${S.uiMode === "simple" ? "" : `<a href="#" id="s-find-ais">Find my AIs</a> · `}`}Version, Check for updates, and About are in Help.</div>
         ${S.mode === "hosted"
           ? `<div class="dim small" style="margin-top:8px">Your API keys are encrypted (AES-256-GCM) before they are stored and are only decrypted inside the hub to call the provider you gave them to. They are never sent to this browser.</div>`
           : S.vault?.canSave === false
@@ -2607,13 +2679,13 @@ function renderSettings(v) {
     const wsOnly = !key && wsEl && P(id)?.keyed && workspaceId !== (P(id)?.workspaceId || "");
     if (!key && !wsOnly) return toast("Paste the key first", true);
     const sug = key ? await suggestKey(key) : null;
-    if (sug && sug.provider !== id && sug.confidence === "high" && confirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`)) return saveKeyAs(sug, key);
+    if (sug && sug.provider !== id && sug.confidence === "high" && (await askConfirm(`This looks like a ${sug.name} key, not ${pname(id)}. Save it as ${sug.name} instead?`))) return saveKeyAs(sug, key);
     b.disabled = true; b.textContent = "Testing…";
     try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
-  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`)) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
+  $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`, { danger: true, ok: "Remove" }))) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
   $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {
     try { await api("/connect/active", { method: "POST", body: { provider: b.dataset.prov, mode: b.dataset.conn } }); await refresh(); }
     catch (e) { toast(e.message, true); }
@@ -2699,7 +2771,7 @@ function renderSettings(v) {
   wireAnyKey(v);
   $("#cp-add")?.addEventListener("click", () => openCustomForm());
   $$("[data-cp-edit]", v).forEach((b) => b.addEventListener("click", () => openCustomForm(b.dataset.cpEdit)));
-  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!confirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`)) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
+  $$("[data-cp-del]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Delete the custom provider ${pname(b.dataset.cpDel)} and its saved key? Past runs stay in history.`, { danger: true, ok: "Delete" }))) return; try { await api(`/providers/custom/${encodeURIComponent(b.dataset.cpDel)}`, { method: "DELETE" }); toast("Custom provider deleted"); await refresh(); } catch (e) { toast(e.message, true); } }));
   renderExtras("settings", "#settings-extras");
   $("#settings-back")?.addEventListener("click", () => { S.settingsMore = false; S.navFocus = ""; render(); });
   $("#settings-find")?.addEventListener("input", (e) => {
@@ -2758,6 +2830,16 @@ function renderSettings(v) {
 }
 
 async function refresh() { applyState(await api("/state")); renderStrip(); renderBudget(); render(); }
+// Pull the project list and runs again without repainting the page (a Start a project build adds a project).
+async function syncProjects() {
+  try {
+    const st = await api("/state");
+    if (Array.isArray(st.projects)) S.projects = st.projects;
+    if (Array.isArray(st.missions)) S.missions = st.missions;
+    if (Array.isArray(st.deletedProjects)) S.deletedProjects = st.deletedProjects;
+    if (S.view === "projects" && !S.openProject && document.querySelector(".pcards")) render();
+  } catch { /* the next refresh will catch up */ }
+}
 
 // ----- Keys for any provider (v0.3.1) -----
 function keyToast(id, r) {
@@ -2818,7 +2900,7 @@ function wireAnyKey(root) {
       return;
     }
     out.textContent = `Looks like a ${sug.name} key${sug.confidence === "high" ? "" : " (best guess)"}.`;
-    if (sug.confidence !== "high" && !confirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`)) return;
+    if (sug.confidence !== "high" && !(await askConfirm(`This looks like a ${sug.name} key, but it is a guess. Save it as ${sug.name}?`))) return;
     await saveKeyAs(sug, key);
   });
 }
@@ -3061,7 +3143,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
@@ -3133,7 +3215,7 @@ async function saveSetupUsername(useDefault) {
   const saved = st?.usernameSaved || "";
   if (saved) {
     if (useDefault || !st?.usernameTouched || !typed || typed === saved) return;
-    if (!confirm(`Change your saved username from "${saved}" to "${typed}"?`)) return;
+    if (!(await askConfirm(`Change your saved username from "${saved}" to "${typed}"?`))) return;
   }
   const username = useDefault ? (suggestion || typed) : (typed || suggestion);
   if (!username) return;
@@ -3195,7 +3277,7 @@ function welcomeAppsHtml() {
 async function saveWelcomeKey(st) {
   const key = ($("#su-or-key")?.value || st.orKey || "").trim();
   if (!key) return false;
-  if (P("openrouter")?.keyed && !confirm("An OpenRouter key is already saved in the vault. Replace it?")) return false;
+  if (P("openrouter")?.keyed && !(await askConfirm("An OpenRouter key is already saved in the vault. Replace it?"))) return false;
   const r = await api("/keys", { method: "POST", body: { provider: "openrouter", key } });
   st.orKey = "";
   keyToast("openrouter", r);
@@ -3492,7 +3574,7 @@ function renderSetup(v) {
       catch (e) { toast(e.message, true); }
     });
     $("#su-agy-install")?.addEventListener("click", async () => {
-      if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) return;
+      if (!(await askConfirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password."))) return;
       try {
         const r = await api("/antigravity/install", { method: "POST", body: { confirm: true } });
         toast(r.message || "Installer finished", !r.ok);
@@ -3556,7 +3638,7 @@ function renderSetup(v) {
   renderExtras("setup", "#su-extras");
   renderFeature("setup", "apps", "#su-apps");
   $("#setup-settings", v)?.addEventListener("click", (e) => { e.preventDefault(); S.view = "settings"; render(); });
-  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !confirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`)) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
+  $$("[data-savek]", v).forEach((b) => b.addEventListener("click", async () => { const key = $(`[data-paste="${b.dataset.savek}"]`, v).value.trim(); if (!key) return toast("Paste the key first", true); if (P(b.dataset.savek)?.keyed && !(await askConfirm(`A ${pname(b.dataset.savek)} key is already saved in the vault. Replace it?`))) return; b.textContent = "…"; try { const r2 = await api("/keys", { method: "POST", body: { provider: b.dataset.savek, key } }); keyToast(b.dataset.savek, r2); await refresh(); } catch (e) { toast(e.message, true); b.textContent = "Save"; } }));
   $$("[data-track]", v).forEach((b) => b.addEventListener("click", async () => { try { await api("/setup/track", { method: "POST", body: { tools: [JSON.parse(b.dataset.track)] } }); toast("Added to Subscriptions"); await refresh(); } catch (e) { toast(e.message, true); } }));
   $("#su-track")?.addEventListener("click", async () => { const tools = $$("[data-tool]:checked", v).map((c) => JSON.parse(c.dataset.tool)); if (!tools.length) return toast("Tick a tool first", true); try { const r2 = await api("/setup/track", { method: "POST", body: { tools } }); toast(`Tracking ${r2.added.join(", ")}`); await refresh(); } catch (e) { toast(e.message, true); } });
   $("#su-tools-toggle", v)?.addEventListener("click", (e) => {
@@ -3565,7 +3647,7 @@ function renderSetup(v) {
     boxes.forEach((c) => { c.checked = next; });
     e.currentTarget.textContent = next ? "Deselect All" : "Select All";
   });
-  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!confirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`)) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
+  $("#su-apply")?.addEventListener("click", async () => { const [browser, profile] = $("#su-prof").value.split("|"); if (!(await askConfirm(`This will close ${browser} (gracefully, tabs restore on relaunch), add the 🤖 AI folder to profile "${profile}", and reopen it. Continue?`))) return; try { const r2 = await api("/setup/bookmarks/apply", { method: "POST", body: { browser, profile } }); toast(`Bookmarks added. Backup saved.${r2.relaunched ? " Browser relaunched." : ""}`); } catch (e) { toast(e.message, true); } });
   $("#su-dl")?.addEventListener("click", async () => { try { downloadBlob(await apiBlobUrl("/setup/bookmarks.html"), "ai-bookmarks.html"); } catch (e) { toast(e.message, true); } });
   $("#su-back").addEventListener("click", () => { st.step = 1; st.result = null; render(); });
   $("#su-done").addEventListener("click", async () => {

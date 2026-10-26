@@ -297,14 +297,14 @@ function draw(el) {
   $$("[data-balance-undo]").forEach((b) => b.addEventListener("click", () => run(() => api("/services/balance/undo", { method: "POST", body: { provider: b.dataset.balanceUndo } }), (r) => `Undone: ${r.undone}`)));
   $("#sv-agent-setup")?.addEventListener("click", async () => { try { agentSetup = await api("/services/agent-setup", { method: "POST", body: {} }); } catch (e) { toast(e.message, true); } draw(el); });
   $$("[data-copy]").forEach((b) => b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(agentSetup?.[b.dataset.copy] || ""); toast("Copied"); } catch { toast("Could not copy. Select the text and copy it.", true); } }));
-  $$("[data-admin-del]").forEach((b) => b.addEventListener("click", () => { if (!confirm("Remove this admin key from the vault?")) return; run(() => api(`/services/admin-key/${b.dataset.adminDel}`, { method: "DELETE" }), "Admin key removed"); }));
+  $$("[data-admin-del]").forEach((b) => b.addEventListener("click", async () => { if (!(await window.CC.confirm("Remove this admin key from the vault?", { danger: true, ok: "Remove" }))) return; run(() => api(`/services/admin-key/${b.dataset.adminDel}`, { method: "DELETE" }), "Admin key removed"); }));
 
   // subscriptions: edit, delete, add
   $$("tr[data-sub]").forEach((tr) => {
     const id = tr.dataset.sub;
     const collect = () => { const o = { id }; tr.querySelectorAll("[data-f]").forEach((i) => { if (i.disabled) return; o[i.dataset.f] = i.value === "" ? null : i.type === "number" ? Number(i.value) : i.value; }); return o; };
     tr.querySelector("[data-save]").addEventListener("click", () => run(() => api("/services/subscriptions", { method: "POST", body: collect() }), "Saved"));
-    tr.querySelector("[data-del]").addEventListener("click", () => { if (!confirm("Remove this subscription from the tracker? Nothing is cancelled with the provider.")) return; run(() => api(`/services/subscriptions/${encodeURIComponent(id)}`, { method: "DELETE" }), "Removed from the tracker"); });
+    tr.querySelector("[data-del]").addEventListener("click", async () => { if (!(await window.CC.confirm("Remove this subscription from the tracker? Nothing is cancelled with the provider.", { danger: true, ok: "Remove" }))) return; run(() => api(`/services/subscriptions/${encodeURIComponent(id)}`, { method: "DELETE" }), "Removed from the tracker"); });
     // auto-detected rows: Edit unlocks the detected fields; Undo removes the row and the next scan skips it
     tr.querySelector("[data-edit]")?.addEventListener("click", (e) => {
       tr.querySelectorAll("[data-lock]").forEach((i) => { i.readOnly = false; i.disabled = false; });
@@ -349,7 +349,7 @@ function draw(el) {
     catch (e) { toast(e.message, true); try { await load(); } catch {} }
     busy = false; draw(el);
   }));
-  $$("[data-disconnect]").forEach((b) => b.addEventListener("click", () => { if (!confirm("Disconnect this mailbox? Its sign-in token is removed from the vault.")) return; run(async () => { await api(`/services/mail/${b.dataset.disconnect}`, { method: "DELETE" }); return api("/services"); }, "Disconnected"); }));
+  $$("[data-disconnect]").forEach((b) => b.addEventListener("click", async () => { if (!(await window.CC.confirm("Disconnect this mailbox? Its sign-in token is removed from the vault.", { danger: true, ok: "Disconnect" }))) return; run(async () => { await api(`/services/mail/${b.dataset.disconnect}`, { method: "DELETE" }); return api("/services"); }, "Disconnected"); }));
   $$("[data-add-account]").forEach((b) => b.addEventListener("click", async () => {
     const src = b.dataset.addAccount;
     const label = ($(`[data-new-label="${src}"]`)?.value || "").trim();
@@ -373,7 +373,7 @@ function draw(el) {
     const id = row.dataset.mailAcct;
     row.querySelector("[data-acct-label]").addEventListener("change", () => run(() => api(`/mail-accounts/${encodeURIComponent(id)}/label`, { method: "POST", body: { label: row.querySelector("[data-acct-label]").value } }).then(() => api("/services")), "Account label saved"));
     row.querySelector("[data-acct-default]").addEventListener("change", () => run(() => api(`/mail-accounts/${encodeURIComponent(id)}/default`, { method: "POST", body: {} }).then(() => api("/services")), "Default account updated"));
-    row.querySelector("[data-acct-remove]").addEventListener("click", () => { if (!confirm("Remove this account? Its token is removed from the vault.")) return; run(() => api(`/mail-accounts/${encodeURIComponent(id)}`, { method: "DELETE" }).then(() => api("/services")), "Account removed"); });
+    row.querySelector("[data-acct-remove]").addEventListener("click", async () => { if (!(await window.CC.confirm("Remove this account? Its token is removed from the vault.", { danger: true, ok: "Remove" }))) return; run(() => api(`/mail-accounts/${encodeURIComponent(id)}`, { method: "DELETE" }).then(() => api("/services")), "Account removed"); });
   });
 
   // suggestions: confirm (with edits) or dismiss

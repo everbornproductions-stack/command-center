@@ -146,7 +146,7 @@ function wireGallery(view, form) {
       return window.CC.testWithPersonas?.({ text: `An image made from this description:\n${r?.params?.prompt || ""}`, kind: "design", onUse: (text) => { if (box) { box.value = text.replace(/^An image made from this description:\s*/i, ""); box.scrollIntoView({ behavior: "smooth" }); } } });
     }
     if (act === "save") { try { const u = await blob(id, i); const a = document.createElement("a"); a.href = u; a.download = b.dataset.name; document.body.appendChild(a); a.click(); a.remove(); } catch (er) { toast(er.message, true); } return; }
-    if (act === "del") { if (!confirm("Delete this batch of images and its files?")) return; try { await api(`/images/${id}`, { method: "DELETE" }); for (const k of [...urls.keys()]) if (k.startsWith(id + ":")) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); } renderGallery(view); } catch (er) { toast(er.message, true); } }
+    if (act === "del") { if (!(await window.CC.confirm("Delete this batch of images and its files?", { danger: true, ok: "Delete" }))) return; try { await api(`/images/${id}`, { method: "DELETE" }); for (const k of [...urls.keys()]) if (k.startsWith(id + ":")) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); } renderGallery(view); } catch (er) { toast(er.message, true); } }
   });
 }
 

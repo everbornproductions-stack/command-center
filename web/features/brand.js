@@ -115,7 +115,7 @@ function renderPanel(el) {
   });
   q("#cc-br-rmlogo")?.addEventListener("click", async () => { try { pendingLogo = undefined; const r = await api("/brand/logo", { method: "DELETE" }); apply(r); renderPanel(el); toast("Logo removed"); } catch (e) { toast(e.message, true); } });
   q("#cc-br-accent").addEventListener("click", async () => { if (!kit.primary) return; try { if (window.CC.themes?.set) await window.CC.themes.set({ accent: kit.primary }); else await api("/themes", { method: "POST", body: { accent: kit.primary } }); toast("Accent set to the brand colour"); } catch (e) { toast(e.message, true); } });
-  q("#cc-br-reset").addEventListener("click", async () => { if (!confirm("Clear the brand kit (logo, name, colours)?")) return; try { pendingLogo = undefined; const r = await api("/brand", { method: "DELETE" }); apply(r); renderPanel(el); toast("Brand kit cleared"); } catch (e) { toast(e.message, true); } });
+  q("#cc-br-reset").addEventListener("click", async () => { if (!(await window.CC.confirm("Clear the brand kit (logo, name, colours)?", { danger: true, ok: "Clear" }))) return; try { pendingLogo = undefined; const r = await api("/brand", { method: "DELETE" }); apply(r); renderPanel(el); toast("Brand kit cleared"); } catch (e) { toast(e.message, true); } });
 }
 
 apply(kit);

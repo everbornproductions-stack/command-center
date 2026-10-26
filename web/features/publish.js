@@ -97,7 +97,7 @@ async function renderSettings(el) {
       } catch (e) { toast(e.message, true); }
     });
     row.querySelector('[data-a="off"]')?.addEventListener("click", async () => {
-      if (!confirm(`Disconnect ${c.name}? Its token is removed from the vault. To remove the access on ${c.name}'s side too, revoke the app there.`)) return;
+      if (!(await window.CC.confirm(`Disconnect ${c.name}? Its token is removed from the vault. To remove the access on ${c.name}'s side too, revoke the app there.`, { danger: true, ok: "Disconnect" }))) return;
       try { await api(`/publish/connect/${k}`, { method: "DELETE" }); toast(`${c.name} disconnected`); renderSettings(el); } catch (e) { toast(e.message, true); }
     });
   });

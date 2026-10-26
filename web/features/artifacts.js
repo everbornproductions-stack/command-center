@@ -99,7 +99,7 @@ async function renderPanel() {
   });
   $("#art-net").addEventListener("change", async (e) => { try { st.open = await api(`/artifacts/${a.id}/versions`, { method: "POST", body: { net: e.target.checked } }); renderPanel(); } catch (err) { toast(err.message, true); } });
   $("#art-del").addEventListener("click", async () => {
-    if (!confirm(`Delete "${a.title}" and all ${a.versions.length} versions?`)) return;
+    if (!(await window.CC.confirm(`Delete "${a.title}" and all ${a.versions.length} versions?`, { danger: true, ok: "Delete" }))) return;
     try { await api(`/artifacts/${a.id}`, { method: "DELETE" }); closePanel(); toast("Artifact deleted."); refreshTab(); } catch (e) { toast(e.message, true); }
   });
   async function preview() {

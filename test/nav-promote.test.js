@@ -23,18 +23,18 @@ const upAt = (mode, width) => {
 };
 
 test("the promotion order matches the plan", () => {
-  assert.deepEqual(SIMPLE_PROMOTE.map((p) => p.label), ["Pro prompts", "Builders", "Community", "Connections"]);
+  assert.deepEqual(SIMPLE_PROMOTE.map((p) => p.label), [], "0.4.20: Simple has a fixed short row");
   assert.deepEqual(EXPERT_PROMOTE.map((p) => p.label), ["Command", "Start a project", "Projects", "Pro prompts", "Builders", "Community", "Missions", "Councils", "Research", "Remix"]);
   const simple = simpleModel(VIEWS, "", SIMPLE_PROMOTE.map((p) => p.id)).map((g) => g.label);
-  assert.deepEqual(simple.slice(0, 8), ["Chat", "Start a project", "Projects", "My day", "Pro prompts", "Builders", "Community", "Connections"]);
+  assert.deepEqual(simple, ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"]);
 });
 
 test("1024 keeps the compact row, 1440 promotes a few, 1920 promotes more", () => {
   assert.deepEqual(upAt("simple", 1024), []);
   assert.deepEqual(upAt("expert", 1024), []);
-  assert.deepEqual(upAt("simple", 1440), ["prompts", "builders"]);
+  assert.deepEqual(upAt("simple", 1440), []);
   assert.deepEqual(upAt("expert", 1440), ["command"]);
-  assert.deepEqual(upAt("simple", 1920), ["prompts", "builders", "community", "connections"]);
+  assert.deepEqual(upAt("simple", 1920), []);
   assert.deepEqual(upAt("expert", 1920), ["command", "start", "projects", "prompts", "builders"]);
   assert.equal(upAt("expert", 2560).length, EXPERT_PROMOTE.length);
 });
@@ -59,7 +59,7 @@ test("a promoted row fits on one line at 1024, 1440, and 1920", () => {
       const layout = layoutAt(mode, width);
       const up = promotedItems(mode, VIEWS, "", promoteFor(mode, VIEWS, navAvailable(width), layout));
       if (!up.length) continue;
-      const base = mode === "simple" ? ["Chat", "Start a project", "Projects", "☀ My day", "Create", "More", "Help", "Settings"] : rowLabels(layout);
+      const base = mode === "simple" ? ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"] : rowLabels(layout);
       assert.ok(menusWidth([...base, ...up.map((p) => p.label)], PROMOTE_GAP) <= navAvailable(width), `${mode} ${width}`);
     }
   }
@@ -68,22 +68,18 @@ test("a promoted row fits on one line at 1024, 1440, and 1920", () => {
   assert.equal(PROMOTE_GAP, 8);
 });
 
-test("Simple: promoted pages leave Create and More, and Connections becomes its own menu", () => {
+test("Simple (0.4.20): short fixed row, nothing promoted, every page still listed once", () => {
   const model = simpleModel(VIEWS, "", upAt("simple", 1920));
   const create = model.find((g) => g.id === "create").items.map((i) => i.view);
   const more = model.find((g) => g.id === "more").items;
-  assert.equal(create.includes("prompts"), false);
-  assert.equal(create.includes("builders"), false);
-  assert.ok(create.includes("images"));
-  assert.equal(more.some((i) => i.view === "community"), false);
-  assert.equal(more.some((i) => i.section === "Connections"), false);
-  const conn = model.find((g) => g.id === "connections");
-  assert.deepEqual(conn.items.map((i) => i.label), ["Zapier and Make", "Keys and providers", "Your apps", "Browser extension", "HighLevel"]);
-  assert.ok(conn.items.every((i) => i.view === "settings" && i.focus && !i.section));
+  assert.equal(create[0], "start");
+  assert.ok(create.includes("prompts") && create.includes("builders") && create.includes("images"));
+  assert.equal(more.some((i) => i.view === "community"), false, "Community is on the bar");
+  assert.ok(more.some((i) => i.section === "Connections"), "Connections stays under More");
+  assert.equal(model.find((g) => g.id === "connections"), undefined);
   const homes = model.flatMap((g) => g.items.filter((i) => i.home && !i.focus).map((i) => i.view));
   assert.equal(homes.length, new Set(homes).size, "each page is listed once");
-  for (const view of ["prompts", "builders", "community"]) assert.ok(homes.includes(view), view);
-  // At 1024 nothing moves.
+  for (const view of ["prompts", "builders", "community", "start", "projects", "command"]) assert.ok(homes.includes(view), view);
   const narrow = simpleModel(VIEWS, "", upAt("simple", 1024));
   assert.deepEqual(narrow.map((g) => g.label), simpleModel(VIEWS).map((g) => g.label));
 });
@@ -119,7 +115,7 @@ test("Start a project is promoted only together with Projects", () => {
 
 test("the web app does not promote desktop-only pages and skips pages it does not have", () => {
   const few = ["command", "projects", "settings", "help"];
-  assert.deepEqual(promotable("simple", few).map((p) => p.id), ["connections"]);
+  assert.deepEqual(promotable("simple", few).map((p) => p.id), []);
   assert.deepEqual(promotable("expert", few).map((p) => p.id), ["command", "start", "projects", "missions", "councils", "research"]);
 });
 

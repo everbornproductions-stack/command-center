@@ -61,10 +61,16 @@ function wouldCycle(projects, id, parentId) {
   return false;
 }
 
+// One status vocabulary for projects (0.4.20, I12): shown as colored chips on cards and on the detail page.
+export const PROJECT_STATUSES = ["Draft", "Review", "Approved", "Scheduled", "Published"];
 export function saveProject(p) {
   const d = data();
   const id = p.id || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const patch = { ...p };
+  if (patch.status !== undefined) {
+    const hit = PROJECT_STATUSES.find((x) => x.toLowerCase() === String(patch.status || "").trim().toLowerCase());
+    if (hit) patch.status = hit; else delete patch.status;
+  }
   if (patch.parentId !== undefined) {
     const pid = patch.parentId ? String(patch.parentId).trim() : null;
     if (pid && wouldCycle(d.projects, id, pid)) {
@@ -230,7 +236,7 @@ export function hqSnapshot() {
   if (out.available) {
     const st = readJson(stateFile, {});
     out.updated = st.updated || null;
-    out.tasks = (st.tasks || []).filter((t) => t.status !== "done").map((t) => ({ id: t.id, title: t.title, owner: t.owner, client: t.client, status: t.status, priority: t.priority, due: t.due || null }));
+    out.tasks = (st.tasks || []).filter((t) => t.status !== "done").map((t) => ({ id: t.id, title: plainPaths(t.title), owner: t.owner, client: t.client, status: t.status, priority: t.priority, due: t.due || null }));
     out.decisions = (st.decisions_for_chris || []).filter((d) => d.status === "open").map((d) => ({ id: d.id, question: plainPaths(d.question), recommendation: d.recommendation == null ? d.recommendation : plainPaths(d.recommendation), date: d.date }));
     out.agents = (st.agents || []).map((a) => ({ id: a.id, name: a.name, dept: a.dept, status: a.status, current: (a.current || []).length }));
   }

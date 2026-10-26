@@ -97,7 +97,7 @@ async function syncAction(view, what) {
       if (r.result.pulled) await window.CC.refresh?.();
     } else if (what === "off") {
       const del = $("#hs-del").checked;
-      if (del && !confirm("Delete the locked copies in the cloud? Other devices will stop receiving chats.")) return;
+      if (del && !(await window.CC.confirm("Delete the locked copies in the cloud? Other devices will stop receiving chats.", { danger: true, ok: "Delete" }))) return;
       await api("/history/sync/off", { method: "POST", body: { deleteRemote: del } });
       toast("Sync is off on this PC.");
     }

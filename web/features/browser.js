@@ -205,7 +205,7 @@ async function renderSettings(el) {
       toast("Sign in to Google and allow the access you ticked; this page finishes the link when you come back.");
     } catch (e) { toast(e.message, true); }
   });
-  el.querySelector("#bh-g-off")?.addEventListener("click", async () => { if (!confirm("Disconnect Google from the browser helper? Its tokens are removed from the vault. To remove the access on Google's side too, use myaccount.google.com/permissions.")) return; try { await api("/browser/google", { method: "DELETE" }); toast("Google disconnected"); renderSettings(el); } catch (e) { toast(e.message, true); } });
+  el.querySelector("#bh-g-off")?.addEventListener("click", async () => { if (!(await window.CC.confirm("Disconnect Google from the browser helper? Its tokens are removed from the vault. To remove the access on Google's side too, use myaccount.google.com/permissions.", { danger: true, ok: "Disconnect" }))) return; try { await api("/browser/google", { method: "DELETE" }); toast("Google disconnected"); renderSettings(el); } catch (e) { toast(e.message, true); } });
   el.querySelector("#bh-add-account")?.addEventListener("click", async () => {
     const label = v("#bh-new-label").trim();
     if (!label) return toast("Give this account a label.", true);
@@ -230,7 +230,7 @@ async function renderSettings(el) {
       catch (e) { toast(e.message, true); }
     });
     row.querySelector("[data-bh-remove]").addEventListener("click", async () => {
-      if (!confirm("Remove this Google account? Its token is removed from the vault.")) return;
+      if (!(await window.CC.confirm("Remove this Google account? Its token is removed from the vault.", { danger: true, ok: "Remove" }))) return;
       try { await api(`/mail-accounts/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("Account removed"); renderSettings(el); }
       catch (e) { toast(e.message, true); }
     });
