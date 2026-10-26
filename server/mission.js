@@ -1149,7 +1149,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const madeMedia = mission.tasks.filter((t) => t.media && t.output && t.status === "done");
     const waiting = mission.tasks.filter((t) => t.status === "waiting" && !t.media);
     const waitingMedia = mission.tasks.filter((t) => t.status === "waiting" && t.media);
-    if (!finished.length && !madeMedia.length && !waiting.length && !waitingMedia.length) throw new Error("Every task failed.");
+    if (!finished.length && !madeMedia.length && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. Every step failed, so there is nothing to hand over. Add credits in Settings if an AI is out, or press Try again."), { code: "empty" });
     const pendingNote = (waiting.length ? `\n\n---\n**Still waiting on ${MA.name}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "")
       + (waitingMedia.length ? `\n\n---\n**Media waiting for your OK:** ${waitingMedia.map((t) => `"${t.title}" (${t.media.providerName} ${t.media.kind}, about $${t.media.usd})`).join(", ")}. Approve it on the Media tab; nothing is spent until you do, and the file is added to this mission when it is made.` : "");
     const mediaNote = madeMedia.length ? `\n\n${madeMedia.map((t) => mediaSection(t)).join("\n\n")}` : "";
@@ -1162,6 +1162,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     }
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
+    if (!String(mission.deliverable || "").trim() && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. The AIs finished with an empty result. Press Try again, or add credits in Settings."), { code: "empty" });
     mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached ? "done-with-errors" : "done";
     try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {

@@ -65,7 +65,8 @@ import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
+import { sendCheck } from "./send-check.js";
+import { nothingCameBack, fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe, markPrivateRun, freshBrainDoc } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { annotateOutput } from "./prompts/safety.js";
@@ -644,6 +645,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
         emit("agent.done", { agent, provider, model, missionId: id, ms, cost: e.cost });
       }
     }
+    // 0.4.21: never "done" with nothing in it (fallbackChat already refuses empty answers; this covers a stream that ended early)
+    if (!text.trim() && !m.toolCalls.length && !stopCtl.signal.aborted) throw Object.assign(new Error(nothingCameBack([{ provider, kind: "empty" }])), { code: "empty", failures: [{ provider, kind: "empty" }], plain: nothingCameBack([{ provider, kind: "empty" }]) });
     m.status = "done";
   } catch (err) {
     if (stopCtl.signal.aborted) {
@@ -662,7 +665,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       m.status = "waiting"; m.deliverable = "";
       m.waiting = openWait({ kind: "single", runId: id, provider: asked.provider, model: asked.model, ask, system: toneAdd(system || "", tone), title });
     } else {
-      m.status = "failed"; m.error = err.message;
+      m.status = "failed"; m.error = (err.plain && (err.code === "empty" || (err.failures || []).length > 1)) ? err.plain : err.message;
+      if (err.code === "empty" || err.failures) m.needsAttention = { reason: err.code === "empty" ? "empty" : "failed", failures: err.failures || [], retry: true };
       if (err.code === "paused") m.deliverable = err.message;
     }
     }
@@ -882,6 +886,10 @@ async function api(req, res, url) {
       emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
     });
     return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
+  }
+  if (method === "POST" && p === "/send-check") {
+    try { return json(res, 200, sendCheck({ prompt: String(body.prompt || ""), explicit: body.explicit === true, priority: body.mode })); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }

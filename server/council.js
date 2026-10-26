@@ -12,7 +12,7 @@ import { ctx } from "./store.js";
 import { nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
+import { nothingCameBack, fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
@@ -197,7 +197,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.answers[orig.model] = { provider: orig.provider, model: orig.model, waiting, account: true, letter: LETTERS[i] };
         emit("agent.done", { agent, provider: orig.provider, model: orig.model, missionId: id, ms: Date.now() - s, cost: 0 });
       } else {
-        council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
+        council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), error: err.message, failures: err.failures || [], account: !!troubleKind(err), letter: LETTERS[i] };
         emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
       }
     }
@@ -209,6 +209,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   if (!good.length) {
     // every seat is waiting on a subscription answer: the council fills in as they come back
     council.status = waitingSeats(council).length ? "waiting" : "failed";
+    if (council.status === "failed" && !council.error) council.error = nothingCameBack(Object.values(council.answers).flatMap((x) => x.failures || []));
     endGrant(id);
     emit("council.update", { council: pub(council) });
     emit("mission.update", { mission: summaryOf(council) });

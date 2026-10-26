@@ -273,7 +273,7 @@ async function runJobBody(job) {
     const produced = await runPaid(job, a);
     await saveOutput(job, produced);
     job.status = job.outputs?.length ? "done" : "failed"; job.finishedAt = Date.now();
-    if (job.status === "failed") job.error = `${a.name} reported success but sent no file.`;
+    if (job.status === "failed") job.error = `Nothing came back. ${a.name} said it finished but sent no file. Press Try again, or add credits in Settings.`;
     // one ledger line per paid job, with the estimate the person approved
     const e = job.estimate || {};
     recordCredits({ provider: job.provider, units: e.credits || e.characters || e.seconds || 1, cost: e.usd, note: `${job.kind}${job.missionId ? " (mission)" : ""}`, project: job.projectId });

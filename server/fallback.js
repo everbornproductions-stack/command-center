@@ -31,7 +31,22 @@ export const STATE = "fallback.state";
 export const KINDS = ["credits", "rate", "key", "unreachable", "server", "cap"];
 // how long a provider is skipped for new work after each kind of failure; a green health light ends it early
 export const COOLDOWN_MS = { credits: 15 * 60 * 1000, rate: 90 * 1000, key: 30 * 60 * 1000, unreachable: 3 * 60 * 1000, server: 3 * 60 * 1000, cap: 0 };
-export const REASON = { credits: "out of credits or spending limit", rate: "rate limited", key: "key rejected", unreachable: "unreachable", server: "provider error", cap: "monthly spend cap reached" };
+export const REASON = { credits: "out of credits or spending limit", rate: "rate limited", key: "key rejected", unreachable: "unreachable", server: "provider error", cap: "monthly spend cap reached", empty: "sent back an empty answer" };
+// 0.4.21: plain words for "Nothing came back" (one short phrase per AI that failed)
+const PLAIN_FAIL = { credits: (n) => `${n} is out of quota or credits`, rate: (n) => `${n} is busy and asked us to slow down`, key: (n) => `${n} did not accept its key`, unreachable: (n) => `${n} could not be reached`, server: (n) => `${n} had a problem on its side`, cap: (n) => `${n} is at its spending limit`, empty: (n) => `${n} sent back nothing` };
+export function nothingCameBack(failures = []) {
+  const seen = new Set();
+  const parts = [];
+  for (const f of failures) {
+    const key = `${f.provider}:${f.kind}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    parts.push((PLAIN_FAIL[f.kind] || PLAIN_FAIL.server)(PROVIDERS[f.provider]?.name || f.provider));
+  }
+  const list = parts.length ? `${parts.join(" and ")}. ` : "";
+  const credit = failures.some((f) => f.kind === "credits");
+  return `Nothing came back. ${list}${credit ? "Add credits in Settings, or press" : "Press"} Try again to send it to another AI.`;
+}
 
 // Free tiers the app knows about (list limits on 2026-10-18, deliberately conservative; editable in
 // Settings > Smart fallback). "on" means the person says their key is on that tier.
@@ -158,6 +173,8 @@ export function troubleKind(e) {
   if (e.code === "budget_cap" || /this month's budget is used up|monthly budget/.test(m)) return null;
   if (/no api key saved/.test(m)) return "key";
   if (s === 402 || /credit|spending limit|spend limit|insufficient_quota|insufficient quota|exceeded your current quota|billing|balance is too low|payment required|out of credits/.test(m)) return "credits";
+  // 0.4.21: a 429 that says the quota is gone (no free-tier quota, limit 0) is not a short rate limit: remember it like no credits
+  if (s === 429 && /quota|limit: ?0|free.?tier|check your plan/.test(m) && !/per minute|per second|retry in|try again in|requests per/.test(m)) return "credits";
   if (s === 429 || /rate limit|rate_limit|too many requests|resource_exhausted|quota/.test(m)) return "rate";
   if (s === 401 || s === 403 || /key rejected|invalid api key|incorrect api key|authentication_error|unauthorized|forbidden/.test(m)) return "key";
   if (s === 0 || /network error|could not reach|fetch failed|econnrefused|econnreset|enotfound|etimedout|timed out|socket hang up|connect timeout/.test(m)) return "unreachable";
@@ -274,31 +291,38 @@ export async function* fallbackChat(opts, run = {}) {
     }
   }
 
+  const failures = [];
   while (true) {
     const free = freeNow(provider, model);
-    let text = "";
+    let text = "", sawTool = false, doneEv = null;
     const t0 = Date.now();
     try {
       for await (const ev of chatWithTools({ ...opts, provider, model }, { missionId: run.missionId, taskId: run.taskId, tools: run.tools, allow: run.allow })) {
         if (ev.type === "delta") { text += ev.text; yield ev; }
-        else if (ev.type === "done") {
-          const usage = { ...(ev.usage || {}) };
-          if (free) usage.free = true;
-          if (priceModel && typeof usage.cost !== "number") usage.priceModel = priceModel;
-          if (chain.length) usage.fallback = { from: chain[0].from.provider, fromModel: chain[0].from.model, kind: chain[chain.length - 1].kind, via, hops: chain.length };
-          yield { ...ev, usage, provider, model, via, fallback: chain.length ? chain : null };
-        } else yield ev;
+        else if (ev.type === "done") doneEv = ev;
+        else { if (ev.type === "tool") sawTool = true; yield ev; }
+      }
+      // 0.4.21: a job that ends with no words and no tool work is a failure, never "done" with an empty deliverable
+      if (doneEv && !text.trim() && !sawTool && !run.allowEmpty) throw Object.assign(new Error(`${nameOf(provider)} sent back an empty answer.`), { code: "empty", status: 502 });
+      if (doneEv) {
+        const usage = { ...(doneEv.usage || {}) };
+        if (free) usage.free = true;
+        if (priceModel && typeof usage.cost !== "number") usage.priceModel = priceModel;
+        if (chain.length) usage.fallback = { from: chain[0].from.provider, fromModel: chain[0].from.model, kind: chain[chain.length - 1].kind, via, hops: chain.length };
+        yield { ...doneEv, usage, provider, model, via, fallback: chain.length ? chain : null };
       }
       return;
     } catch (e) {
       if (opts.signal?.aborted) throw e;
       // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
-      const kind = e.code === "cap" ? "cap" : troubleKind(e);
-      if (!kind || !settings.on || hop >= settings.maxHops) throw e;
-      if (kind !== "cap") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null }); }
+      const kind = e.code === "empty" ? "empty" : e.code === "cap" ? "cap" : troubleKind(e);
+      if (kind) failures.push({ provider, kind });
+      if (!kind || !settings.on || hop >= settings.maxHops) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty") e.message = e.plain; } throw e; }
+      if (kind === "empty") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null }); }
+      else if (kind !== "cap") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null }); }
       tried.push({ provider, model });
       const next = nextChoice({ provider, model, tried, cls, mode, small, settings });
-      if (!next) throw e;
+      if (!next) { e.failures = failures; e.plain = nothingCameBack(failures); if (kind === "empty") e.message = e.plain; throw e; }
       yield switchTo(next, kind, e.message, text.length > 0);
     }
   }
