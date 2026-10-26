@@ -3,6 +3,7 @@
 // Data: GET /api/mindmedia. Keep, move, rename, tag, status and delete go through /api/mindmedia/*.
 // Publishing uses CC.publishPanel (web/features/mindmedia-parts.js) and the existing /api/publish routes.
 import "/features/mindmedia-parts.js";
+import { askAbout, makeAnother } from "/hub-ask.js";
 const { S, api, apiBlobUrl, downloadBlob, esc, toast } = window.CC;
 
 const TYPES = [["all", "All"], ["image", "Images"], ["video", "Video"], ["audio", "Audio"], ["text", "Text"], ["site", "Sites"], ["file", "Files"]];
@@ -148,14 +149,17 @@ async function inspectorHtml(it, d) {
     <label class="lbl" for="mmh-name">Name</label><input type="text" id="mmh-name" value="${esc(it.name)}">
     <label class="lbl" for="mmh-status">Status</label>
     <select id="mmh-status">${(d.statuses || []).map((s) => `<option ${s === it.status ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
-    <label class="lbl" for="mmh-tags">Tags (separate with commas)</label><input type="text" id="mmh-tags" value="${esc((it.tags || []).join(", "))}">
+    <div class="acts"><button type="button" class="btn sm" data-a="ask">Ask Meldmind about this</button><button type="button" class="btn sm" data-a="another">Make another like this</button></div>
     <div class="dl">${esc(it.source || "")} &middot; ${esc(it.projectName || "")} &middot; ${esc(new Date(it.createdAt || Date.now()).toLocaleString())}</div>
-    ${prov.prompt || prov.model ? `<details><summary class="dl">How it was made</summary><div class="dl">${prov.prompt ? `Prompt: ${esc(prov.prompt)}<br>` : ""}${prov.model ? `Model: ${esc(prov.model)}<br>` : ""}${prov.provider ? `From: ${esc(prov.provider)}<br>` : ""}${prov.cost != null ? `Cost: $${Number(prov.cost).toFixed(2)}` : ""}</div></details>` : ""}
     ${dests.length ? `<div><div class="dl">Where it went</div><ul>${dests.map((x) => `<li>${/^https?:\/\//.test(x.link || "") ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label)} <span class="dl">${esc(new Date(x.at).toLocaleString())}</span></li>`).join("")}</ul></div>` : ""}
+    <details class="mmh-moreinsp"><summary class="dl">More: tags, how it was made, versions, move</summary>
+    <label class="lbl" for="mmh-tags">Tags (separate with commas)</label><input type="text" id="mmh-tags" value="${esc((it.tags || []).join(", "))}">
+    ${prov.prompt || prov.model ? `<details><summary class="dl">How it was made</summary><div class="dl">${prov.prompt ? `Prompt: ${esc(prov.prompt)}<br>` : ""}${prov.model ? `Model: ${esc(prov.model)}<br>` : ""}${prov.provider ? `From: ${esc(prov.provider)}<br>` : ""}${prov.cost != null ? `Cost: $${Number(prov.cost).toFixed(2)}` : ""}</div></details>` : ""}
     ${versions.length > 1 ? `<div><div class="dl">Versions</div><ul>${versions.map((v) => `<li>${v.id === it.id ? "<b>" : ""}${esc(v.name)} (${esc(when(v.createdAt))})${v.id === it.id ? "</b>" : ""}</li>`).join("")}</ul></div>` : ""}
     ${it.kind !== "text" ? `<label class="lbl" for="mmh-host">Public link (Instagram and HighLevel need one)</label><div class="acts"><input type="text" id="mmh-host" placeholder="https://" value="${esc(it.publicUrl || "")}" style="flex:1"><button type="button" class="btn sm" data-a="host">Save link</button></div>` : ""}
     <label class="lbl" for="mmh-move">Send to</label>
     <select id="mmh-move"><option value="">Move to a project...</option>${projects.filter((p) => p.id !== it.projectId).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+    </details>
     <div class="acts"><button type="button" class="btn sm primary" data-a="publish">Publish</button><button type="button" class="btn sm" data-a="download">Download</button><button type="button" class="btn sm" data-a="delete">Delete</button><button type="button" class="btn sm" data-a="close">Close</button></div>
     <div data-pub></div>
   </aside>`;
@@ -284,6 +288,21 @@ async function render(view) {
       if (!e.target.value) return;
       try { await api("/mindmedia/move", { method: "POST", body: { projectId: it.projectId, assetId: it.id, targetProjectId: e.target.value } }); toast("Moved."); ui.focus = null; redraw(); } catch (er) { toast(er.message, true); }
     });
+    const toChat = async (words) => {
+      window.CC.S.lastOrders = words;
+      window.CC.go("command");
+      for (let i = 0; i < 60; i++) {
+        const box = document.getElementById("orders");
+        if (box) { box.value = words; box.dispatchEvent(new Event("input", { bubbles: true })); box.focus(); box.setSelectionRange(words.length, words.length); return; }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+    insp.querySelector('[data-a="ask"]').addEventListener("click", async () => {
+      let text = "";
+      if (it.kind === "text") { try { text = (await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`)).text; } catch { /* ask without the words */ } }
+      toChat(askAbout(it, text));
+    });
+    insp.querySelector('[data-a="another"]').addEventListener("click", () => toChat(makeAnother(it)));
     insp.querySelector('[data-a="host"]')?.addEventListener("click", async () => {
       const link = insp.querySelector("#mmh-host").value.trim();
       try { await api("/mindmedia/host", { method: "POST", body: { projectId: it.projectId, assetId: it.id, link } }); toast(link ? "Link saved. Publish can use it now." : "Link removed."); redraw(); } catch (e) { toast(e.message, true); }

@@ -58,3 +58,14 @@ test("source: Builders has a Connect HighLevel button that falls back to the pas
   assert.match(t, /\/publish\/connect\/ghlcrm\/start/);
   assert.match(t, /paste a HighLevel token below instead/);
 });
+
+import { askAbout, makeAnother } from "../web/hub-ask.js";
+test("Ask about this and Make another like this build plain chat starters", () => {
+  const a = askAbout({ name: "Spring sale", kind: "text" }, "Ten percent off\nthis week");
+  assert.match(a, /About my saved text "Spring sale":\n"Ten percent off this week"\n\nMy question: $/);
+  assert.match(askAbout({ name: "Beach", kind: "image" }), /^About my saved picture "Beach"\./);
+  const m = makeAnother({ name: "A woman on a beach", kind: "image", provenance: { prompt: "a woman on a beach, sunset" } });
+  assert.match(m, /Make another picture like "A woman on a beach"\. The first request was: a woman on a beach, sunset\.\nWhat to change: $/);
+  assert.match(read("web", "features", "mindmedia.js"), /data-a="ask"[\s\S]*Ask Meldmind about this/);
+  assert.match(read("web", "features", "mindmedia.js"), /mmh-moreinsp/);
+});
