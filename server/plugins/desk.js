@@ -2,7 +2,7 @@
 import { heuristicClassify, rank } from "../router.js";
 import { councilPlan, planMode } from "../modes.js";
 import { PROVIDERS } from "../registry.js";
-import { completeFallback } from "../fallback.js";
+import { completeFallback, trouble } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
 import { allStatus } from "../health.js";
@@ -31,6 +31,9 @@ function missions() {
   catch { return []; }
 }
 
+// 0.4.21: an AI that is out of credits, rate limited or has a bad key is tagged in the "Who will read this" list
+const PAUSE_WORD = { credits: "out of credits", rate: "busy", key: "key not accepted", unreachable: "not reachable", server: "having trouble", cap: "at its spending cap" };
+function pausedWhy(pid) { try { const t = trouble(pid); return t ? (PAUSE_WORD[t.kind] || "paused") : ""; } catch { return ""; } }
 function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
@@ -41,7 +44,7 @@ function namesFor(mode, prompt) {
   const outIds = new Set(outRows.map((o) => o.id));
   const ranked = rank({ ...cls, mode: priority }).filter((m) => !outIds.has(m.provider));
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
-  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
+  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider), paused: pausedWhy(m.provider) }));
   return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "", out: outRows };
 }
 

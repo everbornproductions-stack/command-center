@@ -29,6 +29,13 @@ import { resolveCrew, crewFor, crewSystem } from "./employees.js";
 import { keepEmployeeWork } from "./mindmedia-employees.js";
 import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
+import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput } from "./step-guard.js";
+import { saveNamedFile } from "./named-file.js";
+import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
+import fs from "node:fs";
+import path from "node:path";
+import { extractHeadline, overlayPng, isPng } from "./overlay.js";
+import { namedSources, attachSources, sourceBlock, projectFolders } from "./code-source.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -682,7 +689,10 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     mission.classification = cls;
 
     // ---- live web search (Phase 15): one search on the goal; the sources ride along as context ----
-    const web = await prepareWeb({ prompt: goal, kind: "mission", missionId: id, explicit: explicitSearch, needWeb: !!cls?.needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
+    // 0.4.21: no web search the person did not ask for (dogfood 03 and 04: it ran on a landing page and a campaign plan and leaked "[1]" into the answer)
+    const askedSearch = explicitSearch === true || searchMode === "pro" || (explicitSearch === undefined && wantsSearch(goal));
+    mission.searchAsked = askedSearch;
+    const web = await prepareWeb({ prompt: goal, kind: "mission", missionId: id, explicit: askedSearch ? explicitSearch : false, needWeb: !!cls?.needWeb && askedSearch, filter, mode: searchMode === "pro" ? "pro" : undefined });
     mission.searched = web != null;
     searchOn = !!web && !web.native && !web.skipped;
     if (web?.native) log("Search the web is set to the model's own search, which missions cannot use. Pick Tavily, Brave or Serper in Settings > Web search.");
@@ -690,6 +700,22 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     // ---- knowledge libraries (Phase 18): the best excerpts for the goal ride along as context, cited as [L1], [L2] ----
     lib = await libraryAugment({ prompt: goal, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
     if (lib) { mission.librarySources = publicLibrarySources(lib.sources); spend({ cost: lib.cost || 0 }); if (lib.block) context = `${context ? `${context}\n\n` : ""}${lib.block}`; update(); }
+
+    // 0.4.21 (dogfood 01): a code task that names a file reads that file; every worker gets it in its context
+    try {
+      const named = namedSources(goal);
+      const folders = named.length ? projectFolders(projectId) : [];
+      if (named.length && folders.length) {
+        const files = attachSources(goal, { projectId, folders });
+        const missing = named.filter((n) => !files.some((f) => f.name === n));
+        const editing = /\b(fix|patch|change|edit|update|refactor|debug|review|modify|bug|rename|line)\b/i.test(goal);
+        if (files.length || (editing && missing.length)) {
+          context = `${context ? `${context}\n\n` : ""}${sourceBlock(files, editing ? missing : [])}`;
+          mission.attachedFiles = files.map((f) => ({ name: f.name, lines: f.from > 1 || f.truncated ? [f.from, f.to] : null }));
+          log(files.length ? `Attached ${files.map((f) => f.name).join(", ")} from your project folder to every step.` : `${missing.join(", ")} was not found in the project folder, so no code is attached.`);
+        }
+      }
+    } catch (e) { console.error("[mission] attach source:", e.message); }
 
     // Grok Bot (Phase 12), else the built-in browser helper (Phase 27): offered to the planner only when it
     // is ready and not left out by the person
@@ -816,6 +842,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
     const appNames = mission.tasks.filter((t) => t.app).map((t) => t.model);
     log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(appNames).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
+    if (mediaTasks.length) {
+      const pf = preflight(goal, { kinds: [...new Set(mediaTasks.map((t) => t.media.kind))] });
+      mission.preflight = { blocked: pf.blocked, lines: pf.lines, banner: pf.banner };
+      if (pf.blocked) log(`Heads up before anything is made: ${pf.banner}`, { level: "error" });
+    }
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
@@ -911,6 +942,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         t.media.jobId = job.id; t.media.usd = job.estimate?.usd ?? t.media.usd;
         const fin = job.status === "awaiting_ok" ? null : await MEDIA.awaitJob(job.id, 60000);
         mediaOnTask(t, fin || MEDIA.getJob(job.id) || job);
+        headlineOnImage(t, fin || MEDIA.getJob(job.id) || job, goal);
         if (t.output) outputs[t.id] = t.output;
         if (t.cost) spend({ cost: t.cost });
       } catch (err) {
@@ -970,6 +1002,153 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       t.finishedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
+    };
+    // ---- 0.4.21 step guard (dogfood 02, 03, 04) ----
+    // What file type a step makes ("index.html", a landing page), so a cut-off page is told from a finished one.
+    const stepExt = (t) => {
+      const hint = `${t.title}. ${t.instructions || ""} ${t.deliverable || ""}`;
+      const named = fileExt(namedFile(hint)) || (t.capability === "code" ? fileExt(namedFile(goal)) : "");
+      if (named) return named;
+      if (t.capability === "code" && /\bhtml\b|landing page|web ?page/i.test(hint)) return "html";
+      return "";
+    };
+    const tokenCap = (t) => (t.capability === "code" || ["html", "css", "js", "json"].includes(stepExt(t)) ? CODE_TOKEN_CAP : WORK_TOKEN_CAP);
+    const judgeOf = (t, text, stop) => judgeStep(text, { goal, title: t.title, instructions: t.instructions, deliverable: t.deliverable, stop, ext: stepExt(t), capability: t.capability });
+    // A call on a given model that is not streamed to a card: cost is recorded, the words go to the step's feed.
+    const callOnce = async (t, { provider, model, system, messages, maxTokens, role }) => {
+      const agent = `${id}:${t.id}`;
+      const s0 = Date.now();
+      const r = await completeFallback({ provider, model, maxTokens, signal: ctl.signal, system, messages },
+        { missionId: id, taskId: t.id, role, tools: false, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, mode, avoid: held },
+        { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, role, t.id) });
+      noteCall(r.provider, true, Date.now() - s0);
+      const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role, ms: Date.now() - s0 });
+      spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
+      return r;
+    };
+    // Carry a cut-off answer on (the same AI, a bigger cap), up to three times.
+    const continueOutput = async (t, text, { system, messages }) => {
+      let cur = text;
+      for (let i = 0; i < MAX_CONTINUES && !ctl.signal.aborted; i++) {
+        const tr = checkTruncation(cur, { ext: stepExt(t), capability: t.capability, stop: i === 0 && t.stopReason ? t.stopReason : null });
+        if (!tr.truncated) break;
+        log(`"${t.title}" was cut off (${tr.reason}). Asking ${PROVIDERS[t.provider]?.name || t.provider} to carry on (${i + 1} of ${MAX_CONTINUES}).`);
+        t.continued = (t.continued || 0) + 1;
+        const r = await callOnce(t, { provider: t.provider, model: t.model, system, maxTokens: CODE_TOKEN_CAP, role: "continue", messages: [...messages, { role: "assistant", content: cur }, { role: "user", content: continuePrompt(cur, stepExt(t)) }] });
+        if (!r.text.trim()) break;
+        cur = joinContinuation(cur, r.text);
+        t.stopReason = r.stop || null;
+        if (String(r.stop || "").match(/length|max_tokens/)) continue;
+      }
+      return cur;
+    };
+    // The check, the carry-on, and up to two retries on another AI. Leaves the step "failed" with a plain reason when none works.
+    const settleStep = async (t, { system, messages, stop }) => {
+      t.attempts = t.attempts || [];
+      t.stopReason = stop || null;
+      let text = String(t.output || "");
+      let verdict = judgeOf(t, text, stop);
+      if (verdict.kind === "truncated") {
+        try { text = await continueOutput(t, text, { system, messages }); } catch (err) { if (err instanceof MissionPause || err?.code === "paused") throw err; throwIfPause(mission, ctl, t); }
+        verdict = judgeOf(t, text, null);
+      }
+      const tried = new Set([t.provider]);
+      let retries = 0;
+      while (!verdict.ok && retries < 2 && !ctl.signal.aborted) {
+        t.attempts.push({ provider: t.provider, model: t.model, kind: verdict.kind, reason: verdict.reason });
+        const alt = openRank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => !tried.has(m.provider));
+        if (!alt) break;
+        log(`"${t.title}" from ${PROVIDERS[t.provider]?.name || t.provider} was not usable (${verdict.reason}) and was not accepted. Retrying on ${alt.providerName}.`);
+        emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `retry "${t.title}"` });
+        tried.add(alt.provider);
+        t.provider = alt.provider; t.model = alt.model; t.agentName = `${alt.providerName} · ${t.capability} (retry)`; t.retried = true;
+        emit("task.update", { missionId: id, task: pubTask(t) });
+        try {
+          const r = await callOnce(t, { provider: alt.provider, model: alt.model, system, messages, maxTokens: tokenCap(t), role: "work" });
+          t.provider = r.provider; t.model = r.model;
+          text = r.text; t.stopReason = r.stop || null;
+          verdict = judgeOf(t, text, r.stop);
+          if (verdict.kind === "truncated") { text = await continueOutput(t, text, { system, messages }); verdict = judgeOf(t, text, null); }
+        } catch (err) {
+          if (err instanceof MissionPause || err?.code === "paused") throw err;
+          throwIfPause(mission, ctl, t);
+          verdict = { ok: false, kind: "error", reason: String(err.message || err).slice(0, 140) };
+        }
+        retries++;
+      }
+      if (verdict.ok) {
+        t.output = text; outputs[t.id] = text; t.guard = null;
+        return true;
+      }
+      t.attempts.push({ provider: t.provider, model: t.model, kind: verdict.kind, reason: verdict.reason });
+      t.guard = { kind: verdict.kind, reason: verdict.reason };
+      t.truncated = verdict.kind === "truncated";
+      t.output = text; delete outputs[t.id];
+      t.status = "failed";
+      t.error = `${verdict.kind === "empty" ? "Nothing came back." : verdict.kind === "refusal" ? "The AI refused." : verdict.kind === "truncated" ? "The answer was cut off." : verdict.kind === "off-brief" ? "The answer was about something else." : "The step failed."} ${verdict.reason}`.trim();
+      emit("agent.error", { agent: `${id}:${t.id}`, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: t.error });
+      log(`"${t.title}" failed: ${t.error}`);
+      return false;
+    };
+    // QA: a reviewer gets 60 seconds, then the next one. A reply that is not JSON is asked for once more, then the reviewer is switched.
+    // A check that could not be done is never a pass.
+    const QA_MS = () => Number(process.env.CC_QA_TIMEOUT_MS) || 60000;
+    const qaReviewers = (t, skip = []) => {
+      const ranked = openRank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true });
+      const seen = new Set();
+      let list = ranked.filter((m) => m.provider !== t.provider && !skip.includes(m.provider) && !seen.has(m.provider) && seen.add(m.provider)).slice(0, 3);
+      if (!list.length) list = ranked.filter((m) => !skip.includes(m.provider)).slice(0, 1);
+      if (!list.length) list = openRank({ capability: "analysis", mode: looking, small: true }).slice(0, 1);
+      return list;
+    };
+    const askReviewer = async (t, reviewer, text, { fix = false } = {}) => {
+      const ragent = `${id}:${t.id}:qa`;
+      emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
+      emit("agent.start", { agent: ragent, provider: reviewer.provider, model: reviewer.model, role: "qa", missionId: id, taskId: t.id, label: `${reviewer.providerName} checking "${t.title}"` });
+      const to = new AbortController();
+      const onAbort = () => to.abort(ctl.signal.reason);
+      ctl.signal.addEventListener("abort", onAbort, { once: true });
+      const timer = setTimeout(() => to.abort("qa-timeout"), QA_MS());
+      const s3 = Date.now();
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${text.slice(0, 12000)}` }] },
+            { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
+          const ms = Date.now() - s3;
+          noteCall(r.provider, true, ms);
+          const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
+          spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
+          const j = extractJson(r.text);
+          if (j && typeof j === "object" && ("pass" in j || "score" in j)) {
+            emit("agent.done", { agent: ragent, provider: r.provider, model: r.model, missionId: id, taskId: t.id, ms, cost: e.cost });
+            const score = Number(j.score);
+            return { provider: r.provider, model: r.model, pass: j.pass === true || (j.pass === undefined && Number.isFinite(score) && score >= 7), score: Number.isFinite(score) ? score : null, issues: Array.isArray(j.issues) ? j.issues.slice(0, 6) : [], fix: j.fix || null, ms };
+          }
+          log(`${reviewer.providerName} sent back a check that could not be read${attempt ? "" : ". Asking once more"}.`);
+        }
+        emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: "unreadable check" });
+        return { unreadable: true, provider: reviewer.provider, model: reviewer.model };
+      } catch (err) {
+        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        if (ctl.signal.aborted) throw err;
+        const slow = to.signal.aborted && to.signal.reason === "qa-timeout";
+        noteCall(reviewer.provider, false, Date.now() - s3, err);
+        emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: slow ? "too slow" : err.message });
+        if (slow) log(`${reviewer.providerName} took more than ${Math.round(QA_MS() / 1000)} seconds to check "${t.title}". Switching reviewer.`);
+        return { failed: true, slow, provider: reviewer.provider, model: reviewer.model, error: slow ? "too slow" : err.message };
+      } finally { clearTimeout(timer); ctl.signal.removeEventListener("abort", onAbort); }
+    };
+    // Returns the review record kept on the step: { pass, score, issues, fix, provider, model, unchecked?, tries }
+    const qaStep = async (t, text, { skip = [] } = {}) => {
+      const reviewers = qaReviewers(t, skip);
+      if (!reviewers.length) return null; // no reviewer connected: the step is simply not checked
+      const tries = [];
+      for (const rv of reviewers) {
+        const out = await askReviewer(t, rv, text);
+        if (out.pass !== undefined) return { ...out, tries };
+        tries.push({ provider: rv.provider, why: out.slow ? "too slow" : out.unreadable ? "unreadable" : out.error || "failed" });
+      }
+      return { provider: reviewers[0].provider, model: reviewers[0].model, pass: false, unchecked: true, score: null, issues: ["The check could not be done: " + tries.map((x) => `${PROVIDERS[x.provider]?.name || x.provider} ${x.why}`).join(", ")], fix: null, tries };
     };
     const applyQueuedDirections = () => {
       const consumed = consumeQueuedForRun(id, projectId, { emit });
@@ -1035,14 +1214,17 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         }
         const s = Date.now();
         let text = "";
+        let stopReason = null;
+        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone);
+        const workMessages = [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }];
         try {
           // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
           // Smart fallback (Phase 26): a specialist whose provider is out of credits, rate limited or refusing
           // its key is replaced (same model via OpenRouter first, then the next-best model) and the task says so.
           for await (const ev of fallbackChat({
-            provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal,
-            system: toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone),
-            messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }],
+            provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal,
+            system: workSystem,
+            messages: workMessages,
           }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
             else if (ev.type === "fallback") {
@@ -1052,6 +1234,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             }
             else if (ev.type === "tool" && ev.phase === "done") { mission.toolCalls.push({ taskId: t.id, by: t.provider, tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); t.toolCalls = (t.toolCalls || 0) + 1; update(); }
             else if (ev.type === "done") {
+              stopReason = ev.stop || null;
               const ms = Date.now() - s;
               noteCall(t.provider, true, ms);
               const e = recordCall({ provider: t.provider, model: t.model, usage: ev.usage, missionId: id, taskId: t.id, role: "work", ms });
@@ -1091,50 +1274,48 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             }
           } else { t.status = "failed"; t.error = err.message; }
         }
+        // 0.4.21: an empty, refused, cut-off or off-topic answer is a failure to retry, never "done"
+        if (t.status === "review" || t.status === "done") await settleStep(t, { system: workSystem, messages: workMessages, stop: stopReason, inputs });
         emit("task.update", { missionId: id, task: pubTask(t) });
 
         // ---- QA by a different AI ----
         if (t.status === "review") {
-          // QA is a small job: free tiers first (Phase 26)
-          const reviewer = openRank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || openRank({ capability: "analysis", mode: looking, small: true })[0];
-          if (reviewer) {
-            const ragent = `${id}:${t.id}:qa`;
-            emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
-            emit("agent.start", { agent: ragent, provider: reviewer.provider, model: reviewer.model, role: "qa", missionId: id, taskId: t.id, label: `${reviewer.providerName} checking "${t.title}"` });
-            const s3 = Date.now();
-            try {
-              const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: ctl.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${t.output.slice(0, 12000)}` }] },
-                { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
-              const ms = Date.now() - s3;
-              noteCall(r.provider, true, ms);
-              const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
-              spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
-              const j = extractJson(r.text) || { pass: true, score: null, issues: [] };
-              t.review = { provider: r.provider, model: r.model, pass: j.pass !== false, score: j.score ?? null, issues: j.issues || [], fix: j.fix || null };
-              emit("agent.done", { agent: ragent, provider: r.provider, model: r.model, missionId: id, taskId: t.id, ms, cost: e.cost });
-              if (!t.review.pass && t.review.fix && !ctl.signal.aborted) {
-                emit("agent.msg", { from: r.provider, to: t.provider, missionId: id, text: `revise: ${t.review.fix.slice(0, 60)}` });
-                const s4 = Date.now();
-                try {
-                  const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: 2500, signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${t.review.fix}\nISSUES: ${(t.review.issues || []).join("; ")}` }] },
-                    { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
-                  noteCall(r2.provider, true, Date.now() - s4);
-                  const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
-                  spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
-                  t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
-                } catch (err3) {
-                  if (err3 instanceof MissionPause || err3?.code === "paused") throw err3;
-                  throwIfPause(mission, ctl, t);
-                  noteCall(t.provider, false, Date.now() - s4, err3);
-                }
-              }
-            } catch (err) {
-              if (err instanceof MissionPause || err?.code === "paused") throw err;
-              throwIfPause(mission, ctl, t);
-              noteCall(reviewer.provider, false, Date.now() - s3, err);
-              emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: err.message });
+          let first = null;
+          try {
+            first = await qaStep(t, t.output);
+            if (first) {
+              t.review = { provider: first.provider, model: first.model, pass: first.pass === true, score: first.score ?? null, issues: first.issues || [], fix: first.fix || null, unchecked: !!first.unchecked, tries: first.tries || [] };
+              emit("task.update", { missionId: id, task: pubTask(t) });
             }
+            if (first && !first.pass && !first.unchecked && first.fix && !ctl.signal.aborted) {
+              emit("agent.msg", { from: first.provider, to: t.provider, missionId: id, text: `revise: ${String(first.fix).slice(0, 60)}` });
+              const s4 = Date.now();
+              try {
+                const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${first.fix}\nISSUES: ${(first.issues || []).join("; ")}` }] },
+                  { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
+                noteCall(r2.provider, true, Date.now() - s4);
+                const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
+                spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
+                // a revision that came back empty, refused or cut off is not taken: the draft stays
+                const vr = judgeOf(t, r2.text, r2.stop);
+                if (vr.ok) {
+                  t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
+                  // the revision is checked once more, by a different reviewer when there is one
+                  const second = await qaStep(t, t.output, { skip: [first.provider] });
+                  if (second) t.review = { provider: second.provider, model: second.model, pass: second.pass === true, score: second.score ?? null, issues: second.issues || [], fix: second.fix || null, unchecked: !!second.unchecked, tries: second.tries || [], firstScore: first.score ?? null };
+                } else log(`The revision of "${t.title}" was not usable (${vr.reason}); keeping the first draft.`);
+              } catch (err3) {
+                if (err3 instanceof MissionPause || err3?.code === "paused") throw err3;
+                throwIfPause(mission, ctl, t);
+                noteCall(t.provider, false, Date.now() - s4, err3);
+              }
+            }
+          } catch (err) {
+            if (err instanceof MissionPause || err?.code === "paused") throw err;
+            throwIfPause(mission, ctl, t);
           }
+          // a check that failed after its retry never counts as a pass
+          if (t.review && t.review.pass !== true) { t.qaFailed = true; log(`QA did not pass "${t.title}"${t.review.unchecked ? " (the check could not be done)" : ""}.`); }
           t.status = "done";
         }
         if (t.status === "done") {
@@ -1157,7 +1338,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 
     // ---- 4. Assemble ----
     // media steps are files, not text: they skip the assembler and get their own section at the end
-    const finished = mission.tasks.filter((t) => t.output && !t.media);
+    const finished = mission.tasks.filter((t) => t.output && !t.media && t.status !== "failed");
     const madeMedia = mission.tasks.filter((t) => t.media && t.output && t.status === "done");
     const waiting = mission.tasks.filter((t) => t.status === "waiting" && !t.media);
     const waitingMedia = mission.tasks.filter((t) => t.status === "waiting" && t.media);
@@ -1175,7 +1356,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     if (!String(mission.deliverable || "").trim() && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. The AIs finished with an empty result. Press Try again, or add credits in Settings."), { code: "empty" });
-    mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached ? "done-with-errors" : "done";
+    finishChecks();
+    mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached || mission.incomplete || mission.banner ? "done-with-errors" : "done";
     try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {
     if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
@@ -1206,7 +1388,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
   return mission;
 
   async function assemble(plan, planner) {
-    const finished = mission.tasks.filter((t) => t.output && !t.media);
+    const finished = mission.tasks.filter((t) => t.output && !t.media && t.status !== "failed");
     mission.status = "assembling"; update();
     const asm = { ...(openPick({ capability: "writing", difficulty: 3, mode: planning }) || planner) };
     if (!asm.provider) {
@@ -1219,15 +1401,19 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     for (const t of finished) if (t.provider !== asm.provider) emit("agent.msg", { from: t.provider, to: asm.provider, missionId: id, text: `deliver "${t.title}"` });
     const s5 = Date.now();
     let text = "";
+    let asmStop = null;
+    const asmSystem = toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}${mission.sources.length ? "" : " Do not add [1] style citations and do not mention search results: nothing was searched."}`, tone);
+    const asmMessages = [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }];
     try {
       for await (const ev of fallbackChat({
-        provider: asm.provider, model: asm.model, maxTokens: 4000, signal: ctl.signal,
-        system: toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}`, tone),
-        messages: [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }],
+        provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal,
+        system: asmSystem,
+        messages: asmMessages,
       }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
         else if (ev.type === "done") {
+          asmStop = ev.stop || null;
           const ms = Date.now() - s5;
           noteCall(asm.provider, true, ms);
           const e = spendEntry(recordCall({ provider: asm.provider, model: asm.model, usage: ev.usage, missionId: id, role: "assemble", ms }));
@@ -1235,6 +1421,21 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           emit("agent.done", { agent: aAgent, provider: asm.provider, model: asm.model, missionId: id, ms });
         }
       }
+      // 0.4.21: a final answer that stops mid-page is carried on, not handed over cut off
+      const fext = fileExt(namedFile(goal)) || (mission.classification?.capability === "code" ? "html" : "");
+      for (let i = 0; i < MAX_CONTINUES && !ctl.signal.aborted; i++) {
+        const tr = checkTruncation(text, { ext: fext, capability: mission.classification?.capability, stop: i === 0 ? asmStop : null });
+        if (!tr.truncated) break;
+        log(`The final answer was cut off (${tr.reason}). Asking ${PROVIDERS[asm.provider]?.name || asm.provider} to carry on (${i + 1} of ${MAX_CONTINUES}).`);
+        const s6 = Date.now();
+        const r = await completeFallback({ provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal, system: asmSystem, messages: [...asmMessages, { role: "assistant", content: text }, { role: "user", content: continuePrompt(text, fext) }] },
+          { missionId: id, role: "continue", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent: aAgent, missionId: id, text: d }) });
+        spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "continue", ms: Date.now() - s6 }));
+        if (!r.text.trim()) break;
+        text = joinContinuation(text, r.text);
+        asmStop = r.stop || null;
+      }
+      mission.assemblerStop = asmStop;
       mission.deliverable = text;
     } catch (err) {
       if (err instanceof MissionPause || err?.code === "paused") throw err;
@@ -1245,13 +1446,44 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       mission.deliverable = finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n");
     }
   }
+
+  // 0.4.21: the checks every finished mission goes through before it may say "done"
+  function finishChecks() {
+    const noSources = !(mission.sources || []).length;
+    if (noSources) {
+      mission.deliverable = stripSearchLeaks(mission.deliverable || "");
+      for (const t of mission.tasks) if (typeof t.output === "string" && !t.media) t.output = stripSearchLeaks(t.output);
+    }
+    const want = namedFile(goal);
+    const fext = fileExt(want) || (mission.classification?.capability === "code" ? "html" : "");
+    const tr = checkTruncation(mission.deliverable || "", { ext: fext, capability: mission.classification?.capability, stop: mission.assemblerStop });
+    if (tr.truncated) mission.deliverableTruncated = tr.reason;
+    if (want) {
+      mission.deliverable = stripSaveClaims(mission.deliverable || "");
+      if (mission.deliverableTruncated) mission.savedFile = { ok: false, name: want, error: `Not saved: the result was cut off (${tr.reason}), so ${want} was not written.` };
+      else mission.savedFile = saveNamedFile({ goal, name: want, text: mission.deliverable, projectId, missionId: id });
+      log(mission.savedFile?.ok ? `Saved ${mission.savedFile.name} in the project folder.` : String(mission.savedFile?.error || `Not saved: ${want}.`), mission.savedFile?.ok ? {} : { level: "error" });
+    }
+    // a card is never titled as a file when no file was written
+    if (!mission.savedFile?.ok && /\.[a-z0-9]{2,5}$/i.test(String(mission.title || "").trim())) { mission.title = String(mission.title).trim().replace(/\.[a-z0-9]{2,5}$/i, ""); if (mission.plan) mission.plan.title = mission.title; }
+    const banner = dryRunBanner(mission.tasks);
+    if (banner) { mission.banner = banner; log(`NOT A REAL RESULT: ${banner.text}`, { level: "error" }); }
+    const reasons = [];
+    for (const t of mission.tasks) {
+      if (t.status === "failed") reasons.push({ taskId: t.id, title: t.title, kind: t.guard?.kind || "failed", reason: t.error || "The step failed.", provider: t.provider });
+      else if (t.qaFailed) reasons.push({ taskId: t.id, title: t.title, kind: t.review?.unchecked ? "qa-unchecked" : "qa-failed", reason: t.review?.unchecked ? "QA could not check this step, so it is not counted as passed." : `QA did not pass this step${t.review?.score != null ? ` (score ${t.review.score} of 10)` : ""}${t.review?.issues?.[0] ? `: ${t.review.issues[0]}` : ""}.`, provider: t.provider });
+    }
+    if (mission.deliverableTruncated) reasons.push({ taskId: null, title: "Final answer", kind: "truncated", reason: `The final answer was cut off: ${tr.reason}`, provider: mission.assembler?.provider || null });
+    mission.incomplete = reasons.length ? { reasons, retryAvoid: [...new Set(reasons.map((r) => r.provider).filter(Boolean))] } : null;
+    if (mission.incomplete) log(`Incomplete: ${reasons.map((r) => `${r.title} (${r.reason})`).join(" ").slice(0, 400)}`, { level: "error" });
+  }
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, ...(stepLine(t) || {}) };
+  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {
@@ -1303,8 +1535,28 @@ function mediaPlan(t) {
     const provider = MEDIA.chooseProvider(kind);
     const prompt = String(t.media?.prompt || t.instructions || t.title || "").slice(0, MEDIA.MAX_PROMPT);
     const est = MEDIA.estimate({ provider, kind, params: { prompt, text: prompt } });
-    return { kind, prompt, provider, providerName: est.providerName, usd: est.usd, note: est.estimate.note || "", dryRun: est.dryRun, jobId: null, status: null, files: [] };
+    return { kind, prompt, provider, providerName: est.providerName, usd: est.usd, note: est.estimate.note || "", dryRun: est.dryRun, jobId: null, status: null, files: [], ...(est.dryRun ? { needs: mediaStatus(kind)?.message || null } : {}) };
   } catch { return null; }
+}
+// 0.4.21: the headline the task asks for is put on a finished image inside Meldmind (a real PNG next to the picture).
+// A picture that is not a PNG is marked for the page to finish with its canvas (web/overlay.js).
+function headlineOnImage(t, job, goal) {
+  try {
+    if (!t.media || t.media.kind !== "image" || job.status !== "done" || job.dryRun) return;
+    const text = extractHeadline(goal) || extractHeadline(`${t.instructions || ""} ${t.media.prompt || ""}`);
+    if (!text) return;
+    const f = MEDIA.outputFile(job.id, 0);
+    if (!f) { t.media.overlay = { ok: false, text, pending: true, reason: "The picture is not saved on this PC, so the headline was not added." }; return; }
+    const buf = fs.readFileSync(f);
+    if (!isPng(buf)) { t.media.overlay = { ok: false, text, pending: true, jobId: job.id, reason: "This picture is not a PNG. Use Add headline on the picture to finish it." }; return; }
+    const r = overlayPng(buf, text);
+    const out = path.join(path.dirname(f), `${job.id}-headline.png`);
+    fs.writeFileSync(out, r.png);
+    MEDIA.addOutput(job.id, out);
+    t.media.files = MEDIA.publicJob(MEDIA.getJob(job.id)).files;
+    t.media.overlay = { ok: true, text, file: path.basename(out) };
+    t.output = `${t.output}\nHeadline added on the picture: ${path.basename(out)}.`;
+  } catch (e) { t.media.overlay = { ok: false, text: "", reason: `The headline was not added: ${String(e.message).slice(0, 120)}` }; }
 }
 // a job's state onto its task: made (or a dry run, or declined) is done, still waiting is waiting
 function mediaOnTask(t, job) {
