@@ -1901,15 +1901,20 @@ async function sendOrders() {
   if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
     const kind = projectIntent(prompt);
     if (kind) {
+      // The chat box is cleared first: the Start screen replaces the chat view, so #orders may no longer exist afterwards.
+      const draftBox = $("#orders");
+      if (draftBox) draftBox.value = "";
+      S.lastOrders = "";
       try {
         await window.CC.ensureView?.("start");
         if (window.CC.startProject?.startFromChat) {
           await window.CC.startProject.startFromChat(kind, prompt);
-          $("#orders").value = "";
           toast("Started a project for this. Answer a few questions to go on.");
           return;
         }
-      } catch (e) { toast(e.message, true); return; }
+      } catch (e) { S.lastOrders = prompt; toast(e.message, true); return; }
+      S.lastOrders = prompt;
+      if (draftBox && draftBox.isConnected) draftBox.value = prompt;
     }
   }
   S.skipProjectStart = false;

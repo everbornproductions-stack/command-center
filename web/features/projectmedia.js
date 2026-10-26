@@ -73,6 +73,7 @@ function injectStyles() {
     .pm-send-sheet { border-top:1px solid var(--line); padding-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
     #cc-asset-tray { position:fixed; right:16px; bottom:16px; z-index:900; width:360px; max-width:calc(100vw - 32px); background:var(--card-bg, #0c131f); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.55); overflow:hidden; }
     #cc-asset-tray.collapsed { width:auto; }
+    @media (max-width:760px) { #cc-asset-tray { right:8px; bottom:calc(56px + env(safe-area-inset-bottom) + 8px); z-index:35; } #cc-asset-tray .btn, #cc-asset-tray button { min-height:44px; } }
     .tray-head { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--card-hover, #111c2d); border-bottom:1px solid var(--line); }
     #cc-asset-tray.collapsed .tray-head { border-bottom:none; }
     .tray-body { padding:10px; max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
