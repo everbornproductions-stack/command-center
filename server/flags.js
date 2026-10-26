@@ -45,4 +45,5 @@ export function templatesOn(settings = {}) {
   if (v === "1" || v === "on" || v === "0" || v === "off") return flagOn("templates");
   if (settings && typeof settings.flag_templates === "boolean") return settings.flag_templates;
   return flagOn("templates");
+}
 export const flagView = () => Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, flagOn(k)]));
