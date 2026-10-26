@@ -3,6 +3,7 @@
 const DEFAULTS = {
   projectbar: false, // Working-in project bar, Continue this project, soft delete with Recently Deleted
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
+  nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -16,4 +17,4 @@ export function promptdropOn(env = process.env) {
   if (v === "0" || v === "off") return false;
   return !!DEFAULTS.promptdrop;
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop") });
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions") });

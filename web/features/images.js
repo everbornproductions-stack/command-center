@@ -1,6 +1,7 @@
 // Image generation in chat (Phase 21): the Images tab (form + gallery), an image row under the Command
 // orders, "Make an image from this" under the deliverable, and the Replicate / fal keys in Settings.
 // The price is always shown first; Generate stays off until the estimate for the current choices is on screen.
+import { mountBar } from "../next-actions-ui.js";
 const { S, api, apiBlobUrl, toast, esc, money, go } = window.CC;
 
 const OP_LABEL = { generate: "New image", edit: "Edit", variation: "Variation" };
@@ -36,7 +37,7 @@ function formHtml(pre = {}) {
       <select id="im-proj" style="width:auto"><option value="">No project</option>${(S.projects || []).map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <div class="row small" id="im-src-row" style="margin-top:8px;display:none"><span>Source image:</span><span id="im-src" class="dim">none yet: click Edit or Variation on a gallery image, or upload one</span><label class="btn sm">Upload<input type="file" id="im-up" accept="image/png,image/jpeg,image/webp" style="display:none"></label></div>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="im-est">Estimate</button><span class="small" id="im-est-out"></span><button class="btn sm primary" id="im-go" style="margin-left:auto" disabled>Generate</button></div>
-    <div id="im-new" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div></div>`;
+    <div id="im-new" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div><div id="im-na"></div></div>`;
 }
 
 function wireForm(root, after) {
@@ -88,6 +89,11 @@ function wireForm(root, after) {
       toast(`${row.files.length} image${row.files.length === 1 ? "" : "s"} saved to the gallery`);
       $("#im-new").innerHTML = row.files.map((f) => `<img data-img="${row.id}:${f.i}" alt="" style="width:140px;height:140px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">`).join("");
       fillThumbs($("#im-new"));
+      // Next actions (flag): Make 3 variations only sets the count to 3 and waits for the price.
+      mountBar($("#im-na"), {
+        kind: "image", text: $("#im-prompt").value, ref: row.id, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`,
+        onVariations: () => { $("#im-n").value = 3; stale(); toast("Set to 3 images. Press Estimate to see the price."); $("#im-est").focus(); },
+      });
       after?.(row);
     } catch (er) { toast(er.message, true); }
     finally { b.textContent = "Generate"; b.disabled = false; }

@@ -13,6 +13,9 @@ export const MAIN_ACTIONS = [
 // who wrote it, a Double-check result). Their buttons still move to More.
 export const KEEP_IN_VIEW = new Set(["desk"]);
 
+// The next actions bar (flag_nextactions) stays where it was drawn, right under the main buttons.
+export const PINNED = new Set(["next-actions"]);
+
 export const MORE_LABEL = "More actions";
 
 // Pure: which feature blocks go under More. ids are the data-feature names in drawing order.
@@ -21,7 +24,7 @@ export function planActions(ids) {
   return {
     main: MAIN_ACTIONS.map((a) => a.id),
     stay: list.filter((id) => KEEP_IN_VIEW.has(id)),
-    more: list.filter((id) => !KEEP_IN_VIEW.has(id) && id !== "personas"),
+    more: list.filter((id) => !KEEP_IN_VIEW.has(id) && !PINNED.has(id) && id !== "personas"),
   };
 }
 
@@ -60,6 +63,7 @@ export function arrangeAnswerActions(box, { onCopy, open = false, onToggle } = {
   for (const block of blocks) {
     const id = block.dataset.feature;
     if (id === "personas") { block.hidden = true; continue; }
+    if (PINNED.has(id)) continue;
     if (plan.stay.includes(id)) {
       // The info stays. Its own buttons (Do this again) go under More.
       for (const row of block.querySelectorAll(".cc-desk-row")) {
