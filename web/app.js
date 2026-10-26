@@ -525,10 +525,10 @@ function onMission(m) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.(m.id);
-      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || (m.status === "aborted" && m.kind !== "single"));
       const cost = Number(m.cost) || 0;
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
-      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
+      const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
         if (S.view === "command") renderOutput();
@@ -1336,6 +1336,7 @@ function renderSimpleChat(v) {
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1378,6 +1379,7 @@ function renderSimpleChat(v) {
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
@@ -1436,6 +1438,7 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1470,6 +1473,7 @@ function renderCommand(v) {
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
@@ -1812,10 +1816,30 @@ function runBusy() {
   const st = S.live?.status;
   return !!(S.live?.id && BUSY_STATUS.has(st));
 }
+// Stop for a normal chat or a mission: the server stops the run and keeps what was written.
+async function stopChat() {
+  const id = S.live?.id || S.stopId;
+  if (!id) return;
+  const btn = $("#stop-chat");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api(`/mission/${encodeURIComponent(id)}/abort`, { method: "POST" });
+    toast(r?.aborted ? "Stopped. What was written so far is kept." : "Nothing is running to stop.");
+    if (r?.aborted) { S.awaitingRun = false; S.stopId = ""; }
+  } catch (e) { toast(e.message, true); }
+  if (btn) btn.disabled = false;
+  syncSendButton();
+}
 function syncSendButton() {
   const g = $("#go");
   if (!g) return;
   const busy = runBusy();
+  const stop = $("#stop-chat");
+  if (stop) {
+    const kind = S.live?.kind;
+    const stoppable = busy && (S.stopId || (S.live?.id && (kind === "single" || kind === "mission")));
+    stop.style.display = stoppable ? "" : "none";
+  }
   g.disabled = busy;
   g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
   g.setAttribute("aria-busy", busy ? "true" : "false");
@@ -1941,6 +1965,7 @@ async function sendOrders() {
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      S.stopId = started?.runId || started?.id || "";
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
