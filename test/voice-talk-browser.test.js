@@ -31,7 +31,7 @@ test("Talk bar: toggle, strip, navigation, publish needs yes, help card, numbers
     assert.match(line, /Add a key to talk \(OpenAI, Groq, ElevenLabs or Gemini\)\./);
     assert.ok(await page.evaluate(() => !!document.getElementById("vt-keys")));
     // the bar sits above the chat dock, not over it
-    const placed = await page.evaluate(() => { const b = document.getElementById("vt-bar"), d = document.getElementById("cc-dock"); return d ? b.nextElementSibling === d : true; });
+    const placed = await page.evaluate(() => { const b = document.getElementById("vt-bar"), d = document.getElementById("cc-dock"); return d ? b.nextElementSibling === d : b.parentElement.classList.contains("view-col"); });
     assert.ok(placed);
 
     // typed transcript: open a screen by voice, strip shows Heard / Doing / Done

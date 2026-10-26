@@ -558,7 +558,7 @@ function barHtml() {
     <button type="button" class="btn sm" id="vt-yes" hidden>Yes</button>
     <button type="button" class="btn sm" id="vt-no" hidden>No</button>
     <button type="button" class="btn sm" id="vt-stop" title="Stop talking and stop the current job">Stop</button>
-    <button type="button" class="btn sm" id="vt-help-btn" aria-label="What can I say?" title="What can I say?">?</button>
+    <button type="button" class="btn sm" id="vt-help-btn" title="What can I say?">What can I say?</button>
     <div class="vt-line small" id="vt-line" hidden></div>`;
 }
 
@@ -573,13 +573,16 @@ function ensureBar() {
     bar.innerHTML = barHtml();
     wireBar(bar);
   }
-  if (dock && dock.parentElement) {
-    if (bar.nextSibling !== dock || bar.parentElement !== dock.parentElement) dock.parentElement.insertBefore(bar, dock);
+  const col = dock?.parentElement || document.querySelector(".view-col");
+  if (col) {
+    // Slim bar in the page column: above the chat dock when there is one, else under the page. It never covers the AI bar.
+    if (dock && dock.parentElement === col) { if (bar.nextSibling !== dock || bar.parentElement !== col) col.insertBefore(bar, dock); }
+    else if (bar.parentElement !== col || bar.nextSibling) col.appendChild(bar);
     bar.classList.remove("vt-float");
-  } else if (bar.parentElement !== document.body) {
-    document.body.appendChild(bar);
+  } else {
+    if (bar.parentElement !== document.body) document.body.appendChild(bar);
     bar.classList.add("vt-float");
-  } else bar.classList.add("vt-float");
+  }
   return bar;
 }
 
@@ -645,6 +648,12 @@ async function load() {
   ctl();
   paint();
   setInterval(() => { try { ensureBar(); } catch {} }, 1500);
+  // The dock can be built after this bar. Keep the bar above it the moment the page column changes.
+  let pending = false;
+  const again = () => { if (pending) return; pending = true; queueMicrotask(() => { pending = false; try { ensureBar(); } catch {} }); };
+  const watch = () => { const col = document.querySelector(".view-col"); if (col) new MutationObserver(again).observe(col, { childList: true }); };
+  watch();
+  new MutationObserver(() => { if (!document.getElementById("vt-bar")?.isConnected) again(); }).observe(document.body, { childList: true });
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("keyup", onKeyUp, true);
   document.addEventListener("click", onClickDelegate);
