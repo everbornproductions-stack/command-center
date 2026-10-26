@@ -53,12 +53,13 @@ export function readAppProbe(root) {
   if (!list) throw new Error("web/perf/registry.js is missing the FEATURES list");
   const rows = [...list[1].matchAll(/\{\s*id:\s*"([^"]+)"([^}]*)\}/g)].map((m) => ({
     name: m[1],
+    file: m[2].match(/file:\s*"([^"]+)"/)?.[1] || m[1],
     views: [...(m[2].match(/views:\s*\[([^\]]*)\]/)?.[1] || "").matchAll(/"([^"]+)"/g)].map((v) => v[1]),
   }));
   const features = new Set();
   const views = new Set(["command", "projects", "credits", "subscriptions", "settings", "setup", "help"]);
   for (const row of rows) {
-    const file = path.join(root, "web", "features", `${row.name}.js`);
+    const file = path.join(root, "web", "features", `${row.file}.js`);
     const src = fs.readFileSync(file, "utf8");
     const block = registerBlock(src);
     const id = block.match(/\bid\s*:\s*"([^"]+)"/);

@@ -85,6 +85,7 @@ The Builders category has one ready prompt for each guided builder, including Sn
 Projects group links, runs, files and memory for one client or campaign. Pick a project in Command and everything you run is filed under it.
 
 - **Project memory** (Settings): brand voice, offers, a never-say list and facts, added to every prompt for that project.
+- **Memories** (Settings > Memories): Meldmind remembers lasting things you say, like your business or how you like things written, and shows a small "Remembered: ..." line with Undo. You can also say "remember that ..." or "forget ...". It uses them in every chat and gives them to every AI that works on your job. See them in three groups (About me, This project, Knowledge), edit, star to keep, delete, turn memory off, or Clear all. It never keeps passwords, keys or account numbers. "Smarter recall" needs an OpenAI or Gemini key.
 - **Files in this project**: drop PDFs, Word files, text or images, see what it costs to read them, then click Add to project. Answers cite them as [L1], [L2].
 
 ## 6. Money: Credits, Subscriptions and caps
@@ -109,7 +110,7 @@ Projects group links, runs, files and memory for one client or campaign. Pick a 
 | Marketplace | Share or install pipelines as signed files (local and demo catalog) |
 | Who's best | What the router has learned about which model is best at what, for your work. Add community track records there if you have a file of anonymous totals from people who opted in. Quality, Balanced, Max savings, and Speed all use it. Nothing is uploaded. |
 | Workspaces | Teams: invite links, roles and shared projects (Studio plan) |
-| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and the weekly AI News feed. First-run setup asks for one public username, and Skip keeps the suggested name. Your email is not shown. The same name is used in chat, on shared and voted prompts, in the Builders gallery, and on AI News. Click Send to post. Share a prompt, a builder, or a mission with one click. Change the username in Settings. |
+| Community | Chat channels (General, Prompts, Builders, Help, Show and tell) and, on its own, AI News (its own item in the left menu; Settings only has the on/off switch, topics and the weekly email). First-run setup asks for one public username, and Skip keeps the suggested name. Your email is not shown. The same name is used in chat, on shared and voted prompts, in the Builders gallery, and on AI News. Click Send to post. Share a prompt, a builder, or a mission with one click. Change the username in Settings. |
 
 ## 7a. Apps on your desktop
 
@@ -147,7 +148,7 @@ Nothing posts, sends, emails or spends without a click from you.
 - Connect each service in **Settings > Publishing** with your own sign-in. Until a service is connected, the button is a dry run that sends nothing.
 - The **Grok Bot** and the **browser helper** ask for your OK before any send, post, delete, purchase or form submit.
 - **Get it done** lets one job run its steps without asking. Turn it on for that job, or say get it done, don't ask me. It ends when the job ends. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. **Always for this kind of job** is in Settings, and you can revoke it any time. The handoff prompt tells the other AI the permission level.
-- **Community** posts only when you click Send or Share in chat. AI News is in that same area and updates weekly. Email me the weekly AI News note is off until you tick it. The app can write that note. It does not send email.
+- **Community** posts only when you click Send or Share in chat. AI News has its own item in the left menu and updates weekly. Email me the weekly AI News note is off until you tick it. The app can write that note. It does not send email.
 
 ## Plain requests
 

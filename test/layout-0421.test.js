@@ -198,7 +198,8 @@ test("4. slim left sidebar: New, Projects, MindMedia, Recent chats, profile menu
     await t.page.click("#side-profile");
     await t.page.waitForSelector("#side-menu:not([hidden])", { timeout: WAIT });
     const menu = await t.page.evaluate(() => document.querySelector("#side-menu").innerText);
-    for (const w of ["Settings", "Keys and connections", "Look and theme", "Expert mode", "Community", "AI News", "Help"]) assert.ok(menu.includes(w), `${w} is in the profile menu`);
+    for (const w of ["Settings", "Keys and connections", "Look and theme", "Expert mode", "Community", "Help"]) assert.ok(menu.includes(w), `${w} is in the profile menu`);
+    assert.equal(menu.includes("AI News"), false, "AI News has its own sidebar item, not a profile menu entry");
     await t.page.click('#side-menu [data-menu-act="settings"]');
     await t.page.waitForFunction(() => window.CC.S.view === "settings", null, { timeout: WAIT });
     // Create lists the create pages, and a click goes through the hidden menu's own button

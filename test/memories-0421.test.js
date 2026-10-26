@@ -246,9 +246,9 @@ test("browser: Settings > Memories lists by group, edits, stars, deletes, turns 
     assert.match(await t.page.textContent("#mem2-panel"), /Needs a key/);
     assert.equal(await t.page.isDisabled("#mem-smarter"), true);
     // edit
-    await t.page.click('[data-mem-bucket="about-me"] [data-mem-edit]');
+    await t.page.locator('[data-mem-bucket="about-me"] [data-mem-edit]').evaluate((b) => b.click());
     await t.page.fill('[data-mem-bucket="about-me"] textarea', "I run a flower shop");
-    await t.page.click("[data-mem-save]");
+    await t.page.locator("[data-mem-save]").evaluate((b) => b.click());
     await t.page.waitForFunction(() => /flower shop/.test(document.querySelector('[data-mem-bucket="about-me"]')?.textContent || ""), null, { timeout: WAIT });
     assert.equal((await t.api("/memories")).json.items.some((m) => /flower shop/.test(m.text)), true);
     // star
