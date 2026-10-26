@@ -7,7 +7,7 @@ import path from "node:path";
 import { checkOutgoing, loadRules } from "../server/compliance-guard.js";
 
 const ids = (r) => r.warnings.map((w) => w.rule);
-const base = { channel: "sms", consent: true };
+const base = { channel: "email", consent: true };
 
 test("clearly illegal promises are blocked", () => {
   for (const text of [
@@ -38,7 +38,13 @@ test("honest copy passes clean", () => {
 
 test("warnings: guarantee, fair housing, Reg Z, markers, score points, consent", () => {
   assert.ok(ids(checkOutgoing({ ...base, text: "Satisfaction guaranteed" })).includes("guaranteed_results"));
-  assert.ok(ids(checkOutgoing({ ...base, text: "Adults only building, safe neighborhood" })).includes("fair_housing"));
+  assert.ok(ids(checkOutgoing({ ...base, text: "A safe neighborhood with great schools" })).includes("fair_housing"));
+  // 0.4.21: the worst wording is a block, and the milder warning is not shown twice
+  const adults = checkOutgoing({ ...base, text: "Adults only building, safe neighborhood" });
+  assert.equal(adults.ok, false);
+  assert.ok(ids(adults).includes("fair_housing_block") && !ids(adults).includes("fair_housing"));
+  assert.ok(ids(checkOutgoing({ channel: "sms", consent: true, text: "Sale this weekend" })).includes("sms_no_optout"));
+  assert.ok(!ids(checkOutgoing({ channel: "sms", consent: true, text: "Sale this weekend. Reply STOP to opt out." })).includes("sms_no_optout"));
   assert.ok(ids(checkOutgoing({ ...base, text: "Payments as low as $899 a month, 5.5% APR" })).includes("reg_z_trigger"));
   assert.ok(ids(checkOutgoing({ ...base, text: "Hi [NAME], welcome" })).includes("raw_marker"));
   assert.ok(ids(checkOutgoing({ ...base, text: "Hi {{first_name}}" })).includes("raw_marker"));

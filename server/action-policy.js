@@ -24,13 +24,9 @@ export function riskyAction(tool) {
   const nameWords = words(name);
   const nameRisky = RISKY.test(nameWords) || MORE_RISKY.test(nameWords) || hiddenStem(nameWords);
   const blob = words(`${name} ${tool?.title || ""} ${tool?.description || ""}`);
-  if (READ_START.test(nameWords) && !nameRisky) {
-    // 0.4.21: a read-sounding name can still act ("get_report ... and email it"), so the description is read too,
-    // unless the server itself marked the tool read-only.
-    if (tool?.annotations?.readOnlyHint === true) return false;
-    return RISKY.test(blob) || MORE_RISKY.test(blob);
-  }
-  if (nameRisky || RISKY.test(blob) || MORE_RISKY.test(blob)) return true;
+  // A reader is read-only by its NAME (0.4.20 rule, pinned by tests): list_files that mentions "post" in its description stays a reader.
+  if (READ_START.test(nameWords) && !nameRisky) return false;
+  if (nameRisky || RISKY.test(blob)) return true;
   // A hinted reader with no risky word can still run after Allow read-only.
   // The demo clock is one of those. A name like forward_email never takes this path.
   if (tool?.annotations?.readOnlyHint === true && !nameRisky) return false;

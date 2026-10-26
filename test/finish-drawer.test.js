@@ -45,6 +45,7 @@ import { bootPage, findBrowser } from "./pw-helpers.js";
 test("Finish drawer: pressing Preview inside the Publish panel raises no red toast", { skip: findBrowser() ? false : "no Chrome installed" }, async () => {
   const t = await bootPage({ width: 1366, height: 768, mode: "simple" });
   try {
+    await t.page.waitForFunction(() => typeof window.CC.saveToMindMedia === "function", null, { timeout: 15000 }); // shell modules load after first paint
     await t.page.evaluate(async () => { await import("/features/finish-drawer.js"); window.CC.openFinishDrawer({ kind: "text", text: "Spring sale, ten percent off.", name: "Spring sale" }); });
     await t.page.click('.fd button:text-is("Publish")');
     await t.page.waitForSelector(".fd [data-ch]", { timeout: 15000 });

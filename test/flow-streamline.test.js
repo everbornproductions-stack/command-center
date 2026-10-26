@@ -13,7 +13,7 @@ const WALK = read("web/features/walkthrough.js");
 
 test("N3: a Start a project build refreshes the project list and links to the project", () => {
   assert.match(APP, /async function syncProjects\(\)/);
-  assert.match(APP, /window\.CC = \{ ask: askText, confirm: askConfirm, syncProjects, openProjectById/);
+  assert.match(APP, /window\.CC = \{[^\n]{0,80}ask: askText, confirm: askConfirm, syncProjects, openProjectById/);
   assert.match(WALK, /function paintWalk\(w\) \{[\s\S]{0,300}noteProject\(w\)/);
   assert.match(WALK, /label: "Open it"/);
 });
