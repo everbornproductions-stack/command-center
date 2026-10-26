@@ -101,6 +101,7 @@ export const FEATURES = [
   { id: "byo", settings: true },
   { id: "antigravity", settings: true },
   { id: "mcp-clients", settings: true },
+  { id: "guard-test", settings: true },
   { id: "graduate", home: true },
   { id: "calendar", settings: true },
   { id: "actions", home: true },
