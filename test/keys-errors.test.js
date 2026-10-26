@@ -165,7 +165,7 @@ test("a chat 403 about credits is stored as out of credits, not Key rejected", a
   const KEY = "xai-chatcreditsfake0001";
   let s;
   try {
-    s = await startServer({ env: { CC_BASE_URL_XAI: base, CC_STATUS_PAGES: "off", XAI_API_KEY: "", ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" } });
+    s = await startServer({ env: { CC_BASE_URL_XAI: base, CC_STATUS_PAGES: "off", CC_HEALTH_PROBE: "off", XAI_API_KEY: "", ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" } });
     const saved = await s.api("/keys", { method: "POST", body: { provider: "xai", key: KEY } });
     assert.equal(saved.json.status.status, "green", JSON.stringify(saved.json.status));
     const model = (await s.api("/state")).json.providers.find((p) => p.id === "xai").models[0].id;
