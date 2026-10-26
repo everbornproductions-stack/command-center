@@ -356,7 +356,7 @@ test("0.4.21: Privacy page badge, honest quality-signal note, Sharing changed ca
   const ui = web("web", "features", "privacy.js");
   assert.match(ui, /Nothing left this computer/);
   assert.match(ui, /box\.id = "cc-sharing-changed"/);
-  assert.match(ui, /does not send them yet/);
+  assert.match(ui, /kept on this computer for now/);
   assert.match(web("web", "app.js"), /S\.helpSection = "What leaves this computer"/);
   assert.match(web("web", "features", "help.js"), /helpSection/);
   assert.match(web("docs", "help", "privacy.md"), /Sharing changed/);

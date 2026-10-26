@@ -49,7 +49,7 @@ function listHtml(view) {
     : `<div class="dim small" style="margin-top:6px">No AI key is saved yet, so no AI company receives anything.</div>`;
   const badge = view?.localOnly ? `<div class="chip green" id="pv-local-only" style="margin-top:8px">${esc(view.localOnlyBadge || "Nothing left this computer")}</div>` : "";
   const sending = view?.levels?.qualitySignals === true && view?.signalSending !== true
-    ? `<div class="dim small" id="pv-signals-note" style="margin-top:6px">Quality signals are saved as a choice, but this version does not send them yet. They stay on this computer until our receiving service is live.</div>` : "";
+    ? `<div class="dim small" id="pv-signals-note" style="margin-top:6px">${esc(view.keptNote || "Anonymous results are kept on this computer for now.")}</div>` : "";
   return `<div class="muted small">${esc(view?.lead || "")}</div>${badge}${connected}${levelsHtml(view)}${sending}
     <div class="pv-list" style="margin-top:12px">${items.map((r) => `
       <div class="route pv-row" data-privacy="${esc(r.id)}">
