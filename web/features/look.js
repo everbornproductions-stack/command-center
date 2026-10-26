@@ -160,7 +160,7 @@ function offerBar(text, buttons) {
     bar.append(el);
   }
   const dock = document.getElementById("notices");
-  if (dock) dock.appendChild(bar); else document.body.appendChild(bar);
+  if (dock) { bar.classList.add("docked"); dock.appendChild(bar); } else document.body.appendChild(bar);
   // One quiet line: it goes away by itself so it can never sit over a button for long.
   setTimeout(() => { try { bar.remove(); } catch {} }, 20000);
 }

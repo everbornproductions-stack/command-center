@@ -158,6 +158,6 @@ html[data-look="classic"] .rolling-light::before { display: none; }
 /* Offer bar. */
 #cc-look-offer { position: fixed; left: 16px; bottom: 16px; z-index: 60; max-width: min(340px, calc(100vw - 32px)); background: var(--panel-solid, #111827); color: var(--text, #e5e7eb); border: 1px solid var(--line-2, #273449); border-radius: 10px; padding: 8px 10px; font-size: .8125rem; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; box-shadow: 0 8px 22px rgba(0, 0, 0, .3); opacity: .94; }
 /* Docked (0.4.21): inside the notices row above the page, in normal flow, so it never covers a control. */
-#notices > #cc-look-offer { position: static; max-width: none; margin: 0 12px; opacity: 1; box-shadow: none; font-size: .8125rem; }
+#cc-look-offer.docked { position: static; max-width: none; margin: 0 12px; opacity: 1; box-shadow: none; font-size: .8125rem; }
 /* Quiet line: never sits over the middle of the page (welcome card, Send) and on a phone it sits above the tab bar. */
 @media (max-width: 760px) { #cc-look-offer { left: 8px; right: 8px; max-width: none; bottom: calc(56px + env(safe-area-inset-bottom) + 6px); font-size: .75rem; } #cc-look-offer .btn { min-height: 44px; } }
