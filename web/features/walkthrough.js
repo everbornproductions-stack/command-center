@@ -357,6 +357,17 @@ async function begin(type) {
     else go("start");
   } catch (e) { toast(e.message, true); }
 }
+// Chat asked for a website or another project: make the project, save the idea, and show the questions.
+let fromChat = "";
+async function startFromChat(type, idea) {
+  const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
+  const next = await api(`/walkthrough/${w.id}/idea?${qexp()}`, { method: "POST", body: { idea, experience: clientExperience() } });
+  fromChat = idea;
+  pendingWalk = next;
+  if (document.getElementById("sp-root") && window.CC.S.view === "start") paintWalk(next);
+  else go("start");
+  return next;
+}
 async function openWalk(id) {
   try { paintWalk(await api(`/walkthrough/${id}?${qexp()}`)); }
   catch (e) { toast(e.message, true); }
@@ -385,6 +396,20 @@ function paintWalk(w) {
   root.querySelector("#sp-back").addEventListener("click", () => renderTab(root.parentElement));
   wireFlowControls(root, w);
   const stage = root.querySelector("#sp-stage");
+  if (fromChat) {
+    const prompt = fromChat;
+    fromChat = "";
+    const note = document.createElement("div");
+    note.className = "sp-banner";
+    note.setAttribute("role", "note");
+    note.innerHTML = `<span>Chat started these project steps for you. Nothing is built or sent until you click.</span> <button class="btn sm" type="button" id="sp-chat-instead">Answer in chat instead</button>`;
+    stage.before(note);
+    note.querySelector("#sp-chat-instead").addEventListener("click", () => {
+      window.CC.S.skipProjectStart = true;
+      go("command");
+      setTimeout(() => { const box = document.getElementById("orders"); if (box) { box.value = prompt; box.focus(); } toast("Press Send to ask in chat."); }, 250);
+    });
+  }
   if (w.status === "planning") paintWait(stage, "The council is building the plan.");
   else if (w.status === "revising") paintReview(stage, w, true);
   else if (w.stage === "idea") paintIdea(stage, w);
@@ -665,4 +690,5 @@ window.CC.startProject = {
   open: () => { wantExamples = false; go("start"); },
   examples: () => { wantExamples = true; go("start"); },
   begin,
+  startFromChat,
 };

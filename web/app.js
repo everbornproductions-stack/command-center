@@ -8,6 +8,7 @@ import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { projectIntent } from "./project-intent.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -1871,6 +1872,22 @@ async function sendOrders() {
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
+  // Asked to make a website, an app or another project: chat starts the project steps (idea, questions, plan, build, review).
+  if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
+    const kind = projectIntent(prompt);
+    if (kind) {
+      try {
+        await window.CC.ensureView?.("start");
+        if (window.CC.startProject?.startFromChat) {
+          await window.CC.startProject.startFromChat(kind, prompt);
+          $("#orders").value = "";
+          toast("Started a project for this. Answer a few questions to go on.");
+          return;
+        }
+      } catch (e) { toast(e.message, true); return; }
+    }
+  }
+  S.skipProjectStart = false;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
