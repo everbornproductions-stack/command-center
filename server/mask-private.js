@@ -2,7 +2,7 @@
 // Social Security numbers (dashed, or after "SSN"), card numbers and labeled account or routing numbers
 // keep only their last four digits. Used by the Slack, HighLevel, Instagram and Gmail previews and by
 // the publish history and the send log.
-const SSN_LABELED = /\b(ssn|social security(?: number)?)\b([:\s#-]*)(\d{3})[-\s]?(\d{2})[-\s]?(\d{4})\b/gi;
+const SSN_LABELED = /\b(ssn|social security(?: number)?)\b([:\s#-]*(?:(?:is|was|:)[:\s#-]*)?)(\d{3})[-\s]?(\d{2})[-\s]?(\d{4})\b/gi;
 const SSN_DASHED = /\b\d{3}-\d{2}-(\d{4})\b/g;
 const ACCOUNT_LABELED = /\b((?:bank |checking |savings )?(?:account|acct|routing|iban)\s*(?:number|no\.?|#)?\s*[:#]?\s*)([0-9][0-9\- ]{4,22}[0-9])\b/gi;
 const CARD = /\b(?:\d[ -]?){12,18}\d\b/g;
