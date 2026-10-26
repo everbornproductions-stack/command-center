@@ -100,6 +100,7 @@ export const FEATURES = [
   { id: "a11y", settings: true, deliverable: true },
   { id: "byo", settings: true },
   { id: "antigravity", settings: true },
+  { id: "mcp-clients", settings: true },
   { id: "graduate", home: true },
   { id: "calendar", settings: true },
   { id: "actions", home: true },
