@@ -186,6 +186,7 @@ async function render(view) {
     const f = S.mmFocus; S.mmFocus = null; ui.view = "";
     ui.project = "all"; ui.type = "all"; ui.status = "all"; ui.q = ""; ui.source = "all"; ui.tag = "";
     ui.focus = { projectId: f.projectId, id: f.assetId };
+    if (S.mmPublish) { ui.openPublish = true; S.mmPublish = false; }
   }
   let d;
   try { d = await load(); } catch (e) { view.innerHTML = `<div class="empty" role="alert">${esc(e.message)}</div>`; return; }

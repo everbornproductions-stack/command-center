@@ -69,3 +69,11 @@ test("Ask about this and Make another like this build plain chat starters", () =
   assert.match(read("web", "features", "mindmedia.js"), /data-a="ask"[\s\S]*Ask Meldmind about this/);
   assert.match(read("web", "features", "mindmedia.js"), /mmh-moreinsp/);
 });
+
+test("source: the Project Media Send to menu can Publish through the hub (path 19)", () => {
+  const pm = read("web", "features", "projectmedia.js");
+  assert.match(pm, /data-pm-send="publish"/);
+  assert.match(pm, /openMindMedia\(p\.id, assetId, \{ publish: true \}\)/);
+  assert.match(read("web", "features", "mindmedia-save.js"), /opts\.publish/);
+  assert.match(read("web", "features", "mindmedia.js"), /S\.mmPublish/);
+});

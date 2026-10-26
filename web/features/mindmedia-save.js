@@ -10,8 +10,9 @@
 import { parseMindMediaHash } from "/mm-hash.js";
 const { api, toast, S } = window.CC;
 
-window.CC.openMindMedia = (projectId, assetId) => {
+window.CC.openMindMedia = (projectId, assetId, opts = {}) => {
   S.mmFocus = { projectId: projectId || "unfiled", assetId: assetId || "" };
+  if (opts.publish) S.mmPublish = true;
   window.CC.go("mindmedia");
 };
 
