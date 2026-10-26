@@ -77,7 +77,7 @@ test("the budget card says what still works; the Pro note shows before the form;
 
 test("Images: Generate says why it is off, the price is automatic, no '0 batches'", () => {
   const src = read("web", "features", "images.js");
-  assert.match(src, /Press Estimate first, or just press Generate/);
+  assert.match(src, /See the price first, or just press Generate/);
   assert.match(src, /autoEst/);
   assert.match(src, /No images yet/);
   const ba = read("server", "plugins", "buildall.js");

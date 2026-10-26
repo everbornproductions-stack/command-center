@@ -19,7 +19,7 @@ function fillThumbs(root) {
   root.querySelectorAll("img[data-img]").forEach((img) => { const [id, i] = img.dataset.img.split(":"); blob(id, Number(i)).then((u) => { img.src = u; }).catch(() => { img.alt = "missing"; }); });
 }
 const ready = (p) => p.ready != null ? p.ready : p.keyed;
-const provOptions = (op, sel) => st.providers.filter((p) => p.ops.includes(op)).map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}${ready(p) ? (p.keyed ? "" : " (MCP)") : " (no key)"}${p.capped ? " (at cap)" : ""}</option>`).join("");
+const provOptions = (op, sel) => st.providers.filter((p) => p.ops.includes(op)).map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}${ready(p) ? (p.keyed ? "" : " (MCP)") : " (needs a key)"}${p.capped ? " (at cap)" : ""}</option>`).join("");
 const modelOptions = (pid, op) => { const p = st.providers.find((x) => x.id === pid); return (p?.models || []).filter((m) => op === "generate" || !p.editModel || m.edit).map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join(""); };
 
 // ---------- the form ----------
@@ -36,7 +36,7 @@ function formHtml(pre = {}) {
       <label class="small">How many <input type="number" id="im-n" value="1" min="1" max="4" style="width:60px;padding:5px 8px"></label>
       <select id="im-proj" style="width:auto"><option value="">No project</option>${(S.projects || []).map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <div class="row small" id="im-src-row" style="margin-top:8px;display:none"><span>Source image:</span><span id="im-src" class="dim">none yet: click Edit or Variation on a gallery image, or upload one</span><label class="btn sm">Upload<input type="file" id="im-up" accept="image/png,image/jpeg,image/webp" style="display:none"></label></div>
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="im-est">Estimate</button><span class="small" id="im-est-out"></span><button class="btn sm primary" id="im-go" style="margin-left:auto" disabled>Generate</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="im-est">See the price</button><span class="small" id="im-est-out"></span><button class="btn sm primary" id="im-go" style="margin-left:auto" disabled>Generate</button></div>
     <div id="im-new" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div><div id="im-na"></div></div>`;
 }
 
@@ -44,7 +44,7 @@ function wireForm(root, after) {
   const $ = (s) => root.querySelector(s);
   let op = $("#im-op button.on")?.dataset.op || "generate";
   const stale = () => {
-    st.est = null; $("#im-go").disabled = false; $("#im-go").textContent = "Generate"; $("#im-go").title = "Shows the price first. Press Estimate first, or just press Generate.";
+    st.est = null; $("#im-go").disabled = false; $("#im-go").textContent = "Generate"; $("#im-go").title = "Shows the price first. See the price first, or just press Generate.";
     $("#im-est-out").textContent = "Working out the price. Press Generate and it shows the price first, then makes the picture on your next press.";
     // 0.4.20: the price is worked out for you a moment after you stop changing choices
     clearTimeout(st.autoEst);
@@ -108,7 +108,7 @@ function wireForm(root, after) {
       // Next actions (flag): Make 3 variations only sets the count to 3 and waits for the price.
       mountBar($("#im-na"), {
         kind: "image", text: $("#im-prompt").value, ref: row.id, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`,
-        onVariations: () => { $("#im-n").value = 3; stale(); toast("Set to 3 images. Press Estimate to see the price."); $("#im-est").focus(); },
+        onVariations: () => { $("#im-n").value = 3; stale(); toast("Set to 3 images. Press See the price."); $("#im-est").focus(); },
       });
       if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair($("#im-na"), { kind: "image", text: $("#im-prompt").value, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`, onEdit: () => $("#im-prompt").focus() })).catch(() => {});
       after?.(row);

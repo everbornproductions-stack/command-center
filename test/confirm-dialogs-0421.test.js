@@ -28,3 +28,13 @@ test("source: a hidden AI News panel comes back from the Community News screen, 
   const desk = read("web", "features", "desk.js");
   assert.match(desk, /ev\.key === "Escape"/);
 });
+
+test("source: plain words on Images and Media, and readable small print under More actions", () => {
+  for (const f of ["images.js", "media.js"]) {
+    const t = read("web", "features", f);
+    assert.match(t, /See the price/);
+    assert.equal(/>Estimate</.test(t), false, f);
+    assert.equal(/\(no key/.test(t), false, f);
+  }
+  assert.match(read("web", "styles.css"), /\.answer-more-body \.chip[^{]*\{ font-size: 0\.8125rem; \}/);
+});

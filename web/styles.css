@@ -545,3 +545,6 @@ body[data-ui="simple"] #deliv-extras .cc-written { display: none; }
 .projbar[data-view="command"] #pb-select{display:none}
 .projbar[data-view="command"] .pb-lbl-pick{display:none}
 .projbar[data-view="command"] .pb-lbl-tools{display:inline}
+
+/* 0.4.21: the small print under More actions stays readable (13 px or more) */
+.answer-more-body .chip, .answer-more-body label.lbl, .answer-more-body .dim, .answer-more-body small, .answer-more-body .kpi .k .l, .answer-more-body .kpi .k .s { font-size: 0.8125rem; }

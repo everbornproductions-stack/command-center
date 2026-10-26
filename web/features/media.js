@@ -14,11 +14,11 @@ function form(prefill = {}) {
   const pv = providers.filter((p) => p.kinds.includes(prefill.kind || "video"));
   return `<div class="panel" id="md-form"><h3>Generate <span class="right">estimate first · nothing spends until you click Generate</span></h3>
     <div class="row"><div class="seg" id="md-kind">${["video", "image", "voice"].map((k) => `<button data-k="${k}" class="${(prefill.kind || "video") === k ? "on" : ""}">${k}</button>`).join("")}</div>
-      <select id="md-prov" style="width:auto">${pv.map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (no key: dry run)"}</option>`).join("")}</select>
+      <select id="md-prov" style="width:auto">${pv.map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (needs a key: practice only)"}</option>`).join("")}</select>
       <select id="md-proj" style="width:auto"><option value="">No project</option>${S.projects.map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <label class="lbl">Prompt / text</label><textarea id="md-prompt" style="min-height:80px">${esc(prefill.prompt || "")}</textarea>
     <div class="row" style="margin-top:8px"><label class="small" id="md-img-l">First-frame image URL <input type="text" id="md-img" placeholder="https://… (needed for image-to-video)" style="width:320px;padding:5px 8px"></label><label class="small" id="md-dur-l">Seconds <input type="number" id="md-dur" value="5" min="3" max="10" style="width:70px;padding:5px 8px"></label><input type="text" id="md-model" placeholder="model (optional)" style="width:220px;padding:5px 8px"></div>
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="md-est">Estimate</button><span class="small" id="md-est-out"></span><button class="btn sm primary" id="md-go" style="margin-left:auto" disabled>Generate</button></div></div>`;
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="md-est">See the price</button><span class="small" id="md-est-out"></span><button class="btn sm primary" id="md-go" style="margin-left:auto" disabled>Generate</button></div></div>`;
 }
 
 function wireForm(root, after) {
@@ -26,7 +26,7 @@ function wireForm(root, after) {
   let seen = null; // the estimate on screen; Generate sends it back
   let autoT = 0;   // the price is worked out a moment after the last change (0.4.21)
   const stale = () => { seen = null; const g = root.querySelector("#md-go"); g.disabled = false; g.textContent = "Generate"; g.title = "Shows the price first"; root.querySelector("#md-est-out").innerHTML = ""; clearTimeout(autoT); autoT = setTimeout(() => { if (root.isConnected && seen == null && root.querySelector("#md-prompt").value.trim()) estimate(); }, 700); };
-  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (no key: dry run)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; stale(); };
+  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (needs a key: practice only)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; stale(); };
   root.querySelector("#md-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
   root.querySelector("#md-kind").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; kind = b.dataset.k; root.querySelectorAll("#md-kind button").forEach((x) => x.classList.toggle("on", x === b)); refreshProv(); });
   for (const sel of ["#md-prov", "#md-prompt", "#md-img", "#md-dur", "#md-model"]) root.querySelector(sel).addEventListener("input", stale);
@@ -35,7 +35,7 @@ function wireForm(root, after) {
     try {
       const r = await api("/media/estimate", { method: "POST", body: { provider: root.querySelector("#md-prov").value, kind, params: params() } });
       seen = r.usd;
-      root.querySelector("#md-est-out").innerHTML = `≈ <b>${money(r.usd, 3)}</b> <span class="dim">${esc(r.estimate.note || "")}</span>${r.keyed ? "" : r.connected ? ' <span class="chip">MCP</span>' : ' <span class="chip amber">no key · dry run, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
+      root.querySelector("#md-est-out").innerHTML = `≈ <b>${money(r.usd, 3)}</b> <span class="dim">${esc(r.estimate.note || "")}</span>${r.keyed ? "" : r.connected ? ' <span class="chip">MCP</span>' : ' <span class="chip amber">needs a key · practice only, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
       root.querySelector("#md-go").disabled = !!(r.capped || r.wouldExceed);
       root.querySelector("#md-go").textContent = r.capped || r.wouldExceed ? "Generate" : `Generate (about ${money(r.usd, 3)})`;
       return r;
