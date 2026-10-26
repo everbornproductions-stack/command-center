@@ -63,12 +63,12 @@ export function mediaFromAsset(projectId, assetId) {
   const a = assetForPublish(projectId, assetId);
   if (!a) return { error: "That MindMedia item was not found" };
   const kind = a.kind === "video" ? "video" : a.kind === "audio" ? "audio" : a.kind === "image" ? "image" : a.kind === "text" ? "text" : "file";
-  const urls = a.remote && /^https?:\/\//i.test(a.remote) ? [a.remote] : [];
+  const urls = a.remote && /^https?:\/\//i.test(a.remote) ? [a.remote] : (a.publicUrl ? [a.publicUrl] : []);
   return { assetId: a.assetId, projectId: a.projectId, name: a.name, kind, urls, files: a.file ? [a.file] : [], text: a.text || "" };
 }
 
 // What each channel can take, so the page only offers places the item fits.
-export const ACCEPTS = { instagram: ["image", "video"], ghl: ["text", "image", "video"], slack: ["text", "image"], drive: ["text", "image", "video", "audio", "file", "site"] };
+export const ACCEPTS = { instagram: ["image", "video", "text"], ghl: ["text", "image", "video"], slack: ["text", "image"], drive: ["text", "image", "video", "audio", "file", "site"] };
 
 // Normalise what the browser sent into the payload that will be posted, with the media job resolved.
 export function buildPayload(body, media) {
@@ -103,7 +103,8 @@ function previewOf(h, pl, media) {
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
   if (media && !media.error && media.assetId && ACCEPTS[pl.channel] && !ACCEPTS[pl.channel].includes(media.kind)) problems.unshift(`${CH[pl.channel].name} cannot take a ${media.kind === "file" ? "file like this" : media.kind} item. Pick a place that can, such as Google Drive`);
-  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
+  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
+  if (pl.channel === "instagram" && media && !media.error && media.kind === "text" && !pl.mediaUrl) problems.push("Instagram posts need a picture or video. Paste a public link to one; your words become the caption");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
   return { ...pv, problems };

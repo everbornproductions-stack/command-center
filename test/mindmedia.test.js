@@ -68,7 +68,7 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
     // cross-project list with filters
     const all = (await srv.api("/mindmedia")).json;
     assert.ok(all.total >= 5);
-    assert.deepEqual(all.statuses, ["Draft", "Review", "Approved", "Published"]);
+    assert.deepEqual(all.statuses, ["Draft", "Review", "Approved", "Scheduled", "Published"]);
     assert.ok(all.projects.some((p) => p.id === "unfiled") && all.projects.some((p) => p.id === "alpha-proj"));
     assert.equal((await srv.api("/mindmedia?project=alpha-proj")).json.items.every((i) => i.projectId === "alpha-proj"), true);
     assert.equal((await srv.api("/mindmedia?project=unfiled&type=text")).json.items.every((i) => i.kind === "text" && i.projectId === "unfiled"), true);

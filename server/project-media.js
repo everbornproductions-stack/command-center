@@ -27,7 +27,9 @@ export const USAGE_KINDS = {
 };
 
 // One vocabulary for the status chips everywhere (hub, project Media tab, Finish).
-export const STATUSES = ["Draft", "Review", "Approved", "Published"];
+export const STATUSES = ["Draft", "Review", "Approved", "Scheduled", "Published"];
+export const TRASH_DAYS = 30;
+let SHOW_TRASH = false; // listMindMedia flips this while it collects, so trashed items can be listed and restored
 export const UNFILED = "unfiled";
 const DOC_KEY = "project.media";
 const JOBS_KEY = "media.jobs";
@@ -163,9 +165,11 @@ function getAssetMeta(state, projectId, assetId) {
     name: m.name ? String(m.name) : null,
     prompt: m.prompt != null ? String(m.prompt) : null,
     deleted: Boolean(m.deleted),
+    deletedAt: m.deleted && Number(m.deletedAt) ? Number(m.deletedAt) : null,
     status: STATUSES.includes(m.status) ? m.status : null,
     destinations: Array.isArray(m.destinations) ? m.destinations : [],
     kept: Boolean(m.kept),
+    publicUrl: typeof m.publicUrl === "string" && /^https:\/\//.test(m.publicUrl) ? m.publicUrl : "",
   };
 }
 
@@ -192,7 +196,10 @@ function setAssetMeta(state, projectId, assetId, patch) {
   if (patch.parentId !== undefined) next.parentId = patch.parentId ? String(patch.parentId) : "";
   if (patch.name !== undefined) next.name = patch.name ? String(patch.name).slice(0, 140) : null;
   if (patch.prompt !== undefined) next.prompt = patch.prompt != null ? String(patch.prompt).slice(0, 2000) : null;
-  if (patch.deleted !== undefined) next.deleted = Boolean(patch.deleted);
+  if (patch.deleted !== undefined) {
+    next.deleted = Boolean(patch.deleted);
+    next.deletedAt = next.deleted ? (cur.deleted && cur.deletedAt ? cur.deletedAt : Date.now()) : null;
+  }
   if (Array.isArray(patch.usage)) next.usage = patch.usage;
   if (patch.status !== undefined) {
     const want = STATUSES.find((x) => x.toLowerCase() === String(patch.status || "").toLowerCase());
@@ -200,6 +207,7 @@ function setAssetMeta(state, projectId, assetId, patch) {
     next.status = want;
   }
   if (patch.kept !== undefined) next.kept = Boolean(patch.kept);
+  if (patch.publicUrl !== undefined) next.publicUrl = patch.publicUrl ? String(patch.publicUrl).slice(0, 500) : "";
   if (patch.addDestination && typeof patch.addDestination === "object") {
     const d = patch.addDestination;
     next.destinations = [...next.destinations, {
@@ -261,7 +269,7 @@ function collectNativeAssets(projectId, state, allJobs) {
     outputs.forEach((outPath, idx) => {
       const assetId = `job:${job.id}:${idx}`;
       const meta = getAssetMeta(state, pid, assetId);
-      if (meta.deleted) {
+      if (meta.deleted && !SHOW_TRASH) {
         if (typeof outPath === "string") trackedPaths.add(path.resolve(outPath));
         return;
       }
@@ -308,7 +316,7 @@ function collectNativeAssets(projectId, state, allJobs) {
     const meta = getAssetMeta(state, pid, assetId);
     const st = safeStat(up.filePath);
     if (st) trackedPaths.add(st.path);
-    if (meta.deleted) continue;
+    if (meta.deleted && !SHOW_TRASH) continue;
     const mime = up.mime || inferMime(up.name);
     const kind = up.kind || inferKind(mime, "upload", true);
     items.push({
@@ -355,7 +363,7 @@ function collectNativeAssets(projectId, state, allJobs) {
       trackedPaths.add(full);
       const assetId = `disk:${ent.name}`;
       const meta = getAssetMeta(state, pid, assetId);
-      if (meta.deleted) continue;
+      if (meta.deleted && !SHOW_TRASH) continue;
       const st = safeStat(full);
       const mime = inferMime(ent.name);
       const kind = inferKind(mime, "upload", true);
@@ -416,7 +424,7 @@ function collectNativeAssets(projectId, state, allJobs) {
       trackedPaths.add(full);
       const assetId = `pfile:${ent.name}`;
       const meta = getAssetMeta(state, pid, assetId);
-      if (meta.deleted) continue;
+      if (meta.deleted && !SHOW_TRASH) continue;
       const st = safeStat(full);
       const mime = inferMime(ent.name);
       const kind = inferKind(mime, "upload", true);
@@ -462,6 +470,9 @@ function decorate(it, state, up, allJobs) {
   it.status = meta.status || up?.status || (posted || (meta.destinations || []).some((d) => d.status === "posted") ? "Published" : "Draft");
   it.destinations = meta.destinations;
   it.kept = meta.kept;
+  it.publicUrl = meta.publicUrl || "";
+  it.trashed = Boolean(meta.deleted);
+  it.deletedAt = meta.deletedAt || null;
   it.source = up?.source || SOURCE_LABELS[it.sourceType] || "Project media";
   if (!it.provenance) {
     const job = it.jobId ? allJobs.find((j) => j.id === it.jobId) : null;
@@ -1252,8 +1263,23 @@ export function resolveAssetFile(projectId, assetId) {
 export const HUB_KINDS = ["image", "video", "audio", "text", "site", "file"];
 
 function slug(t, fallback = "result") {
-  const w = String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  let w = String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (w.length > 48) { const cut = w.lastIndexOf("-", 48); w = w.slice(0, cut > 12 ? cut : 48); }
   return w || fallback;
+}
+
+// A readable name from the first line of some words (0.4.21): no #, ** or backticks, never cut in the middle of a word.
+// A Pro prompt (ROLE / CONTEXT / COMMAND blocks) is named from its ROLE line, not from the profile block above it.
+export function smartName(text, max = 60) {
+  const raw = String(text || "").replace(/\r/g, "");
+  const role = /^ROLE:\s*(.+)$/m.exec(raw);
+  const lines = (role ? [role[1]] : raw.split("\n")).map((l) => l.replace(/^\s*(```+\w*|~~~+|-{3,}|\*{3,})\s*$/, "").replace(/^[\s#>*\-+]+/, "").replace(/[*_`]+/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim());
+  let line = lines.find((l) => l.length > 2) || "";
+  if (line.length > max) {
+    const cut = line.lastIndexOf(" ", max);
+    line = line.slice(0, cut > max / 2 ? cut : max).replace(/[,;:\-\s]+$/, "");
+  }
+  return line;
 }
 function hubProjectId(projectId) {
   const id = safeProjectId(projectId || "");
@@ -1324,10 +1350,10 @@ export function saveToMindMedia(opts = {}) {
   };
 
   if (hasText) {
-    const name = `${slug(baseName || opts.text.split("\n")[0])}.md`;
+    const name = `${slug(baseName || smartName(opts.text, 60))}.md`;
     const filePath = path.join(dir, `up-${Date.now().toString(36)}-${crypto.randomBytes(2).toString("hex")}-${name}`);
     fs.writeFileSync(filePath, opts.text, "utf8");
-    make({ name: baseName ? `${baseName}.md` : name, mime: "text/markdown", filePath, sizeBytes: Buffer.byteLength(opts.text), kind: "text" });
+    make({ name: baseName ? `${baseName}.md` : (smartName(opts.text, 60) ? `${smartName(opts.text, 60)}.md` : name), mime: "text/markdown", filePath, sizeBytes: Buffer.byteLength(opts.text), kind: "text" });
   }
 
   for (const f of files) {
@@ -1393,33 +1419,90 @@ function allProjectIds(state, allJobs) {
   return [...ids];
 }
 
-// Everything, across all projects and Unfiled. Query: project (id | "unfiled" | "all"), type, status, source, tag, q, sort.
+// Built-in saved views (0.4.21). Each is a plain filter over the live items; the rail shows a count for each.
+export const VIEWS = {
+  "needs-ok": { label: "Needs my OK", test: (i) => i.status === "Review" },
+  "approved-unpublished": { label: "Approved, not published", test: (i) => i.status === "Approved" },
+  "published-month": { label: "Published this month", test: (i, now) => i.status === "Published" && inThisMonth(lastPublishedAt(i), now) },
+  "ai-employees": { label: "Made by AI employees", test: (i) => /^AI employee/i.test(String(i.source || "")) },
+  "needs-ending": { label: "Needs an ending", test: (i) => needsAnEnding(i) },
+};
+function lastPublishedAt(i) {
+  const posted = (i.destinations || []).filter((d) => d.status === "posted").map((d) => Number(d.at) || 0);
+  return posted.length ? Math.max(...posted) : Number(i.createdAt) || 0;
+}
+function inThisMonth(t, now) {
+  const a = new Date(t), b = new Date(now);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+// Jobs still running (or waiting for an OK) show up as a pending tile before they have a file.
+const PENDING_STATES = new Set(["queued", "processing", "awaiting_ok", "running", "working"]);
+export function pendingJobs() {
+  const projects = listProjects() || [];
+  const map = new Map(projects.map((p) => [p.id, p]));
+  return (jobsDoc().items || [])
+    .filter((j) => PENDING_STATES.has(j.status) && !(Array.isArray(j.outputs) && j.outputs.length))
+    .map((j) => {
+      const pid = hubProjectId(j.projectId);
+      const prompt = String(j.params?.prompt || j.params?.text || "").replace(/\s+/g, " ").trim();
+      return {
+        id: String(j.id), kind: j.kind === "video" || j.kind === "audio" || j.kind === "image" ? j.kind : "file",
+        status: j.status === "awaiting_ok" ? "Waiting for your OK" : j.status === "queued" ? "Waiting to start" : "Working",
+        awaitingOk: j.status === "awaiting_ok",
+        name: prompt.slice(0, 60) || `${j.kind || "Media"} job`, projectId: pid, projectName: projectLabel(pid, map),
+        createdAt: Number(j.createdAt) || 0,
+      };
+    })
+    .sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+}
+// Jobs that finished a moment ago, so the page can say "Your clip is ready".
+export function recentlyFinished(sinceMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  return (jobsDoc().items || [])
+    .filter((j) => j.status === "done" && Array.isArray(j.outputs) && j.outputs.length && now - (Number(j.finishedAt) || Number(j.createdAt) || 0) < sinceMs)
+    .map((j) => ({ id: String(j.id), kind: j.kind || "file", projectId: hubProjectId(j.projectId), assetId: `job:${j.id}:0`, finishedAt: Number(j.finishedAt) || 0 }))
+    .slice(0, 20);
+}
+
+// Everything, across all projects and Unfiled. Query: project (id | "unfiled" | "all"), type, status, source, tag, q, sort,
+// view (a built-in saved view or "trash").
 export function listMindMedia(query = {}) {
   const state = mediaDoc();
   const allJobs = jobsDoc().items || [];
   const projects = listProjects() || [];
   const map = new Map(projects.map((p) => [p.id, p]));
   const now = Date.now();
-  let items = [];
+  let every = [];
+  SHOW_TRASH = true;
+  try {
+    for (const pid of allProjectIds(state, allJobs)) {
+      for (const it of collectNativeAssets(pid, state, allJobs)) every.push({ ...it, projectName: projectLabel(pid, map) });
+    }
+  } finally { SHOW_TRASH = false; }
+  const trashMs = TRASH_DAYS * 24 * 60 * 60 * 1000;
+  const trash = every.filter((i) => i.trashed && i.deletedAt && now - i.deletedAt < trashMs).sort((a, b) => b.deletedAt - a.deletedAt);
+  const items = every.filter((i) => !i.trashed);
   const perProject = {};
-  for (const pid of allProjectIds(state, allJobs)) {
-    const native = collectNativeAssets(pid, state, allJobs);
-    perProject[pid] = native.length;
-    for (const it of native) items.push({ ...it, projectName: projectLabel(pid, map) });
-  }
+  for (const i of items) perProject[i.projectId] = (perProject[i.projectId] || 0) + 1;
+
+  const viewQ = String(query.view || "");
   const projectQ = String(query.project || "all");
   const scoped = projectQ === "all" ? items : items.filter((i) => i.projectId === hubProjectId(projectQ));
-  const filtered = sortItems(scoped.filter((i) => matchesFilter(i, query, now)), query.sort).map(stripPublicAsset);
+  let base = scoped;
+  if (viewQ === "trash") base = trash;
+  else if (VIEWS[viewQ]) base = items.filter((i) => VIEWS[viewQ].test(i, now));
+  const filtered = sortItems(base.filter((i) => matchesFilter(i, query, now)), query.sort).map(stripPublicAsset);
   const statusCounts = Object.fromEntries(STATUSES.map((x) => [x, 0]));
   const typeCounts = {};
   for (const i of scoped) { statusCounts[i.status] = (statusCounts[i.status] || 0) + 1; typeCounts[i.kind] = (typeCounts[i.kind] || 0) + 1; }
   const tagSet = new Set(PRESET_TAGS);
   for (const i of items) for (const t of i.tags || []) tagSet.add(t);
   const sources = [...new Set(items.map((i) => i.source).filter(Boolean))].sort();
-  const needsEnding = items
-    .filter((i) => needsAnEnding(i))
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-    .slice(0, 12).map(stripPublicAsset);
+  const endingAll = items.filter((i) => needsAnEnding(i)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const needsEnding = endingAll.slice(0, 12).map(stripPublicAsset);
+  const viewCounts = Object.fromEntries(Object.entries(VIEWS).map(([k, v]) => [k, items.filter((i) => v.test(i, now)).length]));
+  viewCounts.trash = trash.length;
   return {
     total: items.length,
     filteredTotal: filtered.length,
@@ -1431,8 +1514,22 @@ export function listMindMedia(query = {}) {
     unfiledCount: perProject[UNFILED] || 0,
     statuses: STATUSES, statusCounts, typeCounts, sources,
     tags: [...tagSet],
-    needsEnding,
+    needsEnding, needsEndingTotal: endingAll.length,
+    views: Object.entries(VIEWS).map(([id, v]) => ({ id, label: v.label, count: viewCounts[id] })).concat([{ id: "trash", label: "Trash", count: trash.length }]),
+    trashDays: TRASH_DAYS,
+    pending: pendingJobs(),
   };
+}
+
+// Put something back from the Trash. Works for anything deleted in the last 30 days.
+export function restoreFromTrash(projectId, assetId) {
+  const { id: pid } = assertProject(hubProjectId(projectId));
+  const state = mediaDoc();
+  const cur = getAssetMeta(state, pid, String(assetId));
+  if (!cur.deleted) { const err = new Error("That item is not in the Trash."); err.status = 404; throw err; }
+  setAssetMeta(state, pid, String(assetId), { deleted: false, kept: true });
+  saveMediaDoc(state);
+  return { ok: true, projectId: pid, assetId: String(assetId) };
 }
 
 // A result "needs an ending" when nothing has been done with it: still a Draft, never sent anywhere,
@@ -1458,7 +1555,7 @@ export function endingAction(projectId, assetId, action) {
 
 // Promote an item (usually from Unfiled) into a project. Saved files and generations move in place;
 // anything else becomes a link, so no file is ever copied or broken.
-export function moveToProject(projectId, assetId, targetProjectId) {
+export function moveToProject(projectId, assetId, targetProjectId, { link = false } = {}) {
   const from = hubProjectId(projectId);
   const to = hubProjectId(targetProjectId);
   if (from === to) return { ok: true, mode: "same", projectId: to, assetId };
@@ -1486,6 +1583,13 @@ export function moveToProject(projectId, assetId, targetProjectId) {
       return { ok: true, mode: "moved", projectId: to, assetId: aid };
     }
   }
+  // This kind of item lives in its first project's folder, so it cannot move. Linking shows it in both places
+  // and leaves the original where it is. That only happens when the person agrees (link: true).
+  if (!link) {
+    const err = new Error("This item stays in its first project. You can link it into the other project instead (it then shows in both places).");
+    err.status = 409; err.code = "link_needed";
+    throw err;
+  }
   const linked = linkAssetToProject({ sourceProjectId: from, assetId: aid, targetProjectId: to });
   return { ok: true, mode: "linked", projectId: to, assetId: linked.asset?.id || aid };
 }
@@ -1498,7 +1602,7 @@ export function assetForPublish(projectId, assetId) {
   const st = found.filePath ? safeStat(found.filePath) : null;
   let text = "";
   if (found.kind === "text" && st) { try { text = fs.readFileSync(st.path, "utf8"); } catch { text = ""; } }
-  return { projectId: pid, assetId: found.id, name: found.name, kind: found.kind, mime: found.mime, file: st?.path || null, text, remote: found.provider === "remote" ? found.filePath : null };
+  return { projectId: pid, assetId: found.id, name: found.name, kind: found.kind, mime: found.mime, file: st?.path || null, text, remote: found.provider === "remote" ? found.filePath : null, publicUrl: found.publicUrl || "" };
 }
 
 // Publish writes its result back to the item: destination (with link and time), status Published
@@ -1526,4 +1630,34 @@ export function recordPublishResult({ projectId, assetId, mediaJobId, entry }) {
   }
   saveMediaDoc(state);
   return ref.length;
+}
+
+// "Host this file" (0.4.21): Instagram and HighLevel need a public https link for a picture or video. Meldmind never
+// uploads on its own. The person shares the file from their own Google Drive ("Anyone with the link") and pastes
+// the link; a Drive share link is turned into the direct form those places can read.
+export function hostedUrlFromShare(link) {
+  const raw = String(link || "").trim();
+  let u;
+  try { u = new URL(raw); } catch { return ""; }
+  if (u.protocol !== "https:" || u.username || u.password) return "";
+  if (u.hostname === "drive.google.com" || u.hostname === "docs.google.com") {
+    const m = /\/d\/([\w-]{10,})/.exec(u.pathname) || null;
+    const id = m ? m[1] : u.searchParams.get("id");
+    if (!id || !/^[\w-]{10,}$/.test(id)) return "";
+    return `https://drive.google.com/uc?export=download&id=${id}`;
+  }
+  return u.href.slice(0, 500);
+}
+export function setHostedLink(projectId, assetId, link) {
+  const { id: pid } = assertProject(hubProjectId(projectId));
+  const url = hostedUrlFromShare(link);
+  if (!url) {
+    const err = new Error("That is not a link we can use. Share the file from Google Drive with \"Anyone with the link\", then paste the https link here.");
+    err.status = 400;
+    throw err;
+  }
+  const state = mediaDoc();
+  setAssetMeta(state, pid, String(assetId), { publicUrl: url });
+  saveMediaDoc(state);
+  return { ok: true, projectId: pid, assetId: String(assetId), url };
 }
