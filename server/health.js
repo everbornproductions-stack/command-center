@@ -5,6 +5,7 @@ import { getSecret } from "./vault.js";
 import { emit } from "./events.js";
 import { ctx, allContexts, runAs } from "./store.js";
 import { localFetch } from "./loopback-fetch.js";
+import { interpretOpenRouter, openRouterLine } from "./openrouter-balance.js";
 
 // Lights and live model lists are per user: a key is one user's key, so its health is too.
 const GREY = () => ({ status: "grey", detail: "no key", latencyMs: null, checkedAt: 0, incident: null, balance: null });
@@ -130,6 +131,37 @@ async function checkStatusPage(p) {
   return null;
 }
 
+
+// ---- the tiny real call (0.4.21) ----
+const PAUSE_WORDS = /out of credits|spending limit|spend limit|payment required|no credits|rate limited|low balance/i;
+export const PROBE_MS = 30 * 60 * 1000;
+const probeOn = () => process.env.CC_HEALTH_PROBE !== "off";
+const needsProbe = (prev, wasPaused) => probeOn() && (wasPaused || !prev.lastProbeOk || Date.now() - prev.lastProbeOk > PROBE_MS);
+// the cheapest model this account can name, or OpenRouter's own free route
+function probeModel(p, listJson) {
+  if (p.id === "openrouter") return "openrouter/free";
+  const reg = (p.models || []).slice().sort((a, b) => (a.in || 0) - (b.in || 0))[0]?.id;
+  if (reg) return reg;
+  const live = liveModels[p.id]?.[0] || (Array.isArray(listJson?.data) ? listJson.data[0]?.id : null);
+  return live || null;
+}
+// { ok } when a one-word answer came back, { refused, status, json, text } when the provider said no
+// (key, credits, rate limit), and { inconclusive } for anything else (no model, network, a mock without chat).
+export async function probeCompletion(p, listJson) {
+  const model = probeModel(p, listJson);
+  if (!model || p.kind !== "text") return { inconclusive: true };
+  try {
+    const { complete } = await import("./providers.js");
+    await complete({ provider: p.id, model, messages: [{ role: "user", content: "Reply with the word ok." }], maxTokens: 16, signal: AbortSignal.timeout(20000) });
+    return { ok: true };
+  } catch (e) {
+    const status = Number(e?.status) || 0;
+    if (e?.code === "cap" || e?.budget) return { inconclusive: true }; // our own spending stop is not the provider's problem
+    if ([401, 402, 403, 429].includes(status)) return { refused: true, status, json: e.body || null, text: e.message || "" };
+    return { inconclusive: true };
+  }
+}
+
 export async function checkProvider(id) {
   const p = PROVIDERS[id];
   if (!p) return;
@@ -173,9 +205,10 @@ export async function checkProvider(id) {
       const c = await fetchJson(`${p.baseUrl}/key`, { authorization: `Bearer ${sec.key}` });
       const d = c.json?.data;
       if (c.ok && d) {
-        const left = d.limit_remaining ?? (d.limit != null ? d.limit - (d.usage || 0) : null);
-        balance = { left: left != null ? +Number(left).toFixed(2) : null, unit: "USD", used: d.usage, usedMonth: d.usage_monthly, limit: d.limit, free: !!d.is_free_tier };
-        if (balance.left == null) { balance = { ...balance, left: null }; }
+        // the account's bought credits decide, not the key's own limit ("$50 left" with no credits bought was wrong)
+        const cr = await fetchJson(`${p.baseUrl}/credits`, { authorization: `Bearer ${sec.key}` }).catch(() => null);
+        const b = interpretOpenRouter(d, cr?.ok ? cr.json?.data || null : null);
+        balance = { left: b.left, unit: "USD", used: d.usage, usedMonth: d.usage_monthly, limit: d.limit, free: b.free, noCredits: b.noCredits, scope: b.scope };
       }
     } else if (p.balanceApi === "deepseek-balance") {
       const c = await fetchJson(`${p.baseUrl}/user/balance`, { authorization: `Bearer ${sec.key}` });
@@ -184,9 +217,21 @@ export async function checkProvider(id) {
     }
     let st = incident ? "amber" : "green";
     let detail = incident || "ok";
-    if (balance && balance.unit === "USD" && balance.left != null && balance.left < 2) { st = balance.left <= 0 ? "red" : "amber"; detail = `low balance: $${balance.left}`; }
+    if (balance?.noCredits) detail = openRouterLine(balance); // free models still work: not a warning light
+    else if (balance && balance.unit === "USD" && balance.left != null && balance.left < 2) { st = balance.left <= 0 ? "red" : "amber"; detail = `low balance: $${balance.left}`; }
+    else if (balance && p.balanceApi === "openrouter-key" && balance.left != null) detail = openRouterLine(balance);
     else if (balance && balance.left != null) detail = `${balance.left} ${balance.unit} left`;
     else if (balance && balance.used != null) detail = `$${Number(balance.used).toFixed(2)} used so far`;
+    // 0.4.21: a models list answers even when the account has no credits, so a green light needs one tiny real call.
+    // An AI that was paused (no credits, rate limited) stays paused until a call really works.
+    const prev = getStatus(id);
+    const wasPaused = (prev.status === "amber" || prev.status === "red") && PAUSE_WORDS.test(prev.detail || "");
+    if (needsProbe(prev, wasPaused)) {
+      const pr = await probeCompletion(p, r.json);
+      if (pr.ok) set(id, { lastProbeOk: Date.now() });
+      else if (pr.refused) { set(id, { ...explainProviderError(p, pr.status, pr.json, pr.text), incident, latencyMs: Date.now() - t0 }); return getStatus(id); }
+      else if (wasPaused) { set(id, {}); return getStatus(id); }
+    }
     // keep the live model list so any model id the account can see is selectable
     if (r.json?.data && Array.isArray(r.json.data)) liveModels[id] = r.json.data.map((m) => m.id).filter(Boolean).slice(0, 400);
     else if (r.json?.models) liveModels[id] = r.json.models.map((m) => (m.name || "").replace(/^models\//, "")).filter(Boolean);
