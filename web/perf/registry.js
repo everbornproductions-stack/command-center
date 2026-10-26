@@ -116,6 +116,7 @@ export const FEATURES = [
   { id: "highlevel", settings: true },
   { id: "own-supabase", settings: true },
   { id: "usage", settings: true },
+  { id: "projectmedia", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"], home: true, settings: true },
 ];
 
 // Server plugins that stay out of startup. file is the name in server/plugins.
@@ -123,6 +124,7 @@ export const FEATURES = [
 // loads it even if the page forgot to ask.
 export const SERVER_DEMAND = [
   { id: "perf", file: "perf.js", views: ["settings"] },
+  { id: "projectmedia", file: "projectmedia.js", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"] },
 ];
 
 // Sizes are the download size shown before a click. These tools are not in

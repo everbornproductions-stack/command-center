@@ -333,7 +333,7 @@ function applyState(st) {
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   S.councilOffer = st.councilOffer || S.councilOffer || null;
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   S.demoBanner = demoBannerOn({ demoBanner: st.demoBanner, demo: !!st.demo, demoKeep: !!settings.demoKeep, realAi: S.realAi });
   renderDemoBanner();
@@ -804,7 +804,7 @@ function render() {
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); focusNavTarget(); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -812,6 +812,7 @@ function render() {
   else if (S.view === "settings") renderSettings(v);
   else if (S.view === "setup" && S.connectWizard && window.CC.connectSetup) window.CC.connectSetup.render(v);
   else if (S.view === "setup") renderSetup(v);
+  window.CC?.syncAssetTray?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
@@ -1861,6 +1862,7 @@ function renderProjectDetail(v, p) {
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
   $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
+  window.CC?.mountProjectMedia?.(v, p);
 }
 async function openRun(id) {
   try {

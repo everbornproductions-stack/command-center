@@ -57,6 +57,7 @@ import { gate } from "./feature-gate.js";
 import { currentPlans } from "./plugins/billing-plans.js";
 import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
+import { projectmediaOn } from "./flags.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { scheduler } from "./perf/scheduler.js";
 import { bindPerf, noteActivity } from "./perf/power.js";
@@ -492,7 +493,7 @@ function fullState() {
   return {
     mode: MODE, user: HOSTED ? { email: c.email } : null, hub: HOSTED ? CFG.hubUrl : null,
     lastRun: c.lastRun, plugins: loadedPlugins(),
-    name: s.name, settings: s, demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
+    name: s.name, settings: s, projectMedia: projectmediaOn(s), demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
     ...subsView(), projects: listProjects(), hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
