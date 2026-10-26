@@ -94,6 +94,7 @@ function wireForm(root, after) {
         kind: "image", text: $("#im-prompt").value, ref: row.id, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`,
         onVariations: () => { $("#im-n").value = 3; stale(); toast("Set to 3 images. Press Estimate to see the price."); $("#im-est").focus(); },
       });
+      if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair($("#im-na"), { kind: "image", text: $("#im-prompt").value, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`, onEdit: () => $("#im-prompt").focus() })).catch(() => {});
       after?.(row);
     } catch (er) { toast(er.message, true); }
     finally { b.textContent = "Generate"; b.disabled = false; }

@@ -482,6 +482,7 @@ function paintBuild(stage, w, expert) {
     </div>
     <p class="small dim">API chats do not appear in claude.ai, grok.com or ChatGPT history. Watch the work here.</p>`;
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  stepTools(stage, w);
   stage.querySelector("#sp-retry")?.addEventListener("click", async () => {
     try { paintWalk(await api(`/walkthrough/${w.id}/build?${qexp()}`, { method: "POST", body: { experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
@@ -497,7 +498,8 @@ function paintReview(stage, w, busy) {
       <button class="btn sm" type="button" id="sp-rev" ${busy ? "disabled" : ""}>${busy ? "Revising…" : "Revise"}</button>
       <button class="btn sm" type="button" id="sp-exp">Export</button>
       <button class="btn sm" type="button" id="sp-chat">Share in chat</button>
-      <button class="btn sm primary" type="button" id="sp-fin" ${busy ? "disabled" : ""}>Finish</button>
+      <button class="btn sm primary" type="button" id="sp-fin" ${busy ? "disabled" : ""}>${window.CC.S?.flags?.finishpath ? "Looks good, Finish" : "Finish"}</button>
+      ${window.CC.S?.flags?.finishpath ? `<button class="btn sm" type="button" id="sp-edit-further" ${busy ? "disabled" : ""}>Edit further</button>` : ""}
       <button class="btn sm" type="button" id="sp-live">Open live view</button>
     </div>`;
   stage.querySelector("#sp-rev").addEventListener("click", async () => {
@@ -519,6 +521,13 @@ function paintReview(stage, w, busy) {
     catch (e) { toast(e.message, true); }
   });
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  stage.querySelector("#sp-edit-further")?.addEventListener("click", () => { const n = stage.querySelector("#sp-note"); n.focus(); n.scrollIntoView({ behavior: "smooth", block: "center" }); });
+  stepTools(stage, w);
+}
+// Undo last step and Branch from here (flag_finishpath). Loaded only when the flag is on.
+function stepTools(stage, w) {
+  if (!window.CC.S?.flags?.finishpath) return;
+  import("../finishpath-ui.js").then((m) => m.mountStepTools(stage, w, paintWalk)).catch(() => {});
 }
 function paintDone(stage, w) {
   stage.innerHTML = `<h3 style="margin:0 0 6px">${esc(w.plan?.title || "Deliverable")}</h3>

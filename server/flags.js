@@ -5,6 +5,7 @@ const DEFAULTS = {
   promptdrop: false, // Prompts dropdown under the boxes and the original video prompt pack
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
+  finishpath: false, // Always-visible Finish, Looks good / Edit further pair, Finish preview card, progress pill, Undo and Branch
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -25,4 +26,4 @@ export function projectmediaOn(settings = {}) {
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia") });
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), finishpath: flagOn("finishpath") });

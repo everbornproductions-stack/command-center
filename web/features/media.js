@@ -96,6 +96,7 @@ function mediaNextActions(view, jobs) {
   const box = view.querySelector("#md-na");
   if (!job || !box) return;
   const text = job.params.prompt || job.params.text;
+  if (S.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair(box, { kind: "media", text, name: `${job.kind}: ${String(text).slice(0, 50)}`, onEdit: () => view.querySelector("#md-prompt")?.focus() })).catch(() => {});
   mountBar(box, {
     kind: "media", text, ref: job.id, name: `${job.kind}: ${String(text).slice(0, 50)}`,
     onVariations: async (t) => {

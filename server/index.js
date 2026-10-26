@@ -496,12 +496,12 @@ function fullState() {
     mode: MODE, user: HOSTED ? { email: c.email } : null, hub: HOSTED ? CFG.hubUrl : null,
     lastRun: c.lastRun, plugins: loadedPlugins(),
     name: s.name, settings: s, projectMedia: projectmediaOn(s), demo: demoActive(), providers: providerView(), capabilities: CAPABILITIES, ledger: ledgerSummary(),
-    ...subsView(), projects: listProjects(), deletedProjects: flagOn("projectbar") ? listDeleted() : [], flags: flagView(), hq: hqSnapshot(),
+    ...subsView(), projects: listProjects(), deletedProjects: flagOn("projectbar") ? listDeleted() : [], hq: hqSnapshot(),
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
-    flags: { flag_navstate: isNavStateEnabled(s) },
+    flags: { ...flagView(), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
