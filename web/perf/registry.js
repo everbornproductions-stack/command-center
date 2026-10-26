@@ -45,6 +45,7 @@ export const FEATURES = [
 
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
+  { id: "video-editor", views: ["media"] },
   { id: "prompt-drop", views: ["images", "media", "remix", "builders", "webbuilders"], home: true },
   { id: "search", home: true, deliverable: true, settings: true },
   { id: "liveview", views: ["liveview"], home: true, deliverable: true },
@@ -129,6 +130,7 @@ export const FEATURES = [
 // loads it even if the page forgot to ask.
 export const SERVER_DEMAND = [
   { id: "perf", file: "perf.js", views: ["settings"] },
+  { id: "videoeditor", file: "videoeditor.js", views: ["media"] },
   { id: "projectmedia", file: "projectmedia.js", views: ["projects", "images", "media", "remix", "publish", "builders", "webbuilders"] },
 ];
 

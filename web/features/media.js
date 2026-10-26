@@ -67,6 +67,7 @@ async function renderTab(view, prefill) {
   wireForm(view, () => renderTab(view));
   wireJobs(view, () => renderTab(view));
   mediaNextActions(view, jobs);
+  if (S.flags?.videoeditor) { try { await import("/features/video-editor.js"); await window.CC.mountVideoEditor?.(view); } catch {} }
 }
 
 CC.register({

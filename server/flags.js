@@ -6,6 +6,7 @@ const DEFAULTS = {
   nextactions: false, // Next actions bar, Send to menu and the Remix fixes after a result
   projectmedia: false, // Per-project Media tab, asset tray, version stacks, tags, links
   finishrouter: false, // Finish router: picks the right editor, confirmation chip, Why this editor, General workspace
+  videoeditor: false, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
@@ -26,4 +27,4 @@ export function projectmediaOn(settings = {}) {
   if (settings && typeof settings.flag_projectmedia === "boolean") return settings.flag_projectmedia;
   return flagOn("projectmedia");
 }
-export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), finishrouter: flagOn("finishrouter") });
+export const flagView = () => ({ projectbar: flagOn("projectbar"), promptdrop: flagOn("promptdrop"), nextactions: flagOn("nextactions"), projectmedia: flagOn("projectmedia"), finishrouter: flagOn("finishrouter"), videoeditor: flagOn("videoeditor") });
