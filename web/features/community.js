@@ -23,6 +23,7 @@ const css = `
 .cc-msg .who { font-weight: 650; }
 .cc-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .cc-new { margin-left: 6px; }
+.cc-report[hidden] { display: none; }
 @media (max-width: 760px) { .cc-layout { grid-template-columns: 1fr; } }
 `;
 if (!document.getElementById("cc-community-style")) {
