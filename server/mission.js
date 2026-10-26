@@ -34,6 +34,7 @@ import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
 import fs from "node:fs";
 import path from "node:path";
 import { extractHeadline, overlayPng, isPng } from "./overlay.js";
+import { namedSources, attachSources, sourceBlock, projectFolders } from "./code-source.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -698,6 +699,22 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     // ---- knowledge libraries (Phase 18): the best excerpts for the goal ride along as context, cited as [L1], [L2] ----
     lib = await libraryAugment({ prompt: goal, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
     if (lib) { mission.librarySources = publicLibrarySources(lib.sources); spend({ cost: lib.cost || 0 }); if (lib.block) context = `${context ? `${context}\n\n` : ""}${lib.block}`; update(); }
+
+    // 0.4.21 (dogfood 01): a code task that names a file reads that file; every worker gets it in its context
+    try {
+      const named = namedSources(goal);
+      const folders = named.length ? projectFolders(projectId) : [];
+      if (named.length && folders.length) {
+        const files = attachSources(goal, { projectId, folders });
+        const missing = named.filter((n) => !files.some((f) => f.name === n));
+        const editing = /\b(fix|patch|change|edit|update|refactor|debug|review|modify|bug|rename|line)\b/i.test(goal);
+        if (files.length || (editing && missing.length)) {
+          context = `${context ? `${context}\n\n` : ""}${sourceBlock(files, editing ? missing : [])}`;
+          mission.attachedFiles = files.map((f) => ({ name: f.name, lines: f.from > 1 || f.truncated ? [f.from, f.to] : null }));
+          log(files.length ? `Attached ${files.map((f) => f.name).join(", ")} from your project folder to every step.` : `${missing.join(", ")} was not found in the project folder, so no code is attached.`);
+        }
+      }
+    } catch (e) { console.error("[mission] attach source:", e.message); }
 
     // Grok Bot (Phase 12), else the built-in browser helper (Phase 27): offered to the planner only when it
     // is ready and not left out by the person
@@ -1453,7 +1470,7 @@ function pubTask(t) {
   return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null) };
 }
 export function publicMission(m) {
-  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true };
+  return { id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 function save(m) {
   saveDoc(m);

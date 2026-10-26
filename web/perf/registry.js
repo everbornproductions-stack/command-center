@@ -85,6 +85,7 @@ export const FEATURES = [
   { id: "marketplace", views: ["marketplace"] },
   { id: "growth", home: true, settings: true, listen: true },
   { id: "ratings", deliverable: true, settings: true },
+  { id: "resultcard", deliverable: true },
   { id: "memory", home: true, settings: true },
   { id: "receipt", home: true, deliverable: true, credits: true, settings: true },
   { id: "media", views: ["media"], deliverable: true, settings: true },

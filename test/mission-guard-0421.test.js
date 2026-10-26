@@ -203,6 +203,18 @@ test("a step the AI refuses is retried on another AI; when every AI refuses it f
     assert.equal(run.status, "done-with-errors");
     assert.equal(run.incomplete.reasons.find((r) => r.taskId === "t2").kind, "refusal");
     assert.doesNotMatch(run.deliverable, /declined this request/);
+    // one click: run it again, leaving out the AI that failed it
+    assert.equal((await s.api("/dogfood/retry", { method: "POST", body: { id: "m-nope" } })).status, 404);
+    const before = new Set(((await s.api("/state")).json.missions || []).map((x) => x.id));
+    const again = await s.api("/dogfood/retry", { method: "POST", body: { id: run.id } });
+    assert.equal(again.status, 202, again.text);
+    assert.deepEqual(again.json.skipped, run.incomplete.retryAvoid);
+    assert.ok(again.json.skipped.length >= 1);
+    let second = null;
+    for (let i = 0; i < 200 && !second; i++) { second = ((await s.api("/state")).json.missions || []).find((x) => x.kind === "mission" && !before.has(x.id) && ["done", "done-with-errors", "failed"].includes(x.status)); if (!second) await sleep(250); }
+    assert.ok(second, "the second run happened");
+    const full = (await s.api(`/missions/${second.id}`)).json;
+    for (const t of full.tasks) assert.ok(!again.json.skipped.includes(t.provider) || t.retried, `step ${t.id} avoided ${again.json.skipped}`);
   } finally { await s.stop(); await m.close(); }
 });
 

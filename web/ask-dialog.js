@@ -1,3 +1,4 @@
+import { closeOnEscape } from "./esc-close.js";
 // An in-app text box that replaces window.prompt, which the desktop app does not support.
 export function askText(label, value = "", opts = {}) {
   return new Promise((resolve) => {
@@ -34,15 +35,18 @@ export function askText(label, value = "", opts = {}) {
     const finish = (v) => {
       if (done) return;
       done = true;
+      stopEsc();
       wrap.remove();
       try { prior?.focus?.(); } catch { /* the old focus target may be gone */ }
       resolve(v);
     };
+    let stopEsc = () => {};
     box.addEventListener("submit", (e) => { e.preventDefault(); finish(input.value); });
     cancel.addEventListener("click", () => finish(null));
     wrap.addEventListener("mousedown", (e) => { if (e.target === wrap) finish(null); });
     wrap.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); finish(null); } });
     document.body.append(wrap);
+    stopEsc = closeOnEscape(wrap, () => finish(null));
     input.focus();
     input.select();
   });
@@ -80,15 +84,18 @@ export function askConfirm(message, opts = {}) {
     const finish = (v) => {
       if (done) return;
       done = true;
+      stopEsc();
       wrap.remove();
       try { prior?.focus?.(); } catch { /* the old focus target may be gone */ }
       resolve(v);
     };
+    let stopEsc = () => {};
     box.addEventListener("submit", (e) => { e.preventDefault(); finish(true); });
     cancel.addEventListener("click", () => finish(false));
     wrap.addEventListener("mousedown", (e) => { if (e.target === wrap) finish(false); });
     wrap.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); finish(false); } });
     document.body.append(wrap);
+    stopEsc = closeOnEscape(wrap, () => finish(false));
     // Cancel has focus first for a destructive question, so Enter never deletes by accident.
     (opts.danger ? cancel : ok).focus();
   });
