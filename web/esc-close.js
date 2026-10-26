@@ -13,7 +13,7 @@ function onKey(e) {
   top.close();
 }
 export function closeOnEscape(el, close) {
-  if (!bound && typeof document !== "undefined") { document.addEventListener("keydown", onKey, true); bound = true; }
+  if (!bound && typeof document !== "undefined" && typeof document.addEventListener === "function") { document.addEventListener("keydown", onKey, true); bound = true; }
   const entry = { el, close };
   open.push(entry);
   return () => { const i = open.indexOf(entry); if (i >= 0) open.splice(i, 1); };

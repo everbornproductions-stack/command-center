@@ -17,8 +17,8 @@ const clean = (s) => String(s ?? "").replace(/\r\n/g, "\n");
 export function isEmptyOutput(text) {
   const t = clean(text).replace(/[\s​]+/g, " ").trim();
   if (!t) return true;
-  if (t.length < 3) return true;
-  return /^(n\/a|none|null|undefined|\(?no (output|content|response)\)?|\.\.\.|-+)$/i.test(t);
+  if (t.length < 2) return true;
+  return /^(null|undefined|\(?no (output|content|response)\)?|\.\.\.|-+)$/i.test(t);
 }
 
 const REFUSAL_RES = [
@@ -75,9 +75,10 @@ export function checkTruncation(text, { stop = null, ext = "", capability = "" }
     }
   }
   // an open tag at the very end
-  if (/<[a-z][^<>]*$/i.test(trimmed) && (isHtml || CODE_EXT.has(ext) || capability === "code")) return { truncated: true, reason: "The last tag is cut off." };
+  if (/<[a-z][^<>]*$/i.test(trimmed) && (isHtml || CODE_EXT.has(ext))) return { truncated: true, reason: "The last tag is cut off." };
   // braces in css, js, json and code
-  if (["css", "js", "mjs", "ts", "json"].includes(ext) || capability === "code") {
+  // braces only count for a named code file: guessing at "code" in general would cut a finished answer short
+  if (["css", "js", "mjs", "ts", "json"].includes(ext)) {
     let body = t;
     // only look inside code blocks when the answer is a mix of prose and code
     const blocks = [...t.matchAll(/```[^\n]*\n([\s\S]*?)(?:```|$)/g)].map((m) => m[1]);
@@ -92,7 +93,7 @@ export function checkTruncation(text, { stop = null, ext = "", capability = "" }
     if (ext === "json") { try { JSON.parse(trimmed); } catch { return { truncated: true, reason: "The JSON is cut off." }; } }
   }
   // ends in the middle of a statement or a word (code only: prose can end any way)
-  if ((capability === "code" || CODE_EXT.has(ext)) && ext !== "md" && ext !== "txt" && ext !== "csv") {
+  if (CODE_EXT.has(ext) && !["md", "txt", "csv"].includes(ext)) {
     const last = trimmed.split("\n").pop().trim();
     if (/[,=(+\-*/&|:]$/.test(last) && !/^\s*(\/\/|#|\*)/.test(last)) return { truncated: true, reason: "The last line stops mid-statement." };
   }

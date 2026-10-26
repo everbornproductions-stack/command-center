@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import * as G from "../server/step-guard.js";
 
 test("empty output is a failure, a real answer is not", () => {
-  for (const t of ["", "   ", null, undefined, "N/A", "(no output)", "..."]) assert.equal(G.isEmptyOutput(t), true, JSON.stringify(t));
+  for (const t of ["", "   ", null, undefined, "(no output)", "...", "-"]) assert.equal(G.isEmptyOutput(t), true, JSON.stringify(t));
   assert.equal(G.isEmptyOutput("A short but real answer."), false);
   assert.equal(G.judgeStep("", {}).kind, "empty");
 });
@@ -36,7 +36,10 @@ test("the provider's own stop reason counts, and an unclosed code fence or brace
   assert.equal(G.checkTruncation("Some text that looks fine.", { stop: "max_tokens" }).truncated, true);
   assert.equal(G.checkTruncation("Some text that looks fine.", { stop: "stop" }).truncated, false);
   assert.equal(G.checkTruncation("Here:\n```js\nfunction a() {\n  return 1;\n", {}).truncated, true);
-  assert.equal(G.checkTruncation("```js\nfunction a() {\n  if (x) {\n    return 1;\n  }\n", { capability: "code" }).truncated, true);
+  assert.equal(G.checkTruncation("```js\nfunction a() {\n  if (x) {\n    return 1;\n  }\n", { capability: "code" }).truncated, true, "an unclosed fence");
+  assert.equal(G.checkTruncation("function a() {\n  if (x) {\n    return 1;\n  }\n", { ext: "js" }).truncated, true, "a named js file with an open brace");
+  assert.equal(G.checkTruncation("Use the regex /a{2,/ to match.", { capability: "code" }).truncated, false, "a brace in a sentence is not a cut-off");
+  assert.equal(G.isEmptyOutput("None"), false); assert.equal(G.isEmptyOutput("OK"), false);
   assert.equal(G.checkTruncation("```js\nfunction a() { return 1; }\n```\nDone.", { capability: "code" }).truncated, false);
   assert.equal(G.checkTruncation('{"a": [1, 2', { ext: "json" }).truncated, true);
   assert.equal(G.checkTruncation('{"a": [1, 2]}', { ext: "json" }).truncated, false);
