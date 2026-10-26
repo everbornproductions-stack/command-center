@@ -132,7 +132,7 @@ test("workstream sources: no em dash, Mac CI runs tests, release is 0.4.16", () 
   assert.match(mac, /npm run smoke/);
   assert.equal(mac.includes("dist:mac"), false);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.20");
+  assert.equal(pkg.version, "0.4.21");
   assert.match(fs.readFileSync(path.join(ROOT, "web/features/prompts.js"), "utf8"), /Industry packs are part of Pro/);
 });
 
