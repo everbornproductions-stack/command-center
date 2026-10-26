@@ -22,7 +22,7 @@ import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso
 import { bus, emit } from "./events.js";
 import {
   BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket,
-  lanCandidates, lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
+  lanCandidates, lanHostOk, tunnelHostOk, tunnelOriginOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
   preferredLanIPv4, probePort, readInterfaces, tokenFromPairPath, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
@@ -133,15 +133,17 @@ function tokenOk(presented) {
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+// The one tunnel host this app was told to use (Settings or CC_TUNNEL_HOST). Empty means no tunnel is allowed.
+const ownTunnelHost = () => process.env.CC_TUNNEL_HOST || settings().tunnelHost || "";
 const hostOk = (req) => {
   const host = req.headers.host || "";
-  return loopbackHost(host, PORT) || host.includes("trycloudflare.com") || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
+  return loopbackHost(host, PORT) || tunnelHostOk(host, ownTunnelHost()) || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
 };
 const originOk = (req) => {
   if (!req.headers.origin) return true;
   const o = String(req.headers.origin).toLowerCase();
   if ([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`].includes(o)) return true;
-  if (o.includes("trycloudflare.com")) return true;
+  if (tunnelOriginOk(o, ownTunnelHost())) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
 };
 function phonePair() {
@@ -527,6 +529,14 @@ const publicConfig = () => publicWebConfig({ hosted: HOSTED, version: VERSION, s
 // ---------- single-AI chat (streams through the event bus) ----------
 // Custom agents (Phase 19) pass system (their instructions), agent ({ id, name }), agentId (its libraries),
 // toolAllow (the tools it may use) and runId; a plain chat passes none of them.
+// Stop for a normal chat: the answer stops where it is and keeps what was written so far.
+const chatRuns = new Map();
+export function abortChat(id) {
+  const ctl = chatRuns.get(String(id || ""));
+  if (!ctl || ctl.signal.aborted) return false;
+  ctl.abort();
+  return true;
+}
 async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
@@ -595,11 +605,13 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const s = Date.now();
   const asked = { provider, model };
   let text = "";
+  const stopCtl = new AbortController();
+  chatRuns.set(id, stopCtl);
   try {
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -623,6 +635,12 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     }
     m.status = "done";
   } catch (err) {
+    if (stopCtl.signal.aborted) {
+      // the person pressed Stop: keep the partial answer, say so, and do not count it as the AI's fault
+      m.status = "aborted"; m.error = "Stopped by you.";
+      if (text) m.deliverable = text;
+      emit("agent.error", { agent, provider, model, missionId: id, error: "Stopped by you." });
+    } else {
     if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
     if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
     if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
@@ -636,7 +654,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       m.status = "failed"; m.error = err.message;
       if (err.code === "paused") m.deliverable = err.message;
     }
-  }
+    }
+  } finally { chatRuns.delete(id); }
   if (!m.deliverable) m.deliverable = text;
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
@@ -801,7 +820,7 @@ async function api(req, res, url) {
   }
   if (method === "POST" && seg[0] === "mission" && seg[2] === "abort") {
     const id = seg[1];
-    if (abortMission(id)) return json(res, 200, { aborted: true });
+    if (abortMission(id) || abortChat(id)) return json(res, 200, { aborted: true });
     const stored = await ctx().store.getMission(id);
     if (stored?.kind === "mission" && stored.status === "paused") {
       stored.status = "aborted";

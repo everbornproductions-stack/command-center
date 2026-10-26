@@ -6,27 +6,27 @@ const { api, toast, esc, md, go } = window.CC;
 
 const css = `
 .sp-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 920px; }
-.sp-home { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
+.sp-home { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
 .sp-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-.sp-type { text-align: left; background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; }
+.sp-type { text-align: left; background: var(--card-bg, #0e1726); border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--text); cursor: pointer; }
 .sp-type:hover, .sp-type:focus { border-color: var(--accent); outline: none; }
 .sp-type h4 { margin: 0 0 4px; font-size: 15px; }
 .sp-rail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sp-rail span { font-size: 12px; color: var(--dim); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .sp-rail span.on { color: var(--text); border-color: var(--accent); }
 .sp-rail span.done { color: var(--muted); }
-.sp-crumb { max-width: 100%; overflow-wrap: anywhere; font-size: 12px; color: var(--dim); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #0e1726; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.sp-crumb { max-width: 100%; overflow-wrap: anywhere; font-size: 12px; color: var(--dim); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-bg, #0e1726); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .sp-crumb.on { color: var(--text); border-color: var(--accent); font-weight: 600; }
 .sp-crumb.done { color: var(--muted); border-color: #1e293b; }
 .sp-crumb.skipped { opacity: 0.6; text-decoration: line-through; }
 .sp-crumb-sep { color: var(--dim); font-size: 11px; border: none !important; padding: 0 2px !important; }
-.sp-flowchart { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #0b1320; }
-.sp-flow-node { min-width: 128px; overflow-wrap: anywhere; word-break: break-word; flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #0e1726; color: var(--text); text-align: left; cursor: pointer; }
+.sp-flowchart { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-bg, #0b1320); }
+.sp-flow-node { min-width: 128px; overflow-wrap: anywhere; word-break: break-word; flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-bg, #0e1726); color: var(--text); text-align: left; cursor: pointer; }
 .sp-flow-node.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .sp-flow-node.done { border-color: #10b981; }
 .sp-flow-node.skipped { opacity: 0.6; }
 .sp-flow-edge { display: flex; align-items: center; color: var(--dim); font-size: 14px; padding: 0 2px; }
-.sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0e1726; }
+.sp-flow-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
 .sp-banner { padding: 8px 10px; border-radius: 10px; background: #3a2a12; border: 1px solid #a16207; color: #fde68a; }
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -199,7 +199,7 @@ function wireFlowControls(root, w) {
         } else if (act === "move-up" || act === "move-down") {
           paintWalk(await api(`/walkthrough/${w.id}/reorder?${qexp()}`, { method: "POST", body: { stage: w.stage, direction: act === "move-up" ? "up" : "down", experience: clientExperience(), flag_flowstages: true } }));
         } else if (act === "add") {
-          const label = prompt("Step or stage name", "Custom check");
+          const label = await window.CC.ask("Step or stage name", "Custom check");
           if (!label) return;
           paintWalk(await api(`/walkthrough/${w.id}/add-stage?${qexp()}`, { method: "POST", body: { label, afterStage: w.stage, experience: clientExperience(), flag_flowstages: true } }));
         } else if (act === "remove") {
@@ -429,6 +429,17 @@ async function begin(type, templateId) {
     else go("start");
   } catch (e) { toast(e.message, true); }
 }
+// Chat asked for a website or another project: make the project, save the idea, and show the questions.
+let fromChat = "";
+async function startFromChat(type, idea) {
+  const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
+  const next = await api(`/walkthrough/${w.id}/idea?${qexp()}`, { method: "POST", body: { idea, experience: clientExperience() } });
+  fromChat = idea;
+  pendingWalk = next;
+  if (document.getElementById("sp-root") && window.CC.S.view === "start") paintWalk(next);
+  else go("start");
+  return next;
+}
 async function openWalk(id) {
   try { paintWalk(await api(`/walkthrough/${id}?${qexp()}`)); }
   catch (e) { toast(e.message, true); }
@@ -460,6 +471,20 @@ function paintWalk(w) {
   root.querySelector("#sp-save-tpl")?.addEventListener("click", () => saveAsTemplate(w));
   wireFlowControls(root, w);
   const stage = root.querySelector("#sp-stage");
+  if (fromChat) {
+    const prompt = fromChat;
+    fromChat = "";
+    const note = document.createElement("div");
+    note.className = "sp-banner";
+    note.setAttribute("role", "note");
+    note.innerHTML = `<span>Chat started these project steps for you. Nothing is built or sent until you click.</span> <button class="btn sm" type="button" id="sp-chat-instead">Answer in chat instead</button>`;
+    stage.before(note);
+    note.querySelector("#sp-chat-instead").addEventListener("click", () => {
+      window.CC.S.skipProjectStart = true;
+      go("command");
+      setTimeout(() => { const box = document.getElementById("orders"); if (box) { box.value = prompt; box.focus(); } toast("Press Send to ask in chat."); }, 250);
+    });
+  }
   if (w.status === "planning") paintWait(stage, "The council is building the plan.");
   else if (w.status === "revising") paintReview(stage, w, true);
   else if (w.stage === "idea") paintIdea(stage, w);
@@ -572,6 +597,7 @@ function paintReview(stage, w, busy) {
     <div class="sp-actions" style="margin-top:8px">
       <button class="btn sm" type="button" id="sp-rev" ${busy ? "disabled" : ""}>${busy ? "Revising…" : "Revise"}</button>
       <button class="btn sm" type="button" id="sp-exp">Export</button>
+      <button class="btn sm" type="button" id="sp-exp-zip">Export as a zip</button>
       <button class="btn sm" type="button" id="sp-chat">Share in chat</button>
       <button class="btn sm primary" type="button" id="sp-fin" ${busy ? "disabled" : ""}>${window.CC.S?.flags?.finishpath ? "Looks good, Finish" : "Finish"}</button>
       ${window.CC.S?.flags?.finishpath ? `<button class="btn sm" type="button" id="sp-edit-further" ${busy ? "disabled" : ""}>Edit further</button>` : ""}
@@ -583,6 +609,7 @@ function paintReview(stage, w, busy) {
     catch (e) { toast(e.message, true); }
   });
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
+  stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
     window.CC.shareInChat?.({
       kind: "mission",
@@ -606,26 +633,52 @@ function stepTools(stage, w) {
 }
 function paintDone(stage, w) {
   stage.innerHTML = `<h3 style="margin:0 0 6px">${esc(w.plan?.title || "Deliverable")}</h3>
-    <div class="md">${md(w.deliverable || "")}</div>
+    <div class="md" id="sp-done-view">${md(w.deliverable || "")}</div>
+    <details id="sp-done-edit" style="margin-top:10px"><summary>Edit this project</summary>
+      <label class="lbl" for="sp-done-text">Edit the text yourself</label>
+      <textarea id="sp-done-text" rows="12" style="width:100%">${esc(w.deliverable || "")}</textarea>
+      <div class="sp-actions" style="margin-top:6px"><button class="btn sm primary" type="button" id="sp-done-save">Save my edit</button></div>
+      <label class="lbl" for="sp-done-note" style="margin-top:10px">Or ask the AI for a change</label>
+      <textarea id="sp-done-note" rows="2" placeholder="Say what to change. Nothing is sent."></textarea>
+      <div class="sp-actions" style="margin-top:6px"><button class="btn sm" type="button" id="sp-done-rev">Revise with AI</button></div>
+    </details>
     <h4>Next steps</h4>
     <ul>${(w.nextSteps || []).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
     <div class="sp-actions">
-      <button class="btn sm primary" type="button" id="sp-exp">Export</button>
+      <button class="btn sm primary" type="button" id="sp-exp-zip">Export as a zip</button>
+      <button class="btn sm" type="button" id="sp-exp">Export as text</button>
       <button class="btn sm" type="button" id="sp-live">Open live view</button>
     </div>
     <p class="small dim">The file stays on this computer until you move it. Nothing is posted or emailed.</p>`;
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
+  stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  stage.querySelector("#sp-done-save").addEventListener("click", async () => {
+    try {
+      paintWalk(await api(`/walkthrough/${w.id}/edit?${qexp()}`, { method: "POST", body: { deliverable: stage.querySelector("#sp-done-text").value, experience: clientExperience() } }));
+      toast("Saved your edit.");
+    } catch (e) { toast(e.message, true); }
+  });
+  stage.querySelector("#sp-done-rev").addEventListener("click", async () => {
+    const note = stage.querySelector("#sp-done-note").value;
+    try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
+    catch (e) { toast(e.message, true); }
+  });
 }
-async function downloadWalk(id) {
+async function downloadWalk(id, format) {
   try {
-    const file = await api(`/walkthrough/${id}/export?${qexp()}`);
-    download(file.filename || "project.md", file.markdown || "");
+    const file = await api(`/walkthrough/${id}/export?${qexp()}${format === "zip" ? "&format=zip" : ""}`);
+    if (file.zipBase64) {
+      const bin = atob(file.zipBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      downloadBlob(file.filename || "project.zip", new Blob([bytes], { type: "application/zip" }));
+    } else download(file.filename || "project.md", file.markdown || "");
     toast("Exported. Nothing was sent.");
   } catch (e) { toast(e.message, true); }
 }
-function download(filename, markdown) {
-  const blob = new Blob([markdown], { type: "text/markdown" });
+function download(filename, markdown) { downloadBlob(filename, new Blob([markdown], { type: "text/markdown" })); }
+function downloadBlob(filename, blob) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -712,4 +765,5 @@ window.CC.startProject = {
   open: () => { wantExamples = false; go("start"); },
   examples: () => { wantExamples = true; go("start"); },
   begin,
+  startFromChat,
 };

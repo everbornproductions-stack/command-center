@@ -124,6 +124,24 @@ export function loopbackHost(host, port) {
   return h === `127.0.0.1:${port}` || h === `localhost:${port}` || h === `[::1]:${port}`;
 }
 
+// The app's own quick-tunnel host, set by the person (settings.tunnelHost or CC_TUNNEL_HOST).
+// Only a name of the form <label>.trycloudflare.com counts, and a request must match it exactly:
+// no port, no userinfo, no trailing dot, no other subdomain, no look-alike.
+export function cleanTunnelHost(value) {
+  const h = String(value || "").trim().toLowerCase();
+  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.trycloudflare\.com$/.test(h) && h !== "trycloudflare.com" ? h : "";
+}
+
+export function tunnelHostOk(host, tunnelHost) {
+  const want = cleanTunnelHost(tunnelHost);
+  return want !== "" && String(host || "").toLowerCase() === want;
+}
+
+export function tunnelOriginOk(origin, tunnelHost) {
+  const want = cleanTunnelHost(tunnelHost);
+  return want !== "" && String(origin || "").toLowerCase() === `https://${want}`;
+}
+
 export function lanHostOk(host, port, interfaces) {
   const h = String(host || "").toLowerCase();
   const ip = h.split(":")[0];

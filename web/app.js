@@ -8,6 +8,8 @@ import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
 import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { projectIntent } from "./project-intent.js";
+import { askText } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
 import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
@@ -362,7 +364,7 @@ function handle(ev) {
       const runFinished = run && ["done", "done-with-errors", "failed", "aborted", "cancelled"].includes(run.status);
       if (run && !S.live.id && !runFinished) { if (run.kind === "council") { S.live = newLive(); S.live.id = run.id; S.live.kind = "council"; S.live.council = run; S.live.status = run.status; if (run.verdict?.text) S.live.deliverable = run.verdict.text; } else { S.live = newLive(); S.live.id = run.id; S.live.kind = run.kind; S.live.mission = run; S.live.status = run.status; for (const t of run.tasks || []) S.live.tasks[t.id] = t; S.live.deliverable = run.deliverable || ""; } }
       if (S.mode !== "hosted" && !S.visitedSetup && (S.onboarding ? S.onboarding.show === true : !S.settings?.onboarded)) { S.visitedSetup = true; S.connectWizard = false; S.view = "setup"; }
-      else if (S.mode !== "hosted" && !S.visitedConnect && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
+      else if (S.mode !== "hosted" && !S.visitedConnect && !S.settings?.onboarded && S.connectSetup?.show) { S.visitedConnect = true; S.connectWizard = true; S.view = "setup"; }
       document.body.classList.toggle("hosted", S.mode === "hosted");
       const setupTab = $("#tab-setup"); if (setupTab) setupTab.style.display = S.mode === "hosted" ? "none" : "";
       renderAll(); return;
@@ -524,10 +526,10 @@ function onMission(m) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
       if (m.status === "done" || m.status === "done-with-errors") window.CC?.tour?.onAnswer?.(m.id);
-      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || m.status === "aborted");
+      const simpleFail = S.uiMode === "simple" && (m.status === "failed" || (m.status === "aborted" && m.kind !== "single"));
       const cost = Number(m.cost) || 0;
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
-      const stateWord = m.kind === "research" && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
+      const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
         S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "" };
         if (S.view === "command") renderOutput();
@@ -1335,6 +1337,7 @@ function renderSimpleChat(v) {
           <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
           <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
           <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1377,6 +1380,7 @@ function renderSimpleChat(v) {
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
@@ -1435,6 +1439,7 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
+          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
           <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
@@ -1469,6 +1474,7 @@ function renderCommand(v) {
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
   $("#go").addEventListener("click", sendOrders);
+  $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
   $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
@@ -1811,10 +1817,30 @@ function runBusy() {
   const st = S.live?.status;
   return !!(S.live?.id && BUSY_STATUS.has(st));
 }
+// Stop for a normal chat or a mission: the server stops the run and keeps what was written.
+async function stopChat() {
+  const id = S.live?.id || S.stopId;
+  if (!id) return;
+  const btn = $("#stop-chat");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api(`/mission/${encodeURIComponent(id)}/abort`, { method: "POST" });
+    toast(r?.aborted ? "Stopped. What was written so far is kept." : "Nothing is running to stop.");
+    if (r?.aborted) { S.awaitingRun = false; S.stopId = ""; }
+  } catch (e) { toast(e.message, true); }
+  if (btn) btn.disabled = false;
+  syncSendButton();
+}
 function syncSendButton() {
   const g = $("#go");
   if (!g) return;
   const busy = runBusy();
+  const stop = $("#stop-chat");
+  if (stop) {
+    const kind = S.live?.kind;
+    const stoppable = busy && (S.stopId || (S.live?.id && (kind === "single" || kind === "mission")));
+    stop.style.display = stoppable ? "" : "none";
+  }
   g.disabled = busy;
   g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
   g.setAttribute("aria-busy", busy ? "true" : "false");
@@ -1871,6 +1897,22 @@ async function sendOrders() {
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
+  // Asked to make a website, an app or another project: chat starts the project steps (idea, questions, plan, build, review).
+  if (mode === "single" && !S.skipProjectStart && !S.pendingAvoid) {
+    const kind = projectIntent(prompt);
+    if (kind) {
+      try {
+        await window.CC.ensureView?.("start");
+        if (window.CC.startProject?.startFromChat) {
+          await window.CC.startProject.startFromChat(kind, prompt);
+          $("#orders").value = "";
+          toast("Started a project for this. Answer a few questions to go on.");
+          return;
+        }
+      } catch (e) { toast(e.message, true); return; }
+    }
+  }
+  S.skipProjectStart = false;
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
@@ -1924,6 +1966,7 @@ async function sendOrders() {
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
+      S.stopId = started?.runId || started?.id || "";
       noteBackground(started);
     }
     // grokbot / browser: true (always include Grok Bot / the browser helper), false (leave it out), undefined (the router decides by what the job needs)
@@ -1961,7 +2004,7 @@ function wireRunRows(v) {
   $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -1998,7 +2041,7 @@ function renderProjects(v) {
     </div>
     <div class="grid">
       <div class="panel"><h3>Waiting on you <span class="right">HQ board</span></h3>
-        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found at ${esc(S.hqDir)}.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
+        ${hq?.available ? (hq.decisions.length ? hq.decisions.map((d) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="mono dim small">${d.id} · ${d.date}</div><div>${esc(d.question)}</div>${d.recommendation ? `<div class="small" style="color:var(--green)">→ ${esc(d.recommendation)}</div>` : ""}</div>`).join("") : `<div class="dim small">Nothing open.</div>`) : S.hqDir ? `<div class="dim small">No HQ board found in the linked folder.</div>` : `<div class="dim small">Optional: link a task-board folder with the CC_HQ_DIR setting to see open tasks and decisions here.</div>`}
       </div>
       ${recentlyDeletedHtml()}
       <div class="panel"><h3>Recent runs</h3>
@@ -2028,7 +2071,7 @@ function renderProjects(v) {
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     const parentId = b.dataset.subprojectAdd;
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -2063,7 +2106,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = prompt("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -2121,14 +2164,14 @@ function renderProjectDetail(v, p) {
       await refresh();
     } catch (e) { toast(e.message, true); }
   });
-  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = prompt("Link URL"); if (!url) return; const name = prompt("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
+  $$("[data-add]", v).forEach((b) => b.addEventListener("click", async () => { const url = await askText("Link URL"); if (!url) return; const name = await askText("Name", url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) || url; await api(`/projects/${p.id}/links`, { method: "POST", body: { categoryId: b.dataset.add, name, url } }); await refresh(); }));
   $$("[data-rm]", v).forEach((x) => x.addEventListener("click", async (e) => { e.preventDefault(); e.stopPropagation(); await api(`/projects/${p.id}/links?category=${encodeURIComponent(x.dataset.rm)}&url=${encodeURIComponent(x.dataset.url)}`, { method: "DELETE" }); await refresh(); }));
-  $("#addcat").addEventListener("click", async () => { const name = prompt("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
+  $("#addcat").addEventListener("click", async () => { const name = await askText("Category name (e.g. Social Posts, Music Videos, Ads)"); if (!name) return; p.categories.push({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, links: [] }); await api("/projects", { method: "POST", body: p }); await refresh(); });
   $$("[data-run]", v).forEach((r) => r.addEventListener("click", () => openRun(r.dataset.run)));
   $$("[data-subproject-open]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); S.openProject = b.dataset.subprojectOpen; render(); }));
   $$("[data-subproject-add]", v).forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const name = prompt("Sub-project name");
+    const name = await askText("Sub-project name");
     if (!name) return;
     try {
       await api("/projects", { method: "POST", body: { name, parentId: b.dataset.subprojectAdd, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } });
@@ -2298,7 +2341,7 @@ function renderSubscriptions(v) {
     $("[data-del]", tr).addEventListener("click", async () => { if (!confirm("Remove this subscription from the tracker?")) return; await api(`/subscriptions/${id}`, { method: "DELETE" }); await refresh(); });
     $$("input", tr).forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-save]", tr).click(); }));
   });
-  $("#addsub").addEventListener("click", async () => { const name = prompt("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
+  $("#addsub").addEventListener("click", async () => { const name = await askText("Service name"); if (!name) return; await api("/subscriptions", { method: "POST", body: { name, plan: "", monthly: null, unit: "credits" } }); await refresh(); });
 }
 
 // ----- Settings -----
@@ -2474,9 +2517,9 @@ function renderSettings(v) {
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>
         ${S.uiMode === "simple" ? `<div class="dim small">Spend caps, router scores, MCP, and webhooks are in Expert. Use the switch in the top bar.</div>` : `<div class="grid cols-3">
-          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"></div>
+          <div><label class="lbl">Monthly API budget $</label><input type="number" id="s-budget" value="${S.settings.budgetMonthly}"><div class="dim small">Paid calls stop when this month's spending reaches it. Free and practice AIs keep working.</div></div>
           <div><label class="lbl">Default priority</label><select id="s-mode">${PRIORITY.map(([m, label]) => `<option value="${m}" ${(S.settings.defaultMode === m || (m === "savings" && S.settings.defaultMode === "economy")) ? "selected" : ""}>${label}</option>`).join("")}</select></div>
-          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"></div>
+          <div><label class="lbl">Mission cap $</label><input type="number" id="s-mcap" value="${S.settings.missionBudget}" step="0.5"><div class="dim small">One run stops when it reaches this.</div></div>
         </div>`}
         <div class="row" style="margin-top:10px"><button class="btn sm" id="s-save">Save</button><button class="btn sm" id="s-check">Re-check all AIs</button>
           <label class="row small" style="gap:6px;margin-left:auto"><input type="checkbox" id="s-demo" ${S.demo ? "checked" : ""}> Demo mode (3 pretend AIs, no spend)</label></div>
@@ -2581,7 +2624,10 @@ function renderSettings(v) {
       missionBudget: $("#s-mcap") ? Number($("#s-mcap").value) : S.settings.missionBudget,
     };
     try {
+      const budgetChanged = Number.isFinite(body.budgetMonthly) && body.budgetMonthly > 0 && body.budgetMonthly !== S.settings.budgetMonthly;
       S.settings = await api("/settings", { method: "POST", body });
+      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label
+      if (budgetChanged) await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } });
       renderBudget(); toast("Saved");
     } catch (e) { toast(e.message, true); }
   });
@@ -2970,7 +3016,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { ask: askText, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 installPasswordTip(document, localStorage);
 import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
 boot();

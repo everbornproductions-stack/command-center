@@ -48,16 +48,16 @@ function injectStyles() {
     .pm-subtab { padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; border:1px solid transparent; background:transparent; color:var(--muted); }
     .pm-subtab.active { background:#112236; color:var(--fg); border-color:var(--accent, #22d3ee); font-weight:600; }
     .pm-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
-    .pm-dropzone { border:1px dashed var(--line); border-radius:8px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#0b111b; transition:border-color .15s, background .15s; }
+    .pm-dropzone { border:1px dashed var(--line); border-radius:8px; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card-bg, #0b111b); transition:border-color .15s, background .15s; }
     .pm-dropzone.dragover { border-color:var(--green, #22c55e); background:#0f241d; }
     .pm-filter-pills { display:flex; gap:4px; flex-wrap:wrap; }
-    .pm-pill { padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:#0d1420; color:var(--muted); cursor:pointer; }
+    .pm-pill { padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:var(--card-bg, #0d1420); color:var(--muted); cursor:pointer; }
     .pm-pill.active { background:#142d4c; color:#fff; border-color:#38bdf8; }
-    .pm-bulkbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-radius:8px; background:#132032; border:1px solid #2b4c7e; margin-bottom:12px; }
+    .pm-bulkbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-radius:8px; background:var(--card-hover, #132032); border:1px solid #2b4c7e; margin-bottom:12px; }
     .pm-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
-    .pm-card { background:#0d1420; border:1px solid var(--line); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; position:relative; }
+    .pm-card { background:var(--card-bg, #0d1420); border:1px solid var(--line); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; position:relative; }
     .pm-card.selected { border-color:#38bdf8; box-shadow:0 0 0 1px #38bdf8; }
-    .pm-thumb { height:140px; background:#070b12; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+    .pm-thumb { height:140px; background:var(--sunk-bg, #070b12); border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
     .pm-thumb img, .pm-thumb video { width:100%; height:100%; object-fit:cover; }
     .pm-card { min-width:0; overflow-wrap:anywhere; }
     .pm-dropzone span, .pm-bulkbar span, .tray-body .dim { overflow-wrap:anywhere; min-width:0; }
@@ -69,17 +69,17 @@ function injectStyles() {
     .pm-tags { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
     .pm-tag { font-size:11px; padding:1px 6px; border-radius:4px; background:#1e293b; color:#cbd5e1; display:inline-flex; align-items:center; gap:4px; }
     .pm-lineage { border-top:1px dashed var(--line); padding-top:8px; margin-top:4px; display:flex; flex-direction:column; gap:6px; }
-    .pm-lineage-row { display:flex; align-items:center; gap:6px; font-size:11px; background:#090e17; padding:4px 6px; border-radius:4px; }
+    .pm-lineage-row { display:flex; align-items:center; gap:6px; font-size:11px; background:var(--card-bg, #090e17); padding:4px 6px; border-radius:4px; }
     .pm-send-sheet { border-top:1px solid var(--line); padding-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
-    #cc-asset-tray { position:fixed; right:16px; bottom:16px; z-index:900; width:360px; max-width:calc(100vw - 32px); background:#0c131f; border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.55); overflow:hidden; }
+    #cc-asset-tray { position:fixed; right:16px; bottom:16px; z-index:900; width:360px; max-width:calc(100vw - 32px); background:var(--card-bg, #0c131f); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.55); overflow:hidden; }
     #cc-asset-tray.collapsed { width:auto; }
-    .tray-head { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#111c2d; border-bottom:1px solid var(--line); }
+    .tray-head { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--card-hover, #111c2d); border-bottom:1px solid var(--line); }
     #cc-asset-tray.collapsed .tray-head { border-bottom:none; }
     .tray-body { padding:10px; max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
     .tray-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }
-    .tray-item { background:#090e17; border:1px solid var(--line); border-radius:6px; padding:6px; cursor:grab; display:flex; flex-direction:column; gap:4px; }
+    .tray-item { background:var(--card-bg, #090e17); border:1px solid var(--line); border-radius:6px; padding:6px; cursor:grab; display:flex; flex-direction:column; gap:4px; }
     .tray-item:active { cursor:grabbing; }
-    .tray-item img { width:100%; height:64px; object-fit:cover; border-radius:4px; background:#05080d; }
+    .tray-item img { width:100%; height:64px; object-fit:cover; border-radius:4px; background:var(--sunk-bg, #05080d); }
   `;
   document.head.appendChild(st);
 }
@@ -184,7 +184,7 @@ function renderCardHtml(item, p) {
   const tagsHtml = (item.tags || [])
     .map(
       (t) =>
-        `<span class="pm-tag">${esc(t)} <button type="button" class="ghost small" style="padding:0 2px;font-size:10px" data-pm-rmtag="${esc(t)}" data-pm-asset="${esc(item.id)}" aria-label="Remove tag ${esc(t)}">✕</button></span>`
+        `<span class="pm-tag">${esc(t)} <button type="button" class="ghost small" style="padding:0 2px;font-size:10px" data-pm-rmtag="${esc(t)}" data-pm-asset="${esc(item.id)}" aria-label="Remove tag ${esc(t)}">Remove</button></span>`
     )
     .join("");
 
@@ -492,7 +492,7 @@ function wireProjectMediaEvents(box, p) {
           toast(e.message, true);
         }
       } else if (act === "new-collection") {
-        const name = prompt("New collection name (e.g. Hero Shots, Finals, Storyboard)");
+        const name = await window.CC.ask("New collection name (e.g. Hero Shots, Finals, Storyboard)");
         if (!name) return;
         try {
           await api(`/projectmedia/${encodeURIComponent(p.id)}/collections`, {
@@ -596,7 +596,7 @@ function wireProjectMediaEvents(box, p) {
 
   $$("[data-pm-addtag]", box).forEach((b) =>
     b.addEventListener("click", async () => {
-      const tag = prompt("Add tag (client-ready, draft, final, reference, or custom):", "client-ready");
+      const tag = await window.CC.ask("Add tag (client-ready, draft, final, reference, or custom):", "client-ready");
       if (!tag) return;
       try {
         await api(`/projectmedia/${encodeURIComponent(p.id)}/meta`, {
@@ -626,7 +626,7 @@ function wireProjectMediaEvents(box, p) {
 
   $$("[data-pm-usage]", box).forEach((b) =>
     b.addEventListener("click", async () => {
-      const kind = prompt("Mark usage badge (posted, site, video):", "posted");
+      const kind = await window.CC.ask("Mark usage badge (posted, site, video):", "posted");
       if (!kind) return;
       try {
         await api(`/projectmedia/${encodeURIComponent(p.id)}/send`, {
@@ -674,7 +674,7 @@ function wireProjectMediaEvents(box, p) {
       if (!assetIds.length) return;
       try {
         if (act === "tag") {
-          const tag = prompt("Tag to apply to selected assets:", "client-ready");
+          const tag = await window.CC.ask("Tag to apply to selected assets:", "client-ready");
           if (!tag) return;
           await api(`/projectmedia/${encodeURIComponent(p.id)}/bulk`, {
             method: "POST",
@@ -682,7 +682,7 @@ function wireProjectMediaEvents(box, p) {
           });
           toast(`Tagged ${assetIds.length} asset(s).`);
         } else if (act === "collection") {
-          const collection = prompt("Collection name for selected assets:");
+          const collection = await window.CC.ask("Collection name for selected assets:");
           if (!collection) return;
           await api(`/projectmedia/${encodeURIComponent(p.id)}/bulk`, {
             method: "POST",
@@ -929,7 +929,7 @@ window.CC.syncAssetTray = async (viewName) => {
             : `<option value="">No project</option>`
         }
       </select>
-      <button type="button" class="ghost small" data-tray-act="refresh" title="Refresh tray">↻</button>
+      <button type="button" class="ghost small" data-tray-act="refresh" title="Refresh tray">Refresh</button>
       <button type="button" class="ghost small" data-tray-act="toggle" aria-expanded="true">Collapse</button>
     </div>
     <div class="tray-body">
@@ -951,7 +951,7 @@ window.CC.syncAssetTray = async (viewName) => {
                 .slice(0, 24)
                 .map(
                   (a) => `<div class="tray-item" draggable="true" data-tray-asset="${esc(a.id)}" title="${esc(a.prompt || a.name)}">
-                    ${a.kind === "image" && a.hasFile ? `<img data-pm-src="${esc(a.fileUrl)}" alt="${esc(a.name)}">` : `<div class="dim small mono" style="height:64px;display:flex;align-items:center;justify-content:center;background:#05080d;border-radius:4px">${esc(a.kind.toUpperCase())}</div>`}
+                    ${a.kind === "image" && a.hasFile ? `<img data-pm-src="${esc(a.fileUrl)}" alt="${esc(a.name)}">` : `<div class="dim small mono" style="height:64px;display:flex;align-items:center;justify-content:center;background:var(--sunk-bg, #05080d);border-radius:4px">${esc(a.kind.toUpperCase())}</div>`}
                     <div class="small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${esc(a.name)}</div>
                     <div class="row" style="gap:4px">
                       <button type="button" class="btn sm" style="flex:1;padding:2px 4px;font-size:10px" data-tray-insert="${esc(a.id)}">Insert</button>

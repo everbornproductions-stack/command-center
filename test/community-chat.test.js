@@ -114,7 +114,7 @@ test("chat needs the licence email, hides drafts, and enforces conduct", async (
   try {
     const denied = await bare.api("/community/join", { method: "POST", body: { email: "ada@example.com", displayName: "Ada" } });
     assert.equal(denied.status, 400);
-    assert.match(denied.json.error, /Add a licence first/);
+    assert.match(denied.json.error, /Sign in first/);
     const state = await bare.api("/state");
     assert.ok(state.json.plugins.includes("community"));
   } finally { await bare.stop(); }

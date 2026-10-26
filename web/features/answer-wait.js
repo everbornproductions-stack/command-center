@@ -126,6 +126,10 @@ async function renderPanel(el, { setup = false } = {}) {
   el.innerHTML = panelHtml(view || {}, { esc, setup });
   const post = async (body) => { view = await api("/answerwait/settings", { method: "POST", body }); renderPanel(el, { setup }); };
   el.querySelector("#cc-aw-on")?.addEventListener("change", (e) => post({ on: e.target.checked }).catch((x) => toast(x.message, true)));
+  el.querySelector("#cc-aw-planfirst")?.addEventListener("change", async (e) => {
+    try { await api("/settings", { method: "POST", body: { planFirst: e.target.checked } }); await api("/answerwait/check", { method: "POST" }); view = await api("/answerwait?refresh=1"); renderPanel(el, { setup }); }
+    catch (x) { e.target.checked = !e.target.checked; toast(x.message, true); }
+  });
   el.querySelectorAll("[data-aw-route-on]").forEach((b) => b.addEventListener("change", () => post({ routes: { [b.dataset.awRouteOn]: b.checked } }).catch((x) => toast(x.message, true))));
   el.querySelectorAll("[data-aw-setup]").forEach((b) => b.addEventListener("click", () => openPage(b.dataset.awSetup).catch(() => {})));
   el.querySelector("#cc-aw-check")?.addEventListener("click", async () => { try { view = await api("/answerwait/check", { method: "POST" }); renderPanel(el, { setup }); } catch (x) { toast(x.message, true); } });

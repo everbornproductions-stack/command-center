@@ -8,8 +8,8 @@ const { S, api, toast, esc } = window.CC;
 
 const css = `
 #cc-mcp-approvals { position: fixed; right: 16px; bottom: 90px; z-index: 950; display: grid; gap: 10px; max-width: 440px; }
-.cc-mcp-ask { background: #0f1724; border: 1px solid var(--amber, #fbbf24); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 40px #000a; font-size: 12.5px; }
-.cc-mcp-ask pre { max-height: 160px; overflow: auto; background: #0a0f18; border: 1px solid var(--line, #243044); border-radius: 8px; padding: 8px; margin: 8px 0; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
+.cc-mcp-ask { background: var(--card-bg, #0f1724); border: 1px solid var(--amber, #fbbf24); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 40px #000a; font-size: 12.5px; }
+.cc-mcp-ask pre { max-height: 160px; overflow: auto; background: var(--card-bg, #0a0f18); border: 1px solid var(--line, #243044); border-radius: 8px; padding: 8px; margin: 8px 0; font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
 .cc-mcp-tools { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
 .cc-mcp-tools td { padding: 5px 6px; border-top: 1px solid var(--line, #243044); vertical-align: top; }
 .cc-mcp-tools td.d { color: var(--muted, #8b96a8); max-width: 360px; }
@@ -165,7 +165,7 @@ async function renderSettings(el) {
     const s = d.servers.find((x) => x.id === b.dataset.s); const t = s?.tools.find((x) => x.name === b.dataset.try); if (!t) return;
     const props = t.inputSchema?.properties || {};
     let args = {};
-    if (Object.keys(props).length) { const ex = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.type === "number" || v.type === "integer" ? 0 : v.type === "boolean" ? false : ""])); const typed = prompt(`Arguments for ${t.name} as JSON${t.inputSchema?.required?.length ? ` (required: ${t.inputSchema.required.join(", ")})` : ""}`, JSON.stringify(ex)); if (typed === null) return; try { args = JSON.parse(typed || "{}"); } catch { return toast("That is not valid JSON", true); } }
+    if (Object.keys(props).length) { const ex = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.type === "number" || v.type === "integer" ? 0 : v.type === "boolean" ? false : ""])); const typed = await window.CC.ask(`Arguments for ${t.name} as JSON${t.inputSchema?.required?.length ? ` (required: ${t.inputSchema.required.join(", ")})` : ""}`, JSON.stringify(ex)); if (typed === null) return; try { args = JSON.parse(typed || "{}"); } catch { return toast("That is not valid JSON", true); } }
     const out = el.querySelector(`[data-out="${CSS.escape(s.id)}"]`); out.textContent = `Running ${t.name}…`;
     try { const r = await api(`/tools/servers/${encodeURIComponent(s.id)}/call`, { method: "POST", body: { tool: t.name, args } }); out.textContent = `${t.name} ${r.ok ? "returned" : "failed"} in ${(r.ms / 1000).toFixed(1)}s:\n${r.text}`; }
     catch (e) { out.textContent = e.message; }

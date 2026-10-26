@@ -8,7 +8,7 @@ import { helpOrder, searchArticles, tryThese, contextTipsForView, doThisNextForS
 const { api, toast, esc, md, go } = window.CC;
 
 const css = `
-.can-do-row { display: grid; gap: 4px; text-align: left; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.can-do-row { display: grid; gap: 4px; text-align: left; background: var(--card-bg, #0a0f18); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .can-do-row h4 { margin: 0; font-size: 0.9375rem; }
 .can-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 `;

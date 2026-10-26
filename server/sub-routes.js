@@ -177,6 +177,8 @@ export async function allStatus({ refresh = false, ...opts } = {}) {
   return rows;
 }
 export const clearStatusCache = () => { cache = { at: 0, rows: null }; };
+// Last known statuses, with no waiting (the router reads this while ranking).
+export const cachedStatus = () => (cache.rows ? { rows: cache.rows, at: cache.at } : null);
 
 export async function routesView({ refresh = false } = {}) {
   const s = routeSettings();

@@ -12,7 +12,7 @@ import { troubled, freeNow, completeFallback } from "./fallback.js";
 import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
-import { planOf, applyPreferFree, readPreferFree } from "./plans.js";
+import { planOf, applyPreferFree, readPreferFree, applyPlanFirst } from "./plans.js";
 import { bestModelEach, costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
 import { extraRouteModels } from "./route-extras.js";
@@ -181,7 +181,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   };
   const scored = list.map(scoreOf);
-  let ordered = applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode);
+  let ordered = applyPlanFirst(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));
   if (includeApps) {
     const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
     if (appRows.length) ordered = ordered.concat(appRows.map(scoreOf).sort((a, b) => b.score - a.score));

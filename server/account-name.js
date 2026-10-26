@@ -5,13 +5,14 @@ import { doc, putDoc } from "./store.js";
 import { licenseState } from "./license.js";
 import * as Chat from "./community-chat.js";
 import * as Cloud from "./community-cloud.js";
+import { signedInEmail } from "./signed-in-email.js";
 
 const PROFILE = "account.profile";
 const NAMES = "account.names";
 const LEGACY = "community.profile";
 
 export function licenceEmail() {
-  try { return Chat.cleanEmail(licenseState().email); }
+  try { return Chat.cleanEmail(licenseState().email) || Chat.cleanEmail(signedInEmail()); }
   catch { return ""; }
 }
 
@@ -108,7 +109,7 @@ export function publicAccount(extra = {}) {
 
 export async function saveAccountUsername(rawName, { requireLicence = false, extraNames = {} } = {}) {
   const lic = licenceEmail();
-  if (requireLicence && !lic) return { ok: false, status: 400, error: "Add a licence first. Community chat uses the email on your licence." };
+  if (requireLicence && !lic) return { ok: false, status: 400, error: Chat.SIGN_IN_FIRST };
   const profile = readProfile();
   const identity = lic || "local";
   const sameAccount = !profile.email || profile.email === identity || profile.email === "local" || (lic && profile.email === lic);

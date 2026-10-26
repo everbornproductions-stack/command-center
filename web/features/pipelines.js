@@ -58,7 +58,7 @@ async function newFromMission(view) {
   const last = S.missions.find((m) => m.kind === "mission" && (m.status === "done" || m.status === "done-with-errors"));
   if (!last) return toast("Run a mission first; then it can be saved as a pipeline.", true);
   let full; try { full = await api(`/missions/${last.id}`); } catch (e) { return toast(e.message, true); }
-  const name = prompt("Name this pipeline", full.title || "My pipeline"); if (!name) return;
+  const name = await window.CC.ask("Name this pipeline", full.title || "My pipeline"); if (!name) return;
   const idx = Object.fromEntries((full.tasks || []).map((t, i) => [t.id, i + 1]));
   const steps = (full.tasks || []).map((t) => ({ title: t.title, capability: t.capability, deps: (t.deps || []).map((d) => idx[d]).filter(Boolean), instructions: t.instructions || t.title, deliverable: t.deliverable || "" }));
   try { await api("/pipelines/save", { method: "POST", body: { name, description: `Saved from "${full.title}"`, category: "Custom", steps, assembly: full.plan?.assembly || "", mode: full.mode, qa: full.qa } }); toast("Pipeline saved"); renderTab(view); }

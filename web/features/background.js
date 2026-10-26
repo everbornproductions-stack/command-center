@@ -8,7 +8,7 @@ function showBanner(ev) {
     box = document.createElement("div");
     box.id = "cc-bg-alert";
     box.setAttribute("role", "status");
-    box.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:80;background:#111827;color:#e5e7eb;border:1px solid #334155;border-radius:10px;padding:12px 14px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.35)";
+    box.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:80;background:var(--card-bg, #111827);color:var(--text, #e5e7eb);border:1px solid #334155;border-radius:10px;padding:12px 14px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.35)";
     document.body.appendChild(box);
   }
   const headline = ev.headline || "Run done";

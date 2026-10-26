@@ -93,9 +93,15 @@ export function creditsView({ ledger = {}, statuses = {}, providers = {} } = {})
   return plainCredits({ month: ledger.month, today: ledger.today, byProvider: ledger.byProvider, names, balances });
 }
 
+// Internal planning prompts (like the walkthrough planner) are not chats a person wrote.
+export function isInternalPrompt(text) {
+  return /^\s*(WALKTHROUGH_[A-Z_]+|[A-Z]{3,}(?:_[A-Z]+)+)\b/.test(String(text || ""));
+}
+
 export function chatRows(missions) {
   return (missions || [])
     .filter((m) => m && m.id && ["single", "council", "mission", "imported"].includes(m.kind))
+    .filter((m) => !isInternalPrompt(m.title) && !isInternalPrompt(m.prompt))
     .map((m) => ({
       id: m.id,
       title: String(m.title || m.prompt || "Untitled chat").slice(0, 120),

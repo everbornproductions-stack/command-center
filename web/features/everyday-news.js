@@ -6,7 +6,7 @@ const { api, apiBlobUrl, downloadBlob, toast, esc, go } = window.CC;
 
 const css = `
 .en-wrap { display: flex; flex-direction: column; gap: 12px; max-width: 920px; }
-.en-card { background: #0e1726; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.en-card { background: var(--card-bg, #0e1726); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .en-card h3, .en-card h4 { margin: 0 0 6px; }
 .en-say { font-family: var(--mono); font-size: 13px; margin: 6px 0; }
 .en-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

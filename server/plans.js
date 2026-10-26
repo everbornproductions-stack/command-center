@@ -68,3 +68,21 @@ export function applyPreferFree(scored, on) {
   if (!free) return scored;
   return [{ ...free, preferFree: true }, ...scored.filter((m) => m !== free)];
 }
+
+// "Use my plan first" (Settings): official apps signed in with the person's own subscription come before
+// any model that charges per call. Rows from server/plan-first.js carry planRoute: true.
+export function readPlanFirst() {
+  let s = null;
+  try { s = ctx().docs?.settings || null; } catch { s = null; }
+  return s?.planFirst === true;
+}
+
+export function applyPlanFirst(scored, on = readPlanFirst()) {
+  if (!on || !Array.isArray(scored) || scored.length < 2) return scored;
+  const plan = scored.filter((m) => m.planRoute);
+  if (!plan.length) return scored;
+  const rest = scored.filter((m) => !m.planRoute);
+  const at = rest.findIndex((m) => Number(m.estCost) > 0 && !m.free && !m.localFree);
+  if (at < 0) return scored;
+  return [...rest.slice(0, at), ...plan.map((m) => ({ ...m, planFirst: true })), ...rest.slice(at)];
+}

@@ -42,6 +42,7 @@ export const FEATURES = [
   { id: "privacy", shell: true },
   { id: "prompt-suggest", shell: true },
   { id: "look", shell: true },
+  { id: "news-rail", shell: true },
 
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
