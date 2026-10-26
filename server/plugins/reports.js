@@ -3,6 +3,7 @@
 // time the app runs after that), or on demand. Nothing is sent automatically: the person gets an
 // email draft (opens their own mail app) and a Markdown export, and sends it themselves if they want.
 import { send as sendOwnMail, mailView } from "../report-mail-live.js";
+import { unusedSubscriptions, unusedLines } from "../unused-subs.js";
 import { allEntries } from "../ledger.js";
 import { PROVIDERS } from "../registry.js";
 import { scheduler } from "../perf/scheduler.js";
@@ -59,8 +60,7 @@ export function buildReport(h, now = new Date()) {
   const subs = h.subscriptionView();
   const low = subs.filter((s) => s.signal === "low" || s.signal === "attention");
   const renewals = subs.filter((s) => s.daysLeft != null && s.daysLeft >= 0 && s.daysLeft <= 7);
-  const usedProviders = new Set(entries.filter((e) => e.ts > now.getTime() - 30 * 86400000).map((e) => e.provider));
-  const idle = subs.filter((s) => s.provider && !usedProviders.has(s.provider) && (s.monthly || s.listPrice));
+  const idle = unusedSubscriptions(subs, entries, now.getTime()).unused;
   const shipped = shippedThisWeek(h, thisW.start);
   const st = h.doc("alerts.state", () => null);
   const caps = st?.perProvider ? Object.entries(st.perProvider).filter(([, r]) => r.level !== "ok").map(([pid, r]) => `${PROVIDERS[pid]?.name || pid} at ${r.pct}% of $${r.cap}`) : [];
@@ -80,7 +80,8 @@ export function buildReport(h, now = new Date()) {
     if (shipped.length > 15) lines.push(`- and ${shipped.length - 15} more`);
   } else lines.push("- Nothing finished this week.");
   lines.push(`\n## Keep, downgrade, cancel`);
-  lines.push(idle.length ? idle.map((s) => `- **${s.name}**: no API use in 30 days${s.monthly != null ? `, $${s.monthly}/month` : s.listPrice ? `, list ~$${s.listPrice}/month` : ""}. Consider cancelling or downgrading, unless you use it outside this console.`).join("\n") : "- Every tracked subscription with an API saw use this month.");
+  const idleLines = unusedLines(subs, entries, now.getTime());
+  lines.push(idleLines.length ? idleLines.join("\n") : "- Every subscription Meldmind can see was used in the last 30 days.");
   const unpriced = subs.filter((s) => s.monthly == null).length;
   if (unpriced) lines.push(`- ${unpriced} subscription${unpriced === 1 ? "" : "s"} still have no confirmed price; fill them in on the Subscriptions tab for a real total.`);
   return { ts: now.getTime(), week: thisW, markdown: lines.join("\n"), totals: { thisWeek: +a.total.toFixed(4), lastWeek: +b.total.toFixed(4), calls: a.calls, runs: shipped.length }, shipped: shipped.slice(0, 15).map(({ id, kind, title, finishedAt }) => ({ id, kind, title, finishedAt })), low: low.length, renewals: renewals.length, idle: idle.length, cancel: idle.map((s) => s.name) };
