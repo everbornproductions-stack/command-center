@@ -108,10 +108,9 @@ function paintCost(html) {
   if (!line) { line = document.createElement("div"); line.id = "cc-precost"; line.className = "small dim"; line.setAttribute("aria-live", "polite"); line.style.margin = "4px 0"; box.insertAdjacentElement("afterend", line); }
   line.innerHTML = html;
 }
-document.addEventListener("input", (e) => {
-  if (e.target?.id !== "orders") return;
+function onOrders(box) {
   clearTimeout(timer);
-  const text = e.target.value;
+  const text = box.value;
   if (text.trim().length < 3) { paintCost(""); return; }
   timer = setTimeout(async () => {
     const mine = ++seq;
@@ -120,6 +119,10 @@ document.addEventListener("input", (e) => {
       if (mine === seq) paintCost(costLineHtml(r, esc));
     } catch { if (mine === seq) paintCost(""); }
   }, 450);
-});
+}
+document.addEventListener("input", (e) => { if (e.target?.id === "orders") onOrders(e.target); });
+// text typed before this file loaded still gets its line
+const early = document.getElementById("orders");
+if (early?.value) onOrders(early);
 
 CC.register({ id: "versions", deliverable: { order: 9, render } });
