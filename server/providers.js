@@ -159,7 +159,7 @@ function geminiContents(messages) {
 async function* geminiStream({ provider, model, system, messages, maxTokens, signal, tools, webSearch }) {
   const key = requireKey(provider);
   const contents = geminiContents(messages);
-  const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens } };
+  const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens }, store: false };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (tools?.length) body.tools = [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description || "", parameters: t.parameters || { type: "object", properties: {} } })) }];
   if (webSearch) body.tools = [...(body.tools || []), { google_search: {} }];

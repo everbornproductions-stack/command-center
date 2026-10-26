@@ -51,13 +51,13 @@ export const IMAGE_PROVIDERS = {
   },
   google: {
     id: "google", name: "Google Gemini", keyName: "Google Gemini", where: "Settings > AI keys", ops: OPS,
-    defaultModel: "gemini-2.5-flash-image",
-    models: { "gemini-2.5-flash-image": { name: "Gemini 2.5 Flash Image", price: 0.039 } },
+    defaultModel: "gemini-nano-banana-2.1",
+    models: { "gemini-nano-banana-2.1": { name: "Gemini Nano Banana 2.1", price: 0.039 } },
   },
   xai: {
     id: "xai", name: "xAI Grok", keyName: "xAI", where: "Settings > AI keys", ops: ["generate"],
-    defaultModel: "grok-2-image",
-    models: { "grok-2-image": { name: "Grok 2 Image", price: 0.07 } },
+    defaultModel: "grok-imagine-image-2.0",
+    models: { "grok-imagine-image-2.0": { name: "Grok Imagine Image 2.0", price: 0.07 } },
   },
   replicate: {
     id: "replicate", name: "Flux via Replicate", keyName: "Replicate", where: "Settings > Media", ops: OPS,
@@ -255,7 +255,7 @@ const ADAPTERS = {
     for (let i = 0; i < job.n; i++) {
       const parts = [{ text: job.prompt }, ...(src ? [{ inline_data: { mime_type: src.mime, data: src.bytes.toString("base64") } }] : [])];
       // the key travels in a header, never in the URL
-      const j = await call(pv, `${base}/models/${encodeURIComponent(job.model)}:generateContent`, { method: "POST", headers: { "x-goog-api-key": sec.key, "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio[job.size] } } }) });
+      const j = await call(pv, `${base}/models/${encodeURIComponent(job.model)}:generateContent`, { method: "POST", headers: { "x-goog-api-key": sec.key, "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts }], store: false, generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio[job.size] } } }) });
       for (const p of j.candidates?.[0]?.content?.parts || []) { const d = p.inlineData || p.inline_data; if (d?.data) out.push(b64img(d.data, d.mimeType || d.mime_type || "image/png")); }
     }
     return out;
