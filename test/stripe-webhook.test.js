@@ -8,7 +8,7 @@ import {
 } from "../supabase/functions/stripe-webhook/price-tiers.js";
 import {
   KEY_RE, computeStripeSignature, genLicenseKey, mapSubscriptionStatus, parseSignatureHeader, planEvent, planForPrice,
-  processEvent, timingSafeEqual, verifyStripeSignature,
+  planForSession, processEvent, timingSafeEqual, verifyStripeSignature,
 } from "../supabase/functions/stripe-webhook/logic.js";
 
 const SECRET = "whsec_" + randomBytes(24).toString("hex");
@@ -248,7 +248,7 @@ test("a full refund ends access now; a partial refund changes nothing", async ()
 
 test("Founder lifetime: a $349 one-time payment makes a Pro-for-life licence with no end date, once", async () => {
   const db = memoryDb();
-  const checkout = ev("checkout.session.completed", { mode: "payment", payment_status: "paid", amount_total: 34900, customer: null, payment_intent: "pi_1", customer_details: { email: "Founder@Example.com" } });
+  const checkout = ev("checkout.session.completed", { id: "cs_1", mode: "payment", payment_status: "paid", amount_total: 34900, customer: null, payment_intent: "pi_1", metadata: { meldmind_plan: "lifetime-349" }, customer_details: { email: "Founder@Example.com" } });
   const r = await processEvent(checkout, db, opts);
   assert.equal(r.status, "created");
   assert.equal(r.founderCount, 1);
@@ -259,7 +259,7 @@ test("Founder lifetime: a $349 one-time payment makes a Pro-for-life licence wit
   assert.equal(row.stripe_subscription_id, null);
   assert.equal(row.email, "founder@example.com");
 
-  const again = ev("checkout.session.completed", { mode: "payment", payment_status: "paid", amount_total: 34900, payment_intent: "pi_2", customer_details: { email: "founder@example.com" } });
+  const again = ev("checkout.session.completed", { id: "cs_2", mode: "payment", payment_status: "paid", amount_total: 34900, payment_intent: "pi_2", metadata: { meldmind_plan: "lifetime-349" }, customer_details: { email: "founder@example.com" } });
   assert.equal((await processEvent(again, db, opts)).status, "updated");
   assert.equal(db.rows.length, 1, "no second licence for the same email");
 
@@ -273,10 +273,63 @@ test("Founder lifetime: a $349 one-time payment makes a Pro-for-life licence wit
   assert.equal(db.rows.find((x) => x.stripe_subscription_id === "sub_f").status, "active");
 });
 
+test("Founder lifetime with a promo code or tax still unlocks: the plan comes from the session, not the amount charged", async () => {
+  const lineItem = (price) => ({ price });
+  const cases = [
+    // 20% promo: the buyer paid $279.20
+    { name: "promo, line item in the event", amount_total: 27920, line_items: { data: [lineItem({ id: "price_f", unit_amount: 34900, product: "prod_f", metadata: { meldmind_plan: "lifetime-349" } })] } },
+    // sales tax on top: $376.92
+    { name: "tax, Payment Link metadata", amount_total: 37692, metadata: { meldmind_plan: "lifetime-349" } },
+    // 100% off: nothing charged
+    { name: "free with a code, price list amount", amount_total: 0, payment_status: "no_payment_required", line_items: { data: [lineItem({ id: "price_g", unit_amount: 34900 })] } },
+  ];
+  for (const [i, c] of cases.entries()) {
+    const db = memoryDb();
+    const { name, ...rest } = c;
+    const e = ev("checkout.session.completed", { id: `cs_p${i}`, mode: "payment", payment_status: "paid", customer: null, payment_intent: `pi_p${i}`, customer_details: { email: "promo@example.com" }, ...rest });
+    const r = await processEvent(e, db, opts);
+    assert.equal(r.status, "created", name);
+    assert.equal(db.rows[0].plan, "lifetime-349", name);
+    assert.equal(db.rows[0].email, "promo@example.com", name);
+  }
+});
+
+test("a one-time session with no ids in the event is resolved from its line items by price id or product id", async () => {
+  const makeDb = (items) => Object.assign(memoryDb(), { fetchCalls: [], async fetchLineItems(id) { this.fetchCalls.push(id); return items; } });
+  const session = (id) => ev("checkout.session.completed", { id, mode: "payment", payment_status: "paid", amount_total: 41234, payment_intent: "pi_z", customer_details: { email: "late@example.com" } });
+  // The list amount of the Stripe price (never amount_total) maps the plan when no id is configured.
+  const byPrice = makeDb([{ price: { id: "price_unmapped", unit_amount: 34900, product: { id: "prod_unmapped", metadata: {} } } }]);
+  assert.equal((await processEvent(session("cs_a"), byPrice, opts)).status, "created");
+  assert.deepEqual(byPrice.fetchCalls, ["cs_a"]);
+  assert.equal(byPrice.rows[0].plan, "lifetime-349");
+  // A price or product metadata tag wins, whatever the amounts.
+  const byMeta = makeDb([{ price: { id: "price_x", unit_amount: 99999, product: { id: "prod_x", metadata: { meldmind_plan: "lifetime-499" } } } }]);
+  assert.equal((await processEvent(session("cs_b"), byMeta, opts)).status, "created");
+  assert.equal(byMeta.rows[0].plan, "lifetime-499");
+  // A Stripe read error releases the event so the retry runs.
+  const broken = Object.assign(memoryDb(), { async fetchLineItems() { throw new Error("stripe down"); } });
+  const ev1 = session("cs_c");
+  await assert.rejects(processEvent(ev1, broken, opts), /stripe down/);
+  assert.equal(broken.events.has(ev1.id), false);
+});
+
+test("planForSession uses ids and metadata only, never amount_total", () => {
+  assert.equal(planForSession({ amount_total: 34900 }, undefined), null);
+  assert.equal(planForSession({ amount_total: 1, metadata: { meldmind_plan: "lifetime-499" } }, []), "lifetime-499");
+  assert.equal(planForSession({ metadata: { meldmind_plan: "not-a-plan" } }, []), null);
+  assert.equal(planForSession({}, [{ price: { id: "price_q", unit_amount: 49900 } }]), "lifetime-499");
+});
+
 test("unpaid sessions, unknown amounts and other event types are ignored", async () => {
   const db = memoryDb();
   assert.equal((await processEvent(ev("checkout.session.completed", { mode: "payment", payment_status: "unpaid", amount_total: 34900, customer_details: { email: "a@b.co" } }), db, opts)).reason, "not_paid");
-  assert.equal((await processEvent(ev("checkout.session.completed", { mode: "payment", payment_status: "paid", amount_total: 100, customer_details: { email: "a@b.co" } }), db, opts)).reason, "not_a_plan");
+  // A paid session with no plan id in the event and no way to read its line items is not guessed from the amount.
+  const noIds = await processEvent(ev("checkout.session.completed", { id: "cs_x", mode: "payment", payment_status: "paid", amount_total: 34900, customer_details: { email: "a@b.co" } }), db, opts);
+  assert.equal(noIds.status, "unresolved");
+  assert.equal(db.events.size, 0, "the event id is released so Stripe's retry can run");
+  // Line items that are not a Meldmind plan are ignored.
+  const other = { ...memoryDb(), fetchLineItems: async () => [{ price: { id: "price_other", unit_amount: 100, product: "prod_other" } }] };
+  assert.equal((await processEvent(ev("checkout.session.completed", { id: "cs_y", mode: "payment", payment_status: "paid", amount_total: 100, customer_details: { email: "a@b.co" } }), other, opts)).reason, "not_a_plan");
   assert.equal((await processEvent(ev("customer.created", { id: "cus_9" }), db, opts)).reason, "event_type");
   assert.equal((await processEvent({ type: "invoice.paid" }, db, opts)).status, "ignored");
   assert.equal((await processEvent(ev("invoice.paid", { customer: "c", lines: { data: [] } }), db, opts)).reason, "not_a_subscription");
