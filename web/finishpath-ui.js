@@ -92,7 +92,8 @@ export function mountPair(el, opts = {}) {
   el.appendChild(pair);
   const result = { kind: opts.kind || "command", text, name: opts.name || "" };
   CC()._lastResult = result;
-  pair.querySelector("[data-fp-good]").addEventListener("click", () => openCard(pair, result));
+  // One step (0.4.21, M16): Looks good, Finish opens the Finish panel straight away. No second confirm card.
+  pair.querySelector("[data-fp-good]").addEventListener("click", () => confirmFinish(result));
   pair.querySelector("[data-fp-edit]").addEventListener("click", () => {
     pair.querySelector(".fp-card")?.remove();
     if (opts.onEdit) { opts.onEdit(); return; }
@@ -150,7 +151,7 @@ async function finishNow() {
     }
   }
   if (!result?.text) { toast("Make something first, then press Finish.", true); return; }
-  openCard(bar, result);
+  confirmFinish(result); // one step (0.4.21, M16)
 }
 
 // Undo last step and Branch from here on a project's steps (the walkthrough stages Build and Review).
