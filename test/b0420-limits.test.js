@@ -74,3 +74,12 @@ test("the budget card says what still works; the Pro note shows before the form;
   assert.match(read("server", "feature-gate.js"), /priceNote:/);
   assert.match(read("web", "app.js"), /id="cc-call-table"/);
 });
+
+test("Images: Generate says why it is off, the price is automatic, no '0 batches'", () => {
+  const src = read("web", "features", "images.js");
+  assert.match(src, /Press Estimate first/);
+  assert.match(src, /autoEst/);
+  assert.match(src, /No images yet/);
+  const ba = read("server", "plugins", "buildall.js");
+  assert.match(ba, /Waiting for you|needs\(r\.json\?\.error \|\| "The preview needs you\."\)/);
+});

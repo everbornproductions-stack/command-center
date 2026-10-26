@@ -156,7 +156,7 @@ function builderPlan(body) {
       } },
       { id: "plan", label: STEP_LABELS.plan, run: async () => {
         const r = await callRoute("POST", `${base}/preview`, input);
-        if (r.status === 400 && r.json?.code === "legal") return needs(r.json.error);
+        if (r.status >= 400 && r.status < 500) return needs(r.json?.error || "The preview needs you.");
         const out = check(r, "The preview");
         jobId = out.job.id;
         draft = out.draft;
@@ -272,7 +272,10 @@ function remixPlan(body) {
         return { note: assumed.length ? `Filled from your description. ${assumed.length} assumed.` : "Filled from your description." };
       } },
       { id: "plan", label: STEP_LABELS.plan, run: async () => {
-        check(await callRoute("POST", "/api/remix/preview", payload), "The preview");
+        const r = await callRoute("POST", "/api/remix/preview", payload);
+        // 0.4.20: a fix the person can make (name it, reword it) is "Waiting for you", not "Did not finish"
+        if (r.status >= 400 && r.status < 500) return needs(r.json?.error || "The preview needs you.");
+        check(r, "The preview");
         return { note: "Previewed. Nothing was sent." };
       } },
       { id: "build", label: STEP_LABELS.build, run: async () => {
