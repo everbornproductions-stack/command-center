@@ -24,6 +24,9 @@ test("phone 390 px: no horizontal scroll on chat, projects, settings, help", { s
 test("phone 390 px: header pills end inside the screen", { skip: findBrowser() ? false : "no Chrome installed" }, async () => {
   const t = await bootPage({ width: 390, height: 844, mode: "simple" });
   try {
+    // The header squeezes itself in a later frame (fonts load slower on Windows), so wait for it to settle.
+    const ends = () => ["#conn-pill", ".top-right"].map((q) => { const e = document.querySelector(q); return !e || getComputedStyle(e).display === "none" ? 0 : Math.round(e.getBoundingClientRect().right); });
+    await t.page.waitForFunction((src) => new Function(`return (${src})()`)().every((x) => x <= 390), ends.toString(), { timeout: 8000 }).catch(() => {});
     const r = await t.page.evaluate(() => ["#conn-pill", ".top-right"].map((s) => { const e = document.querySelector(s); if (!e || getComputedStyle(e).display === "none") return null; return Math.round(e.getBoundingClientRect().right); }));
     for (const x of r) if (x != null) assert.ok(x <= 390, `header piece ends at ${x}`);
   } finally { await t.close(); }
