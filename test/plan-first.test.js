@@ -32,7 +32,8 @@ fs.writeFileSync(credentials, "{}");
 const setPlanFirst = (on) => store.putDoc("settings", { ...(store.doc("settings", () => ({})) || {}), planFirst: on });
 const job = { capability: "writing", difficulty: 1, mode: "balanced" };
 
-test("off by default: no plan rows, and the ranking is the old one", async () => {
+test("switched off on purpose: no plan rows, and the ranking is the old one", async () => {
+  setPlanFirst(false);
   await SR.allStatus({ refresh: true });
   assert.equal(rank(job).some((m) => m.planRoute), false);
 });

@@ -6,7 +6,7 @@ export const SWITCH = "When API credits run out, use my subscriptions";
 export const ORDER_LINE = "1. Official apps on this PC, 2. Website (if you turned it on), 3. You copy it over";
 export const STEP_LABEL = { apps: "Official apps on this PC", website: "Website (if you turned it on)", copy: "You copy it over" };
 export const PLAN_FIRST_LABEL = "Use my plan first";
-export const PLAN_FIRST_NOTE = "Easy and everyday jobs go to an official app on this PC that is signed in with your own subscription (Claude Code, Codex, Gemini CLI) before any model that charges per call. If an app runs out of quota it sits out for an hour and the next best choice answers.";
+export const PLAN_FIRST_NOTE = "Jobs go to an official app on this PC that is signed in with your own subscription (Claude Code, Codex, Gemini CLI) before any model that charges per call. This is on unless you turn it off. If an app runs out of quota it sits out for an hour and the next best choice answers.";
 export const WAIT_NOTE = "Meldmind checks for the answer on its own. Nothing is sent anywhere for you.";
 
 const plainEsc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -42,6 +42,7 @@ export function panelHtml(view = {}, { esc = plainEsc, setup = false } = {}) {
     <div class="cat-h" style="margin-top:12px">${esc(PLAN_FIRST_LABEL)}</div>
     <label class="row small" style="gap:6px"><input type="checkbox" id="cc-aw-planfirst" ${view.planMeter?.on ? "checked" : ""}> ${esc(PLAN_FIRST_LABEL)}</label>
     <div class="small dim">${esc(PLAN_FIRST_NOTE)}</div>
+    ${view.planMeter?.line ? `<div class="small" data-aw-loginline>${esc(view.planMeter.line)}</div>` : ""}
     ${(view.planMeter?.routes || []).filter((r) => r.ready).map((r) => `<div class="small" data-aw-meter="${esc(r.id)}">${esc(r.name)}: ${Number(r.answersToday) || 0} answer${r.answersToday === 1 ? "" : "s"} today${r.outOfQuota ? `, out of quota since ${esc(new Date(r.outAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}` : ""}</div>`).join("")}
     <div class="cat-h" style="margin-top:12px">2. Website</div>
     <label class="row small" style="gap:6px"><input type="checkbox" id="cc-aw-website" ${view.website ? "checked" : ""}> ${esc(view.websiteLabel || "Let Meldmind use the website for me (ChatGPT, Claude, Grok)")}</label>
