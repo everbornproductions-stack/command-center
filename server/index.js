@@ -22,7 +22,7 @@ import { handleStart as ssoStart, enabledProviders as ssoProviders } from "./sso
 import { bus, emit } from "./events.js";
 import {
   BAD_LINK, BIND_FAIL, NO_LAN, cookieValue, ensureWindowsFirewall, isLanSocket,
-  lanCandidates, lanHostOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
+  lanCandidates, lanHostOk, tunnelHostOk, tunnelOriginOk, lanOriginOk, loopbackHost, newPairToken, pairCookie, pairPathUrl, pairTokenOk, pairUrl,
   preferredLanIPv4, probePort, readInterfaces, tokenFromPairPath, unreachableError,
 } from "./pairing.js";
 import { loadLedger, summary as ledgerSummary, recordCredits, recordCall } from "./ledger.js";
@@ -133,15 +133,17 @@ function tokenOk(presented) {
   const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+// The one tunnel host this app was told to use (Settings or CC_TUNNEL_HOST). Empty means no tunnel is allowed.
+const ownTunnelHost = () => process.env.CC_TUNNEL_HOST || settings().tunnelHost || "";
 const hostOk = (req) => {
   const host = req.headers.host || "";
-  return loopbackHost(host, PORT) || host.includes("trycloudflare.com") || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
+  return loopbackHost(host, PORT) || tunnelHostOk(host, ownTunnelHost()) || (phonePair().on && lanHostOk(host, PORT, readInterfaces()));
 };
 const originOk = (req) => {
   if (!req.headers.origin) return true;
   const o = String(req.headers.origin).toLowerCase();
   if ([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`].includes(o)) return true;
-  if (o.includes("trycloudflare.com")) return true;
+  if (tunnelOriginOk(o, ownTunnelHost())) return true;
   return phonePair().on && lanOriginOk(o, PORT, readInterfaces());
 };
 function phonePair() {
