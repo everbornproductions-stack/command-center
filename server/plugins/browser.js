@@ -1,7 +1,7 @@
 // Built-in browser helper (Phase 27): Settings > Integrations > Browser helper, jobs on a click, the OK / No
 // answers, Stop, and the Google sign-in for Gmail and Drive. The core is server/browser.js; the desktop
 // window is electron/browser-helper.cjs; Google is server/google.js.
-import { configView, saveSettings, dispatch, listJobs, runJobs, decide, stopJob, hubCard, routeAdvice, TAGS } from "../browser.js";
+import { configView, saveSettings, dispatch, listJobs, runJobs, decide, stopJob, hubCard, routeAdvice, TAGS, ROLES, ROLE_META, ORAV_PHASES, listNotes, addNote, deleteNote, summarizePage } from "../browser.js";
 import { agentNeeds } from "../grokbot.js";
 import * as G from "../google.js";
 export const id = "browser";
@@ -14,7 +14,12 @@ export async function routes(req, res, url, body, h) {
   const seg = p.split("/").filter(Boolean);
   const m = req.method;
   try {
-    if (m === "GET" && p === "/") return h.json(res, 200, { config: configView(), jobs: listJobs(30), card: hubCard() });
+    if (m === "GET" && p === "/") return h.json(res, 200, { config: configView(), jobs: listJobs(30), card: hubCard(), notes: listNotes() });
+    if (m === "GET" && p === "/roles") return h.json(res, 200, { roles: ROLES.map((r) => ROLE_META[r]), phases: ORAV_PHASES });
+    if (m === "GET" && p === "/notes") return h.json(res, 200, { notes: listNotes() });
+    if (m === "POST" && p === "/notes") return h.json(res, 201, { note: addNote(body || {}) });
+    if (m === "DELETE" && seg[0] === "notes" && seg[1]) return h.json(res, 200, deleteNote(seg[1]));
+    if (m === "POST" && p === "/page-summary") return h.json(res, 200, await summarizePage(body || {}));
     if (m === "GET" && p === "/route") return h.json(res, 200, routeAdvice(url.searchParams.get("prompt") || ""));
     if (m === "POST" && p === "/config") return h.json(res, 200, saveSettings(body || {}));
     if (m === "GET" && p === "/jobs") { const run = url.searchParams.get("run"); return h.json(res, 200, run ? runJobs(run) : listJobs(60)); }
@@ -22,7 +27,7 @@ export async function routes(req, res, url, body, h) {
     if (m === "POST" && (p === "/jobs" || p === "/demo")) {
       const task = p === "/demo" ? DEMO_TASK() : String(body?.task || "").trim();
       if (!task) return h.json(res, 400, { error: "task required" });
-      const job = await dispatch({ task, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), accountId: body?.accountId || null, source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null, getItDone: p === "/demo" ? false : body?.getItDone === true, sendMessages: p === "/demo" ? false : body?.sendMessages === true } });
+      const job = await dispatch({ task, role: p === "/demo" ? undefined : body?.role, context: p === "/demo" ? "" : String(body?.context || ""), needs: agentNeeds(task).filter((t) => TAGS.includes(t)), accountId: body?.accountId || null, source: { kind: "click", projectId: typeof body?.projectId === "string" ? body.projectId.slice(0, 80) : null, getItDone: p === "/demo" ? false : body?.getItDone === true, sendMessages: p === "/demo" ? false : body?.sendMessages === true } });
       return h.json(res, 202, { job });
     }
     if (m === "POST" && seg[0] === "jobs" && seg[1] && seg[2] === "approve") return h.json(res, 200, { job: decide(seg[1], String(body?.approval || ""), true) });

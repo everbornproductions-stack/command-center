@@ -58,6 +58,7 @@ async function renderCommand(el) {
       <span class="muted" style="margin-left:8px">Sources:</span>
       ${filterBtn("web", "Web")}${filterBtn("news", "News")}${filterBtn("academic", "Academic")}</div>
     ${planLine(d) ? `<div class="small dim" style="margin-top:4px">${esc(planLine(d))}</div>` : ""}
+    ${S.searchDepth === "deep" && d.research?.flag_agents ? `<div class="small" id="cc-deep-cost-warning" style="color:var(--amber);margin-top:4px">${esc(d.research.costWarning || "Deep research runs parallel agents and uses about 15 times the tokens of a normal chat.")}</div>` : ""}
     ${anyOn && !d.active.engine ? `<div class="small" style="color:var(--amber);margin-top:4px">${esc(d.active.reason)}</div>` : ""}
   </div>`;
   el.querySelectorAll("[data-mode]").forEach((cb) => cb.addEventListener("change", async () => {
@@ -123,7 +124,8 @@ function renderDeliverable(el, run) {
     return;
   }
   const name = (who) => { try { return window.CC.pname(who); } catch { return who || ""; } };
-  el.innerHTML = `<div class="cc-src">${sets.map((set) => `<div class="cc-src-sec"><span class="small muted" style="width:100%">Sources${set.label ? ` · ${esc(name(set.label))}` : ""}${set.engine ? ` · ${esc(set.engine)}` : ""} · click a number to open the page</span>${chips(set.sources)}</div>`).join("")}
+  const facetHtml = m?.facets?.length ? `<div class="small dim" style="width:100%;margin-top:4px">Facets (${esc(m.effort?.level || "standard")}): ${m.facets.map((f) => `<span class="chip">${esc(f.title)} (${esc(f.status)})</span>`).join(" ")}</div>` : "";
+  el.innerHTML = `<div class="cc-src">${facetHtml}${sets.map((set) => `<div class="cc-src-sec"><span class="small muted" style="width:100%">Sources${set.label ? ` · ${esc(name(set.label))}` : ""}${set.engine ? ` · ${esc(set.engine)}` : ""} · click a number to open the page</span>${chips(set.sources)}</div>`).join("")}
     ${researchDone ? `<div class="row" style="margin-top:8px;gap:8px;width:100%"><button class="btn sm" type="button" id="cc-research-pdf">Export PDF</button><button class="btn sm" type="button" id="cc-research-docx">Export Word</button><button class="btn sm" type="button" id="cc-research-mission">Continue as a mission</button></div>` : ""}</div>`;
   const flat = sets[0]?.sources || m?.sources || [];
   linkify(document.getElementById("out-md"), flat);

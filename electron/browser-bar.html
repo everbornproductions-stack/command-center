@@ -30,7 +30,7 @@
   .pw button { margin-left: 8px; }
   .log { flex: 1; overflow: auto; margin: 0 12px 6px; font: 12px/1.35 ui-monospace, Consolas, monospace; opacity: .85; }
   .log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .log .refused, .log .error, .log .no { color: #fca5a5; } .log .ok, .log .done { color: #86efac; } .log .ask { color: #fbbf24; }
+  .log .refused, .log .error, .log .no { color: #fca5a5; } .log .ok, .log .done { color: #86efac; } .log .ask { color: #fbbf24; } .log .observe, .log .reason, .log .verify { color: #93c5fd; }
 </style>
 </head>
 <body>
@@ -57,7 +57,8 @@
     const j = s.job || {};
     $("dot").className = "dot " + (j.status || "");
     $("task").textContent = j.task ? j.task : "Waiting for a job";
-    $("meta").textContent = j.status ? `${j.statusLabel} · ${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}` : "";
+    const roleBit = s.roleLabel ? `${s.roleLabel}${s.oravPhase ? ` (${s.oravPhase})` : ""} · ` : "";
+    $("meta").textContent = j.status ? `${roleBit}${j.statusLabel} · ${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}` : "";
     $("stop").disabled = !j.id || ["done", "failed"].includes(j.status);
     $("gd").className = s.getDone && s.getDone.on ? "banner on" : "banner";
     $("pw").className = !pwOff && s.passwordTip ? "pw on" : "pw";

@@ -43,7 +43,7 @@ function jobHtml(j, { full = false } = {}) {
   const log = (j.log || []).slice(full ? -60 : -8).reverse().map((l) => `<div class="${esc(l.kind)}" title="${esc(l.text)}">${time(l.ts)}  ${esc(l.text)}</div>`).join("");
   const arts = (j.artifacts || []).map((a) => a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>` : esc(a.name)).join(" · ");
   return `<div class="cc-bh-job" data-bh-job="${esc(j.id)}">
-    <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
+    <div class="row small" style="gap:6px">${light(j.status === "done" ? "green" : j.status === "failed" ? "red" : j.status === "needs_approval" ? "amber" : "grey")}<b>Browser helper</b><span class="chip ${CHIP[j.status] || ""}">${esc(LABEL[j.status] || j.status)}</span>${j.roleLabel ? `<span class="chip" title="Active browser agent role">${esc(j.roleLabel)}${j.oravPhase ? ` · ${esc(j.oravPhase)}` : ""}</span>` : ""}${j.accountLabel ? `<span class="chip" title="Google account for this task">${esc(j.accountLabel)}</span>` : ""}${j.driver === "reader" ? `<span class="chip" title="No desktop window: pages are read as text, without JavaScript">text reader</span>` : ""}${j.late ? `<span class="chip">arrived later</span>` : ""}
       <span class="dim" style="margin-left:auto">${j.steps || 0} steps · $${Number(j.cost || 0).toFixed(4)}${j.model ? ` · ${esc(j.model.name || j.model.model)}` : ""}</span>${OPEN(j) ? `<button class="ghost small" data-stop>Stop</button>` : ""}</div>
     ${j.getDone?.on ? `<div class="small" style="margin-top:6px">Get it done is on for this job. Stop is still here.</div>` : ""}
     ${j.passwordTip && !j.approval?.login ? (window.CC.passwordTipHtml?.() || "") : ""}
@@ -91,10 +91,11 @@ function renderCommand(el) {
   const open = (data?.jobs || []).filter(OPEN);
   const accounts = data?.config?.google?.accounts || [];
   const picker = accounts.length ? `<label class="row small" style="gap:6px">Account <select id="bh-account" title="Which Google account this task uses">${accounts.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? "selected" : ""}>${esc(a.label)}${a.isDefault ? " (default)" : ""}${a.connected ? "" : " (not connected)"}</option>`).join("")}</select></label>` : "";
+  const rolePick = data?.config?.flag_agents ? `<label class="row small" style="gap:6px">Role <select id="bh-role" title="Browser agent role"><option value="auto">All roles (auto)</option>${(data?.config?.roles || []).map((r) => `<option value="${esc(r.id)}" ${data?.config?.role === r.id ? "selected" : ""}>${esc(r.name)}: ${esc(r.label)}</option>`).join("")}</select></label>` : "";
   el.innerHTML = `<div style="margin-top:8px">
     <div class="row small" style="gap:8px;flex-wrap:wrap"><span class="muted">Browser helper</span>
       <span class="seg" id="bh-choice" title="Councils and missions: hand the browser helper the parts that need a website, Gmail or Drive (when Grok Bot is not set up)">${["auto", "always", "never"].map((c) => `<button data-c="${c}" class="${ch === c ? "on" : ""}">${c === "auto" ? "when needed" : c === "always" ? "Always" : "Never"}</button>`).join("")}</span>
-      ${picker}
+      ${picker}${rolePick}
       <button class="ghost small" id="bh-settings">settings</button>
       <button class="btn sm" id="bh-send" ${ready ? "" : "disabled"} title="${ready ? "The helper browses for the orders above in its own window; it asks before sending, posting, deleting, buying or submitting a form" : esc(card.status?.detail || "")}" style="margin-left:auto">Send to Browser helper</button></div>
     ${open.map((j) => jobHtml(j)).join("")}</div>`;
@@ -110,7 +111,8 @@ function renderCommand(el) {
       if (projectId) { try { context = (await api(`/memory/context?projectId=${encodeURIComponent(projectId)}`)).context || ""; } catch {} }
       const accountId = el.querySelector("#bh-account")?.value || "";
       const gd = window.CC?.getDoneChoice;
-      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}), getItDone: !!gd?.on, sendMessages: !!gd?.send } });
+      const role = el.querySelector("#bh-role")?.value || "";
+      await api("/browser/jobs", { method: "POST", body: { task, context, projectId, ...(accountId ? { accountId } : {}), ...(role ? { role } : {}), getItDone: !!gd?.on, sendMessages: !!gd?.send } });
       toast(gd?.on ? "The browser helper is on it. Get it done is on for this job. Spending money and a permanent delete still need one tap." : "The browser helper is on it. It asks before anything is sent, posted, deleted, bought or submitted.");
       await refresh();
     } catch (err) { toast(err.message, true); }
