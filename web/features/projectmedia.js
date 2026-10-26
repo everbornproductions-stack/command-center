@@ -184,7 +184,7 @@ function renderCardHtml(item, p) {
   const tagsHtml = (item.tags || [])
     .map(
       (t) =>
-        `<span class="pm-tag">${esc(t)} <button type="button" class="ghost small" style="padding:0 2px;font-size:10px" data-pm-rmtag="${esc(t)}" data-pm-asset="${esc(item.id)}" aria-label="Remove tag ${esc(t)}">✕</button></span>`
+        `<span class="pm-tag">${esc(t)} <button type="button" class="ghost small" style="padding:0 2px;font-size:10px" data-pm-rmtag="${esc(t)}" data-pm-asset="${esc(item.id)}" aria-label="Remove tag ${esc(t)}">Remove</button></span>`
     )
     .join("");
 
@@ -929,7 +929,7 @@ window.CC.syncAssetTray = async (viewName) => {
             : `<option value="">No project</option>`
         }
       </select>
-      <button type="button" class="ghost small" data-tray-act="refresh" title="Refresh tray">↻</button>
+      <button type="button" class="ghost small" data-tray-act="refresh" title="Refresh tray">Refresh</button>
       <button type="button" class="ghost small" data-tray-act="toggle" aria-expanded="true">Collapse</button>
     </div>
     <div class="tray-body">
