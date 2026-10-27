@@ -151,7 +151,7 @@ async function speak({ run, provider, model, system, messages, scope, target }) 
   let current = agent;
   try {
     const r = await completeFallback(
-      { provider, model, maxTokens: 1800, system, messages },
+      { allowStandIn: true, provider, model, maxTokens: 1800, system, messages },
       { missionId, tools: false, role: "followup", mode, cls: run.classification || undefined },
       {
         onDelta: (chunk) => emit("agent.delta", { agent: current, missionId, text: chunk, followup: true, scope, target: target || "", role: "followup" }),

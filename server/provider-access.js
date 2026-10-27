@@ -4,6 +4,7 @@ import { PROVIDERS } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { connectionOf } from "./connect.js";
 import { describePause, creditLine, CHECK_AGAIN_TITLE } from "./pause.js";
+import { troubleFor, busyLine } from "./fallback.js";
 
 export const AUTH_TYPES = ["key", "oauth", "mcp", "handoff", "local"];
 
@@ -64,11 +65,16 @@ export function accessFor(p) {
       connected = true;
     }
   }
+  // 0.4.21 Gemini check: the cooldown the trouble table holds, with the model name and its end time
+  // ("Gemini 3.8 Flash: busy until 8:42 PM"). Null when this AI can take work.
+  let busy = null;
+  try { busy = busyLine(troubleFor(p.id)); } catch { busy = null; }
   return {
     auth,
     label,
     connect,
     connected,
+    busy,
     paused: !!paused,
     pause: paused ? { label: paused.label, kind: paused.kind, nextCheckAt: paused.nextCheckAt, nextCheckText: paused.nextCheckText, checkAgainTitle: CHECK_AGAIN_TITLE } : null,
     credits: p.kind === "text" && keyed ? creditLine(p.id) : null,

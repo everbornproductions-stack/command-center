@@ -110,7 +110,7 @@ async function oneAnswer({ id, pick, prompt, cls }) {
   const t0 = Date.now();
   const demo = !!PROVIDERS[provider]?.demo;
   try {
-    const r = await completeFallback({
+    const r = await completeFallback({ allowStandIn: true,
       provider, model, maxTokens: 900, system: SYSTEM,
       messages: [{ role: "user", content: prompt }],
     }, { missionId: id, role: "answer", cls, mode: "balanced", tools: false });

@@ -9,6 +9,7 @@ import { isDeadNow, heldByRealFailure } from "./health.js";
 import { runnableOnly } from "./runnable.js";
 import { whyOut } from "./send-check.js";
 import { describePause } from "./pause.js";
+import { troubleFor, troubledModels, busyLine } from "./fallback.js";
 
 function takeUnique(list, n) {
   const out = [];
@@ -99,9 +100,16 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const councilIds = new Set(seats.map((m) => m.provider));
   const readers = [];
   const seen = new Set();
+  // 0.4.21 Gemini check: every model of this AI that is on a cooldown, named with its end time
+  const bench = troubledModels();
+  const busyFor = (pid) => {
+    const rows = Object.values(bench).filter((t) => t.provider === pid).map((t) => busyLine(t)).filter(Boolean);
+    return rows.length ? rows.join(". ") : null;
+  };
   const addAi = (m) => {
     if (!m?.provider || seen.has(m.provider)) return;
     seen.add(m.provider);
+    const busy = busyFor(m.provider);
     readers.push({
       id: m.provider,
       name: m.providerName || m.name || m.provider,
@@ -110,6 +118,7 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
       council: councilIds.has(m.provider),
       mission: missionIds.has(m.provider),
       receives: "the orders and the short excerpts",
+      ...(busy ? { busy } : {}),
     });
   };
   for (const m of seats) addAi(m);
@@ -131,7 +140,9 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
     let w = null; try { w = whyOut(r.id); } catch { /* unknown AI: keep it */ }
     if (!w) return true;
     let next = ""; try { next = describePause(r.id)?.nextCheckText || ""; } catch { next = ""; }
-    out.push({ id: r.id, name: r.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available", ...(next ? { next } : {}) });
+    let t = null; try { t = troubleFor(r.id); } catch { t = null; }
+    const line = t ? busyLine(t) : null;
+    out.push({ id: r.id, name: r.name, model: t?.model || r.model || null, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available", until: w.until ?? t?.until ?? null, ...(line ? { line } : {}), ...(next ? { next } : {}) });
     return false;
   });
   const ordered = orderReaders(live, record);

@@ -60,7 +60,7 @@ function subscriptionLines() {
 async function askModel(system, user) {
   const m = cheapest(60);
   if (!m) throw new Error("No model is available for classification.");
-  const r = await completeFallback({
+  const r = await completeFallback({ allowStandIn: true,
     provider: m.provider, model: m.model, maxTokens: 120, system,
     messages: [{ role: "user", content: user }],
   }, { role: "classify", small: true, cls: { capability: "fast", difficulty: 1 }, mode: "economy", tools: false });

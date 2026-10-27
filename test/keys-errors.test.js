@@ -26,7 +26,7 @@ test("provider refusals are explained in plain words, with the provider's messag
   assert.equal(e.detail, "Key rejected (401): invalid x-api-key");
   e = explainProviderError(ant, 400, { error: { message: "Your credit balance is too low to access the Anthropic API." } });
   assert.equal(e.status, "amber", "low balance is not a bad key");
-  assert.equal(explainProviderError(xai, 429, {}).detail, "Rate limited");
+  assert.equal(explainProviderError(xai, 429, {}).detail, "Rate or quota limit, try again in a minute");
   assert.match(explainProviderError(xai, 503, null, "<html>oops</html>").detail, /server error \(503\)$/, "HTML bodies are not shown");
   const masked = providerMessage({ error: { message: "Incorrect API key provided: sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ" } });
   assert.ok(!masked.includes("GHIJKLMNOP"), "key values are masked in messages");
@@ -46,7 +46,7 @@ test("provider refusals are explained in plain words, with the provider's messag
   assert.equal(denied.status, "red");
   assert.match(denied.detail, /^Access denied \(403\): This model is not enabled/);
   assert.equal(explainProviderError(xaiLive, 402, {}).detail, "Payment required: no credits");
-  assert.equal(explainProviderError(xaiLive, 429, {}).detail, "Rate limited");
+  assert.equal(explainProviderError(xaiLive, 429, {}).detail, "Rate or quota limit, try again in a minute");
 });
 
 test("noteCall uses the error body, and a later success clears a stale network flag", () => {

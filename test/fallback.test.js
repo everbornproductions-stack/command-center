@@ -146,8 +146,10 @@ async function waitRun(s, pred, label, ms = 60000) {
 }
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
 // Follow the id the chat returns. A Windows clock can stamp the run a tick before Date.now() here, so startedAt > t0 never matches a run that already finished.
+// Every step here is the Auto route (Let Meldmind choose): allowStandIn is what lets another provider
+// stand in. A person's own pinned pick never reaches another provider; that lives in test/gemini-0421-q.test.js.
 async function postSingle(s, body) {
-  const posted = await s.api("/chat", { method: "POST", body });
+  const posted = await s.api("/chat", { method: "POST", body: { allowStandIn: true, ...body } });
   assert.equal(posted.status, 202);
   assert.match(posted.json?.runId || "", /^s-/);
   return posted.json.runId;

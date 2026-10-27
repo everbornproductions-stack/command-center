@@ -160,7 +160,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       if (m.priceModel) assertSpendAllowed({ provider: m.provider, estimate: estimateCostAt(m.priceModel, 1500, 800) });
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held], skipProviders: skipSet, onTrouble: runTrouble })) {
+      for await (const ev of fallbackChat({ allowStandIn: true, provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held], skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -229,7 +229,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const s = Date.now();
       try {
         // a small job: a stand-in (free tier first) takes over if the reviewer's provider fails (Phase 26)
-        const r = await completeFallback({
+        const r = await completeFallback({ allowStandIn: true,
           provider: reviewer.provider, model: reviewer.model, maxTokens: 700,
           system: `You are a strict judge. Several anonymous answers to the same question follow. Score each 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"scores": {"A": n, ...}, "best": "A", "notes": {"A": "<=20 words", ...}, "disagreement": "<=30 words on where the answers conflict, or 'none'"}`,
           messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}` }],
@@ -290,7 +290,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
       const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
       let text = "";
-      for await (const ev of fallbackChat({
+      for await (const ev of fallbackChat({ allowStandIn: true,
         provider: chair.provider, model: chair.model, maxTokens: Math.max(shape.maxTokens || 0, 1200, maxTokens), ...(shape.effort ? { effort: shape.effort } : {}),
         system: chairSystem,
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
@@ -374,7 +374,7 @@ async function lateAnswer(job) {
   if (job.status === "done" && job.text) {
     Object.assign(a, { text: job.text, artifacts: job.artifacts, cost: 0, free: true });
     try {
-      const r = await completeFallback({
+      const r = await completeFallback({ allowStandIn: true,
         provider: c.chair?.provider, model: c.chair?.model, maxTokens: 300,
         system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
         messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${job.text.slice(0, 12000)}` }],
@@ -430,7 +430,7 @@ async function subscriptionAnswer(job, res) {
     const a = { provider: prev.provider || job.provider, model: prev.model || job.model, letter: prev.letter, text: res.text, late: true, cost: 0, free: true, jobId: job.id, viaSubscription: { tag: res.tag, by: res.by, route: res.route } };
     try {
       const judge = c.chair?.provider ? c.chair : (c.members || [])[0];
-      const r = await completeFallback({
+      const r = await completeFallback({ allowStandIn: true,
         provider: judge?.provider, model: judge?.model, maxTokens: 300,
         system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
         messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${res.text.slice(0, 12000)}` }],
@@ -452,7 +452,7 @@ async function subscriptionAnswer(job, res) {
       const chair = c.chair?.provider ? c.chair : (c.members || [])[0];
       try {
         const packet = good.map((x) => `### Answer ${x.letter} (${nameOf(x.provider)}${c.scoreboard?.[x.model]?.avg != null ? `, score ${c.scoreboard[x.model].avg}/10` : ""})\n${x.text}`).join("\n\n");
-        const r = await completeFallback({
+        const r = await completeFallback({ allowStandIn: true,
           provider: chair?.provider, model: chair?.model, maxTokens: 1800,
           system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
           messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWERS:\n${packet}` }],

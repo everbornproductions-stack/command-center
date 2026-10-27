@@ -24,9 +24,11 @@ const SC = await import("../server/send-check.js");
 const R = await import("../server/router.js");
 
 const ask = [{ role: "user", content: "Say hello to my customers." }];
+// The Auto route (Let Meldmind choose): allowStandIn is what lets another provider stand in.
+// A person's own pinned pick never reaches another provider; that lives in test/gemini-0421-q.test.js.
 async function run(provider, model) {
   const seen = []; let text = "";
-  for await (const ev of FB.fallbackChat({ provider, model, messages: ask, maxTokens: 300 }, { allowEmpty: false })) { seen.push(ev); if (ev.type === "delta") text += ev.text; }
+  for await (const ev of FB.fallbackChat({ provider, model, allowStandIn: true, messages: ask, maxTokens: 300 }, { allowEmpty: false })) { seen.push(ev); if (ev.type === "delta") text += ev.text; }
   return { text, events: seen, done: seen.find((e) => e.type === "done"), hops: seen.filter((e) => e.type === "fallback") };
 }
 const reset = () => { for (const k of Object.keys(m.behave)) m.behave[k] = "ok"; m.behave.openrouter = "ok"; for (const p of ["xai", "groq", "openrouter"]) FB.clearTrouble(p); FF.clearCreditCache(); };

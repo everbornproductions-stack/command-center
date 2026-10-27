@@ -579,14 +579,14 @@ export function abortChat(id) {
   ctl.abort();
   return true;
 }
-async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend }) {
+async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend }) {
+async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }) {
   const pinnedModel = !!(provider && model);
   const id = runId || "s-" + Date.now().toString(36);
   if (isPrivate) markPrivateRun(id);
@@ -606,6 +606,9 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   if (realJobSkipsDemo(provider)) { provider = undefined; model = undefined; }
   const skipProvider = typeof avoid === "string" && avoid ? avoid : "";
   if (skipProvider && provider === skipProvider) { provider = undefined; model = undefined; }
+  // 0.4.21 Gemini check: a person's own pick of an AI never gets another provider silently. Auto and
+  // every unpinned route set allowStandIn, so they keep working exactly as before.
+  const standInOk = !(provider && model) || allowStandIn === true;
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     let ranked = rank({ ...cls, mode: priority });
@@ -655,7 +658,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, noSend: noSend === true, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, allowStandIn: standInOk, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, noSend: noSend === true, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -687,9 +690,9 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       if (text) m.deliverable = text;
       emit("agent.error", { agent, provider, model, missionId: id, error: "Stopped by you." });
     } else {
-    if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
+    if (err.code !== "cap" && err.code !== "paused" && err.code !== "pinned_out") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
     if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: plainMessage(err) });
-    if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
+    if (!troubleKind(err) && err.code !== "paused" && err.code !== "pinned_out") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     if (shouldWait(err)) {
       // out of API credits and no API route left: the answer comes through the person's own plan
       text = "";
@@ -699,7 +702,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     } else {
       m.status = "failed"; m.error = plainMessage((err.plain && (err.code === "empty" || (err.failures || []).length > 1)) ? err.plain : err);
       if (err.code === "empty" || err.failures) m.needsAttention = { reason: err.code === "empty" ? "empty" : "failed", failures: err.failures || [], retry: true };
-      if (err.code === "paused") m.deliverable = err.message;
+      if (err.code === "paused" || err.code === "pinned_out") m.deliverable = err.message;
     }
     }
   } finally { chatRuns.delete(id); }
