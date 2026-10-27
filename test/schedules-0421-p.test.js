@@ -85,6 +85,33 @@ test("a save that fails says Not saved and never claims a save", async () => {
   S.deleteSchedule(schedule.id);
 });
 
+test("the run prompt names the schedule, the plain trigger, the next run and where the result goes", async () => {
+  assert.equal(S.whenWords("0 9 * * 1"), "every Monday at 9:00 AM");
+  assert.equal(S.whenWords("0 17 * * 1-5"), "every weekday at 5:00 PM");
+  assert.equal(S.whenWords("0 0 * * *"), "every day at 12:00 AM");
+  assert.equal(S.whenWords("0 0 1 * *"), "every month at 12:00 AM");
+  const { schedule } = S.createSchedule(cron({ name: "Everborn Monday ideas", target: { kind: "mission", text: "Write 3 ideas.", projectId: "my-project" }, after: { action: "note" } }));
+  const r = S.trigger(schedule.id, { source: "manual" });
+  await S.idle();
+  const p = calls.at(-1).prompt;
+  assert.match(p, /Schedule: Everborn Monday ideas/);
+  assert.match(p, /Trigger: every Monday at 9:00 AM/);
+  assert.match(p, /Next run: .*2026/);
+  assert.match(p, /Result: Meldmind saves your answer as a note at projects\/my-project\/notes/);
+  assert.match(p, /You are already scheduled; just do this run's job\. Do not say you cannot schedule or save\./);
+  // a schedule that keeps its result here says so, and a paused one does not promise a run
+  const keep = S.createSchedule(cron({ name: "Kept" }));
+  S.trigger(keep.schedule.id, { source: "manual" });
+  await S.idle();
+  assert.match(calls.at(-1).prompt, /Result: Your answer is kept in Meldmind/);
+  S.setEnabled(keep.schedule.id, false);
+  S.trigger(keep.schedule.id, { source: "manual" });
+  await S.idle();
+  assert.match(calls.at(-1).prompt, /Next run: none, this schedule is paused/);
+  S.deleteSchedule(keep.schedule.id);
+  S.deleteSchedule(schedule.id);
+});
+
 test("source: the schedule screen shows Saved to and Not saved for a run", () => {
   const src = read("web/features/schedules.js");
   assert.match(src, /Saved to \$\{esc\(r\.savedPath\)\}/);

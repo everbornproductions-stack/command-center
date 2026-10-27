@@ -344,13 +344,56 @@ export async function saveRunNote(s, r, text, now = r?.finishedAt || io.now()) {
     throw e;
   }
 }
+// The trigger in plain words (0.4.21, dogfood 11): "every Monday at 9:00 AM", not "0 9 * * 1".
+const DAY_WORDS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const clock = (h, m) => `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+export function whenWords(cron) {
+  let c; try { c = parseCron(cron); } catch { return "on the schedule it was made with"; }
+  const hours = [...c.hour].sort((a, b) => a - b), mins = [...c.minute].sort((a, b) => a - b);
+  const at = hours.length === 1 && mins.length === 1 ? ` at ${clock(hours[0], mins[0])}` : "";
+  if (!c.dayAny) return `every month${at}`; // a day of the month is fixed
+  if (c.weekdayAny) return `every day${at}`;
+  const days = [...c.weekday].sort((a, b) => a - b);
+  if (!days.length) return "on the schedule it was made with";
+  if (days.length === 1) return `every ${DAY_WORDS[days[0]]}${at}`;
+  if (days.join() === "1,2,3,4,5") return `every weekday${at}`;
+  return `every ${days.map((d) => DAY_WORDS[d]).join(", ")}${at}`;
+}
+function triggerWords(s, now = io.now()) {
+  const t = s.trigger;
+  if (t.type === "cron") {
+    let next = null;
+    try { next = nextRun(parseCron(t.cron), now); } catch { /* a cron that was saved before */ }
+    return { words: whenWords(t.cron), next, paused: !s.enabled };
+  }
+  if (t.type === "folder") return { words: `when a new file lands in ${t.folder}`, next: null, paused: !s.enabled };
+  return { words: "from its webhook", next: null, paused: !s.enabled };
+}
+// What the run's own prompt says about where the answer goes.
+function whereWords(s) {
+  if (s.after?.action === "note") return `Meldmind saves your answer as a note at ${noteFolderRel(s.target.projectId)}`;
+  if (s.after?.action === "webhook") {
+    try { return `Meldmind holds your answer until you approve sending it to ${new URL(s.after.url).host}`; } catch { /* a checked url */ }
+  }
+  return "Your answer is kept in Meldmind";
+}
+
 function promptFor(s, r) {
   const head = s.target.kind === "agent" ? (s.target.text || "Do your scheduled job.") : s.target.text;
   const why = r.source === "cron" ? `This run was started by its schedule (${s.trigger.cron}) at ${new Date(r.slot || r.at).toLocaleString()}.`
     : r.source === "webhook" ? "This run was started by a webhook."
     : r.source === "folder" ? `This run was started by a new file in the watched folder: ${r.file?.name}.`
     : "This run was started by hand.";
-  return `${head}\n\n${why}${r.context ? `\n\n${r.context}` : ""}`;
+  // The facts about the schedule itself (0.4.21, dogfood 11): the answer used to say "nothing is scheduled".
+  const { words, next, paused } = triggerWords(s);
+  const facts = [
+    `Schedule: ${s.name}`,
+    `Trigger: ${words}`,
+    paused ? "Next run: none, this schedule is paused" : next ? `Next run: ${new Date(next).toLocaleString()}` : null,
+    `Result: ${whereWords(s)}`,
+    "You are already scheduled; just do this run's job. Do not say you cannot schedule or save.",
+  ].filter(Boolean).join("\n");
+  return `${head}\n\n${facts}\n\n${why}${r.context ? `\n\n${r.context}` : ""}`;
 }
 
 async function drain(id) {
