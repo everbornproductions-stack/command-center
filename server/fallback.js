@@ -99,7 +99,7 @@ export const modelKey = (pid, model) => `${pid}:${model}`;
 const state = () => doc(STATE, () => ({ skip: {}, models: {} }));
 const modelBox = (st) => (st.models ||= {});
 const stillOn = (e, now = Date.now()) => !!e && (e.until == null ? e.kind !== "cap" : now < e.until);
-const nameOf = (pid) => PROVIDERS[pid]?.name || pid;
+const nameOf = (pid) => PROVIDERS[pid]?.name || (pid === "freebuff" ? "Freebuff" : pid);
 const minutes = (ms) => (ms >= 60000 ? `${Math.round(ms / 60000)} min` : `${Math.round(ms / 1000)} s`);
 // The model's own name ("Gemini 3.8 Flash"), or the id when it is not in the registry.
 export function modelName(pid, model) {
@@ -107,7 +107,7 @@ export function modelName(pid, model) {
 }
 
 export function markTrouble(pid, kind, detail = "", { quiet = false, missionId = null, model = null } = {}) {
-  if (!KINDS.includes(kind) || !PROVIDERS[pid]) return null;
+  if (!KINDS.includes(kind) || (!PROVIDERS[pid] && pid !== "freebuff")) return null; // Freebuff is an app-like coder, not in the registry
   const st = state();
   const perModel = !!model && MODEL_KINDS.includes(kind);
   const box = perModel ? modelBox(st) : st.skip;

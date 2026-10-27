@@ -1,0 +1,7 @@
+ You: Add a function that adds two numbers
+
+ Thinking... working...
+╭──────────────────────────────────────────────────────────────╮
+│ Add to the current task                                      │
+╰──────────────────────────────────────────────────────────────╯
+ /model to change  MiMo v2.6 Flash Fast   41m left

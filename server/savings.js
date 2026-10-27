@@ -1,4 +1,4 @@
-// Legitimate ways to spend less. Free local models are tried first. Freebuff is never a provider.
+// Legitimate ways to spend less. Free local models are tried first. Freebuff (free, ad-supported) is allowed since 0.4.22; Space Bunny is never used.
 // The same model sold by two providers keeps the cheaper seller. Off-peak discounts already live in
 // estimateCostAt. A reported prompt-cache read is priced at the provider's cache rate. Batch is the
 // published half-price for work that can wait; a live run still pays the live price.
@@ -9,7 +9,8 @@ const CACHE_RATE = { anthropic: 0.1, openai: 0.5 };
 
 export function isBlockedFree(p) {
   const hay = `${p?.provider || ""} ${p?.id || ""} ${p?.name || ""} ${p?.providerName || ""} ${p?.baseUrl || ""}`.toLowerCase();
-  return hay.includes("freebuff");
+  // 0.4.22: Freebuff itself is allowed. Only the Space Bunny model (it keeps prompts) is refused.
+  return /space[\s_-]?bunny/.test(hay);
 }
 
 export function isLocalFree(m, meta = null) {

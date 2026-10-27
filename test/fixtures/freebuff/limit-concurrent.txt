@@ -1,0 +1,4 @@
+ Freebuff
+
+ Another Freebuff session is running with your account. concurrent-session limit reached.
+ Close the other session and try again.

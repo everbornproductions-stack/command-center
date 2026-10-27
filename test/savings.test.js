@@ -1,5 +1,5 @@
 // Free local models first, cheapest seller, off-peak, prompt-cache reads, and batch advice.
-// Freebuff is refused. No real key and no network.
+// Freebuff is allowed since 0.4.22 (Space Bunny is refused). No real key and no network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -122,20 +122,21 @@ test("a reported cache read costs less, and a live call is not priced as a batch
   assert.equal(batchNote("ollama", 0), null);
 });
 
-test("Freebuff is refused and never ranked", async () => {
-  assert.equal(isBlockedFree({ name: "Freebuff", baseUrl: "http://127.0.0.1:9/v1" }), true);
+test("Freebuff is allowed since 0.4.22, Space Bunny is still refused and never ranked", async () => {
+  assert.equal(isBlockedFree({ name: "Freebuff", baseUrl: "http://127.0.0.1:9/v1" }), false);
+  assert.equal(isBlockedFree({ name: "Space Bunny Alpha", baseUrl: "http://127.0.0.1:9/v1" }), true);
   assert.equal(isBlockedFree({ id: "ollama", name: "Ollama", baseUrl: "http://127.0.0.1:11434/v1" }), false);
   const blocked = {
-    id: "c-freebuff", name: "Freebuff", vendor: "Custom", color: "#F87171", kind: "text", auth: "local", api: "openai",
+    id: "c-spacebunny", name: "Space Bunny Alpha", vendor: "Custom", color: "#F87171", kind: "text", auth: "local", api: "openai",
     custom: true, noKey: true, baseUrl: "http://127.0.0.1:9/v1", keyEnv: null,
     models: [{ id: "x", name: "x", tier: "economy", in: 0, out: 0, caps: LOCAL_CAPS }],
   };
   addProvider(blocked);
   try {
-    useKeys({ "c-freebuff": { key: "no-key" }, openai: { key: "sk-test-not-real" } });
+    useKeys({ "c-spacebunny": { key: "no-key" }, openai: { key: "sk-test-not-real" } });
     const ranked = rank({ capability: "writing", difficulty: 1, mode: "economy" });
-    assert.ok(!ranked.some((m) => /freebuff/i.test(`${m.provider} ${m.providerName}`)));
-  } finally { removeProvider("c-freebuff"); }
+    assert.ok(!ranked.some((m) => /space ?bunny/i.test(`${m.provider} ${m.providerName}`)));
+  } finally { removeProvider("c-spacebunny"); }
 
   const s = await startServer({ env: { CC_STATUS_PAGES: "off" } });
   try {
@@ -149,13 +150,11 @@ test("Freebuff is refused and never ranked", async () => {
     assert.equal(opencode.noKey, true);
     assert.match(opencode.note, /4096/);
     assert.match(opencode.note, /OpenAI-compatible/);
-    const byName = await s.api("/providers/custom", { method: "POST", body: { name: "Freebuff", baseUrl: "http://127.0.0.1:9/v1", noKey: true, models: ["x"] } });
+    const byName = await s.api("/providers/custom", { method: "POST", body: { name: "Space Bunny Alpha", baseUrl: "http://127.0.0.1:9/v1", noKey: true, models: ["x"] } });
     assert.equal(byName.status, 400);
-    assert.match(byName.json.error, /Freebuff is not available/);
-    const byUrl = await s.api("/providers/custom", { method: "POST", body: { name: "Local box", baseUrl: "https://api.freebuff.example/v1", noKey: true, models: ["x"] } });
-    assert.equal(byUrl.status, 400);
+    assert.match(byName.json.error, /keeps your prompts/);
     const saved = (await s.api("/providers/custom")).json.custom;
-    assert.ok(!saved.some((c) => /freebuff/i.test(`${c.name} ${c.baseUrl}`)));
+    assert.ok(!saved.some((c) => /space ?bunny/i.test(`${c.name} ${c.baseUrl}`)));
   } finally { await s.stop(); }
 });
 
@@ -164,8 +163,8 @@ test("route preview shows the batch note, and the new words have no em-dash", ()
   const guide = fs.readFileSync(path.join(ROOT, "docs", "USER-GUIDE.md"), "utf8");
   assert.match(app, /r\.cheaper\?\.batchNote/);
   assert.match(app, /No key needed \(Ollama, LM Studio, Aider, OpenCode\)/);
-  assert.match(app, /Aider, OpenCode, or a company gateway\. Freebuff is not used/);
-  assert.match(guide, /Freebuff is not used/);
+  assert.match(app, /Aider, OpenCode, or a company gateway\. Freebuff has its own card under Free AIs/);
+  assert.match(guide, /Freebuff \(free, with ads\) runs inside Meldmind/);
   assert.match(guide, /pays the live price/);
   for (const file of ["server/savings.js", "web/app.js", "docs/USER-GUIDE.md", "server/plugins/providers.js"]) {
     assert.equal(fs.readFileSync(path.join(ROOT, file), "utf8").includes("\u2014"), false, file);

@@ -197,7 +197,7 @@ export async function routes(req, res, url, body, h) {
   if (method === "POST" && seg[0] === "discover") {
     const existing = body.id ? list().find((x) => x.id === body.id) : null;
     const discoverUrl = cleanUrl(body.baseUrl || existing?.baseUrl);
-    if (isBlockedFree({ name: body.name || existing?.name, baseUrl: discoverUrl, id: body.id })) throw err(400, "Freebuff is not available in Meldmind.");
+    if (isBlockedFree({ name: body.name || existing?.name, baseUrl: discoverUrl, id: body.id })) throw err(400, "That model keeps your prompts, so Meldmind does not use it.");
     const sec = existing ? getSecret(existing.id) : null;
     const models = await discoverModels({ baseUrl: discoverUrl, api: STYLES.includes(body.api) ? body.api : existing?.api || "openai", key: String(body.key || "").trim() || sec?.key, headers: { ...(sec?.headers || {}), ...cleanHeaders(body.headers) } });
     return h.json(res, 200, { models });
@@ -209,7 +209,7 @@ export async function routes(req, res, url, body, h) {
     const name = String(body.name || "").trim().slice(0, 60);
     if (!name) throw err(400, "Give the provider a name.");
     const baseUrl = cleanUrl(body.baseUrl);
-    if (isBlockedFree({ name, baseUrl, id: body.id })) throw err(400, "Freebuff is not available in Meldmind.");
+    if (isBlockedFree({ name, baseUrl, id: body.id })) throw err(400, "That model keeps your prompts, so Meldmind does not use it.");
     const api = STYLES.includes(body.api) ? body.api : "openai";
     const noKey = !!body.noKey;
     const editing = body.id ? items.find((x) => x.id === body.id) : null;
