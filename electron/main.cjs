@@ -11,6 +11,8 @@ const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const { createHotkey } = require("./hotkey.cjs");
+const a11y = require("./accessibility.cjs");
+a11y.early(app); // UI Automation needs an accessibility tree from the first page (0.4.21)
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
 let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free one from 4747 up)
 const INSTANCE = crypto.randomBytes(12).toString("hex");
@@ -244,6 +246,12 @@ async function startServer() {
   // built-in browser helper (Phase 27): its own window and session; the server finds it on this global
   try { globalThis.__ccBrowserDriver = require("./browser-helper.cjs").createBrowserHelper({ log, icon: path.join(ROOT, "web", "icons", "icon-512.png") }); }
   catch (e) { log("browser helper window unavailable:", e && e.message); }
+  // real PDFs for document tasks: the server prints its pages with Electron (server/doc-pdf.js)
+  try { globalThis.__ccPdfRenderer = require("./pdf-render.cjs").createPdfRenderer({ BrowserWindow }); }
+  catch (e) { log("PDF renderer unavailable:", e && e.message); }
+  // flat graphics (quote cards, banners): the server turns its SVG into a PNG with Electron (server/local-draw.js)
+  try { globalThis.__ccSvgRenderer = require("./svg-render.cjs").createSvgRenderer({ BrowserWindow }); }
+  catch (e) { log("SVG renderer unavailable:", e && e.message); }
   // a file URL on every platform (pathToFileURL still encodes a space, as in "/Applications/Command AI.app/..."; the current bundle is Meldmind.app)
   await import(require("node:url").pathToFileURL(path.join(ROOT, "server", "index.js")).href);
   serverStarted = await waitForServer();
@@ -253,10 +261,16 @@ async function startServer() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
-    backgroundColor: "#090d14", title: "Meldmind", autoHideMenuBar: true,
+    // 0.4.21: stay hidden until the first frame is ready, in the splash's own colour, so there is no blank grey or white flash.
+    // The page paints its start screen from the first frame (web/index.html), so what shows first is already Meldmind.
+    show: false, backgroundColor: "#070b12", title: "Meldmind", autoHideMenuBar: true,
     icon: path.join(ROOT, "web", "icons", "icon-512.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "desk-preload.cjs") },
   });
+  let shown = false;
+  const showNow = () => { if (shown || !win || win.isDestroyed()) return; shown = true; try { win.show(); } catch {} };
+  win.once("ready-to-show", showNow);
+  setTimeout(showNow, 6000); // never leave the app invisible if the page is slow to paint
   watchReloads(win); // attach before the first load so it is counted
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
   else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
@@ -443,8 +457,13 @@ const LOG = path.join(userData, "everborn-command.log");
 function log(...a) { try { fs.mkdirSync(userData, { recursive: true }); fs.appendFileSync(LOG, new Date().toISOString() + " " + a.join(" ") + "\n"); } catch {} console.log(...a); }
 process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
+// 0.4.21 (dogfood 10): the app once closed about 5 s after Stop with nothing in this log. These lines leave a trail
+// (who asked to quit, and the exit code) so the next time the log says why.
+app.on("before-quit", () => log("before-quit (quitting for update:", String(quittingForUpdate) + ")"));
+process.on("exit", (code) => { try { fs.appendFileSync(LOG, new Date().toISOString() + " process exit code=" + code + "\n"); } catch {} });
 
 app.whenReady().then(async () => {
+  a11y.afterReady(app); // Electron only accepts this once ready
   try {
     const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
     g.battery = powerMonitor.isOnBatteryPower();

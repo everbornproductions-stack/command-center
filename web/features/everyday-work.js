@@ -35,7 +35,15 @@ let tourAt = -1;
 
 async function load() { data = await api("/everyday-work"); }
 
+const TYPED_IDS = ["ew-q", "ew-title", "ew-at", "ew-notes", "ew-script", "ew-name", "ew-email", "ew-phone", "ew-lead-note"];
 function render(root) {
+  // keep what the person typed when the page redraws (a redraw used to blank the boxes)
+  const typed = {};
+  for (const id of TYPED_IDS) { const el = root.querySelector(`#${id}`); if (el && el.value) typed[id] = el.value; }
+  draw(root);
+  for (const [id, v] of Object.entries(typed)) { const el = root.querySelector(`#${id}`); if (el) el.value = v; }
+}
+function draw(root) {
   const say = data?.trySaying || {};
   root.innerHTML = `<div class="ew-wrap" id="ew-root">
     <div class="ew-card">
@@ -125,18 +133,27 @@ async function addMeeting(root) {
   try { const r = await api("/everyday-work/meetings", { method: "POST", body: meetingBody(root) }); meetingId = r.meeting.id; toast("Meeting saved on this computer."); await load(); render(root); }
   catch (e) { toast(e.message, true); }
 }
+// Prep, Summarize and To-dos save the meeting first when it is not saved yet, so there is no "Save the meeting first" dead end.
+async function ensureMeeting(root) {
+  if (meetingId) return true;
+  const b = meetingBody(root);
+  if (!b.title.trim() && !b.notes.trim() && !b.transcript.trim()) { toast("Add a meeting title, notes or a transcript first.", true); return false; }
+  if (!b.title.trim()) b.title = (b.notes || b.transcript).trim().slice(0, 40);
+  try { const r = await api("/everyday-work/meetings", { method: "POST", body: b }); meetingId = r.meeting.id; return true; }
+  catch (e) { toast(e.message, true); return false; }
+}
 async function prepMeeting(root) {
-  if (!meetingId) return toast("Save the meeting first.", true);
+  if (!(await ensureMeeting(root))) return;
   try { prep = await api(`/everyday-work/meetings/${encodeURIComponent(meetingId)}/prep`, { method: "POST", body: {} }); render(root); }
   catch (e) { toast(e.message, true); }
 }
 async function sumMeeting(root) {
-  if (!meetingId) return toast("Save the meeting first.", true);
+  if (!(await ensureMeeting(root))) return;
   try { summary = await api(`/everyday-work/meetings/${encodeURIComponent(meetingId)}/summary`, { method: "POST", body: {} }); render(root); }
   catch (e) { toast(e.message, true); }
 }
 async function addTasks(root) {
-  if (!meetingId) return toast("Save the meeting first.", true);
+  if (!(await ensureMeeting(root))) return;
   try { summary = await api(`/everyday-work/meetings/${encodeURIComponent(meetingId)}/tasks`, { method: "POST", body: { confirm: true } }); toast(summary.saved ? "To-dos added on this computer." : "Nothing new to add."); await load(); render(root); }
   catch (e) { toast(e.message, true); }
 }
@@ -159,6 +176,7 @@ async function sendLead(root, channel) {
   try {
     const r = await api(`/everyday-work/leads/${encodeURIComponent(lead.id)}/send`, { method: "POST", body: { confirm: true, channel, to: draft.to, subject: draft.subject || "", body } });
     toast(r.delivered ? "Handed to your test inbox." : "Draft saved on this computer. Not sent.");
+    window.CC.saveToMindMedia?.({ kind: "text", text: `${channel === "email" ? `Subject: ${draft.subject || ""}\n\n` : ""}${body}`, name: `Follow-up ${channel === "email" ? "email" : "text"} draft: ${lead.name || draft.to || "lead"}`.slice(0, 100), status: "Draft", source: "Follow-up", dedupeKey: `lead:${lead.id}:${channel}`, quiet: true }).catch(() => {});
     await load(); render(root);
   } catch (e) { toast(e.message, true); }
 }

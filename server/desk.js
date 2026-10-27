@@ -141,7 +141,7 @@ function seatFrom(names, readers) {
       const key = id || name;
       if (!name || seen.has(key)) continue;
       seen.add(key);
-      out.push({ id, name });
+      out.push({ id, name, ...(r?.paused ? { paused: String(r.paused) } : {}) }); // paused: why this AI is out right now (0.4.21)
     }
     return out;
   }

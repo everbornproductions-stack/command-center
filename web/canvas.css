@@ -1,0 +1,98 @@
+/* Canvas (0.4.21, area D): a Framer-style workspace. The thing being made sits big and centered and updates as it is made.
+   Slim Pages panel on the left, Properties panel on the right, a prompt bar docked under the canvas, one Publish button
+   at the top right. Simple mode shows the canvas, the prompt bar and Publish; the two panels slide in on demand.
+   Colours come from the theme variables (see styles.css, themes.js, look-tokens.css), so dark, light and glass all work. */
+#cc-canvas {
+  position: fixed; z-index: 45; left: 0; right: 0; bottom: 0; top: var(--cv-top, 56px);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top top" "left stage right" "left prompt right";
+  background: var(--bg, #090d14); color: var(--text, #e5e7eb); font-family: var(--sans, system-ui);
+}
+#cc-canvas[hidden] { display: none; }
+html[data-wall] #cc-canvas { background: transparent; }
+
+/* Top bar: project name and status on the left, size switch in the middle, panels and Publish on the right. */
+#cc-canvas .cv-top { grid-area: top; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line, #1f2937); background: var(--panel-solid, #111827); min-width: 0; }
+#cc-canvas .cv-title { font-weight: 650; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 28ch; }
+#cc-canvas .cv-chip { font-size: .8125rem; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line-2, #273449); color: var(--muted, #8b95a7); white-space: nowrap; }
+#cc-canvas .cv-chip[data-state="working"] { color: var(--amber, #fbbf24); border-color: currentColor; }
+#cc-canvas .cv-chip[data-state="ready"] { color: var(--green, #34d399); border-color: currentColor; }
+#cc-canvas .cv-sizes { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line, #1f2937); border-radius: 10px; margin: 0 auto; }
+#cc-canvas .cv-sizes button { background: transparent; border: 0; color: var(--muted, #8b95a7); padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: .875rem; min-height: 32px; }
+#cc-canvas .cv-sizes button[aria-pressed="true"] { background: var(--accent-soft, #123040); color: var(--text, #e5e7eb); box-shadow: inset 0 0 0 1px var(--accent, #22d3ee); }
+#cc-canvas .cv-top .cv-gap { flex: 1 1 0; }
+#cc-canvas .cv-top .btn { white-space: nowrap; }
+#cc-canvas #cv-publish { font-weight: 700; padding: 8px 20px; min-height: 40px; }
+
+/* Left: Pages. Right: Properties. Both slim, both can slide away. */
+#cc-canvas .cv-left { grid-area: left; width: 232px; border-right: 1px solid var(--line, #1f2937); background: var(--panel-solid, #111827); overflow: auto; padding: 10px; transition: margin .18s ease; }
+#cc-canvas .cv-right { grid-area: right; width: 280px; border-left: 1px solid var(--line, #1f2937); background: var(--panel-solid, #111827); overflow: auto; padding: 12px; transition: margin .18s ease; }
+#cc-canvas[data-left="0"] .cv-left { margin-left: -233px; visibility: hidden; }
+#cc-canvas[data-right="0"] .cv-right { margin-right: -281px; visibility: hidden; }
+#cc-canvas .cv-h { margin: 6px 4px 6px; font-size: .8125rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #8b95a7); }
+#cc-canvas .cv-page { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 7px 8px; color: var(--text, #e5e7eb); cursor: pointer; min-height: 38px; font-size: .875rem; }
+#cc-canvas .cv-page:hover { background: var(--card-hover, #112236); }
+#cc-canvas .cv-page[aria-current="true"] { border-color: var(--accent, #22d3ee); background: var(--accent-soft, #123040); }
+#cc-canvas .cv-page i { font-style: normal; width: 1.2em; text-align: center; color: var(--muted, #8b95a7); }
+#cc-canvas .cv-page span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cc-canvas .cv-empty { margin: 8px 4px; font-size: .875rem; color: var(--muted, #8b95a7); }
+#cc-canvas .cv-field { display: block; margin: 0 0 14px; }
+#cc-canvas .cv-field > b { display: block; font-size: .8125rem; margin-bottom: 5px; color: var(--muted, #8b95a7); font-weight: 600; }
+#cc-canvas .cv-field input, #cc-canvas .cv-field select { width: 100%; }
+#cc-canvas .cv-seg { display: flex; gap: 4px; flex-wrap: wrap; }
+#cc-canvas .cv-seg button { flex: 1 1 auto; min-height: 36px; }
+#cc-canvas .cv-seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent, #22d3ee); background: var(--accent-soft, #123040); }
+
+/* The stage: the thing being made. */
+#cc-canvas .cv-stage { grid-area: stage; position: relative; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 20px; min-width: 0; min-height: 0;
+  background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text, #e5e7eb) 12%, transparent) 1px, transparent 1.4px) 0 0 / 22px 22px, var(--bg-2, #0e1420); }
+html[data-wall] #cc-canvas .cv-stage { background: color-mix(in srgb, var(--bg, #090d14) 35%, transparent); }
+#cc-canvas .cv-frame { width: 100%; max-width: 1180px; min-height: 100%; background: var(--panel-solid, #111827); border: 1px solid var(--line-2, #273449); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, .35); overflow: hidden; display: flex; flex-direction: column; transition: max-width .2s ease; }
+#cc-canvas[data-size="tablet"] .cv-frame { max-width: 768px; }
+#cc-canvas[data-size="phone"] .cv-frame { max-width: 390px; }
+#cc-canvas .cv-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line, #1f2937); color: var(--muted, #8b95a7); font-size: .8125rem; }
+#cc-canvas .cv-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2, #273449); display: inline-block; }
+#cc-canvas .cv-view { flex: 1 1 auto; min-height: 320px; position: relative; background: #fff; color: #111827; }
+#cc-canvas .cv-view.text { background: var(--panel-solid, #111827); color: var(--text, #e5e7eb); padding: 22px 26px; overflow-wrap: anywhere; }
+#cc-canvas .cv-view iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+#cc-canvas .cv-view img, #cc-canvas .cv-view video { display: block; max-width: 100%; margin: 0 auto; }
+#cc-canvas .cv-view.media { background: var(--sunk-bg, #05080d); display: flex; align-items: center; justify-content: center; }
+#cc-canvas .cv-view pre { white-space: pre-wrap; font: inherit; margin: 0; }
+#cc-canvas .cv-blank { margin: auto; text-align: center; padding: 48px 24px; max-width: 34rem; color: var(--muted, #8b95a7); }
+#cc-canvas .cv-blank h2 { color: var(--text, #e5e7eb); margin: 0 0 8px; font-size: 1.5rem; }
+#cc-canvas .cv-live { position: absolute; top: 10px; right: 12px; z-index: 2; font-size: .8125rem; padding: 3px 10px; border-radius: 999px; background: var(--panel-solid, #111827); border: 1px solid var(--amber, #fbbf24); color: var(--amber, #fbbf24); }
+#cc-canvas .cv-live[hidden] { display: none; }
+
+/* The prompt bar, docked at the bottom of the canvas. */
+#cc-canvas .cv-prompt { grid-area: prompt; display: flex; gap: 10px; align-items: flex-end; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line, #1f2937); background: var(--panel-solid, #111827); }
+#cc-canvas .cv-prompt textarea { flex: 1 1 auto; min-height: 46px; max-height: 120px; resize: none; border-radius: 12px; padding: 11px 14px; }
+#cc-canvas .cv-prompt .btn { min-height: 46px; padding: 0 20px; }
+#cc-canvas .cv-note { grid-area: prompt; display: none; }
+
+/* Glass: the bars become frosted panes over the stage picture (rules for the glass tokens are in look.css). */
+html[data-look="glass"] #cc-canvas .cv-top, html[data-look="glass"] #cc-canvas .cv-left, html[data-look="glass"] #cc-canvas .cv-right, html[data-look="glass"] #cc-canvas .cv-prompt {
+  background: var(--mm-glass-see); -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim)); backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
+  border-color: var(--mm-glass-line);
+}
+html[data-look="glass"] #cc-canvas { background: transparent; }
+
+/* Small windows: the Pages and Properties panels slide over the canvas instead of squeezing it. */
+@media (max-width: 900px) {
+  #cc-canvas { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "stage" "prompt"; }
+  #cc-canvas .cv-left, #cc-canvas .cv-right { position: absolute; top: 49px; bottom: 0; z-index: 3; box-shadow: 0 0 40px rgba(0, 0, 0, .5); max-width: 88vw; }
+  #cc-canvas .cv-left { left: 0; } #cc-canvas .cv-right { right: 0; }
+  #cc-canvas[data-left="0"] .cv-left { margin-left: -100%; } #cc-canvas[data-right="0"] .cv-right { margin-right: -100%; }
+}
+@media (max-width: 760px) {
+  #cc-canvas { --cv-top: 56px; bottom: calc(56px + env(safe-area-inset-bottom)); }
+  #cc-canvas .cv-top { flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+  #cc-canvas .cv-title { max-width: 14ch; }
+  #cc-canvas .cv-sizes { display: none; }
+  #cc-canvas .cv-top .btn, #cc-canvas .cv-prompt .btn { min-height: 44px; }
+  #cc-canvas .cv-stage { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { #cc-canvas * { transition: none !important; } }
+/* The entry button on the project bar. */
+#cc-open-canvas { white-space: nowrap; }
+/* While the canvas is open the page underneath, the News panel and the Asset Tray step aside (the top bar stays). */
+body.cc-canvas-on .view-col, body.cc-canvas-on .feed, body.cc-canvas-on #strip, body.cc-canvas-on #cc-rail, body.cc-canvas-on #cc-asset-tray, body.cc-canvas-on #cc-bg-alert { visibility: hidden; }

@@ -208,6 +208,7 @@ function renderCardHtml(item, p) {
 
   const sendMenuHtml = sendOpen
     ? `<div class="pm-send-sheet" role="menu" aria-label="Send to menu">
+        <button type="button" class="btn sm primary" data-pm-send="publish" data-pm-asset="${esc(item.id)}">Publish</button>
         <button type="button" class="btn sm" data-pm-send="remix" data-pm-asset="${esc(item.id)}">Send to Remix</button>
         <button type="button" class="btn sm" data-pm-send="finish" data-pm-asset="${esc(item.id)}">Finish</button>
         <button type="button" class="btn sm" data-pm-send="copy-prompt" data-pm-asset="${esc(item.id)}">Copy prompt</button>
@@ -654,6 +655,8 @@ function wireProjectMediaEvents(box, p) {
       const target = b.dataset.pmSend;
       const assetId = b.dataset.pmAsset;
       const targetProjectId = $(`[data-pm-target-proj="${CSS.escape(assetId)}"]`, box)?.value || "";
+      // Publish opens the item in MindMedia with its Publish panel ready (0.4.21). The preview comes first there.
+      if (target === "publish") { ui.openSendMenuId = null; window.CC.openMindMedia(p.id, assetId, { publish: true }); return; }
       try {
         const res = await api(`/projectmedia/${encodeURIComponent(p.id)}/send`, {
           method: "POST",

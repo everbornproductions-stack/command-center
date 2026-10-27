@@ -16,6 +16,8 @@ export const MAX_FOUND = 60;
 export const MAX_LOG = 60;
 
 const clip = (s, n) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+// Keeps line breaks (0.4.21, M39): the risky-line check and Safer copy work line by line.
+const clipBlock = (s, n) => String(s ?? "").replace(/\r/g, "").split("\n").map((l) => l.replace(/[ \t]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, n);
 const err = (status, message, code) => Object.assign(new Error(message), { status, code });
 
 // ---------- plug-in points (tests set their own) ----------
@@ -63,6 +65,11 @@ const TEXT_KEYS = ["prompt", "instructions", "instruction", "description", "task
 const ID_KEYS = ["id", "task_id", "taskId", "schedule_id", "job_id", "uuid"];
 const pick = (o, keys) => { for (const k of keys) if (o[k] != null && typeof o[k] !== "object" && String(o[k]).trim()) return String(o[k]); return ""; };
 
+export function everyMinute(expr) {
+  const f = String(expr || "").trim().split(/\s+/);
+  return f.length >= 5 && (f[0] === "*" || f[0] === "*/1") && f.slice(1, 5).every((x) => x === "*");
+}
+
 function cronOrNull(s) {
   const v = String(s || "").trim();
   if (!v) return null;
@@ -73,7 +80,7 @@ function cronOrNull(s) {
 export function normalizeTask(raw, source) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const extId = clip(pick(raw, ID_KEYS), 120);
-  const prompt = clip(stripSecrets(pick(raw, TEXT_KEYS)), 2000);
+  const prompt = clipBlock(stripSecrets(pick(raw, TEXT_KEYS)), 2000);
   const name = clip(stripSecrets(pick(raw, NAME_KEYS)), 80) || clip(prompt, 60);
   if (!name && !prompt) return null;
   const whenRaw = clip(pick(raw, CRON_KEYS), 120);
@@ -180,6 +187,7 @@ export function takeOver(id, { confirm, cron } = {}) {
   if (s.taken[id]) throw err(409, "That task was already taken over.", "already");
   const useCron = cronOrNull(cron) || f.cron;
   if (!useCron) throw err(400, "Meldmind could not read when this task runs. Type a schedule like 0 9 * * 1-5 and try again.", "needs_time");
+  if (everyMinute(useCron)) throw err(400, "That runs every minute. Pick a slower time, such as every hour (0 * * * *). Nothing was copied.", "too_often");
   const text = f.prompt || f.name;
   const made = io.createSchedule({ name: `${f.name} (from ${f.sourceName})`, target: { kind: "chat", text }, trigger: { type: "cron", cron: useCron }, enabled: false });
   s.taken[id] = { scheduleId: made.schedule.id, at: io.now(), pausedOriginal: false };

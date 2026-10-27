@@ -46,6 +46,8 @@ export async function bootPage(opts = {}) {
     await page.goto(base + "/?nosplash");
     if (opts.hidePopups !== false) await page.addStyleTag({ content: HIDE });
     await page.waitForFunction(() => window.CC && window.CC.S && window.CC.go, null, { timeout: 15000 });
+    // Shell modules and the first state load arrive after first paint, and a slow Windows runner shows it: wait for them (best effort).
+    await page.waitForFunction(() => window.CC.S.settingsLoaded && typeof window.CC.saveToMindMedia === "function" && !!window.CC.makeChat, null, { timeout: 30000 }).catch(() => {});
     const close = async () => { try { await browser.close(); } catch {} try { await s.stop(); } catch {} };
     return { s, base, api, page, browser, errors, close };
   } catch (e) {
@@ -56,6 +58,9 @@ export async function bootPage(opts = {}) {
 }
 
 export async function goChat(page) {
+  // The feature modules load after boot and then draw the screen again, which replaces #orders. Typing before that
+  // lands in the old, detached box and the send sees an empty one ("Type the orders first"). Wait for it first.
+  await page.waitForFunction(() => window.CC && window.CC.featuresReady === true, null, { timeout: 20000 }).catch(() => {});
   await page.evaluate(() => window.CC.go("command"));
   await page.waitForSelector("#go", { timeout: 10000 });
 }

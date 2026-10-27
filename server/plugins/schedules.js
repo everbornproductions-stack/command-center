@@ -73,7 +73,7 @@ export async function routes(req, res, url, body, h) {
   const m = req.method;
   try {
     if (m === "GET" && p === "/") {
-      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name })), note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
+      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name, noSend: a.noSend === true })), note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
     }
     if (m === "POST" && p === "/") { h.guard("scheduler"); return h.json(res, 200, S.createSchedule(body || {}, createOpts(h, body))); }
     if (seg[0] === "runs") {

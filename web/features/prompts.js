@@ -164,12 +164,18 @@ function clearPack() {
   paintChip();
 }
 
+// 0.4.21: the first Ctrl+Enter (or Send) sends. A guess that is still being worked out when the person sends is dropped,
+// so a Pro prompt chip never appears in place of the send, and nothing waits on it.
+let sentAt = 0;
+const justSent = () => Date.now() - sentAt < 8000;
 async function consider(text, keepApplied) {
   const value = String(text || "").trim();
+  if (justSent()) { clearPack(); return; }
   // 0.4.17: nothing is suggested until a few letters are typed.
   if (value.length < 3 || value === removedFor) { clearPack(); return; }
   try {
     const r = await api("/prompts/detect", { method: "POST", body: { text: value, llm: true } });
+    if (justSent()) { clearPack(); return; }
     const match = r.match;
     if (!match?.id || match.id === removedId) { clearPack(); return; }
     const list = await api("/prompts");
@@ -418,6 +424,9 @@ async function renderTab(view) {
     try { const r = await api("/prompts/pipelines", { method: "POST", body: { id: "ai-leverage" } }); toast(`Pipelines: ${r.pipelines.map((p) => p.name).join(", ")}.`); } catch (e) { toast(e.message, true); }
   });
   mountInterview(view.querySelector("#pp-interview"));
+  // A News rail row can open one template (0.4.21).
+  const wantTemplate = window.CC.S?.openTemplateId;
+  if (wantTemplate) { window.CC.S.openTemplateId = null; openTemplate(data, wantTemplate); }
 }
 
 async function openTemplate(data, id) {
@@ -490,6 +499,8 @@ window.CC.register({
     const orders = document.getElementById("orders");
     if (!orders || orders.dataset.pp) { paintChip(); return; }
     orders.dataset.pp = "1";
+    orders.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { sentAt = Date.now(); clearTimeout(timer); } }, true);
+    document.getElementById("go")?.addEventListener("click", () => { sentAt = Date.now(); clearTimeout(timer); }, true);
     orders.addEventListener("input", () => {
       clearTimeout(timer);
       window.CC.S.lastOrders = orders.value;

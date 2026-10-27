@@ -31,6 +31,9 @@ const css = `
 .sp-step { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #sp-root textarea, #sp-root input[type="text"] { width: 100%; }
+.sp-type, .sp-tpl, .sp-tpl-form { min-width: 0; overflow-wrap: anywhere; }
+.sp-tpl-form { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg, #0e1726); }
+.sp-tpl-form input, .sp-tpl-form textarea { min-width: 0; }
 @media (max-width: 640px) { .sp-home { align-items: stretch; } .sp-home .btn { width: 100%; } }
 `;
 if (!document.getElementById("sp-style")) {
@@ -309,11 +312,80 @@ function paintPicker(data) {
           <button class="btn sm" type="button" data-example="${esc(t.id)}">Watch an example</button>
         </div>
       </div>`).join("")}</div>
+    ${templatesHtml(data)}
     ${(data.walks || []).length ? `<div class="panel"><h3>Your projects</h3>${data.walks.slice(0, 8).map((w) => `<button class="btn sm" type="button" data-open="${esc(w.id)}" style="margin:0 6px 6px 0">${esc(w.typeName)}: ${esc(w.plan?.title || w.idea || "In progress")}</button>`).join("")}</div>` : ""}`;
+  wireTemplates(root, data);
   root.querySelector("#sp-help").addEventListener("click", toggleHelp);
   root.querySelectorAll("[data-start]").forEach((b) => b.addEventListener("click", () => begin(b.dataset.start)));
   root.querySelectorAll("[data-example]").forEach((b) => b.addEventListener("click", () => watchExample(b.dataset.example)));
   root.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openWalk(b.dataset.open)));
+}
+
+// Custom templates (flag templates). The server only sends them when the flag is on.
+function templatesHtml(data) {
+  if (!data.templatesEnabled) return "";
+  const list = data.templates || [];
+  return `<div class="panel" id="sp-tpl-panel"><h3 style="margin-top:0">Your templates</h3>
+    ${list.length ? `<div class="sp-types">${list.map((t) => `
+      <div class="sp-type sp-tpl" style="border-top:3px solid ${esc(t.color || "#22d3ee")}">
+        <h4>${esc(t.name)}</h4>
+        <div class="small dim">${esc(t.typeName)}${t.note ? ": " + esc(t.note) : ""}</div>
+        <div class="sp-actions" style="margin-top:8px">
+          <button class="btn sm primary" type="button" data-tpl-start="${esc(t.id)}">Start</button>
+          <button class="btn sm" type="button" data-tpl-edit="${esc(t.id)}">Edit</button>
+          <button class="btn sm" type="button" data-tpl-del="${esc(t.id)}">Delete</button>
+        </div>
+      </div>`).join("")}</div>` : `<p class="small dim" style="margin:0">No templates yet. Open a project and choose Save as template.</p>`}
+    <div id="sp-tpl-form"></div></div>`;
+}
+function wireTemplates(root, data) {
+  if (!data.templatesEnabled) return;
+  const byId = (id) => (data.templates || []).find((t) => t.id === id);
+  root.querySelectorAll("[data-tpl-start]").forEach((b) => b.addEventListener("click", () => begin(null, b.dataset.tplStart)));
+  root.querySelectorAll("[data-tpl-edit]").forEach((b) => b.addEventListener("click", () => {
+    const t = byId(b.dataset.tplEdit);
+    if (!t) return;
+    const box = root.querySelector("#sp-tpl-form");
+    box.innerHTML = `<div class="sp-tpl-form">
+      <label class="lbl" for="sp-tpl-name">Template name</label>
+      <input id="sp-tpl-name" type="text" maxlength="60" value="${esc(t.name)}">
+      <label class="lbl" for="sp-tpl-note">Note (optional)</label>
+      <input id="sp-tpl-note" type="text" maxlength="300" value="${esc(t.note || "")}">
+      <label class="lbl" for="sp-tpl-idea">Starting idea</label>
+      <textarea id="sp-tpl-idea" rows="3">${esc(t.idea || "")}</textarea>
+      <label class="lbl" for="sp-tpl-folders">Media folders (comma separated)</label>
+      <input id="sp-tpl-folders" type="text" value="${esc((t.folders || []).join(", "))}">
+      <div class="sp-actions"><button class="btn sm primary" type="button" id="sp-tpl-save">Save</button><button class="btn sm" type="button" id="sp-tpl-cancel">Cancel</button></div>
+    </div>`;
+    box.querySelector("#sp-tpl-cancel").addEventListener("click", () => { box.innerHTML = ""; });
+    box.querySelector("#sp-tpl-save").addEventListener("click", async () => {
+      try {
+        await api(`/walkthrough/templates/${encodeURIComponent(t.id)}`, { method: "PUT", body: {
+          name: box.querySelector("#sp-tpl-name").value, note: box.querySelector("#sp-tpl-note").value,
+          idea: box.querySelector("#sp-tpl-idea").value, folders: box.querySelector("#sp-tpl-folders").value,
+        } });
+        toast("Template saved");
+        paintPicker(await api(`/walkthrough?${qexp()}`));
+      } catch (e) { toast(e.message, true); }
+    });
+  }));
+  root.querySelectorAll("[data-tpl-del]").forEach((b) => b.addEventListener("click", async () => {
+    const t = byId(b.dataset.tplDel);
+    if (!t || !(await window.CC.confirm(`Delete the template "${t.name}"? Projects already made from it are not changed.`, { danger: true, ok: "Delete" }))) return;
+    try {
+      await api(`/walkthrough/templates/${encodeURIComponent(t.id)}`, { method: "DELETE" });
+      toast("Template deleted");
+      paintPicker(await api(`/walkthrough?${qexp()}`));
+    } catch (e) { toast(e.message, true); }
+  }));
+}
+async function saveAsTemplate(w) {
+  const name = window.prompt("Name this template", String(w.plan?.title || w.typeName || "My template").slice(0, 60));
+  if (!name) return;
+  try {
+    await api("/walkthrough/templates", { method: "POST", body: { walkId: w.id, name } });
+    toast("Saved as a template. Find it in Start a project.");
+  } catch (e) { toast(e.message, true); }
 }
 
 function paintExamples(data) {
@@ -371,9 +443,9 @@ async function noteProject(w) {
   try { await cc.syncProjects?.(); } catch { /* the page catches up on its next refresh */ }
   if (/was created/.test(w.projectNote || "")) cc.toast("A project was created for this work.", false, { label: "Open it", onClick: () => cc.openProjectById?.(w.projectId) });
 }
-async function begin(type) {
+async function begin(type, templateId) {
   try {
-    const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { type, experience: clientExperience() } });
+    const w = await api(`/walkthrough?${qexp()}`, { method: "POST", body: { ...(templateId ? { templateId } : { type }), experience: clientExperience() } });
     pendingWalk = w;
     if (document.getElementById("sp-root") && window.CC.S.view === "start") paintWalk(w);
     else go("start");
@@ -409,6 +481,8 @@ function paintWalk(w) {
       <span class="chip">${esc(w.modeLabel)}</span>
       ${w.paused || w.status === "paused" ? `<span class="chip amber">Paused</span>` : ""}
       ${w.example ? `<span class="chip amber">Example data</span>` : ""}
+      ${w.templateName ? `<span class="chip" style="max-width:100%;overflow-wrap:anywhere">From template: ${esc(w.templateName)}</span>` : ""}
+      ${!w.example && window.CC.S?.flags?.templates ? `<button class="btn sm" type="button" id="sp-save-tpl" style="margin-left:auto">Save as template</button>` : ""}
     </div>
     ${stepsHtml(w, expert)}
     <p class="small dim" style="margin:0">${esc(modeNote(w))}</p>
@@ -416,6 +490,7 @@ function paintWalk(w) {
     ${w.projectNote ? `<div class="small dim">${esc(w.projectNote)}</div>` : ""}
     <div id="sp-stage"></div>`;
   root.querySelector("#sp-back").addEventListener("click", () => renderTab(root.parentElement));
+  root.querySelector("#sp-save-tpl")?.addEventListener("click", () => saveAsTemplate(w));
   wireFlowControls(root, w);
   const stage = root.querySelector("#sp-stage");
   if (fromChat) {
@@ -518,6 +593,8 @@ function paintPlan(stage, w, expert) {
 }
 function paintBuild(stage, w, expert) {
   const steps = w.plan?.steps || [];
+  // 0.4.21: the Build panel (on wide windows) shows what the steps have made so far
+  window.CC.layout?.buildFeed?.({ name: w.plan?.title || w.typeName || "Your project", text: steps.map((s) => s.output).filter(Boolean).join("\n\n"), working: w.status !== "failed" && w.status !== "paused" });
   stage.innerHTML = `<div role="status"><b>${w.status === "failed" ? "The build stopped." : w.status === "paused" ? "The build is paused." : "Building each step."}</b>
       <div class="small dim">${esc(liveLine || "Progress shows on the live view and the flow map.")}</div></div>
     ${steps.map((s) => `<div class="sp-step"><b>${esc(s.title)}</b> <span class="chip">${esc(s.status || "queued")}</span>
@@ -536,6 +613,7 @@ function paintBuild(stage, w, expert) {
   });
 }
 function paintReview(stage, w, busy) {
+  window.CC.layout?.buildFeed?.({ name: w.plan?.title || w.typeName || "Your project", text: w.deliverable || "", working: !!busy });
   stage.innerHTML = `<h3 style="margin:0 0 6px">Review</h3>
     <div class="md">${md(w.deliverable || "The deliverable is not ready yet.")}</div>
     ${(w.revisions || []).length ? `<p class="small dim">${w.revisions.length} revision${w.revisions.length === 1 ? "" : "s"} so far.</p>` : ""}
@@ -555,7 +633,6 @@ function paintReview(stage, w, busy) {
     try { paintWalk(await api(`/walkthrough/${w.id}/revise?${qexp()}`, { method: "POST", body: { note, experience: clientExperience() } })); }
     catch (e) { toast(e.message, true); }
   });
-  mountDoneCard(stage, w);
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-chat")?.addEventListener("click", () => {
@@ -601,6 +678,7 @@ function paintDone(stage, w) {
   stage.querySelector("#sp-exp").addEventListener("click", () => downloadWalk(w.id));
   stage.querySelector("#sp-exp-zip").addEventListener("click", () => downloadWalk(w.id, "zip"));
   stage.querySelector("#sp-live").addEventListener("click", () => go("liveview"));
+  mountDoneCard(stage, w);
   stage.querySelector("#sp-done-save").addEventListener("click", async () => {
     try {
       paintWalk(await api(`/walkthrough/${w.id}/edit?${qexp()}`, { method: "POST", body: { deliverable: stage.querySelector("#sp-done-text").value, experience: clientExperience() } }));
@@ -626,10 +704,31 @@ function mountDoneCard(stage, w) {
         const it = r.items?.[0] || {};
         el.replaceWith(CC.resultCard({ what: `${title} is ready`, savedWhere: `Saved in MindMedia, ${r.where || "Unfiled"}.`, item: { projectId: r.projectId, assetId: it.id }, actions: [{ label: "Finish", primary: true, onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, item: { projectId: r.projectId, assetId: it.id, kind: "text" } }) }] }));
       } },
-      { label: "Finish", onClick: () => CC.openFinishDrawer?.({ kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }) },
+      { label: "Finish", onClick: () => { CC._lastResult = { kind: "text", text: w.deliverable || "", name: title, source: "Start a project" }; return CC.openFinishDrawer?.(CC._lastResult); } },
+      ...handoffActions(w, title),
     ],
   });
-  stage.querySelector("#sp-done-view")?.after(card);
+  card.id = "sp-result-card";
+  CC._lastResult = { kind: "text", text: w.deliverable || "", name: title, source: "Start a project" };
+  (stage.querySelector("#sp-done-view") || stage.querySelector("h3"))?.after(card);
+}
+// Hand-offs: open the other page with the project words filled in. Nothing is sent.
+function handoffActions(w, title) {
+  const CC = window.CC;
+  const brief = `${title}. ${String(w.deliverable || "").replace(/\s+/g, " ")}`.slice(0, 700);
+  const fill = (view, getInput) => {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      const el = getInput();
+      if (el) { el.value = brief; el.dispatchEvent(new Event("input", { bubbles: true })); clearInterval(t); }
+      if (tries >= 30) clearInterval(t);
+    }, 150);
+    CC.go(view);
+  };
+  const toSite = { label: "Build it as a website", title: "Opens Web and marketing with your words. Nothing is sent.", onClick: () => fill("webbuilders", () => document.getElementById("bd-notice")) };
+  const toRemix = { label: "Remix it", title: "Opens Remix with your words. Nothing is sent.", onClick: () => fill("remix", () => document.getElementById("remix-idea")) };
+  return w.type === "app" ? [toRemix, toSite] : [toSite];
 }
 async function downloadWalk(id, format) {
   try {

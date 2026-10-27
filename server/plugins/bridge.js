@@ -1,7 +1,7 @@
 // Local bridge for the Meldmind MCP server, and the confirm step that
 // writes ~/.gemini/config/mcp_config.json. Job routes require the bridge
 // token. The config routes stay on the normal session token.
-import { bridgeAuthorized, listBridgeAgents, submitBridgeJob, getBridgeJob, previewMcpAdd, writeMcpConfig, scriptPath } from "../meldmind-bridge.js";
+import { bridgeAuthorized, listBridgeAgents, submitBridgeJob, getBridgeJob, previewMcpAdd, writeMcpConfig, scriptPath, clientSnippets, tokenPath, ensureBridgeToken } from "../meldmind-bridge.js";
 import { acceptUsageReport } from "../credit-tracker.js";
 import { listWaiting, submitAnswer } from "../answer-wait.js";
 
@@ -50,6 +50,11 @@ export async function routes(req, res, url, body, h) {
     } catch (e) {
       return h.json(res, e.status || 400, { error: e.message, code: e.code });
     }
+  }
+  // Setup text for Claude Code, Codex, Gemini CLI and Claude desktop. Reading only; nothing is written anywhere.
+  if (m === "GET" && seg[0] === "clients" && !seg[1]) {
+    ensureBridgeToken();
+    return h.json(res, 200, { clients: clientSnippets({ command: "node", script: opts.script, port: opts.port, tokenFile: tokenPath() }), note: "Copy the lines into that tool. Meldmind changes nothing on your computer. The tool can then ask Meldmind to run a team of AIs, which keeps your spending limit and saves results to MindMedia." });
   }
   if (m === "GET" && seg[0] === "mcp" && !seg[1]) return h.json(res, 200, previewMcpAdd(opts));
   if (m === "POST" && seg[0] === "mcp" && !seg[1]) {

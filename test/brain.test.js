@@ -319,7 +319,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     // 5. account trouble (402) is smart fallback's business: no failure for the model, the stand-in gets the job
     const before = statsOf(readBrain(s), "grok-4.3");
     m.behave.xai = 402;
-    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" })), "single after 402");
+    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3", allowStandIn: true })), "single after 402");
     assert.equal(run.status, "done");
     assert.equal(statsOf(readBrain(s), "grok-4.3").fail || 0, before.fail || 0, "402 is not held against the model");
     await s.api("/fallback/clear", { method: "POST", body: {} });
@@ -371,6 +371,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     } };
     s2 = await startServer({ env: envFor(m), seed: (dir) => fs.writeFileSync(path.join(dir, "brain.json"), JSON.stringify(seeded)) });
     await keys(s2);
+    await s2.api("/fallback/settings", { method: "POST", body: { freeTiers: { google: { on: false }, openrouter: { on: false }, groq: { on: false } } } });
     let ranked = (await s2.api("/brain/pick?capability=writing&difficulty=2&mode=balanced")).json.ranked;
     assert.equal(ranked[0].model, dark, `the record lifts ${dark} to the top`);
     const favAt = ranked.findIndex((r) => r.model === fav);

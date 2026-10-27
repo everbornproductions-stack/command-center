@@ -121,7 +121,7 @@ test("Settings holds settings only, and Help holds the help actions in order", (
   const simple = simpleModel(VIEWS());
   assert.deepEqual(simple.find((g) => g.label === "Help").items.map((i) => i.label), want);
   assert.deepEqual(simple.find((g) => g.label === "Settings").items.map((i) => i.view), ["settings"]);
-  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"]);
+  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Projects", "Create", "Community", "AI News", "More", "Help", "Settings"]);
   const web = helpItems("web").map((i) => i.label);
   assert.equal(web.includes("Get everything connected") || web.includes("Check for updates"), false);
 });
@@ -178,10 +178,10 @@ test("Simple More ends with Connections: Zapier, Make, and the other connectors"
   assert.ok(at > 0, "Connections is in More, after the pages");
   const links = more.slice(at);
   assert.ok(links.every((i) => i.section === "Connections" && i.view === "settings" && i.focus), "nothing but connectors after the heading");
-  assert.deepEqual(links.map((i) => i.label), ["Zapier and Make", "Keys and providers", "Your apps", "Browser extension", "HighLevel"]);
+  assert.deepEqual(links.map((i) => i.label), ["Zapier and Make", "Keys and providers", "Your apps", "Grok Bot assistant", "Browser extension", "HighLevel"]);
   assert.equal(links[0].focus, "[data-feature='zapier']");
-  // MCP and Integrations panels are Expert only, so Simple does not link to them.
-  assert.equal(links.some((i) => /MCP|Integrations/.test(i.label)), false);
+  // The MCP panel is Expert only, so Simple does not link to it. Grok Bot is in Simple (0.4.21).
+  assert.equal(links.some((i) => /MCP/.test(i.label)), false);
   const nav = read("web", "nav.js");
   assert.match(nav, /head\.className = "nav-section"/);
   assert.match(nav, /panel\.insertBefore\(btn, section\)/, "a page that loads later stays above Connections");

@@ -26,7 +26,7 @@ const RUNS = "schedules.runs";
 export const LIMITS = { schedules: 50, name: 80, text: 20000, runs: 500, queue: 5, hookBody: 64 * 1024, hooksPerMinute: 30, fileText: 50 * 1024, output: 20000, lookbackMin: 5 };
 export const TARGETS = ["agent", "chat", "mission"];
 export const TRIGGERS = ["cron", "webhook", "folder"];
-export const AFTER = ["none", "webhook"];
+export const AFTER = ["none", "webhook", "note"];
 export const STATUSES = ["queued", "running", "needs_approval", "done", "failed", "stopped", "rejected"];
 export const STATUS_LABEL = { queued: "Queued", running: "Running", needs_approval: "Needs your approval", done: "Done", failed: "Failed", stopped: "Stopped (spend cap)", rejected: "Not sent" };
 export const DEFAULT_CAP = 1;
@@ -138,6 +138,44 @@ function checkUrl(u) {
   return url.toString();
 }
 
+// ---------- splitting the setup sentence from the weekly job (0.4.21, dogfood 11) ----------
+// The sentence that made the schedule is a one-off: "Set up a small helper agent ... that runs every Monday
+// at 9 AM and writes 3 ideas ... Run it once now ...". weeklyPrompt keeps only the part that repeats each run.
+// It is pure: the same text always gives the same answer, and a normal request comes back unchanged.
+const SETUP_SENTENCE_DROP = [
+  /^\s*(?:run it once|run it now|run this once|run it again)\b/i,   // "Run it once now so I can see..."
+  /^\s*(?:tell me|let me know)\b/i,                                  // "... and tell me where the note is saved"
+  /\b(?:never send|must not send|do not send|don'?t send|not send any|no email)\b/i, // the "never send" rule
+];
+const SETUP_CLAUSE = [
+  /^\s*set up\b[\s\S]*?\b(?:that|which)\s+runs?\b\s*/i,             // "Set up a helper agent ... that runs "
+  /^\s*(?:set up|setup)\b\s*/i,                                      // the setup words on their own
+  /\bevery\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekdays?|days?|weeks?|months?|years?)\b(?:\s+at\s+[\d:]+\s*(?:am|pm)?)?(?:\s+and)?/gi, // "every Monday at 9 AM and "
+  /\b(?:that|which)\s+runs?\b[^,.;]*/gi,
+  /\brun it (?:once )?now\b/i,
+  /\bsave (?:it|this|the result) as a note\b\s*/gi,
+  /\bnever send\b[^.]*?\s*/gi,
+];
+export function weeklyPrompt(text) {
+  const raw = String(text || "").replace(/\r/g, "").trim();
+  if (!raw) return "";
+  let changed = false;
+  const kept = [];
+  for (const one of raw.split(/(?<=[.!?])\s+/)) {
+    if (SETUP_SENTENCE_DROP.some((re) => re.test(one))) { changed = true; continue; }
+    let t = one;
+    for (const re of SETUP_CLAUSE) { const before = t; t = t.replace(re, " "); if (t !== before) changed = true; }
+    t = t.replace(/\s{2,}/g, " ").trim();
+    if (t) kept.push(t);
+  }
+  if (!changed || !kept.length) return raw;
+  let out = kept.join(" ").trim();
+  for (let i = 0; i < 3; i++) out = out.replace(/^\s*(?:and|that|which|so|then|also|but)\s+/i, "").replace(/^[\s,;:.]+/, "").trim();
+  out = out.replace(/\s+([,.;:])/g, "$1").trim();
+  if (!out) return raw;
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 // ---------- the documents ----------
 const all = () => doc(DOC, () => ({ list: [] }));
 const save = (d) => putDoc(DOC, d);
@@ -178,6 +216,10 @@ function clean(input = {}, prev = null, opts = {}) {
     if (opts.agentExists && !opts.agentExists(target.agentId)) throw err(404, "That agent does not exist any more.");
   } else if (!target.text) throw err(400, kind === "mission" ? "Type the mission goal." : "Type what the chat should do.");
   if (kind === "mission") target.mode = normalizeMode(t.mode) || "balanced";
+  // The weekly job, kept short: a setup sentence is split here, and the person can edit it in the form.
+  const runText = str(t.runText, LIMITS.text) || weeklyPrompt(target.text);
+  target.runText = runText;
+  target.setupText = runText && runText !== target.text ? target.text : null;
   const tr = input.trigger || prev?.trigger || {};
   if (!TRIGGERS.includes(tr.type)) throw err(400, "Pick a trigger: a schedule, a webhook or a watched folder.");
   const trigger = { type: tr.type };
@@ -189,9 +231,10 @@ function clean(input = {}, prev = null, opts = {}) {
   const capIn = input.capUsd ?? prev?.capUsd ?? DEFAULT_CAP;
   const capUsd = +Number(capIn).toFixed(6);
   if (!Number.isFinite(capUsd) || capUsd <= 0 || capUsd > 10000) throw err(400, "Set a monthly spend cap for this schedule (more than $0, up to $10000).");
-  const a = input.after || prev?.after || { action: "none" };
+  // "after the run": a new Mission or Agent schedule saves its answer as a note unless the person says otherwise.
+  const a = input.after || prev?.after || { action: kind === "mission" || kind === "agent" ? "note" : "none" };
   const action = AFTER.includes(a.action) ? a.action : "none";
-  const after = action === "webhook" ? { action, url: checkUrl(a.url) } : { action: "none" };
+  const after = action === "webhook" ? { action, url: checkUrl(a.url) } : { action };
   return { name, target, trigger, capUsd, after };
 }
 
@@ -288,7 +331,7 @@ export function trigger(id, { source = "manual", context = "", note = "", file =
   if (!s) throw err(404, "No such schedule.");
   if (!s.enabled && source !== "manual") throw err(409, s.pausedReason === "cap" ? "This schedule is paused: it reached its spend cap." : "This schedule is paused.");
   const spent = spentThisMonth(id);
-  const base = { id: newId("sr"), scheduleId: id, scheduleName: s.name, source, note: str(note, 300), file, slot, at: io.now(), status: "queued", cost: 0, missionId: null, error: null, after: s.after, preview: "", output: "" };
+  const base = { id: newId("sr"), scheduleId: id, scheduleName: s.name, source, note: str(note, 300), file, slot, at: io.now(), status: "queued", cost: 0, missionId: null, error: null, after: s.after, preview: "", output: "", savedPath: null, mindMediaId: null, saveError: null };
   if (spent >= s.capUsd) {
     putRun({ ...base, status: "stopped", error: `Spend cap reached: $${spent.toFixed(4)} of $${s.capUsd} this month.`, finishedAt: io.now() });
     if (s.enabled) { pause(s, "cap"); capAlert(s, spent); }
@@ -307,13 +350,92 @@ export function trigger(id, { source = "manual", context = "", note = "", file =
   return publicRun(r);
 }
 
+// ---------- keeping the result as a note (0.4.21, dogfood 11) ----------
+// A note lives in the project folder, like the project's files and media folders: projects/<id>/notes.
+const safePid = (id) => String(id || "unfiled").replace(/[^a-z0-9-_]/gi, "_") || "unfiled";
+export const noteFolderRel = (projectId) => `projects/${safePid(projectId)}/notes`;
+export const noteFolder = (projectId) => path.join(DATA_DIR, noteFolderRel(projectId));
+const pad2 = (n) => String(n).padStart(2, "0");
+// Everborn Monday ideas -> Everborn-Monday-ideas-2026-10-26.md, never a name that can leave the folder.
+export function noteName(scheduleName, when = io.now()) {
+  const d = new Date(when);
+  const base = String(scheduleName || "").replace(/\s+/g, "-").replace(/[^A-Za-z0-9._-]/g, "").replace(/^[.-]+/, "").slice(0, 60) || "note";
+  return `${base}-${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}.md`;
+}
+// One entry for "after the run: save as a note": the markdown file in the project folder and the MindMedia
+// item. Both must succeed; when either fails the file this call wrote is removed, so a run never reports a
+// save that did not happen.
+export async function saveRunNote(s, r, text, now = r?.finishedAt || io.now()) {
+  const pid = safePid(s.target.projectId);
+  const dir = noteFolder(pid);
+  fs.mkdirSync(dir, { recursive: true });
+  const first = noteName(s.name, now);
+  let file = path.join(dir, first);
+  for (let i = 2; fs.existsSync(file) && i < 100; i++) file = path.join(dir, first.replace(/\.md$/, `-${i}.md`));
+  const abs = path.resolve(file);
+  let wrote = false;
+  try {
+    if (path.dirname(abs) !== path.resolve(dir)) throw new Error("That note would be saved outside the project folder.");
+    fs.writeFileSync(abs, String(text ?? ""), "utf8");
+    wrote = true;
+    const { saveToMindMedia } = await import("./project-media.js");
+    const out = saveToMindMedia({ kind: "text", text: String(text ?? ""), name: path.basename(abs, ".md"), projectId: s.target.projectId || "", source: "schedule" });
+    return { savedPath: `${noteFolderRel(pid)}/${path.basename(abs)}`, mindMediaId: out?.items?.[0]?.id || null };
+  } catch (e) {
+    if (wrote) { try { fs.rmSync(abs, { force: true }); } catch {} }
+    throw e;
+  }
+}
+// The trigger in plain words (0.4.21, dogfood 11): "every Monday at 9:00 AM", not "0 9 * * 1".
+const DAY_WORDS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const clock = (h, m) => `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+export function whenWords(cron) {
+  let c; try { c = parseCron(cron); } catch { return "on the schedule it was made with"; }
+  const hours = [...c.hour].sort((a, b) => a - b), mins = [...c.minute].sort((a, b) => a - b);
+  const at = hours.length === 1 && mins.length === 1 ? ` at ${clock(hours[0], mins[0])}` : "";
+  if (!c.dayAny) return `every month${at}`; // a day of the month is fixed
+  if (c.weekdayAny) return `every day${at}`;
+  const days = [...c.weekday].sort((a, b) => a - b);
+  if (!days.length) return "on the schedule it was made with";
+  if (days.length === 1) return `every ${DAY_WORDS[days[0]]}${at}`;
+  if (days.join() === "1,2,3,4,5") return `every weekday${at}`;
+  return `every ${days.map((d) => DAY_WORDS[d]).join(", ")}${at}`;
+}
+function triggerWords(s, now = io.now()) {
+  const t = s.trigger;
+  if (t.type === "cron") {
+    let next = null;
+    try { next = nextRun(parseCron(t.cron), now); } catch { /* a cron that was saved before */ }
+    return { words: whenWords(t.cron), next, paused: !s.enabled };
+  }
+  if (t.type === "folder") return { words: `when a new file lands in ${t.folder}`, next: null, paused: !s.enabled };
+  return { words: "from its webhook", next: null, paused: !s.enabled };
+}
+// What the run's own prompt says about where the answer goes.
+function whereWords(s) {
+  if (s.after?.action === "note") return `Meldmind saves your answer as a note at ${noteFolderRel(s.target.projectId)}`;
+  if (s.after?.action === "webhook") {
+    try { return `Meldmind holds your answer until you approve sending it to ${new URL(s.after.url).host}`; } catch { /* a checked url */ }
+  }
+  return "Your answer is kept in Meldmind";
+}
+
 function promptFor(s, r) {
-  const head = s.target.kind === "agent" ? (s.target.text || "Do your scheduled job.") : s.target.text;
+  const head = s.target.runText || s.target.text || (s.target.kind === "agent" ? "Do your scheduled job." : "");
   const why = r.source === "cron" ? `This run was started by its schedule (${s.trigger.cron}) at ${new Date(r.slot || r.at).toLocaleString()}.`
     : r.source === "webhook" ? "This run was started by a webhook."
     : r.source === "folder" ? `This run was started by a new file in the watched folder: ${r.file?.name}.`
     : "This run was started by hand.";
-  return `${head}\n\n${why}${r.context ? `\n\n${r.context}` : ""}`;
+  // The facts about the schedule itself (0.4.21, dogfood 11): the answer used to say "nothing is scheduled".
+  const { words, next, paused } = triggerWords(s);
+  const facts = [
+    `Schedule: ${s.name}`,
+    `Trigger: ${words}`,
+    paused ? "Next run: none, this schedule is paused" : next ? `Next run: ${new Date(next).toLocaleString()}` : null,
+    `Result: ${whereWords(s)}`,
+    "You are already scheduled; just do this run's job. Do not say you cannot schedule or save.",
+  ].filter(Boolean).join("\n");
+  return `${head}\n\n${facts}\n\n${why}${r.context ? `\n\n${r.context}` : ""}`;
 }
 
 async function drain(id) {
@@ -345,6 +467,16 @@ async function drain(id) {
       const fin = { ...cur, status: !ok ? "failed" : holds ? "needs_approval" : "done", cost: +(Number(out?.cost) || 0).toFixed(6), missionId: out?.missionId || null, error: ok ? null : str(out?.error || "The run failed.", 500), preview: text.slice(0, 400), output: text, finishedAt: io.now(), context: undefined };
       putRun(fin);
       if (holds) emit("log", { text: `Schedule "${s.name}": the result is ready and waits for your approval before it is sent to ${new URL(s.after.url).host}.` });
+      // "after the run: save as a note" (0.4.21, dogfood 11). The run only says it was saved when both
+      // the note file and the MindMedia item are really there.
+      if (ok && s.after?.action === "note") {
+        try {
+          const saved = await saveRunNote(s, getRun(runId), text);
+          putRun({ ...getRun(runId), ...saved, saveError: null });
+        } catch (e) {
+          putRun({ ...getRun(runId), savedPath: null, mindMediaId: null, saveError: str(e.message, 300) });
+        }
+      }
       const after = spentThisMonth(id);
       if (after >= s.capUsd) { const now = getSchedule(id); if (now?.enabled) { pause(now, "cap"); capAlert(now, after); } }
     }

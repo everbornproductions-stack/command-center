@@ -25,7 +25,16 @@ const NOTION_VERSION = "2022-06-28";
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const HARMLESS = new Set(["openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]);
 export const GOOGLE_SETUP = "Google Cloud console: an OAuth client of type Desktop app with the Google Drive API enabled. The browser helper's client works too.";
-export const NOTION_SETUP = "notion.so/profile/integrations: create a public integration, tick Read content only (no Update or Insert content), add this app's address as the redirect URI, and paste its OAuth client ID and secret here.";
+// Plain steps shown where Notion is set up (Settings > Library sources, and the Libraries tab). {address} is filled in by the page.
+export const NOTION_STEPS = [
+  "Open notion.so/profile/integrations and click New integration.",
+  "Give it any name, pick Public, and fill in the website and privacy page Notion asks for (any pages of yours will do).",
+  "Under what it can do, tick Read content only. Leave Update content and Insert content unticked.",
+  "Under Redirect URIs, paste this address: {address}",
+  "Save it, then copy the OAuth client ID and the OAuth client secret from that page and paste them into the two boxes below.",
+  "Click Connect Notion, and in Notion's window choose the pages to share with Meldmind. Meldmind only reads them.",
+];
+export const NOTION_SETUP = "Create a Notion integration first, then paste its ID and secret here. The steps are under Notion in Settings > Library sources.";
 
 const fail = (status, msg, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
 const b64url = (b) => Buffer.from(b).toString("base64url");
@@ -61,7 +70,7 @@ export const connected = (k) => hasToken(k) && !sdoc(k).needsSignIn;
 
 export function sourceView(k) {
   const d = sdoc(k), c = client(k);
-  return { source: k, name: SRC[k].name, clientId: d.clientId || null, sharedClient: c.shared && !d.clientId, clientReady: !!c.clientId, clientSecretSaved: !!secret(k)?.clientSecret, connected: connected(k), needsSignIn: !!d.needsSignIn, connectedAt: d.connectedAt || null, workspace: d.workspace || null, scopes: k === "google" ? (d.scopes || []) : [], setup: k === "google" ? GOOGLE_SETUP : NOTION_SETUP, readOnly: true };
+  return { source: k, name: SRC[k].name, clientId: d.clientId || null, sharedClient: c.shared && !d.clientId, clientReady: !!c.clientId, clientSecretSaved: !!secret(k)?.clientSecret, connected: connected(k), needsSignIn: !!d.needsSignIn, connectedAt: d.connectedAt || null, workspace: d.workspace || null, scopes: k === "google" ? (d.scopes || []) : [], setup: k === "google" ? GOOGLE_SETUP : NOTION_SETUP, steps: k === "notion" ? NOTION_STEPS : [], readOnly: true };
 }
 
 export async function setClient(k, { clientId, clientSecret } = {}) {

@@ -60,6 +60,9 @@ export async function routes(req, res, url, body, h) {
         "image/jpeg",
         "image/webp",
         "image/gif",
+        // 0.4.21 (area H): the practice picture is an SVG. The page draws it in an <img>, which never runs scripts, and the
+        // CSP below (sandbox, default-src none) keeps a direct visit harmless, so the Build panel and MindMedia can show it.
+        "image/svg+xml",
         "video/mp4",
         "video/webm",
         "video/quicktime",

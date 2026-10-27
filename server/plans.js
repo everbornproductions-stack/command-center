@@ -71,10 +71,13 @@ export function applyPreferFree(scored, on) {
 
 // "Use my plan first" (Settings): official apps signed in with the person's own subscription come before
 // any model that charges per call. Rows from server/plan-first.js carry planRoute: true.
+// 0.4.21 "Jobs go to the AI with the login": this is ON unless the person switched it off. It only has an effect
+// when an app really is installed and signed in, so a person with no login sees no change. Order stays
+// this PC, free allowances, then the login (no per-call charge), then paid API (free-first.js costTier 0, 1, 2, 3).
 export function readPlanFirst() {
   let s = null;
   try { s = ctx().docs?.settings || null; } catch { s = null; }
-  return s?.planFirst === true;
+  return s?.planFirst !== false;
 }
 
 export function applyPlanFirst(scored, on = readPlanFirst()) {

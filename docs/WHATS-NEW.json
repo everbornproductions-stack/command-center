@@ -1,4 +1,18 @@
 {
+  "0.4.21": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Type what you want and get the finished thing right in the chat: \"a woman on a beach\" shows the picture under your message and saves it to MindMedia. Videos and voices work the same way.",
+      "A new layout that uses the whole window: a slim left sidebar (New, Projects, MindMedia, recent chats), the chat in the middle, and a Build panel on the right with versions, Preview, Download and one Publish button.",
+      "The first screen is one box with Image, Video, Website and Campaign buttons. AI choices, modes and budget sit behind \"Auto team\" on the box, and Live Ops is one line with See live.",
+      "The bottom AI bar shows only the AIs you have connected, and an AI lights up while it works.",
+      "Real see-through glass look, and a start screen that shows from the first moment.",
+      "If an AI is out of credits you see it before you send, with one click to use another. A job that comes back empty now says so and offers Try again, and coding jobs are split across several AIs.",
+      "MindMedia has smart views, a Trash with Restore, working-on-it tiles and a public link box. Finish is one step, and Publish shows one plain fix for each problem.",
+      "Safer sending: texts need a way to opt out, the worst fair housing wording is blocked, budget caps cannot be bypassed, and private files stay inside the data folder.",
+      "Pictures use the current xAI and Gemini picture models, and the privacy page matches what the app does."
+    ]
+  },
   "0.4.20": {
     "title": "What's new in Meldmind",
     "bullets": [

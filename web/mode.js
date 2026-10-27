@@ -14,12 +14,13 @@ export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup",
 // The Simple chat page shows only the chat box, My day, a few starters, and recent
 // chats. These are the only Command widgets it draws: voice wires the Mic button and
 // desk lists recent chats. Every other widget is Expert only.
-export const SIMPLE_COMMAND = new Set(["voice", "desk"]);
+export const SIMPLE_COMMAND = new Set(["voice", "desk", "chat-history"]);
 
 // Starter buttons shown under the Simple chat box.
 export const SIMPLE_STARTER_COUNT = 3;
 
-export const EXPERT_SETTINGS = new Set(["mcp", "grokbot"]);
+// 0.4.21: the Grok Bot panel is in Simple too (Connect > Grok Bot assistant). Only MCP stays Expert.
+export const EXPERT_SETTINGS = new Set(["mcp"]);
 
 export const ASK = {
   title: "Which mode do you want to start in?",

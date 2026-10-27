@@ -96,8 +96,8 @@ export function saveGuard(body = {}) {
   }
   if (body.cap != null) {
     const cap = Number(body.cap);
-    if (!Number.isFinite(cap) || cap <= 0 || cap > 1000000) {
-      const err = new Error("Type a monthly budget above zero.");
+    if (!Number.isFinite(cap) || cap < 0.01 || cap > 1000000) {
+      const err = new Error("Type a monthly budget of at least $0.01.");
       err.status = 400;
       throw err;
     }
@@ -109,10 +109,36 @@ export function saveGuard(body = {}) {
     state.cap = +cap.toFixed(2);
   }
   save(state);
+  // read the cap back so what the screen shows is what the stop really uses
+  if (body.cap != null) {
+    const back = load().cap;
+    if (back == null || Math.abs(back - Number(state.cap)) > 1e-9) {
+      const err = new Error("The budget did not save. Try again.");
+      err.status = 500;
+      throw err;
+    }
+  }
   return publicState();
 }
 
-export function assertSpendAllowed({ provider, estimate = 0, free = false } = {}) {
+// 0.4.21: parallel paid runs each hold a small reservation until they finish, so five chats started
+// together cannot all pass a nearly used-up budget (spend is only written to the ledger when a run ends).
+const RESERVE_EACH = 0.003;
+const reservations = new Map();
+let reserveSeq = 0;
+function reservedTotal() {
+  const now = Date.now();
+  let sum = 0;
+  for (const [k, r] of reservations) { if (r.until < now) reservations.delete(k); else sum += r.amount; }
+  return sum;
+}
+function reserve(amount) {
+  const key = ++reserveSeq;
+  reservations.set(key, { amount, until: Date.now() + 120000 });
+  return () => { reservations.delete(key); };
+}
+
+export function assertSpendAllowed({ provider, estimate = 0, free = false, hold = false } = {}) {
   const cap = activeCap();
   if (cap == null) return { ok: true, level: "off" };
   const id = String(provider || "");
@@ -122,13 +148,27 @@ export function assertSpendAllowed({ provider, estimate = 0, free = false } = {}
   if (free || local || demo) return { ok: true, level: snapshot().level };
   const snap = snapshot();
   // With no estimate the call is still stopped once the month's budget is used up.
-  if (snap.spent >= cap || (Number(estimate) > 0 && snap.spent + Number(estimate) > cap)) {
+  const held = reservedTotal();
+  const hold1 = hold ? RESERVE_EACH : 0;
+  if (snap.spent >= cap || (Number(estimate) > 0 && snap.spent + Number(estimate) > cap) || (hold && snap.spent + held + hold1 > cap)) {
     const err = new Error("This month's budget is used up. Raise the cap, or wait until next month. Free runs still work.");
     err.status = 402;
     err.code = "budget_cap";
     throw err;
   }
-  return { ok: true, level: snap.level };
+  return { ok: true, level: snap.level, release: hold ? reserve(RESERVE_EACH) : () => {} };
+}
+
+// A practice check for the Settings button "Test my budget" (0.4.21). It asks the same question a paid call asks,
+// with a typical small cost, and calls no AI and spends nothing.
+export function budgetTest({ estimate = 0.006 } = {}) {
+  const snap = snapshot();
+  const next = +Math.max(0.0001, Number(estimate) || 0.006).toFixed(4);
+  if (snap.cap == null) return { cap: null, spent: snap.spent, next, wouldStop: false, plain: `The monthly cap is off, so paid calls are not stopped by a cap. You have spent $${snap.spent.toFixed(2)} this month.` };
+  let wouldStop = false;
+  try { assertSpendAllowed({ provider: "openai", estimate: next }); } catch (e) { if (e.code === "budget_cap") wouldStop = true; else throw e; }
+  const plain = `Your cap is $${snap.cap.toFixed(2)}, spent $${snap.spent.toFixed(2)}. The next paid call needs about $${next.toFixed(3)}, so it ${wouldStop ? "would be stopped" : "would go ahead"}. This check spent nothing.`;
+  return { cap: snap.cap, spent: snap.spent, next, wouldStop, plain };
 }
 
 // 0.4.20: when the month's budget stops a paid run the person gets two local choices, never a charge.

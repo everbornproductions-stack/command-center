@@ -93,6 +93,7 @@ const HOME = {
   together: "connect",
   userchat: "connect",
   community: "connect",
+  "ai-news": "connect",
   settings: "help",
   setup: "help",
   help: "guides",
@@ -132,6 +133,7 @@ const SPLIT_HOME = {
   together: "connect",
   userchat: "connect",
   community: "connect",
+  "ai-news": "connect",
   settings: "settings",
   setup: "settings",
   start: "work",
@@ -170,6 +172,7 @@ export const LABELS = {
   userchat: "People",
   reports: "Reports",
   community: "Community",
+  "ai-news": "AI News",
   settings: "Settings",
   // Settings > Find my AIs is the longer setup page (keys on this PC, browser history,
   // bookmarks). Help > Get everything connected is the integrations checklist. 0.4.17.
@@ -444,7 +447,7 @@ export function groupIdFor(view, layout = "narrow") {
 // Connect has two sections: Apps and AIs (the links below), then People.
 export const APPS_SECTION = "Apps and AIs";
 export const PEOPLE_SECTION = "People";
-export const PEOPLE_ORDER = ["userchat", "together", "community"];
+export const PEOPLE_ORDER = ["userchat", "together", "community", "ai-news"];
 export const BUSINESS_ORDER = ["credits", "subscriptions", "reports", "workspaces"];
 
 export const CONNECT_LINKS = [
@@ -457,10 +460,10 @@ export const CONNECT_LINKS = [
 ];
 
 // Simple: More > Connections. Same Settings panels, opened past the basics.
-// MCP and Integrations stay in Expert (their panels are Expert only).
+// MCP stays in Expert (its panel is Expert only). Grok Bot shows in Simple too, in plain words.
 export const SIMPLE_CONNECT_LINKS = [
   { id: "zapier", label: "Zapier and Make", view: "settings", focus: "[data-feature='zapier']" },
-  ...CONNECT_LINKS.filter((l) => l.id !== "mcp" && l.id !== "integrations"),
+  ...CONNECT_LINKS.filter((l) => l.id !== "mcp").map((l) => (l.id === "integrations" ? { ...l, label: "Grok Bot assistant" } : l)),
 ].map((l) => ({ ...l, section: "Connections" }));
 
 export function groupFor(view) {
@@ -719,7 +722,7 @@ function buttonFor(buttons, view, label) {
 
 // Simple keeps a short row. Pages that are not on it are under More, grouped the
 // same way as Expert, so every page is still one click away.
-const SIMPLE_FIXED = new Set(["command", "start", "projects", "help", "settings", "community", ...CREATE_VIEWS]);
+const SIMPLE_FIXED = new Set(["command", "start", "projects", "help", "settings", "community", "ai-news", ...CREATE_VIEWS]);
 const isSimpleTop = (view) => SIMPLE_FIXED.has(view) || NAV_REGISTRY.some((i) => i.view === view);
 
 export function simpleModel(views, surface = "", promote = []) {
@@ -759,6 +762,7 @@ export function simpleModel(views, surface = "", promote = []) {
     { id: "create", label: "Create", items: create },
     ...top,
     ...(have.has("community") ? [{ id: "community", label: "Community", direct: true, items: [{ view: "community", label: "Community", home: true }] }] : []),
+    ...(have.has("ai-news") ? [{ id: "ai-news", label: "AI News", direct: true, items: [{ view: "ai-news", label: "AI News", home: true }] }] : []),
     { id: "more", label: "More", items: more },
     { id: "guides", label: "Help", items: helpItems(surface) },
     { id: "settings", label: "Settings", direct: true, items: [{ view: "settings", label: "Settings", home: true }] },

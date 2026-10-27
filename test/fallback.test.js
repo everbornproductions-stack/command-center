@@ -48,7 +48,7 @@ test("openrouterId: vendor namespaces, open models kept, custom gateways and Ope
 test("defaults, cooldowns, reasons, health mapping; no em-dashes in user-facing words", () => {
   assert.equal(FB.DEFAULTS.on, true); assert.equal(FB.DEFAULTS.openrouterFirst, true); assert.equal(FB.DEFAULTS.maxHops, 3);
   assert.deepEqual(Object.keys(FB.DEFAULTS.freeTiers).sort(), ["google", "groq", "openrouter"]);
-  assert.equal(FB.DEFAULTS.freeTiers.google.on, true); assert.equal(FB.DEFAULTS.freeTiers.groq.on, false);
+  assert.equal(FB.DEFAULTS.freeTiers.google.on, true); assert.equal(FB.DEFAULTS.freeTiers.groq.on, true); // 0.4.21: Groq free is on by default
   for (const k of FB.KINDS) { assert.ok(k in FB.COOLDOWN_MS, k); assert.ok(FB.REASON[k], k); assert.doesNotMatch(FB.REASON[k], /—/); }
   assert.ok(FB.COOLDOWN_MS.rate < FB.COOLDOWN_MS.credits && FB.COOLDOWN_MS.credits <= FB.COOLDOWN_MS.key);
   for (const t of Object.values(FB.FREE_TIERS)) { assert.ok(t.models.length && t.perDay > 0 && t.perMinute > 0); assert.doesNotMatch(t.name + t.note, /—/); }
@@ -146,8 +146,10 @@ async function waitRun(s, pred, label, ms = 60000) {
 }
 const settled = (id) => (st) => st.missions.find((m) => m.id === id && ["done", "done-with-errors", "failed"].includes(m.status));
 // Follow the id the chat returns. A Windows clock can stamp the run a tick before Date.now() here, so startedAt > t0 never matches a run that already finished.
+// Every step here is the Auto route (Let Meldmind choose): allowStandIn is what lets another provider
+// stand in. A person's own pinned pick never reaches another provider; that lives in test/gemini-0421-q.test.js.
 async function postSingle(s, body) {
-  const posted = await s.api("/chat", { method: "POST", body });
+  const posted = await s.api("/chat", { method: "POST", body: { allowStandIn: true, ...body } });
   assert.equal(posted.status, 202);
   assert.match(posted.json?.runId || "", /^s-/);
   return posted.json.runId;

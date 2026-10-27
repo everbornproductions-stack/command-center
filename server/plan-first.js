@@ -95,11 +95,21 @@ async function* planStream(route, opts = {}) {
   yield { type: "done", usage: { input: 0, output: 0, cost: 0 }, stop: "end" };
 }
 
+// One plain line for where the feature lives: who the jobs go to, or the one step to take.
+export function loginLine(names, on) {
+  if (!on) return "Jobs go to the cheapest good AI. Turn on Use my plan first to send them to the AI you are signed in to.";
+  if (!names.length) return "No signed-in app found yet. Sign in to Claude Code, Codex or Gemini CLI on this PC and jobs go there first, with no extra charge.";
+  return `Jobs go to the AI you are signed in to first: ${names.join(", ")}. No extra charge. Free AIs on this PC still go before it.`;
+}
+
 export function planMeterView(now = Date.now()) {
   const m = meter(now);
   const known = cachedStatus();
+  const on = readPlanFirst();
+  const readyNames = ROUTES.filter((r) => !r.agy && routeOn(r.id) && known?.rows.some((x) => x.id === r.id && x.status === "ready") && !outOfQuota(r.id, now)).map((r) => r.name);
   return {
-    on: readPlanFirst(),
+    on,
+    line: loginLine(readyNames, on),
     day: m.day,
     routes: ROUTES.filter((r) => !r.agy).map((r) => ({
       id: r.id, name: r.name, ai: r.ai,

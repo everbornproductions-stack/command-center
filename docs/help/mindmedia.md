@@ -2,7 +2,7 @@
 id: mindmedia
 title: MindMedia
 summary: One place for everything Meldmind makes: images, video, audio, text, and sites. Keep it, finish it, publish it. Nothing is posted without your click.
-lastUpdatedVersion: 0.4.20
+lastUpdatedVersion: 0.4.21
 ---
 
 # MindMedia
@@ -18,6 +18,20 @@ MindMedia is in Create. Everything Meldmind makes for you can be kept here, in o
 
 Press Finish under any result. A drawer opens with "Done? Choose where this goes." You can Copy, Print, Save as PDF, Save as Word, Save to MindMedia, or Publish. After every save you see where it went, with a link to open it.
 
+After Finish you can also Read aloud, and Save code as files when the answer has code blocks. Print uses your text size and adds a title. The Finish window keeps your place with the Tab key, and Escape closes it.
+
 ## Publish
 
 Publish always shows a preview first. If a place is not connected, it is a practice run: "Practice only, nothing is sent." Meldmind writes the result back on the item, with the link and the time.
+
+Each place asks only for what it needs. Instagram wants a public link to a picture or video, and your words become the caption. HighLevel lets you pick accounts and a later time. Slack lets you pick a channel. If something is missing, a line tells you what, with one button to fix it, or Save to Drive instead.
+
+## Find things faster
+
+The left side has Smart views: Needs my OK, Ready to publish, Published this month, AI employees, Needs an ending, and Trash. Each shows a count. Open a link like #mindmedia?view=needs-ending and the hub opens on that view.
+
+Trash keeps deleted items for 30 days. Press Restore to put one back.
+
+Something still being made shows under "Working on it" and turns into a normal card when it is ready. You get a note when it is done.
+
+Open an item and you can ask Meldmind about it, or make another like it. The chat box is filled in for you, and nothing is sent until you press Go. Tags, how it was made, versions and Move live under More. A file can have a public link saved on it, which Instagram and HighLevel need.

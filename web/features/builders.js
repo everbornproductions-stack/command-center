@@ -15,6 +15,7 @@ let previewKey = "";
 let job = null;
 let lastBody = null;
 let lastChecks = {};
+let endResult = null; // the finished card for the open builder: { id, text, title, saved, posted, reason }
 
 function fieldValue(root) {
   const body = {};
@@ -72,6 +73,7 @@ function shell() {
       <textarea id="builders-need" style="min-height:72px;width:100%" placeholder="For example: a HighLevel lead form, a receipt, or a booking page"></textarea>
       <div class="row" style="margin-top:8px">
         <button type="button" class="btn sm primary" id="builders-show">Show builders</button>
+        ${connected.highlevel ? "" : `<button type="button" class="btn sm" id="builders-hl-connect" title="Signs in to HighLevel in your browser. Nothing is sent.">Connect HighLevel</button>`}
       </div>
       <details style="margin-top:10px">
         <summary class="small">Connections and more options</summary>
@@ -134,6 +136,7 @@ function workHtml() {
     <h3 style="margin-top:0">${esc(builder.title)}</h3>
     <p class="small" style="margin-top:0">${esc(builder.publishNote || "")}</p>
     ${form.note ? `<p class="dim small">${esc(form.note)}</p>` : ""}
+    <div id="builders-result" aria-live="polite"></div>
     <ol class="small" style="padding-left:18px">
       ${steps.map((name, i) => `<li${i === at ? ` aria-current="step"` : ""}><b>${esc(name)}</b></li>`).join("")}
     </ol>
@@ -184,6 +187,42 @@ function previewHtml() {
     ${draftText(preview.draft).trim() ? `<div class="row small" id="builders-personas"></div>` : ""}`;
 }
 
+// The ending: a Result card with what was made, where it was saved, and Finish. Saved to MindMedia once per run.
+function endText(draft) {
+  const t = draftText(draft).trim();
+  if (t) return t;
+  try { return JSON.stringify(draft || {}, null, 2); } catch { return ""; }
+}
+async function finishRun(root, out, builderTitle, runJob, draft) {
+  const CC = window.CC;
+  const text = endText(draft || preview?.draft);
+  const id = runJob?.id || out?.job?.id || "";
+  if (!text.trim() || !CC.resultCard) return;
+  const title = `${builderTitle || "Builder"} (${new Date().toISOString().slice(0, 10)})`;
+  endResult = { id, text, title, posted: !!out?.posted, reason: out?.reason || "", saved: null };
+  CC._lastResult = { kind: "text", text, name: title, source: "Builders" };
+  try {
+    const r = await CC.saveToMindMedia({ kind: "text", text, name: title, source: "Builders", status: out?.posted ? "Published" : "Draft", dedupeKey: `builder:${id}`, quiet: true });
+    endResult.saved = { where: r.where || "Unfiled", projectId: r.projectId, assetId: r.items?.[0]?.id };
+  } catch (e) { endResult.saved = { error: e.message || "Could not save to MindMedia." }; }
+  paintEnd(root);
+}
+function paintEnd(root) {
+  const CC = window.CC;
+  const box = (root || document).querySelector("#builders-result");
+  if (!box || !endResult || !CC.resultCard) return;
+  const r = endResult;
+  const saved = r.saved?.error ? `Not saved in MindMedia: ${r.saved.error}` : r.saved ? `Saved in MindMedia, ${r.saved.where}.` : "Saving to MindMedia...";
+  box.innerHTML = "";
+  box.appendChild(CC.resultCard({
+    what: r.posted ? "Sent, and saved" : "Your draft is ready",
+    detail: r.posted ? "" : (r.reason || "Saved on this computer. Nothing was sent."),
+    savedWhere: saved,
+    item: r.saved?.assetId ? { projectId: r.saved.projectId, assetId: r.saved.assetId } : null,
+    actions: [{ label: "Finish", primary: true, onClick: () => { CC._lastResult = { kind: "text", text: r.text, name: r.title, source: "Builders" }; return CC.openFinishDrawer?.({ ...CC._lastResult, item: r.saved?.assetId ? { projectId: r.saved.projectId, assetId: r.saved.assetId, kind: "text" } : undefined }); } }],
+  }));
+}
+
 function paint() {
   const root = document.getElementById("builders-root");
   if (!root) return;
@@ -198,13 +237,19 @@ function paint() {
     conn.textContent = on.length ? `Saved: ${on.join(", ")}.` : "Nothing saved from this form yet.";
   }
   wire(root);
+  paintEnd(root);
   // Build it all for me: describe, then preview, build, test and publish in one go.
   const all = root.querySelector("#builders-build-all");
   if (all) {
     import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(all, {
       surface: "builder",
       payload: () => { const input = fieldValue(root); return { builderId: openId, description: String(input.text || ""), input }; },
-      onEnd: (j) => toast(j.status === "done" ? "Built it all. Open the builder again to see the result." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+      onEnd: async (j) => {
+        toast(j.status === "done" ? "Built it all." : (j.waiting?.reason || j.error || "Build it all for me stopped."));
+        if (j.status !== "done" || !j.result?.draft) return;
+        const title = (info?.builders || []).find((b) => b.id === openId)?.title;
+        await finishRun(root, { posted: j.result.posted, reason: j.result.note }, title, { id: j.result.jobId || j.id }, j.result.draft);
+      },
     })).catch(() => { /* the step by step buttons still work */ });
   }
   // Test with personas on the draft
@@ -228,6 +273,7 @@ function wire(root) {
     job = null;
     lastBody = null;
     lastChecks = {};
+    endResult = null;
     paint();
   }));
   const form = root.querySelector("#builders-form");
@@ -271,7 +317,11 @@ async function run(root, action, sendAnyway = false) {
     }
     paint();
     applyState(root);
-    if (action === "publish") toast(out.posted ? "Published after your click." : (out.reason || "Saved. Nothing was sent."));
+    if (action === "publish") {
+      toast(out.posted ? "Published after your click." : (out.reason || "Saved. Nothing was sent."));
+      const title = (info?.builders || []).find((b) => b.id === openId)?.title;
+      await finishRun(root, out, title, job, preview?.draft);
+    }
     else if (action === "test") toast("Test finished. Nothing was sent.");
     else if (action === "build") toast(out.ai?.started ? "Build started." : "Draft built here. Nothing was sent.");
   } catch (e) {
@@ -300,6 +350,7 @@ async function render(view) {
   if (preset && box) box.value = preset;
   paint();
   root.querySelector("#builders-show").addEventListener("click", async () => {
+    if (!box.value.trim()) toast("Tell me what you are working on first, for example: a booking page. Showing every builder for now.");
     try {
       await load(box.value);
       sessionStorage.setItem("cc.builderText", box.value);
@@ -310,6 +361,19 @@ async function render(view) {
       lastChecks = {};
       paint();
     } catch (e) { toast(e.message, true); }
+  });
+  // One tap to connect HighLevel (0.4.21): the sign-in page opens in the browser. Without the app's client id it
+  // says so and opens the paste form instead, so the person is never stuck.
+  root.querySelector("#builders-hl-connect")?.addEventListener("click", async () => {
+    try {
+      const r = await api("/publish/connect/ghlcrm/start", { method: "POST", body: { origin: location.origin } });
+      window.open(r.url, "_blank", "noopener");
+      toast("Sign in to HighLevel and allow the access asked for. Come back here when you are done.");
+    } catch (e) {
+      const d = root.querySelector("#builders-service")?.closest("details");
+      if (d) d.open = true;
+      toast(`${e.message} You can paste a HighLevel token below instead.`, true);
+    }
   });
   root.querySelector("#builders-connect").addEventListener("click", async () => {
     const service = root.querySelector("#builders-service").value;

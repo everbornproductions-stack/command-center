@@ -17,6 +17,7 @@ import { localFetch } from "./loopback-fetch.js";
 import { htmlToText } from "./receipts.js";
 import { requireResearch } from "./feature-gate.js";
 import { reportPdf, reportDocx } from "./research-export.js";
+import { openSources, pagesBlock, coverageLine, searchPreflight, sourceStatus } from "./page-reader.js";
 import {
   augment, runSearch, resolveEngine, sourcesBlock, queryFor, normalizeFilter, mayCallLive,
 } from "./search.js";
@@ -159,7 +160,9 @@ export function citationPass(report = "", sources = [], reads = []) {
   if (!maxN) {
     return { role: "CitationAgent", text: cleaned.trim(), citationsAdded: 0, invalidRemoved, verifiedClaims: 0, ungroundedClaims: 0, sourceCount: 0 };
   }
-  const sourceTokens = (sources || []).map((s) => {
+  // Only a source whose page was really opened can back a claim. A title or snippet is a listing, not a check.
+  const openedN = new Set((reads || []).filter((r) => r.opened !== false && (r.text || r.excerpt)).map((r) => r.n ?? (sources || []).find((s) => s.url === r.url)?.n));
+  const sourceTokens = (sources || []).filter((s) => openedN.has(s.n)).map((s) => {
     const rd = (reads || []).find((r) => r.n === s.n || r.url === s.url);
     const bag = `${s.title || ""} ${s.snippet || ""} ${s.host || ""} ${rd?.excerpt || ""} ${rd?.text || ""}`.toLowerCase();
     const words = new Set((bag.match(/[a-z0-9]{4,}/g) || []).slice(0, 120));
@@ -167,11 +170,11 @@ export function citationPass(report = "", sources = [], reads = []) {
   });
   const pickBestSource = (line) => {
     const lw = (String(line || "").toLowerCase().match(/[a-z0-9]{4,}/g) || []);
-    let bestN = sources[0].n, bestScore = -1;
+    let bestN = sourceTokens[0].n, bestScore = -1;
     for (const st of sourceTokens) {
       let score = 0;
       for (const w of lw) if (st.words.has(w)) score += 1;
-      if (score > bestScore) { bestScore = score; bestN = st.n; }
+      if (score > bestScore) { bestN = st.n; bestScore = score; }
     }
     return bestN;
   };
@@ -179,21 +182,23 @@ export function citationPass(report = "", sources = [], reads = []) {
   const bodyLines = parts[0].split("\n");
   let citationsAdded = 0;
   let verifiedClaims = 0;
+  let listingOnlyClaims = 0;
   const updatedLines = bodyLines.map((line, idx) => {
     const trimmed = line.trim();
     if (!trimmed || idx === 0 || /^#{1,6}\s/.test(trimmed) || /^```/.test(trimmed) || /^Sources$/i.test(trimmed)) return line;
     if (/\[\d+\]/.test(trimmed)) {
-      verifiedClaims += 1;
+      const cites = [...trimmed.matchAll(/\[(\d+)\]/g)].map((x) => Number(x[1]));
+      if (cites.some((n) => openedN.has(n))) verifiedClaims += 1; else listingOnlyClaims += 1;
       return line;
     }
-    if (trimmed.length < 18) return line;
+    if (trimmed.length < 18 || !sourceTokens.length) return line;
     const bestN = pickBestSource(trimmed);
     citationsAdded += 1;
     verifiedClaims += 1;
     return /\.$/.test(trimmed) ? `${line.replace(/\.\s*$/, "")} [${bestN}].` : `${line} [${bestN}]`;
   });
   const finalText = updatedLines.join("\n") + (parts[1] || "");
-  return { role: "CitationAgent", text: finalText.trim(), citationsAdded, invalidRemoved, verifiedClaims, ungroundedClaims: 0, sourceCount: maxN };
+  return { role: "CitationAgent", text: finalText.trim(), citationsAdded, invalidRemoved, verifiedClaims, listingOnlyClaims, ungroundedClaims: 0, sourceCount: maxN, openedCount: sourceTokens.length };
 }
 
 const running = new Map(); // id -> AbortController
@@ -239,9 +244,9 @@ export async function prepareWeb(opts = {}) {
   if (opts.mode === "pro") {
     const gate = requireResearch("proSearch");
     if (!gate.ok) return { skipped: true, reason: gate.message, sources: [], block: "", prompt: opts.prompt, pro: true };
-    return proSearch(opts);
+    return withPages(await proSearch(opts), { question: opts.prompt, signal: opts.signal });
   }
-  return augment(opts);
+  return withPages(await augment(opts), { question: opts.prompt, signal: opts.signal });
 }
 
 export async function proSearch({ prompt, provider, model, missionId = null, taskId = null, filter, offset = 0, signal } = {}) {
@@ -285,38 +290,29 @@ export async function proSearch({ prompt, provider, model, missionId = null, tas
   return { engine: pickEngine.engine, name, demo, sources, block, prompt: block ? `${prompt}\n\n${block}` : prompt, cost, pro: true, filter: useFilter, steps: steps.filter(Boolean) };
 }
 
-async function fetchText(url, signal) {
-  if (!/^https?:\/\//i.test(String(url || ""))) return "";
-  if (!mayCallLive(url)) return "";
+// Every source gets a result: opened with text, or "could not open" with a plain reason (never a silent skip).
+export async function readAll(sources, limit = 4, signal, { question = "", fetcher } = {}) {
   throwIfStopped(signal);
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 8000);
-  const onAbort = () => ctl.abort();
-  signal?.addEventListener("abort", onAbort);
-  try {
-    const res = await localFetch(url, { headers: { accept: "text/html, text/plain;q=0.9" }, signal: ctl.signal });
-    if (signal?.aborted) throw new ResearchStopped();
-    if (!res.ok) return "";
-    const txt = await res.text();
-    if (signal?.aborted) throw new ResearchStopped();
-    return htmlToText(txt).slice(0, 3500);
-  } catch (err) {
-    if (signal?.aborted || err?.code === "aborted") throw err?.code === "aborted" ? err : new ResearchStopped();
-    return "";
-  } finally {
-    clearTimeout(t);
-    signal?.removeEventListener("abort", onAbort);
-  }
+  const pages = await openSources(sources, { question, limit, fetcher: fetcher || pageFetcher, signal });
+  throwIfStopped(signal);
+  return pages;
 }
 
-export async function readSources(sources, limit = 4, signal) {
-  const reads = [];
-  for (const s of (sources || []).slice(0, limit)) {
-    throwIfStopped(signal);
-    const text = await fetchText(s.url, signal);
-    if (text) reads.push({ n: s.n, url: s.url, title: s.title, chars: text.length, excerpt: text.slice(0, 500), text });
-  }
-  return reads;
+// Tests swap this to a mock; the app uses the real fetcher.
+let pageFetcher;
+export function setPageFetcher(fn) { pageFetcher = fn || undefined; }
+
+export async function readSources(sources, limit = 4, signal, opts) {
+  return (await readAll(sources, limit, signal, opts)).filter((p) => p.opened);
+}
+
+// Chat, Council and Mission: after a search, open the top pages so the answer is built from pages, not titles.
+export async function withPages(web, { question = "", limit = 3, signal } = {}) {
+  if (!web?.sources?.length || web.demo || web.native) return web;
+  const pages = await readAll(web.sources, limit, signal, { question });
+  const note = "These are search listings. Only pages marked PAGE OPENED were read. Never say a fact is verified, confirmed or checked from a listing alone; say it comes from the search listing.";
+  const block = `${web.block}\n\n${note}\n\n${pagesBlock(pages)}`;
+  return { ...web, pages, coverage: coverageLine(pages), block, prompt: `${String(web.prompt).split("\n\nWEB SEARCH RESULTS")[0]}\n\n${block}` };
 }
 
 function task(id, title, capability, status) {
@@ -367,7 +363,7 @@ async function ask(m, who, { role, system, content, capability, difficulty, sign
   const agent = `${m.id}:${role}`;
   emit("agent.start", { agent, provider: who.provider, model: who.model, role, missionId: m.id, label: `${PROVIDERS[who.provider]?.name || who.provider}: ${role}` });
   const t0 = Date.now();
-  const r = await completeFallback({
+  const r = await completeFallback({ allowStandIn: true,
     provider: who.provider, model: who.model, maxTokens: role === "check" ? 900 : 2200, signal,
     system, messages: [{ role: "user", content }],
   }, { missionId: m.id, role, tools: false, cls: { capability, difficulty }, mode: "quality" });
@@ -381,7 +377,7 @@ async function ask(m, who, { role, system, content, capability, difficulty, sign
 
 function readingBlock(reads) {
   if (!reads.length) return "";
-  return reads.map((r) => `[${r.n}] ${r.title}\n${r.url}\n${r.text}`).join("\n\n");
+  return pagesBlock(reads);
 }
 
 export async function runSubAgent(m, facet, { engine, filter = "web", readsPerAgent = 2, maxRetries = 1, signal } = {}) {
@@ -414,16 +410,13 @@ export async function runSubAgent(m, facet, { engine, filter = "web", readsPerAg
       }
       throwIfStopped(signal);
       const top = sources.slice(0, readsPerAgent);
-      const texts = await Promise.all(top.map((s) => fetchText(s.url, signal)));
-      throwIfStopped(signal);
-      const reads = [];
-      for (let i = 0; i < top.length; i++) {
-        const txt = texts[i];
-        if (txt) reads.push({ url: top[i].url, title: top[i].title, chars: txt.length, excerpt: txt.slice(0, 500), text: txt });
-      }
+      const pages = await readAll(top.map((s, i) => ({ ...s, n: s.n || i + 1 })), top.length, signal, { question: facet.query });
+      const reads = pages.filter((p) => p.opened);
       const bullets = sources.slice(0, 3).map((s) => {
         const rd = reads.find((r) => r.url === s.url);
-        return `- ${s.title} (${s.url}): ${clean(rd?.excerpt || s.snippet || s.title, 220)}`;
+        const pg = pages.find((r) => r.url === s.url);
+        if (rd) return `- ${s.title} (${s.url}), page opened: ${clean(rd.excerpt, 220)}${rd.details?.length ? ` Details: ${rd.details.map((d) => `${d.kind} ${d.value}`).join(", ")}.` : ""}`;
+        return `- ${s.title} (${s.url}), ${pg ? `could not open (${pg.reason})` : "not opened"}; search listing only: ${clean(s.snippet || s.title, 160)}`;
       });
       const condensed = bullets.length ? `### ${facet.title}\n${bullets.join("\n")}` : `### ${facet.title}\n- No live sources returned for "${facet.query}".`;
       return {
@@ -441,6 +434,7 @@ export async function runSubAgent(m, facet, { engine, filter = "web", readsPerAg
         engineName,
         sources,
         reads,
+        pages,
         condensed,
         cost,
       };
@@ -557,14 +551,21 @@ async function workOrchestrated(m, signal) {
     const mappedReads = [];
     for (const s of m.sources) {
       const r = rawReadsByUrl.get(s.url);
-      if (r) mappedReads.push({ ...r, n: s.n });
+      if (r) mappedReads.push({ ...r, n: s.n, opened: true });
     }
+    let pageList = mappedReads;
     if (!mappedReads.length && m.sources.length) {
-      const fallbackReads = await readSources(m.sources, 4, signal);
-      mappedReads.push(...fallbackReads);
+      pageList = await readAll(m.sources, 4, signal, { question: m.prompt });
+      mappedReads.push(...pageList.filter((p) => p.opened));
+    } else {
+      const failedByUrl = new Map();
+      for (const sr of subResults) for (const p of sr.pages || []) if (!p.opened && !failedByUrl.has(p.url)) failedByUrl.set(p.url, p);
+      for (const s of m.sources) { const f = failedByUrl.get(s.url); if (f && !mappedReads.some((r) => r.url === s.url)) pageList.push({ ...f, n: s.n }); }
     }
     throwIfStopped(signal);
     m.reads = mappedReads;
+    m.pages = pageList.map(({ text, ...r }) => r);
+    m.coverage = coverageLine(pageList);
     m.subAgents = subResults.map((r) => ({ facetId: r.facetId, title: r.title, status: r.status, attempts: r.attempts, isolatedContext: r.isolatedContext, contextId: r.contextId, sourceCount: (r.sources || []).length }));
     setTask(m, "read", { status: "done" });
     setTask(m, "write", { status: "running" });
@@ -573,11 +574,11 @@ async function workOrchestrated(m, signal) {
     const writer = pick({ capability: "research", difficulty: 3, mode: "quality" }) || pick({ capability: "writing", difficulty: 2, mode: "balanced" });
     if (!writer) throw new Error("No AI is available to write the report. Add an API key in Settings.");
     const block = sourcesBlock(m.sources, m.searchEngine);
-    const pages = readingBlock(m.reads);
+    const pages = readingBlock(pageList);
     const facetNotes = subResults.map((r) => r.condensed).filter(Boolean).join("\n\n");
     const draft = await ask(m, writer, {
       role: "write", capability: "research", difficulty: 3, signal,
-      system: "You write a cited research report from the sources below. Cite facts with the source number in square brackets, like [1]. Only cite those numbers. Never invent a source. Markdown. Put a short title on the first line. No preamble.",
+      system: "You write a cited research report from the sources below. Cite facts with the source number in square brackets, like [1]. Only cite those numbers. Never invent a source. Only pages marked PAGE OPENED were read; for any other source say it comes from the search listing and was not opened. Never write verified or confirmed for a fact that only a title or snippet supports. Markdown. Put a short title on the first line. No preamble.",
       content: `QUESTION:\n${m.prompt}\n\nFACET FINDINGS:\n${facetNotes}\n\n${block || "No live pages were fetched."}${pages ? `\n\nPAGE TEXT:\n${pages}` : ""}`,
     });
     setTask(m, "write", { status: "done", provider: draft.provider, model: draft.model, cost: m.cost });
@@ -586,11 +587,15 @@ async function workOrchestrated(m, signal) {
 
     const cited = citationPass(report, m.sources, m.reads);
     report = cited.text;
+    report += `\n\n## Pages opened\n\n${m.coverage}\n\n${m.sources.map((s) => `[${s.n}] ${s.title}: ${sourceStatus(s, pageList).label}`).join("\n")}`;
+    if (!m.reads.length) report = `> Read this first: no page could be opened, so nothing here was checked against a page.\n\n${report}`;
     m.citationAudit = {
       role: cited.role,
       citationsAdded: cited.citationsAdded,
       invalidRemoved: cited.invalidRemoved,
       verifiedClaims: cited.verifiedClaims,
+      listingOnlyClaims: cited.listingOnlyClaims,
+      openedCount: cited.openedCount,
       ungroundedClaims: cited.ungroundedClaims,
       sourceCount: cited.sourceCount,
     };
@@ -678,9 +683,12 @@ async function work(m, signal) {
     setTask(m, "read", { status: "running" });
     publish(m);
 
-    const reads = m.sources?.length ? await readSources(m.sources, 4, signal) : [];
+    const pageList = m.sources?.length ? await readAll(m.sources, 4, signal, { question: m.prompt }) : [];
+    const reads = pageList.filter((p) => p.opened);
     throwIfStopped(signal);
     m.reads = reads;
+    m.pages = pageList.map(({ text, ...r }) => r);
+    m.coverage = coverageLine(pageList);
     setTask(m, "read", { status: "done" });
     setTask(m, "write", { status: "running" });
     publish(m);
@@ -688,14 +696,16 @@ async function work(m, signal) {
     const writer = pick({ capability: "research", difficulty: 3, mode: "quality" }) || pick({ capability: "writing", difficulty: 2, mode: "balanced" });
     if (!writer) throw new Error("No AI is available to write the report. Add an API key in Settings.");
     const block = sourcesBlock(m.sources, m.searchEngine);
-    const pages = readingBlock(reads);
+    const pages = readingBlock(pageList);
     const draft = await ask(m, writer, {
       role: "write", capability: "research", difficulty: 3, signal,
-      system: "You write a cited research report from the sources below. Cite facts with the source number in square brackets, like [1]. Only cite those numbers. Never invent a source. Markdown. Put a short title on the first line. No preamble.",
+      system: "You write a cited research report from the sources below. Cite facts with the source number in square brackets, like [1]. Only cite those numbers. Never invent a source. Only pages marked PAGE OPENED were read; for any other source say it comes from the search listing and was not opened. Never write verified or confirmed for a fact that only a title or snippet supports. Markdown. Put a short title on the first line. No preamble.",
       content: `QUESTION:\n${m.prompt}\n\n${block || "No live pages were fetched."}${pages ? `\n\nPAGE TEXT:\n${pages}` : ""}`,
     });
     setTask(m, "write", { status: "done", provider: draft.provider, model: draft.model, cost: m.cost });
     let report = String(draft.text || "").trim() || "The report came back empty.";
+    report += `\n\n## Pages opened\n\n${m.coverage}\n\n${(m.sources || []).map((s) => `[${s.n}] ${s.title}: ${sourceStatus(s, pageList).label}`).join("\n")}`;
+    if (!reads.length) report = `> Read this first: no page could be opened, so nothing here was checked against a page.\n\n${report}`;
     const writerVendor = PROVIDERS[draft.provider]?.vendor || draft.provider;
 
     setTask(m, "check", { status: "running" });
@@ -758,7 +768,10 @@ export function beginDeep({ prompt, filter, projectId, effort, facets, maxCostUs
   if (!q) { const e = new Error("Type a question first."); e.status = 400; throw e; }
   const gate = requireResearch("deepResearch");
   if (!gate.ok) { const e = new Error(gate.message); e.status = gate.status || 402; e.code = gate.code; throw e; }
+  const pre = searchPreflight({});
+  if (!pre.ok) { const e = new Error(pre.message); e.status = 400; e.code = "no_search"; throw e; }
   const m = blank(q, filter, projectId);
+  if (pre.level === "warn") m.searchWarning = pre.message;
   if (agentsFlagOn() || effort || facets) {
     m.orchestrated = true;
     m.effortLevel = effort || undefined;
@@ -772,7 +785,8 @@ export function beginDeep({ prompt, filter, projectId, effort, facets, maxCostUs
   const ctl = new AbortController();
   running.set(m.id, ctl);
   work(m, ctl.signal).catch(() => {});
-  return m.orchestrated ? { id: m.id, effort: m.effort, costWarning: m.costWarning } : { id: m.id };
+  const warning = pre.level === "warn" ? { searchWarning: pre.message } : {};
+  return m.orchestrated ? { id: m.id, effort: m.effort, costWarning: m.costWarning, ...warning } : { id: m.id, ...warning };
 }
 
 export async function resumeDeep(id) {
@@ -807,7 +821,9 @@ export async function loadResearch(id) {
 
 export function exportReport(m, format) {
   const title = m.title || "Research report";
-  const body = `${m.deliverable || ""}\n\nSources\n${(m.sources || []).map((s) => `[${s.n}] ${s.title} ${s.url}`).join("\n")}`;
+  // no sources, no "Sources" heading (an empty list used to print a bare heading)
+  const src = (m.sources || []).map((s) => `[${s.n}] ${s.title} ${s.url}`);
+  const body = `${m.deliverable || ""}${src.length ? `\n\nSources\n${src.join("\n")}` : ""}`;
   if (format === "pdf") return { bytes: reportPdf({ title, body }), type: "application/pdf", ext: "pdf" };
   if (format === "docx") return { bytes: reportDocx({ title, body }), type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ext: "docx" };
   const e = new Error("Export pdf or docx.");

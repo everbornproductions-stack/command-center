@@ -1,5 +1,6 @@
 // Describe, preview, build, test, and publish. Preview names the AIs and does not send.
 // Build writes a draft on this computer. Publish sends only after a click.
+import { checkOutgoing } from "../../compliance-guard.js";
 import { getBuilder } from "./registry.js";
 import { webBuilderGate, publishGate, tierRank } from "../../feature-gate.js";
 import {
@@ -205,10 +206,21 @@ function siteArtifact(builder, input) {
       ? { editor: "Astro", license: "MIT", started: false, note: "Pages were written on this computer. Astro was not downloaded or started." }
       : { editor: "GrapesJS", license: "BSD-3", spdx: "BSD-3-Clause", started: false, note: "Saved as blocks GrapesJS can open. GrapesJS was not started." };
   const pagesUsed = builder.id === "client-page" ? pages.slice(0, 1) : pages;
+  const files = [...pageFiles(pagesUsed), { path: "TOOLS.txt", text: toolsFile(builder) }];
+  // Site Builder (Pro) adds what the Free static export does not: an editable block file, a sitemap and robots.txt.
+  if (builder.id === "site-builder") {
+    const slugOf = (page) => page.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "page";
+    files.push(
+      { path: "grapesjs-project.json", text: JSON.stringify({ pages: pagesUsed.map((p, i) => ({ name: p.name, path: i === 0 ? "/" : `/${slugOf(p)}/`, blocks: [{ type: "heading", text: input.name }, { type: "text", text: input.about }] })) }, null, 2) },
+      { path: "sitemap.xml", text: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pagesUsed.map((p, i) => `  <url><loc>/${i === 0 ? "" : slugOf(p) + "/"}</loc></url>`).join("\n")}\n</urlset>\n` },
+      { path: "robots.txt", text: "User-agent: *\nAllow: /\n" },
+    );
+  }
   return {
     ...editor,
+    proExtras: builder.id === "site-builder" ? ["Editable block file (GrapesJS)", "sitemap.xml", "robots.txt"] : [],
     pages: pagesUsed,
-    files: [...pageFiles(pagesUsed), { path: "TOOLS.txt", text: toolsFile(builder) }],
+    files,
   };
 }
 
@@ -242,10 +254,28 @@ function seoArtifact(input) {
   };
 }
 
+// Seven different angles, so a week of posts is never one sentence repeated.
+function postAngles(name, about, audience) {
+  const who = audience ? ` for ${audience}` : "";
+  const gist = String(about || "").trim();
+  const first = gist.split(/(?<=[.!?])\s+/)[0] || gist;
+  return [
+    { angle: "Introduce", text: `Meet ${name}. ${first} Say hello and tell us what you would like to see here.` },
+    { angle: "Behind the scenes", text: `A look behind the scenes at ${name}: how the work gets done${who}. ${gist}`.trim() },
+    { angle: "Question", text: `Quick question${who}: what is the one thing you wish ${name} did for you? Reply and we will read every answer.` },
+    { angle: "Tip", text: `A simple tip from ${name}: start with the smallest step you can finish today. ${first}` },
+    { angle: "Customer focus", text: `Why people${who} choose ${name}: ${first} Tell us what mattered most to you.` },
+    { angle: "Offer or next step", text: `Ready for the next step? Message ${name} and we will help you get started. No pressure, just a conversation.` },
+    { angle: "Thank you", text: `Thank you for following ${name}. This week we shared what we do and why. See you next week.` },
+  ];
+}
+
 function calendarArtifact(input) {
-  const posts = DAYS.slice(0, input.posts).map((day) => ({
+  const angles = postAngles(input.name, input.about, input.audience);
+  const posts = DAYS.slice(0, input.posts).map((day, i) => ({
     day,
-    text: `${input.name}: ${input.about}`.slice(0, 2200),
+    angle: angles[i % angles.length].angle,
+    text: angles[i % angles.length].text.slice(0, 2200),
   }));
   return {
     editor: "Postiz",
@@ -254,7 +284,10 @@ function calendarArtifact(input) {
     started: false,
     note: "Postiz runs as its own service. It is not included here, and nothing is scheduled until you click Publish.",
     posts,
-    files: [{ path: "calendar.json", text: JSON.stringify({ posts }, null, 2) }],
+    files: [
+      { path: "calendar.json", text: JSON.stringify({ posts }, null, 2) },
+      { path: "calendar.csv", text: ["Day,Angle,Post", ...posts.map((p) => [p.day, p.angle, p.text].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n") + "\n" },
+    ],
   };
 }
 
@@ -283,11 +316,14 @@ function reelArtifact(input) {
 
 function emailArtifact(input) {
   const footer = emailFooter(input);
-  const subjects = [`Welcome from ${input.name}`, "A useful next step", "Still interested?"];
-  const emails = subjects.map((subject) => ({
-    subject,
-    body: `${input.about}\n\n${footer}`,
-  }));
+  const gist = String(input.about || "").trim();
+  const first = gist.split(/(?<=[.!?])\s+/)[0] || gist;
+  const steps = [
+    { day: 0, subject: `Welcome from ${input.name}`, body: `Thank you for joining us. Here is who we are: ${gist}\n\nReply to this email if you have a question. A real person reads it.` },
+    { day: 3, subject: "A useful next step", body: `${first}\n\nHere is one small step you can take this week: write down the one thing you want help with, then reply and tell us. We will point you the right way.` },
+    { day: 7, subject: "Still interested?", body: `We have not heard from you, and that is fine. If now is not the time, no problem. If you would like to talk, just reply to this email and we will pick it up from there.` },
+  ];
+  const emails = steps.map((e) => ({ day: e.day, subject: e.subject, body: `${e.body}\n\n${footer}` }));
   const notes = {
     listmonk: "listmonk runs as its own service. It is not included here.",
     mautic: "Mautic runs as its own service. It is not included here.",
@@ -300,7 +336,10 @@ function emailArtifact(input) {
     note: notes[input.service],
     footer,
     emails,
-    files: [{ path: "emails.txt", text: emails.map((email) => `${email.subject}\n${email.body}`).join("\n\n---\n\n") }],
+    files: [
+      { path: "emails.txt", text: emails.map((email) => `${email.subject}\n${email.body}`).join("\n\n---\n\n") },
+      { path: "emails.csv", text: ["Day,Subject,Body", ...emails.map((e) => [e.day, e.subject, e.body].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n") + "\n" },
+    ],
   };
 }
 
@@ -328,6 +367,25 @@ function makeArtifact(builder, input) {
   return siteArtifact(builder, input);
 }
 
+// 0.4.21 (M11 M38): the same words check texts and emails get, run over everything a builder wrote (ad lines, posts,
+// emails, pages), so a promise or a leftover [CROA] marker is caught at Build and Test, not only at Publish.
+export function wordsIssues(artifact, input) {
+  const parts = [];
+  for (const f of artifact?.files || []) {
+    if (/TOOLS\.txt$/i.test(f.path) || typeof f.text !== "string") continue;
+    parts.push(/\.html?$/i.test(f.path) ? f.text.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ") : f.text);
+  }
+  const text = parts.join("\n").replace(/[ \t]+/g, " ");
+  if (!text.trim()) return [];
+  const g = checkOutgoing({ text, channel: "post", consent: true, creditRepair: /credit repair/i.test(`${input?.about || ""} ${input?.topic || ""}`) || undefined });
+  const out = [];
+  for (const w of g.warnings) {
+    if (w.level === "info") continue;
+    out.push({ id: `words-${w.rule}`, kind: "words", title: w.plain, detail: w.why, blocking: w.level === "block", fixable: false });
+  }
+  return out;
+}
+
 export function issuesFor(builderId, artifact, input) {
   const issues = [];
   if (builderId === "site-builder" || builderId === "client-page" || builderId === "astro-export") {
@@ -349,6 +407,7 @@ export function issuesFor(builderId, artifact, input) {
   }
   const claim = claimIssue(`${input.topic} ${input.about} ${input.copy} ${(artifact.lines || []).map((line) => line.text).join(" ")}`);
   if (claim && REGULATED_BUILDERS.has(builderId)) issues.push(claim);
+  if (["ad-copy", "social-calendar", "email-sequences", "reel-maker", "site-builder", "client-page", "astro-export"].includes(builderId)) issues.push(...wordsIssues(artifact, input));
   if (artifact.scores) artifact.scores = scoresFor(issues);
   return issues;
 }

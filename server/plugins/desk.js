@@ -2,17 +2,20 @@
 import { heuristicClassify, rank } from "../router.js";
 import { councilPlan, planMode } from "../modes.js";
 import { PROVIDERS } from "../registry.js";
-import { completeFallback } from "../fallback.js";
+import { completeFallback, trouble } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
-import { allStatus } from "../health.js";
+import { allStatus, isDeadNow, heldByRealFailure } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
-import { searchSettings } from "../search.js";
+import { connectedAis, whyOut } from "../send-check.js";
+import { searchWillRun } from "../readers.js";
 import {
   FIRST_COUNCIL, PRIVATE_LINE, TONES, armTone, backupDocument, chatRows, consumeTone, creditsView, homeCard,
   projectRemoval, readBackup, readersFor, repeatBody, secondReader, takeMembers, writerLine, writerOf,
 } from "../desk.js";
+
+import { runnableOnly } from "../runnable.js";
 
 export const id = "desk";
 
@@ -30,14 +33,28 @@ function missions() {
   catch { return []; }
 }
 
+// 0.4.21: an AI that is out of credits, rate limited or has a bad key is tagged in the "Who will read this" list
+const PAUSE_WORD = { credits: "out of credits", rate: "busy", key: "key not accepted", unreachable: "not reachable", server: "having trouble", cap: "at its spending cap" };
+function pausedWhy(pid) { try { const t = trouble(pid); return t ? (PAUSE_WORD[t.kind] || "paused") : ""; } catch { return ""; } }
 function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
-  const ranked = rank({ ...cls, mode: priority });
+  // 0.4.21: an AI that is paused or out of credits is not a reader. It is dropped from the list and shown with an "out of credits" tag.
+  const outRows = [];
+  for (const ai of connectedAis()) { const w = whyOut(ai.provider); if (w) outRows.push({ id: ai.provider, name: ai.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : w.kind === "key" ? "key not accepted" : "not available" }); }
+  const outIds = new Set(outRows.map((o) => o.id));
+  // 0.4.21 (dogfood 11, 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // is never named as the planner. The reader list and the "will write the plan" line pick one that can run now.
+  const notDead = (m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } };
+  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => !outIds.has(m.provider)).filter(notDead);
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
-  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
-  return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "" };
+  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider), paused: pausedWhy(m.provider) }));
+  // the planner is the AI the Mission planner will really pick (reasoning, hard), not just the first reader
+  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority })).filter((m) => !outIds.has(m.provider)).filter(notDead)[0] : null;
+  const planner = real ? nameOf(real.provider) : readers[0]?.name || "";
+  if (real && !readers.some((r) => r.id === real.provider)) readers.unshift({ id: real.provider, name: nameOf(real.provider), paused: pausedWhy(real.provider) });
+  return { readers, names: readers.map((r) => r.name), planner, out: outRows };
 }
 
 // Tools that are already on, and services this prompt would actually reach. No MCP start, no search, no spend.
@@ -46,7 +63,9 @@ function audienceFor(mode, prompt) {
   const services = [];
   const pick = pickAgent({ prompt });
   if (pick.use && pick.agent) services.push({ id: pick.agent.id, name: pick.agent.name });
-  if (searchSettings().on?.[mode]) services.push({ id: "search", name: "Web search" });
+  // 0.4.21 (dogfood 11, 12): "Web search will receive the prompt" only when a search will really run for
+  // these words. needWeb false and no ask from the person means no search row.
+  if (searchWillRun({ prompt, kind: mode, classification: heuristicClassify(prompt) })) services.push({ id: "search", name: "Web search" });
   return { tools, services };
 }
 
@@ -82,6 +101,7 @@ export async function routes(req, res, url, body, h) {
     if (mode === "council" && !s.councilIntro) view.explain = FIRST_COUNCIL;
     if (s.privateMode) view.private = PRIVATE_LINE;
     view.privateOn = !!s.privateMode;
+    view.out = picked.out || [];
     return h.json(res, 200, view), true;
   }
 
@@ -155,7 +175,7 @@ export async function routes(req, res, url, body, h) {
     const system = "You are a second reader. Check the answer for mistakes and missing points. Be brief. Do not invent facts. Do not send, post, or buy anything.";
     const messages = [{ role: "user", content: `Question:\n${String(wrote.prompt || "").slice(0, 4000)}\n\nAnswer:\n${String(wrote.text).slice(0, 8000)}` }];
     const r = await completeFallback(
-      { provider: other.provider, model: other.model, maxTokens: 700, system, messages },
+      { allowStandIn: true, provider: other.provider, model: other.model, maxTokens: 700, system, messages },
       { missionId: run.id, tools: false, role: "review", mode: "balanced", cls },
     );
     const e = h.recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: run.id, role: "review" });

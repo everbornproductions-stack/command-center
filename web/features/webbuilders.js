@@ -1,5 +1,6 @@
 // Builders hub. Suggested builders come from the server. Show all reveals the rest.
 // One main button walks Describe, Preview the AIs, Build, Test, and Publish.
+import { lockLabel } from "/tier-lock.js";
 const { api, toast, esc, go } = window.CC;
 
 const NEXT = {
@@ -54,6 +55,22 @@ function pageText(artifact) {
   return Object.values(artifact).filter((v) => typeof v === "string").join("\n\n").slice(0, 20000);
 }
 
+// Text builders (calendar, emails, ad lines, reel plan) show as a table with Copy and CSV.
+function tableOf(artifact) {
+  if (!artifact) return null;
+  if (artifact.posts) return { head: ["Day", "Angle", "Post"], rows: artifact.posts.map((p) => [p.day, p.angle || "Post", p.text]) };
+  if (artifact.emails) return { head: ["Day", "Subject", "Email"], rows: artifact.emails.map((e, i) => [String(e.day ?? i * 3), e.subject, e.body]) };
+  if (artifact.lines) return { head: ["Part", "Limit", "Text"], rows: artifact.lines.map((l) => [l.part, String(l.max), l.text]) };
+  if (artifact.captions) return { head: ["At", "Caption"], rows: [...artifact.captions.map((c) => [c.at, c.text]), ...(artifact.cuts || []).map((c) => [`${c.start}-${c.end}s`, c.reason])] };
+  return null;
+}
+function csvOf(t) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  return [t.head, ...t.rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
+}
+function tableText(t) { return t.rows.map((r) => r.join(": ")).join("\n\n"); }
+function resultText(artifact) { const t = tableOf(artifact); return t ? tableText(t) : pageText(artifact); }
+
 function tierName(tier) {
   return TIER[tier] || tier || "";
 }
@@ -87,9 +104,10 @@ function fieldHtml(field, defaults) {
 }
 
 function cardHtml(row) {
+  const lock = lockLabel(row.tier, window.CC.S?.license?.tier || "free");
   return `<button type="button" class="bd-card" data-open="${esc(row.id)}">
     <h4>${esc(row.title)}</h4>
-    <div class="dim small">${esc(tierName(row.tier))}</div>
+    <div class="dim small">${esc(tierName(row.tier))}${lock ? ` <span class="chip amber" data-lock>${esc(lock)}</span>` : ""}</div>
     <p class="small" style="margin:6px 0">${esc(row.summary)}</p>
     ${row.reason ? `<div class="dim small">${esc(row.reason)}</div>` : ""}
   </button>`;
@@ -233,16 +251,34 @@ function boot(view, openId) {
       ${fixes}
       ${publishNote ? `<p class="small">${esc(publishNote)}</p>` : ""}
       ${draft?.artifact ? `<div class="row small" id="bd-personas" style="margin-top:8px"></div>` : ""}`;
+    const table = tableOf(draft?.artifact);
+    if (table && step !== "describe") {
+      const wrap = document.createElement("div");
+      wrap.className = "bd-table";
+      wrap.innerHTML = `<div style="overflow-x:auto"><table class="small" style="width:100%;border-collapse:collapse"><thead><tr>${table.head.map((c) => `<th style="text-align:left;padding:4px;border-bottom:1px solid var(--line)">${esc(c)}</th>`).join("")}</tr></thead><tbody>${table.rows.map((r) => `<tr>${r.map((c) => `<td style="vertical-align:top;padding:4px;border-bottom:1px solid var(--line);white-space:pre-wrap">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+        <div class="bd-actions" style="margin-top:6px"><button type="button" class="btn sm" data-bd-copy>Copy</button><button type="button" class="btn sm" data-bd-csv>Download CSV</button></div>`;
+      box.appendChild(wrap);
+      wrap.querySelector("[data-bd-copy]").addEventListener("click", async () => { try { await navigator.clipboard.writeText(tableText(table)); toast("Copied."); } catch { toast("Could not copy. Select the text and copy it.", true); } });
+      wrap.querySelector("[data-bd-csv]").addEventListener("click", () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csvOf(table)], { type: "text/csv" }));
+        a.download = `${(current?.builder?.id || "builder")}.csv`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      });
+    }
     // Every finished build ends in a result card: where the files went and what to do next.
-    if (step === "done" && window.CC.resultCard) {
+    const isText = !!table;
+    if ((step === "done" || (isText && (step === "build" || step === "test"))) && window.CC.resultCard) {
       const mm = draft?.mindmedia;
+      window.CC._lastResult = { kind: isText ? "text" : "site", text: resultText(draft?.artifact), name: draft?.name || draft?.title };
       const card = window.CC.resultCard({
-        what: draft?.name ? `${draft.name} is ready` : "Your build is ready",
+        what: draft?.name ? `${draft.name} is ready` : (draft?.title ? `${draft.title} is ready` : "Your build is ready"),
         detail: (draft?.written || []).length ? `${draft.written.length} file${draft.written.length === 1 ? "" : "s"} written on this computer.` : "",
         savedWhere: mm ? `Saved in MindMedia, ${mm.where || "Unfiled"}.` : "Not saved in MindMedia.",
         item: mm ? { projectId: mm.projectId, assetId: mm.assetId } : null,
         actions: [
-          { label: "Finish", primary: true, onClick: () => window.CC.openFinishDrawer?.({ kind: "site", text: pageText(draft?.artifact), name: draft?.name, projectId: mm?.projectId, item: mm ? { projectId: mm.projectId, assetId: mm.assetId, kind: "site" } : null, source: "Web builder" }) },
+          { label: "Finish", primary: true, onClick: () => { const kind = isText ? "text" : "site"; window.CC._lastResult = { kind, text: resultText(draft?.artifact), name: draft?.name || draft?.title }; return window.CC.openFinishDrawer?.({ kind, text: resultText(draft?.artifact), name: draft?.name || draft?.title, projectId: mm?.projectId, item: mm ? { projectId: mm.projectId, assetId: mm.assetId, kind } : null, source: "Web builder" }); } },
         ],
       });
       box.appendChild(card);
@@ -351,7 +387,16 @@ function boot(view, openId) {
       import("/build-all-ui.js").then(({ mountBuildAll }) => mountBuildAll(root.querySelector("#bd-build-all"), {
         surface: "webbuilder",
         payload: () => { const input = payload(); return { builderId: detail.builder.id, description: String(input.about || input.topic || ""), input }; },
-        onEnd: (j) => toast(j.status === "done" ? "Built it all. Saved on this computer." : (j.waiting?.reason || j.error || "Build it all for me stopped.")),
+        onEnd: (j) => {
+          toast(j.status === "done" ? "Built it all. Saved on this computer." : (j.waiting?.reason || j.error || "Build it all for me stopped."));
+          if (j.status === "done" && j.result?.draft && current?.builder?.id === detail.builder.id) {
+            draft = j.result.draft;
+            preview = preview || { note: "", recipients: { ais: [], services: [] } };
+            publishNote = j.result.note || "";
+            step = "done";
+            paintFlowBits();
+          }
+        },
       })).catch(() => { /* the step by step button still works */ });
       const notice = (root.querySelector("#bd-notice")?.value || pack?.notice || "").trim();
       if (notice) {
@@ -407,6 +452,7 @@ function boot(view, openId) {
   });
   root.querySelector("#bd-suggest-go").addEventListener("click", async () => {
     const text = root.querySelector("#bd-notice").value.trim();
+    if (!text) toast("Tell me what you are working on first, for example: a flyer for my shop. Showing the usual builders for now.");
     try {
       if (text) await api("/webbuilders/notice", { method: "POST", body: { text } });
       await loadHub();

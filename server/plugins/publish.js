@@ -28,7 +28,11 @@ import * as drive from "../publish/drive.js";
 import * as slack from "../publish/slack.js";
 import * as OA from "../publish/oauth.js";
 import { holdOutbound } from "../phone-approvals.js";
+import { checkOutgoing, maskSensitive } from "../compliance-guard.js";
+import { recordSend, sendLog } from "../send-log.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
+import { flagOn } from "../flags.js";
+import { checkCalendarApproval, recordCalendarResult } from "../publish/plus.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -63,19 +67,22 @@ export function mediaFromAsset(projectId, assetId) {
   const a = assetForPublish(projectId, assetId);
   if (!a) return { error: "That MindMedia item was not found" };
   const kind = a.kind === "video" ? "video" : a.kind === "audio" ? "audio" : a.kind === "image" ? "image" : a.kind === "text" ? "text" : "file";
-  const urls = a.remote && /^https?:\/\//i.test(a.remote) ? [a.remote] : [];
+  const urls = a.remote && /^https?:\/\//i.test(a.remote) ? [a.remote] : (a.publicUrl ? [a.publicUrl] : []);
   return { assetId: a.assetId, projectId: a.projectId, name: a.name, kind, urls, files: a.file ? [a.file] : [], text: a.text || "" };
 }
 
 // What each channel can take, so the page only offers places the item fits.
-export const ACCEPTS = { instagram: ["image", "video"], ghl: ["text", "image", "video"], slack: ["text", "image"], drive: ["text", "image", "video", "audio", "file", "site"] };
+export const ACCEPTS = { instagram: ["image", "video", "text"], ghl: ["text", "image", "video"], slack: ["text", "image"], drive: ["text", "image", "video", "audio", "file", "site"] };
 
 // Normalise what the browser sent into the payload that will be posted, with the media job resolved.
 export function buildPayload(body, media) {
+  const rawTitle = String(body.title || "Deliverable"), rawText = String(body.text || media?.text || "");
   const pl = {
     channel: body.channel,
-    title: String(body.title || "Deliverable").slice(0, 120),
-    text: String(body.text || media?.text || "").slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
+    // private numbers are hidden before any preview, history line or post (one shared helper)
+    title: maskSensitive(rawTitle).slice(0, 120),
+    text: maskSensitive(rawText).slice(0, body.channel === "instagram" ? 2200 : body.channel === "slack" ? slack.MAX : 5000),
+    masked: maskSensitive(`${rawTitle}\n${rawText}`) !== `${rawTitle}\n${rawText}`,
     mediaUrl: typeof body.mediaUrl === "string" && body.mediaUrl.trim() ? body.mediaUrl.trim() : null,
     mediaType: body.mediaType === "video" ? "video" : "image",
     when: body.when ? Number(new Date(body.when)) || null : null,
@@ -84,6 +91,7 @@ export function buildPayload(body, media) {
     channelName: typeof body.channelName === "string" ? body.channelName.replace(/[^\w.-]/g, "").slice(0, 80) : null,
     projectId: body.projectId || null,
     missionId: body.missionId || null,
+    consent: body.consent === true,
     mediaJobId: media?.jobId || null,
     mediaAssetId: media?.assetId || null,
     mediaProjectId: media?.projectId || null,
@@ -103,14 +111,21 @@ function previewOf(h, pl, media) {
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
   if (media && !media.error && media.assetId && ACCEPTS[pl.channel] && !ACCEPTS[pl.channel].includes(media.kind)) problems.unshift(`${CH[pl.channel].name} cannot take a ${media.kind === "file" ? "file like this" : media.kind} item. Pick a place that can, such as Google Drive`);
-  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https URL (upload it somewhere public and paste the link)");
+  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
+  if (pl.channel === "instagram" && media && !media.error && media.kind === "text" && !pl.mediaUrl) problems.push("Instagram posts need a picture or video. Paste a public link to one; your words become the caption");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
-  return { ...pv, problems };
+  // 0.4.21: the same words check that texts and emails get. A hard block cannot be posted; warnings are shown.
+  const compliance = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pl.channel, consent: pl.consent === true });
+  for (const b of compliance.blocked) problems.push(`${b.plain} ${b.why}`);
+  const warnings = compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why }));
+  if (pl.masked) warnings.unshift({ rule: "private_numbers_hidden", plain: "Private numbers were hidden in this message.", why: "Social Security, card and account numbers keep only their last four digits before anything is shown or posted." });
+  return { ...pv, problems, warnings };
 }
 
 function logPost(h, entry) {
   const name = CH[entry.channel].name;
+  if (entry.status === "posted") recordSend({ channel: entry.channel, kind: "publish", to: entry.channelName || "", title: entry.title, text: entry.text, via: "publish" });
   h.emit("log", { text: `${entry.status === "posted" ? "Posted" : entry.status === "dry-run" ? "Dry run" : "Post failed"}: ${name}${entry.error ? ` · ${entry.error}` : ""}${/^https:\/\//.test(entry.result?.url || "") ? ` · ${entry.result.url}` : ""}`, level: entry.status === "failed" ? "error" : undefined, missionId: entry.missionId });
   // a ledger note for every post: zero cost, so the Credits tab and weekly report can see what went out
   try { h.recordCredits({ provider: entry.channel, units: 0, cost: 0, note: `${entry.status} · ${name} · ${entry.title}`.slice(0, 160), project: entry.projectId }); } catch (e) { console.error("[publish] ledger", e.message); }
@@ -130,6 +145,8 @@ function channelList(h) {
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/publish/, "");
   const seg = p.split("/").filter(Boolean);
+  if (req.method === "GET" && p === "/connect-doctor") return h.json(res, 200, { checks: OA.doctor() });
+  if (req.method === "GET" && p === "/send-log") return h.json(res, 200, { items: sendLog(Number(url.searchParams.get("limit")) || 100) });
   if (req.method === "GET" && p === "/channels") return h.json(res, 200, channelList(h).map((c) => ({ ...c, accepts: ACCEPTS[c.id] || [] })));
   if (req.method === "POST" && p === "/preview") {
     if (!CH[body.channel]) return h.json(res, 400, { error: "unknown channel" });
@@ -158,9 +175,15 @@ export async function routes(req, res, url, body, h) {
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
+    // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.
+    const calId = flagOn("publish") && body.calendarId ? String(body.calendarId) : null;
+    if (calId) { const g = checkCalendarApproval(h, calId, pv.payload); if (!g.ok) return h.json(res, g.status, { error: g.error, code: g.code }); }
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
-    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: pl.title, text: pl.text.slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
+    // checked again on the stored payload, so a changed rule or a hand-made request cannot skip it
+    const again = checkOutgoing({ text: `${pl.title}\n${pl.text}`, channel: pv.channel, consent: pl.consent === true });
+    if (!again.ok && ready) return h.json(res, 422, { error: `Not sent. ${again.blocked[0].plain} ${again.blocked[0].why}`, code: "compliance_block" });
+    const entry = { id: "pub-" + Date.now().toString(36), ts: Date.now(), channel: pv.channel, title: maskSensitive(pl.title), text: maskSensitive(pl.text).slice(0, 2200), mediaUrl: pl.mediaUrl, mediaJobId: pl.mediaJobId, mediaAssetId: pl.mediaAssetId, mediaProjectId: pl.mediaProjectId, when: pl.when, channelName: pl.channelName, projectId: pl.projectId, missionId: pl.missionId, previewId: String(body.previewId), status: "pending" };
     try {
       if (!ready) { entry.status = "dry-run"; entry.note = "No credentials for this channel: recorded, not sent."; }
       else {
@@ -175,6 +198,7 @@ export async function routes(req, res, url, body, h) {
     logPost(h, entry);
     // the item remembers where it went, with the link and the time (MindMedia)
     try { recordPublishResult({ projectId: pl.mediaProjectId, assetId: pl.mediaAssetId, mediaJobId: pl.mediaJobId, entry }); } catch (e) { console.error("[publish] mindmedia write-back", e.message); }
+    if (calId) { try { recordCalendarResult(h, calId, entry); } catch (e) { console.error("[publish] calendar", e.message); } }
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));

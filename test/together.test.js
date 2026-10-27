@@ -29,7 +29,9 @@ test("seat gate matches the Extreme cap, and calls feature-gate when that module
   assert.equal(roomy.limit, 5);
   const studio = await seatCheck(5, { tier: "studio", gateMod: null });
   assert.equal(studio.ok, false);
-  assert.match(studio.message, /5 seats/);
+  assert.match(studio.message, /Extreme includes 5 people total/);
+  assert.match(studio.message, /Settings > Your plan/);
+  assert.doesNotMatch(studio.message, /license key/i);
   const extreme = await seatCheck(0, { tier: "extreme", gateMod: null });
   assert.equal(extreme.ok, true);
 
@@ -163,7 +165,7 @@ test("owner copy: five seats, group chat, live recipe, report and block, news ro
     }
     const full = await s.api(`/teamspaces/${id}/members`, { method: "POST", body: { email: "e@example.com", role: "viewer" } });
     assert.equal(full.status, 402);
-    assert.match(full.json.error, /5 people total/);
+    assert.match(full.json.error, /5 of 5 seats used/);
     const code = link;
     const stored = fs.readFileSync(path.join(s.dir, "teamspaces.json"), "utf8");
     assert.equal(stored.includes(code), false);

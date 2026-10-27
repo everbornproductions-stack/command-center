@@ -10,7 +10,8 @@ import crypto from "node:crypto";
 import { HOSTED, doc, putDoc } from "../store.js";
 import { PROVIDERS, TEXT_PROVIDERS } from "../registry.js";
 import { setSecret, getSecret } from "../vault.js";
-import { checkProvider } from "../health.js";
+import { checkProvider, getStatus } from "../health.js";
+import { recheckProvider, stampAfterCheck, describePause } from "../pause.js";
 import { isBlockedFree } from "../savings.js";
 import { capsFor, learnedStrengths, profileFor } from "../added-caps.js";
 import { localFetch } from "../loopback-fetch.js";
@@ -119,6 +120,31 @@ function unregister(pid) {
 }
 export function registerAll() { if (HOSTED) return 0; const l = list(); l.forEach(register); return l.length; }
 
+// 0.4.21: Ollama / LM Studio found on this PC by server/free-first.js. Added once, no key, no typing.
+// Same base URL already listed (by hand or by an earlier find): only the model list is refreshed.
+export async function addDetectedLocal({ key, name, baseUrl, models }) {
+  if (HOSTED) return { added: false };
+  const url = cleanUrl(baseUrl);
+  const ids = cleanModels(models);
+  if (!ids.length) return { added: false };
+  const items = list();
+  const same = items.find((x) => x.baseUrl === url);
+  if (same) {
+    if (JSON.stringify(same.models) !== JSON.stringify(ids)) { const next = items.map((x) => (x.id === same.id ? { ...x, models: ids, updatedAt: Date.now() } : x)); save(next); register(next.find((x) => x.id === same.id), next.findIndex((x) => x.id === same.id)); }
+    else if (!PROVIDERS[same.id]) register(same, items.indexOf(same));
+    return { added: false, id: same.id };
+  }
+  const pid = `c-${String(key || "local").replace(/[^a-z0-9]+/g, "-")}-pc`;
+  const profile = profileFor({ name, models: ids, capabilities: undefined, previous: null });
+  const entry = { id: pid, name: String(name || "This PC").slice(0, 60), baseUrl: url, api: "openai", models: ids, noKey: true, keysUrl: null, color: undefined, capabilities: profile.capabilities, capabilitiesSource: profile.capabilitiesSource, createdAt: Date.now(), updatedAt: Date.now(), detected: true };
+  await setSecret(pid, { key: NO_KEY });
+  const next = [...items.filter((x) => x.id !== pid), entry];
+  save(next);
+  register(entry, next.indexOf(entry));
+  await checkProvider(pid).catch(() => null);
+  return { added: true, id: pid };
+}
+
 // GET <base>/models with the key and headers; returns model ids.
 export async function discoverModels({ baseUrl, api = "openai", key, headers = {} }) {
   const h = { ...headers };
@@ -156,6 +182,12 @@ export async function routes(req, res, url, body, h) {
   if (method === "GET" && seg[0] === "balances" && !seg[1]) {
     if (url.searchParams.get("refresh") === "1") await refreshLive({ maxAgeMs: url.searchParams.get("force") === "1" ? 0 : 30000 });
     return h.json(res, 200, balancesView());
+  }
+  // "Check again" on a red AI: the balance is read first; this click (never a timer) may send one 1 token test.
+  if (method === "POST" && seg[1] === "recheck" && !seg[2] && PROVIDERS[seg[0]]) {
+    const r = await recheckProvider(seg[0], { byUser: true });
+    stampAfterCheck(seg[0]);
+    return h.json(res, 200, { ...r, status: getStatus(seg[0]), pause: describePause(seg[0]) });
   }
   if (method === "GET" && seg[0] === "presets") return h.json(res, 200, { presets: PRESETS.map((p) => ({ ...p, builtin: p.builtin && PROVIDERS[p.builtin] ? p.builtin : null })) });
   if (method === "POST" && seg[0] === "suggest") return h.json(res, 200, { suggestion: suggestProvider(body.key) }); // suggestion only: the key is never echoed or logged

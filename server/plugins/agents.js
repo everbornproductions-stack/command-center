@@ -25,6 +25,7 @@ import { listServers } from "../mcp.js";
 import * as L from "../libraries.js";
 import { demosHidden, visibleCustomAgents } from "../demo-visibility.js";
 
+import { saveToMindMedia } from "../project-media.js";
 export const id = "agents";
 
 function toolChoices() {
@@ -43,10 +44,21 @@ async function overview(h) {
     limits: A.LIMITS, toolModes: A.TOOL_MODES, categories: A.LISTING_CATEGORIES, sharePermissions: A.SHARE_PERMISSIONS, hosted: !!h.HOSTED,
   };
 }
+// An agent, employee or prompt run keeps its answer in MindMedia as Review, so it never ends in a chat only.
+// Private runs are never kept. The same key is used by the Keep button, so it never doubles.
+function keepRun(opts, id, m) {
+  try {
+    const text = String(m?.deliverable || "").trim();
+    if (!m || m.private || opts.private || !text || m.status === "failed" || m.status === "waiting") return m;
+    const who = opts.agent?.name || "Agent";
+    saveToMindMedia({ kind: "text", text, name: `${who}: ${String(opts.prompt || "").replace(/\s+/g, " ").trim().slice(0, 50) || "answer"}`.slice(0, 120), status: "Review", source: "Agent", dedupeKey: `mission:${id}`, projectId: opts.projectId || "" });
+  } catch { /* keeping is a bonus; the answer is still in the chat */ }
+  return m;
+}
 const runId = () => `s-${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 function start(h, opts) {
   const id = runId();
-  h.runChat({ ...opts, runId: id }).catch((e) => h.emit("log", { text: `${opts.agent ? `Agent "${opts.agent.name}"` : "Prompt"} failed: ${e.message}`, level: "error", missionId: id }));
+  h.runChat({ ...opts, runId: id }).then((m) => keepRun(opts, id, m)).catch((e) => h.emit("log", { text: `${opts.agent ? `Agent "${opts.agent.name}"` : "Prompt"} failed: ${e.message}`, level: "error", missionId: id }));
   return { ok: true, runId: id };
 }
 const projectOf = (body) => (typeof body?.projectId === "string" && body.projectId ? body.projectId : null);

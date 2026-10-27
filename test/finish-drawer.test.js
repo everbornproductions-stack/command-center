@@ -39,3 +39,21 @@ test("POST /api/mindmedia/export makes a real PDF and Word file, and refuses emp
     assert.equal(bad.status, 400);
   } finally { await srv.stop(); }
 });
+
+import { bootPage, findBrowser } from "./pw-helpers.js";
+
+test("Finish drawer: pressing Preview inside the Publish panel raises no red toast", { skip: findBrowser() ? false : "no Chrome installed" }, async () => {
+  const t = await bootPage({ width: 1366, height: 768, mode: "simple" });
+  try {
+    await t.page.waitForFunction(() => typeof window.CC.saveToMindMedia === "function", null, { timeout: 15000 }); // shell modules load after first paint
+    await t.page.evaluate(async () => { await import("/features/finish-drawer.js"); window.CC.openFinishDrawer({ kind: "text", text: "Spring sale, ten percent off.", name: "Spring sale" }); });
+    await t.page.click('.fd button:text-is("Publish")');
+    await t.page.waitForSelector(".fd [data-ch]", { timeout: 15000 });
+    await t.page.click(".fd [data-ch]");
+    await t.page.click('.fd [data-a="preview"]');
+    await t.page.waitForFunction(() => document.querySelector(".fd .mm-out")?.textContent.trim().length > 0, null, { timeout: 15000 });
+    const toasts = await t.page.evaluate(() => [...document.querySelectorAll("#toasts .toast")].map((e) => e.textContent));
+    assert.deepEqual(toasts.filter((x) => /not a function|did not work/i.test(x)), []);
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
+});

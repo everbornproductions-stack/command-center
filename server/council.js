@@ -12,12 +12,12 @@ import { ctx } from "./store.js";
 import { nativeSupported, sourcesFromCitations, recordNative, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
+import { nothingCameBack, fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, trouble } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
-import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { withMemory, contextFor, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { withImported } from "./history-refs.js";
 import { councilPlan, outputShape, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
@@ -54,6 +54,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
   const held = skipAvoid(skipped);
+  // after the first 402 / 429 from an AI, the rest of this run leaves it out
+  const runTrouble = (pid) => { if (skipSet.has(pid)) return; skipSet.add(pid); held.push(...skipAvoid([pid])); };
   const shape = outputShape(mode);
   const answerTokens = shape.maxTokens || maxTokens;
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -83,11 +85,11 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   }
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
-  const memBlock = contextFor(projectId);
+  const memBlock = contextFor(projectId, prompt);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
   const answerSystem = toneAdd("Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", tone);
   const chairSystem = toneAdd("You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.", tone);
-  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || carriesMemory(prompt), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
   runningCouncils.set(id, council);
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => seatName(m)).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
@@ -139,7 +141,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
-  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId, prompt);
   const importedRefs = withImported(prompt, askPrompt);
   askPrompt = importedRefs.ask;
   if (importedRefs.used.length) council.importedRefs = importedRefs.used;
@@ -158,7 +160,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       if (m.priceModel) assertSpendAllowed({ provider: m.provider, estimate: estimateCostAt(m.priceModel, 1500, 800) });
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held] })) {
+      for await (const ev of fallbackChat({ allowStandIn: true, provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held], skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -197,7 +199,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         council.answers[orig.model] = { provider: orig.provider, model: orig.model, waiting, account: true, letter: LETTERS[i] };
         emit("agent.done", { agent, provider: orig.provider, model: orig.model, missionId: id, ms: Date.now() - s, cost: 0 });
       } else {
-        council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), error: err.message, account: !!troubleKind(err), letter: LETTERS[i] };
+        council.answers[m.model] = { provider: m.provider, model: m.model, ...(m.label ? { label: m.label, family: m.family } : {}), error: err.message, failures: err.failures || [], account: !!troubleKind(err), letter: LETTERS[i] };
         emit("agent.error", { agent, provider: m.provider, model: m.model, missionId: id, error: err.message });
       }
     }
@@ -209,6 +211,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   if (!good.length) {
     // every seat is waiting on a subscription answer: the council fills in as they come back
     council.status = waitingSeats(council).length ? "waiting" : "failed";
+    if (council.status === "failed" && !council.error) council.error = nothingCameBack(Object.values(council.answers).flatMap((x) => x.failures || []));
     endGrant(id);
     emit("council.update", { council: pub(council) });
     emit("mission.update", { mission: summaryOf(council) });
@@ -226,7 +229,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const s = Date.now();
       try {
         // a small job: a stand-in (free tier first) takes over if the reviewer's provider fails (Phase 26)
-        const r = await completeFallback({
+        const r = await completeFallback({ allowStandIn: true,
           provider: reviewer.provider, model: reviewer.model, maxTokens: 700,
           system: `You are a strict judge. Several anonymous answers to the same question follow. Score each 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"scores": {"A": n, ...}, "best": "A", "notes": {"A": "<=20 words", ...}, "disagreement": "<=30 words on where the answers conflict, or 'none'"}`,
           messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}` }],
@@ -287,11 +290,11 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       const cite = council.sources.length ? `\n\n${sourcesBlock(council.sources, council.searchEngine)}\n\nKeep the [n] citations from the answers exactly as they are; they refer to the numbered sources above.` : "";
       const libCite = lib?.sources?.length ? `\n\n${lib.block}\n\nKeep the [L1], [L2] ... library tags from the answers exactly as they are; they refer to the library excerpts above.` : "";
       let text = "";
-      for await (const ev of fallbackChat({
+      for await (const ev of fallbackChat({ allowStandIn: true,
         provider: chair.provider, model: chair.model, maxTokens: Math.max(shape.maxTokens || 0, 1200, maxTokens), ...(shape.effort ? { effort: shape.effort } : {}),
         system: chairSystem,
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
-      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -371,7 +374,7 @@ async function lateAnswer(job) {
   if (job.status === "done" && job.text) {
     Object.assign(a, { text: job.text, artifacts: job.artifacts, cost: 0, free: true });
     try {
-      const r = await completeFallback({
+      const r = await completeFallback({ allowStandIn: true,
         provider: c.chair?.provider, model: c.chair?.model, maxTokens: 300,
         system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
         messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${job.text.slice(0, 12000)}` }],
@@ -427,7 +430,7 @@ async function subscriptionAnswer(job, res) {
     const a = { provider: prev.provider || job.provider, model: prev.model || job.model, letter: prev.letter, text: res.text, late: true, cost: 0, free: true, jobId: job.id, viaSubscription: { tag: res.tag, by: res.by, route: res.route } };
     try {
       const judge = c.chair?.provider ? c.chair : (c.members || [])[0];
-      const r = await completeFallback({
+      const r = await completeFallback({ allowStandIn: true,
         provider: judge?.provider, model: judge?.model, maxTokens: 300,
         system: `You are a strict judge. Score this answer to the question 1-10 for accuracy, usefulness and concision (do not reward length). Reply with JSON only: {"score": n, "note": "<=20 words"}`,
         messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWER:\n${res.text.slice(0, 12000)}` }],
@@ -449,7 +452,7 @@ async function subscriptionAnswer(job, res) {
       const chair = c.chair?.provider ? c.chair : (c.members || [])[0];
       try {
         const packet = good.map((x) => `### Answer ${x.letter} (${nameOf(x.provider)}${c.scoreboard?.[x.model]?.avg != null ? `, score ${c.scoreboard[x.model].avg}/10` : ""})\n${x.text}`).join("\n\n");
-        const r = await completeFallback({
+        const r = await completeFallback({ allowStandIn: true,
           provider: chair?.provider, model: chair?.model, maxTokens: 1800,
           system: "You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.",
           messages: [{ role: "user", content: `QUESTION:\n${c.prompt}\n\nANSWERS:\n${packet}` }],

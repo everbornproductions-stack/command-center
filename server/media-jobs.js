@@ -21,14 +21,20 @@ import * as kling from "./media/kling.js";
 import * as elevenlabs from "./media/elevenlabs.js";
 import * as runway from "./media/runway.js";
 import * as fal from "./media/fal.js";
+import { IMAGE_AI } from "./media/imageai.js";
+import { PROVIDERS } from "./registry.js";
 import { filesFromTool, isDual, mcpConfigured, runService } from "./connect.js";
 
 export const JOBS = "media.jobs"; // shared with the image gallery (server/images.js)
 export const ADAPTERS = { kling, elevenlabs, runway, fal };
 export const KINDS = ["video", "image", "voice"];
 // which provider a mission step uses for each kind, best first (a keyed one wins over a dry run)
-export const ORDER = { video: ["kling", "fal", "runway"], image: ["fal", "runway"], voice: ["elevenlabs"] };
+// 0.4.21: image steps try every image AI that has a key (text-in-image quality first), not fal.ai alone
+export const ORDER = { video: ["kling", "fal", "runway"], image: ["openai", "google", "fal", "replicate", "xai", "runway"], voice: ["elevenlabs"] };
 const KEY_ENV = { kling: "KLING_ACCESS_KEY", elevenlabs: "ELEVENLABS_API_KEY", runway: "RUNWAY_API_KEY", fal: "FAL_KEY" };
+// the Media tab lists ADAPTERS; the image AIs are extra adapters used by missions and the fallback below
+export const adapter = (pid) => ADAPTERS[pid] || IMAGE_AI[pid] || null;
+const keyEnvOf = (pid) => KEY_ENV[pid] || PROVIDERS[pid]?.keyEnv;
 const POLL_MS = (process.env.CC_PACKAGED !== "1" && Number(process.env.CC_MEDIA_POLL_MS)) || 5000; // tests poll faster
 const POLL_FOR_MS = 20 * 60 * 1000;
 export const MAX_PROMPT = 5000;
@@ -37,7 +43,7 @@ const FINAL = new Set(["done", "dry-run", "failed", "declined"]);
 export class MediaError extends Error { constructor(status, message, extra = {}) { super(message); this.status = status; Object.assign(this, extra); } }
 const bad = (msg, status = 400, extra) => new MediaError(status, msg, extra);
 
-export const secretOf = (pid) => getSecret(pid, KEY_ENV[pid]);
+export const secretOf = (pid) => getSecret(pid, keyEnvOf(pid));
 export const keyed = (pid) => !!secretOf(pid)?.key;
 // A dual service (Kling and the others) can also be reached through its MCP server. keyed stays the API key.
 export const mcpOn = (pid) => isDual(pid) && mcpConfigured(pid);
@@ -71,7 +77,7 @@ function cleanParams(params = {}) {
 }
 
 export function estimate({ provider, kind, params = {} } = {}) {
-  const a = ADAPTERS[provider];
+  const a = adapter(provider);
   if (!a) throw bad("Unknown media provider. Pick Kling, fal.ai, Runway or ElevenLabs.");
   if (!KINDS.includes(kind)) throw bad("kind must be video, image or voice.");
   if (!a.kinds.includes(kind)) throw bad(`${a.name} does not make ${kind}.`);
@@ -163,6 +169,14 @@ async function saveOutput(job, out) {
   }
   job.outputs = outputs;
 }
+// a file made from a job's picture (the headline version) is kept with the job
+export function addOutput(id, file) {
+  const j = getJob(String(id || ""));
+  if (!j) return null;
+  j.outputs = [...(j.outputs || []), file];
+  saveJob(j);
+  return j;
+}
 // a saved output of a job, only inside the data folder
 export function outputFile(id, i) {
   const j = getJob(String(id || ""));
@@ -212,7 +226,7 @@ export function declineJob(id) {
   if (job.status !== "awaiting_ok") throw bad(`This job is ${job.status}, not waiting for an OK.`, 409);
   job.status = "declined"; job.finishedAt = Date.now();
   saveJob(job);
-  emit("log", { text: `${ADAPTERS[job.provider].name} ${job.kind} not made: you said no. Nothing was spent.`, missionId: job.missionId });
+  emit("log", { text: `${adapter(job.provider).name} ${job.kind} not made: you said no. Nothing was spent.`, missionId: job.missionId });
   finished(job);
   return job;
 }
@@ -254,8 +268,33 @@ async function runJob(job) {
   try { await runJobBody(job); }
   finally { user.mediaJobsInFlight = Math.max(0, (user.mediaJobsInFlight || 1) - 1); }
 }
+// 0.4.21: an image that one image AI cannot make (no credits, rate limit, rejected key) is tried on the next image AI
+// that has a key, instead of ending as a failure or a placeholder. The job keeps a note of who stood in.
+export function imageAlternatives(job) {
+  return (ORDER.image || []).filter((p) => p !== job.provider && adapter(p)?.kinds.includes("image") && ready(p) && !capState(p).capped);
+}
+async function runImageChain(job, a) {
+  const tried = [];
+  let lastErr = null;
+  for (let cur = job.provider; cur; cur = imageAlternatives({ provider: cur }).find((p) => !tried.includes(p) && p !== cur)) {
+    tried.push(cur);
+    try {
+      if (cur !== job.provider) {
+        const from = adapter(job.provider).name;
+        job.provider = cur;
+        job.estimate = estimate({ provider: cur, kind: "image", params: job.params }).estimate;
+        job.note = `${from} could not make the image (${String(lastErr?.message || "failed").slice(0, 100)}). ${adapter(cur).name} stood in.`;
+        job.fallback = true;
+        emit("log", { text: job.note, missionId: job.missionId });
+        saveJob(job);
+      }
+      return await runPaid(job, adapter(cur));
+    } catch (err) { lastErr = err; if (tried.length > 4) break; }
+  }
+  throw lastErr || new Error(`${a.name} could not make the image.`);
+}
 async function runJobBody(job) {
-  const a = ADAPTERS[job.provider];
+  let a = adapter(job.provider);
   const agent = `media:${job.id}`;
   const label = `${a.name} ${job.dryRun ? "dry run:" : "generating"} ${job.kind}`;
   emit("agent.start", { agent, provider: job.provider, model: job.params.model || a.defaults?.model || job.provider, role: "media", missionId: job.missionId, taskId: job.missionTaskId, label });
@@ -270,10 +309,11 @@ async function runJobBody(job) {
       emit("agent.done", { agent, provider: job.provider, model: job.params.model || job.provider, missionId: job.missionId, taskId: job.missionTaskId, ms: Date.now() - t0, cost: 0 });
       saveJob(job); finished(job); return;
     }
-    const produced = await runPaid(job, a);
+    const produced = job.kind === "image" ? await runImageChain(job, a) : await runPaid(job, a);
+    a = adapter(job.provider); // an image another AI stood in for is credited to the one that made it
     await saveOutput(job, produced);
     job.status = job.outputs?.length ? "done" : "failed"; job.finishedAt = Date.now();
-    if (job.status === "failed") job.error = `${a.name} reported success but sent no file.`;
+    if (job.status === "failed") job.error = `Nothing came back. ${a.name} said it finished but sent no file. Press Try again, or add credits in Settings.`;
     // one ledger line per paid job, with the estimate the person approved
     const e = job.estimate || {};
     recordCredits({ provider: job.provider, units: e.credits || e.characters || e.seconds || 1, cost: e.usd, note: `${job.kind}${job.missionId ? " (mission)" : ""}`, project: job.projectId });
@@ -291,7 +331,7 @@ async function runJobBody(job) {
 
 // a short line about a finished job for a mission's deliverable
 export function resultLine(job) {
-  const a = ADAPTERS[job.provider];
+  const a = adapter(job.provider);
   const files = (job.outputs || []).map((o) => (/^https?:/i.test(o) ? o : path.basename(o)));
   if (job.status === "done") return `${a.name} made the ${job.kind} (about $${job.estimate?.usd ?? 0}). Saved to the project: ${files.join(", ")}. Open it on the Media tab.`;
   if (job.status === "dry-run") return `Dry run, nothing spent: no ${a.name} key is saved. Estimate for the real ${job.kind}: about $${job.estimate?.usd ?? 0} (${job.estimate?.note || ""}). Placeholder saved to the project: ${files.join(", ") || "none (hosted)"}.`;

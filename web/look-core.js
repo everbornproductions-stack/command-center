@@ -47,6 +47,19 @@ export function scoreFrames(deltas) {
   return { fps, stutter, ok: fps >= FPS_MIN && !stutter, measured: true };
 }
 
+// 0.4.21: the card name alone never turns glass off. A computer that can draw backdrop-filter (feature test, not the
+// renderer string) starts as Borderline when the name says "software", and only a clearly slow frame test
+// (under 20 frames a second) can make it Weak. Returns { tier, reason } where reason explains a Weak result.
+export function finalTier(lookupTier, frames, backdrop = true) {
+  let t = combineTier(softenForBackdrop(lookupTier, backdrop), frames);
+  let reason = "";
+  if (backdrop === false) return { tier: "weak", reason: "This window cannot draw see-through glass." };
+  if (t === "weak" && frames && frames.measured && frames.fps >= 20) t = "borderline";
+  if (t === "weak") reason = frames && frames.measured ? `Your screen drew only about ${frames.fps} frames a second in the test.` : "Graphics acceleration is off, so glass could be slow.";
+  return { tier: t, reason };
+}
+function softenForBackdrop(tier, backdrop) { return tier === "weak" && backdrop !== false ? "borderline" : tier; }
+
 // The measurement wins over the card name: slow frames lower the tier by one step.
 export function combineTier(lookupTier, frames) {
   const t = TIERS.includes(lookupTier) ? lookupTier : "borderline";
@@ -57,6 +70,7 @@ export function combineTier(lookupTier, frames) {
 
 // choice: auto | glass | classic. env: { tier, reducedMotion, lowPower }.
 // Returns { look: "glass"|"classic", ask: ""|"offer-classic"|"offer-glass", warn, still, blur }.
+// env.backdrop === false (the window cannot draw backdrop-filter) is the one case where Auto goes Classic for good.
 export function decideLook(choice, env = {}) {
   const c = normalizeChoice(choice);
   const tier = TIERS.includes(env.tier) ? env.tier : "borderline";
@@ -64,6 +78,7 @@ export function decideLook(choice, env = {}) {
   const blur = !env.lowPower;
   let look = "glass", ask = "", warn = "";
   if (c === "classic") look = "classic";
+  else if (env.backdrop === false && c === "auto") { look = "classic"; ask = ""; warn = "This window cannot draw see-through glass."; }
   else if (c === "glass") { if (tier !== "good") warn = "Your graphics may run the new look slowly."; }
   else if (tier === "weak") { look = "classic"; ask = "offer-glass"; }
   else if (tier === "borderline") ask = "offer-classic";
@@ -91,5 +106,6 @@ export function stutterVerdict(entries, now, windowMs = 10000) {
 // A saved check is reused until the computer or screen changes.
 export function signature(info) {
   const i = info || {};
-  return [i.renderer || "", i.width || 0, i.height || 0, i.dpr || 1, i.cores || 0].join("|");
+  // "g2" (0.4.21) retires checks saved by the older, stricter rules so every computer is tested again.
+  return [i.renderer || "", i.width || 0, i.height || 0, i.dpr || 1, i.cores || 0, "g2"].join("|");
 }

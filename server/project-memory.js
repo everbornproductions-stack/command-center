@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { doc, putDoc } from "./store.js";
 import { listProjects } from "./projects.js";
+import { recallBlock, hasBlock } from "./memories.js";
 
 export const KIND = "memory.projects";
 export const FIELDS = ["voice", "offers", "never", "winners", "facts"];
@@ -27,21 +28,34 @@ export function saveMemory(projectId, patch = {}) {
   return cur;
 }
 
-export function contextFor(projectId) {
+export function contextFor(projectId, query = "") {
   const m = memoryOf(projectId);
   const parts = FIELDS.filter((f) => typeof m[f] === "string" && m[f].trim()).map((f) => `${LABELS[f].toUpperCase()}:\n${m[f].trim()}`);
-  if (!parts.length) return "";
   const proj = listProjects().find((p) => p.id === projectId);
-  return `${MARKER}${proj?.name || projectId} (follow this; it overrides generic defaults):\n${parts.join("\n\n")}`;
+  const block = parts.length ? `${MARKER}${proj?.name || projectId} (follow this; it overrides generic defaults):\n${parts.join("\n\n")}` : "";
+  // 0.4.21 Memories: what the user told Meldmind to keep (About me, This project, Knowledge)
+  const recalled = recallBlock(query, projectId);
+  return [block, recalled].filter(Boolean).join("\n\n");
 }
 
-// Appends the project's memory to a prompt or context once.
-export function withMemory(text, projectId) {
-  const mem = contextFor(projectId);
+// Appends the project's memory and the recalled memories to a prompt or context once each.
+// query is what the memories are matched against (default: the text itself).
+export function withMemory(text, projectId, query) {
   const t = text || "";
-  if (!mem || t.includes(MARKER)) return t;
-  return t ? `${t}\n\n${mem}` : mem;
+  const q = query === undefined ? t : query;
+  let out = t;
+  const proj = contextFor(projectId, q);
+  if (!proj) return t;
+  // each half is added once: a prompt that already carries the project block or the recall block keeps it as is
+  const pm = proj.includes(MARKER) ? proj.slice(proj.indexOf(MARKER)).split(/\n\n(?=WHAT I REMEMBER)/)[0] : "";
+  const rb = proj.includes("WHAT I REMEMBER") ? proj.slice(proj.indexOf("WHAT I REMEMBER")) : "";
+  const add = [pm && !out.includes(MARKER) ? pm : "", rb && !hasBlock(out) ? rb : ""].filter(Boolean).join("\n\n");
+  if (!add) return t;
+  return out ? `${out}\n\n${add}` : add;
 }
+
+// true when the text carries any memory block (project notes or recalled memories)
+export const carriesMemory = (text) => String(text || "").includes(MARKER) || hasBlock(text);
 
 // A thumbs-up result kept as a past winner: one short dated line, newest first, within the field limit.
 export function addWinner(projectId, line) {

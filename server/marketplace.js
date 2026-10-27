@@ -14,6 +14,7 @@ import { emit } from "./events.js";
 import { exportBundle, getAgent, getPrompt, importBundle, listListings, scanForListing } from "./custom-agents.js";
 import { normalizeMode } from "./modes.js";
 import { visibleRows } from "./demo-visibility.js";
+import { pullCatalog, acceptRows, remoteNote, CACHE_MS } from "./market-catalog.js";
 
 export const FORMAT = "command-ai/template";
 export const FORMAT_VERSION = 1;
@@ -464,7 +465,53 @@ function bumpInstall(row) {
 }
 function listedRows() {
   const local = listDoc(LISTINGS).list.filter((x) => x.status === "listed");
-  return [...catalogDemo(), ...local];
+  return [...catalogDemo(), ...remoteRows(), ...local];
+}
+
+// ---------- Everborn's shared catalog (free items only), see server/market-catalog.js ----------
+const REMOTE = "marketplace.remote";
+let remoteLive = { state: "off", at: 0, tried: 0 };
+function remoteBuild(raw) {
+  const price = { type: "free", usd: 0, placeholder: false };
+  const base = {
+    id: `cat-${String(raw.id).slice(0, 60)}`, kind: raw.kind, title: str(raw.title, 80), category: str(raw.category, 40) || "Other",
+    promise: str(raw.promise, 200), example: str(raw.example, 200), version: Math.max(1, Number(raw.version) || 1), status: "listed", price,
+    seller: { name: "Everborn", demo: false }, demo: false, local: false, remote: true, sourceId: null, createdAt: 0, updatedAt: 0,
+  };
+  if (raw.kind === "pipeline") {
+    const pipeline = cleanPipeline(raw.body);
+    assertClean(textsOfPipeline(pipeline, [base.title, base.promise, base.example]));
+    return { ...base, pipeline, steps: stepBrief(pipeline.steps) };
+  }
+  const bundle = raw.kind === "agent" ? { agents: [raw.body] } : { prompts: [raw.body] };
+  const text = JSON.stringify(raw.body).slice(0, 4000);
+  assertClean([base.title, base.promise, base.example, text]);
+  return { ...base, bundle, steps: [{ title: base.title, capability: raw.kind }] };
+}
+function remoteRows() {
+  const saved = doc(REMOTE, () => ({ rows: [], at: 0 }));
+  return Array.isArray(saved.rows) ? saved.rows : [];
+}
+// Refreshes the shared catalog at most every ten minutes. Never throws. `fetchImpl` is for tests.
+export async function refreshRemoteCatalog({ fetchImpl, cfg, force = false } = {}) {
+  if (!force && remoteLive.tried && Date.now() - remoteLive.tried < CACHE_MS) return remoteInfo();
+  remoteLive.tried = Date.now();
+  const got = await pullCatalog({ fetchImpl, cfg });
+  if (got.state === "live") {
+    const rows = acceptRows(got.rows, remoteBuild);
+    const d = doc(REMOTE, () => ({ rows: [], at: 0 }));
+    d.rows = rows; d.at = Date.now();
+    save(REMOTE, d);
+    remoteLive = { ...remoteLive, state: "live", at: d.at };
+  } else remoteLive = { ...remoteLive, state: got.state };
+  return remoteInfo();
+}
+export function resetRemoteCatalog() { remoteLive = { state: "off", at: 0, tried: 0 }; }
+function remoteInfo() {
+  const saved = doc(REMOTE, () => ({ rows: [], at: 0 }));
+  const count = (saved.rows || []).length;
+  const state = remoteLive.state === "live" ? "live" : count ? "saved" : remoteLive.state;
+  return { state, count, at: saved.at || 0, note: remoteNote(state, count, saved.at) };
 }
 function listedById(id) { return listedRows().find((x) => x.id === id) || null; }
 function anyById(id) { return listedById(id) || listDoc(LISTINGS).list.find((x) => x.id === id) || (demoHidden(id) ? { ...demoById(id), status: "pulled" } : null); }
@@ -494,7 +541,7 @@ function card(row) {
   return {
     id: row.id, kind: row.kind, title: row.title, category: row.category, promise: row.promise, example: row.example || "",
     version: row.version, status: row.status, price: row.price, revenueShare: REVENUE_SHARE, payout: payout(),
-    seller: row.seller, demo: !!row.demo, steps: row.steps, stats: { installs, rating: ratingFor(row.id), avgCostUsd: null, avgCostNote: "No receipt average yet" },
+    seller: row.seller, demo: !!row.demo, remote: !!row.remote, signed: row.remote ? !!row.signed : undefined, steps: row.steps, stats: { installs, rating: ratingFor(row.id), avgCostUsd: null, avgCostNote: "No receipt average yet" },
   };
 }
 function ownerView(row) {
@@ -709,6 +756,7 @@ export function overview() {
     categories: CATEGORIES,
     prices: PLACEHOLDER_PRICES_USD,
     copy: COPY,
-    remoteCatalog: false,
+    remoteCatalog: remoteRows().length > 0,
+    remote: remoteInfo(),
   };
 }

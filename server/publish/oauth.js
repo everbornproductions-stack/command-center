@@ -137,6 +137,26 @@ export function view() {
   });
 }
 
+// Connection doctor (0.4.21): for every connector, what is signed in and which asked-for permissions are missing.
+// "Reconnect" fixes a missing permission. HighLevel keeps two sign-ins (posts, and contacts/invoices), so a person
+// with one and not the other is told which Builders need which.
+export function doctor() {
+  const rows = [];
+  const byId = Object.fromEntries(view().map((v) => [v.id, v]));
+  for (const [id, c] of Object.entries(CONNECTORS)) {
+    const v = byId[id];
+    const granted = new Set(entry(id).scopes || []);
+    if (v.needsSignIn) { rows.push({ id, name: c.name, level: "fix", problem: `${c.name} needs you to sign in again.`, fix: "reconnect" }); continue; }
+    if (!v.connected) continue;
+    if (v.viaPaste) { rows.push({ id, name: c.name, level: "ok", problem: `${c.name} uses a pasted token, so Meldmind cannot list its permissions. It works as long as the token was made with the right ones.`, fix: "" }); continue; }
+    const missing = c.scopes.filter((x) => !granted.has(x));
+    if (missing.length) rows.push({ id, name: c.name, level: "fix", problem: `${c.name} is connected but is missing: ${missing.join(", ")}.`, missing, fix: "reconnect" });
+    else rows.push({ id, name: c.name, level: "ok", problem: `${c.name} has every permission Meldmind asks for.`, fix: "" });
+  }
+  if (byId.ghl?.connected && !byId.ghlcrm?.connected) rows.push({ id: "ghlcrm", name: "HighLevel contacts", level: "tip", problem: "HighLevel posts are connected, but contacts, invoices and workflows are not. Builders for HighLevel texts and invoices need that second sign-in.", fix: "connect" });
+  return rows;
+}
+
 export async function setClient(k, { clientId: id, clientSecret } = {}) {
   known(k);
   if (id !== undefined) {

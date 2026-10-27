@@ -38,11 +38,12 @@ import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
-import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { autoRemember, warm as warmMemories } from "./memories.js";
+import { withMemory, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
-import { flagOn, flagView, projectmediaOn, takeoverOn } from "./flags.js";
+import { flagOn, flagView, projectmediaOn, takeoverOn, templatesOn } from "./flags.js";
 import { cleanSkip, consumeTone, projectRemoval, toneAdd } from "./desk.js";
 import { projectNameError, projectSlug } from "../web/project-picker.js";
 import { loadSubscriptions, subscriptionView, saveSubscription, deleteSubscription, totals as subTotals } from "./subscriptions.js";
@@ -63,9 +64,14 @@ import { scheduler } from "./perf/scheduler.js";
 import { bindPerf, noteActivity } from "./perf/power.js";
 import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
+import { isDrawingOrPageJob, wantsSearch } from "./step-guard.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
-import { fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
+import { sendCheck } from "./send-check.js";
+import { freeOnlyOn, hasPaidKey, freeOnlyError, costText, whyHandoff, ensureLocalProviders, creditCheck, freeOnlyView, FREE_PAGES } from "./free-first.js";
+import { readiness as grokReadiness } from "./grokbot.js";
+import "./free-first-wire.js";
+import { nothingCameBack, fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe, markPrivateRun, freshBrainDoc } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
 import { annotateOutput } from "./prompts/safety.js";
@@ -86,6 +92,7 @@ import { isHook as isExtensionHook, handleHook as extensionHook } from "./plugin
 import { applyShareDefaults } from "./privacy.js";
 import { ONBOARDING_VERSION, DOC_KIND, normalizeRecord, historyReasons, planOnboarding, applyDailyCheck, completeRecord, publicOnboarding } from "./onboarding.js";
 import { connectSetupPublic } from "./connect-setup.js";
+import { plainMessage, looksRaw } from "./plain-error.js";
 let lastScan = null, lastKeys = null;
 
 // The daily check waits until plugins are loaded (custom providers exist) and the
@@ -210,6 +217,7 @@ function chatPriority(requested) {
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon", ".pdf": "application/pdf", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
 
 function json(res, status, body) {
+  if (status >= 400 && body && typeof body.error === "string" && looksRaw(body.error)) body = { ...body, error: plainMessage(body.error) }; // no raw JavaScript error reaches the person
   const buf = Buffer.from(JSON.stringify(body), "utf8");
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": buf.length });
   if (buf.length <= 60000) {
@@ -229,8 +237,13 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let d = "";
-    req.on("data", (c) => { d += c; if (d.length > 18e6) req.destroy(); });
-    req.on("end", () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(new Error("bad json")); } });
+    let tooBig = false;
+    // 0.4.21 (F18): a body over the limit is read and dropped, then answered with a plain 413, not a reset connection.
+    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > 18e6) { tooBig = true; d = ""; } });
+    req.on("end", () => {
+      if (tooBig) return reject(Object.assign(new Error("That is too large to send at once. The limit is about 18 MB. Try a smaller file."), { status: 413 }));
+      try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(Object.assign(new Error("bad json"), { status: 400 })); }
+    });
     req.on("error", reject);
   });
 }
@@ -244,7 +257,13 @@ function providerView() {
       const keyed = hasSecret(p.id, p.keyEnv);
       // A guessed free plan is not a connection. No key means grey, even if a probe ran earlier.
       const needsKey = !p.noKey && !p.demo && p.auth !== "handoff" && p.auth !== "local" && p.auth !== "mcp" && p.auth !== "oauth";
-      const status = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
+      const baseStatus = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
+      // 0.4.21: a live call that said no credits (or refused the key) beats an old green light and its balance
+      const tr = keyed && p.kind === "text" ? trouble(p.id) : null;
+      const bad = baseStatus.status === "amber" || baseStatus.status === "red";
+      const status = tr?.kind === "credits" ? { ...baseStatus, status: bad ? baseStatus.status : "amber", detail: bad && /credit|spending limit|payment|balance/i.test(baseStatus.detail || "") ? baseStatus.detail : "out of credits (the last call said no credits)", balance: undefined }
+        : tr?.kind === "key" ? { ...baseStatus, status: "red", detail: "key rejected", balance: undefined }
+        : baseStatus;
       return {
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined, addedCapabilities: p.custom ? p.addedCapabilities || [] : undefined, addedSource: p.custom ? p.addedSource || "general" : undefined, addedStrengths: p.custom ? learnedStrengths(p.models) : undefined,
       keyed, masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
@@ -386,6 +405,15 @@ function trackRun(kind, promise) {
   p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
   return p;
 }
+// Memories (0.4.21): a lasting statement in the message is saved with a one-line "Remembered: ..." (the page
+// shows it with Undo), "forget ..." removes it, and Smarter recall ranks the saved ones for this message.
+async function noteMemories(text, projectId) {
+  try {
+    const r = autoRemember(text, { projectId, source: "chat" });
+    if (r.saved.length || r.forgotten.length || r.refused) emit("memory.saved", { saved: r.saved, forgotten: r.forgotten, refused: r.refused, message: r.message });
+    await warmMemories(text, projectId);
+  } catch (e) { emit("log", { text: `Memory skipped: ${e.message}`, level: "warn" }); }
+}
 function guardMaxQuality(mode) {
   if (normalizeMode(mode) !== "max") return;
   guard("maxQuality");
@@ -403,7 +431,20 @@ function startMission(opts) {
   if (opts.runAt === "offpeak") guard("scheduler");
   guard("concurrentRuns", { running: runsInFlight() });
   const { runAt, background, ...rest } = opts;
-  return trackRun("mission", runMission(rest));
+  const run = trackRun("mission", runMission(rest));
+  run.then((m) => keepMissionResult(m, rest)).catch(() => { /* the run's own error handling reports failures */ });
+  return run;
+}
+// A finished mission or pipeline run keeps its deliverable in MindMedia as Review (never a private run).
+async function keepMissionResult(m, opts) {
+  try {
+    const text = String(m?.deliverable || "").trim();
+    if (!m || m.private || opts?.private || !text || !["done", "done-with-errors"].includes(m.status)) return;
+    // 0.4.21 (dogfood 10): a run that already saved its own post (the local MindMedia step) keeps ONE item, not that post plus a text copy
+    if ((m.tasks || []).some((t) => t.save && t.status === "done" && t.saved)) return;
+    const { saveToMindMedia } = await import("./project-media.js");
+    saveToMindMedia({ kind: "text", text, name: String(m.title || m.plan?.title || m.goal || "Mission").replace(/\s+/g, " ").trim().slice(0, 100), status: "Review", source: "Mission", dedupeKey: `mission:${m.id}`, projectId: m.projectId || "" });
+  } catch { /* keeping is a bonus; the answer is still in the chat */ }
 }
 const BACKGROUND_MIX = "A background run starts now. Off-peak stays on the schedule.";
 function saveSubscriptionGated(s, meta) { guard("subscriptions"); return saveSubscription(s, meta); }
@@ -502,8 +543,9 @@ function fullState() {
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
+    freeOnly: freeOnlyView(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
-    flags: { ...flagView(), takeover: takeoverOn(s), flag_navstate: isNavStateEnabled(s) },
+    flags: { ...flagView(), takeover: takeoverOn(s), templates: templatesOn(s), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
   };
 }
@@ -537,14 +579,14 @@ export function abortChat(id) {
   ctl.abort();
   return true;
 }
-async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
+async function runChat({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }) {
   guardMaxQuality(chatPriority(mode));
   const user = ctx();
   user.chatsInFlight = (user.chatsInFlight || 0) + 1;
-  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied, getItDone, sendMessages }); }
+  try { return await runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }); }
   finally { user.chatsInFlight = Math.max(0, (user.chatsInFlight || 1) - 1); }
 }
-async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages }) {
+async function runChatBody({ prompt, provider, model, projectId, search, searchMode, filter, tools, libraries, system, agent: customAgent, agentId, toolAllow, runId, capability, difficulty, mode, avoid, private: isPrivate = false, tone, toneId, promptPackApplied, getItDone, sendMessages, noSend, allowStandIn }) {
   const pinnedModel = !!(provider && model);
   const id = runId || "s-" + Date.now().toString(36);
   if (isPrivate) markPrivateRun(id);
@@ -564,6 +606,9 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   if (realJobSkipsDemo(provider)) { provider = undefined; model = undefined; }
   const skipProvider = typeof avoid === "string" && avoid ? avoid : "";
   if (skipProvider && provider === skipProvider) { provider = undefined; model = undefined; }
+  // 0.4.21 Gemini check: a person's own pick of an AI never gets another provider silently. Auto and
+  // every unpinned route set allowStandIn, so they keep working exactly as before.
+  const standInOk = !(provider && model) || allowStandIn === true;
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
     let ranked = rank({ ...cls, mode: priority });
@@ -574,6 +619,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
       if (named && !named.rate && waitOn()) { endGrant(id); return startWaitingChat({ id, prompt, projectId, customAgent, provider: named.provider, model: pausedPick && best ? best.model : null, system, tone, toneId, isPrivate }); }
       if (named) { endGrant(id); return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider }); }
+      if (freeOnlyOn() && hasPaidKey()) throw freeOnlyError();
       throw new Error("No AI available. Add a key in Settings.");
     }
     provider = best.provider; model = best.model;
@@ -585,7 +631,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search: numbered results go into the prompt; the answer cites them as [n]
   // A pinned model uses the local hint. A routed chat trusts the classifier, so a mock that says needWeb false does not search.
-  const needWeb = pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb;
+  // a drawing or page-build job searches only when the person said so (0.4.21, dogfood 13)
+  const needWeb = (pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb) && !(isDrawingOrPageJob(prompt) && !wantsSearch(prompt));
   const web = await prepareWeb({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
   m.searched = web != null;
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
@@ -593,10 +640,10 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
-  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId, prompt);
   const imported = withImported(prompt, remembered);
   const ask = imported.ask;
-  m.memory = ask.includes(MEMORY_MARKER);
+  m.memory = carriesMemory(ask);
   if (imported.used.length) m.importedRefs = imported.used;
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
@@ -611,7 +658,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     // MCP tools (Phase 16): enabled tools ride along for providers that can call them; writes ask first.
     // Smart fallback (Phase 26): a provider that is out of credits, rate limited or refusing its key is
     // replaced mid-run (same model via OpenRouter first, then the next-best model) and the run says so.
-    for await (const ev of fallbackChat({ provider, model, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, role: "answer", cls: cls || undefined, mode: priority })) {
+    for await (const ev of fallbackChat({ provider, model, allowStandIn: standInOk, signal: stopCtl.signal, maxTokens: shape.maxTokens || 3000, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: !!web?.native, system: toneAdd(system || "You are a sharp, concrete expert assistant. Markdown allowed. No filler.", tone), messages: [{ role: "user", content: ask }] }, { missionId: id, tools, allow: Array.isArray(toolAllow) ? toolAllow : undefined, noSend: noSend === true, role: "answer", cls: cls || undefined, mode: priority })) {
       if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
       else if (ev.type === "fallback") {
         text = ""; m.fallbacks.push(fallbackRecord(ev));
@@ -626,13 +673,15 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
-        m.cost = +(m.cost + e.cost).toFixed(6);
+        m.cost = +(m.cost + e.cost).toFixed(6); m.free = !!e.free;
         // learning router (Phase 28): the job, its cost and speed, and the task type the router used
         observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: true, cost: e.cost, ms, free: e.free });
         if (web?.native && ev.citations?.length) { m.sources = sourcesFromCitations(ev.citations); m.searchEngine = web.name; m.cost = +(m.cost + recordNative(provider, ev.citations, { missionId: id })).toFixed(6); }
         emit("agent.done", { agent, provider, model, missionId: id, ms, cost: e.cost });
       }
     }
+    // 0.4.21: never "done" with nothing in it (fallbackChat already refuses empty answers; this covers a stream that ended early)
+    if (!text.trim() && !m.toolCalls.length && !stopCtl.signal.aborted) throw Object.assign(new Error(nothingCameBack([{ provider, kind: "empty" }])), { code: "empty", failures: [{ provider, kind: "empty" }], plain: nothingCameBack([{ provider, kind: "empty" }]) });
     m.status = "done";
   } catch (err) {
     if (stopCtl.signal.aborted) {
@@ -641,9 +690,9 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       if (text) m.deliverable = text;
       emit("agent.error", { agent, provider, model, missionId: id, error: "Stopped by you." });
     } else {
-    if (err.code !== "cap" && err.code !== "paused") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
-    if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: err.message });
-    if (!troubleKind(err) && err.code !== "paused") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
+    if (err.code !== "cap" && err.code !== "paused" && err.code !== "pinned_out") noteCall(provider, false, Date.now() - s, err); // a spend-cap stop is not the provider's failure; a pause was already known
+    if (!sittingOut) emit("agent.error", { agent, provider, model, missionId: id, error: plainMessage(err) });
+    if (!troubleKind(err) && err.code !== "paused" && err.code !== "pinned_out") observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: false });
     if (shouldWait(err)) {
       // out of API credits and no API route left: the answer comes through the person's own plan
       text = "";
@@ -651,12 +700,15 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       m.status = "waiting"; m.deliverable = "";
       m.waiting = openWait({ kind: "single", runId: id, provider: asked.provider, model: asked.model, ask, system: toneAdd(system || "", tone), title });
     } else {
-      m.status = "failed"; m.error = err.message;
-      if (err.code === "paused") m.deliverable = err.message;
+      m.status = "failed"; m.error = plainMessage((err.plain && (err.code === "empty" || (err.failures || []).length > 1)) ? err.plain : err);
+      if (err.code === "empty" || err.failures) m.needsAttention = { reason: err.code === "empty" ? "empty" : "failed", failures: err.failures || [], retry: true };
+      if (err.code === "paused" || err.code === "pinned_out") m.deliverable = err.message;
     }
     }
   } finally { chatRuns.delete(id); }
   if (!m.deliverable) m.deliverable = text;
+  // 0.4.21: the result card says what this cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
+  try { m.costText = costText({ provider: m.provider, model: m.model, cost: m.cost, free: !!m.free }); const last = (m.fallbacks || []).slice(-1)[0]; m.why = whyHandoff({ provider: m.provider, model: m.model, standIn: last ? { for: last.from?.provider, reason: last.reason } : null, difficulty: (cls || {}).difficulty }); } catch { /* the card just has no cost line */ }
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice && !m.waiting) m.notice = pauseNotice(creditHop);
@@ -709,7 +761,10 @@ async function api(req, res, url) {
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
   // a raw zip upload (history import, Phase 23) is streamed by its plugin, not read as JSON here
-  const body = (method === "POST" || method === "PUT" || method === "PATCH") && !isZipUpload(req, url) ? await readBody(req) : {};
+  let body = {};
+  if ((method === "POST" || method === "PUT" || method === "PATCH") && !isZipUpload(req, url)) {
+    try { body = await readBody(req); } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
 
   if (method === "POST" && p === "/keys") {
     if (!PROVIDERS[body.provider]) return json(res, 400, { error: "unknown provider" });
@@ -741,6 +796,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     const tone = takeNextTone();
     if (job.background && job.runAt === "offpeak") { restoreTone(tone); return json(res, 400, { error: BACKGROUND_MIX }); }
     if (job.searchMode === "deep") {
@@ -762,7 +818,7 @@ async function api(req, res, url) {
       if (councilId) rememberBackground({ id: councilId, kind: "council", title: job.prompt });
     }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
-    promise.catch((e) => emit("log", { text: `Council failed: ${e.message}`, level: "error" }));
+    promise.catch((e) => emit("log", { text: `Council failed: ${plainMessage(e)}`, level: "error" }));
     return json(res, 202, councilId ? { ok: true, id: councilId, background: true } : { ok: true });
   }
   if (method === "POST" && p === "/mission") {
@@ -770,6 +826,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
+    await noteMemories(job.goal, job.projectId);
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
     try { if (job.background) guard("backgroundRuns"); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
@@ -800,7 +857,7 @@ async function api(req, res, url) {
     try { promise = startMission(opts); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
     if (missionId) rememberBackground({ id: missionId, kind: "mission", title: job.goal });
-    promise.catch((e) => emit("log", { text: `Mission failed: ${e.message}`, level: "error" }));
+    promise.catch((e) => emit("log", { text: `Mission failed: ${plainMessage(e)}`, level: "error" }));
     return json(res, 202, missionId ? { ok: true, id: missionId, background: true } : { ok: true });
   }
   if (method === "POST" && seg[0] === "mission" && seg[2] === "pause") {
@@ -838,6 +895,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     try { guardMaxQuality(chatPriority(job.mode)); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
@@ -868,9 +926,46 @@ async function api(req, res, url) {
     if (job.background) rememberBackground({ id: runId, kind: "single", title: job.prompt });
     runChat({ ...job, ...staff, runId, private: !!job.private, tone: tone?.instruction || "", toneId: tone?.id || "" }).catch((e) => {
       netTrace(`chat failed ${runId} ${String(e?.message || e).replace(/\s+/g, " ").slice(0, 300)}`);
-      emit("log", { text: `Chat failed: ${e.message}`, level: "error" });
+      emit("log", { text: `Chat failed: ${plainMessage(e)}`, level: "error" });
     });
     return json(res, 202, job.background ? { ok: true, runId, id: runId, background: true } : { ok: true, runId });
+  }
+  // 0.4.21 Melius ideas: older versions of a result, and the cost line before a run
+  if (p === "/versions" && (method === "GET" || method === "POST")) {
+    try {
+      const v = await import("./versions.js");
+      if (method === "GET") return json(res, 200, (() => { const q = new URL(req.url, "http://x").searchParams; return v.listVersions(q.get("key"), q.get("run")); })());
+      return json(res, 200, v.addVersion(body));
+    } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
+  if (method === "POST" && p === "/versions/change-prompt") {
+    try { const v = await import("./versions.js"); return json(res, 200, { prompt: v.changePartPrompt(body) }); }
+    catch (e) { return json(res, e.status || 400, { error: e.message }); }
+  }
+  if (method === "POST" && p === "/precost") {
+    try { const m = await import("./precost.js"); return json(res, 200, m.preRunLine({ prompt: String(body.prompt || ""), mode: body.mode })); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
+  // 0.4.21 free AIs: the "Get free AIs" card, the live credit check, and a fresh look at Ollama / LM Studio
+  if (method === "GET" && (p === "/free-ais" || p === "/credit-check")) {
+    try {
+      const found = await ensureLocalProviders({ force: url.searchParams.get("force") === "1" });
+      if (p === "/credit-check") return json(res, 200, await creditCheck({ force: url.searchParams.get("force") === "1" }));
+      const check = await creditCheck({});
+      const gb = grokReadiness();
+      return json(res, 200, {
+        freeOnly: freeOnlyView(),
+        summary: check.summary,
+        pages: FREE_PAGES.map((pg) => ({ id: pg.id, name: pg.name, url: pg.url, what: pg.what, needs: pg.needs, provider: pg.provider, later: !!pg.later, connected: pg.provider ? hasSecret(pg.provider, PROVIDERS[pg.provider]?.keyEnv) : pg.local ? !!found.rows.find((r) => r.key === pg.local)?.found : false, working: pg.provider ? !check.out.some((o) => o.provider === pg.provider) : true })),
+        local: found.rows.map((r) => ({ key: r.key, name: r.name, found: r.found, models: r.models.length })),
+        grokbot: { ready: gb.ready, detail: gb.detail },
+        out: check.out.map((o) => ({ provider: o.provider, name: o.name, why: o.why })),
+      });
+    } catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
+  if (method === "POST" && p === "/send-check") {
+    try { return json(res, 200, await sendCheck({ prompt: String(body.prompt || ""), explicit: body.explicit === true, priority: body.mode, force: body.force === true })); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }
@@ -1000,6 +1095,8 @@ async function api(req, res, url) {
     // First run ends here. A new install does not get the desktop card on its own after it (0.4.17).
     const firstRun = !readOnboarding().completed;
     if (firstRun) putDoc("desktop.prompt", applyDesktopPrompt(doc("desktop.prompt", () => ({ status: "pending", laterCount: 0 })), "quiet"));
+    // A new install saw the sharing notice on the welcome screen, so only older installs get the "Sharing changed" card (0.4.21).
+    if (firstRun) { try { putDoc("privacy", { ...doc("privacy", () => ({ contentOptIn: false, noticeSeen: false })), noticeSeen: true }); } catch { /* the card may show once */ } }
     writeOnboarding(completeRecord(readOnboarding(), Date.now()));
     const s = saveSettings({ ...settings(), onboarded: true });
     let sampleProject = null;

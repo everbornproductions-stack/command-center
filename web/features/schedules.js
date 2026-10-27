@@ -6,7 +6,9 @@ const { api, toast, esc, money, ago } = window.CC;
 const S = () => window.CC.S;
 
 const st = { data: null, edit: null, token: null, whenTouched: false };
-const DAYS = [["1", "Mon", "Monday"], ["2", "Tue", "Tuesday"], ["3", "Wed", "Wednesday"], ["4", "Thu", "Thursday"], ["5", "Fri", "Friday"], ["6", "Sat", "Saturday"], ["0", "Sun", "Sunday"]];
+// DAYS, whenHtml, readWhen and wireWhen are shared with the create box on the Agents page, so the two
+// forms pick days and a time the same way.
+export const DAYS = [["1", "Mon", "Monday"], ["2", "Tue", "Tuesday"], ["3", "Wed", "Wednesday"], ["4", "Thu", "Thursday"], ["5", "Fri", "Friday"], ["6", "Sat", "Saturday"], ["0", "Sun", "Sunday"]];
 const PRESETS = [
   { id: "weekdays-5", label: "Weekdays at 5 pm", days: ["1", "2", "3", "4", "5"], time: "17:00" },
   { id: "friday-4", label: "Fridays at 4 pm", days: ["5"], time: "16:00" },
@@ -67,46 +69,95 @@ function trigText(s) {
   return `POST <span class="mono">${esc(location.origin + s.hookPath)}</span>`;
 }
 function targetText(s) {
-  if (s.target.kind === "agent") return `Agent: ${esc(st.data.agents.find((a) => a.id === s.target.agentId)?.name || "(deleted agent)")}`;
+  if (s.target.kind === "agent") {
+    const a = st.data.agents.find((x) => x.id === s.target.agentId);
+    return `Agent: ${esc(a?.name || "(deleted agent)")}${a?.noSend ? ` <span class="chip" title="This agent gets no send, post or publish tool">Never sends or posts</span>` : ""}`;
+  }
   return `${KIND[s.target.kind]}: ${esc(s.target.text.slice(0, 80))}`;
 }
 const pill = (r) => `<span class="pill ${STATUS_CLS[r.status] || ""}">${esc(r.statusLabel || r.status)}</span>`;
+// "after the run: save as a note": the run says where the note landed, or exactly why it did not.
+function savedLine(r) {
+  if (r.savedPath) return `<div class="small" data-saved="${esc(r.id)}">Saved to ${esc(r.savedPath)}</div>`;
+  if (r.saveError) return `<div class="small" data-saved="${esc(r.id)}">Not saved: ${esc(r.saveError)}</div>`;
+  return "";
+}
 
-function whenHtml(cron) {
+// Thumbs up / down on a finished run (0.4.21, dogfood 11): the same row a chat answer has, from the same
+// ratings feature, pointed at this run's mission id.
+const RATING_BOX = (r) => (r.missionId && !["queued", "running"].includes(r.status) ? `<div data-rate="${esc(r.id)}" data-mission="${esc(r.missionId)}"></div>` : "");
+function runForRatings(m) {
+  const run = { id: m.id, kind: m.kind, status: m.status, agents: {}, tasks: {}, mission: null, council: null, deliverable: m.deliverable || "", primary: null };
+  if (m.kind === "council") { run.council = m; run.deliverable = m.verdict?.text || run.deliverable; }
+  else if (m.kind === "mission") run.mission = m;
+  else { run.mission = m; run.agents.x = { provider: m.provider, model: m.model, text: m.deliverable, done: true, role: "answer" }; run.primary = "x"; }
+  return run;
+}
+const ratingRuns = new Map(); // mission id -> the run shape the rating row wants (a finished run does not change)
+async function mountRatings(view) {
+  const boxes = [...view.querySelectorAll("[data-rate]")];
+  if (!boxes.length) return;
+  let rated = (window.CC.byKind("deliverable") || []).find((f) => f.id === "ratings");
+  if (!rated) { try { await import("/features/ratings.js"); } catch { return; } rated = (window.CC.byKind("deliverable") || []).find((f) => f.id === "ratings"); }
+  if (!rated?.deliverable?.render) return;
+  for (const box of boxes) {
+    try {
+      const mid = box.dataset.mission;
+      let run = ratingRuns.get(mid);
+      if (!run) {
+        const m = await api(`/missions/${encodeURIComponent(mid)}`);
+        if (!m?.id) continue;
+        run = runForRatings(m);
+        ratingRuns.set(mid, run);
+      }
+      await rated.deliverable.render(box, run);
+    } catch { /* this run keeps its row without a rating row */ }
+  }
+}
+
+// A new schedule starts with no day picked: the person chooses the day, the app never assumes Monday to
+// Friday (0.4.21, dogfood 11). Editing shows the days the schedule already runs on.
+export function whenHtml(cron, empty) {
   const simple = whenFromCron(cron);
-  const picked = new Set(simple?.days || ["1", "2", "3", "4", "5"]);
-  const time = simple?.time || "17:00";
+  const picked = new Set(empty ? [] : (simple?.days || ["1", "2", "3", "4", "5"]));
+  const time = empty ? "09:00" : (simple?.time || "17:00");
   const custom = simple ? "" : `<div class="hint" id="sf-custom" role="note">This schedule uses a custom pattern (${esc(cron)}). Pick days and a time to replace it.</div>`;
+  const value = empty ? "" : (simple ? cronFromWhen([...picked], time) : cron);
   return `<div class="small">When</div>
     <div class="row" id="sf-days" role="group" aria-label="Days" style="gap:4px;flex-wrap:wrap">${DAYS.map(([v, short, long]) => `<button type="button" class="btn sm${picked.has(v) ? " primary" : ""}" data-day="${v}" aria-pressed="${picked.has(v) ? "true" : "false"}" aria-label="${long}">${short}</button>`).join("")}</div>
     <label class="small">Time <input type="time" id="sf-time" value="${esc(time)}" aria-label="Time"></label>
     <div class="row" style="gap:6px;flex-wrap:wrap">${PRESETS.map((p) => `<button type="button" class="btn sm" data-preset="${p.id}">${esc(p.label)}</button>`).join("")}</div>
-    <input type="hidden" id="sf-cron" value="${esc(simple ? cronFromWhen([...picked], time) : cron)}">
+    <input type="hidden" id="sf-cron" value="${esc(value)}">
     ${custom}`;
 }
-function readWhen(view) {
+export function readWhen(view) {
   const days = [...view.querySelectorAll("#sf-days [data-day][aria-pressed='true']")].map((b) => b.dataset.day);
   const time = view.querySelector("#sf-time")?.value || "09:00";
   const custom = view.querySelector("#sf-custom");
   if (custom && !st.whenTouched) return view.querySelector("#sf-cron").value;
-  if (!days.length) return view.querySelector("#sf-cron").value;
+  if (!days.length) return custom ? view.querySelector("#sf-cron").value : "";
   return cronFromWhen(days, time);
 }
 
 function form(s) {
-  const e = s || { name: "", target: { kind: st.data.agents.length ? "agent" : "chat", text: "", agentId: st.data.agents[0]?.id || "" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, capUsd: st.data.defaultCap, after: { action: "none" } };
+  const kind0 = st.data.agents.length ? "agent" : "chat";
+  // A new Mission or Agent schedule saves its answer as a note; a new Chat keeps it here.
+  const e = s || { name: "", target: { kind: kind0, text: "", agentId: st.data.agents[0]?.id || "" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, capUsd: st.data.defaultCap, after: { action: kind0 === "chat" ? "none" : "note" } };
+  // The weekly job is only worth its own field when it is shorter than the whole request.
+  const showRun = !s || !!(e.target.runText && e.target.runText !== e.target.text);
   const projects = S().projects || [];
   return `<div class="panel" id="sch-form"><h3>${s ? `Edit ${esc(s.name)}` : "New schedule"}</h3>
     <label class="small">Name<input type="text" id="sf-name" value="${esc(e.name)}" maxlength="80"></label>
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">What runs <select id="sf-kind">${["agent", "chat", "mission"].map((k) => `<option value="${k}" ${e.target.kind === k ? "selected" : ""}>${KIND[k]}</option>`).join("")}</select></label>
-      <label class="small" id="sf-agent-wrap">Agent <select id="sf-agent">${st.data.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === e.target.agentId ? "selected" : ""}>${esc(a.name)}</option>`).join("") || `<option value="">No agents yet (Agents tab)</option>`}</select></label>
+      <label class="small" id="sf-agent-wrap">Agent <select id="sf-agent">${st.data.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === e.target.agentId ? "selected" : ""}>${esc(a.name)}</option>`).join("") || `<option value="__create">Create an agent...</option>`}</select></label>
       <label class="small">Project <select id="sf-proj"><option value="">No project</option>${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === e.target.projectId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
     </div>
-    <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do each time? (for an agent this is optional)">${esc(e.target.text || "")}</textarea>
+    <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do? Type the whole request, setup words and all. (For an agent this is optional.)">${esc(e.target.text || "")}</textarea>
+    ${showRun ? `<label class="small" style="display:block;margin-top:8px">What it does each time<textarea id="sf-runtext" rows="2" style="width:100%" placeholder="The job it repeats on every run. Leave empty and Meldmind works it out from the text above.">${esc(e.target.runText || "")}</textarea></label>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Trigger <select id="sf-trig">${Object.entries(triggers()).map(([k, v]) => `<option value="${k}" ${e.trigger.type === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5")}</span>
+      <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5", !s)}</span>
       <span id="sf-folder-wrap"><label class="small">Folder <input type="text" id="sf-folder" value="${esc(e.trigger.folder || "")}" placeholder="C:\\Users\\you\\Drop" style="width:240px"></label>
         <label class="small">Files <input type="text" id="sf-pattern" value="${esc(e.trigger.pattern || "")}" placeholder="*.txt, *.csv" style="width:110px"></label></span>
     </div>
@@ -114,12 +165,39 @@ function form(s) {
     ${S().mode === "hosted" ? `<div class="small dim" style="margin-top:6px">Watched folders stay on the desktop app.</div>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Monthly spend cap ($) <input type="number" id="sf-cap" min="0.01" step="0.01" value="${esc(e.capUsd)}" style="width:90px"></label>
-      <label class="small">After the run <select id="sf-after"><option value="none" ${e.after.action === "none" ? "selected" : ""}>Keep the result here</option><option value="webhook" ${e.after.action === "webhook" ? "selected" : ""}>Send it to a web address (asks you first)</option></select></label>
+      <label class="small">After the run <select id="sf-after"><option value="none" ${e.after.action === "none" ? "selected" : ""}>Keep the result here</option><option value="note" ${e.after.action === "note" ? "selected" : ""}>Save as a note in the project (and MindMedia)</option><option value="webhook" ${e.after.action === "webhook" ? "selected" : ""}>Send it to a web address (asks you first)</option></select></label>
       <input type="text" id="sf-url" value="${esc(e.after.url || "")}" placeholder="https://..." style="width:240px">
     </div>
     <div class="small dim" style="margin-top:6px">Each run uses your own keys; every call is in the ledger and counts toward your spend caps. When this schedule reaches its own cap it stops and you get an alert. A result that is sent anywhere waits in "Needs your approval" until you click Approve.</div>
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn primary" id="sf-save">${s ? "Save" : "Create"}</button>${s ? `<button class="btn" id="sf-cancel">Cancel</button>` : ""}</div>
   </div>`;
+}
+
+// The day buttons, the time box and the two presets, wired for whichever page shows them.
+export function wireWhen(view, onChange = () => {}) {
+  const mark = () => { st.whenTouched = true; const cron = readWhen(view); const hidden = view.querySelector("#sf-cron"); if (hidden) hidden.value = cron; onChange(cron); };
+  view.querySelectorAll("#sf-days [data-day]").forEach((b) => b.addEventListener("click", () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("primary", on);
+    mark();
+  }));
+  view.querySelector("#sf-time")?.addEventListener("change", mark);
+  view.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+    const p = PRESETS.find((x) => x.id === b.dataset.preset);
+    if (!p) return;
+    st.whenTouched = true;
+    view.querySelectorAll("#sf-days [data-day]").forEach((d) => {
+      const on = p.days.includes(d.dataset.day);
+      d.setAttribute("aria-pressed", on ? "true" : "false");
+      d.classList.toggle("primary", on);
+    });
+    if (view.querySelector("#sf-time")) view.querySelector("#sf-time").value = p.time;
+    const hidden = view.querySelector("#sf-cron");
+    if (hidden) hidden.value = cronFromWhen(p.days, p.time);
+    view.querySelector("#sf-custom")?.remove();
+    onChange(hidden ? hidden.value : cronFromWhen(p.days, p.time));
+  }));
 }
 
 function wireForm(view) {
@@ -133,37 +211,37 @@ function wireForm(view) {
     $("#sf-url").style.display = $("#sf-after").value === "webhook" ? "" : "none";
   };
   ["#sf-kind", "#sf-trig", "#sf-after"].forEach((q) => $(q).addEventListener("change", sync));
-  const mark = () => { st.whenTouched = true; const cron = readWhen(view); const hidden = $("#sf-cron"); if (hidden) hidden.value = cron; };
-  view.querySelectorAll("#sf-days [data-day]").forEach((b) => b.addEventListener("click", () => {
-    const on = b.getAttribute("aria-pressed") !== "true";
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.classList.toggle("primary", on);
-    mark();
-  }));
-  $("#sf-time")?.addEventListener("change", mark);
-  view.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
-    const p = PRESETS.find((x) => x.id === b.dataset.preset);
-    if (!p) return;
-    st.whenTouched = true;
-    view.querySelectorAll("#sf-days [data-day]").forEach((d) => {
-      const on = p.days.includes(d.dataset.day);
-      d.setAttribute("aria-pressed", on ? "true" : "false");
-      d.classList.toggle("primary", on);
-    });
-    if ($("#sf-time")) $("#sf-time").value = p.time;
-    $("#sf-cron").value = cronFromWhen(p.days, p.time);
-    view.querySelector("#sf-custom")?.remove();
-  }));
+  // No agent yet: the choice is to make one, not a dead end. The Agents page opens on its create box.
+  $("#sf-agent")?.addEventListener("change", (e) => {
+    if (e.target.value !== "__create") return;
+    S().openAgentCreate = true;
+    window.CC.go("agents");
+  });
+  wireWhen(view);
+  // a new schedule follows its target: Mission and Agent save a note, Chat keeps the result here
+  $("#sf-kind").addEventListener("change", () => {
+    if (st.edit) return;
+    const after = $("#sf-after");
+    if (after.value !== "none" && after.value !== "note") return;
+    after.value = ["mission", "agent"].includes($("#sf-kind").value) ? "note" : "none";
+    sync();
+  });
   sync();
   $("#sf-cancel")?.addEventListener("click", () => { st.edit = null; renderTab(view); });
   $("#sf-save").addEventListener("click", async () => {
     const t = $("#sf-trig").value;
+    // a schedule needs a day: no day picked is refused here with plain words (0.4.21, dogfood 11)
+    if (t === "cron" && !view.querySelector("#sf-custom") && !view.querySelector("#sf-days [aria-pressed='true']")) {
+      toast("Pick at least one day.", true);
+      return;
+    }
+    const after = $("#sf-after").value;
     const body = {
       name: $("#sf-name").value,
-      target: { kind: $("#sf-kind").value, agentId: $("#sf-agent").value, text: $("#sf-text").value, projectId: $("#sf-proj").value || null },
+      target: { kind: $("#sf-kind").value, agentId: $("#sf-agent").value, text: $("#sf-text").value, runText: $("#sf-runtext")?.value || "", projectId: $("#sf-proj").value || null },
       trigger: t === "cron" ? { type: t, cron: readWhen(view) } : t === "folder" ? { type: t, folder: $("#sf-folder").value, pattern: $("#sf-pattern").value } : { type: t },
       capUsd: Number($("#sf-cap").value),
-      after: $("#sf-after").value === "webhook" ? { action: "webhook", url: $("#sf-url").value } : { action: "none" },
+      after: after === "webhook" ? { action: "webhook", url: $("#sf-url").value } : { action: after === "note" ? "note" : "none" },
     };
     try {
       const r = await api(st.edit ? `/schedules/${st.edit}` : "/schedules", { method: "POST", body });
@@ -199,7 +277,7 @@ async function renderTab(view) {
         ${d.items.map((s) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
           <div class="row"><b>${esc(s.name)}</b><span class="pill ${s.enabled ? "green" : s.pausedReason === "cap" ? "red" : ""}" style="margin-left:8px">${s.enabled ? "On" : s.pausedReason === "cap" ? "Paused: spend cap" : "Paused"}</span><span class="right mono small">${money(s.spent, 4)} of ${money(s.capUsd, 2)} this month</span></div>
           <div class="small muted">${targetText(s)}</div>
-          <div class="small dim">${TRIG[s.trigger.type]}: ${trigText(s)}${s.after.action === "webhook" ? ` · then send to ${esc(s.after.url)} after your OK` : ""}</div>
+          <div class="small dim">${TRIG[s.trigger.type]}: ${trigText(s)}${s.after.action === "webhook" ? ` · then send to ${esc(s.after.url)} after your OK` : s.after.action === "note" ? " · then save the result as a note" : ""}</div>
           ${s.missedLabel ? `<div class="small" style="color:var(--amber);margin-top:4px" role="status">${esc(s.missedLabel)} <button class="btn sm" type="button" data-catch="${esc(s.id)}">Run now</button></div>` : ""}
           <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
             <button class="btn sm" data-run="${esc(s.id)}">Run now</button>
@@ -210,13 +288,14 @@ async function renderTab(view) {
           </div></div>`).join("") || `<div class="empty">No schedules yet. Create one on the right.</div>`}
       </div>
       <div class="panel"><h3>Run history</h3>
-        ${(d.runs || []).slice(0, 60).map((r) => `<div class="row small" style="padding:5px 0;border-bottom:1px solid var(--line);gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        ${(d.runs || []).slice(0, 60).map((r) => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div class="row small" style="gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>${savedLine(r)}${RATING_BOX(r)}</div>`).join("") || `<div class="dim small">No runs yet.</div>`}
       </div>
     </div>
     <div class="grid" style="align-content:start">${form(editing)}</div>
   </div>`;
   wireForm(view);
   mountTakeover(view);
+  mountRatings(view).catch(() => {});
   view.querySelector("#sch-token-ok")?.addEventListener("click", () => { st.token = null; renderTab(view); });
   const act = (sel, fn) => view.querySelectorAll(sel).forEach((b) => b.addEventListener("click", async () => { try { await fn(b); } catch (e) { toast(e.message, true); } }));
   act("[data-run]", async (b) => { await api(`/schedules/${b.dataset.run}/run`, { method: "POST" }); toast("Run queued"); renderTab(view); });

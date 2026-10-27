@@ -80,3 +80,49 @@ export function pushLog(lines, line, max = 6) {
   if (text && list[list.length - 1] !== text) list.push(text);
   return list.slice(-max);
 }
+
+// 0.4.21 (dogfood 09): what the Build step of Remix says. A build whose mission failed never says the game
+// is saved and never offers the saved folder: one plain line with the AI that failed and its error, and one
+// way to build again without that AI. Pure: no DOM, so a test can feed it a mission object.
+export const RETRY_AI_LABEL = "Try again with another AI";
+
+function taskRows(tasks) {
+  const rows = Array.isArray(tasks) ? tasks : tasks && typeof tasks === "object" ? Object.values(tasks) : [];
+  return rows.filter((t) => t && typeof t === "object");
+}
+
+// The build stopped: the mission failed, or every task in it failed.
+export function remixMissionFailed(mission) {
+  if (!mission || typeof mission !== "object") return false;
+  if (mission.status === "failed") return true;
+  const tasks = taskRows(mission.tasks);
+  return tasks.length > 0 && tasks.every((t) => t.status === "failed");
+}
+
+// The words for the Build step, from the mission itself when there is one.
+export function remixBuiltView(mission, { projectName = "Project" } = {}) {
+  const name = cleanText(projectName, 80) || "Project";
+  if (!remixMissionFailed(mission)) {
+    return { failed: false, message: `${name} is saved on this computer.`, action: "", avoid: [] };
+  }
+  const tasks = taskRows(mission?.tasks);
+  const bad = tasks.find((t) => t.status === "failed" && t.error) || tasks.find((t) => t.status === "failed") || null;
+  const who = cleanText(whoDid(bad), 60) || "An AI";
+  const why = cleanText(bad?.error || mission?.error || "The build did not finish.", 220) || "The build did not finish.";
+  const avoid = [...new Set(tasks.filter((t) => t.status === "failed" && t.provider).map((t) => String(t.provider)))];
+  return {
+    failed: true,
+    message: `The build stopped. ${who} did not finish its part: ${why}`,
+    action: RETRY_AI_LABEL,
+    avoid,
+  };
+}
+
+// Which AI a step belongs to, from the step itself: "Groq · code" becomes "Groq".
+function whoDid(task) {
+  if (!task) return "";
+  const label = String(task.agentName || "").split("·")[0].trim();
+  if (label) return label;
+  const id = String(task.provider || "").trim().replace(/[-_]+/g, " ");
+  return id ? id.replace(/^./, (c) => c.toUpperCase()) : "";
+}

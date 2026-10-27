@@ -10,6 +10,8 @@ import {
 } from "../builders/drafts.js";
 import { builderGate } from "../feature-gate.js";
 import { checkOutgoing } from "../compliance-guard.js";
+import { maskDeep } from "../mask-private.js";
+import { recordSend } from "../send-log.js";
 import { readReceipt, readInvoiceText, readWhisper, readPipeline, publishExternal } from "../builders/adapters.js";
 
 export const id = "builders";
@@ -165,7 +167,7 @@ export async function routes(req, res, url, body, h) {
   const gate = gateFor(h, builder);
 
   if (action === "preview") {
-    const draft = makeDraft(builderId, input);
+    const draft = maskDeep(makeDraft(builderId, { ...input, consent: body?.checks?.tcpa === true }));
     if (draft.legalBlocked) return h.json(res, 400, { error: LEGAL_LINE, code: "legal", posted: false });
     const job = {
       id: newId(), builderId, step: "preview", hash: fingerprint(input), input, draft, test: null,
@@ -191,7 +193,7 @@ export async function routes(req, res, url, body, h) {
   if (action === "build") {
     if (!gate.ok) return h.json(res, gate.status, { error: gate.message, code: gate.code, gate, posted: false });
     if (job.step === "published") return h.json(res, 409, { error: "This one is already published.", code: "done" });
-    const draft = makeDraft(builderId, input);
+    const draft = maskDeep(makeDraft(builderId, { ...input, consent: body?.checks?.tcpa === true }));
     if (draft.legalBlocked) return h.json(res, 400, { error: LEGAL_LINE, code: "legal", posted: false });
     job.draft = draft;
     job.step = "built";
@@ -277,6 +279,10 @@ export async function routes(req, res, url, body, h) {
   }
   job.step = "published";
   job.posted = !!result.posted;
+  if (result.posted) {
+    const warnRules = builderId === "hl-campaign" ? checkOutgoing({ text: input.text, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime }).warnings.map((w) => w.rule) : [];
+    recordSend({ channel: builderId.startsWith("hl-") ? "highlevel" : builderId, kind: builderId, to: Array.isArray(input.recipients) ? `${input.recipients.length} people` : "", title: job.draft?.title || builderId, text: input.text || job.draft?.message || "", rules: warnRules, sendAnyway: body?.sendAnyway === true });
+  }
   job.approved = true;
   job.resultReason = result.reason;
   saveJobs(h, doc);

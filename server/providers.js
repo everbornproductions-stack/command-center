@@ -20,11 +20,14 @@ export class ProviderError extends Error {
 }
 
 // Keep the parsed body on the error so health lights can tell credits from a bad key.
-function providerFailure(provider, status, txt) {
+function providerFailure(provider, status, txt, res = null) {
   let j = null;
   try { j = JSON.parse(txt || ""); } catch { /* not JSON */ }
   const err = new ProviderError(provider.id, status, `${provider.name}: HTTP ${status} ${providerMessage(j, txt)}`, j);
   err.text = String(txt || "").slice(0, 400);
+  // a 429 may say when to come back (seconds); the pause uses it instead of the one minute guess
+  const ra = Number(res?.headers?.get?.("retry-after"));
+  if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = Math.min(ra, 3600) * 1000;
   return err;
 }
 
@@ -159,7 +162,7 @@ function geminiContents(messages) {
 async function* geminiStream({ provider, model, system, messages, maxTokens, signal, tools, webSearch }) {
   const key = requireKey(provider);
   const contents = geminiContents(messages);
-  const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens } };
+  const body = { contents: contents.length ? contents : [{ role: "user", parts: [{ text: "" }] }], generationConfig: { maxOutputTokens: maxTokens }, store: false };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (tools?.length) body.tools = [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description || "", parameters: t.parameters || { type: "object", properties: {} } })) }];
   if (webSearch) body.tools = [...(body.tools || []), { google_search: {} }];
@@ -171,7 +174,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   catch (e) { throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`); }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw providerFailure(provider, res.status, txt);
+    throw providerFailure(provider, res.status, txt, res);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -245,7 +248,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw providerFailure(provider, res.status, txt);
+    throw providerFailure(provider, res.status, txt, res);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -318,12 +321,12 @@ export function streamChat(opts) {
   if (!provider || provider.kind !== "text") throw new ProviderError(opts.provider?.id || opts.provider, 400, "Unknown text provider");
   if (capStopped(provider.id)) { const e = new ProviderError(provider.id, 402, `${provider.name} has reached its monthly spend cap. Raise the cap in Settings or wait for next month.`); e.code = "cap"; throw e; }
   // The account's monthly budget (Settings > Budget) stops every paid call, not only council and research.
-  try { assertSpendAllowed({ provider: provider.id }); }
-  catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; throw e; }
+  let release = () => {};
+  try { release = assertSpendAllowed({ provider: provider.id, hold: true }).release || release; }
+  catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; e.budget = true; throw e; }
   const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
-  if (provider.api === "anthropic") return anthropicStream(o);
-  if (provider.api === "gemini" || provider.id === "google") return geminiStream(o);
-  return openaiCompatStream(o);
+  const inner = provider.api === "anthropic" ? anthropicStream(o) : (provider.api === "gemini" || provider.id === "google") ? geminiStream(o) : openaiCompatStream(o);
+  return (async function* held() { try { yield* inner; } finally { release(); } })();
 }
 
 // Non-streaming convenience: collects the whole answer.

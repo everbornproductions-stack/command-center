@@ -4,6 +4,12 @@ import { rank, heuristicClassify } from "./router.js";
 import { councilPlan, planMode, reviewMode, normalizeMode } from "./modes.js";
 import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
+import { wantsSearch } from "./step-guard.js";
+import { isDeadNow, heldByRealFailure } from "./health.js";
+import { runnableOnly } from "./runnable.js";
+import { whyOut } from "./send-check.js";
+import { describePause } from "./pause.js";
+import { troubleFor, troubledModels, busyLine } from "./fallback.js";
 
 function takeUnique(list, n) {
   const out = [];
@@ -18,8 +24,13 @@ function takeUnique(list, n) {
 }
 
 function safeRank(rankFn, cls, mode) {
-  try { return rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []; }
+  let list = [];
+  try { list = runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
   catch { return []; }
+  // 0.4.21 (dogfood 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // is never named as the one that will plan or read, while any other AI can take the job.
+  const live = list.filter((m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } });
+  return live.length ? live : list;
 }
 
 function searchRows(search) {
@@ -37,14 +48,27 @@ function searchRows(search) {
   return rows;
 }
 
-function liveSearch() {
+// 0.4.21 (dogfood 11, 12): will a web search really run for these words? The dialog must say the same thing
+// as the run: needWeb false and nobody asking for search means no search row. A Mission searches only when the
+// words or the request ask for it (and its switch or the classifier agrees); Single and Council also search on
+// their own saved switch. No key, no search: a row only appears when an engine would really run it.
+export function searchWillRun({ prompt = "", kind = "single", classification, search, settings } = {}) {
+  if (search === false) return false;
+  if (search === true) return true;
+  if (search && typeof search === "object") return !!(search.council || search.mission);
+  const cls = classification || heuristicClassify(String(prompt || ""));
+  let on = false;
+  try { on = !!(settings || searchSettings()).on?.[kind]; } catch { on = false; }
+  if (kind === "mission") return wantsSearch(String(prompt || "")) && (on || !!cls?.needWeb);
+  return on || !!cls?.needWeb;
+}
+
+// The engine a search would really use, as the row the dialog shows.
+function liveSearch(kind = "single") {
   try {
-    const s = searchSettings();
-    const on = s.on || {};
-    if (!on.council && !on.mission) return false;
     const eng = resolveEngine({});
     if (!eng?.engine) return false;
-    return { council: !!on.council, mission: !!on.mission, id: `search:${eng.engine}`, name: eng.name || "Web search" };
+    return { council: kind !== "mission", mission: kind !== "council", id: `search:${eng.engine}`, name: eng.name || "Web search" };
   } catch { return false; }
 }
 
@@ -63,21 +87,30 @@ export function orderReaders(readers, record) {
 
 // rankFn, search, and agent can be passed in tests. Otherwise the live router, search
 // settings, and agent picker are used. Nothing in this function leaves the computer.
-export function whoWillRead({ prompt = "", mode = "balanced", classification, rankFn, search, agent, record } = {}) {
+export function whoWillRead({ prompt = "", mode = "balanced", classification, rankFn, search, agent, record, kind = "single" } = {}) {
   const priority = normalizeMode(mode) || "balanced";
   const cls = classification || heuristicClassify(String(prompt || ""));
   const useRank = rankFn || rank;
   const seats = takeUnique(safeRank(useRank, cls, priority), councilPlan(priority).members);
-  const planner = safeRank(useRank, cls, planMode(priority))[0] || null;
+  // the AI that will really plan: the same pick the Mission planner makes (reasoning, hard), among AIs that can run
+  const planner = safeRank(useRank, { ...cls, capability: "reasoning", difficulty: 3 }, planMode(priority))[0] || null;
   const reviewer = safeRank(useRank, cls, reviewMode(priority))[0] || null;
   const missionIds = new Set(seats.map((m) => m.provider));
   for (const m of [planner, reviewer]) if (m?.provider) missionIds.add(m.provider);
   const councilIds = new Set(seats.map((m) => m.provider));
   const readers = [];
   const seen = new Set();
+  // 0.4.21 Gemini check: every model of this AI that is on a cooldown, named with its end time
+  let bench = {};
+  try { bench = troubledModels(); } catch { bench = {}; } // pure helper: no user context means nothing is benched
+  const busyFor = (pid) => {
+    const rows = Object.values(bench).filter((t) => t.provider === pid).map((t) => busyLine(t)).filter(Boolean);
+    return rows.length ? rows.join(". ") : null;
+  };
   const addAi = (m) => {
     if (!m?.provider || seen.has(m.provider)) return;
     seen.add(m.provider);
+    const busy = busyFor(m.provider);
     readers.push({
       id: m.provider,
       name: m.providerName || m.name || m.provider,
@@ -86,6 +119,7 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
       council: councilIds.has(m.provider),
       mission: missionIds.has(m.provider),
       receives: "the orders and the short excerpts",
+      ...(busy ? { busy } : {}),
     });
   };
   for (const m of seats) addAi(m);
@@ -94,16 +128,30 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const picked = agent !== undefined ? agent : (() => { try { return pickAgent({ prompt: String(prompt || "") }); } catch { return { use: false }; } })();
   const extra = agentRow(picked);
   if (extra && !seen.has(extra.id)) { seen.add(extra.id); readers.push(extra); }
-  const look = search !== undefined ? search : liveSearch();
+  const look = search !== undefined ? search : (searchWillRun({ prompt, kind, classification: cls }) ? liveSearch(kind) : false);
   for (const row of searchRows(look)) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
     readers.push(row);
   }
-  const ordered = orderReaders(readers, record);
+  // 0.4.21: an AI that is out of credits is dropped from the readers and listed with an "out of credits" tag
+  const out = [];
+  const live = readers.filter((r) => {
+    if (r.kind !== "ai") return true;
+    let w = null; try { w = whyOut(r.id); } catch { /* unknown AI: keep it */ }
+    if (!w) return true;
+    let next = ""; try { next = describePause(r.id)?.nextCheckText || ""; } catch { next = ""; }
+    let t = null; try { t = troubleFor(r.id); } catch { t = null; }
+    const line = t ? busyLine(t) : null;
+    out.push({ id: r.id, name: r.name, model: t?.model || r.model || null, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available", until: w.until ?? t?.until ?? null, ...(line ? { line } : {}), ...(next ? { next } : {}) });
+    return false;
+  });
+  const ordered = orderReaders(live, record);
   return {
     heading: "Who will read this",
-    readers: ordered,
+    planner: planner ? { id: planner.provider, name: planner.providerName || planner.name || planner.provider } : null,
+    out,
+    readers: ordered.map((r) => (planner && r.id === planner.provider ? { ...r, role: "plan" } : r)),
     note: ordered.length ? "Nothing is sent until you click." : "No AI is available yet. Add a key in Settings. Nothing was sent.",
   };
 }

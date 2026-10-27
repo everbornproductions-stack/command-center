@@ -185,7 +185,7 @@ function builderPlan(body) {
         if (requiredChecks(builderId, input).length) return needs("This send has boxes only you can tick. Open the builder and tick them, then click Publish.");
         const r = await callRoute("POST", `${base}/publish`, { ...input, jobId, confirm: true, checks: {} });
         if (r.status >= 400) return needs(r.json?.error || "Publish needs you.");
-        return { jobId, posted: !!r.json?.posted, note: r.json?.reason || (r.json?.posted ? "Posted." : "Saved on this computer. Nothing was sent.") };
+        return { jobId, draft, posted: !!r.json?.posted, note: r.json?.reason || (r.json?.posted ? "Posted." : "Saved on this computer. Nothing was sent.") };
       } },
     ],
   };
@@ -248,7 +248,7 @@ function webPlan(body) {
         if (target !== "local" && !job.allowPost) return { stop: { kind: "post", reason: STOP_REASON.post } };
         const r = await callRoute("POST", `${base}/publish`, { draftId: draft?.id, target, confirmed: true });
         if (r.status >= 400) return needs(r.json?.error || "Publish needs you.");
-        return { draftId: draft?.id, projectId: draft?.projectId || null, sent: !!r.json?.sent, note: r.json?.note || "Saved on this computer. Nothing was sent." };
+        return { draftId: draft?.id, draft: r.json?.draft || draft, projectId: draft?.projectId || null, sent: !!r.json?.sent, note: r.json?.note || "Saved on this computer. Nothing was sent." };
       } },
     ],
   };

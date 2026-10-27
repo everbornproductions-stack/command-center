@@ -78,7 +78,10 @@ async function postApi({ title, text, files }, prefs, secret) {
 }
 
 function postFolder({ title, text, files, projectId }, prefs) {
-  const dir = path.join(prefs.driveFolder, "Everborn Command", projectId ? safe(projectId) : "unfiled");
+  // 0.4.21 (M49): the folder is called Meldmind. An older "Everborn Command" folder is renamed once, so nothing splits.
+  const top = path.join(prefs.driveFolder, "Meldmind"), old = path.join(prefs.driveFolder, "Everborn Command");
+  try { if (!fs.existsSync(top) && fs.existsSync(old)) fs.renameSync(old, top); } catch { /* keep going with a new folder */ }
+  const dir = path.join(top, projectId ? safe(projectId) : "unfiled");
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
   const f = path.join(dir, `${stamp} ${safe(title)}.md`);

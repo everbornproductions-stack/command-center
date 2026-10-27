@@ -74,6 +74,8 @@ function privateReason(u) {
   if (!host.includes(".")) return PRIVATE_REFUSAL;
   if (/(^|\.)(localhost|local|lan|internal|intranet|home|corp|private|arpa|localdomain)$/.test(host)) return PRIVATE_REFUSAL;
   if (/(^|\.)localhost\./.test(host)) return PRIVATE_REFUSAL;
+  // names that turn into any address (a.b.c.d.nip.io is 127.0.0.1 style) are refused by their words
+  if (/(^|\.)(nip\.io|sslip\.io|localtest\.me|lvh\.me|xip\.io|traefik\.me|vcap\.me)$/.test(host)) return PRIVATE_REFUSAL;
   return "";
 }
 

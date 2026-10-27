@@ -16,7 +16,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 - **Duplicates removed.** Narrow Expert used to show Run setup again, Take the tour, and Check for updates in both Settings and Help. The Settings page "Get help" card had Take the tour, Check for updates, and See what else. Those are gone; the card now points to the Help menu. Version and Check for updates moved from the Settings page to Help > About Meldmind. The second "Download the guide (PDF)" button on the Help page is gone.
 - **Simple reaches every page.** Simple adds a **More** menu with every page not on its row (Compare, Pipelines, Agents, Live, Schedules, Libraries, Artifacts, History, Docs and follow-up, Refocus, Who's best, Marketplace, Subscriptions, Credits, Teams, Together, Reports, Community, Setup). Community moved from Help to More. Start a project now always shows in Simple, not only after its module loads. The Simple Settings dropdown was never openable (the trigger jumped straight to the Settings page), so its three items were dead; Settings is now a plain button.
 - **Simple chat page is chat first.** Chat is the first item in the Simple row and the top of the page. Under the chat box the page shows only My day (Inbox and tasks, Day plan, People), three starters (Reply to a customer, Fix my email, Write a post), and recent chats, then the answer. Other Command widgets (Zapier card, popular prompts, the Start a project bar, private mode and tones, uploads, app suggestions, and the rest) are Expert only. `SIMPLE_COMMAND` in web/mode.js lists the two that still draw: voice (the Mic button) and desk (recent chats). Start a project stays in the top row.
-- **Connectors moved to More > Connections in Simple.** The Connect Zapier card left the chat page. Simple More now ends with a Connections section: Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel. Each opens Settings past the basics, scrolled to that panel. In Simple the Zapier and Make panel shows Zapier and Make. MCP servers, webhook tools, and the Meldmind webhook stay in Expert, so Simple does not link Tools (MCP) or Integrations. A page that loads later is added above Connections.
+- **Connectors moved to More > Connections in Simple.** The Connect Zapier card left the chat page. Simple More now ends with a Connections section: Zapier and Make, Keys and providers, Your apps, Grok Bot assistant, Browser extension, HighLevel. Each opens Settings past the basics, scrolled to that panel. In Simple the Zapier and Make panel shows Zapier and Make. MCP servers, webhook tools, and the Meldmind webhook stay in Expert, so Simple does not link Tools (MCP). Grok Bot shows in Simple as Grok Bot assistant (0.4.21). A page that loads later is added above Connections.
 - **Start a project sits right before Projects** in Simple and in every Expert layout. Checked by `test/menu-audit.test.js`.
 - **Orphan page fixed.** Marketplace had no menu item (reachable only from a Pro prompts button). It is now Create > Marketplace.
 - **Panels that never loaded on Settings.** "What your ratings taught" (`ratings`) and the public share link base URL (`share`) register Settings panels, but the registry did not load them with Settings. They now do.
@@ -74,6 +74,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Connect | People | page `userchat` | OK (People section, 0.4.17) |
 | Connect | Together | page `together` | OK (People section, 0.4.17) |
 | Connect | Community | page `community` | OK (People section, 0.4.17) |
+| Connect | AI News | page `ai-news` | OK (0.4.21, the one home for AI News) |
 | Settings | Settings | page `settings` | OK |
 | Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
@@ -128,6 +129,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Connect | People | page `userchat` | OK (People section, 0.4.17) |
 | Connect | Together | page `together` | OK (People section, 0.4.17) |
 | Connect | Community | page `community` | OK (People section, 0.4.17) |
+| Connect | AI News | page `ai-news` | OK (0.4.21, the one home for AI News) |
 | Settings | Settings | page `settings` | OK |
 | Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
@@ -176,10 +178,12 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | More | Together | page `together` | OK |
 | More | Reports | page `reports` | OK |
 | More | Community | page `community` | OK |
+| AI News | AI News | page `ai-news` | OK (0.4.21, its own item in the left menu) |
 | More | Find my AIs | page `setup` | OK |
 | More > Connections | Zapier and Make | page `settings`, scrolled to `[data-feature='zapier']` | OK |
 | More > Connections | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |
 | More > Connections | Your apps | page `settings`, scrolled to `[data-feature='byo']` | OK |
+| More > Connections | Grok Bot assistant | page `settings`, scrolled to `[data-feature='grokbot']` | OK |
 | More > Connections | Browser extension | page `settings`, scrolled to `[data-feature='extension']` | OK |
 | More > Connections | HighLevel | page `settings`, scrolled to `[data-feature='highlevel']` | OK |
 | Help | Search help | page `help` | OK |
@@ -207,7 +211,7 @@ Web app (hosted) hides these desktop-only items: Libraries, Find my AIs, Get eve
 | Settings page | Search help (Get help card), What leaves this PC | page `help`, article `security` | OK |
 | Settings page | Run setup again (Find my AIs) (`#s-setup`) | the longer setup page | Decision 20 words kept, see 0.4.17 changes |
 | Connect menu | Keys and providers, Your apps, Tools (MCP), Integrations, Browser extension, HighLevel | Settings scrolled to `#settings-keys` or `[data-feature=...]` | OK |
-| Simple More > Connections | Zapier and Make, Keys and providers, Your apps, Browser extension, HighLevel | Settings (past the basics) scrolled to `#settings-keys` or `[data-feature=...]` | OK |
+| Simple More > Connections | Zapier and Make, Keys and providers, Your apps, Grok Bot assistant, Browser extension, HighLevel | Settings (past the basics) scrolled to `#settings-keys` or `[data-feature=...]` | OK |
 | Tour | every step `view:` | command, help, settings, builders, community | OK, all pages exist |
 | In-app `go()` calls | builders, command, community, help, images, liveview, marketplace, media, pipelines, remix, settings, start, webbuilders | all exist | OK |
 | guide.js | `research` view | guarded by `has(p.views, "research")`, so it is skipped | OK, no dead link shown |

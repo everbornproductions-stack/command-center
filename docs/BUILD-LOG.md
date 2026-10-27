@@ -2551,3 +2551,32 @@ No locked decision was changed. Stripe, Square and billing were not touched (Str
 - Flags on by default (override with CC_FLAG_<NAME>=0): projectbar, promptdrop, nextactions, projectmedia, finishrouter, finishpath, takeover, look, livebubble, navstate, phoneweb, agents, flowstages. Tests that asserted "off by default" now assert on by default and test the off path with the env var.
 - Version 0.4.19 in package.json, lock, tests, What's new, release notes, help catalog and the guide PDF.
 - Local tests (Linux, Node 22, credential env vars unset): npm test 1033 tests, 1032 pass, 0 fail, 0 cancelled, 1 skipped; smoke passes; the serial run passes except media.test.js, which timed out under load once and passes alone. Pull request 123.
+
+## 2026-10-26 Release 0.4.21, area I (dogfood finding 01: coding job finished "done" with nothing)
+
+- Cause: Gemini answered 429 (no quota), OpenRouter 402, a third route returned no words, and the single chat still ended "done" with an empty deliverable and cost 0.
+- Server memory: a 429 that says the quota is gone (not a short rate limit) is now remembered as "credits" with the 15 minute cool-down (server/fallback.js troubleKind), so the router and the next send skip that AI before calling it.
+- Empty answers: fallbackChat treats a finished stream with no words and no tool work as a failure ("sent back an empty answer"), tries a stand-in, and finally throws "Nothing came back. <AI> is out of quota or credits. Add credits in Settings, or press Try again..." (nothingCameBack). Single marks the run failed with needsAttention.retry, council with every seat empty fails with the same words, mission with an empty deliverable fails, media with no file says Nothing came back. Cost stays 0 because nothing is recorded.
+- Send check: new server/send-check.js and POST /api/send-check name connected AIs that are out (trouble table plus pause bookkeeping), give the next working AI, and set autoMode "mission" for a coding job when two or more AIs work and the person did not choose Single.
+- UI (small): web/send-check.js paints a banner above the prompt box with Use X for this / Add credits / Open Settings; sendOrders calls it before sending (web/app.js, 12 lines); failure-cause.js shows "Nothing came back" cards. Expert Single stays Single once clicked (S.cmdModeExplicit).
+- Tests: test/send-check.test.js (server, mocked providers), test/send-check-browser.test.js (real browser), test/send-check-mock.js (shared mock).
+
+
+## 2026-10-26 Release 0.4.21, area J (remaining report items)
+
+No locked decision was changed. Square, Stripe and billing were not touched. data/ was not read. Nothing was deployed.
+
+- Finish: one step (Looks good, Finish and the top Finish open the drawer at once), code keeps its lines and indents, preview and print show clean text with a word-safe title, Save code as files, Read aloud, focus trap and focus back (web/finish-text.js, finishpath.js, finish-drawer.js).
+- Publish panel: link, Slack channel, HighLevel accounts and a later time; one fit-check line per problem with its fix (Paste a link, Save to Drive instead); failed send offers Try again and Open Settings (web/publish-fit.js, mindmedia-parts.js). Old Publish page says "practice only", not "dry run".
+- MindMedia screen: smart views with counts, Trash with Restore, "Working on it" tiles that poll and say when done, a public link box, Ask Meldmind about this and Make another like this, rare fields under More, and #mindmedia links (web/mm-hash.js). Server: bad status 400, truncated flag, 413 instead of a reset, "Unfiled" reserved. Pictures and clips are named after their words; SVG is served as an image.
+- Deferred 0.4.20 list: plan locks on builder cards, one-step price on Images and Media, Connect HighLevel button, share cards (already in F), auto-save. Campaign scheduling field is skipped: the HighLevel scheduled message API cannot be checked without a live account; quiet hours are now a real clock check.
+- Safety: the web builders run the words check at Build and Test; campaign text no longer carries [CROA] tags; send log (server/send-log.js) for HighLevel, Gmail, builders and publish; Try the send guard box (/api/guardtest); Test my budget (/api/cost-guard/test); connection doctor; reason chips on every stop.
+- Other tools: Use Meldmind inside Claude Code, Codex, Gemini CLI or Claude desktop (copy-ready lines only; nothing is written to another tool).
+- Remix: Play preview in a sandboxed frame (server/remix-play.js), test run flags a left-over "Not described." and says the page was read, not opened.
+- Take Over keeps prompt lines so Safer copy works, shows the risk row above the fold, refuses every-minute schedules. People page: empty state by plan, who-am-I line, invited email checked on join. Native confirm() is gone from the feature pages. Help: three new articles plus updates; guide PDF has Finish and MindMedia and Text size pages (rerun `npm run build:guide` after the version bump, the bundled PDF carries the version).
+- Not built (reasons in the checklist): cross-computer team invites (needs a hub), free posting SQL, license signing key, the click token for Approve (it adds no barrier against a caller that already holds the session token), layout items owned by area H.
+- Lessons: (1) A full-suite run overlaps edits: do not edit source while `npm test` runs, only notes. (2) Moving a pure helper out of a file that destructures window.CC at import time (userchat.js, mindmedia-save.js) is what makes it testable in node. (3) A new help article can outrank an old one in the keyword search: re-run the ease-of-use pin and trim the old summary. (4) A new browser test that opens a page and clicks must scale its waits with waitBudget and be run twice alone, because two Playwright files in one process flaked once.
+
+## 0.4.21 lead notes
+- Areas A-J were built in worktrees and merged into integration/0.4.21; layout is docs/layout-0421.md. Old tests changed on purpose are listed in the PR body. Expert-mode browser tests click #mode-expert because the sample project keeps its own mode.
+- PR #125 opened; final push carries no skip-ci tag so Windows CI runs.

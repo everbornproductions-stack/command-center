@@ -14,7 +14,7 @@ const VIEW = {
   on: true, website: false, chainLine: ORDER_LINE, appsNote: "Uses the official app for each AI, signed in with your own plan.",
   websiteLabel: "Let Meldmind use the website for me (ChatGPT, Claude, Grok)",
   websiteWarning: "This uses browser control to type into the website and read the reply. The websites' terms do not allow automated use, and your account could be suspended. Use the official apps above when you can.",
-  websiteLater: "Website mode is coming in a later update.",
+  websiteNote: "Website mode is on. If the apps cannot answer, Meldmind tries the website in its own window and asks you before it sends.",
   routes: [
     { id: "claude-code", name: "Claude Code", ai: "Claude", status: "ready", label: "Installed and signed in", on: true, setupUrl: "https://docs.anthropic.com/en/docs/claude-code/setup" },
     { id: "codex", name: "Codex", ai: "ChatGPT", status: "missing", label: "Not installed", on: true, setupUrl: "https://developers.openai.com/codex/cli" },
@@ -34,18 +34,18 @@ test("the setup step: status rows come from detection, website mode is off, and 
   assert.match(html, /data-aw-setup="https:\/\/developers\.openai\.com\/codex\/cli">How to set it up/);
   assert.match(html, /id="cc-aw-website" >/, "website mode is not checked");
   assert.ok(html.includes(VIEW.websiteWarning.replace(/'/g, "&#39;")));
-  assert.ok(!html.includes(VIEW.websiteLater), "the later-update note shows only when it is on");
+  assert.ok(!html.includes(VIEW.websiteNote), "the later-update note shows only when it is on");
   assert.match(html, /Check again/);
   assert.match(html, /change this later in Settings/);
   assert.ok(!html.includes(EM));
   const on = panelHtml({ ...VIEW, website: true });
   assert.match(on, /id="cc-aw-website" checked/);
-  assert.ok(on.includes(VIEW.websiteLater));
+  assert.ok(on.includes(VIEW.websiteNote));
 });
 
 test("website mode needs an explicit confirm in the page, and the step is in both setup flows", () => {
   const mod = read("web", "features", "answer-wait.js");
-  assert.match(mod, /if \(!confirm\(/);
+  assert.match(mod, /await window\.CC\.confirm\(/);
   assert.match(mod, /website: true, confirm: true/);
   const app = read("web", "app.js");
   // 0.4.17: Simple setup is one welcome screen, and the backup step fills its reserved slot.
@@ -64,7 +64,7 @@ test("the waiting box: plain words, the step in use, the three buttons, how long
   assert.match(html, /Waiting <span data-aw-since="1000">2 min<\/span>/);
   const copy = waitBoxHtml({ jobId: "ans-ABCDEF123", ai: "Claude", step: "copy", website: true }, { now: 5 });
   assert.match(copy, /Out of API credits\. Answering through your Claude subscription\./);
-  assert.match(copy, /Website mode is coming in a later update\./);
+  assert.match(copy, /Website mode is on: Meldmind tries the website in its own window/);
   assert.ok(!html.includes(EM) && !copy.includes(EM));
   assert.equal(waitBoxHtml({}), "");
 });

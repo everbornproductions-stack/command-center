@@ -66,7 +66,7 @@ const APP_STEPS = [
   { id: "builders", for: "both", target: "#builders-root", view: "builders", title: "Builders", body: "Builders show up when a need is detected. Describe what you want, preview which AIs would see it, then Build, Test, and Publish. Nothing is sent, posted, or charged until you click Publish. HighLevel, receipts, invoices, a booking, meeting notes, a contract, a review, or a website chat each bring up their own builder." },
   { id: "report-back", for: "both", view: "command", title: "When another AI finishes", body: "When you hand a job to another AI, that AI can tell Meldmind it is finished. You get a notice, and the summary shows in the job. If it cannot call back, use Paste result. Nothing is saved from that paste until you click Save." },
   { id: "get-it-done", for: "both", view: "command", title: "Get it done", body: "Get it done lets one job run its steps without asking. It ends when the job ends. You can also say get it done, don't ask me. Spending money and a permanent delete still need one tap. Sending a message stays off unless you turn that on. Stop and the activity log stay on. Always for this kind of job is in Settings, and you can revoke it any time." },
-  { id: "community", for: "both", target: "#cc-community", view: "community", title: "Community and AI News", body: "Community chat has General, Prompts, Builders, Help, and Show and tell. AI News sits next to them and updates weekly. Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. Your email is never shown. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News. Change it in Settings. Click Send to post. Share a prompt, a builder, or a mission with one click. Keys and private files are refused. The weekly email is off until you tick it." },
+  { id: "community", for: "both", target: "#cc-community", view: "community", title: "Community and AI News", body: "Community chat has General, Prompts, Builders, Help, and Show and tell. AI News has its own item in the left menu and updates weekly. Your account has one public username. First-run setup asks for it, and Skip keeps the suggested name. Your email is never shown. The same name is used in chat, on shared prompts, in the Builders gallery, and on AI News. Change it in Settings. Click Send to post. Share a prompt, a builder, or a mission with one click. Keys and private files are refused. The weekly email is off until you tick it." },
 ];
 
 // Guide steps first, then these stops and the short steps the everyday pages add for this mode.
@@ -229,7 +229,7 @@ async function runDesktop(install) {
   try {
     await api("/antigravity/allow", { method: "POST", body: { allow: true } });
     if (!install) { toast("Antigravity is allowed. Change this any time in Settings.", false, openSettings); return; }
-    if (!window.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.")) {
+    if (!(await window.CC.confirm("Install Antigravity with Google's installer, then open sign-in in your browser? Meldmind does not see your password.", { ok: "Install" }))) {
       toast("Nothing was installed. Install and connect is in Settings.", false, openSettings);
       return;
     }

@@ -47,7 +47,10 @@ function listHtml(view) {
   const connected = Array.isArray(view?.connected) && view.connected.length
     ? `<div class="dim small" style="margin-top:6px">Keys saved for: ${esc(view.connected.join(", "))}.</div>`
     : `<div class="dim small" style="margin-top:6px">No AI key is saved yet, so no AI company receives anything.</div>`;
-  return `<div class="muted small">${esc(view?.lead || "")}</div>${connected}${levelsHtml(view)}
+  const badge = view?.localOnly ? `<div class="chip green" id="pv-local-only" style="margin-top:8px">${esc(view.localOnlyBadge || "Nothing left this computer")}</div>` : "";
+  const sending = view?.levels?.qualitySignals === true && view?.signalSending !== true
+    ? `<div class="dim small" id="pv-signals-note" style="margin-top:6px">${esc(view.keptNote || "Anonymous results are kept on this computer for now.")}</div>` : "";
+  return `<div class="muted small">${esc(view?.lead || "")}</div>${badge}${connected}${levelsHtml(view)}${sending}
     <div class="pv-list" style="margin-top:12px">${items.map((r) => `
       <div class="route pv-row" data-privacy="${esc(r.id)}">
         <div class="row" style="gap:8px;align-items:baseline"><b>${esc(r.name)}</b><span class="chip ${r.state === "switch" && r.on ? "green" : ""}" style="margin-left:auto">${esc(stateLabel(r))}</span></div>
@@ -133,7 +136,46 @@ export async function openPrivacy() {
 }
 window.CC.openPrivacy = openPrivacy;
 
+// ---------- "Sharing changed" card ----------
+// An install that existed before the three sharing levels has not seen the notice. It gets one small card
+// (never the welcome screen again). Any button marks it seen; nothing changes unless the person clicks Turn it off.
+let cardChecked = false;
+let cardTimer = null;
+async function maybeSharingCard(S) {
+  if (cardChecked || document.getElementById("cc-sharing-changed")) return;
+  if (!S || S.view === "setup" || S.askMode || S.onboarding?.show) return;
+  cardChecked = true;
+  let view;
+  try { view = await api("/privacy"); } catch { cardChecked = false; return; }
+  if (!view?.levels?.showNotice || document.getElementById("cc-sharing-changed")) return;
+  const on = view.levels.qualitySignals === true;
+  const box = document.createElement("div");
+  box.id = "cc-sharing-changed";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-label", "Sharing changed");
+  box.style.cssText = "position:fixed;left:14px;bottom:14px;z-index:60;max-width:360px;background:var(--panel-solid,#0d1420);color:var(--text,#e6edf7);border:1px solid var(--line-2,#2a3a52);border-radius:12px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.4)";
+  box.innerHTML = `<b>Sharing changed</b>
+    <div class="small" style="margin-top:6px">Meldmind now helps itself get smarter with anonymous counts: provider, task type, thumbs up or down, and cost. Never your text. ${on ? "It is on for you." : "It is off for you."} You can change it any time.</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">
+      <button type="button" class="btn sm primary" data-sc="ok">Got it</button>
+      ${on ? `<button type="button" class="btn sm" data-sc="off">Turn it off</button>` : `<button type="button" class="btn sm" data-sc="on">Turn it on</button>`}
+      <button type="button" class="btn sm" data-sc="see">What leaves this computer</button>
+    </div>`;
+  document.body.appendChild(box);
+  box.addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-sc]")?.dataset.sc;
+    if (!act) return;
+    if (act === "see") { openPrivacy(); return; }
+    try {
+      await api("/privacy", { method: "POST", body: act === "off" ? { qualitySignals: false, noticeSeen: true } : act === "on" ? { qualitySignals: true, noticeSeen: true } : { noticeSeen: true } });
+      box.remove();
+      toast?.(act === "off" ? "Sharing is off." : act === "on" ? "Sharing is on." : "Saved");
+    } catch (err) { toast?.(err.message, true); }
+  });
+}
+
 window.CC.register({
   id: "privacy",
+  onState(S) { if (cardChecked || cardTimer) return; cardTimer = setTimeout(() => { cardTimer = null; maybeSharingCard(S); }, 4000); },
   settings: { order: 0, render: renderSettings },
 });

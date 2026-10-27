@@ -171,7 +171,7 @@ export function previewSearch({ prompt, needWeb = false, provider, model, explic
 
 // A search query from a prompt: drop the project-memory block, collapse whitespace, keep it short.
 export function queryFor(prompt, engine) {
-  let q = String(prompt || "").split(/\n\s*PROJECT MEMORY for /)[0].replace(/\s+/g, " ").trim();
+  let q = String(prompt || "").split(/\n\s*(?:PROJECT MEMORY for |WHAT I REMEMBER)/)[0].replace(/\s+/g, " ").trim();
   if (engine === "brave") q = q.split(" ").slice(0, 50).join(" ");
   return q.slice(0, 300);
 }
@@ -237,6 +237,9 @@ async function fetchWithTimeout(url, opts, ms = 15000) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
   try { return await localFetch(url, { ...opts, signal: ctl.signal }); } finally { clearTimeout(t); }
 }
+
+// Last failure per engine (cleared by the next good call). Read by page-reader.js for the warning before a run.
+export const engineTrouble = new Map();
 
 export class SearchError extends Error { constructor(engine, status, message, { network = false, rejected = false } = {}) { super(message); this.engine = engine; this.status = status; this.network = network; this.rejected = rejected; } }
 
@@ -323,7 +326,9 @@ export async function runSearch(query, { engine, missionId = null, taskId = null
   const e = ENGINES[engine] || (FREE[engine] ? { ...FREE[engine], name: engine === "searxng" ? FREE.searxng.name : FREE.duckduckgo.name } : null);
   if (!e) throw new SearchError(engine, 400, "unknown search engine");
   if (ENGINES[engine] && capStopped(engine)) throw new SearchError(engine, 402, `${e.name} hit its monthly cap. Raise the cap in Settings > Web search or wait for the month to roll over.`);
-  const rows = FREE[engine] ? await callFree(engine, q, max, useFilter) : await callEngine(engine, q, max, useFilter);
+  let rows;
+  try { rows = FREE[engine] ? await callFree(engine, q, max, useFilter) : await callEngine(engine, q, max, useFilter); } catch (err) { engineTrouble.set(engine, { message: err.message, rejected: !!err.rejected, at: Date.now() }); throw err; }
+  engineTrouble.delete(engine);
   const sources = numbered(rows, offset);
   const cost = priceOf(engine);
   const ms = Date.now() - t0;

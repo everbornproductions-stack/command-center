@@ -2,6 +2,7 @@
 // Copy, Print, Save as PDF, Save as Word, Save to MindMedia, Publish. Opened by Finish everywhere
 // (CC.openFinishDrawer). Nothing is sent: Publish shows a preview first, and unconnected places are practice only.
 import "/features/mindmedia-parts.js";
+import { plainMarkdown, titleFrom, hasCode } from "/finish-text.js";
 const CC = window.CC;
 const { api, esc, toast } = CC;
 
@@ -40,28 +41,38 @@ export function openFinishDrawer(opts = {}) {
   style();
   document.querySelector(".fd-back")?.remove();
   const text = String(opts.text || "");
-  const name = String(opts.name || text.replace(/\s+/g, " ").slice(0, 50) || "Finished work");
+  const name = String(opts.name || titleFrom(text));
+  const shown = plainMarkdown(text);
+  const asFiles = hasCode(text);
+  const returnTo = document.activeElement;
   const back = document.createElement("div");
   back.className = "fd-back";
   const first = (opts.files || [])[0];
   const isImg = first && /^image\//.test(first.mime || "") && first.data;
-  const prevHtml = isImg ? `<img alt="" src="${/^data:/.test(first.data) ? first.data : `data:${first.mime};base64,${first.data}`}">` : esc(text.slice(0, 1500) || (first ? first.name : "Nothing to show yet."));
+  const prevHtml = isImg ? `<img alt="" src="${/^data:/.test(first.data) ? esc(first.data) : `data:${esc(first.mime)};base64,${esc(first.data)}`}">` : esc(shown.slice(0, 1500) || (first ? first.name : "Nothing to show yet."));
   back.innerHTML = `<aside class="fd" role="dialog" aria-modal="true" aria-label="Finish"><div class="fd-top"><h3>Done? Choose where this goes.</h3><button type="button" class="btn sm" data-x aria-label="Close">Close</button></div>
     <div class="fd-prev">${prevHtml}</div>
     <div class="fd-h">Keep a copy</div>
-    <div class="fd-row"><button type="button" class="btn sm" data-a="copy" ${text ? "" : "disabled"}>Copy</button><button type="button" class="btn sm" data-a="print" ${text ? "" : "disabled"}>Print</button><button type="button" class="btn sm" data-a="pdf" ${text ? "" : "disabled"}>Save as PDF</button><button type="button" class="btn sm" data-a="docx" ${text ? "" : "disabled"}>Save as Word</button></div>
+    <div class="fd-row"><button type="button" class="btn sm" data-a="copy" ${text ? "" : "disabled"}>Copy</button><button type="button" class="btn sm" data-a="print" ${text ? "" : "disabled"}>Print</button><button type="button" class="btn sm" data-a="pdf" ${text ? "" : "disabled"}>Save as PDF</button><button type="button" class="btn sm" data-a="docx" ${text ? "" : "disabled"}>Save as Word</button>${text && "speechSynthesis" in window ? `<button type="button" class="btn sm" data-a="read">Read aloud</button>` : ""}${asFiles ? `<button type="button" class="btn sm" data-a="files" title="Each code block becomes its own file, kept in MindMedia with a zip.">Save code as files</button>` : ""}</div>
     <div class="fd-h">Keep it in Meldmind</div>
     <div class="fd-row"><button type="button" class="btn sm primary" data-a="save">Save to MindMedia</button></div>
     <div data-saved></div>
     <div class="fd-h">Send it somewhere (you see a preview first)</div>
-    <div class="fd-row"><button type="button" class="btn sm primary" data-a="publish">Publish</button></div>
+    <div class="fd-row"><button type="button" class="btn sm primary" data-a="publish">Publish</button><button type="button" class="btn sm" data-a="share" title="Posts a card in Community. Nothing else is sent.">Share to Community</button></div>
     <div data-pub></div></aside>`;
   document.body.appendChild(back);
   const box = back.querySelector(".fd");
-  const close = () => back.remove();
+  const close = () => { back.remove(); try { window.speechSynthesis?.cancel(); } catch {} if (returnTo && returnTo.isConnected) returnTo.focus?.(); };
   back.addEventListener("click", (e) => { if (e.target === back) close(); });
   box.querySelector("[data-x]").addEventListener("click", close);
-  back.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  back.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") return close();
+    if (e.key !== "Tab") return;
+    const els = [...box.querySelectorAll("button:not([disabled]), a[href], input, textarea, select")].filter((x) => x.offsetParent !== null);
+    if (!els.length) return;
+    const i = els.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); els[els.length - 1].focus(); } else if (!e.shiftKey && i === els.length - 1) { e.preventDefault(); els[0].focus(); }
+  });
   box.querySelector("[data-x]").focus();
 
   let saved = opts.item || null;
@@ -80,11 +91,27 @@ export function openFinishDrawer(opts = {}) {
     print: () => {
       const w = window.open("", "_blank");
       if (!w) return toast("Your browser blocked the print window. Use Save as PDF instead.", true);
-      w.document.write(`<pre style="font:14px/1.5 system-ui;white-space:pre-wrap">${esc(text)}</pre>`); w.document.close(); w.focus(); w.print();
+      const px = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      w.document.write(`<title>${esc(name)}</title><h1 style="font:600 ${Math.round(px * 1.5)}px system-ui">${esc(name)}</h1><div style="font:${Math.round(px)}px/1.5 system-ui;white-space:pre-wrap">${esc(shown)}</div>`); w.document.close(); w.focus(); w.print();
     },
     pdf: async () => download(await api("/mindmedia/export", { method: "POST", body: { text, title: name, format: "pdf" } })),
     docx: async () => download(await api("/mindmedia/export", { method: "POST", body: { text, title: name, format: "docx" } })),
+    read: () => {
+      const ss = window.speechSynthesis;
+      if (!ss) return toast("Reading aloud is not available here.", true);
+      if (ss.speaking) { ss.cancel(); return; }
+      ss.speak(new SpeechSynthesisUtterance(shown.slice(0, 4000)));
+    },
+    files: async () => {
+      const r = await api("/mindmedia/code-files", { method: "POST", body: { text, projectId: opts.projectId, source: opts.source || "Finish" } });
+      box.querySelector("[data-saved]").replaceChildren(CC.resultCard({ what: "Saved", savedWhere: r.savedWhere, item: { projectId: r.projectId, assetId: r.items?.[0]?.id } }));
+      toast(r.savedWhere);
+    },
     save: async () => { await keep(); toast("Saved in MindMedia."); },
+    share: async () => {
+      const it = await keep();
+      await CC.shareMindMediaItem?.({ projectId: it.projectId, assetId: it.assetId, name, text });
+    },
     publish: async () => {
       const it = await keep();
       CC.publishPanel(box.querySelector("[data-pub]"), { projectId: it.projectId, assetId: it.assetId, kind: it.kind, title: name });
@@ -92,7 +119,7 @@ export function openFinishDrawer(opts = {}) {
   };
   box.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-a]");
-    if (!b) return;
+    if (!b || b.closest("[data-pub]") || !Object.prototype.hasOwnProperty.call(act, b.dataset.a)) return; // the Publish panel owns its own buttons
     try { await act[b.dataset.a](); } catch (er) { toast(er.message || "That did not work.", true); }
   });
   return { close, el: box };

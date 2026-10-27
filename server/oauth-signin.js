@@ -30,6 +30,11 @@ export const COMING_SOON = {
   microsoft: "One-click Sign in with Microsoft is coming soon. For now you can use your own Microsoft sign-in app under Advanced.",
 };
 
+// Google's consent screen is in Testing until Everborn finishes Google's review. While it is,
+// only people on the test list can sign in, and Google refuses everyone else. Set "consent" to
+// "live" in oauth-clients.json (or CC_GOOGLE_CONSENT=live) once the app is published.
+export const TESTING_NOTE = "Google sign-in is in testing: ask Everborn to add your email, then try again.";
+
 export function readClientFile(file = process.env.CC_OAUTH_CLIENTS_FILE || CLIENTS_FILE) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch { return {}; }
 }
@@ -45,6 +50,11 @@ export function shippedClient(provider, { env = process.env, file } = {}) {
   // Google desktop clients need the secret at token time. Without it, one-click Google is not
   // ready and the button offers the Advanced own-client path. Microsoft needs no secret.
   return { provider, clientId: ok ? clientId : "", clientSecret: ok && secretOk && clientSecret ? clientSecret : null, hasId: ok, ready: ok && secretOk };
+}
+
+export function googleInTesting({ env = process.env, file } = {}) {
+  const v = String(env.CC_GOOGLE_CONSENT || readClientFile(file)?.google?.consent || "testing").trim().toLowerCase();
+  return v !== "live";
 }
 
 const b64url = (b) => Buffer.from(b).toString("base64url");

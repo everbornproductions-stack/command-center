@@ -14,7 +14,7 @@ export const MAIN_ACTIONS = [
 export const KEEP_IN_VIEW = new Set(["desk"]);
 
 // The next actions bar (flag_nextactions) stays where it was drawn, right under the main buttons.
-export const PINNED = new Set(["next-actions", "finishpath"]);
+export const PINNED = new Set(["next-actions", "finishpath", "versions"]);
 
 export const MORE_LABEL = "More actions";
 

@@ -26,7 +26,7 @@ test("provider refusals are explained in plain words, with the provider's messag
   assert.equal(e.detail, "Key rejected (401): invalid x-api-key");
   e = explainProviderError(ant, 400, { error: { message: "Your credit balance is too low to access the Anthropic API." } });
   assert.equal(e.status, "amber", "low balance is not a bad key");
-  assert.equal(explainProviderError(xai, 429, {}).detail, "Rate limited");
+  assert.equal(explainProviderError(xai, 429, {}).detail, "Rate or quota limit, try again in a minute");
   assert.match(explainProviderError(xai, 503, null, "<html>oops</html>").detail, /server error \(503\)$/, "HTML bodies are not shown");
   const masked = providerMessage({ error: { message: "Incorrect API key provided: sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ" } });
   assert.ok(!masked.includes("GHIJKLMNOP"), "key values are masked in messages");
@@ -46,7 +46,7 @@ test("provider refusals are explained in plain words, with the provider's messag
   assert.equal(denied.status, "red");
   assert.match(denied.detail, /^Access denied \(403\): This model is not enabled/);
   assert.equal(explainProviderError(xaiLive, 402, {}).detail, "Payment required: no credits");
-  assert.equal(explainProviderError(xaiLive, 429, {}).detail, "Rate limited");
+  assert.equal(explainProviderError(xaiLive, 429, {}).detail, "Rate or quota limit, try again in a minute");
 });
 
 test("noteCall uses the error body, and a later success clears a stale network flag", () => {
@@ -165,7 +165,7 @@ test("a chat 403 about credits is stored as out of credits, not Key rejected", a
   const KEY = "xai-chatcreditsfake0001";
   let s;
   try {
-    s = await startServer({ env: { CC_BASE_URL_XAI: base, CC_STATUS_PAGES: "off", XAI_API_KEY: "", ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" } });
+    s = await startServer({ env: { CC_BASE_URL_XAI: base, CC_STATUS_PAGES: "off", CC_HEALTH_PROBE: "off", XAI_API_KEY: "", ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" } });
     const saved = await s.api("/keys", { method: "POST", body: { provider: "xai", key: KEY } });
     assert.equal(saved.json.status.status, "green", JSON.stringify(saved.json.status));
     const model = (await s.api("/state")).json.providers.find((p) => p.id === "xai").models[0].id;

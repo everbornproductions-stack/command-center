@@ -57,7 +57,7 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
     const bad = await post("/mindmedia/save", { files: [{ name: "x.txt", path: path.join(srv.dir, "secret.txt") }] });
     assert.equal(bad.status, 400);
     assert.equal((await post("/mindmedia/save", {})).status, 400);
-    assert.equal((await post("/mindmedia/save", { text: "x", status: "nonsense" })).status, 200, "unknown status falls back to Draft");
+    assert.equal((await post("/mindmedia/save", { text: "x", status: "nonsense" })).status, 400, "unknown status is refused, as the meta route does (0.4.21)");
 
     // dedupe: the same key updates instead of stacking
     const d1 = await post("/mindmedia/save", { text: "v1", name: "Plan", dedupeKey: "plan-1" });
@@ -67,8 +67,8 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
 
     // cross-project list with filters
     const all = (await srv.api("/mindmedia")).json;
-    assert.ok(all.total >= 5);
-    assert.deepEqual(all.statuses, ["Draft", "Review", "Approved", "Published"]);
+    assert.ok(all.total >= 4);
+    assert.deepEqual(all.statuses, ["Draft", "Review", "Approved", "Scheduled", "Published"]);
     assert.ok(all.projects.some((p) => p.id === "unfiled") && all.projects.some((p) => p.id === "alpha-proj"));
     assert.equal((await srv.api("/mindmedia?project=alpha-proj")).json.items.every((i) => i.projectId === "alpha-proj"), true);
     assert.equal((await srv.api("/mindmedia?project=unfiled&type=text")).json.items.every((i) => i.kind === "text" && i.projectId === "unfiled"), true);
@@ -123,4 +123,26 @@ test("saveToMindMedia: unfiled, project, text, files, filters, ending shelf, mov
   } finally {
     await srv.stop();
   }
+});
+
+test("save: the exact relative path the page sends works, and a symlink in the data folder is refused", async () => {
+  let linked = true;
+  const srv = await startServer({
+    seed(dir) {
+      fs.writeFileSync(path.join(dir, "projects.json"), JSON.stringify({ projects: [{ id: "rx-proj", name: "Remix", color: "#22d3ee", categories: [] }] }));
+      const pdir = path.join(dir, "projects", "rx-proj");
+      fs.mkdirSync(pdir, { recursive: true });
+      fs.writeFileSync(path.join(pdir, "index.html"), "<h1>Remix</h1>");
+      const outside = path.join(path.dirname(dir), `outside-${path.basename(dir)}.txt`);
+      fs.writeFileSync(outside, "outside secret");
+      try { fs.symlinkSync(outside, path.join(pdir, "link.txt")); } catch { linked = false; }
+    },
+  });
+  const post = (p, body) => srv.api(p, { method: "POST", body });
+  try {
+    const ok = await post("/mindmedia/save", { source: "Remix", kind: "site", name: "rx", files: [{ name: "index.html", path: "projects/rx-proj/index.html" }], projectId: "rx-proj" });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    const bad = await post("/mindmedia/save", { kind: "file", name: "x", files: [{ name: "link.txt", path: "projects/rx-proj/link.txt" }], projectId: "rx-proj" });
+    if (linked) assert.equal(bad.status, 400, JSON.stringify(bad.json));
+  } finally { await srv.stop(); }
 });

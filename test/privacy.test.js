@@ -350,3 +350,29 @@ test("an existing install that turned sharing off stays off", async () => {
     await s.stop();
   }
 });
+
+test("0.4.21: Privacy page badge, honest quality-signal note, Sharing changed card, and Help section link", async () => {
+  const web = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\r\n/g, "\n");
+  const ui = web("web", "features", "privacy.js");
+  assert.match(ui, /Nothing left this computer/);
+  assert.match(ui, /box\.id = "cc-sharing-changed"/);
+  assert.match(ui, /kept on this computer for now/);
+  assert.match(web("web", "app.js"), /S\.helpSection = "What leaves this computer"/);
+  assert.match(web("web", "features", "help.js"), /helpSection/);
+  assert.match(web("docs", "help", "privacy.md"), /Sharing changed/);
+  assert.match(web("docs", "help", "privacy.md"), /this computer's name/);
+  const view = privacyView({ localOnly: true, signalSending: false });
+  assert.equal(view.localOnly, true);
+  assert.equal(view.localOnlyBadge, "Nothing left this computer");
+  assert.equal(DASHES.test(JSON.stringify(view)) || DASHES.test(ui), false);
+
+  const s = await startServer();
+  try {
+    const v = (await s.api("/privacy")).json;
+    assert.equal(typeof v.localOnly, "boolean");
+    assert.equal(v.signalSending, false, "quality signal sending is off by default");
+    // a finished first run counts as having seen the notice
+    await s.api("/setup/done", { method: "POST", body: {} });
+    assert.equal((await s.api("/privacy")).json.levels.showNotice, false);
+  } finally { await s.stop(); }
+});

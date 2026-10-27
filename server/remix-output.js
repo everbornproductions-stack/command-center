@@ -78,7 +78,7 @@ export function testRun(folder) {
   const hasIndex = fs.existsSync(indexFile);
   add("The page file exists", hasIndex);
   const html = hasIndex ? fs.readFileSync(indexFile, "utf8") : "";
-  add("The page has words in it", html.replace(/<[^>]+>/g, "").trim().length > 20);
+  add("The page has words in it", html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, "").replace(/<[^>]+>/g, "").trim().length >= 8);
   add("The page has a title", /<title>[^<]+<\/title>/i.test(html));
   add("The page has a heading", /<h1[^>]*>[\s\S]*?\S[\s\S]*?<\/h1>/i.test(html));
   const refs = [...html.matchAll(/(?:src|href)=["']([^"'#?]+)["']/gi)].map((r) => r[1]).filter((r) => !/^(?:[a-z]+:|\/\/|data:)/i.test(r));
@@ -95,8 +95,12 @@ export function testRun(folder) {
     try { new vm.Script(code); } catch (e) { bad = bad || e.message; }
   }
   add("The scripts read without errors", !bad, bad);
+  // A starter line left in place ("Not described.") means a question was never answered (0.4.21).
+  const leftover = ["index.html", "README.md", "characters.md"].filter((f) => { try { return /Not described\./.test(fs.readFileSync(path.join(folder, f), "utf8")); } catch { return false; } });
+  add("No question was left unanswered", leftover.length === 0, leftover.map((f) => `${f} still says "Not described."`).join(", "));
   const failed = checks.filter((c) => !c.ok).length;
-  return { ran: true, at: Date.now(), checks, passed: checks.length - failed, failed, grade: failed ? "Needs a look" : "Passed" };
+  // The page is read and its scripts are parsed; it is not opened in a browser here. The result says so.
+  return { ran: true, at: Date.now(), checks, passed: checks.length - failed, failed, grade: failed ? "Needs a look" : "Passed", note: "Checked on this computer. The page was read, not opened in a browser. Use Play preview to see it." };
 }
 
 // Write everything for one finished remix into its folder. Returns what was made, for the last step.

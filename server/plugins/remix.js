@@ -8,9 +8,11 @@ import { remixGate, countRemixMonth, REMIX_PRO_CAP, remixAbilityGate, remixAbili
 import { rate as rateBrain, brainSettings } from "../brain.js";
 import { STARTS, PART_PLAIN, publishPlan, publishVaultId, runTool, voiceCommand, clearArt, applyReuseReport, accessReport, externalCommandAllowed } from "../remix-abilities.js";
 import { projectFiles, safeRel, freshPage } from "../remix-build.js";
+import { inlinePage } from "../remix-play.js";
 import { commitVersion } from "../remix-git.js";
 import { flagOn } from "../flags.js";
 import { setSecret, hasSecret, getSecret } from "../vault.js";
+import { publishVercel, publishItch, liveApiAllowed, PHONE_SOON } from "../remix-publish.js";
 import { remixFolder, creditsRetry, freeStandIn } from "../next-actions.js";
 
 export const id = "remix";
@@ -206,6 +208,10 @@ export async function routes(req, res, url, body, h) {
     // and when a provider runs out of credits the mission is tried once more without it.
     const nextOn = flagOn("nextactions");
     const stand = nextOn && !ais.length ? freeStandIn() : null;
+    // 0.4.21 (dogfood 09): Try again with another AI sends the same build once more with the AI that failed
+    // left out. The mission router already has this list (it is the mission's skip list).
+    const avoidProviders = (Array.isArray(body?.avoidProviders) ? body.avoidProviders : [])
+      .map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
     const missionOpts = {
       goal: plan.goal,
       context: "Remix rebuilds from scratch. Use only the person's own characters, art, and ideas, and the free tools named in the goal.",
@@ -216,6 +222,7 @@ export async function routes(req, res, url, body, h) {
       qa: true,
       search: false,
       tools: false,
+      ...(avoidProviders.length ? { skip: avoidProviders } : {}),
     };
     if ((ais.length || stand) && typeof h.runMission === "function") {
       try {
@@ -239,7 +246,7 @@ export async function routes(req, res, url, body, h) {
             const again = creditsRetry(done);
             if (!again.retry) return;
             try { h.emit("log", { text: "A credit limit was hit. Trying again with a free AI.", missionId: done?.id }); } catch { /* bus optional */ }
-            const second = h.runMission({ ...missionOpts, skip: again.skip });
+            const second = h.runMission({ ...missionOpts, skip: [...new Set([...avoidProviders, ...(again.skip || [])])] });
             if (second && typeof second.catch === "function") second.catch(() => {});
           }).catch(() => {});
         }
@@ -329,6 +336,15 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, 200, { projectId: rid, state, folder: `projects/${rid}`, savedAt: `projects/${rid}`, files, test, zip: `/api/remix/zip/${rid}`, hasOutput: files.includes("OUTPUT.md") || files.includes("package.json") });
   }
 
+  // 0.4.21: the page as one self-contained document for a sandboxed Play frame. Reading only, nothing is run here.
+  if (req.method === "GET" && p.startsWith("/play/")) {
+    const rid = p.slice("/play/".length);
+    if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
+    if (h.HOSTED || !h.DATA_DIR) return h.json(res, 400, { error: "The play preview is on the desktop app only.", code: "local" });
+    const out = inlinePage(creditsFile(h.DATA_DIR, rid).folder);
+    return h.json(res, out.ok ? 200 : 404, out.ok ? { html: out.html, bytes: out.bytes, files: out.files } : { error: out.error, code: "missing" });
+  }
+
   if (req.method === "GET" && p.startsWith("/zip/")) {
     const rid = p.slice("/zip/".length);
     if (!/^remix-[a-z0-9]+$/.test(rid) || !items().some((r) => r.projectId === rid)) return h.json(res, 404, { error: "That remix project was not found.", code: "missing" });
@@ -378,6 +394,7 @@ export async function routes(req, res, url, body, h) {
       return h.json(res, blocked.status, { error: blocked.message, code: blocked.code, sent: false });
     }
     if (body?.confirm !== true) return h.json(res, 400, { error: "Nothing is posted until you press Publish.", code: "confirm", sent: false });
+    if (target === "phone") return h.json(res, 400, { error: PHONE_SOON, code: "coming_soon", sent: false });
     const vaultId = publishVaultId(target);
     const token = typeof body?.token === "string" ? body.token.trim() : "";
     if (token && vaultId) {
@@ -387,6 +404,18 @@ export async function routes(req, res, url, body, h) {
     }
     const plan = publishPlan({ target, click: true, hasToken: !!(token || (vaultId && hasSecret(vaultId))) });
     if (!plan.ok) return h.json(res, 400, { error: plan.error, code: plan.code, sent: false });
+    // 0.4.21: a website (Vercel) or itch.io is really published with the person's own token, after this click.
+    const projectId = String(body?.projectId || "");
+    const live = target === "vercel" ? "CC_VERCEL_API_URL" : target === "itch" ? "CC_ITCH_API_URL" : "";
+    if (live && liveApiAllowed(live) && !h.HOSTED && h.DATA_DIR && /^remix-[a-z0-9]+$/.test(projectId)) {
+      const folder = creditsFile(h.DATA_DIR, projectId).folder;
+      const key = token || getSecret(vaultId)?.key || "";
+      const name = String(body?.projectName || projectId).slice(0, 80);
+      const out = target === "vercel" ? await publishVercel({ token: key, folder, name }) : await publishItch({ token: key, folder, name });
+      try { h.emit("log", { text: out.ok ? `Remix published to ${target} after a click.` : `Remix publish to ${target} did not finish (${out.code}).` }); } catch { /* bus optional */ }
+      if (!out.ok) return h.json(res, out.code === "token" || out.code === "no_page" || out.code === "butler" ? 400 : 502, { error: out.error, code: out.code, sent: false, saved: !!(token && vaultId) });
+      return h.json(res, 200, { ok: true, sent: true, started: true, target, url: out.url, message: out.message, saved: !!(token && vaultId) });
+    }
     let started = false;
     let reason = plan.message;
     if (plan.bin) {

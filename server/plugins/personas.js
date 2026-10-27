@@ -21,7 +21,7 @@ function pickModel() {
 async function ask(h, { system, user, maxTokens, role }) {
   const m = pickModel();
   const t0 = Date.now();
-  const r = await completeFallback({ provider: m.provider, model: m.model, maxTokens, system, messages: [{ role: "user", content: user }] },
+  const r = await completeFallback({ allowStandIn: true, provider: m.provider, model: m.model, maxTokens, system, messages: [{ role: "user", content: user }] },
     { role, cls: { capability: "writing", difficulty: 2 }, mode: "economy", tools: false });
   try { h.recordCall?.({ provider: r.provider || m.provider, model: r.model || m.model, usage: r.usage, role, ms: Date.now() - t0 }); } catch { /* the ledger never blocks a result */ }
   return r.text || "";

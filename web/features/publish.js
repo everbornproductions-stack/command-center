@@ -45,14 +45,14 @@ async function openPreview(el, channel, run) {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });
       previewId = r.previewId;
-      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · will record a dry run</span>' : ' <span class="chip green">ready</span>'}`;
+      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
       go.disabled = r.problems.length > 0 && !r.dryRun; go.title = go.disabled ? "Fix the problems above, then preview again" : "";
     } catch (e) { previewId = null; go.disabled = true; toast(e.message, true); }
   });
   go.addEventListener("click", async () => {
     if (!previewId) return toast("Preview first", true);
     go.disabled = true;
-    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Recorded as a dry run (not connected)" : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
+    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent (not connected)." : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
     catch (e) { previewId = null; toast(e.message, true); out.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   });
 }
@@ -71,6 +71,7 @@ async function renderSettings(el) {
   const dr = chans.find((c) => c.id === "drive");
   el.innerHTML = `<div class="panel"><h3>Publishing <span class="right">every post needs a preview and a click</span></h3>
     <div class="hint">Connect each service with ${esc(plainLabel("oauth"))}. ${esc(plainExplain("oauth"))} The token stays in the vault on this computer and is never shown again. Connecting posts nothing.</div>
+    <div class="row small" style="margin:6px 0"><button class="btn sm" id="pb-doctor">Check my connections</button><span id="pb-doctor-out" role="status" aria-live="polite"></span></div>
     ${cons.map(connectorRow).join("")}
     <details style="margin-top:8px"><summary class="small" style="cursor:pointer">Paste a token instead</summary>
     <div class="row" style="margin-top:6px"><span style="width:110px">Instagram</span><input type="password" id="pb-ig-tok" placeholder="Page access token (long-lived)" style="flex:1"><input type="text" id="pb-ig-id" placeholder="IG user id" style="width:160px"><button class="btn sm" id="pb-ig-save">Save</button></div>
@@ -84,6 +85,13 @@ async function renderSettings(el) {
   el.querySelector("#pb-ghl-save").addEventListener("click", saved("HighLevel", () => api("/publish/keys", { method: "POST", body: { channel: "ghl", token: el.querySelector("#pb-ghl-tok").value.trim(), locationId: el.querySelector("#pb-ghl-loc").value } })));
   el.querySelector("#pb-sl-save").addEventListener("click", saved("Slack", () => api("/publish/keys", { method: "POST", body: { channel: "slack", token: el.querySelector("#pb-sl-tok").value.trim() } })));
   el.querySelector("#pb-drive-save").addEventListener("click", saved("Drive folder", () => api("/publish/prefs", { method: "POST", body: { driveFolder: el.querySelector("#pb-drive").value } })));
+  el.querySelector("#pb-doctor")?.addEventListener("click", async () => {
+    try {
+      const r = await api("/publish/connect-doctor");
+      const out = el.querySelector("#pb-doctor-out");
+      out.innerHTML = r.checks.length ? `<ul style="margin:6px 0;padding-left:18px">${r.checks.map((c) => `<li>${c.level === "ok" ? "OK. " : ""}${esc(c.problem)}${c.fix === "reconnect" ? " Press Connect again on that row." : c.fix === "connect" ? " Press Connect on the HighLevel contacts row." : ""}</li>`).join("")}</ul>` : " Nothing is connected yet.";
+    } catch (e) { toast(e.message, true); }
+  });
   el.querySelectorAll("[data-con]").forEach((row) => {
     const k = row.dataset.con, c = cons.find((x) => x.id === k);
     row.querySelector('[data-a="connect"]').addEventListener("click", async () => {
@@ -125,12 +133,15 @@ CC.register({
     el.querySelectorAll("[data-ch]").forEach((b) => b.addEventListener("click", () => openPreview(el, b.dataset.ch, run)));
   } },
   tab: { label: "Publish", short: "Publish", icon: "⇪", order: 40, async render(view) {
-    let hist = [], chans = []; try { hist = await api("/publish/history"); chans = await api("/publish/channels"); } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    let hist = [], chans = [], sends = []; try { hist = await api("/publish/history"); chans = await api("/publish/channels"); sends = (await api("/publish/send-log?limit=30")).items || []; } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
     const link = (u) => /^https:\/\//.test(u || "") ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>` : u ? `<span class="dim">${esc(u)}</span>` : "";
     view.innerHTML = `<div class="grid" id="pub-tour" style="grid-template-columns: 320px minmax(0,1fr)">
-      <div class="panel"><h3>Channels</h3>${chans.map((c) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(c.name)}</span><span class="chip ${c.ready ? "green" : ""}" style="margin-left:auto">${c.ready ? "ready" : "dry run"}</span></div><div class="dim small">${esc(c.needs)}</div>`).join("")}<div class="dim small" style="margin-top:8px">Connect services in Settings, Publishing.</div></div>
-      <div class="panel"><h3>History <span class="right">${hist.length}</span></h3>${hist.map((h) => `<div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><b>${esc(h.channel)}${h.channelName ? ` #${esc(h.channelName)}` : ""}</b><span class="chip ${h.status === "posted" ? "green" : h.status === "failed" ? "red" : "amber"}">${esc(h.status)}</span><span class="dim" style="margin-left:auto">${new Date(h.ts).toLocaleString()}</span></div><div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.title || h.text || "")}</div>${link(h.result?.url)}${h.error ? `<div style="color:var(--red)">${esc(h.error)}</div>` : ""}</div>`).join("") || `<div class="dim small">Nothing published yet.</div>`}</div></div>`;
+      <div class="panel"><h3>Channels</h3>${chans.map((c) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(c.name)}</span><span class="chip ${c.ready ? "green" : ""}" style="margin-left:auto">${c.ready ? "ready" : "practice only"}</span></div><div class="dim small">${esc(c.needs)}</div>`).join("")}<div class="dim small" style="margin-top:8px">Connect services in Settings, Publishing.</div></div>
+      <div class="panel"><h3>History <span class="right">${hist.length}</span></h3>${hist.map((h) => `<div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><b>${esc(h.channel)}${h.channelName ? ` #${esc(h.channelName)}` : ""}</b><span class="chip ${h.status === "posted" ? "green" : h.status === "failed" ? "red" : "amber"}">${esc(h.status)}</span><span class="dim" style="margin-left:auto">${new Date(h.ts).toLocaleString()}</span></div><div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(h.title || h.text || "")}</div>${link(h.result?.url)}${h.error ? `<div style="color:var(--red)">${esc(h.error)}</div>` : ""}</div>`).join("") || `<div class="dim small">Nothing published yet.</div>`}</div>
+      <div class="panel" id="pb-sendlog"><h3>Send log <span class="right">${sends.length}</span></h3><div class="dim small">Everything Meldmind sent for you: when, where, the words, and whether a warning was overridden. Private numbers are hidden.</div>${sends.map((x) => `<div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><b>${esc(x.channel)}${x.to ? ` to ${esc(x.to)}` : ""}</b>${x.rules?.length ? `<span class="chip amber" title="${esc(x.rules.join(", "))}">${x.sendAnyway ? "sent anyway" : "warned"}</span>` : ""}<span class="dim" style="margin-left:auto">${new Date(x.at).toLocaleString()}</span></div><div class="dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.title || x.text || "")}</div></div>`).join("") || `<div class="dim small">Nothing sent yet.</div>`}</div></div>`;
+    if (S.flags?.publish) { try { await import("/features/publish-plus.js"); window.CC.mountPublishPlus?.(view); } catch {} }
     if (S.flags?.finishrouter) { try { await import("/features/finish-router.js"); window.CC.mountFinishRouter?.(view); } catch {} }
+    if (S.flags?.finishers) { try { await import("/features/finishers.js"); window.CC.mountFinishers?.(view); } catch {} }
   } },
   settings: { order: 50, render: renderSettings },
 });

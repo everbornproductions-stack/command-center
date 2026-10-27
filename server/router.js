@@ -8,7 +8,7 @@ import { hasSecret } from "./vault.js";
 import { doc, putDoc, ctx } from "./store.js";
 import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
-import { troubled, freeNow, completeFallback } from "./fallback.js";
+import { troubled, troubledModels, modelKey, freeNow, completeFallback } from "./fallback.js";
 import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
@@ -18,6 +18,7 @@ import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSel
 import { extraRouteModels } from "./route-extras.js";
 import { searchCoversAnyModel } from "./search.js";
 import { applyTune } from "./learn-tune.js";
+import { freeOnlyOn, isFreeModel, costTier } from "./free-first.js";
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -141,6 +142,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // is skipped for new work while another is available; it comes back on the next good health check or call
   const skip = troubled();
   if (Object.keys(skip).length && list.some((m) => !skip[m.provider])) list = list.filter((m) => !skip[m.provider]);
+  const bench = troubledModels();
   // paused (no credits, spending limit, payment required, rate limited) and an MCP that is not signed in
   // stay out of auto-picks while any other model can take the job
   const blocked = (m) => !!describePause(m.provider) || unconnectedMcp(m.provider);
@@ -148,6 +150,12 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // balance-aware: a provider that is nearly out of prepaid credit is skipped while others exist
   const starved = (m) => m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 1;
   if (list.some((m) => !starved(m))) list = list.filter((m) => !starved(m));
+  // 0.4.21 Free only (never spend money): only this PC and free-allowance AIs are ranked. Nothing paid, even when it is the only AI.
+  const freeOnly = freeOnlyOn();
+  if (freeOnly) list = list.filter((m) => isFreeModel(m.provider, m.model));
+  // 0.4.21 Gemini check: a 429 or a 503 benches ONE model of a provider ("provider:model"), not all of them.
+  // Checked after Free only, so a bench never empties the list while a model that can answer is left.
+  if (Object.keys(bench).length && list.some((m) => !bench[modelKey(m.provider, m.model)])) list = list.filter((m) => !bench[modelKey(m.provider, m.model)]);
   // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
   // Prefer-free is skipped so a cheaper model does not replace that flagship.
   if (mode === "max") list = bestModelEach(list, capability);
@@ -170,15 +178,23 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     if (m.balance && m.balance.unit === "USD" && m.balance.left != null && m.balance.left < 5) { health += 8; warnings.push(`only $${m.balance.left} left`); }
     // small jobs (classify, QA, titles) go to a free tier the person has while its allowance lasts (Phase 26)
     const free = small && freeNow(m.provider, m.model);
-    const bonus = free ? 40 : 0;
-    const skipReason = skip[m.provider]?.reason || null;
+    // 0.4.21 free first for every job, not only small ones: this PC and free allowances with room left get a lift,
+    // smaller for hard jobs, none when the person asked for Quality or Max quality. A paid AI wins when it pays off.
+    const tier = costTier(m.provider, m.model);
+    let freeFirst = 0;
+    if (!small && mode !== "max" && mode !== "quality") {
+      if (tier === 0) freeFirst = difficulty >= 3 ? 10 : 25;
+      else if (tier === 1 && freeNow(m.provider, m.model)) freeFirst = difficulty >= 3 ? 6 : 18;
+    }
+    const bonus = (free ? 40 : 0) + freeFirst;
+    const skipReason = skip[m.provider]?.reason || bench[modelKey(m.provider, m.model)]?.reason || null;
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
     const fast = speedBoost(mode, m.baseCaps?.fast ?? m.caps?.fast);
     const meta = PROVIDERS[m.provider];
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
   };
   const scored = list.map(scoreOf);
   let ordered = applyPlanFirst(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));
@@ -250,7 +266,7 @@ export async function classify(prompt, { onCall } = {}) {
   try {
     const t0 = Date.now();
     // a small job: free tiers first, and a stand-in if the cheap model's provider is out of credits (Phase 26)
-    const r = await completeFallback({
+    const r = await completeFallback({ allowStandIn: true,
       provider: m.provider, model: m.model, maxTokens: 200,
       system: `Classify the user's request. Reply with JSON only: {"capability": one of ${JSON.stringify(CAPABILITIES.filter((c) => c !== "fast"))}, "difficulty": 1|2|3 (1 trivial, 2 normal, 3 hard/long), "needWeb": boolean (true only if the answer depends on live/current information), "summary": "<=8 words"}`,
       messages: [{ role: "user", content: prompt.slice(0, 4000) }],

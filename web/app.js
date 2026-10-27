@@ -4,23 +4,24 @@ import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUP
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
+import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
-import { composerAis, hideDemoBots, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
+import { composerAis, hideDemoBots, barProviders, withWorking, withWorkingProviders, graphNodes, demoBannerOn, DEMO_BANNER_TEXT, DEMO_BANNER_ACTION } from "./composer-ais.js";
 import { projectIntent } from "./project-intent.js";
 import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
-import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
+import { PAUSE_LABEL, CHECK_AGAIN_TITLE, isPausedStatus, pausedNow, quietProvider, pauseLabelFor, pauseLabel, pauseNext, creditsText } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
 import { createPaidWatch } from "./paid-watch.js";
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
-import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
+import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable, liveSync } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
 import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
 
@@ -124,6 +125,7 @@ async function apiCall(path, opts = {}) {
     if (j?.missing) err.missing = j.missing;
     if (j?.warnings) err.warnings = j.warnings;
     if (j?.questions) err.questions = j.questions;
+    if (j?.next) err.next = j.next;
     if (j?.code === "pro_required") showUpgrade(err.message);
     throw err;
   }
@@ -348,7 +350,7 @@ function applyState(st) {
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   S.councilOffer = st.councilOffer || S.councilOffer || null;
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, freeOnly: st.freeOnly || S.freeOnly || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   S.flags = st.flags || S.flags || {};
   if (!S.project && Array.isArray(S.projects) && S.projects.length) {
@@ -361,6 +363,7 @@ function applyState(st) {
   noteOnboarding(S.onboarding);
   if (st.settings?.demoNotice && !S.demoNoticeShown) { S.demoNoticeShown = true; toast("Demo AIs removed now that your own keys are set up. You can turn demo mode back on in Settings."); api("/demo/ack", { method: "POST" }).catch(() => {}); }
   if (S.flags?.finishpath) syncFinishBar();
+  syncMomentumBar();
   for (const f of window.CC?.features || []) { if (f.onState) { try { f.onState(S); } catch (e) { console.warn(`[feature ${f.id}]`, e); } } }
 }
 function handle(ev) {
@@ -391,8 +394,8 @@ function handle(ev) {
       const p = P(ev.provider);
       if (p) {
         p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance };
-        if (p.access && isPausedStatus(ev.status, ev.detail)) { p.access.paused = true; p.access.label = PAUSE_LABEL; }
-        else if (p.access?.label === PAUSE_LABEL) { p.access.paused = false; p.access.label = p.keyed ? null : p.access.label; }
+        if (p.access && isPausedStatus(ev.status, ev.detail)) { const label = pauseLabelFor(ev.detail); p.access.paused = true; p.access.label = label; p.access.pause = { ...(p.access.pause || {}), label }; }
+        else if (p.access?.paused) { p.access.paused = false; p.access.pause = null; p.access.label = p.keyed ? null : p.access.label; }
       }
       renderStrip();
       if (!quietProvider(p)) graph?.setStatus(ev.provider, ev.status);
@@ -439,8 +442,17 @@ function noteRunJob(entry) {
 function isQuiet(id) {
   return !!(id && S.backgroundQuiet?.has(id) && S.live?.id !== id);
 }
+// 0.4.21 (dogfood 15): when a new run starts, the last run's "Mission done in 383s, $0.1471" line leaves the live
+// feed, so it is never read as this run's result.
+const FINISH_LINE = /^Mission (?:done|done-with-errors|failed|aborted|paused) in \d+s/;
+function dropOldFinishLines(id) {
+  const before = S.feed.length;
+  S.feed = S.feed.filter((e) => !(e.type === "log" && e.missionId && e.missionId !== id && FINISH_LINE.test(String(e.text || ""))));
+  if (S.feed.length !== before && $("#feed-list")) renderFeed();
+}
 function ensureLive(id, kind) {
   if (isQuiet(id)) return;
+  if (S.live.id !== id && id) dropOldFinishLines(id);
   if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : id?.startsWith("r-") ? "research" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
@@ -542,11 +554,13 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "" };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "", oneAI: !!m.retry?.oneAI };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
-        const base = replyTurns(m) > 0 ? `Reply in · ${money(m.cost, 4)}` : `${noun} ${stateWord} · ${money(m.cost, 4)}`;
+        const practice = String(m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "").startsWith("demo-");
+        const costWord = practice || !(cost > 0) ? "Free" : money(m.cost, 4);
+        const base = replyTurns(m) > 0 ? `Reply in · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
         toast(failed && m.error ? m.error : base, failed);
       }
       maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
@@ -616,7 +630,10 @@ function renderFeed() {
 function renderStrip() {
   const strip = $("#strip");
   // the AIs, then the outside agents (Grok Bot, the browser helper), then media tools
-  const order = S.providers.filter((p) => p.kind === "text").concat(S.providers.filter((p) => p.kind === "agent"), S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent"));
+  // Only connected AIs get a tile (0.4.21). "+ Add an AI" is always there so more can be connected.
+  const onBar = withWorkingProviders(barProviders(S.providers, S.subscriptions), S.providers, activeIds());
+  const order = onBar.filter((p) => p.kind === "text").concat(onBar.filter((p) => p.kind === "agent"), onBar.filter((p) => p.kind !== "text" && p.kind !== "agent"));
+  const addTile = `<div class="tile add-ai" id="strip-add" role="button" tabindex="0" aria-label="Add an AI. Opens Find my AIs"><div class="top"><span class="name">+ Add an AI</span></div><div class="sub">${order.length ? "Connect another" : "None connected yet"}</div></div>`;
   strip.innerHTML = order.map((p) => {
     const st = p.status?.status || "grey";
     const bp = S.ledger?.byProvider?.[p.id];
@@ -626,6 +643,7 @@ function renderStrip() {
     if (p.kind === "text") {
       line = p.keyed ? `${money(bp?.month || 0)} this month` : "no key";
       if (p.status?.balance?.left != null) line = `${money(p.status.balance.left)} left`;
+      else if (p.keyed && creditsText(p)) line = creditsText(p);
       meter = S.settings.budgetMonthly ? Math.min(100, ((bp?.month || 0) / S.settings.budgetMonthly) * 100) : 0;
     } else if (sub) {
       if (sub.credits != null && sub.creditsTotal) { line = `${fmtN(sub.credits)} / ${fmtN(sub.creditsTotal)} ${sub.unit || ""}`; meter = (sub.credits / sub.creditsTotal) * 100; }
@@ -633,7 +651,7 @@ function renderStrip() {
       else if (sub.renews) line = `renews ${sub.renews.slice(5)}`;
       else line = p.status?.detail && p.status.detail !== "no key" ? p.status.detail : "tracked";
     }
-    if (pausedNow(p)) line = PAUSE_LABEL;
+    if (pausedNow(p)) line = pauseLabel(p);
     else if (p.access?.label) line = p.access.label;
     const needsOwnKey = p.kind === "text" && !p.keyed && !p.noKey && !p.demo && !["handoff", "local", "mcp", "oauth"].includes(p.access?.auth);
     if (needsOwnKey) line = "No key";
@@ -641,21 +659,27 @@ function renderStrip() {
     if (active) badge = `${S.activeByProvider[p.id]} working`;
     const isConnected = !!(p.keyed || p.access?.connected || p.connect?.mcp?.configured);
     const connBadge = isNavStateEnabled(S) && !active && isConnected ? `<span class="badge ok tile-connected">Connected</span>` : "";
-    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
-    const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
-    return `<div class="tile ${active ? "active" : ""}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
+    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "red" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
+    const lightWord = pausedNow(p) ? pauseLabel(p).toLowerCase() : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
+    return `<div class="tile ${active ? "active" : ""}" data-working="${active ? "1" : "0"}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
+      ${pausedNow(p) ? `<div class="sub dim">${esc([pauseNext(p), creditsText(p)].filter(Boolean).join(" · "))}</div>` : ""}
       <div class="meter"><i style="width:${meter.toFixed(0)}%;background:${p.color}"></i></div>
       ${badge ? `<span class="badge">${badge}</span>` : connBadge}
     </div>`;
-  }).join("");
-  $$(".tile", strip).forEach((t) => {
+  }).join("") + addTile;
+  $$(".tile:not(.add-ai)", strip).forEach((t) => {
     t.addEventListener("click", () => openProviderSetup(t.dataset.p));
     t.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProviderSetup(t.dataset.p); } });
   });
+  const addAi = () => addAnAi();
+  $("#strip-add")?.addEventListener("click", addAi);
+  $("#strip-add")?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addAi(); } });
   renderStripAfter();
 }
+// "+ Add an AI" on the bottom bar and under the chat box: Find my AIs, where keys and sign-ins are added.
+function addAnAi() { S.connectWizard = false; S.openProject = null; S.view = "setup"; render(); }
 function openProviderSetup(providerId) {
   if (!providerId) return;
   S.connectWizard = false;
@@ -669,8 +693,10 @@ function renderStripAfter() {
   renderComposerAis();
 }
 function renderBudget() {
-  const b = S.settings.budgetMonthly || 0, m = S.ledger?.month || 0;
-  $("#budget-val").textContent = `${money(m)} / ${money(b, 0)}`;
+  // the header shows the cap the stop really uses (saved in Settings > Budget), not an older label
+  if (S.guardCap === undefined && !S.guardCapLoading) { S.guardCapLoading = true; api("/cost-guard").then((g) => { S.guardCap = g.cap ?? null; renderBudget(); }).catch(() => { S.guardCap = null; }); }
+  const b = Number(S.guardCap) > 0 ? Number(S.guardCap) : (S.settings.budgetMonthly || 0), m = S.ledger?.month || 0;
+  $("#budget-val").textContent = `${money(m)} / ${money(b, b < 10 && b % 1 ? 2 : 0)}`;
   $("#budget-pill").style.borderColor = m > b ? "var(--red)" : m > b * 0.8 ? "var(--amber)" : "var(--line)";
   const spend = $("#cc-spend");
   if (spend) spend.textContent = spendLine(m);
@@ -766,7 +792,10 @@ function setUiMode(mode, opts = {}) {
   const patch = { uiMode: mode, uiModeChosen: true };
   if (mode === "expert") patch.expertConfirmed = true;
   // Switching while on Settings keeps Settings in view: no "Expert setup 1 of 5" over it (bug 7).
-  const openExpert = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
+  // 0.4.21 (M24): the page stays where it is. Expert setup is offered as a small card, never opened over the chat.
+  const wantsExpertSetup = mode === "expert" && !opts.fromSetup && prev !== "expert" && !S.settings?.expertSetup?.done && S.view !== "settings";
+  const openExpert = wantsExpertSetup && S.view === "setup";
+  S.expertOffer = wantsExpertSetup && !openExpert;
   S.settings = { ...(S.settings || {}), ...patch };
   if (mode === "simple" && !simpleAllows(S.view)) {
     S.returnView = S.view;
@@ -905,7 +934,7 @@ function render() {
   graph = null;
   ensureFeatureTabs();
   const ft = window.CC?.byKind?.("tab").find((f) => f.id === S.view);
-  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } S.renderedView = S.view; restoreViewDraft(S.view, v); syncBackBtn(); return; }
+  if (ft) { try { ft.tab.render(v); focusNavTarget(); window.CC?.syncAssetTray?.(S.view); } catch (e) { console.warn(`[feature ${ft.id}]`, e); v.innerHTML = `<div class="empty" role="alert">The ${esc(ft.tab.label || ft.id)} tab could not open: ${esc(e.message)}<br><button class="btn sm" id="tab-retry" style="margin-top:10px">Try again</button></div>`; $("#tab-retry", v)?.addEventListener("click", render); } S.renderedView = S.view; restoreViewDraft(S.view, v); syncBackBtn(); window.CC?.dock?.onRender?.(S.view); window.CC?.layout?.onRender?.(S.view); return; }
   if (S.view === "command") renderCommand(v);
   else if (S.view === "projects") renderProjects(v);
   else if (S.view === "credits") renderCredits(v);
@@ -917,6 +946,8 @@ function render() {
   if (isNavStateEnabled(S)) restoreViewDraft(S.view, v);
   syncBackBtn();
   window.CC?.syncAssetTray?.(S.view);
+  window.CC?.dock?.onRender?.(S.view);
+  window.CC?.layout?.onRender?.(S.view);
 }
 // Feature tabs register themselves (web/features/*.js). The top bar is grouped menus.
 // Phones keep the bottom bar and put the rest in a More sheet, grouped the same way.
@@ -1187,8 +1218,14 @@ function syncFinishBar() {
   if (!S.flags?.finishpath) { $("#fpbar")?.remove(); return; }
   import("./finishpath-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[finishpath]", e));
 }
+// Momentum Mode (flag momentum): the next step bar. Loaded only when on; it only suggests.
+function syncMomentumBar() {
+  if (!S.flags?.momentum) { $("#mmbar")?.remove(); return; }
+  import("./momentum-ui.js").then((m) => m.syncBar()).catch((e) => console.warn("[momentum]", e));
+}
 function syncProjectBar() {
   syncFinishBar();
+  syncMomentumBar();
   let bar = $("#projbar");
   if (!barShows(S.view, S.flags?.projectbar) || S.openProject) { bar?.remove(); return; }
   if (!bar) {
@@ -1334,28 +1371,48 @@ function jobReply() {
 function mergedSingleTurns(run) {
   return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
 }
+// 0.4.21: the Free only switch next to Send (the same setting as Settings and the Get free AIs card)
+function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="row small cc-freeonly" id="cc-freeonly-wrap" style="gap:6px;white-space:nowrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" ${on ? "checked" : ""}> Free only (never spend money)</label>`; }
+// 0.4.21: Auto picks the mode and says so in one plain line; the picker is under More options in Simple too
+const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
+function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
+function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}</button>`).join("")}</div></div>`; }
 function renderSimpleChat(v) {
   v.innerHTML = `
-  <div class="cmd simple-chat">
+  <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}">
     <div class="orders">
-      <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+      <div class="panel sc-panel" style="display:flex;flex-direction:column;gap:10px">
+        <h2 class="sc-hello" id="sc-hello">What do you want to make?</h2>
         <h3>Chat</h3>
-        <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
-        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
-        <div id="cc-emp-hint" aria-live="polite"></div>
-        <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
-        ${projectField()}
-        <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
-        <div id="cmd-extras"></div>
-        <div class="row simple-send-row" style="padding-top:4px">
-          <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-          <button class="btn sm" type="button" id="cc-show-ais">${S.settings?.simpleStrip ? "Hide AIs" : "Show AIs"}</button>
-          <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
-          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
+        <div class="sc-live" id="sc-live" role="status" hidden><span class="dock-pulse" aria-hidden="true"></span><span id="sc-live-text"></span><button type="button" class="btn sm" id="sc-live-open" aria-haspopup="dialog">See live</button></div>
+        <div class="sc-box">
+          <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+          <div class="row simple-send-row">
+            <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
+            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it for you. Open More options to change it.">Auto team</button>
+            <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+            <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
+            <span style="margin-left:auto">${freeOnlyHtml()}</span>
+            <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
+          </div>
+          <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
+        </div>
+        <div class="sc-chips" id="sc-chips" role="group" aria-label="Start with">
+          <button type="button" class="btn sm" data-sc-chip="image">Image</button><button type="button" class="btn sm" data-sc-chip="video">Video</button><button type="button" class="btn sm" data-sc-chip="website">Website</button><button type="button" class="btn sm" data-sc-chip="campaign">Campaign</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+        <div id="cc-emp-hint" aria-live="polite"></div>
+        <div class="sc-more" id="sc-more">
+          ${simpleModeHtml()}
+          <div class="row"><button class="btn sm" type="button" id="cc-get-free-simple">Get free AIs</button></div>
+          <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+          <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
+          <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+          ${projectField()}
+          <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
+          <div class="row"><button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button></div>
+        </div>
+        <div id="cmd-extras"></div>
       </div>
     </div>
     <div class="panel output" id="simple-answer" ${S.live?.id ? "" : "hidden"}>
@@ -1371,7 +1428,7 @@ function renderSimpleChat(v) {
   wireProjectPicker();
   paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
@@ -1389,13 +1446,21 @@ function renderSimpleChat(v) {
     S.settings = { ...(S.settings || {}), simpleStrip: on };
     syncChrome();
     const btn = $("#cc-show-ais");
-    if (btn) btn.textContent = on ? "Hide AIs" : "Show AIs";
+    if (btn) btn.textContent = on ? "Hide my AIs" : "Show my AIs";
     try { const saved = await api("/settings", { method: "POST", body: { simpleStrip: on } }); if (saved) S.settings = { ...S.settings, ...saved, simpleStrip: on }; }
     catch (e) { toast(e.message, true); }
   });
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
   $("#go").addEventListener("click", sendOrders);
+  $("#simple-run-mode")?.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.simpleRunMode = b.dataset.m; S.autoLine = "";
+    $$("#simple-run-mode button").forEach((x) => x.classList.toggle("on", x === b));
+    const t = $("#sc-team"); if (t) t.textContent = teamLabel();
+    const line = $("#cc-auto-line"); if (line) line.textContent = "";
+  });
+  $("#cc-get-free-simple")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
@@ -1433,7 +1498,7 @@ function paintStarters() {
 }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
-  const modeSel = S.cmdMode || "mission";
+  const modeSel = S.cmdMode || "auto";
   v.innerHTML = `
   <div class="cmd">
     <div class="orders">
@@ -1443,9 +1508,11 @@ function renderCommand(v) {
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
+        <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
         <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
+          <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
@@ -1470,8 +1537,10 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
+          <button class="btn" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button>
           <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
+          <span style="margin-left:auto">${freeOnlyHtml()}</span>
+          <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
@@ -1497,16 +1566,17 @@ function renderCommand(v) {
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
   $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
   $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
+  $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   $("#ops-pause")?.addEventListener("click", async () => {
@@ -1536,18 +1606,30 @@ function syncGraph(force = false) {
 function renderComposerAis() {
   const box = $("#cc-composer-ais");
   if (!box) return;
-  const chips = composerAis(S.providers);
+  const chips = withWorking(composerAis(S.providers), S.providers, activeIds());
   if (!chips.length) {
     // Right after Try it now the practice AIs can be a moment behind. Never say "No AI" then.
     box.innerHTML = S.demo ? `<div class="composer-empty dim small">Practice AIs are on. Nothing is spent.</div>` : `<div class="composer-empty dim small">No AI connected yet. Add a key in Settings.</div>`;
+    addAiChip(box);
     return;
   }
   box.innerHTML = chips.map((c) => {
     const model = c.model ? `<span class="composer-model">${esc(c.model)}</span>` : "";
     const hint = c.demo ? "Demo AI. Connect a real one and this leaves." : "Connected. Open its settings.";
-    return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}" data-p="${esc(c.id)}" title="${esc(hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
+    const working = S.activeByProvider[c.id] > 0;
+    return `<button type="button" class="composer-ai${c.demo ? " demo" : ""}${working ? " working" : ""}" data-working="${working ? "1" : "0"}" data-p="${esc(c.id)}" title="${esc(working ? "Working on your request now." : hint)}"><span class="dot ${c.demo ? "grey" : "green"}" aria-hidden="true"></span><span class="composer-name">${esc(c.name)}</span>${model}</button>`;
   }).join("");
   $$(".composer-ai", box).forEach((b) => b.addEventListener("click", () => openProviderSetup(b.dataset.p)));
+  addAiChip(box);
+  window.CC?.layout?.syncChat?.();
+}
+// A small "+ Add an AI" chip so more AIs can be connected from the chat box (0.4.21).
+function addAiChip(box) {
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "composer-add"; b.className = "composer-ai composer-add";
+  b.title = "Connect another AI"; b.textContent = "+ Add an AI";
+  b.addEventListener("click", addAnAi);
+  box.appendChild(b);
 }
 function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
 // Idle Live ops is one line. The graph shows only while a run is going.
@@ -1615,8 +1697,8 @@ function renderTasks() {
     const grokBlock = isGrok ? `<div class="task-follow">${grokWaiting ? grokWaitHtml() : `<div class="task-answer"><div class="md">${md(t.output || "")}</div></div>`}${grokPending ? grokWaitHtml() : ""}${grokReplyHtml(t.id)}${threadHtml(t.thread)}</div>` : "";
     const follow = wrote ? `<div class="task-follow"><div class="task-answer"><div class="md">${md(t.output)}</div>${threadHtml(t.thread)}</div>${answerReply(t.id, "Reply to this AI")}</div>` : grokBlock;
     return `<div class="task" data-task="${t.id}">
-      <span class="st ${t.status}"></span>
-      <div><div>${esc(t.title)} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
+      <span class="st ${t.notDone ? "failed" : t.status}"></span>
+      <div><div>${esc(t.title)} ${t.notSaved ? `<span class="chip red" title="${esc(t.notSaved.line)}">Not saved</span>` : t.notRun ? `<span class="chip red" title="${esc(t.notRun.line)}">Not run</span>` : t.notDone ? '<span class="chip red" title="This step said it could not do the job">not done</span>' : ""} ${t.wroteLine ? `<span class="chip green" title="Written into your project folder">${esc(t.wroteLine)}</span>` : ""} ${t.inputMissing?.length ? `<span class="chip red" title="${esc(t.error || "An earlier step did not come back")}">input missing</span>` : ""} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
       <span class="chip">${t.capability}</span>
       <span class="cost">${money(t.cost || t.estCost || 0, 4)}</span>
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
@@ -1693,7 +1775,8 @@ function renderOutput() {
   if (panel) panel.hidden = !showDeliverable(l, text);
   // Simple: the answer sits right under the chat box, and only when there is one.
   const simpleAnswer = $("#simple-answer");
-  if (simpleAnswer) simpleAnswer.hidden = !l.id;
+  if (simpleAnswer) simpleAnswer.hidden = !l.id && !S.make?.active;
+  window.CC.makeChat?.mount();
   paintAnswerLine(l, text);
   const wait = $("#deliv-wait");
   if (wait && panel) wait.hidden = !panel.hidden;
@@ -1716,9 +1799,12 @@ function renderOutput() {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
     else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
     else if (l.kind === "research" && l.status === "running") o.innerHTML = `<div class="empty">Deep research is running. Stop ends it. You can keep using the chat.</div>`;
+    else if (["aborted", "failed"].includes(l.status) && l.kind === "mission") o.innerHTML = `<div class="empty">${l.status === "aborted" ? "Stopped before it finished. Nothing was assembled." : "This run did not finish. Nothing was assembled."}</div>`;
     else o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`;
     paintFollow("");
     paintFailure();
+    // 0.4.21 (dogfood 10): a stopped or errored run keeps its rating rows
+    if (["aborted", "failed", "done-with-errors"].includes(l.status)) renderExtras("deliverable", "#deliv-extras", l);
     return;
   }
   o.innerHTML = text ? md(text) : "";
@@ -1740,7 +1826,11 @@ function paintAnswerLine(l, text) {
     ? { kind: "council", names: (c.members || []).map((m) => m.label || pname(m.provider)) }
     : (l.primary ? pname(l.agents[l.primary]?.provider) : pname(l.mission?.provider || ""));
   const line = simpleAnswerLine(S.councilOffer, answeredBy);
-  box.innerHTML = `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
+  // 0.4.21: what it cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
+  const mm = l.mission || {};
+  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">Cost: ${esc(mm.costText)}${mm.why ? `. ${esc(mm.why)}` : ""}</div>` : "";
+  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
+  box.innerHTML = costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
   $("#cc-ask-council", box)?.addEventListener("click", askCouncil);
 }
 async function askCouncil() {
@@ -1771,8 +1861,17 @@ function subWaitingHtml(l) {
 function paintFailure() {
   const slot = $("#cc-fail-slot");
   if (!slot) return;
+  // 0.4.21: an Expert run that stopped at its spending limit gets the same Continue buttons as Simple
+  const lm = S.live?.mission;
+  const limitHit = S.uiMode === "expert" && lm && (lm.limitReached || /spending limit|run reached/i.test(lm.error || ""));
+  if (limitHit) {
+    slot.innerHTML = failureHtml({ text: lm.error || "This run reached its spending limit.", esc, retry: FAILURE.retry, other: FAILURE.other });
+    wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
+    return;
+  }
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other, oneAI: !!S.simpleFail.oneAI });
+  $("#cc-fail-oneai")?.addEventListener("click", () => { S.pendingAvoid = ""; S.forceSingleOnce = true; sendOrders(); });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
   wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
   $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
@@ -1925,7 +2024,13 @@ async function sendOrders() {
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
   const simple = S.uiMode === "simple";
-  const mode = simple ? "single" : (S.cmdMode || "mission"), costMode = S.costMode || S.settings.defaultMode;
+  // 0.4.21: Auto team is the default in Simple and Expert. It sends like Single unless the send check says the job
+  // needs a Mission or a Council. A person who picked a mode keeps it.
+  const picked = simple ? (S.simpleRunMode || "auto") : (S.cmdMode || "auto");
+  // "Get a one-AI answer" after a failed Mission (0.4.21, dogfood 15): this one send runs as Single
+  const oneAI = !!S.forceSingleOnce; S.forceSingleOnce = false;
+  const autoPick = picked === "auto" && !oneAI;
+  let mode = oneAI ? "single" : autoPick ? "single" : picked; const costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
@@ -1950,7 +2055,24 @@ async function sendOrders() {
     }
   }
   S.skipProjectStart = false;
+  // Asked to make a picture, a video or a voice: it is made right here and shown in the answer panel (web/features/make-chat.js).
+  if (mode === "single" && !S.skipMake && window.CC.makeChat?.handle) {
+    const draftBox = $("#orders");
+    if (await window.CC.makeChat.handle(prompt)) { if (draftBox) draftBox.value = ""; S.lastOrders = ""; return; }
+  }
+  S.skipMake = false;
+  window.CC.makeChat?.reset();
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
+  // 0.4.21: say it BEFORE sending when an AI is out of credits or quota, and let Auto split a coding job (Single stays Single when chosen)
+  {
+    const sc = await runSendCheck(api, { prompt, explicit: !autoPick && picked === "single", mode: S.costMode || S.settings.defaultMode });
+    clearSendBanner();
+    if (sc?.banner) showSendBanner(sc, { esc, onSwitch: (to) => { S.forceFree = { provider: to.provider, model: to.model, name: to.name }; toast(`This one goes to ${to.name}.`); }, onSettings: () => { S.view = "settings"; render(); }, onCredits: (url) => { try { window.open(url, "_blank", "noopener"); } catch {} }, onFreeAis: () => window.CC.freeAis?.open?.() });
+    S.autoLine = "";
+    if (autoPick && !S.pendingAvoid && !S.forceFree?.provider && (sc?.autoMode === "mission" || sc?.autoMode === "council")) { mode = sc.autoMode; S.autoLine = sc.autoLine || ""; }
+    else if (autoPick && sc?.autoLine) S.autoLine = sc.autoLine;
+    const line = document.getElementById("cc-auto-line"); if (line) line.textContent = S.autoLine;
+  }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
   const ask = window.CC.searchAsk?.() || {};
@@ -1988,7 +2110,7 @@ async function sendOrders() {
       S.live.kind = "research";
       S.live.status = "running";
       renderOps();
-      toast("Deep research started. You will get an alert when the report is ready.");
+      toast(started.searchWarning ? `Deep research started. ${started.searchWarning}` : "Deep research started. You will get an alert when the report is ready.");
       S.awaitingRun = false;
     }
     // project memory (brand voice, offers, never-say list) is added by the server for the selected project
@@ -2198,7 +2320,7 @@ function renderProjects(v) {
       if (list) list.innerHTML = "";
     }
   });
-  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { S.openProject = made.id; render(); } } catch (e) { toast(e.message, true); } });
+  $("#newp").addEventListener("click", async () => { const name = await askText("Project name"); if (!name) return; try { const made = await api("/projects", { method: "POST", body: { name, color: "#22d3ee", categories: [{ id: "links", name: "Links", links: [] }] } }); await refresh(); if (made?.id) { setWorkingProject(made.id); S.openProject = made.id; render(); toast(`${name} is now your active project.`); } } catch (e) { toast(e.message, true); } });
 }
 function renderProjectDetail(v, p) {
   if (!p) { S.openProject = null; return renderProjects(v); }
@@ -2347,7 +2469,7 @@ function renderCredits(v) {
   </div>`;
   renderExtras("credits", "#credits-extras");
   $$("[data-rule]", v).forEach((cb) => cb.addEventListener("change", async () => { const rules = (S.rules || []).map((r) => ({ ...r, enabled: r.id === cb.dataset.rule ? cb.checked : r.enabled })); for (const r of rules) { delete r.providerName; delete r.color; delete r.activeNow; delete r.nextStart; } S.rules = await api("/rules", { method: "POST", body: { rules } }); toast("Rules saved"); }));
-  $("#cr-go").addEventListener("click", async () => { const units = Number($("#cr-u").value); if (!units) return; await api("/credits", { method: "POST", body: { provider: $("#cr-p").value, units, note: $("#cr-n").value, project: S.project } }); toast("Logged"); await refresh(); });
+  $("#cr-go").addEventListener("click", async () => { const units = Number($("#cr-u").value); if (!units) return toast("Type how many credits you used first.", true); await api("/credits", { method: "POST", body: { provider: $("#cr-p").value, units, note: $("#cr-n").value, project: S.project } }); toast("Logged"); await refresh(); });
 }
 
 // ----- Subscriptions -----
@@ -2370,7 +2492,14 @@ function chooseProPlan(which) {
   toast(name + ". The checkout link is not published yet. Nothing was charged.");
 }
 // After an Upgrade link opens, re-check the license every few seconds for two minutes, and on focus.
+const PAID_WAIT = {
+  waiting: "Waiting for your purchase to confirm. This usually takes under a minute. Have a license key instead? Type it under Settings > Your plan and you are unlocked right away.",
+  timeout: "Your purchase has not shown up yet. Use the same email you signed in with, then press I paid, check now. Or type your license key under Settings > Your plan. Your plan stays Free until one of these works.",
+  unlocked: "",
+};
+function paintPaidWait() { $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; }); }
 const paidWatch = createPaidWatch({
+  onState: (st) => { S.paidWait = st; paintPaidWait(); },
   current: () => S.license,
   check: async () => { S.license = await api("/license/recheck", { method: "POST" }); return S.license; },
   onUnlock: (lic) => { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); },
@@ -2381,9 +2510,11 @@ function bindProPlans(root) {
   $$("[data-upgrade-link]", root).forEach((a) => a.addEventListener("click", () => paidWatch.start()));
   $$("[data-paid-now]", root).forEach((b) => b.addEventListener("click", async () => {
     const before = S.license?.tier || "free";
+    S.paidWait = "waiting"; paintPaidWait();
     const lic = await paidWatch.check();
-    if (!lic) { toast("Could not reach the license server. Try again in a moment.", true); return; }
-    if ((lic.tier || "free") !== before && lic.status === "active") { toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    if (!lic) { S.paidWait = "timeout"; paintPaidWait(); toast("Could not reach the license server. Try again in a moment.", true); return; }
+    if ((lic.tier || "free") !== before && lic.status === "active") { S.paidWait = "unlocked"; paintPaidWait(); toast(`Unlocked: ${lic.tier}. Thank you.`); refresh().catch(() => {}); return; }
+    S.paidWait = "timeout"; paintPaidWait();
     toast(lic.canUnlockByEmail ? "No new payment found yet. Give it a minute, then try again. Use the same email you paid with." : "Sign in with Google or Microsoft (Settings), using the email you paid with. Or type your license key.", true);
   }));
 }
@@ -2391,6 +2522,7 @@ function upgradeBlock(primary) {
   const tier = S.license?.tier || "free";
   return `<div class="upgrade-dialog" role="region" aria-label="Upgrade">${planCompareHtml(S.proPlans?.compare)}
       <div class="row" style="justify-content:center;margin-top:18px;gap:10px;flex-wrap:wrap">${upgradeButtonsHtml({ plans: S.proPlans, tier, primary })}<button class="btn" data-paid-now="1">I paid, check now</button><button class="btn" id="sub-lic">I have a license key</button></div>
+      <div class="small" data-paid-wait aria-live="polite" role="status" style="margin-top:10px;text-align:center" ${PAID_WAIT[S.paidWait] ? "" : "hidden"}>${esc(PAID_WAIT[S.paidWait] || "")}</div>
       ${founderSpotsHtml(S.proPlans)}
       ${extremeExtrasHtml()}
       <div class="dim small" style="margin-top:8px">Pro, Extreme, Developer, and the $349 lifetime button open a secure Stripe checkout with your sign-in email filled in. Pay with the same email you sign in with and this app unlocks by itself. After the first 100, the $499 lifetime button stays on this page.</div></div>`;
@@ -2471,6 +2603,7 @@ function phonePanel() {
     <details style="margin-top:12px"><summary class="small muted" style="cursor:pointer">Use a hosted hub instead</summary>
       <div style="margin-top:8px">${hubFields()}</div>
       <div class="dim small" style="margin-top:8px">A hosted hub is a server elsewhere. The phone can use that address when this PC is off.</div>
+      <div class="small" data-hub-soon style="margin-top:6px"><span class="chip">Coming soon</span> Using your phone while this PC is off: Needs the Meldmind hub (coming soon). Your phone works while this PC is on.</div>
     </details></div>`;
 }
 function licenceCloudFields() {
@@ -2495,13 +2628,32 @@ function planWord() {
   if (tier === "pro") return "Pro";
   return "Free";
 }
+// A red AI: when it checks again by itself, what is left, and a "Check again" button (the one click may send a 1 word test).
+function recheckHtml(p) {
+  if (!pausedNow(p)) return "";
+  const extra = [pauseNext(p), creditsText(p)].filter(Boolean).join(" · ");
+  return `${extra ? `<span class="dim small">${esc(extra)}</span>` : ""}<button type="button" class="btn sm" data-recheck="${esc(p.id)}" title="${esc(CHECK_AGAIN_TITLE)}">Check again</button>`;
+}
+function bindRecheck(root) {
+  $$("[data-recheck]", root).forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.recheck;
+    b.disabled = true; b.textContent = "Checking...";
+    try {
+      const r = await api(`/providers/${id}/recheck`, { method: "POST" });
+      toast(r.recovered ? `${pname(id)} is back.` : `${pname(id)} is still ${pauseLabelFor(r.status?.detail).toLowerCase()}. ${r.pause?.nextCheckText || ""}`.trim(), !r.recovered);
+    } catch (e) { toast(e.message, true); }
+    await refresh();
+  }));
+}
 function renderSimpleBasics(v) {
   const keyed = (S.providers || []).filter((p) => p.keyed && !p.demo);
-  const aiLine = keyed.length ? `Connected: ${keyed.slice(0, 3).map((p) => p.name).join(", ")}.` : "No AI connected yet. You can try a practice answer until you add one.";
+  const readyAis = keyed.filter((p) => !pausedNow(p)), outAis = keyed.filter((p) => pausedNow(p));
+  const aiLine = [readyAis.length ? `Connected: ${readyAis.slice(0, 3).map((p) => p.name).join(", ")}.` : "", outAis.length ? `${pauseLabel(outAis[0])}: ${outAis.map((p) => p.name).join(", ")}. ${pauseNext(outAis[0])}`.trim() : ""].filter(Boolean).join(" ") || "No AI connected yet. You can try a practice answer until you add one.";
   const on = !!S.settings?.privateMode;
   v.innerHTML = `<div class="settings-basics">
     <div class="panel basics-card" id="basics-ai"><h3>Your AI</h3>
       <p class="small" style="margin:0 0 10px">${esc(aiLine)}</p>
+      ${outAis.length ? `<div class="row" style="gap:8px;margin:0 0 10px;flex-wrap:wrap">${outAis.map((p) => `<span class="chip red">${esc(p.name)}: ${esc(pauseLabel(p))}</span>${recheckHtml(p)}`).join("")}</div>` : ""}
       <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
     </div>
     <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
@@ -2512,8 +2664,11 @@ function renderSimpleBasics(v) {
       <p class="dim small" style="margin:6px 0">Helping Meldmind get smarter: anonymous results only, never your text. This shares the task type, which AI, and the score (counts only: provider, task type, thumbs up/down or retry/accept, cost and latency bucket, app version, and a random install id). It never shares your words or keys (no prompts, answers, file names, emails, keys, or identifying ids).</p>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-content-optin"> Share real prompts and answers for our own-AI program</label>
       <p class="dim small" style="margin:6px 0">Optional explicit opt-in, never pre-checked. Source-tagged, closed-AI outputs excluded.</p>
+      <p class="dim small" id="basics-kept-note" style="margin:6px 0"></p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
+    <div id="basics-memories-body"></div>
+    <div id="basics-news-body"></div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
       <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
       <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
@@ -2524,10 +2679,13 @@ function renderSimpleBasics(v) {
     </div>
     <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
   </div>`;
+  bindRecheck(v);
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
+  renderFeature("settings", "memories", "#basics-memories-body");
+  renderFeature("settings", "ai-news", "#basics-news-body");
   $("#basics-private").addEventListener("change", async (e) => {
     const next = !!e.target.checked;
     try {
@@ -2542,6 +2700,8 @@ function renderSimpleBasics(v) {
     if (box) box.checked = !!d?.levels?.qualitySignals;
     const cbox = $("#basics-content-optin");
     if (cbox) cbox.checked = d?.levels?.contentOptIn === true;
+    const kept = $("#basics-kept-note");
+    if (kept) kept.textContent = d?.keptNote || "";
   }).catch(() => {});
   $("#basics-share").addEventListener("change", async (e) => {
     try { await api("/privacy", { method: "POST", body: { qualitySignals: !!e.target.checked } }); }
@@ -2551,7 +2711,7 @@ function renderSimpleBasics(v) {
     try { await api("/privacy", { method: "POST", body: { contentOptIn: !!e.target.checked } }); }
     catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
   });
-  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "security"; S.view = "help"; render(); });
+  $("#basics-leaves").addEventListener("click", () => { S.helpArticle = "privacy"; S.helpSection = "What leaves this computer"; S.view = "help"; render(); });
   $("#basics-help-go").addEventListener("click", () => { S.view = "help"; render(); });
 }
 function renderSettings(v) {
@@ -2559,7 +2719,7 @@ function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
-      <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}</div>
+      <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}${recheckHtml(p)}</div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
     ${p.id === "google" && !p.keyed ? `<div class="dim small" style="margin-top:8px">Not connected. A free allowance needs your own AI Studio key.</div>` : ""}
     ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
@@ -2684,6 +2844,7 @@ function renderSettings(v) {
     try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
+  bindRecheck(v);
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
   $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`, { danger: true, ok: "Remove" }))) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
   $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {
@@ -2721,9 +2882,10 @@ function renderSettings(v) {
     };
     try {
       const budgetChanged = Number.isFinite(body.budgetMonthly) && body.budgetMonthly > 0 && body.budgetMonthly !== S.settings.budgetMonthly;
+      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label.
+      // The stop saves first: a number it refuses (under $0.01) must not be kept as the label either.
+      if (budgetChanged) { const g = await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } }); S.guardCap = g.cap; }
       S.settings = await api("/settings", { method: "POST", body });
-      // typing a monthly budget turns the stop on, so the number is a real limit and not only a label
-      if (budgetChanged) await api("/cost-guard", { method: "POST", body: { on: true, cap: body.budgetMonthly } });
       renderBudget(); toast("Saved");
     } catch (e) { toast(e.message, true); }
   });
@@ -3143,10 +3305,13 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
-window.CC = { ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+// 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
+liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
+window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
-import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
+// featuresReady: set once the feature modules are in and the screen was drawn again with them (tests wait on it before typing)
+import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e)).finally(() => { window.CC.featuresReady = true; });
 boot();
 
 // ----- Setup (first run) -----
@@ -3294,6 +3459,7 @@ function renderWelcome(v, st) {
     api("/privacy").then((d) => {
       if (!st.qualityTouched && typeof d?.levels?.qualitySignals === "boolean") st.qualitySignals = d.levels.qualitySignals;
       if (!st.contentTouched) st.contentOptIn = d?.levels?.contentOptIn === true;
+      st.keptNote = d?.keptNote || "";
       st.privacyKnown = true;
       if (S.view === "setup" && st.phase === "welcome") render();
     }).catch(() => { st.privacyKnown = true; }).finally(() => { st.privacyLoading = false; });
@@ -3320,7 +3486,7 @@ function renderWelcome(v, st) {
       <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">
           <input type="checkbox" id="su-quality-signals" ${qualityChecked ? "checked" : ""}>
-          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span></span>
+          <span><b>${esc(WELCOME.privacyLine)}</b> <span class="dim">${esc(WELCOME.privacyDetail)}</span> <span class="dim" id="su-kept-note">${esc(st.keptNote || "")}</span></span>
         </label>
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start;margin-top:8px">
           <input type="checkbox" id="su-content-optin" ${contentChecked ? "checked" : ""}>

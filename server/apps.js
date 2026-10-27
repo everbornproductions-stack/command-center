@@ -137,6 +137,12 @@ const NEVER = [
   [/powershell|cmd\.exe|command prompt|terminal|regedit|registry|task scheduler|group policy|services\.msc|device manager|bios|disk management|windows security|defender|bitlocker/i, "It changes the system."],
   [/anydesk|teamviewer|remote desktop|rdp|vnc|logmein|splashtop|chrome remote|rustdesk/i, "It gives remote control of this computer."],
   [/vpn|proxy|tor browser|wireguard|openvpn/i, "It controls your network connection."],
+  // 0.4.21: more programs that can act as you or reach other machines
+  [/\bsh\b|\bbash\b|\bzsh\b|git bash|\bwsl\b|windows terminal|\bputty\b|winscp|filezilla|\bssh\b|\bsftp\b|mobaxterm|cygwin|\bkitty\b|iterm/i, "It opens a command line or a remote shell."],
+  [/ledger live|trezor|exodus|electrum|trust wallet|phantom|atomic wallet|bitcoin|ethereum|\bwealthfront\b|betterment|acorns|\bmint\b|ynab|credit karma|affirm|klarna|\bzelle\b|wise\b|remitly|western union/i, "It handles money."],
+  [/airmail|mailspring|em client|\bspark\b|proton ?mail|mailbird|\bmimestream|\bkmail|evolution mail|\bcanary mail|\bhey\b|fastmail/i, "It holds your email."],
+  [/element|mattermost|rocket\.chat|google chat|webex|viber|\bline\b|wechat|\bkik\b|google voice|textnow|pushbullet|beeper|franz|ferdi|rambox/i, "It holds private messages."],
+  [/event viewer|computer management|local security|\bgpedit|\bmmc\b|system configuration|msconfig|resource monitor|process explorer|process hacker|sysinternals|\bwinpe|diskpart|control panel|system settings|system preferences|activity monitor|keychain|\bconsole\b/i, "It changes the system."],
 ];
 export function sensitiveWhy(app) {
   const hay = `${app?.id || ""} ${app?.title || ""} ${app?.publisher || ""}`;

@@ -18,6 +18,8 @@ import { shippedClient } from "./oauth-signin.js";
 import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
+import { assertOutgoingOk } from "./compliance-guard.js";
+import { recordSend } from "./send-log.js";
 import { htmlToText } from "./receipts.js";
 import { localFetch } from "./loopback-fetch.js";
 import { activeExtra, listAccounts, markAccount, onRemoveLegacy } from "./mail-accounts.js";
@@ -311,9 +313,11 @@ const encHeader = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.fro
 export async function gmailSend(mail, accountId) {
   need("send", accountId);
   const m = checkMail(mail);
+  const g = assertOutgoingOk({ text: `${m.subject}\n${m.body}`, channel: "email" }); // a hard compliance block never goes out, even after a click
   const mime = [`To: ${m.to.join(", ")}`, `Subject: ${encHeader(m.subject)}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", m.body].join("\r\n");
   const r = await call(`${gmailApi()}/gmail/v1/users/me/messages/send`, { method: "POST", body: { raw: Buffer.from(mime, "utf8").toString("base64url") } }, accountId);
-  return { id: r.id || null, to: m.to, subject: m.subject };
+  recordSend({ channel: "email", kind: "gmail", to: m.to.join(", "), title: m.subject, text: m.body, rules: g.warnings.map((w) => w.rule) });
+  return { id: r.id || null, to: m.to, subject: m.subject, warnings: g.warnings.map((w) => ({ rule: w.rule, plain: w.plain })) };
 }
 
 export async function driveSearch(query, max = 8, accountId) {

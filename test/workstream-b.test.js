@@ -86,7 +86,7 @@ test("the screens say the workstream B lines, with no em dash", () => {
     app: read("web", "app.js"),
     search: read("web", "features", "search.js"),
     receipt: read("web", "features", "receipt.js"),
-    ratings: read("web", "features", "ratings.js"),
+    ratings: read("web", "features", "ratings.js") + read("web", "features", "ratings-rows.js"),
     help: read("web", "features", "help.js"),
     prompts: read("web", "features", "prompts.js"),
     market: read("web", "features", "marketplace.js"),

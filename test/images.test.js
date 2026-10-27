@@ -139,8 +139,9 @@ test("server: each provider makes images into the gallery with the prompt; edits
     r = await make(s, { provider: "google", op: "variation", source: upload, size: "landscape" });
     assert.equal(r.status, 200, JSON.stringify(r.json));
     hit = m.hits.findLast((h) => h.prov === "google");
-    assert.equal(hit.path, "/google/v1beta/models/gemini-2.5-flash-image:generateContent");
+    assert.equal(hit.path, "/google/v1beta/models/gemini-nano-banana-2.1:generateContent");
     assert.equal(hit.headers["x-goog-api-key"], KEYS.google); assert.ok(!hit.search.includes(KEYS.google) && !hit.path.includes(KEYS.google));
+    assert.equal(hit.body.store, false, "Gemini calls ask not to store the content");
     const parts = hit.body.contents[0].parts;
     assert.equal(parts[0].text, VARIATION_PROMPT); assert.equal(parts[1].inline_data.data, JPG.toString("base64")); assert.equal(parts[1].inline_data.mime_type, "image/jpeg");
     assert.equal(hit.body.generationConfig.imageConfig.aspectRatio, "3:2");

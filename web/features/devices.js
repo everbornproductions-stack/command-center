@@ -47,7 +47,7 @@ function wire(el) {
     const q = here
       ? "Remove this computer from the key? This computer drops to Free until you activate the key again."
       : `Remove ${name} from this key? That computer will need the key again.`;
-    if (!confirm(q)) return;
+    if (!(await window.CC.confirm(q, { danger: true, ok: "Remove" }))) return;
     b.disabled = true;
     try {
       const r = await api("/license/devices/remove", { method: "POST", body: { deviceId: b.dataset.devRemove } });

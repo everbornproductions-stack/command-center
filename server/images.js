@@ -51,13 +51,13 @@ export const IMAGE_PROVIDERS = {
   },
   google: {
     id: "google", name: "Google Gemini", keyName: "Google Gemini", where: "Settings > AI keys", ops: OPS,
-    defaultModel: "gemini-2.5-flash-image",
-    models: { "gemini-2.5-flash-image": { name: "Gemini 2.5 Flash Image", price: 0.039 } },
+    defaultModel: "gemini-nano-banana-2.1",
+    models: { "gemini-nano-banana-2.1": { name: "Gemini Nano Banana 2.1", price: 0.039 } },
   },
   xai: {
     id: "xai", name: "xAI Grok", keyName: "xAI", where: "Settings > AI keys", ops: ["generate"],
-    defaultModel: "grok-2-image",
-    models: { "grok-2-image": { name: "Grok 2 Image", price: 0.07 } },
+    defaultModel: "grok-imagine-image-2.0",
+    models: { "grok-imagine-image-2.0": { name: "Grok Imagine Image 2.0", price: 0.07 } },
   },
   replicate: {
     id: "replicate", name: "Flux via Replicate", keyName: "Replicate", where: "Settings > Media", ops: OPS,
@@ -180,7 +180,7 @@ export function deleteImage(id) {
   const d = jobs(); d.items = d.items.filter((x) => x.id !== id); putDoc(JOBS, d);
   return { ok: true };
 }
-function mediaDir(projectId) {
+export function mediaDir(projectId) {
   const d = path.join(DATA_DIR, "projects", String(projectId || "unfiled").replace(/[^a-z0-9-_]/gi, "_"), "media");
   fs.mkdirSync(d, { recursive: true });
   return d;
@@ -255,7 +255,7 @@ const ADAPTERS = {
     for (let i = 0; i < job.n; i++) {
       const parts = [{ text: job.prompt }, ...(src ? [{ inline_data: { mime_type: src.mime, data: src.bytes.toString("base64") } }] : [])];
       // the key travels in a header, never in the URL
-      const j = await call(pv, `${base}/models/${encodeURIComponent(job.model)}:generateContent`, { method: "POST", headers: { "x-goog-api-key": sec.key, "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio[job.size] } } }) });
+      const j = await call(pv, `${base}/models/${encodeURIComponent(job.model)}:generateContent`, { method: "POST", headers: { "x-goog-api-key": sec.key, "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts }], store: false, generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio[job.size] } } }) });
       for (const p of j.candidates?.[0]?.content?.parts || []) { const d = p.inlineData || p.inline_data; if (d?.data) out.push(b64img(d.data, d.mimeType || d.mime_type || "image/png")); }
     }
     return out;
@@ -323,6 +323,31 @@ async function picsFromTool(pv, raw) {
     }
   }
   return out;
+}
+
+// ---------- one picture, no gallery row (0.4.21): the mission's image steps use this through server/media/imageai.js ----------
+// Returns [{ bytes, mime }] from one provider with its saved key. Callers do the price check, the ledger line and the saving.
+export async function rawImage(pid, { prompt, size = "square", quality = "medium", model = "", n = 1 } = {}) {
+  const pv = IMAGE_PROVIDERS[pid];
+  if (!pv || pv.demo) throw bad("Pick a real image provider: OpenAI, Google Gemini, xAI, Replicate or fal.");
+  const sec = secretOf(pid);
+  if (!sec?.key) throw bad(noKeyMessage(pv), 400, { code: "no_key" });
+  const job = { op: "generate", model: model && pv.models[model] ? model : pv.defaultModel, n, size: SIZES.includes(size) ? size : "square", quality: QUALITIES.includes(quality) ? quality : "medium", prompt: String(prompt || "").slice(0, MAX_PROMPT) };
+  if (!job.prompt) throw bad("Write what the image should show.");
+  const pics = ((await ADAPTERS[pid](job, sec, null)) || []).filter((p) => p?.bytes?.length).slice(0, n);
+  if (!pics.length) throw bad(`${pv.name} answered without an image.`, 502);
+  return pics.map((p) => ({ bytes: p.bytes, mime: p.mime, ext: MIMES[p.mime] || "png" }));
+}
+// image providers that can make a picture now: a saved key (or MCP), not at a spend cap. Cheapest model first within a quality tier.
+export function readyImageProviders() {
+  return Object.values(IMAGE_PROVIDERS).filter((p) => !p.demo && (keyed(p.id) || mcpReady(p.id)) && !capState(p.id).capped).map((p) => p.id);
+}
+export function imageProviderInfo(pid) {
+  const pv = IMAGE_PROVIDERS[pid];
+  if (!pv) return null;
+  const pr = pv.models[pv.defaultModel].price;
+  const usd = typeof pr === "number" ? pr : pr.medium[0];
+  return { id: pv.id, name: pv.name, keyName: pv.keyName, where: pv.where, usd, model: pv.defaultModel };
 }
 
 // ---------- generate / edit / variation ----------

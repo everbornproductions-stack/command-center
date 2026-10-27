@@ -1,5 +1,6 @@
 // Home for returning users, private mode, who will read a prompt, backup file,
 // Do this again, Double-check this, tone buttons, plain credits, and My chats.
+import { closeOnEscape } from "/esc-close.js";
 const { S, api, toast, esc } = window.CC;
 
 const css = `
@@ -87,20 +88,25 @@ const TONE_BUTTONS = [["shorter", "Shorter"], ["warmer", "Warmer"], ["direct", "
 
 function beforeSend({ mode, prompt }) {
   return new Promise((resolve) => {
-    api("/desk/readers", { method: "POST", body: { mode, prompt } }).then((info) => {
+    // 0.4.21: before anything is sent, say if the image, video or voice AI this job needs cannot make it
+    const media = api("/dogfood/preflight", { method: "POST", body: { goal: prompt } }).catch(() => null);
+    api("/desk/readers", { method: "POST", body: { mode, prompt } }).then(async (info) => {
+      info.media = await media;
       const old = document.getElementById("cc-readers");
       old?.remove();
-      const readers = (info.readers || []).map((r) => ({ id: r.id || "", name: r.name || "", on: true }));
+      const readers = (info.readers || []).map((r) => ({ id: r.id || "", name: r.name || "", on: true, paused: r.paused || "" }));
       const wrap = document.createElement("div");
       wrap.id = "cc-readers";
       const paint = () => {
         const keepPrivate = wrap.querySelector("#cc-readers-private");
         const privateOn = keepPrivate ? keepPrivate.checked : !!info.privateOn;
-        const rows = readers.map((r, i) => `<div class="row cc-reader" data-id="${esc(r.id)}"><span>${esc(r.name)}</span>${r.on ? `<button type="button" class="btn sm" data-remove="${i}">Remove</button>` : `<span class="dim small">Removed</span>`}</div>`).join("");
+        const rows = readers.map((r, i) => `<div class="row cc-reader" data-id="${esc(r.id)}"><span>${esc(r.name)}${r.paused ? ` <span class="chip red" title="This AI cannot take a job right now. Meldmind uses another one.">${esc(r.paused)}</span>` : ""}</span>${r.on ? `<button type="button" class="btn sm" data-remove="${i}">Remove</button>` : `<span class="dim small">Removed</span>`}</div>`).join("");
         wrap.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-readers-title">
           <h3 id="cc-readers-title">${esc(info.title || "Who will read this")}</h3>
           <p>${esc(info.line || "")}</p>
           <div id="cc-reader-list">${rows || `<p class="dim">No AI is connected yet. Add a key in Settings.</p>`}</div>
+          ${(info.out || []).length ? `<div id="cc-reader-out" class="small" aria-label="Not used right now">${info.out.map((o) => `<div class="row cc-reader-out" data-id="${esc(o.id)}"><span class="dim">${esc(o.name)}</span><span class="chip ${o.kind === "credits" ? "red" : "amber"}">${esc(o.kind === "credits" ? "Out of credits" : (o.tag || "out of credits"))}</span><span class="dim small">not used${o.next ? `. ${esc(o.next)}` : ""}</span></div>`).join("")}</div>` : ""}
+          ${info.media?.blocked ? `<p class="cc-readers-media" role="alert" style="border:2px solid var(--red, #c0392b);padding:6px 10px;border-radius:8px"><b>Heads up.</b> ${esc(info.media.banner)}</p>` : (info.media?.lines || []).map((l) => `<p class="dim small">${esc(l)}</p>`).join("")}
           <p>${esc(info.toolsLine || "No tools are on.")}</p>
           <p>${esc(info.servicesLine || "No connected service will receive this prompt.")}</p>
           ${info.explain ? `<p>${esc(info.explain)}</p>` : ""}
@@ -120,7 +126,8 @@ function beforeSend({ mode, prompt }) {
         wrap.querySelector("#cc-readers-cancel").addEventListener("click", () => finish(false));
         wrap.querySelector("#cc-readers-go").addEventListener("click", send);
       };
-      const finish = (value) => { wrap.remove(); resolve(value); };
+      let stopEsc = () => {};
+      const finish = (value) => { stopEsc(); wrap.remove(); resolve(value); };
       const send = async () => {
         const on = !!wrap.querySelector("#cc-readers-private")?.checked;
         try {
@@ -138,6 +145,18 @@ function beforeSend({ mode, prompt }) {
       };
       document.body.appendChild(wrap);
       paint();
+      stopEsc = closeOnEscape(wrap, () => { finish(false); try { back?.focus?.(); } catch {} });
+      // Escape cancels and Tab stays inside the box (0.4.21, M44); focus goes back where it was.
+      const back = document.activeElement;
+      wrap.querySelector("#cc-readers-go")?.focus();
+      wrap.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") { ev.preventDefault(); finish(false); try { back?.focus?.(); } catch {} return; }
+        if (ev.key !== "Tab") return;
+        const els = [...wrap.querySelectorAll("button, input")].filter((x) => !x.disabled);
+        if (!els.length) return;
+        const i = els.indexOf(document.activeElement);
+        if (ev.shiftKey && i <= 0) { ev.preventDefault(); els[els.length - 1].focus(); } else if (!ev.shiftKey && i === els.length - 1) { ev.preventDefault(); els[0].focus(); }
+      });
     }).catch((e) => { toast(e.message, true); resolve(false); });
   });
 }
@@ -217,7 +236,6 @@ function renderDeliverable(container, live) {
     ${name ? `<p class="small cc-written" style="margin:6px 0">Written by ${esc(name)}.</p>` : ""}
     ${review?.text ? `<div class="panel"><h3>Double-check</h3><p class="small">${esc(review.line || "")}</p><div class="md">${esc(review.text)}</div></div>` : ""}
     <div class="cc-desk-row">
-      <button type="button" class="btn sm" id="cc-again">Do this again</button>
       <button type="button" class="btn sm" id="cc-check">Double-check this</button>
     </div>
   </div>`;
@@ -226,12 +244,6 @@ function renderDeliverable(container, live) {
     S.navFocus = "#settings-keys";
     S.view = "settings";
     if (window.CC.render) window.CC.render();
-  });
-  container.querySelector("#cc-again").addEventListener("click", async () => {
-    try {
-      const r = await api("/desk/repeat", { method: "POST", body: { id } });
-      toast(r.ok ? "Running that again." : "Could not repeat that.");
-    } catch (e) { toast(e.message, true); }
   });
   container.querySelector("#cc-check").addEventListener("click", async () => {
     try {

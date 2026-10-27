@@ -47,7 +47,7 @@ export function onTeam(id) {
 
 // list rows leave the script out (it is long); GET /api/agents/employees/<id> has it
 export function employeeView(e, { full = false } = {}) {
-  const row = { id: e.id, name: e.name, category: e.category, oneLiner: e.oneLiner, starters: e.starters || [], kinds: e.kinds || [], source: e.source, onTeam: onTeam(e.id) };
+  const row = { id: e.id, name: e.name, category: e.category, oneLiner: e.oneLiner, starters: e.starters || [], kinds: e.kinds || [], source: e.source, onTeam: onTeam(e.id), approval: approvalFor(e.id) };
   if (full) { row.instructions = e.instructions; row.blanks = blanksIn(e.instructions); }
   return row;
 }
@@ -56,6 +56,22 @@ export function blanksIn(text) {
   const out = [];
   for (const m of String(text || "").matchAll(/\[([^\]\n]{1,60})\]/g)) if (!out.includes(m[1])) out.push(m[1]);
   return out.slice(0, 40);
+}
+
+// What happens to an employee's finished work (0.4.21): "queue" puts it in MindMedia as Review for the person's OK
+// (the default), "own" keeps it as a Draft. Either way nothing is sent without a click.
+export const APPROVALS = ["queue", "own"];
+export function approvalFor(id) {
+  const m = readState().approval;
+  return m && APPROVALS.includes(m[id]) ? m[id] : "queue";
+}
+export function setApproval(id, mode) {
+  if (!getEmployee(id)) throw err(404, "No such employee.");
+  if (!APPROVALS.includes(mode)) throw err(400, "Choose Send on its own or Queue for my OK.");
+  const d = stateDoc();
+  d.approval = { ...(d.approval && typeof d.approval === "object" ? d.approval : {}), [id]: mode };
+  putDoc(EMPLOYEES_DOC, d);
+  return { id, approval: mode };
 }
 
 export const teamList = () => ALL.filter((e) => onTeam(e.id)).map((e) => employeeView(e));

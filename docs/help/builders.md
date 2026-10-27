@@ -2,7 +2,7 @@
 id: builders
 title: Builders
 summary: Guided builders for HighLevel, receipts, invoices, a booking page, meeting notes, a contract, a review reply, websites, posts, reels, and ads. Nothing is sent until Publish.
-lastUpdatedVersion: 0.4.13
+lastUpdatedVersion: 0.4.21
 ---
 
 # Builders
@@ -38,3 +38,9 @@ Turn on **Build it all for me** to run every step in one go: describe, preview, 
 It still stops for three things, the same rules as Get it done: spending money, deleting something for good, and posting or sending in public. A second switch, **Also allow posting**, lets public posting through. It is off unless you turn it on. Boxes that only you can tick, such as a compliance check, still wait for you.
 
 You see each step as it runs, and **Stop** ends the run before the next step. The switch is off at first. Meldmind remembers your choice for next time.
+
+## Connect HighLevel in one press
+
+On the Builders page, Connect HighLevel opens the HighLevel sign-in in your browser. If sign-in is not set up on this computer yet, the paste-a-token form opens instead.
+
+Builder cards say "Needs Pro. You are on Free." before you fill anything in. When a builder writes posts, emails or ads, the same words check that texts get runs at Build and Test, so a promise or a left-over [NAME] shows up before Publish.

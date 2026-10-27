@@ -53,9 +53,10 @@ test("spend caps: amber at 80%, stop at 100%, router excludes, hard stop with no
     assert.ok(route.ranked.length > 0);
     assert.ok(!route.ranked.some((m) => m.provider === "openai"), "a capped AI is left out of the ranking");
 
-    // a chat pinned to it is answered by a stand-in and never reaches it
+    // a chat pinned to it, with Let Meldmind choose on, is answered by a stand-in and never reaches it
+    // (a pinned pick with Let Meldmind choose off stops with a plain message; see test/gemini-0421-q.test.js)
     const novaBefore = await callsOf(s, "openai");
-    const stood = await chat(s, { prompt: "Write a one-line greeting.", provider: "openai", model: "gpt-6-luna" });
+    const stood = await chat(s, { prompt: "Write a one-line greeting.", provider: "openai", model: "gpt-6-luna", allowStandIn: true });
     assert.equal(stood.status, "done", stood.error);
     assert.notEqual(stood.provider, "openai", "another AI stood in");
     assert.equal(await callsOf(s, "openai"), novaBefore, "no call went to the capped AI");

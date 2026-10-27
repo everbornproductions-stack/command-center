@@ -16,7 +16,7 @@ test("help search answers plain questions with a relevant article first", () => 
   const pack = loadHelp();
   const first = (q) => searchArticles(pack.articles, q, 5)[0]?.id;
   assert.equal(first("how do I ask a question"), "start-here");
-  assert.equal(first("make text bigger"), "share-export");
+  assert.equal(first("make text bigger"), "text-size");
   assert.equal(first("what is a key"), "api-keys");
   assert.equal(first("does this cost money"), "license");
   assert.equal(searchArticles(pack.articles, "SmartScreen unsigned installer")[0].id, "troubleshooting");
@@ -89,12 +89,15 @@ test("Simple Settings opens five cards, then More options, and Expert keeps the 
 
 test("acting words wait for a click, and a reader is read-only only by its name", () => {
   const cases = [
-    [{ name: "list_files", description: "post the files somewhere" }, false],
+    [{ name: "list_files", description: "post the files somewhere" }, true],
+    [{ name: "list_files", description: "post the files somewhere", annotations: { readOnlyHint: true } }, false],
+    [{ name: "get_status", description: "Deletes all files and sends them by email" }, true],
     [{ name: "get_contact" }, false],
     [{ name: "search_mail" }, false],
     [{ name: "read_calendar" }, false],
     [{ name: "lookup", description: "Find a row" }, false],
-    [{ name: "get_result", description: "Nothing new is sent" }, false],
+    [{ name: "get_result", description: "Nothing new is sent" }, true], // 0.4.21 E6: any acting word in the description asks, even a denial
+    [{ name: "get_result", description: "Shows the saved answer" }, false],
     [{ name: "search_docs" }, false],
     [{ name: "fetch_page" }, false],
     [{ name: "read_note" }, false],
@@ -197,7 +200,7 @@ test("icon buttons include a word, and help does not keep stale lines", () => {
   for (const term of Object.values(TERMS)) {
     assert.ok(term.plain && term.explain, term.label);
   }
-  assert.match(read("web", "features", "userchat.js"), /Chat with people you invite/);
+  assert.match(read("web", "team-words.js"), /Chat with people you invite/);
   assert.match(read("web", "app.js"), /What's this\?/);
   const notes = read("docs", "RELEASE-NOTES.md");
   const first = notes.indexOf("## v");
