@@ -49,6 +49,7 @@ async function renderPanel(el) {
     </div>`;
     return;
   }
+  const hubNote = data.hub && !data.hub.ready ? `<div class="small" data-hub-soon style="margin-bottom:6px"><span class="chip">Coming soon</span> ${esc(data.hub.note)}. Until then a schedule or mission runs on this computer only.</div>` : "";
   const gate = data.allowed
     ? ""
     : `<div class="small">Running while this PC is off is part of Extreme. A schedule or mission stays on this computer until then.</div>`;
@@ -78,7 +79,7 @@ async function renderPanel(el) {
     </form>` : "";
   const jobs = (data.jobs || []).length ? `<div style="margin-top:10px">${data.jobs.map(jobLine).join("")}</div>` : "";
   el.innerHTML = `<div class="panel" id="hosted-runs"><h3>Run while this PC is off <span class="right small dim">${data.runningInCloud ? CLOUD_LABEL : "Extreme"}</span></h3>
-    ${gate}${opt}${hand}${jobs}
+    ${hubNote}${gate}${opt}${hand}${jobs}
     <div class="small dim" style="margin-top:8px">Your keys are sealed on this computer. The hosted worker is the only place that opens them. A result comes back when this PC is on again.</div>
   </div>`;
   el.querySelector("#hr-on")?.addEventListener("click", async () => {

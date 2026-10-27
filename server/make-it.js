@@ -15,6 +15,7 @@ import { demoActive } from "./mock.js";
 import { demosHidden } from "./demo-visibility.js";
 import { providerList, estimate as imageEstimate, makeImages, IMAGE_PROVIDERS } from "./images.js";
 import * as M from "./media-jobs.js";
+import * as MS from "./media-switch.js";
 import { cheapest } from "./router.js";
 import { PROVIDERS } from "./registry.js";
 import { completeFallback } from "./fallback.js";
@@ -33,9 +34,8 @@ const wantsBest = () => ["quality", "max"].includes(String(settings().defaultMod
 // ---------- what to make it with ----------
 const KIND_LABEL = { image: "picture", video: "video", audio: "voice" };
 function noMaker(kind) {
-  if (kind === "image") return bad("Meldmind needs a picture maker for this, and none is connected yet. Add a key for OpenAI, Google Gemini, Replicate or fal and ask again.", 409, { code: "no_provider", next: { label: "Add a picture key", go: "settings" } });
-  if (kind === "video") return bad("Meldmind needs a video maker for this, and none is connected yet. Add a Kling, fal or Runway key and ask again.", 409, { code: "no_provider", next: { label: "Add a video key", go: "settings" } });
-  return bad("Meldmind needs a voice maker for this, and none is connected yet. Add an ElevenLabs key and ask again.", 409, { code: "no_provider", next: { label: "Add a voice key", go: "settings" } });
+  const k = kind === "audio" ? "voice" : kind;
+  return bad(MS.setupMessage(k), 409, { code: "no_provider", next: { label: `Add a ${k === "image" ? "picture" : k} key`, go: "settings" } });
 }
 const practiceOk = () => demoActive() && !demosHidden();
 
@@ -163,15 +163,23 @@ export async function run(body = {}) {
   const name = nameFromPrompt(body.rootRequest || body.request || p.request) + (ver > 1 ? ` (version ${ver})` : "");
   const parent = body.parentAssetId || "";
   if (p.kind === "image") {
-    const row = await makeImages({ provider: p.provider, model: p.model, op: "generate", prompt, n: 1, size: p.size || "square", quality: p.quality || "medium", estimate: p.practice ? 0 : p.usd, projectId, runId: null });
+    // a connected picture AI that fails (credits, key, outage) hands the job to the next connected one; practice runs stay in demo
+    let row = null, madeBy = p;
+    if (p.practice) row = await makeImages({ provider: p.provider, model: p.model, op: "generate", prompt, n: 1, size: p.size || "square", quality: p.quality || "medium", estimate: 0, projectId, runId: null });
+    else {
+      const sw = await MS.makeImageSwitch({ prompt, size: p.size || "square", projectId, first: p.provider, maxUsd: Math.max(guardUsd(), Number(body.okUsd) || 0) }).catch((e) => { throw bad(e.message, e.status || 502, { code: e.code, next: e.next }); });
+      row = sw.row; madeBy = { ...p, provider: sw.maker.id, providerName: sw.maker.name, model: sw.maker.model, usd: sw.maker.usd, switchedFrom: sw.maker.id !== p.provider ? p.providerName : "", tried: sw.tried };
+    }
     const assetId = `job:${row.id}:0`;
     await tag(projectId, assetId, { name, request: body.request || p.request, parentId: parent });
     const f = row.files[0] || {};
-    return { ok: true, kind: "image", state: "done", id: row.id, assetId, projectId: projectId || "unfiled", name, mime: f.mime || "image/png", fileName: f.name || "", fileUrl: `/images/${row.id}/file?i=0`, generatorPrompt: prompt, provider: p.provider, providerName: p.providerName, model: p.model, usd: p.usd, practice: p.practice, writtenBy: p.writtenBy };
+    return { ok: true, kind: "image", state: "done", id: row.id, assetId, projectId: projectId || "unfiled", name, mime: f.mime || "image/png", fileName: f.name || "", fileUrl: `/images/${row.id}/file?i=0`, generatorPrompt: prompt, provider: madeBy.provider, providerName: madeBy.providerName, model: madeBy.model, usd: madeBy.usd, practice: p.practice, writtenBy: p.writtenBy, ...(madeBy.switchedFrom ? { switchedFrom: madeBy.switchedFrom } : {}) };
   }
   const mk = p.kind === "audio" ? "voice" : "video";
   const params = p.kind === "video" ? { prompt, duration: p.seconds || 5 } : { text: prompt, prompt };
-  const job = M.createJob({ provider: p.provider, kind: mk, params, projectId, approve: true, estimate: p.practice ? undefined : p.usd, origin: "chat" });
+  const job = p.practice
+    ? M.createJob({ provider: p.provider, kind: mk, params, projectId, approve: true, estimate: undefined, origin: "chat" })
+    : (() => { try { return MS.startMediaSwitch({ kind: mk, params, projectId, usd: p.usd, first: p.provider }).job; } catch (e) { throw bad(e.message, e.status || 502, { code: e.code, next: e.next }); } })();
   const assetId = `job:${job.id}:0`;
   await tag(projectId, assetId, { name, request: body.request || p.request, parentId: parent });
   return { ok: true, kind: p.kind, state: "working", id: job.id, jobId: job.id, assetId, projectId: projectId || "unfiled", name, generatorPrompt: prompt, provider: p.provider, providerName: p.providerName, usd: p.usd, practice: p.practice, writtenBy: p.writtenBy };
@@ -179,13 +187,14 @@ export async function run(body = {}) {
 
 // ---------- a video or voice job, as the page polls it ----------
 export function jobStatus(id) {
-  const job = M.getJob(String(id || ""));
+  const asked = String(id || "");
+  const job = M.getJob(MS.followJob(asked));
   if (!job) throw bad("No such job.", 404);
   const pub = M.publicJob(job);
   const done = ["done", "dry-run"].includes(job.status);
   const file = pub.files?.[0] || null;
   return {
-    ok: true, id: job.id, kind: job.kind === "voice" ? "audio" : job.kind, status: job.status, state: done ? "done" : ["failed", "declined"].includes(job.status) ? "error" : "working",
+    ok: true, id: asked || job.id, kind: job.kind === "voice" ? "audio" : job.kind, status: job.status, state: done ? "done" : ["failed", "declined"].includes(job.status) ? "error" : "working",
     progress: job.progress || null, error: job.error || "", practice: !!job.dryRun,
     fileUrl: done && file && !file.url ? `/media/file?id=${encodeURIComponent(job.id)}&i=0` : "", remoteUrl: done && file?.url ? file.url : "",
     fileName: file?.name || "", assetId: `job:${job.id}:0`,

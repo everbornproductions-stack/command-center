@@ -92,7 +92,7 @@ function driveHtml(d) {
 }
 function notionHtml() {
   const n = st.data.sources.notion;
-  if (!n.connected) return `<div class="small dim">Notion is not connected. <a href="#" data-go-settings>Connect it in Settings</a> (read-only).</div>`;
+  if (!n.connected) return `<div class="small dim">Notion is not connected. <a href="#" data-go-settings>Set it up in Settings</a>: create an integration, then paste its ID and secret (read-only).</div>`;
   const pages = st.notion.pages;
   return `<div class="row small" style="gap:6px"><input type="text" data-notion-q placeholder="search the pages shared with Meldmind" value="${esc(st.notion.q)}" style="flex:1"><button class="btn sm" data-notion-search>Search</button></div>
     ${pages ? `<div class="lib-list">${pages.length ? pages.map((p) => `<div class="row small" style="gap:6px"><input type="checkbox" data-notion-pick="${esc(p.id)}" ${st.notion.picked.has(p.id) ? "checked" : ""}><span style="flex:1">${esc(p.name)}</span>${p.modified ? `<span class="dim">${ago(new Date(p.modified).getTime())} ago</span>` : ""}</div>`).join("") : `<div class="small dim">No pages. In Notion, share pages with the integration (page menu > Connections).</div>`}</div>` : `<div class="small dim" style="margin-top:4px">Loading…</div>`}
@@ -255,7 +255,7 @@ function renderSources(el) {
   if (!el || !st.data) return;
   const g = st.data.sources.google, n = st.data.sources.notion;
   const block = (s, extra) => `<div style="margin-top:10px"><div class="row small" style="gap:8px"><span class="dot ${s.connected ? "green" : s.needsSignIn ? "amber" : "grey"}"></span><b>${esc(s.name)}</b><span class="dim">${s.connected ? `connected${s.workspace ? ` (${esc(s.workspace)})` : ""}, read-only` : s.needsSignIn ? "sign in again" : "not connected"}</span></div>
-    <div class="small dim" style="margin-top:4px">${esc(s.setup)}</div>${extra}
+    ${s.steps?.length && !s.connected ? `<ol class="small" data-setup-steps="${esc(s.source)}" style="margin:6px 0 0 18px">${s.steps.map((t) => `<li>${esc(t.replace("{address}", location.origin + "/"))}</li>`).join("")}</ol>` : `<div class="small dim" style="margin-top:4px">${esc(s.setup)}</div>`}${extra}
     <div class="row small" style="gap:6px;margin-top:6px;flex-wrap:wrap"><input type="text" data-cid="${s.source}" value="${esc(s.clientId || "")}" placeholder="${s.sharedClient ? "using the browser helper's Google client" : "OAuth client ID"}" style="flex:1;min-width:160px;font-family:var(--mono)"><input type="password" data-csec="${s.source}" placeholder="${s.clientSecretSaved ? "secret saved in the vault" : "client secret"}" autocomplete="off" style="width:150px"></div>
     <div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" data-csave="${s.source}">Save client</button><button class="btn sm primary" data-connect="${s.source}" data-pw-login="1">${s.connected ? "Connect again" : `Connect ${esc(s.name)}`}</button>${s.connected ? `<button class="btn sm danger" data-off="${s.source}" style="margin-left:auto">Disconnect</button>` : ""}</div></div>`;
   el.innerHTML = `<h3>Library sources</h3><div class="small muted">Read-only, through your own sign-in. Files are read only when you pick them in a library; the tokens stay in the vault.</div>

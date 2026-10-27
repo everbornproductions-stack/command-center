@@ -31,7 +31,7 @@ async function renderTab(view) {
     .mkt-card.on { outline:1px solid var(--accent); }
   </style>
   <div class="row" style="margin-bottom:8px"><h3 style="margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Marketplace</h3></div>
-  <p class="small muted" style="margin-top:0">${esc(data.copy.banner)} ${esc(data.copy.install)}</p>
+  <p class="small muted" style="margin-top:0">${esc(data.remote?.state === "live" || data.remote?.state === "saved" ? data.remote.note : `${data.copy.banner} ${data.remote?.note && data.remote.state !== "off" ? data.remote.note : ""}`)} ${esc(data.copy.install)}</p>
   <p class="small dim" style="margin-top:0">${esc(data.copy.revenue)} ${esc(data.copy.payout)} ${esc(paid ? data.copy.paidOn : data.copy.paidOff)}</p>
   <div class="mkt-grid">
     <div>
@@ -153,7 +153,7 @@ function detailHtml(data, paid) {
     <div class="cats" style="margin-top:8px">${(row.steps || []).map((s) => `<span class="chip">${esc(s.title)} · ${esc(s.capability)}</span>`).join("")}</div>
     <div class="small" style="margin-top:8px">${esc(priceLabel(row.price, paid))}. ${esc(data.copy.revenue)}</div>
     <div class="dim small">${esc(row.payout?.note || data.copy.payout)} ${esc(row.stats?.avgCostNote || "No receipt average yet")}.</div>
-    <div class="dim small">Version ${esc(String(row.version))}${row.demo ? " · Demo catalog" : ""}${row.status && row.status !== "listed" ? ` · ${esc(row.status)}` : ""}</div>
+    <div class="dim small">Version ${esc(String(row.version))}${row.demo ? " · Demo catalog" : ""}${row.remote ? ` · From Everborn${row.signed ? ", signed" : ", not signed yet"}` : ""}${row.status && row.status !== "listed" ? ` · ${esc(row.status)}` : ""}</div>
     ${row.rejection ? `<div class="small">${esc(row.rejection)}</div>` : ""}
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
       ${inCatalog ? `<button class="btn sm primary" data-install="${esc(row.id)}">${row.price?.type === "free" ? "Install" : (paid ? "Install (placeholder checkout)" : "Install (checkout off)")}</button>` : ""}

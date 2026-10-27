@@ -8,6 +8,7 @@ import { gmailSearch, gmailSend, canSend } from "./google.js";
 import { loadProfile } from "./prompts/apply.js";
 import { scrubText } from "./prompts/safety.js";
 import { assertOutgoingOk } from "./compliance-guard.js";
+import { maskPrivate } from "./mask-private.js";
 
 export const DOC = "everyday.inbox";
 export const TRY_INBOX = "What needs me today in all my inboxes?";
@@ -203,7 +204,7 @@ export function publicDraft(draft) {
   if (!draft) return null;
   return {
     id: draft.id, status: draft.status, accountId: draft.accountId, messageId: draft.messageId,
-    to: draft.to, subject: draft.subject, body: draft.body, toneNote: draft.toneNote || "",
+    to: draft.to, subject: maskPrivate(draft.subject), body: maskPrivate(draft.body), toneNote: draft.toneNote || "",
     createdAt: draft.createdAt, sentAt: draft.sentAt || null,
   };
 }
@@ -216,7 +217,7 @@ export function exactMail(body) {
   if (!to) throw fail(400, "The reply needs one address in To.");
   if (!subject || subject.length > 300) throw fail(400, "The subject must be one line.");
   if (!text.trim() || text.length > 20000) throw fail(400, "The reply needs a body.");
-  return { to, subject, body: scrubText(text).text };
+  return { to, subject: maskPrivate(subject), body: maskPrivate(scrubText(text).text) };
 }
 
 export async function deliverExact(mail, accountId) {

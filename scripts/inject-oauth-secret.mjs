@@ -12,8 +12,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const CLIENTS_FILE = path.join(ROOT, "server", "oauth-clients.json");
 
-export const MISSING_SECRET = "Google sign-in secret is not set (GOOGLE_OAUTH_CLIENT_SECRET). This build offers the Advanced own-client path for Google. Microsoft sign-in still works.";
-export const BAD_SECRET = "Google sign-in secret (GOOGLE_OAUTH_CLIENT_SECRET) does not look like a client secret, so it was not written. This build offers the Advanced own-client path for Google.";
+export const MISSING_SECRET = "Google sign-in secret: not set (GOOGLE_OAUTH_CLIENT_SECRET). This build offers the Advanced own-client path for Google. Microsoft sign-in still works.";
+export const BAD_SECRET = "Google sign-in secret: not set, because GOOGLE_OAUTH_CLIENT_SECRET does not look like a client secret, so it was not written. This build offers the Advanced own-client path for Google.";
 
 export function googleSecretFromEnv(env = process.env) {
   return String(env.GOOGLE_OAUTH_CLIENT_SECRET || "").trim() || String(env.CC_GOOGLE_CLIENT_SECRET || "").trim();
@@ -41,11 +41,18 @@ export function prepareOAuthSecret({ file = CLIENTS_FILE, env = process.env } = 
     ok: true,
     wrote: true,
     warned: false,
-    message: "Google sign-in secret written for this build. It is cleared again when the build finishes, so it is not committed.",
+    message: "Google sign-in secret: set (written for this build, cleared again when the build finishes, never committed).",
     restore() {
       if (restored) return;
       restored = true;
       fs.writeFileSync(file, original);
     },
   };
+}
+
+// `node scripts/inject-oauth-secret.mjs --check` prints "Google sign-in secret: set" or "not set".
+// The value is never printed. Always exits 0 so a build without the secret still builds.
+const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invoked && process.argv.includes("--check")) {
+  console.log(secretShape(googleSecretFromEnv()) === "ok" ? "Google sign-in secret: set" : "Google sign-in secret: not set");
 }

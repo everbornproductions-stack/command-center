@@ -10,6 +10,7 @@ import {
 } from "../builders/drafts.js";
 import { builderGate } from "../feature-gate.js";
 import { checkOutgoing } from "../compliance-guard.js";
+import { maskDeep } from "../mask-private.js";
 import { recordSend } from "../send-log.js";
 import { readReceipt, readInvoiceText, readWhisper, readPipeline, publishExternal } from "../builders/adapters.js";
 
@@ -166,7 +167,7 @@ export async function routes(req, res, url, body, h) {
   const gate = gateFor(h, builder);
 
   if (action === "preview") {
-    const draft = makeDraft(builderId, input);
+    const draft = maskDeep(makeDraft(builderId, { ...input, consent: body?.checks?.tcpa === true }));
     if (draft.legalBlocked) return h.json(res, 400, { error: LEGAL_LINE, code: "legal", posted: false });
     const job = {
       id: newId(), builderId, step: "preview", hash: fingerprint(input), input, draft, test: null,
@@ -192,7 +193,7 @@ export async function routes(req, res, url, body, h) {
   if (action === "build") {
     if (!gate.ok) return h.json(res, gate.status, { error: gate.message, code: gate.code, gate, posted: false });
     if (job.step === "published") return h.json(res, 409, { error: "This one is already published.", code: "done" });
-    const draft = makeDraft(builderId, input);
+    const draft = maskDeep(makeDraft(builderId, { ...input, consent: body?.checks?.tcpa === true }));
     if (draft.legalBlocked) return h.json(res, 400, { error: LEGAL_LINE, code: "legal", posted: false });
     job.draft = draft;
     job.step = "built";

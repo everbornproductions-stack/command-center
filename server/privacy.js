@@ -15,6 +15,10 @@
 
 export const SHARE_NOTE_DATE = "2026-10-24";
 
+// Shown on the welcome screen and in Settings while quality signals (track records) are not sent anywhere.
+// It follows the real switch (flag signalsend), so the words stop appearing the day sending goes live.
+export const SIGNALS_KEPT_NOTE = "Anonymous results are kept on this computer for now. Only a count of which features you used is sent, once a day, and you can turn that off in Settings.";
+export const keptNote = (signalSending) => (signalSending === true ? "" : SIGNALS_KEPT_NOTE);
 export const WELCOME_QUALITY_NOTICE = "Helping Meldmind get smarter: anonymous results only, never your text";
 export const QUALITY_SENT_ITEMS = [
   "provider",
@@ -517,6 +521,7 @@ export function privacyView(live = {}) {
     localOnly: live.localOnly === true,
     localOnlyBadge: LOCAL_ONLY_BADGE,
     signalSending: live.signalSending === true,
+    keptNote: keptNote(live.signalSending),
     levels: {
       onDevice: typeof live.onDevice === "boolean" ? live.onDevice : true,
       qualitySignals: typeof live.trackRecords === "boolean" ? live.trackRecords : (typeof live.usage === "boolean" ? live.usage : null),

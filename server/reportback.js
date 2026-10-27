@@ -7,6 +7,7 @@ import { doc, putDoc, ctx } from "./store.js";
 import { emit } from "./events.js";
 import { localFetch } from "./loopback-fetch.js";
 import { acceptUsageReport } from "./credit-tracker.js";
+import { rpc as hubRpc, hubReady, hubConfig, deviceSecret } from "./hub-supabase.js";
 
 export const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const BODY_MAX = 64 * 1024;
@@ -77,6 +78,32 @@ export function workerToken() {
   return t;
 }
 export const workerOn = () => !!(workerUrl() && workerToken());
+
+// 0.4.21: with no hub of our own, report-back goes through the Supabase project the app already uses
+// (supabase/hub_reportback_teams.sql). It works across two computers once that SQL has been run.
+// Until then the calls come back "missing" and the paste path stays, with the setup step shown.
+export const supabaseOn = () => !workerOn() && process.env.CC_REPORTBACK_SUPABASE !== "off" && hubReady();
+export const hubOn = () => workerOn() || supabaseOn();
+
+async function sbRegister(jobId) {
+  const out = await hubRpc("rb_register", { p_owner: deviceSecret(), p_job: jobId });
+  const b = out.ok ? out.body : null;
+  if (out.missing) sbState.sql = false;
+  if (b?.ok && typeof b.token === "string" && b.token.length >= 16) { sbState.sql = true; return b.token; }
+  return null;
+}
+export const sbState = { sql: null };
+
+// What the other AI is told to do. The publishable key is public by design: it only reaches the
+// narrow functions, and the job token is what proves the report belongs to this job.
+export function supabaseBlockText({ jobId, token } = {}) {
+  const cfg = hubConfig();
+  if (!cfg || !jobId || !token) return pasteBlock();
+  const url = `${String(cfg.url).replace(/\/$/, "")}/rest/v1/rpc/rb_report`;
+  const payload = JSON.stringify({ p_job: jobId, p_token: token, p_status: "done", p_summary: "<summary>", p_links: [] });
+  const curl = `curl -sS -X POST "${url}" -H "apikey: ${cfg.anonKey}" -H "Content-Type: application/json" -d '${payload}'`;
+  return `When finished, let Meldmind know: POST ${url} with header apikey: ${cfg.anonKey} and JSON {p_job, p_token, p_status, p_summary, p_links}. If you can't make web requests, reply with DONE: <summary> and the user can paste it back.\n\n${curl}`;
+}
 
 export function doneUrl(jobId) {
   const base = workerUrl();
@@ -379,7 +406,7 @@ export function reportStatus() {
   const waiting = localJobs().slice(0, 20).map((j) => ({
     id: j.id, kind: j.kind, threadId: j.threadId || null, status: j.status, summary: j.summary || "", links: j.links || [], files: j.files || [],
   }));
-  return { hub: workerOn(), waiting };
+  return { hub: hubOn(), via: workerOn() ? "worker" : supabaseOn() ? "supabase" : null, waiting };
 }
 
 async function registerRemote(jobId) {
@@ -403,6 +430,11 @@ async function registerRemote(jobId) {
 // Answer jobs (server/answer-wait.js) build their own send-back words from this.
 export async function hubRoute({ jobId } = {}) {
   const id = validId(jobId) ? jobId : newId();
+  if (supabaseOn()) {
+    const token = await sbRegister(id).catch(() => null);
+    if (!token) return { jobId: id, hub: false };
+    return { jobId: id, hub: true, via: "supabase", sbBlock: supabaseBlockText({ jobId: id, token }) };
+  }
   if (!workerOn()) return { jobId: id, hub: false };
   try {
     const token = await registerRemote(id);
@@ -416,6 +448,11 @@ export async function hubRoute({ jobId } = {}) {
 export async function reportBlock({ jobId, kind, threadId, targetId } = {}) {
   const id = validId(jobId) ? jobId : newId();
   try { rememberLocal({ jobId: id, kind, threadId, targetId }); } catch {}
+  if (supabaseOn()) {
+    const token = await sbRegister(id).catch(() => null);
+    if (!token) return { jobId: id, hub: false, block: pasteBlock() };
+    return { jobId: id, hub: true, via: "supabase", block: supabaseBlockText({ jobId: id, token }) };
+  }
   if (!workerOn()) return { jobId: id, hub: false, block: pasteBlock() };
   try {
     const token = await registerRemote(id);
@@ -545,8 +582,31 @@ async function ackRemote(jobId) {
 let pollTimer = null;
 let pollStop = false;
 let pollAbort = null;
+// One pass of the Supabase inbox: apply each finished job, then confirm it so the cloud deletes it.
+export async function pollSupabaseOnce() {
+  if (!supabaseOn()) return 0;
+  const owner = deviceSecret();
+  const out = await hubRpc("rb_inbox", { p_owner: owner });
+  if (out.missing) { sbState.sql = false; return 0; }
+  if (!out.ok || !Array.isArray(out.body)) return 0;
+  sbState.sql = true;
+  let n = 0;
+  for (const row of out.body) {
+    if (!validId(row?.jobId)) continue;
+    try { await applyLocal({ jobId: row.jobId, status: row.status, summary: clip(row.summary, 8000), links: Array.isArray(row.links) ? row.links.map(safeHttp).filter(Boolean).slice(0, 10) : [], files: [] }); n++; } catch {}
+    await hubRpc("rb_ack", { p_owner: owner, p_job: row.jobId }).catch(() => {});
+  }
+  return n;
+}
+
 export function startReportPoller() {
-  if (pollTimer || pollStop || !workerOn()) return;
+  if (pollTimer || pollStop || !hubOn()) return;
+  if (!workerOn()) {
+    const every = Math.max(200, Number(process.env.CC_REPORTBACK_SB_POLL_MS) || 20000);
+    pollTimer = setInterval(() => { if (!pollStop) pollSupabaseOnce().catch(() => {}); }, every);
+    pollTimer.unref?.();
+    return;
+  }
   const wait = (() => {
     const n = Number(process.env.CC_REPORTBACK_POLL_WAIT_MS);
     if (Number.isFinite(n) && n >= 200 && n <= 25000) return Math.floor(n);
@@ -582,7 +642,7 @@ export function startReportPoller() {
 }
 export function stopReportPoller() {
   pollStop = true;
-  if (pollTimer) clearTimeout(pollTimer);
+  if (pollTimer) { clearTimeout(pollTimer); clearInterval(pollTimer); }
   pollTimer = null;
   try { pollAbort?.abort(); } catch {}
   pollAbort = null;

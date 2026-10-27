@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { API, fresh } from "./publish/oauth.js";
 import { getSecret } from "./vault.js";
 import { checkOutgoing } from "./compliance-guard.js";
+import { maskPrivate } from "./mask-private.js";
 import { recordSend } from "./send-log.js";
 
 const VAULT = "ghl-crm";
@@ -206,12 +207,13 @@ export function planHighlevel(name, raw) {
   if (!spec) throw err(400, "Unknown HighLevel action.", "action");
   if (!connectedSecret()) throw err(409, "Connect HighLevel for contacts, invoices, and workflows first.", "sign_in");
   const args = argsFor(name, raw);
+  if (typeof args.text === "string") args.text = maskPrivate(args.text); // private numbers never reach a preview or a send
   if (!spec.writes) return { writes: false, summary: spec.summary(args), result: null, pending: perform(name, args) };
   const planId = "hl-" + crypto.randomBytes(6).toString("hex");
   const guard = guardOf(name, args, raw);
   if (guard && !guard.ok) throw err(422, `Not sent. ${guard.blocked[0].plain} ${guard.blocked[0].why}`, "compliance_block");
   plans.set(planId, { name, args, at: Date.now(), warnings: guard?.warnings || [] });
-  return { writes: true, planId, summary: spec.summary(args), needsClick: true, warnings: guard?.warnings || [] };
+  return { writes: true, planId, summary: maskPrivate(spec.summary(args)), needsClick: true, warnings: guard?.warnings || [] };
 }
 
 export async function resolvePlan(planned) {

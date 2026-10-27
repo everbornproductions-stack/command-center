@@ -1,7 +1,7 @@
 // Backup when API credits run out (2026-10-21, Chris approved).
 // The order is one list, CHAIN, so a later step can be slotted in without rework:
 //   1. Official apps on this PC (Claude Code, Codex, Gemini CLI, Antigravity), signed in with the person's own plan
-//   2. Website (only if the person turned it on; stored, not wired in this pass)
+//   2. Website (only if the person turned it on; server/website-step.js drives the AI's site in Meldmind's own window)
 //   3. You copy it over (the click handoff with send-back instructions and automatic checking)
 //
 // This module knows the official command-line apps: where they are, whether they are signed in, and how to
@@ -29,7 +29,7 @@ export const CHAIN_LINE = CHAIN.map((s) => `${s.n}. ${s.label}`).join(", ");
 export const APPS_NOTE = "Uses the official app for each AI, signed in with your own plan.";
 export const WEBSITE_LABEL = "Let Meldmind use the website for me (ChatGPT, Claude, Grok)";
 export const WEBSITE_WARNING = "This uses browser control to type into the website and read the reply. The websites' terms do not allow automated use, and your account could be suspended. Use the official apps above when you can.";
-export const WEBSITE_LATER = "Website mode is coming in a later update.";
+export const WEBSITE_NOTE = "Website mode is on. If the apps cannot answer, Meldmind tries the website in its own window and asks you before it sends.";
 export const STATUS_LABEL = { ready: "Installed and signed in", signin: "Not signed in", missing: "Not installed" };
 export const DEFAULT_TIMEOUT_MS = 4 * 60 * 1000;
 const OUT_MAX = 400000;
@@ -188,7 +188,7 @@ export async function routesView({ refresh = false } = {}) {
   });
   return {
     routes: rows, website: s.website, chain: CHAIN, chainLine: CHAIN_LINE, appsNote: APPS_NOTE,
-    websiteLabel: WEBSITE_LABEL, websiteWarning: WEBSITE_WARNING, websiteLater: WEBSITE_LATER, hosted: HOSTED,
+    websiteLabel: WEBSITE_LABEL, websiteWarning: WEBSITE_WARNING, websiteNote: WEBSITE_NOTE, hosted: HOSTED,
   };
 }
 

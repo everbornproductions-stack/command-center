@@ -66,7 +66,8 @@ function rowHtml(provider, step) {
     : st?.connected && !st.needsSignIn
       ? `Allowed: ${scopes(st.scopes) || "nothing yet"}.${st.inbox?.granted ? "" : ` ${esc(n.inbox)} is a separate sign-in, only if you want it.`}`
       : `Opens ${n.company} in your normal browser. Meldmind asks only for: ${scopes(st?.first) || "calendar events, files Meldmind makes, and sending email"}. Every email still waits for your OK. Your password never reaches Meldmind.`;
-  const note = notes[provider] ? `<div class="si-note small"><div>${esc(notes[provider])}</div><div class="si-actions"><button type="button" class="btn sm" data-si-own="${provider}">${esc(n.own)}</button><span class="dim">Under Advanced. For developers.</span></div></div>` : "";
+  const testingLine = st?.testing && st.testingNote && !st.connected ? `<div class="si-note small">${esc(st.testingNote)}</div>` : "";
+  const note = testingLine + (notes[provider] ? `<div class="si-note small"><div>${esc(notes[provider])}</div><div class="si-actions"><button type="button" class="btn sm" data-si-own="${provider}">${esc(n.own)}</button><span class="dim">Under Advanced. For developers.</span></div></div>` : "");
   return `<div class="si-row" data-si-row="${provider}">
     <div class="si-head"><b>${esc(inboxOnly ? n.inbox : n.title)}</b>${chip}${inboxChip}</div>
     <div class="dim small" style="margin-top:4px">${asks}</div>

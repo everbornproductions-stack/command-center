@@ -56,7 +56,7 @@ When you come back, Home shows your recent chats and projects. Private mode keep
 
 Meldmind learns from every job you run. On-device learning is on by default and stays on this PC. Anonymous track records help it pick the best AI for everyone.
 
-Anonymous quality signals (I am willing to share anonymous track records) start on by default with an up-front notice on the welcome screen and in Settings, except in consent-first regions (such as the EU and the UK, chosen from the OS locale and region) where they start off and ask. Existing installs see the notice once and keep their current choice unless they never made one. You can change this any time in Settings. On Who's best, tick or clear I am willing to share anonymous track records.
+Anonymous quality signals (I am willing to share anonymous track records) start on by default with an up-front notice on the welcome screen and in Settings, except in consent-first regions (such as the EU and the UK, chosen from the OS locale and region) where they start off and ask. Existing installs see the notice once and keep their current choice unless they never made one. You can change this any time in Settings. On Who's best, tick or clear I am willing to share anonymous track records. For now these anonymous results are kept on this computer and are not sent anywhere.
 
 ## What we share
 
@@ -187,4 +187,4 @@ A new helper persona, Rin, tests how the menus and buttons feel. The Missions, C
 - In Simple, the answer shows right under the chat box. Under each answer you get Copy, Double-check and Test with personas; the rest is under More actions.
 - Prompt suggestions show only while you type, match what you are doing, and keep the words you typed.
 - Clearer menus: People is under Connect, and the two setups are now Find my AIs and Get everything connected. Typing boxes are easy to read everywhere.
-- Anonymous usage counts are off on new installs unless you turn them on. Settings shows what leaves this computer.
+- Anonymous usage counts follow the same rule as the welcome screen: on by default with a note, off and ask in the EU and the UK. Anonymous results (track records) are kept on this computer for now. Settings shows what leaves this computer.

@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskPrivate } from "./mask-private.js";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "compliance-rules");
 const CREDIT = /\b(credit repair|credit score|credit report|croa|furnisher|collection account|dispute|tradeline)\b/i;
@@ -76,8 +77,9 @@ export function summaryLine(result) {
 }
 
 // For places that already have the person's click: stop only on a hard block, with a plain message.
-export function assertOutgoingOk({ text = "", channel = "email", creditRepair } = {}) {
-  const g = checkOutgoing({ text, channel, consent: true, creditRepair });
+// Missing consent is a warning on the returned check (never a block), so callers can show it.
+export function assertOutgoingOk({ text = "", channel = "email", creditRepair, consent } = {}) {
+  const g = checkOutgoing({ text, channel, consent: consent === true, creditRepair });
   if (!g.ok) {
     const b = g.blocked[0];
     const e = new Error(`Not sent. ${b.plain} ${b.why}`);
@@ -88,15 +90,6 @@ export function assertOutgoingOk({ text = "", channel = "email", creditRepair } 
   return g;
 }
 
-// Hide Social Security and card numbers wherever Meldmind keeps a title or a history line.
-export function maskSensitive(s) {
-  return String(s ?? "")
-    .replace(/\b\d{3}-\d{2}-(\d{4})\b/g, "***-**-$1")
-    .replace(/\b(?:\d[ -]?){12,18}\d\b/g, (m) => {
-      const digits = m.replace(/\D/g, "");
-      if (digits.length < 13 || digits.length > 19) return m;
-      let sum = 0, alt = false;
-      for (let i = digits.length - 1; i >= 0; i--) { let n = +digits[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
-      return sum % 10 === 0 ? `**** **** **** ${digits.slice(-4)}` : m;
-    });
-}
+// Hide Social Security, card and account numbers wherever Meldmind shows or keeps a title, preview or history line.
+// The rules live in mask-private.js so every preview uses the same ones.
+export const maskSensitive = maskPrivate;

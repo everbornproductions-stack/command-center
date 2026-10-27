@@ -15,6 +15,7 @@
 import { PROVIDERS } from "./registry.js";
 import { networkCause, providerMessage } from "./health.js";
 import { localFetch } from "./loopback-fetch.js";
+import { interpretOpenRouter } from "./openrouter-balance.js";
 
 const DEV = process.env.CC_PACKAGED !== "1";
 const XAI_MGMT_DEFAULT = "https://management-api.x.ai";
@@ -67,11 +68,14 @@ async function openrouter(secret, o = {}) {
   const d = (await getJson("openrouter", `${base}/key`, h, o)).data || {};
   const out = { creditsUnit: "USD", free: !!d.is_free_tier };
   if (d.usage_monthly != null) out.mtd = r4(d.usage_monthly);
-  try {
-    const c = (await getJson("openrouter", `${base}/credits`, h, o)).data || {};
-    if (c.total_credits != null) { out.creditsTotal = r2(c.total_credits); out.creditsLeft = r2(Number(c.total_credits) - Number(c.total_usage || 0)); }
-  } catch (e) { if (e.network) throw e; out.note = "This key cannot read account credits (/credits); showing the key's own limit."; }
-  if (out.creditsLeft == null && d.limit_remaining != null) { out.creditsLeft = r2(d.limit_remaining); out.creditsTotal = d.limit != null ? r2(d.limit) : null; out.creditsScope = "key limit"; }
+  let credits = null;
+  try { credits = (await getJson("openrouter", `${base}/credits`, h, o)).data || null; }
+  catch (e) { if (e.network) throw e; out.note = "This key cannot read account credits (/credits); showing what OpenRouter says about the key."; }
+  // the key's own limit is not the account balance: an account that bought no credits has none left ("$50 left" was wrong)
+  const b = interpretOpenRouter(d, credits);
+  if (b.left != null) { out.creditsLeft = b.left; out.creditsTotal = b.total; }
+  if (b.scope === "key limit") out.creditsScope = "key limit";
+  if (b.noCredits) { out.noCredits = true; out.note = "No credits were bought on this OpenRouter account, so only free models work."; }
   return out;
 }
 

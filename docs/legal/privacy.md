@@ -10,7 +10,7 @@ The learning router on your computer (Level 1: on-device learning) is on by defa
 
 ## Shared learning
 
-Shared learning (Level 2: anonymous quality signals) is a separate choice. On the welcome screen and in Settings, Meldmind shows an up-front notice: **Helping Meldmind get smarter: anonymous results only, never your text**. It is on by default with that notice, except in consent-first regions (such as the EU and the UK, chosen from the OS locale and region) where it defaults off and asks. Existing installs see the notice once and keep their current choice unless they never made one.
+Shared learning (Level 2: anonymous quality signals) is a separate choice. On the welcome screen and in Settings, Meldmind shows an up-front notice: **Helping Meldmind get smarter: anonymous results only, never your text**. It is on by default with that notice, except in consent-first regions (such as the EU and the UK, chosen from the OS locale and region) where it defaults off and asks. Existing installs see the notice once and keep their current choice unless they never made one. For now these anonymous results are kept on this computer and are not sent anywhere.
 
 Meldmind learns from every job you run. Anonymous track records help it pick the best AI for everyone.
 

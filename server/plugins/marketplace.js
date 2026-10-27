@@ -22,7 +22,7 @@ export async function routes(req, res, url, body, h) {
   const seg = url.pathname.replace(/^\/api\/marketplace\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   const m = req.method;
   try {
-    if (m === "GET" && seg.length === 0) return h.json(res, 200, M.overview());
+    if (m === "GET" && seg.length === 0) { await M.refreshRemoteCatalog(); return h.json(res, 200, M.overview()); }
     if (m === "POST" && seg[0] === "listings" && seg.length === 1) {
       const pipeline = body?.pipelineId ? pipelineFrom(h, body.pipelineId) : null;
       return h.json(res, 200, M.createListing({ ...body, pipeline }));

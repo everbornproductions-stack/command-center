@@ -86,7 +86,7 @@ test("Simple chat: no maker and no practice mode gives a plain message with one 
     await send(t.page, "a woman on a beach");
     await t.page.waitForSelector("#simple-answer .mk-tile[data-state=error] .mk-fail", { timeout: WAIT });
     const r = await t.page.evaluate(() => ({ msg: document.querySelector(".mk-fail").textContent, buttons: [...document.querySelectorAll(".mk-tile[data-state=error] .mk-row button")].map((b) => b.textContent), imgs: document.querySelectorAll(".mk-img").length }));
-    assert.match(r.msg, /picture maker/i);
+    assert.match(r.msg, /picture maker|Add your fal\.ai key/i);
     assert.equal(r.buttons.length, 1, "one next button");
     assert.equal(r.imgs, 0);
     assert.equal((await t.api("/images")).json.items.length, 0, "nothing was made");

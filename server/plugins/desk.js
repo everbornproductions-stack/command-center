@@ -14,6 +14,8 @@ import {
   projectRemoval, readBackup, readersFor, repeatBody, secondReader, takeMembers, writerLine, writerOf,
 } from "../desk.js";
 
+import { runnableOnly } from "../runnable.js";
+
 export const id = "desk";
 
 const nameOf = (pid) => PROVIDERS[pid]?.name || pid || "AI";
@@ -34,10 +36,14 @@ function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
-  const ranked = rank({ ...cls, mode: priority });
+  const ranked = runnableOnly(rank({ ...cls, mode: priority })); // an AI that is paused or out of credits is not a reader
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
   const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
-  return { readers, names: readers.map((r) => r.name), planner: readers[0]?.name || "" };
+  // the planner is the AI the Mission planner will really pick (reasoning, hard), not just the first reader
+  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority }))[0] : null;
+  const planner = real ? nameOf(real.provider) : readers[0]?.name || "";
+  if (real && !readers.some((r) => r.id === real.provider)) readers.unshift({ id: real.provider, name: nameOf(real.provider) });
+  return { readers, names: readers.map((r) => r.name), planner };
 }
 
 // Tools that are already on, and services this prompt would actually reach. No MCP start, no search, no spend.

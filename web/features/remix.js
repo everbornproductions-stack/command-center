@@ -224,7 +224,8 @@ function shell(gate) {
           ${choice("remix-publish", "computer", "This computer", "The usual choice. Nothing is posted.", "checked")}
           ${choice("remix-publish", "vercel", "A website", "Uses your website token.")}
           ${choice("remix-publish", "itch", "itch.io", "Uses your itch.io token.")}
-          ${choice("remix-publish", "phone", "A phone app", `This is an Extreme choice.${extremeNote("publish-phone")}`, extreme("publish-phone"))}
+          ${choice("remix-publish", "phone", "A phone app (coming soon)", "Phone app stores are not built yet. Nothing can be published there.", "disabled")}
+          <div class="dim small" id="remix-token-help">A website: paste a Vercel token (make one at vercel.com/account/tokens). itch.io: paste your itch.io key (itch.io/user/settings/api-keys) and make a draft page there with the same name first.</div>
           <label class="lbl" for="remix-token">Token, if this place asks for one</label>
           <input id="remix-token" type="password" autocomplete="off" style="width:100%" placeholder="Stored with your keys. Not shown again.">
         </section>
@@ -398,14 +399,14 @@ async function publish(root) {
   const target = selected(root, "remix-publish") || "computer";
   const token = fieldValue(root, "#remix-token");
   try {
-    published = await api("/remix/publish", { method: "POST", body: { confirm: true, target, projectId: built?.projectId || "", token } });
+    published = await api("/remix/publish", { method: "POST", body: { confirm: true, target, projectId: built?.projectId || "", projectName: built?.projectName || "", token } });
     const tokenBox = root.querySelector("#remix-token");
     if (tokenBox) tokenBox.value = "";
     const box = root.querySelector("#remix-published");
-    if (box) box.innerHTML = `<p>${esc(published.message || "Nothing was posted.")}</p>`;
+    if (box) box.innerHTML = `<p>${esc(published.message || "Nothing was posted.")}</p>${published.sent && /^https:\/\//.test(published.url || "") ? `<p><a href="${esc(published.url)}" target="_blank" rel="noopener">Open ${esc(published.url)}</a></p>` : ""}`;
     await showMade(root, built?.projectId, built?.projectName);
     step = "published";
-    toast("Nothing was posted.");
+    toast(published.sent ? "Published." : "Nothing was posted.");
     return true;
   } catch (e) { toast(e.message, true); return false; }
 }

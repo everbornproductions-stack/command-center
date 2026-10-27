@@ -139,5 +139,19 @@ try {
   check((await free.api("/wskeys/w-any", { method: "POST", body: { provider: "openai", key: "sk-smoke-not-a-real-key-0000" } })).status === 402, "workspace keys gated (Studio)");
 } catch (e) { check(false, e.message); } finally { await free.stop(); }
 
+log("google sign-in secret in a packaged copy");
+try {
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const { prepareOAuthSecret } = await import("../scripts/inject-oauth-secret.mjs");
+  const { CLIENTS_FILE, shippedClient } = await import("../server/oauth-signin.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cc-smoke-oauth-"));
+  const file = path.join(dir, "oauth-clients.json");
+  fs.copyFileSync(CLIENTS_FILE, file);
+  const prep = prepareOAuthSecret({ file, env: { GOOGLE_OAUTH_CLIENT_SECRET: "smoke-not-a-real-secret" } });
+  check(!!JSON.parse(fs.readFileSync(file, "utf8")).google?.clientSecret && shippedClient("google", { env: {}, file }).ready, "packaged oauth-clients.json has a non-empty Google secret and one-click is ready");
+  prep.restore();
+  fs.rmSync(dir, { recursive: true, force: true });
+} catch (e) { check(false, e.message); }
+
 log(failures ? `${failures} check(s) FAILED` : "all smoke checks passed");
 process.exit(failures ? 1 : 0);

@@ -210,8 +210,8 @@ export function makeDraft(id, input) {
     return {
       ...base, channel: input.channel, message: campaignMessage(input), recipients: input.recipients,
       sendTime: input.sendTime, creditRepair: isCreditRepair(text),
-      // The permission box is a required tick at Publish, so consent is counted here.
-      compliance: checkOutgoing({ text, channel: input.channel, consent: true, sendTime: input.sendTime }),
+      // Missing consent shows as a warning on the draft until the permission box is ticked.
+      compliance: checkOutgoing({ text, channel: input.channel, consent: input.consent === true || input.checks?.tcpa === true, sendTime: input.sendTime }),
     };
   }
   if (id === "hl-workflows") {
