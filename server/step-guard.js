@@ -210,3 +210,21 @@ export function namedFile(goal) {
 export function stripSaveClaims(text) {
   return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file saved|saved to|saved in|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+// 0.4.21 (dogfood 08): a step must not run on an earlier step that failed or came back empty. Running it on
+// "(missing)" made the last step redo the earlier work and bill it twice. Returns the earlier steps that are
+// missing (title and id). A step still waiting on an agent or on a media OK is not missing: its result comes later.
+export function missingInputs(t, tasks = [], outputs = {}) {
+  const out = [];
+  for (const d of (t && Array.isArray(t.deps) ? t.deps : [])) {
+    const dep = (tasks || []).find((x) => x && x.id === d);
+    if (!dep || dep.status === "waiting" || dep.media) continue;
+    const text = outputs[d] ?? dep.output;
+    if (dep.status === "failed" || !String(text || "").trim()) out.push({ id: dep.id, title: dep.title || dep.id });
+  }
+  return out;
+}
+export function inputMissingLine(missing = []) {
+  const names = missing.map((m) => `"${m.title}"`).join(" and ");
+  return `Input missing: ${names} did not come back, so this step was not run and nothing was charged for it. Press Try again to run ${missing.length > 1 ? "those steps" : "that step"} first.`;
+}
