@@ -121,16 +121,27 @@ The three secrets go only to the build step. The next tagged release then prints
 The Google and Microsoft sign-in app ids are public and are in `server/oauth-clients.json`. Microsoft needs no secret. Google's desktop sign-in app also needs its client secret when Meldmind trades the sign-in code for a token. That secret is never committed.
 
 - Add the repository secret `GOOGLE_OAUTH_CLIENT_SECRET` at https://github.com/everbornproductions-stack/command-center/settings/secrets/actions. The value is the client secret of the Google Cloud OAuth client "Meldmind" (Desktop app).
-- The release workflow gives it only to the Windows build step (the Mac build is gated off until 0.7.0, so its job is unchanged). `npm run dist` writes it into `server/oauth-clients.json` for the build (`scripts/inject-oauth-secret.mjs`, called by `scripts/inject-cloud-key.mjs`) and put the file back when the build ends. The value is never printed.
+- The release workflow gives it only to the Windows build step (the Mac build is off unless someone turns it on, see "Mac policy" below, so its job is unchanged). `npm run dist` writes it into `server/oauth-clients.json` for the build (`scripts/inject-oauth-secret.mjs`, called by `scripts/inject-cloud-key.mjs`) and put the file back when the build ends. The value is never printed.
 - Without it the build still finishes and prints one line saying the secret is not set. Sign in with Google then shows "coming soon" and the Advanced own-client path. Sign in with Microsoft still works.
 - For a local run, set `CC_GOOGLE_CLIENT_SECRET` in that shell only. Do not put it in a file.
 
-`.github/workflows/mac-ci.yml` runs when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
+`.github/workflows/mac-ci.yml` runs only when `BUILD_MAC` is `true` or you start it by hand with `build_mac` ticked. It does not run on a pull request or on a push to `main`. It runs `npm ci`, `npm test`, and `npm run smoke` on a Mac runner. A new run cancels the older run of that ref. It does not build a disk image, does not publish, and does not read a secret. The unsigned installer workflow stays parked at `docs/ci/mac-build.yml`.
+
+## Mac policy (Chris, 2026-10-24)
+
+Windows ships every release. Mac builds only in a quiet slot (a release with only small fixes, or 3 days with no release). It also builds at least once per major version and once a month, and only when someone turns it on for a chosen tag. This replaces the earlier pause until 0.7.0.
+
+- Manual run, Windows only (no Mac job):
+  `gh workflow run release-windows.yml --ref vX.Y.Z`
+- Manual run, Windows and Mac:
+  `gh workflow run release-windows.yml --ref vX.Y.Z -f build_mac=true`
+- In the Actions page, "Run workflow" shows the checkbox "Also build the unsigned Mac dmg/zip". It is off by default.
+- A tag push builds Mac only when the repository variable `BUILD_MAC` is `true`. Leave it unset otherwise.
 
 ## Mac (unsigned for now)
 
-- The Windows release workflow (`.github/workflows/release-windows.yml`) has a `mac-release` job. A `vX.Y.Z` tag, or Run workflow, builds an unsigned `Meldmind-<version>-<arch>.dmg` and `.zip` (x64 and arm64) with electron-builder. There is no Apple signing.
-- `.github/workflows/mac-ci.yml` runs `npm test` and `npm run smoke` on macOS when you push a tag `vX.Y.Z` or start it by hand. It does not run on a pull request or on a push to `main`. It does not build a disk image.
+- The Windows release workflow (`.github/workflows/release-windows.yml`) has a `mac-release` job. It runs only when the repository variable `BUILD_MAC` is `true`, or when you start the workflow by hand with `build_mac` ticked. It then builds an unsigned `Meldmind-<version>-<arch>.dmg` and `.zip` (x64 and arm64) with electron-builder. There is no Apple signing.
+- `.github/workflows/mac-ci.yml` runs `npm test` and `npm run smoke` on macOS only when `BUILD_MAC` is `true` or you start it by hand with `build_mac` ticked. It does not run on a pull request or on a push to `main`. It does not build a disk image.
 - One-time setup: add the repo secret `RELEASES_TOKEN` (Settings > Secrets and variables > Actions) holding a fine-grained token with Contents read and write on `command-center-releases` only. Without it, the files are still downloadable from the workflow run's artifacts.
 - The Mac job runs `npm test`, `npm run smoke` and `npm run dist:mac`. It never publishes: if the release `vX.Y.Z` does not exist yet, it creates it as a **draft** with the Mac files, and the Windows job adds the installer and publishes it as usual. If the Windows release is already published, the Mac files and `latest-mac.yml` are added to it. The Mac job does not upload `latest.yml`.
 - Mac app data lives in `~/Library/Application Support/Everborn Command` (same folder name as Windows, kept across updates). Keys are sealed with the macOS Keychain through the desktop app.

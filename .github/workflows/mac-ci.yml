@@ -1,4 +1,6 @@
-# Mac tests on a release tag or when someone starts the workflow by hand.
+# Mac tests. Per Chris's 2026-10-24 policy this runs only when someone turns it on for a chosen tag:
+# the BUILD_MAC variable is "true", or a manual run has build_mac ticked. A plain tag push or a
+# manual run without build_mac does not start it.
 # A pull request and a push to main do not start this job.
 # This does not build a disk image, does not publish, and does not read a secret.
 # The unsigned Mac installer stays in docs/ci/mac-build.yml until that workflow can be moved.
@@ -6,6 +8,11 @@ name: Mac CI
 
 on:
   workflow_dispatch:
+    inputs:
+      build_mac:
+        description: "Also build the unsigned Mac dmg/zip"
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -18,9 +25,12 @@ concurrency:
 
 jobs:
   test:
-    # Mac builds are paused to save GitHub minutes until version 0.7.0 (Chris, 2026-10-22). They
-    # run only when the repository variable BUILD_MAC is "true" or when someone starts this by hand.
-    if: ${{ vars.BUILD_MAC == 'true' || github.event_name == 'workflow_dispatch' }}
+    # Mac policy (Chris, 2026-10-24): Windows ships every release. Mac builds only in a quiet slot
+    # (a release with only small fixes, or 3 days with no release). It also builds at least once per
+    # major version and once a month, and only when someone turns it on for a chosen tag:
+    # set the repository variable BUILD_MAC to "true", or start this workflow by hand with build_mac ticked.
+    # A manual run without build_mac skips this job.
+    if: ${{ vars.BUILD_MAC == 'true' || (github.event_name == 'workflow_dispatch' && inputs.build_mac == true) }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

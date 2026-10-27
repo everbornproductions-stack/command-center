@@ -23,6 +23,11 @@ name: Windows release
 
 on:
   workflow_dispatch:
+    inputs:
+      build_mac:
+        description: "Also build the unsigned Mac dmg/zip"
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -200,12 +205,16 @@ jobs:
           done
           echo "Published ${TAG} to ${R} with the installer, blockmap, and latest.yml."
 
+  # Optional. Windows ships every release; this Mac job does not run unless it is turned on (see below).
   # Unsigned Mac disk image and zip. No Apple signing. A missing release stays a draft
   # so a Mac-only upload cannot replace latest.yml. Automatic updates for Mac are coming soon.
   mac-release:
-    # Mac builds are paused to save GitHub minutes until version 0.7.0 (Chris, 2026-10-22). They
-    # run only when the repository variable BUILD_MAC is "true" or when someone starts this by hand.
-    if: ${{ vars.BUILD_MAC == 'true' || github.event_name == 'workflow_dispatch' }}
+    # Mac policy (Chris, 2026-10-24): Windows ships every release. Mac builds only in a quiet slot
+    # (a release with only small fixes, or 3 days with no release). It also builds at least once per
+    # major version and once a month, and only when someone turns it on for a chosen tag:
+    # set the repository variable BUILD_MAC to "true", or start this workflow by hand with build_mac ticked.
+    # A manual run builds Windows only unless build_mac is ticked.
+    if: ${{ vars.BUILD_MAC == 'true' || (github.event_name == 'workflow_dispatch' && inputs.build_mac == true) }}
     runs-on: macos-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
