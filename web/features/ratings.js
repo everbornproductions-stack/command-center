@@ -10,7 +10,7 @@ function contributors(run) {
     if (run.council.verdict?.model) out.push({ provider: run.council.verdict.provider, model: run.council.verdict.model, label: `${pname(run.council.verdict.provider)} (verdict)` });
   } else if (run.kind === "mission" && run.mission) {
     for (const t of run.mission.tasks || []) {
-      if (!(t.output || t.status === "done" || t.status === "failed") || !t.model) continue;
+      if (!(t.output || t.status === "done" || t.status === "failed") || !t.model || (t.status !== "failed" && !!t.notDone)) continue; // a step that said it could not do the job is not rated as good work
       const kind = t.media?.kind ? `media/${t.media.kind}` : null;
       out.push({ provider: t.provider, model: t.model, stepId: t.id, stepKind: kind, label: `${pname(t.provider)} · ${t.title}${kind ? ` (${kind.replace("media/", "")})` : ""}`, capability: kind ? "media" : t.capability });
       if (t.review?.model && !t.review.unchecked) out.push({ provider: t.review.provider, model: t.review.model, stepId: `${t.id}:qa`, label: `${pname(t.review.provider)} · checked "${t.title}"`, capability: "analysis" });

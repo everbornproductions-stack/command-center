@@ -75,7 +75,7 @@ test("media: a demo mission's media step is a dry run with a placeholder saved t
     assert.equal(m.status, "done-with-errors", m.error);
     assert.equal(m.banner?.kind, "dry-run");
     assert.match(m.banner.text, /placeholder, nothing was generated/);
-    assert.match(m.banner.text, /Video needs a video AI key/);
+    assert.match(m.banner.text, /Kling key|video AI key/); // setup line from M's media switch
     const t = m.tasks.find((x) => x.capability === "media");
     assert.ok(t, "the plan has a media step");
     assert.equal(t.status, "done");
