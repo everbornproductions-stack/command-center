@@ -468,12 +468,26 @@ const pendingPause = new Set();
 const scheduledOf = () => ctx().scheduled; // per user: id -> { timer, mission, opts }
 const saveDoc = (m) => ctx().store.saveMission(m, missionSummary(m));
 
+export const ONE_AI_LABEL = "Get a one-AI answer";
+// "This try cost $0.03 for planning." (or "... before it stopped."), so a failed run never hides a charge
+export function costLine(spent, mission = {}) {
+  const usd = Number(spent) || 0;
+  const amount = usd >= 0.01 ? usd.toFixed(2) : usd.toFixed(4);
+  const planningOnly = !(mission.tasks || []).some((t) => (Number(t.cost) || 0) > 0);
+  return `This try cost $${amount}${planningOnly ? " for planning" : " before it stopped"}. You can try again or get a one-AI answer.`;
+}
 class MissionPause extends Error {
   constructor() {
     super("Mission paused");
     this.name = "MissionPause";
     this.code = "paused";
   }
+}
+// 0.4.21 (dogfood 15): only the person's own Pause pauses a mission. An AI that is paused for no credits throws
+// code "paused" too (server/fallback.js), but with a kind (credits, rate); that is a failed call, never a paused
+// mission. Before this, a mission where every AI was out of credits sat at "paused" with nothing to resume.
+export function isMissionPause(err) {
+  return err instanceof MissionPause || (err?.code === "paused" && !err.kind && err.status !== 402);
 }
 function shouldPause(mission) {
   if (mission && pendingPause.has(mission.id)) {
@@ -992,7 +1006,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
         }
       } catch (err) {
-        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        if (isMissionPause(err)) throw err;
         throwIfPause(mission, ctl, t);
         t.status = "failed"; t.error = err.message;
         if (!ctl.signal.aborted) observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: false });
@@ -1116,7 +1130,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (out.ok) { t.status = "done"; t.error = null; t.saved = { link: out.link, where: out.where, id: out.saved?.id || null }; }
         else { t.status = "failed"; t.error = out.error || out.text; }
       } catch (err) {
-        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        if (isMissionPause(err)) throw err;
         throwIfPause(mission, ctl, t);
         t.status = "failed"; t.error = `Not saved to MindMedia: ${plainMessage(err)}`; t.output = t.error;
       }
@@ -1158,7 +1172,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (t.output) outputs[t.id] = t.output;
         if (t.cost) spend({ cost: t.cost });
       } catch (err) {
-        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        if (isMissionPause(err)) throw err;
         throwIfPause(mission, ctl, t);
         t.status = "failed"; t.error = err.message;
       }
@@ -1261,7 +1275,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       let text = String(t.output || "");
       let verdict = judgeOf(t, text, stop);
       if (verdict.kind === "truncated") {
-        try { text = await continueOutput(t, text, { system, messages }); } catch (err) { if (err instanceof MissionPause || err?.code === "paused") throw err; throwIfPause(mission, ctl, t); }
+        try { text = await continueOutput(t, text, { system, messages }); } catch (err) { if (isMissionPause(err)) throw err; throwIfPause(mission, ctl, t); }
         verdict = judgeOf(t, text, null);
       }
       const tried = new Set([t.provider]);
@@ -1282,7 +1296,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           verdict = judgeOf(t, text, r.stop);
           if (verdict.kind === "truncated") { text = await continueOutput(t, text, { system, messages }); verdict = judgeOf(t, text, null); }
         } catch (err) {
-          if (err instanceof MissionPause || err?.code === "paused") throw err;
+          if (isMissionPause(err)) throw err;
           throwIfPause(mission, ctl, t);
           verdict = { ok: false, kind: "error", reason: String(err.message || err).slice(0, 140) };
         }
@@ -1341,7 +1355,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: "unreadable check" });
         return { unreadable: true, provider: reviewer.provider, model: reviewer.model };
       } catch (err) {
-        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        if (isMissionPause(err)) throw err;
         if (ctl.signal.aborted) throw err;
         const slow = to.signal.aborted && to.signal.reason === "qa-timeout";
         noteCall(reviewer.provider, false, Date.now() - s3, err);
@@ -1489,7 +1503,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           outputs[t.id] = text;
           t.status = qa ? "review" : "done";
         } catch (err) {
-          if (err instanceof MissionPause || err?.code === "paused") throw err;
+          if (isMissionPause(err)) throw err;
           throwIfPause(mission, ctl, t);
           noteCall(t.provider, false, Date.now() - s, err);
           emit("agent.error", { agent, provider: t.provider, model: t.model, missionId: id, taskId: t.id, error: err.message });
@@ -1553,13 +1567,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
                   if (second) t.review = { provider: second.provider, model: second.model, pass: second.pass === true, score: second.score ?? null, issues: second.issues || [], fix: second.fix || null, unchecked: !!second.unchecked, tries: second.tries || [], firstScore: first.score ?? null };
                 } else log(`The revision of "${t.title}" was not usable (${vr.reason}); keeping the first draft.`);
               } catch (err3) {
-                if (err3 instanceof MissionPause || err3?.code === "paused") throw err3;
+                if (isMissionPause(err3)) throw err3;
                 throwIfPause(mission, ctl, t);
                 noteCall(t.provider, false, Date.now() - s4, err3);
               }
             }
           } catch (err) {
-            if (err instanceof MissionPause || err?.code === "paused") throw err;
+            if (isMissionPause(err)) throw err;
             throwIfPause(mission, ctl, t);
           }
           // a check that failed after its retry never counts as a pass
@@ -1577,7 +1591,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("task.update", { missionId: id, task: pubTask(t) });
         update();
       }));
-      if (shouldPause(mission) || settled.some((r) => r.status === "rejected" && (r.reason instanceof MissionPause || r.reason?.code === "paused"))) {
+      if (shouldPause(mission) || settled.some((r) => r.status === "rejected" && (isMissionPause(r.reason)))) {
         armPause(mission, ctl);
         throw new MissionPause();
       }
@@ -1612,7 +1626,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.status = mission.tasks.some((t) => t.status === "failed" || (stepIsNotDone(t) && !mission.savedPdf?.ok)) || mission.limitReached || (mission.savedPdf && !mission.savedPdf.ok) || mission.incomplete || mission.banner ? "done-with-errors" : "done";
     try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {
-    if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
+    if (isMissionPause(err) || mission.pauseRequested) {
       mission.status = "paused";
       mission.pausedAt = Date.now();
       mission.error = null;
@@ -1621,6 +1635,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     } else {
       mission.status = ctl.signal.aborted ? "aborted" : "failed";
       mission.error = plainMessage(err); // never a raw program error
+      // 0.4.21 (dogfood 15): a failed try says what it cost, and offers a one-AI answer instead of a raw error
+      if (mission.status === "failed") {
+        const spent = Number(mission.cost) || 0;
+        if (spent > 0 && !/This try cost/.test(mission.error)) mission.error = `${mission.error} ${costLine(spent, mission)}`;
+        mission.retry = { oneAI: true, cost: spent, label: ONE_AI_LABEL };
+      }
       log(`Mission ${mission.status}: ${mission.error}`);
     }
   } finally {
@@ -1690,7 +1710,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       mission.assemblerStop = asmStop;
       mission.deliverable = text;
     } catch (err) {
-      if (err instanceof MissionPause || err?.code === "paused") throw err;
+      if (isMissionPause(err)) throw err;
       throwIfPause(mission, ctl);
       noteCall(asm.provider, false, Date.now() - s5, err);
       if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: asm.provider, model: asm.model, capability: "writing", difficulty: 3, runId: id, ok: false });
@@ -1756,7 +1776,7 @@ function pubTask(t) {
   return { notSaved: t.notSaved || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
+  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {

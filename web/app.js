@@ -442,8 +442,17 @@ function noteRunJob(entry) {
 function isQuiet(id) {
   return !!(id && S.backgroundQuiet?.has(id) && S.live?.id !== id);
 }
+// 0.4.21 (dogfood 15): when a new run starts, the last run's "Mission done in 383s, $0.1471" line leaves the live
+// feed, so it is never read as this run's result.
+const FINISH_LINE = /^Mission (?:done|done-with-errors|failed|aborted|paused) in \d+s/;
+function dropOldFinishLines(id) {
+  const before = S.feed.length;
+  S.feed = S.feed.filter((e) => !(e.type === "log" && e.missionId && e.missionId !== id && FINISH_LINE.test(String(e.text || ""))));
+  if (S.feed.length !== before && $("#feed-list")) renderFeed();
+}
 function ensureLive(id, kind) {
   if (isQuiet(id)) return;
+  if (S.live.id !== id && id) dropOldFinishLines(id);
   if (S.live.id !== id) { S.live = newLive(); S.live.id = id; S.live.kind = kind || (id?.startsWith("c-") ? "council" : id?.startsWith("m-") ? "mission" : id?.startsWith("r-") ? "research" : "single"); runJobs = {}; graph?.resetAll(); S.activeByProvider = {}; if (S.view === "command") renderOps(); }
 }
 function onAgentStart(ev) {
@@ -545,7 +554,7 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "" };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "", oneAI: !!m.retry?.oneAI };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
@@ -1861,7 +1870,8 @@ function paintFailure() {
     return;
   }
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other });
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other, oneAI: !!S.simpleFail.oneAI });
+  $("#cc-fail-oneai")?.addEventListener("click", () => { S.pendingAvoid = ""; S.forceSingleOnce = true; sendOrders(); });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
   wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
   $("#cc-fail-other")?.addEventListener("click", () => { S.pendingAvoid = S.simpleFail?.provider || ""; sendOrders(); });
@@ -2017,8 +2027,10 @@ async function sendOrders() {
   // 0.4.21: Auto team is the default in Simple and Expert. It sends like Single unless the send check says the job
   // needs a Mission or a Council. A person who picked a mode keeps it.
   const picked = simple ? (S.simpleRunMode || "auto") : (S.cmdMode || "auto");
-  const autoPick = picked === "auto";
-  let mode = autoPick ? "single" : picked; const costMode = S.costMode || S.settings.defaultMode;
+  // "Get a one-AI answer" after a failed Mission (0.4.21, dogfood 15): this one send runs as Single
+  const oneAI = !!S.forceSingleOnce; S.forceSingleOnce = false;
+  const autoPick = picked === "auto" && !oneAI;
+  let mode = oneAI ? "single" : autoPick ? "single" : picked; const costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
