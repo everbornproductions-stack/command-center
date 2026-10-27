@@ -50,6 +50,7 @@ export const PROVIDERS = {
     models: [
       M("gemini-4-argon", "Gemini 4 Argon", "flagship", 2, 10, { reasoning: 94, code: 92, writing: 91, research: 92, creative: 90, analysis: 94, math: 94, fast: 55 }, { default: true }),
       M("gemini-3.8-flash", "Gemini 3.8 Flash", "balanced", 0.75, 3.75, { reasoning: 86, code: 86, writing: 86, research: 86, creative: 84, analysis: 87, math: 88, fast: 88 }),
+      M("gemini-3.6-flash", "Gemini 3.6 Flash", "balanced", 0.6, 3, { reasoning: 84, code: 84, writing: 85, research: 84, creative: 83, analysis: 85, math: 86, fast: 90 }),
       M("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "economy", 0.25, 1.5, { reasoning: 74, code: 76, writing: 78, research: 76, creative: 74, analysis: 76, math: 78, fast: 97 }),
     ],
   },

@@ -52,7 +52,7 @@ export function nothingCameBack(failures = []) {
 // Free tiers the app knows about (list limits on 2026-10-18, deliberately conservative; editable in
 // Settings > Smart fallback). "on" means the person says their key is on that tier.
 export const FREE_TIERS = {
-  google: { name: "Google AI Studio free tier", models: ["gemini-3.8-flash", "gemini-3.5-flash-lite"], perDay: 250, perMinute: 10, defaultOn: true, note: "Flash models with an AI Studio key and no card. Untick if your key has billing on, so the ledger counts those calls." },
+  google: { name: "Google AI Studio free tier", models: ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash"], perDay: 250, perMinute: 10, defaultOn: true, note: "Flash models with an AI Studio key and no card. Untick if your key has billing on, so the ledger counts those calls." },
   openrouter: { name: "OpenRouter free route", models: ["openrouter/free"], perDay: 50, perMinute: 20, defaultOn: true, note: "openrouter/free picks the best free model; the daily count is small without credits on the account." },
   groq: { name: "Groq free tier", models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b"], perDay: 1000, perMinute: 30, defaultOn: true, note: "Groq keys start on a free tier with rate limits. On by default so Groq is used as a free helper; untick it if your Groq account has a card on it." },
 };

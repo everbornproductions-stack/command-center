@@ -174,7 +174,7 @@ function probeModel(p, listJson) {
 }
 // Free routes a probe may use when an AI has no balance to read. A probe here can not cost money: it only
 // names a model that is free (kept in step with FREE_TIERS in fallback.js by a test).
-export const FREE_PROBE = { openrouter: "openrouter/free", google: "gemini-3.8-flash", groq: "openai/gpt-oss-20b" };
+export const FREE_PROBE = { openrouter: "openrouter/free", google: "gemini-3.5-flash-lite", groq: "openai/gpt-oss-20b" };
 // { ok } when a one-word answer came back, { refused, status, json, text } when the provider said no
 // (key, credits, rate limit), and { inconclusive } for anything else (no model, network, a mock without chat).
 export async function probeCompletion(p, listJson, { free = false, maxTokens = 16 } = {}) {
