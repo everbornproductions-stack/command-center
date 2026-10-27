@@ -1,0 +1,16 @@
+{
+  "about": "Small bundled list of well known weak versions. Each row: below = first fixed version. An online lookup (OSV) can be added later in server/safety-check.js through osvFetch; it is off by default.",
+  "updated": "2026-10-26",
+  "advisories": [
+    { "id": "undici-dos-8.10.2", "ecosystem": "npm", "name": "undici", "below": "8.10.2", "severity": "medium", "title": "undici can be stalled by a crafted reply (DoS)", "tldr": "A web request library in your project can loop forever on a crafted Set-Cookie reply, which freezes the program. Update undici to 8.10.2 or newer." },
+    { "id": "lodash-4.17.21", "ecosystem": "npm", "name": "lodash", "below": "4.17.21", "severity": "medium", "title": "lodash old version (prototype pollution, command injection)", "tldr": "An old lodash lets crafted input change how your program behaves. Update lodash to 4.17.21 or newer." },
+    { "id": "minimist-1.2.6", "ecosystem": "npm", "name": "minimist", "below": "1.2.6", "severity": "medium", "title": "minimist old version (prototype pollution)", "tldr": "An old minimist can be tricked by crafted input. Update minimist to 1.2.6 or newer." },
+    { "id": "node-fetch-2.6.7", "ecosystem": "npm", "name": "node-fetch", "below": "2.6.7", "severity": "medium", "title": "node-fetch old version (leaks private headers on redirect)", "tldr": "An old node-fetch can send private headers to another site on a redirect. Update node-fetch to 2.6.7 or newer." },
+    { "id": "axios-1.6.0", "ecosystem": "npm", "name": "axios", "below": "1.6.0", "severity": "medium", "title": "axios old version (may leak a security token)", "tldr": "An old axios can send a private token to the wrong place. Update axios to 1.6.0 or newer." },
+    { "id": "express-4.19.2", "ecosystem": "npm", "name": "express", "below": "4.19.2", "severity": "low", "title": "express old version (open redirect)", "tldr": "An old express can be tricked into sending visitors to another site. Update express to 4.19.2 or newer." },
+    { "id": "jsonwebtoken-9.0.0", "ecosystem": "npm", "name": "jsonwebtoken", "below": "9.0.0", "severity": "medium", "title": "jsonwebtoken old version (weak sign-in token checks)", "tldr": "An old jsonwebtoken can accept sign-in tokens it should refuse. Update jsonwebtoken to 9.0.0 or newer." },
+    { "id": "ejs-3.1.7", "ecosystem": "npm", "name": "ejs", "below": "3.1.7", "severity": "high", "title": "ejs old version (can run attacker code)", "tldr": "An old ejs can be made to run code from crafted input. Update ejs to 3.1.7 or newer." },
+    { "id": "requests-2.31.0", "ecosystem": "pypi", "name": "requests", "below": "2.31.0", "severity": "medium", "title": "requests old version (leaks proxy login)", "tldr": "An old requests can leak a proxy login to the wrong site. Update requests to 2.31.0 or newer." },
+    { "id": "pyyaml-5.4", "ecosystem": "pypi", "name": "pyyaml", "below": "5.4", "severity": "high", "title": "PyYAML old version (can run attacker code)", "tldr": "An old PyYAML can run code from a crafted file. Update PyYAML to 5.4 or newer." }
+  ]
+}

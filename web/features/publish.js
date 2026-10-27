@@ -28,7 +28,7 @@ async function openPreview(el, channel, run) {
     ${channel === "ghl" ? `<label class="lbl">Accounts</label><div>${accounts.length ? accounts.map((a) => `<label class="row small" style="gap:6px"><input type="checkbox" data-acc="${esc(a.id)}" checked> ${esc(a.name)} <span class="dim">${esc(a.platform || "")}</span></label>`).join("") : `<span class="dim small">No connected accounts found (or HighLevel is not connected yet).</span>`}</div><label class="lbl">When (blank = now)</label><input type="datetime-local" id="pb-when">` : ""}
     ${channel === "slack" ? `<label class="lbl">Channel</label>${rooms.length ? `<select id="pb-room">${rooms.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}">#${esc(c.name)}${c.member ? "" : " (invite the app first)"}</option>`).join("")}</select>` : `<span class="dim small">No channels found (or Slack is not connected yet).</span>`}` : ""}
     <div class="row" style="margin-top:10px"><button class="btn sm" id="pb-prev">Preview</button>${channel === "drive" ? "" : `<button class="btn sm" id="pb-personas" title="See how real people would react to this post, then fix it in one click">Test with personas</button>`}<span class="small" id="pb-out">Preview first. The confirm button ${VERB[channel]}s exactly what the preview shows.</span><button class="btn sm primary" id="pb-go" style="margin-left:auto" disabled title="Preview first">Confirm &amp; ${VERB[channel]}</button></div></div>`;
-  let previewId = null;
+  let previewId = null, live = false;
   const go = box.querySelector("#pb-go"), out = box.querySelector("#pb-out");
   const room = () => box.querySelector("#pb-room");
   const payload = () => ({ channel, title: box.querySelector("#pb-title")?.value || title, text: box.querySelector("#pb-text")?.value ?? text, mediaUrl: box.querySelector("#pb-media")?.value.trim() || undefined, mediaType: /\.(mp4|mov|webm)(\?|$)/i.test(box.querySelector("#pb-media")?.value || "") ? "video" : "image", mediaJobId: box.querySelector("#pb-job")?.value || undefined, when: box.querySelector("#pb-when")?.value ? new Date(box.querySelector("#pb-when").value).getTime() : null, accountIds: [...box.querySelectorAll("[data-acc]:checked")].map((c) => c.dataset.acc), channelId: room()?.value || undefined, channelName: room()?.selectedOptions[0]?.dataset.name || undefined, projectId: run.mission?.projectId || run.council?.projectId || S.project || null, missionId: run.id });
@@ -44,15 +44,16 @@ async function openPreview(el, channel, run) {
   box.querySelector("#pb-prev").addEventListener("click", async () => {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });
-      previewId = r.previewId;
+      previewId = r.previewId; live = !!r.safety?.hasLive; go.textContent = live ? "Publish anyway" : go.textContent.replace(/^Publish anyway$/, "Confirm & " + VERB[channel]);
       out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
+      if (r.safety) out.insertAdjacentHTML("beforeend", window.CC.safety?.previewLine?.(r.safety) || "");
       go.disabled = r.problems.length > 0 && !r.dryRun; go.title = go.disabled ? "Fix the problems above, then preview again" : "";
     } catch (e) { previewId = null; go.disabled = true; toast(e.message, true); }
   });
   go.addEventListener("click", async () => {
     if (!previewId) return toast("Preview first", true);
     go.disabled = true;
-    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent (not connected)." : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
+    try { const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true, publishAnyway: live || undefined } }); toast(r.status === "posted" ? `Done: ${r.result?.url || "sent"}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent (not connected)." : `Failed: ${r.error}`, r.status === "failed"); box.innerHTML = ""; }
     catch (e) { previewId = null; toast(e.message, true); out.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   });
 }

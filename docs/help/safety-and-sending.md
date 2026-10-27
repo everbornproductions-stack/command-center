@@ -18,3 +18,15 @@ Test my budget (next to your monthly cap in Settings) is a practice check. It sa
 Check my connections (Settings, Publishing) lists each place you are signed in to and any permission it is missing, with the one button that fixes it.
 
 When something stops, a small label says whose limit it is: your limit, their credit, busy, or your key.
+
+## Safety check for what you built
+
+Before you publish or download a website, app, game mod or script that you made with Meldmind, it runs a Safety check. It runs on your computer, it is free, and no code leaves your PC.
+
+It shows a traffic light. Green means all clear. Amber means a few things are worth a look, and you can still publish. Red means a live secret, like a real key or password, is written in your files. Then Publish asks you to press Publish anyway, so it is never a surprise.
+
+Many alike hits are shown as one issue with a short TL;DR. Keys that sit in test files are marked low, and made-up example keys are left out with the reason shown. A key is only ever shown as its first 3 characters and ****. For code patterns the exact line is shown, and it may be a false alarm.
+
+Press Fix it to patch what can be patched safely, such as moving a key into a setting and adding a Content-Security-Policy tag. Meldmind then scans again and tells you how many are left. If a key was ever shared or published, change it at its website, because it may already be seen.
+
+Turn it off in Settings, Safety check before publish. It is on by default.

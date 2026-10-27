@@ -47,6 +47,7 @@ export const FEATURES = [
   { id: "news-rail", shell: true },
   { id: "mindmedia-save", shell: true },
   { id: "result-hero", shell: true },
+  { id: "safety", shell: true },
   { id: "make-chat", shell: true },
   { id: "finish-drawer", shell: true },
   { id: "dock", shell: true },

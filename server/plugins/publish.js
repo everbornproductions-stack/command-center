@@ -33,6 +33,7 @@ import { recordSend, sendLog } from "../send-log.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
 import { flagOn } from "../flags.js";
 import { checkCalendarApproval, recordCalendarResult } from "../publish/plus.js";
+import { gateForPost } from "./safety.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -156,9 +157,10 @@ export async function routes(req, res, url, body, h) {
     const pv = previewOf(h, pl, media);
     const ready = readyFor(h, pl.channel);
     const previewId = "pv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, createdAt: Date.now() });
+    const safety = gateForPost(h, { title: pl.title, text: pl.text, projectId: pl.projectId }); // Safety check light: red needs "Publish anyway"
+    previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, safety, createdAt: Date.now() });
     const mediaOut = media && !media.error ? { jobId: media.jobId, assetId: media.assetId, kind: media.kind, url: pl.mediaUrl, files: pl.files.length } : null;
-    return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut });
+    return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut, safety });
   }
   if (req.method === "POST" && p === "/post") {
     if (!CH[body.channel] && body.channel !== undefined) return h.json(res, 400, { error: "unknown channel" });
@@ -173,6 +175,7 @@ export async function routes(req, res, url, body, h) {
     const pv = previews.get(String(body.previewId || ""));
     if (!pv || pv.userId !== userOf(h)) return h.json(res, 409, { error: "Preview first (or the preview expired); nothing was sent", code: "preview_required" });
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
+    if (pv.safety?.hasLive && body.publishAnyway !== true) return h.json(res, 409, { error: "The Safety check found a live secret. Fix it, or press Publish anyway.", code: "safety_red", safety: pv.safety });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.
