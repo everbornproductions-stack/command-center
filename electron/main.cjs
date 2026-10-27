@@ -278,7 +278,7 @@ function createWindow() {
   win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); showOffline(`the window could not load the engine (${desc})`); } });
   // external links open in the system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { shell.openExternal(url); return { action: "deny" }; } return { action: "allow" }; });
-  win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { e.preventDefault(); shell.openExternal(url); } });
+  win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(`http://127.0.0.1:${PORT}`) && !url.startsWith(`http://localhost:${PORT}`)) { e.preventDefault(); if (/^(https?|mailto):/i.test(url)) shell.openExternal(url); } }); // 0.4.22 Aikido review: only web and mail links leave the app (never file: or other schemes)
   // The page loads the engine port, never the pretend-AI port. Menus remeasure on resize, move, and display changes.
   const { createNavDisplayWatch } = require("./nav-display.cjs");
   const stopNav = createNavDisplayWatch({

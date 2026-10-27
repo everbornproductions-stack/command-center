@@ -6,6 +6,7 @@ import { localFetch } from "./loopback-fetch.js";
 import { htmlToText } from "./receipts.js";
 import { engineTrouble, mayCallLive, resolveEngine, engineKeyed, ENGINES, searchSettings, searxngBase } from "./search.js";
 import { demoActive } from "./mock.js";
+import { isPublicHttpUrl } from "./safe-url.js";
 
 export const PAGE_CHARS = 6000;
 const MIN_TEXT = 25; // less than this is a blank or script-only page, not a read
@@ -40,6 +41,8 @@ export async function defaultFetcher(url, { signal, timeoutMs = 9000 } = {}) {
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   const onAbort = () => ctl.abort();
   signal?.addEventListener("abort", onAbort);
+  // 0.4.22 (Aikido SSRF review): a source address is opened only when it is a public web address.
+  if (!isPublicHttpUrl(url)) { clearTimeout(t); signal?.removeEventListener("abort", onAbort); return { status: 403, ok: false, contentType: "", body: "" }; }
   try {
     const res = await localFetch(url, { headers: { accept: "text/html, text/plain;q=0.9", "user-agent": "Mozilla/5.0 (compatible; Meldmind)" }, signal: ctl.signal, redirect: "follow" });
     const body = await res.text().catch(() => "");
