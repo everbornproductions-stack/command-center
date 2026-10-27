@@ -138,7 +138,7 @@ test("C1: AI-written code runs fenced in to the project folder", async (t) => {
 });
 
 test("S15: the splash hold is counted from navigation and the 12 s cap is real; off and error paths fade", async () => {
-  const js = fs.readFileSync(path.join(ROOT, "web/features/look.js"), "utf8");
+  const js = fs.readFileSync(path.join(ROOT, "web/features/look.js"), "utf8").replace(/\r\n/g, "\n"); // Windows checkouts use CRLF
   const consts = js.match(/const SPLASH_BASE_MS[^\n]*\n/)[0];
   const hold = new Function(`${consts}\n${js.match(/function splashHold[\s\S]*?\n}\n/)[0]}\n${js.match(/function splashLeft[\s\S]*?\n}\n/)[0]}\nreturn { splashHold, splashLeft };`)();
   assert.equal(hold.splashLeft(hold.splashHold(9000, false), 9000), 3000, "a 9 s start waits only 3 s more");
