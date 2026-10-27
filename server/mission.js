@@ -1788,6 +1788,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const hit = want && wrote.find((w) => path.basename(w.name).toLowerCase() === path.basename(want).toLowerCase());
     const wantImg = namedImage(goal);
     if (want || wantImg) mission.deliverable = stripSaveClaims(mission.deliverable || "");
+    // the same for each step's own output: an AI line "File saved: x" is never shown, only what the app wrote
+    if (want || wantImg) for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripSaveClaims(t.output);
     if (hit) {
       mission.savedFile = { ok: true, name: hit.name, requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.name), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true };
       log(`Wrote ${hit.name} (${hit.bytes} bytes) in your project folder.`);
