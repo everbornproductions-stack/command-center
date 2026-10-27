@@ -19,8 +19,9 @@ const READ_WORD = /^(sender|senders|postal|postcode|poster|mailbox|emailaddress|
 
 // "Never send or post" (0.4.21, item P): the send family only, for an agent whose noSend switch is on.
 // It reuses the word splitter and the classifier above: a tool counts as a sender only when its name or
-// its description says send, post, publish, email, message, tweet or upload AND riskyAction() already
-// counts it as an action. Readers (read_email, list_files, search_inbox) are left in the list.
+// its description says send, post, publish, email, message, tweet, upload, dm, reply, forward, notify,
+// notification, push or slack (and share or comment as a verb) AND riskyAction() already counts it as an
+// action. Readers (read_email, list_files, search_inbox) are left in the list.
 const SEND_WORD = /\b(send|sends|sending|sent|post|posts|posting|posted|publish|publishes|publishing|published|email|emails|message|messages|messaging|tweet|tweets|tweeting|tweeted|upload|uploads|uploading|uploaded|dm|reply|forward|notify|notification|slack|push)\b/i;
 // Two of the new words only count as a verb (0.4.22, panel row 69): "share file" shares content
 // while "share link info" only reads a link, and "write comment" posts while "get comment" and

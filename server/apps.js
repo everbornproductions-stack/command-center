@@ -152,9 +152,9 @@ const NEVER = [
   // exe name, the window title and the display name.
   [/\bdocker\b/i, "It changes the system."],
   [/\bbetterbird\b/i, "It holds your email."],
-  [/\bwire\b/i, "It holds private messages."],
+  [/^\s*wire(?:\.exe)?\s*$|\bwire (?:messenger|desktop)\b/i, "It holds private messages."], // the app, not any page titled "wire transfer"
   [/\btask manager\b/i, "It changes the system."],
-  [/\bservices\b/i, "It changes the system."],
+  [/^\s*services(?:\.msc|\.exe)?\s*$/i, "It changes the system."], // the Windows console, not a page titled "Our services"
   [/\bhyper-v\b|\bhyperv\b/i, "It changes the system."],
   [/\bwindows admin center\b/i, "It changes the system."],
 ];

@@ -136,6 +136,8 @@ test("the seven panel names are on the never-list, and Notepad and Calculator st
     assert.doesNotThrow(() => Control.setAllowed(app.id, true), name);
   }
   assert.equal(Discovery.neverListHit("Wiresaw"), null, "a word that only holds these letters is not a match");
+  assert.equal(Discovery.neverListHit("Our services and prices - Acme"), null, "a page titled with the word services is not the console");
+  assert.equal(Discovery.neverListHit("Wire transfer form"), null, "a page about a wire transfer is not the Wire app");
 });
 
 test("there is one list: app control does not carry a second copy of it", () => {
