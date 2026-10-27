@@ -480,3 +480,18 @@ test("wiring: the module is loaded at start, the bar has Talk, state words and H
   assert.doesNotMatch(ui, /—/);
   assert.doesNotMatch(read("web", "features", "voice-actions.js"), /—/);
 });
+
+test("voice 'publish it' only saves to MindMedia as Review and never says it published (0.4.22 C8)", async () => {
+  const h = fakeHost(); const c = createController(h);
+  await c.hear("publish it");
+  await c.confirm();
+  const said = h.spoken.join(" | ");
+  assert.match(said, /Saved to MindMedia/);
+  assert.equal(/published/i.test(said), false, said);
+  assert.equal(/\bpublish\b/i.test(h.spoken.filter((s) => /\?$/.test(s)).join(" ")), false, said);
+  // the real host saves with status Review, never Published
+  const src = fs.readFileSync(path.join(ROOT, "web", "features", "voice-talk.js"), "utf8");
+  const call = src.match(/saveToMindMedia\(\{[^}]*source: "voice"[^}]*\}/)?.[0] || "";
+  assert.match(call, /status: "Review"/);
+  assert.equal(call.includes("Published"), false);
+});

@@ -56,11 +56,11 @@ test("Talk bar: toggle, strip, navigation, publish needs yes, help card, numbers
     let items = hub.items || hub.flatItems || [];
     assert.equal(items.some((i) => /short finished caption/.test(JSON.stringify(i))), false, "nothing is published before the yes");
     await page.evaluate(() => window.CC.voice.hear("yes"));
-    await page.waitForFunction(() => /Published to MindMedia/.test(document.getElementById("vt-strip").textContent), null, { timeout: WAIT });
+    await page.waitForFunction(() => /Saved to MindMedia/.test(document.getElementById("vt-strip").textContent), null, { timeout: WAIT });
     hub = (await t.api("/mindmedia?project=all")).json;
     items = hub.items || hub.flatItems || [];
-    const saved = items.find((i) => /Published/.test(i.status || "") && /beach ad|caption/i.test(JSON.stringify(i)));
-    assert.ok(saved, "the item is in MindMedia as Published: " + JSON.stringify(items).slice(0, 300));
+    const saved = items.find((i) => /^Review$/.test(i.status || "") && /beach ad|caption/i.test(JSON.stringify(i)));
+    assert.ok(saved, "the item is in MindMedia as Review, not Published: " + JSON.stringify(items).slice(0, 300));
     // silence cancels
     await page.evaluate(() => window.CC.voice.hear("publish this to MindMedia"));
     await page.evaluate(() => window.CC.voice.controller.expire());

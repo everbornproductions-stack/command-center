@@ -206,7 +206,7 @@ const host = {
   lastResult: () => currentResult(),
   async publish(r) {
     if (!window.CC.saveToMindMedia) return false;
-    const out = await window.CC.saveToMindMedia({ kind: "text", text: r.text, name: r.title, status: "Published", source: "voice", quiet: false });
+    const out = await window.CC.saveToMindMedia({ kind: "text", text: r.text, name: r.title, status: "Review", source: "voice", quiet: false });
     return !!out?.ok;
   },
   async remember(text) {
