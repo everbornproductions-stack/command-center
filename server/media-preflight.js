@@ -15,10 +15,13 @@ const WORDS_BEFORE = new RegExp(`\\b(for|about|with|on|from|featuring|showing)\\
 const VERB_ASK = new RegExp(`\\b(make|create|generate|produce|render|design|draw|animate|shoot|build|need|want)\\b[^.\\n]{0,40}?\\b(${NOUNS})\\b`, "i");
 const BARE_ASK = new RegExp(`\\b(one|a|an|the|\\d+)\\s+(\\d+x\\d+\\s+)?([\\w-]+\\s+){0,3}(${NOUNS})\\b`, "i");
 
+// a quote card or a PNG is a picture even though "card" is not in the noun list ("business card" and "credit card" stay out)
+const CARD_ASK = /\b(make|create|design|generate|draw|produce|render|need|want)\b[^.\n]{0,60}?\b(quote\s*cards?|text\s*cards?|social\s*cards?|png|jpe?g)\b/i;
 export function neededMedia(goal) {
   const g = String(goal || "").replace(WORDS_AFTER, " ").replace(WORDS_BEFORE, " ");
   const kinds = [];
   const asks = (re) => VERB_ASK.test(g) && re.test(g.match(VERB_ASK)[0]) || (BARE_ASK.test(g) && re.test(g.match(BARE_ASK)[0]));
+  if (CARD_ASK.test(g) && !kinds.includes("image")) kinds.push("image");
   if (asks(/images?|pictures?|photos?|posters?|banners?|logos?|thumbnails?|graphics?/i)) kinds.push("image");
   if (asks(/videos?|reels?|clips?/i)) kinds.push("video");
   if (VOICE_ASK.test(g)) kinds.push("voice");

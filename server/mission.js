@@ -36,7 +36,7 @@ import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
-import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
+import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile, writeProjectFile, codeFor, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
@@ -1071,6 +1071,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const deterministicQa = (t) => {
       if (t.save || t.run || t.media || t.agent) return null;
       let issue = t.exportLoss?.length ? exportLossLine(t.exportLoss) : "";
+      if (!issue) issue = removedApiNotes(t.output)[0] || "";
+      // 0.4.21 (dogfood 14): a step that names files is checked against the disk, not against its own words
+      if (Array.isArray(t.wantFiles) && t.wantFiles.length) {
+        const dc = diskCheck(t.wantFiles, t.writes || []);
+        t.diskCheck = dc.lines;
+        if (!issue && dc.missing.length) issue = `${dc.missing.join(" and ")} ${dc.missing.length > 1 ? "were" : "was"} not found on disk, so this step is not done`;
+      }
       if (!issue) { const c = claimCheck(t.output, (mission.toolCalls || []).filter((r) => r.taskId === t.id)); if (!c.ok) issue = c.reason; }
       if (!issue) return null;
       return { provider: "meldmind", model: "check", pass: false, score: 1, issues: [issue], fix: null, unchecked: false, deterministic: true, tries: [] };
@@ -1486,7 +1493,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const s = Date.now();
         let text = "";
         let stopReason = null;
-        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.`, tone);
+        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.${t.capability === "code" ? `\n${NO_REMOVED_APIS_LINE}` : ""}`, tone);
         const workMessages = [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }];
         try {
           // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
@@ -1559,7 +1566,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (t.status === "review") {
           let first = null;
           try {
-            first = await qaStep(t, t.output);
+            first = await qaStep(t, t.diskCheck?.length ? `${t.output}\n\nDISK CHECK (read from the disk by Meldmind, not written by the AI):\n${t.diskCheck.join("\n")}\nA file marked missing means the step is not done.` : t.output);
             if (first) {
               t.review = { provider: first.provider, model: first.model, pass: first.pass === true, score: first.score ?? null, issues: first.issues || [], fix: first.fix || null, unchecked: !!first.unchecked, tries: first.tries || [] };
               emit("task.update", { missionId: id, task: pubTask(t) });
@@ -1578,7 +1585,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
                 if (vr.ok) {
                   t.output = r2.text; outputs[t.id] = r2.text; t.revised = true;
                   // the revision is checked once more, by a different reviewer when there is one
-                  const second = await qaStep(t, t.output, { skip: [first.provider] });
+                  const second = await qaStep(t, t.diskCheck?.length ? `${t.output}\n\nDISK CHECK (read from the disk by Meldmind, not written by the AI):\n${t.diskCheck.join("\n")}\nA file marked missing means the step is not done.` : t.output, { skip: [first.provider] });
                   if (second) t.review = { provider: second.provider, model: second.model, pass: second.pass === true, score: second.score ?? null, issues: second.issues || [], fix: second.fix || null, unchecked: !!second.unchecked, tries: second.tries || [], firstScore: first.score ?? null };
                 } else log(`The revision of "${t.title}" was not usable (${vr.reason}); keeping the first draft.`);
               } catch (err3) {
@@ -1618,7 +1625,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // ---- 4. Assemble ----
     // media steps are files, not text: they skip the assembler and get their own section at the end
     const finished = mission.tasks.filter((t) => t.output && !t.media && t.status !== "failed");
-    const madeMedia = mission.tasks.filter((t) => t.media && t.output && t.status === "done");
+    const madeMedia = mission.tasks.filter((t) => t.media && t.output && (t.status === "done" || (t.media.local && t.media.files?.length))); // a drawing kept as SVG is handed over with its "Not made" line
     const waiting = mission.tasks.filter((t) => t.status === "waiting" && !t.media);
     const waitingMedia = mission.tasks.filter((t) => t.status === "waiting" && t.media);
     if (!finished.length && !madeMedia.length && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. Every step failed, so there is nothing to hand over. Add credits in Settings if an AI is out, or press Try again."), { code: "empty" });
@@ -1743,7 +1750,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const wrote = mission.tasks.flatMap((t) => (t.writes || []).map((w) => ({ ...w, taskId: t.id })));
     const unsaved = mission.tasks.filter((t) => t.notSaved);
     const hit = want && wrote.find((w) => path.basename(w.name).toLowerCase() === path.basename(want).toLowerCase());
-    if (want) mission.deliverable = stripSaveClaims(mission.deliverable || "");
+    const wantImg = namedImage(goal);
+    if (want || wantImg) mission.deliverable = stripSaveClaims(mission.deliverable || "");
     if (hit) {
       mission.savedFile = { ok: true, name: hit.name, requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.name), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true };
       log(`Wrote ${hit.name} (${hit.bytes} bytes) in your project folder.`);
@@ -1754,6 +1762,18 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (mission.deliverableTruncated) mission.savedFile = { ok: false, name: want, error: `Not saved: the result was cut off (${tr.reason}), so ${want} was not written.` };
       else mission.savedFile = saveNamedFile({ goal, name: want, text: mission.deliverable, projectId, missionId: id });
       log(mission.savedFile?.ok ? `Saved ${mission.savedFile.name} in the project folder.` : String(mission.savedFile?.error || `Not saved: ${want}.`), mission.savedFile?.ok ? {} : { level: "error" });
+    }
+    // a picture drawn here: the saved file comes from the drawing step's own disk check
+    if (wantImg && !mission.savedFile) {
+      const dt = mission.tasks.find((t) => t.media?.local);
+      const png = dt?.media?.files?.find((f) => /\.png$/i.test(f.name || ""));
+      if (png) mission.savedFile = { ok: true, name: png.name, requested: path.basename(wantImg), path: png.path, bytes: png.bytes, ext: "png", previewable: false, readable: false, projectId: projectId || null };
+      else if (dt) mission.savedFile = { ok: false, name: path.basename(wantImg), error: dt.output || `Not made: ${path.basename(wantImg)}.` };
+    }
+    // "Saved as" is shown only for a file that is on the disk right now
+    if (mission.savedFile?.ok && mission.savedFile.path && !onDisk(mission.savedFile.path).exists) {
+      mission.savedFile = { ok: false, name: mission.savedFile.name, error: `Not saved: ${mission.savedFile.name} is not on the disk.` };
+      log(mission.savedFile.error, { level: "error" });
     }
     // the final answer says plainly what was written, what was not, and what was not run
     {

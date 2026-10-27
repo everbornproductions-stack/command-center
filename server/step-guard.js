@@ -3,7 +3,9 @@
 //  - truncated code: detected here, continued by the mission with a bigger output cap
 //  - search leaks: "[1]" citations and "the supplied search results" are removed when search was not asked for
 //  - the file name a task asks for ("save as index.html"), so the result can really be written to disk
-// No network, no disk, no state. Every function is safe to call with odd input.
+// No network, no state. The only disk use is stat on a file path (onDisk, diskLine, diskCheck). Every function is safe to call with odd input.
+import fs from "node:fs";
+import path from "node:path";
 
 export const CODE_TOKEN_CAP = 8000; // output cap for a code or file step (was 2500)
 export const WORK_TOKEN_CAP = 2500;
@@ -199,6 +201,40 @@ export function stripSearchLeaks(text) {
   return t.trim() === clean(text).trim() ? clean(text) : t;
 }
 
+// ---------- the real disk check (0.4.21, dogfood 14) ----------
+// Every "saved" the app shows or QA reads comes from stat on the file, never from an AI's words.
+/** { exists, bytes } for a path: a real file with at least one byte. */
+export function onDisk(file) {
+  try { const st = fs.statSync(file); return st.isFile() && st.size > 0 ? { exists: true, bytes: st.size } : { exists: false, bytes: 0 }; } catch { return { exists: false, bytes: 0 }; }
+}
+/** "quote-card.png: exists, 1234 bytes" or "quote-card.png: missing". */
+export function diskLine(file, label) {
+  const c = file ? onDisk(file) : { exists: false };
+  return `${label || path.basename(String(file || "file"))}: ${c.exists ? `exists, ${c.bytes} bytes` : "missing"}`;
+}
+/** For a step that names files: the disk line for each, and which are missing. writes: [{ name, path }] the app wrote. */
+export function diskCheck(wanted = [], writes = []) {
+  const lines = [], missing = [];
+  for (const n of wanted) {
+    const w = (writes || []).find((x) => x && path.basename(String(x.name || x.path || "")).toLowerCase() === path.basename(n).toLowerCase());
+    const line = diskLine(w?.path, n);
+    lines.push(line);
+    if (!w?.path || !onDisk(w.path).exists) missing.push(n);
+  }
+  return { lines, missing, ok: missing.length === 0 };
+}
+
+// ---------- removed APIs (0.4.21, dogfood 13) ----------
+// A plan wrote Pillow code that called ImageDraw.textsize, which Pillow 10 removed. The code-writing instructions say not
+// to, and a step whose code still calls it is flagged with a plain note.
+export const NO_REMOVED_APIS_LINE = "Never use PIL ImageDraw.textsize or font.getsize: Pillow 10 removed them. Use draw.textbbox (or font.getbbox) to measure text.";
+const TEXTSIZE = /\.\s*textsize\s*\(/;
+/** Notes for code that calls an API that no longer exists. Empty when the text is clean. */
+export function removedApiNotes(text) {
+  const t = String(text || "");
+  return TEXTSIZE.test(t) ? ["This code calls .textsize(, which Pillow 10 removed. Use textbbox to measure text."] : [];
+}
+
 // ---------- named files ----------
 const NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:html?|md|markdown|css|js|mjs|json|txt|csv|py|ya?ml|xml|svg))\b/i;
 const ANY_FILE_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:html?|md|markdown|css|js|mjs|json|txt|csv|py|ya?ml|xml|svg))\b/i;
@@ -214,7 +250,7 @@ export function namedFile(goal) {
 // An AI may write "Saved as index.html (project root)" about a file it cannot write. Those lines are removed;
 // the real result (path, or "not saved") is shown by the app from what was actually written.
 export function stripSaveClaims(text) {
-  return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file saved|saved to|saved in|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
+  return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file(?:s)? (?:has been |was |were )?(?:saved|written|created)|(?:i\s+)?(?:have\s+)?(?:saved|wrote|written|created) (?:the |your |it )?(?:file |image |png |svg )?(?:as|to|in|at)|saved to|saved in|saved at|output (?:file )?(?:saved|written)|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // 0.4.21 (dogfood 08): a step must not run on an earlier step that failed or came back empty. Running it on

@@ -8,6 +8,8 @@ import { projectMediaDir } from "./media-jobs.js";
 import { saveToMindMedia } from "./project-media.js";
 import { projectFolders } from "./code-source.js";
 import { insideFolder } from "./named-file.js";
+import { diskLine, onDisk } from "./step-guard.js";
+export { diskLine };
 
 const FLAT = /\b(quote\s*cards?|quote\s*graphics?|text\s*cards?|title\s*cards?|social\s*cards?|banners?|flat\s*graphics?|simple\s*(poster|graphic|card)s?|posters?|announcement\s*(card|graphic)s?)\b/i;
 const NOT_FLAT = /\b(photo|photograph|photorealistic|realistic|portrait of|painting|3d|cinematic|illustration of|mockup|logo)\b/i;
@@ -129,15 +131,12 @@ function uniquePath(file) {
 // read a written file back: the size on disk, never the size we meant to write
 function checkOnDisk(file, png) {
   try {
-    const st = fs.statSync(file);
-    if (!st.isFile() || st.size <= 0) return { exists: false, bytes: 0 };
-    if (png) { const fd = fs.openSync(file, "r"); const head = Buffer.alloc(8); fs.readSync(fd, head, 0, 8, 0); fs.closeSync(fd); if (!head.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { exists: false, bytes: st.size }; }
-    return { exists: true, bytes: st.size };
+    const st = onDisk(file);
+    if (!st.exists) return st;
+    if (png) { const fd = fs.openSync(file, "r"); const head = Buffer.alloc(8); fs.readSync(fd, head, 0, 8, 0); fs.closeSync(fd); if (!head.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { exists: false, bytes: st.bytes }; }
+    return st;
   } catch { return { exists: false, bytes: 0 }; }
 }
-/** The disk line a QA review sees for a file: "exists, N bytes" or "missing". */
-export function diskLine(file) { const c = file ? checkOnDisk(file, /\.png$/i.test(file)) : { exists: false }; return c.exists ? `${path.basename(file)}: exists, ${c.bytes} bytes` : `${path.basename(file || "file")}: missing`; }
-
 /**
  * Draw the goal and save it. name: the picture path the task names (".png"), else "image.png".
  * Returns { ok, pngMade, line, png: {name, path, bytes}|null, svg: {name, path, bytes}|null, disk }.
