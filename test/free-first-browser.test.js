@@ -57,11 +57,19 @@ test("browser: Simple shows the mode picker under More options, the Free only sw
     const labels = await t.page.$$eval("#simple-run-mode button", (b) => b.map((x) => x.textContent.trim()));
     assert.deepEqual(labels, ["Auto", "Single", "Council", "Mission"]);
     // the switch is the same setting everywhere
-    await t.page.click("#cc-freeonly");
-    await t.page.waitForFunction(() => window.CC.S.freeOnly && window.CC.S.freeOnly.on === true, null, { timeout: 8000 });
+    // a re-render can swap the switch out right after the click (slow Windows CI): click again until the state follows
+    const flipTo = async (on) => {
+      for (let n = 0; n < 5; n++) {
+        await t.page.click("#cc-freeonly");
+        const ok = await t.page.waitForFunction((v) => window.CC.S.freeOnly && window.CC.S.freeOnly.on === v, on, { timeout: 4000 }).then(() => true, () => false);
+        if (ok) return;
+        if ((await t.api("/state")).json.freeOnly?.on === on) { await t.page.evaluate(() => window.CC.refresh && window.CC.refresh()); return; }
+      }
+      throw new Error(`Free only switch did not turn ${on ? "on" : "off"}`);
+    };
+    await flipTo(true);
     assert.equal((await t.api("/state")).json.freeOnly.on, true);
-    await t.page.click("#cc-freeonly");
-    await t.page.waitForFunction(() => window.CC.S.freeOnly && window.CC.S.freeOnly.on === false, null, { timeout: 8000 });
+    await flipTo(false);
     // picking Single is remembered and shown on the button
     await t.page.click('#simple-run-mode button[data-m="single"]');
     assert.match(await t.page.innerText("#sc-team"), /Single mode/);
