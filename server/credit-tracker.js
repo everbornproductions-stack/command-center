@@ -12,6 +12,7 @@
 import crypto from "node:crypto";
 import { PROVIDERS } from "./registry.js";
 import { doc, putDoc } from "./store.js";
+import { emit } from "./events.js";
 
 const DOC = "services.tracked"; // { [providerId]: { amount, at, source, sourceAt, by, note, refs: [], outside: [], history: [], flag } }
 const HISTORY_MAX = 30;
@@ -121,6 +122,8 @@ export function setBalance(pid, { amount, date, source = "you", by = null, ref =
   addRef(t, ref);
   d[pid] = t;
   save(d);
+  // an AI that was paused for no credits looks at the new number right away (server/pause.js listens)
+  if (value > 0) emit("credits.raised", { provider: pid, amount: value, source });
   return { changed: true, tracked: t };
 }
 
@@ -141,6 +144,7 @@ export function addTopUp(pid, { amount, date, ref = null, now = Date.now() } = {
   addRef(t, ref);
   d[pid] = t;
   save(d);
+  emit("credits.raised", { provider: pid, amount: t.amount, source: "email" });
   return { changed: true, tracked: t };
 }
 

@@ -6,6 +6,7 @@ import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
 import { runnableOnly } from "./runnable.js";
 import { whyOut } from "./send-check.js";
+import { describePause } from "./pause.js";
 
 function takeUnique(list, n) {
   const out = [];
@@ -109,7 +110,8 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
     if (r.kind !== "ai") return true;
     let w = null; try { w = whyOut(r.id); } catch { /* unknown AI: keep it */ }
     if (!w) return true;
-    out.push({ id: r.id, name: r.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available" });
+    let next = ""; try { next = describePause(r.id)?.nextCheckText || ""; } catch { next = ""; }
+    out.push({ id: r.id, name: r.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available", ...(next ? { next } : {}) });
     return false;
   });
   const ordered = orderReaders(live, record);

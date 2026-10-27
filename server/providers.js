@@ -20,11 +20,14 @@ export class ProviderError extends Error {
 }
 
 // Keep the parsed body on the error so health lights can tell credits from a bad key.
-function providerFailure(provider, status, txt) {
+function providerFailure(provider, status, txt, res = null) {
   let j = null;
   try { j = JSON.parse(txt || ""); } catch { /* not JSON */ }
   const err = new ProviderError(provider.id, status, `${provider.name}: HTTP ${status} ${providerMessage(j, txt)}`, j);
   err.text = String(txt || "").slice(0, 400);
+  // a 429 may say when to come back (seconds); the pause uses it instead of the one minute guess
+  const ra = Number(res?.headers?.get?.("retry-after"));
+  if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = Math.min(ra, 3600) * 1000;
   return err;
 }
 
@@ -171,7 +174,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   catch (e) { throw new ProviderError(provider.id, 0, `${provider.name}: network error (${e.message})`); }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw providerFailure(provider, res.status, txt);
+    throw providerFailure(provider, res.status, txt, res);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -245,7 +248,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
   }
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw providerFailure(provider, res.status, txt);
+    throw providerFailure(provider, res.status, txt, res);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();

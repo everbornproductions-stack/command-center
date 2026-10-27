@@ -10,7 +10,8 @@ import crypto from "node:crypto";
 import { HOSTED, doc, putDoc } from "../store.js";
 import { PROVIDERS, TEXT_PROVIDERS } from "../registry.js";
 import { setSecret, getSecret } from "../vault.js";
-import { checkProvider } from "../health.js";
+import { checkProvider, getStatus } from "../health.js";
+import { recheckProvider, stampAfterCheck, describePause } from "../pause.js";
 import { isBlockedFree } from "../savings.js";
 import { capsFor, learnedStrengths, profileFor } from "../added-caps.js";
 import { localFetch } from "../loopback-fetch.js";
@@ -181,6 +182,12 @@ export async function routes(req, res, url, body, h) {
   if (method === "GET" && seg[0] === "balances" && !seg[1]) {
     if (url.searchParams.get("refresh") === "1") await refreshLive({ maxAgeMs: url.searchParams.get("force") === "1" ? 0 : 30000 });
     return h.json(res, 200, balancesView());
+  }
+  // "Check again" on a red AI: the balance is read first; this click (never a timer) may send one 1 token test.
+  if (method === "POST" && seg[1] === "recheck" && !seg[2] && PROVIDERS[seg[0]]) {
+    const r = await recheckProvider(seg[0], { byUser: true });
+    stampAfterCheck(seg[0]);
+    return h.json(res, 200, { ...r, status: getStatus(seg[0]), pause: describePause(seg[0]) });
   }
   if (method === "GET" && seg[0] === "presets") return h.json(res, 200, { presets: PRESETS.map((p) => ({ ...p, builtin: p.builtin && PROVIDERS[p.builtin] ? p.builtin : null })) });
   if (method === "POST" && seg[0] === "suggest") return h.json(res, 200, { suggestion: suggestProvider(body.key) }); // suggestion only: the key is never echoed or logged

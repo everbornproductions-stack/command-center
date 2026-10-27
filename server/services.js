@@ -66,7 +66,7 @@ const adminSecret = (pid) => {
   if (s && LIVE[pid]?.needsTeam && !s.teamId && s.fromEnv && process.env.XAI_TEAM_ID) return { ...s, teamId: process.env.XAI_TEAM_ID.trim() };
   return s;
 };
-const liveSecret = (pid) => (LIVE[pid].kind === "admin" ? adminSecret(pid) : getSecret(pid, PROVIDERS[pid]?.keyEnv));
+export const liveSecret = (pid) => (LIVE[pid].kind === "admin" ? adminSecret(pid) : getSecret(pid, PROVIDERS[pid]?.keyEnv));
 
 function noteHistory(pid, left) {
   if (left == null) return;

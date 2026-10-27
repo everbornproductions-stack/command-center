@@ -8,6 +8,7 @@ import { PROVIDERS, geminiBase } from "./registry.js";
 import { getSecret } from "./vault.js";
 import { doc, putDoc, ctx, runAs } from "./store.js";
 import { freeTierView, trouble } from "./fallback.js";
+import { describePause } from "./pause.js";
 import { mcpConfigured, connectionOf } from "./connect.js";
 import { localFetch } from "./loopback-fetch.js";
 import { scheduler as sharedScheduler } from "./perf/scheduler.js";
@@ -62,7 +63,7 @@ export function createFreeChecker({ probe = defaultProbe, now = Date.now, sched 
   async function refresh({ force = false } = {}) {
     const list = members();
     const t = now();
-    const due = list.filter((m) => force || !cache.get(m.id) || t - cache.get(m.id).checkedAt >= cfg.cacheMs - 1);
+    const due = list.filter((m) => !m.paused).filter((m) => force || !cache.get(m.id) || t - cache.get(m.id).checkedAt >= cfg.cacheMs - 1);
     if (inflight && !force) return inflight;
     const run = (async () => {
       await Promise.all(due.map(async (m) => {
@@ -78,6 +79,8 @@ export function createFreeChecker({ probe = defaultProbe, now = Date.now, sched 
     const list = members();
     const rows = list.map((m) => {
       const c = cache.get(m.id);
+      // a models-list answer does not mean there is money behind the key: an out-of-credits AI is never "working"
+      if (m.paused) return { id: m.id, name: m.name, ok: false, checked: true, paused: true, detail: [m.paused.label, m.paused.nextCheckText].filter(Boolean).join(". "), checkedAt: now() };
       return { id: m.id, name: m.name, ok: !!(c && c.ok), checked: !!c, detail: c ? c.detail : "not checked yet", checkedAt: c ? c.checkedAt : 0 };
     });
     return freeBubble(rows);
@@ -103,7 +106,15 @@ export function createFreeChecker({ probe = defaultProbe, now = Date.now, sched 
 
 // Free tiers the person turned on, keyed, and not currently skipped for trouble.
 export function defaultMembers() {
-  return freeTierView().filter((t) => t.on && t.keyed && !trouble(t.provider)).map((t) => ({ id: t.provider, name: t.providerName }));
+  const out = [];
+  for (const t of freeTierView()) {
+    if (!t.on || !t.keyed) continue;
+    let paused = null;
+    try { paused = describePause(t.provider) || (trouble(t.provider)?.kind === "credits" ? { label: "Out of credits", nextCheckText: "" } : null); } catch { paused = null; }
+    if (!paused && trouble(t.provider)) continue;
+    out.push({ id: t.provider, name: t.providerName, ...(paused ? { paused } : {}) });
+  }
+  return out;
 }
 
 // Pure shape for the bubble. `rows` are { id, name, ok, checked, detail }.
@@ -126,7 +137,7 @@ export function creditStates(ids, health = {}) {
   for (const id of ids || []) {
     if (!id || id === "hub") continue;
     let outOfCredits = false;
-    try { outOfCredits = trouble(id)?.kind === "credits"; } catch { outOfCredits = false; }
+    try { outOfCredits = trouble(id)?.kind === "credits" || describePause(id)?.kind === "credits"; } catch { outOfCredits = false; }
     if (!outOfCredits && /out of credits|no credits|spending limit/i.test(String(health[id]?.detail || ""))) outOfCredits = true;
     let viaMcp = false;
     try { viaMcp = outOfCredits && mcpConfigured(id) && !!connectionOf(id)?.mcp?.configured; } catch { viaMcp = false; }

@@ -54,6 +54,8 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
   const held = skipAvoid(skipped);
+  // after the first 402 / 429 from an AI, the rest of this run leaves it out
+  const runTrouble = (pid) => { if (skipSet.has(pid)) return; skipSet.add(pid); held.push(...skipAvoid([pid])); };
   const shape = outputShape(mode);
   const answerTokens = shape.maxTokens || maxTokens;
   const cls = await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
@@ -158,7 +160,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
       if (m.priceModel) assertSpendAllowed({ provider: m.provider, estimate: estimateCostAt(m.priceModel, 1500, 800) });
       // MCP tools (Phase 16) ride along for members that can call them; smart fallback (Phase 26) swaps in
       // another model when this member's provider is out of credits, rate limited or refusing its key
-      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held] })) {
+      for await (const ev of fallbackChat({ provider: m.provider, model: m.model, maxTokens: answerTokens, ...(shape.effort ? { effort: shape.effort } : {}), webSearch: nativeFor(m), system: answerSystem, messages: [{ role: "user", content: askPrompt }] }, { missionId: id, tools, role: "answer", cls, mode, avoid: [...members.filter((x) => x !== m), ...held], skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
@@ -292,7 +294,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
         provider: chair.provider, model: chair.model, maxTokens: Math.max(shape.maxTokens || 0, 1200, maxTokens), ...(shape.effort ? { effort: shape.effort } : {}),
         system: chairSystem,
         messages: [{ role: "user", content: `QUESTION:\n${prompt}${memNote}\n\nANSWERS:\n${packet}${disagreements.length ? `\n\nREVIEWERS FLAGGED THESE CONFLICTS:\n- ${disagreements.join("\n- ")}` : ""}${cite}${libCite}` }],
-      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held })) {
+      }, { missionId: id, role: "chair", tools: false, cls: { ...cls, difficulty: 3 }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") {
           text = ""; council.fallbacks.push(fallbackRecord(ev));
