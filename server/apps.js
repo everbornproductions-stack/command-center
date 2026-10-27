@@ -143,11 +143,39 @@ const NEVER = [
   [/airmail|mailspring|em client|\bspark\b|proton ?mail|mailbird|\bmimestream|\bkmail|evolution mail|\bcanary mail|\bhey\b|fastmail/i, "It holds your email."],
   [/element|mattermost|rocket\.chat|google chat|webex|viber|\bline\b|wechat|\bkik\b|google voice|textnow|pushbullet|beeper|franz|ferdi|rambox/i, "It holds private messages."],
   [/event viewer|computer management|local security|\bgpedit|\bmmc\b|system configuration|msconfig|resource monitor|process explorer|process hacker|sysinternals|\bwinpe|diskpart|control panel|system settings|system preferences|activity monitor|keychain|\bconsole\b/i, "It changes the system."],
+  // 0.4.22 (item NEVERLIST): the shells and consoles the list above still missed. Every name is
+  // matched as a whole word, so "wt" finds "wt.exe" and never finds a word that merely holds
+  // those letters, and "slack" never blocks a program called "Stackable".
+  [/\b(cmd|pwsh|wt)\b/i, "It opens a command line or a remote shell."],
+  [/\btaskmgr\b/i, "It changes the system."],
 ];
+
+// One list, one match. Each row is tested against one piece of text at a time (the exe name,
+// the window title, the display name), so a name is matched case-insensitively and as a whole
+// word, and never as a fragment of some other word.
+function neverMatch(...parts) {
+  for (const part of parts) {
+    const text = String(part ?? "").trim();
+    if (!text) continue;
+    for (const [re, why] of NEVER) if (re.test(text)) return { why, matched: text };
+  }
+  return null;
+}
+
 export function sensitiveWhy(app) {
-  const hay = `${app?.id || ""} ${app?.title || ""} ${app?.publisher || ""}`;
-  for (const [re, why] of NEVER) if (re.test(hay)) return why;
-  return "";
+  return neverMatch(app?.id, app?.title, app?.name, app?.exe, app?.publisher)?.why || "";
+}
+
+// App control (0.4.22, item NEVERLIST): the same list the drive check calls. It returns the
+// piece of text that hit the list, or nothing when the program may be driven.
+export function neverListHit(...parts) {
+  return neverMatch(...parts);
+}
+
+// The one sentence a person sees when app control turns a program down. Plain words, no dashes.
+export function neverRefusal(name) {
+  const who = String(name || "that program").trim();
+  return `Meldmind does not control ${who}. It could move money or change your computer, so it is always off.`;
 }
 
 export function setAllAllowed(allowed, opts = {}) {

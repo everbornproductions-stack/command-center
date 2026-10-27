@@ -19,6 +19,7 @@ import { registerExternalAgent, unregisterExternalAgent } from "./external-agent
 import { gate } from "./feature-gate.js";
 import { recordCall } from "./ledger.js";
 import { needsApproval } from "./mcp.js";
+import { neverListHit, neverRefusal } from "./apps.js";
 import { ask, decide, phoneReady } from "./phone-approvals.js";
 import { doc, putDoc } from "./store.js";
 
@@ -64,6 +65,14 @@ function bad(message, status = 400, code = "control") {
   err.status = status;
   err.code = code;
   return err;
+}
+
+// Item NEVERLIST (0.4.22): these programs are never driven, whatever a job asks for. The list
+// lives in apps.js, the one Select All already uses, so there is only one copy of it. Each piece
+// of text is matched on its own: the display name, the exe name, then the window title.
+function neverListed(...parts) {
+  const hit = neverListHit(...parts);
+  return hit ? neverRefusal(hit.matched) : "";
 }
 
 function cleanCaps(list) {
@@ -170,7 +179,11 @@ export function setAllowed(id, allowed) {
   const state = loadState();
   const app = find(id, state);
   if (!app) throw bad("That app is not in the list.", 404);
-  if (allowed) gate("desktop");
+  if (allowed) {
+    const never = neverListed(app.name, app.exe);
+    if (never) throw bad(never, 403, "never_list");
+    gate("desktop");
+  }
   app.allowed = !!allowed;
   app.status = allowed ? "allowed" : "revoked";
   if (!allowed) app.activity = "";
@@ -246,6 +259,9 @@ function prepareJob(id, body) {
   const state = loadState();
   const app = find(id, state);
   if (!app || !app.allowed) throw bad("Allow this app before Meldmind uses it.", 403, "allow");
+  // a program on the never-list is refused again here, so an app allowed before 0.4.22 still cannot be driven
+  const never = neverListed(app.name, app.exe);
+  if (never) return { early: { status: "refused", reason: never, steps: [], log: [], cost: 0 } };
   if (body.honorStop && state.stopped[id]) {
     return { early: { status: "stopped", steps: [], log: ["Stopped."], banner: null } };
   }
@@ -395,6 +411,8 @@ function runWebsite(app, body, state) {
 
 function runDesktop(app, body, state) {
   const tree = body.tree || {};
+  const never = neverListed(app.name, tree.foreground, tree.title);
+  if (never) return { status: "refused", reason: never, steps: [], log: [], cost: 0 };
   if (tree.foreground && app.exe && tree.foreground !== app.exe) {
     return { status: "stopped", reason: "Focus left the allowed program. Input stopped.", steps: [], log: [], cost: 0 };
   }
@@ -448,6 +466,10 @@ function runShots(app, body) {
   let spent = 0;
   let sent = [];
   for (const image of shots) {
+    const never = neverListed(app.name, image?.title, image?.name);
+    if (never) {
+      return { status: "refused", reason: never, steps, log, sentImages: sent, cost: spent, estimate, cap };
+    }
     if (shotBlocked(image)) {
       return { status: "refused", reason: PAYMENT_REFUSAL, steps, log, sentImages: sent, cost: spent, estimate, cap };
     }
@@ -689,6 +711,10 @@ async function runShotsLive(app, body) {
       return { status: "stopped", reason: "Screenshot cap reached.", steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
     }
     const image = supplied ? supplied[i] : await grabScreen();
+    const never = neverListed(app.name, image?.title, image?.name);
+    if (never) {
+      return { status: "refused", reason: never, steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
+    }
     if (shotBlocked(image) || blockedScreen(image?.title)) {
       return { status: "refused", reason: PAYMENT_REFUSAL, steps, log, sentImages: sent, cost: spent, estimate, cap, driver: "computer" };
     }
