@@ -186,7 +186,7 @@ export async function recheckProvider(id, { byUser = false, now = Date.now() } =
   } else {
     // 2. a tracked balance raised after the failure
     const tr = trackedRaw(id);
-    if (tr && tr.amount != null && tr.sourceAt >= since) {
+    if (tr && tr.amount != null && tr.sourceAt > since) { // strictly after: a balance typed in the same ms as the failure is an old one
       let v = null;
       try { v = trackedView(id, { entries: allEntries(), now }); } catch { v = null; }
       if (v && v.value > 0) return good("tracked", `Tracked: $${v.value.toFixed(2)} left`);
