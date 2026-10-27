@@ -22,8 +22,9 @@ export function contributors(run, pnameFn = (id) => id) {
         label: `${pnameFn(v.provider)} (verdict)`
       });
     }
-  } else if ((run.kind === "mission" && run.mission) || run.tasks || run.mission?.tasks) {
-    const tasks = run.mission?.tasks || run.tasks || [];
+  } else if (run.kind === "mission" && (Array.isArray(run.mission?.tasks) || Array.isArray(run.tasks))) {
+    // a single chat run carries tasks: {} (an object), so only a mission's task list is walked
+    const tasks = Array.isArray(run.mission?.tasks) ? run.mission.tasks : run.tasks;
     for (const t of tasks) {
       if (!t || t.save) continue; // Meldmind's own save step is not an AI to rate
       // every step that ran gets its own row (code, QA, agent, failed and empty steps too); a step that never started has nothing to rate

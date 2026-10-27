@@ -169,10 +169,10 @@ test("Stop ends a running mission cleanly and the server keeps answering", { tim
 
 test("source: a stopped or errored run keeps its rating rows and an unfinished note; the save step is not rated as an AI", () => {
   const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
-  const rat = read("web", "features", "ratings.js");
+  const rat = read("web", "features", "ratings.js") + read("web", "features", "ratings-rows.js"); // 0.4.21 P: row rules moved to ratings-rows.js
   assert.match(rat, /rt-unfinished/);
   assert.match(rat, /Stopped before it finished\./);
-  assert.match(rat, /if \(t\.save\) continue;/);
+  assert.match(rat, /if \(!t || t\.save\) continue;/);
   const app = read("web", "app.js").replace(/\r\n/g, "\n");
   assert.match(app, /a stopped or errored run keeps its rating rows/);
   const lo = read("web", "live-ops.js");
