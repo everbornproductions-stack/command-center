@@ -56,6 +56,9 @@ export async function bootPage(opts = {}) {
 }
 
 export async function goChat(page) {
+  // The feature modules load after boot and then draw the screen again, which replaces #orders. Typing before that
+  // lands in the old, detached box and the send sees an empty one ("Type the orders first"). Wait for it first.
+  await page.waitForFunction(() => window.CC && window.CC.featuresReady === true, null, { timeout: 20000 }).catch(() => {});
   await page.evaluate(() => window.CC.go("command"));
   await page.waitForSelector("#go", { timeout: 10000 });
 }
