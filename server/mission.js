@@ -35,7 +35,7 @@ import { keepEmployeeWork } from "./mindmedia-employees.js";
 import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
-import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability } from "./plan-safe.js";
+import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput } from "./step-guard.js";
 import { saveNamedFile } from "./named-file.js";
 import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
@@ -871,7 +871,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const mediaTasks = mission.tasks.filter((t) => t.media);
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
     const appNames = mission.tasks.filter((t) => t.app).map((t) => t.model);
-    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => PROVIDERS[p].name).concat(appNames).concat(agentTasks ? [`${MA.name} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
+    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => stepAgentName(p) || p).concat(appNames).concat(agentTasks ? [`${MA?.name || "The agent"} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
     if (mediaTasks.length) {
       const pf = preflight(goal, { kinds: [...new Set(mediaTasks.map((t) => t.media.kind))] });
       mission.preflight = { blocked: pf.blocked, lines: pf.lines, banner: pf.banner };
@@ -915,7 +915,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // mission wait). A result that comes back later is added to this mission by the finish listener at the end of this file.
     const agentTask = async (t) => {
       const agent = `${id}:${t.id}`;
-      const AID = MA.id, ANAME = MA.name;
+      const AID = t.provider || MA?.id || GROKBOT, ANAME = MA?.name || agentName(AID);
       t.status = "running"; t.startedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       emit("agent.start", { agent, provider: AID, model: AID, role: "work", missionId: id, taskId: t.id, label: `${ANAME}: ${t.title} (results are async and can take minutes)` });
@@ -1245,10 +1245,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (t.agent) return agentTask(t);
         if (t.media) return mediaTask(t);
         if (t.app) return appTask(t);
+        // 0.4.21 (dogfood 09): a step routed to an agent that is not set up has no entry in PROVIDERS, and
+        // reading its name stopped the mission ("Cannot read properties of undefined (reading 'name')").
+        // It is handed to a working AI here instead.
+        const handOff = handToWorkingAI(t, () => openRank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) }));
+        if (handOff) { Object.assign(t, handOff); t.reassigned = true; }
         const agent = `${id}:${t.id}`;
         t.status = "running"; t.startedAt = Date.now();
         emit("task.update", { missionId: id, task: pubTask(t) });
-        emit("agent.start", { agent, provider: t.provider, model: t.model, role: "work", missionId: id, taskId: t.id, label: `${PROVIDERS[t.provider].name}: ${t.title}` });
+        emit("agent.start", { agent, provider: t.provider, model: t.model, role: "work", missionId: id, taskId: t.id, label: `${stepAgentName(t.provider) || "An AI"}: ${t.title}` });
         for (const d of t.deps) { const dep = mission.tasks.find((x) => x.id === d); if (dep && dep.provider !== t.provider) emit("agent.msg", { from: dep.provider, to: t.provider, missionId: id, text: `handing off "${dep.title}"` }); }
         const inputs = t.deps.map((d) => `### Input from task "${mission.tasks.find((x) => x.id === d)?.title}"\n${outputs[d] || "(missing)"}`).join("\n\n");
         // a task that needs live information gets its own search, numbered after the mission's sources
@@ -1301,7 +1306,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // one retry on a different provider
             const alt = openRank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
           if (alt && !ctl.signal.aborted) {
-            log(`${PROVIDERS[t.provider].name} failed "${t.title}" (${err.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
+            log(`${stepAgentName(t.provider) || "An AI"} failed "${t.title}" (${err.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
             emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `re-assign "${t.title}"` });
             t.provider = alt.provider; t.model = alt.model; t.agentName = `${alt.providerName} · ${t.capability}`; t.retried = true;
             const s2 = Date.now();
@@ -1388,7 +1393,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const waiting = mission.tasks.filter((t) => t.status === "waiting" && !t.media);
     const waitingMedia = mission.tasks.filter((t) => t.status === "waiting" && t.media);
     if (!finished.length && !madeMedia.length && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. Every step failed, so there is nothing to hand over. Add credits in Settings if an AI is out, or press Try again."), { code: "empty" });
-    const pendingNote = (waiting.length ? `\n\n---\n**Still waiting on ${MA.name}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "")
+    const pendingNote = (waiting.length ? `\n\n---\n**Still waiting on ${MA?.name || "the agent"}:** ${waiting.map((t) => `"${t.title}"`).join(", ")}. Each result is added to this mission when it comes back${MA?.id === GROKBOT ? `, or paste it in on the ${MA.name} card` : ""}.` : "")
       + (waitingMedia.length ? `\n\n---\n**Media waiting for your OK:** ${waitingMedia.map((t) => `"${t.title}" (${t.media.providerName} ${t.media.kind}, about $${t.media.usd})`).join(", ")}. Approve it on the Media tab; nothing is spent until you do, and the file is added to this mission when it is made.` : "");
     const mediaNote = madeMedia.length ? `\n\n${madeMedia.map((t) => mediaSection(t)).join("\n\n")}` : "";
     if (!finished.length) mission.deliverable = (mediaNote + pendingNote).trim();

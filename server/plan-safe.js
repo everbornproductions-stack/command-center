@@ -3,6 +3,7 @@
 // A name only counts when a step hands work TO it ("ask Antigravity", "assigned to Grok Bot", an assignee field),
 // and never when the person's own goal named it (then it is the subject, not the worker).
 import { PROVIDERS } from "./registry.js";
+import { localRouteName } from "./local-routes.js";
 
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // agents that are not providers, with the id the app uses for them
@@ -61,6 +62,32 @@ export function scrubUnavailable(plan, hits) {
     return n;
   });
   return { ...plan, tasks };
+}
+
+// 0.4.21 (dogfood 09): the plain name of the AI an id stands for. A step can be routed to an agent that is not
+// set up (Antigravity, a plan route, an app), and those ids have no entry in PROVIDERS, so reading "name"
+// straight off the registry stopped the mission with a raw program error. An id nothing knows has no name here.
+export function stepAgentName(pid) {
+  const id = typeof pid === "string" ? pid.trim() : "";
+  if (!id) return "";
+  return PROVIDERS[id]?.name || localRouteName(id) || "";
+}
+
+// The same step, handed to a working AI when its agent has no name (not set up, or gone). `ranked` is the
+// working AIs, or a function that returns them (called only when the step needs one). Returns the fields to
+// copy onto the step, or null when the step is fine as it is or no working AI is available.
+export function handToWorkingAI(step, ranked = []) {
+  const t = step && typeof step === "object" ? step : null;
+  if (!t || t.agent || t.media || t.app || t.workaround) return null;
+  if (stepAgentName(t.provider)) return null;
+  const list = typeof ranked === "function" ? ranked() : ranked;
+  const alt = (Array.isArray(list) ? list : []).find((r) => r && r.provider && stepAgentName(r.provider));
+  if (!alt) return null;
+  return {
+    provider: alt.provider,
+    model: alt.model,
+    agentName: `${alt.providerName || stepAgentName(alt.provider)} · ${t.capability || "work"}`,
+  };
 }
 
 // A capability the router does not know (the planner wrote "antigravity" or "grok bot" there) becomes plain reasoning.

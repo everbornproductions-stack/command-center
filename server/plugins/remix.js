@@ -208,6 +208,10 @@ export async function routes(req, res, url, body, h) {
     // and when a provider runs out of credits the mission is tried once more without it.
     const nextOn = flagOn("nextactions");
     const stand = nextOn && !ais.length ? freeStandIn() : null;
+    // 0.4.21 (dogfood 09): Try again with another AI sends the same build once more with the AI that failed
+    // left out. The mission router already has this list (it is the mission's skip list).
+    const avoidProviders = (Array.isArray(body?.avoidProviders) ? body.avoidProviders : [])
+      .map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
     const missionOpts = {
       goal: plan.goal,
       context: "Remix rebuilds from scratch. Use only the person's own characters, art, and ideas, and the free tools named in the goal.",
@@ -218,6 +222,7 @@ export async function routes(req, res, url, body, h) {
       qa: true,
       search: false,
       tools: false,
+      ...(avoidProviders.length ? { skip: avoidProviders } : {}),
     };
     if ((ais.length || stand) && typeof h.runMission === "function") {
       try {
@@ -241,7 +246,7 @@ export async function routes(req, res, url, body, h) {
             const again = creditsRetry(done);
             if (!again.retry) return;
             try { h.emit("log", { text: "A credit limit was hit. Trying again with a free AI.", missionId: done?.id }); } catch { /* bus optional */ }
-            const second = h.runMission({ ...missionOpts, skip: again.skip });
+            const second = h.runMission({ ...missionOpts, skip: [...new Set([...avoidProviders, ...(again.skip || [])])] });
             if (second && typeof second.catch === "function") second.catch(() => {});
           }).catch(() => {});
         }
