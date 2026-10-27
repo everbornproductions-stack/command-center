@@ -7,10 +7,12 @@ import { projectMediaDir } from "./media-jobs.js";
 import { saveToMindMedia } from "./project-media.js";
 import { extractCodeFiles, safeFileName } from "./code-files.js";
 import { fileExt, namedFile } from "./step-guard.js";
+import { find as findInFolder } from "./code-source.js";
 
 const PREVIEW_EXT = new Set(["html", "htm"]);
 const TEXT_EXT = new Set(["md", "txt", "csv", "json", "css", "js", "mjs", "xml", "svg", "py", "yml", "yaml"]);
 export const MAX_FILE_CHARS = 600000;
+export const NOT_SAVED_LINE = "Not saved: Meldmind can only show this code here.";
 
 // the body of the file out of a deliverable: a whole html document, the matching code block, or the text itself
 export function fileBody(text, name) {
@@ -41,6 +43,8 @@ export function fileBody(text, name) {
 export function saveNamedFile({ goal = "", name, text, projectId = "", missionId = "", source = "Mission", status = "Draft" } = {}) {
   const want = safeFileName(name || namedFile(goal));
   if (!want) return null; // the task named no file: nothing to promise
+  // a code file is never the whole answer: with several code blocks and none named for it, nothing is guessed
+  if (["js", "mjs", "cjs", "ts", "py", "json", "css", "xml", "svg", "yml", "yaml"].includes(fileExt(want)) && extractCodeFiles(text).length > 1 && !codeFor(text, want)) return { ok: false, name: want, error: NOT_SAVED_LINE };
   const body = fileBody(text, want);
   if (!body.trim()) return { ok: false, name: want, error: `Not saved: there was nothing to write to ${want}.` };
   if (body.length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big (${Math.round(body.length / 1000)}k characters).` };
@@ -73,4 +77,64 @@ export function readSavedFile(info, limit = 300000) {
   const full = path.resolve(info.path);
   if (!full.startsWith(root) || !fs.existsSync(full)) return null;
   return fs.readFileSync(full, "utf8").slice(0, limit);
+}
+
+// ---- code steps: write into the person's own project folder (0.4.21, dogfood 12) ----
+// "save in place as cronwords.js", "add cronwords.test.js": the code block goes to that path inside the project folder,
+// is read back, and the caller records it as a write_file tool call. Never outside the folder.
+const CODE_WRITE_EXT = new Set(["js", "mjs", "cjs", "json", "py", "css", "html", "htm", "ts", "md", "txt", "yml", "yaml", "xml", "svg", "csv"]);
+export const isWritableName = (n) => CODE_WRITE_EXT.has(fileExt(n));
+
+/** The code that belongs in `name` out of a step's output, or "" when there is no clear block for it. */
+export function codeFor(text, name, { onlyName = false } = {}) {
+  const t = String(text || "").replace(/\r\n/g, "\n");
+  const blocks = extractCodeFiles(t);
+  const low = String(name).toLowerCase();
+  const same = blocks.find((b) => b.name.toLowerCase() === low || b.name.toLowerCase().endsWith("/" + low));
+  if (same) return same.text;
+  if (onlyName && blocks.length === 1) return blocks[0].text;
+  return "";
+}
+
+/** A path inside root, or null when it climbs out (../), is absolute, or has a drive or odd characters. */
+export function insideFolder(root, rel) {
+  const r = String(rel || "").replace(/\\/g, "/").trim();
+  if (!r || path.isAbsolute(r) || /^[a-z]:/i.test(r) || r.startsWith("~") || r.split("/").includes("..") || /[\0<>|*?"]/.test(r)) return null;
+  const base = path.resolve(root);
+  const full = path.resolve(base, r);
+  return full.startsWith(base + path.sep) ? full : null;
+}
+
+/**
+ * Write `text` to `name` inside one of the project folders. An existing file of that name (found in the folder) is
+ * replaced in place; a new one goes to the folder's top. Returns { ok, name, path, bytes, folder, existed, before } or
+ * { ok: false, name, error }. `before` is the old text, for the export check.
+ */
+export function writeProjectFile({ folders = [], name, text } = {}) {
+  const want = String(name || "").replace(/\\/g, "/").trim();
+  if (!want) return { ok: false, name: "", error: "Not saved: no file name." };
+  if (!folders.length) return { ok: false, name: want, error: NOT_SAVED_LINE };
+  if (!String(text || "").trim()) return { ok: false, name: want, error: `Not saved: there was nothing to write to ${want}.` };
+  if (String(text).length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big.` };
+  const outside = { ok: false, name: want, error: `Not saved: ${want} is outside your project folder.` };
+  try {
+    let target = null, folder = null, existed = false;
+    for (const root of folders) {
+      if (!insideFolder(root, want)) return outside;
+      let hit = null;
+      try { hit = findInFolder(path.resolve(root), want); } catch { hit = null; }
+      if (hit) { target = hit; folder = path.resolve(root); existed = true; break; }
+    }
+    if (!target) { folder = path.resolve(folders[0]); target = insideFolder(folder, want); }
+    if (!target || !target.startsWith(folder + path.sep)) return outside;
+    if (/(^|[\\/])(\.env[\w.]*|id_rsa[\w.]*|.*\.(pem|key|p12|pfx)|vault\.bin)$/i.test(target)) return { ok: false, name: want, error: `Not saved: ${want} is a private file.` };
+    const before = existed ? fs.readFileSync(target, "utf8") : null;
+    const body = String(text).replace(/\r\n/g, "\n").replace(/\s+$/, "") + "\n";
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, body, "utf8");
+    if (fs.readFileSync(target, "utf8") !== body) return { ok: false, name: want, error: `Not saved: ${want} could not be read back after writing.` };
+    return { ok: true, name: want, path: target, bytes: Buffer.byteLength(body), folder, existed, before };
+  } catch (err) {
+    return { ok: false, name: want, error: `Not saved: ${String(err.message || err).slice(0, 160)}` };
+  }
 }

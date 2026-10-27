@@ -228,3 +228,35 @@ export function inputMissingLine(missing = []) {
   const names = missing.map((m) => `"${m.title}"`).join(" and ");
   return `Input missing: ${names} did not come back, so this step was not run and nothing was charged for it. Press Try again to run ${missing.length > 1 ? "those steps" : "that step"} first.`;
 }
+
+// ---------- claims with no proof (0.4.21, dogfood 12) ----------
+// QA passed steps that said "saved" and showed "test output" when nothing was written or run. A step's own words are
+// compared with the tool records kept for it: a claim needs a record. Code inside fences is ignored (a test file
+// that prints "All tests passed" is not a claim).
+const NEGATED = /\b(?:not|never|nothing|no|n't|unable to|cannot|can't|couldn't)\b[^.\n]{0,30}\b(?:saved?|written|write|created?|run|ran)\b/i;
+// the words of a step without its code blocks and without lines that say a file was NOT saved or a test was NOT run
+function noFences(text) {
+  const out = [];
+  let fence = null;
+  for (const line of clean(text).split("\n")) {
+    const f = /^\s*(```+|~~~+)/.exec(line);
+    if (f) { fence = fence && f[1][0] === fence[0] ? null : fence || f[1]; continue; }
+    if (!fence && !NEGATED.test(line)) out.push(line);
+  }
+  return out.join("\n");
+}
+const SAVE_CLAIM = /\b(?:saved|wrote|written|created)\b[^.\n]{0,40}\b(?:the file|a file|files?|[\w-]+\.(?:js|mjs|cjs|ts|py|json|html?|css|md|txt)|to disk|in place)\b|\bfile\s+(?:has been\s+|was\s+)?(?:saved|written|created)\b/i;
+const RUN_CLAIM = /\btests?\s+(?:all\s+)?passed\b|\ball\s+(?:\d+\s+)?tests?\s+pass(?:ed)?\b|\b\d+\s*(?:of\s*\d+\s*)?tests?\s+pass(?:ed)?\b|^[ \t>*#_-]*test output\b[ \t*_]*:|^[ \t>*#_-]*test output[ \t*_]*$/im;
+const isWrite = (r) => !!r && r.ok !== false && /write|save|create_file|edit|patch|put_file/i.test(String(r.tool || ""));
+const isRun = (r) => !!r && r.ok !== false && /^(run|exec|shell|bash|run_command|run_tests?)$|^run[_-]/i.test(String(r.tool || ""));
+/**
+ * Does a step claim a save or a test run that no tool record backs up? records: the tool calls kept for this step
+ * ({ tool: "write_file" | "run" ... }). Returns { ok, kind: "save" | "run" | "", reason }.
+ */
+export function claimCheck(text, records = []) {
+  const prose = noFences(text);
+  const list = Array.isArray(records) ? records : [];
+  if (SAVE_CLAIM.test(prose) && !list.some(isWrite)) return { ok: false, kind: "save", reason: "Says it saved a file, but nothing was saved." };
+  if (RUN_CLAIM.test(prose) && !list.some(isRun)) return { ok: false, kind: "run", reason: "Shows test output, but no tests were run." };
+  return { ok: true, kind: "", reason: "" };
+}
