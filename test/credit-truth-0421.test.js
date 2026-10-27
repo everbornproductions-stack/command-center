@@ -96,7 +96,7 @@ test("a paused AI stays paused through list-only checks and a 429, and comes bac
     assert.match(H.getStatus("groq").detail, /credits/i);
     let st = await H.checkProvider("groq"); // list passes, the real call is refused (429)
     assert.notEqual(st.status, "green");
-    assert.match(st.detail, /Rate limited|credits/i);
+    assert.match(st.detail, /Rate or quota limit|Rate limited|credits/i);
     // the real call stops working in a way we cannot tell (the mock has no chat route): still paused
     state.chat = 500;
     st = await H.checkProvider("groq");

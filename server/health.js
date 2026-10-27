@@ -55,10 +55,11 @@ export function noteCall(id, ok, latencyMs, errStatus, body) {
   const parts = callParts(errStatus, body);
   if (parts.status === 0) { set(id, { status: "amber", detail: "network error", network: true }); return; }
   const p = PROVIDERS[id] || { id, name: id };
-  const out = explainProviderError(p, parts.status, parts.json, parts.text);
+  const retryAfterMs = Number(errStatus?.retryAfterMs) > 0 ? Number(errStatus.retryAfterMs) : null;
+  const out = explainProviderError(p, parts.status, parts.json, parts.text, { retryAfterMs });
   // A real 402/403/429 beats a models-list check: the light stays amber or red and the old "$N left" goes
   // until a real call works again (0.4.21).
-  if ([402, 403, 429].includes(parts.status)) set(id, { ...out, balance: null, realFailAt: Date.now(), retryAfterMs: parts.status === 429 && Number(errStatus?.retryAfterMs) > 0 ? Number(errStatus.retryAfterMs) : null });
+  if ([402, 403, 429].includes(parts.status)) set(id, { ...out, balance: null, realFailAt: Date.now(), retryAfterMs: parts.status === 429 ? retryAfterMs : null });
   else set(id, out);
 }
 
@@ -77,7 +78,7 @@ export function clearRealFailure(id) { const c = getStatus(id); if (c.realFailAt
 export function isDeadNow(id) {
   const c = getStatus(id);
   if (c.status === "red") return true;
-  return c.status === "amber" && /out of credits|spending limit|payment required|no credits|rate limited/i.test(String(c.detail || ""));
+  return c.status === "amber" && /out of credits|spending limit|payment required|no credits|rate limited|rate or quota limit/i.test(String(c.detail || ""));
 }
 // True while a real call failed with 402/403/429 and no real call has worked since.
 export function heldByRealFailure(id) {
@@ -95,11 +96,51 @@ export function providerMessage(json, text) {
 }
 const BILLING_WORDS = /credit|spending limit|spend limit|quota|billing|insufficient_quota|exceeded your current|balance/;
 const BAD_KEY_WORDS = /api key not valid|api_key_invalid|invalid api key|incorrect api key/;
+// Words that make a refusal a real credit or billing failure. A plain "quota exceeded" is not one of them.
+const CREDIT_TEXT = /insufficient[_ ]credits?|insufficient_quota|out of credits|no credits|payment required|spending limit|spend limit|billing|balance is too low|credit balance/;
+// One phrase every reader of a 429 detail looks for (pause.js, the strip, the router, smart fallback).
+export const RATE_OR_QUOTA = /rate or quota limit/;
 
-export function explainProviderError(p, status, json, text) {
+const isGemini = (p) => !!p && (p.id === "google" || p.api === "gemini");
+// "30s", "1.5m", "2h", "500ms" (a Gemini retryDelay or a Retry-After value) in milliseconds.
+function delayMs(v) {
+  if (typeof v === "number" && v > 0) return v * 1000;
+  const m = /^(\d+(?:\.\d+)?)(ms|s|m|h)?$/i.exec(String(v || "").trim());
+  if (!m) return 0;
+  const n = Number(m[1]);
+  const unit = (m[2] || "s").toLowerCase();
+  return n * (unit === "ms" ? 1 : unit === "m" ? 60000 : unit === "h" ? 3600000 : 1000);
+}
+// The provider's own wait: a Retry-After header, or the Gemini error's retryDelay. 0 when there is none.
+function retryDelayOf(json) {
+  if (!json || typeof json !== "object") return 0;
+  const details = Array.isArray(json.error?.details) ? json.error.details : [];
+  for (const v of [json.retryAfterMs, json.error?.retryDelay, json.retryDelay, ...details.map((d) => d?.retryDelay)]) {
+    const ms = delayMs(v);
+    if (ms > 0) return ms;
+  }
+  return 0;
+}
+const clockTime = (ms) => {
+  try { return new Date(Date.now() + ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); }
+  catch { return null; }
+};
+// "resets at 8:42 PM", "resets at midnight Pacific" (a Gemini daily quota), or "try again in a minute".
+function quotaReset(p, json, low, extra = {}) {
+  const ms = Number(extra.retryAfterMs) > 0 ? Number(extra.retryAfterMs) : retryDelayOf(json);
+  if (ms > 0) { const t = clockTime(ms); if (t) return `resets at ${t}`; }
+  const timed = /per minute|per second|per hour|perminute|persecond|try again after|retry after/.test(low);
+  if (isGemini(p) && !timed && /quota|per_?day|daily|free.?tier/.test(low)) return "resets at midnight Pacific";
+  return "try again in a minute";
+}
+
+export function explainProviderError(p, status, json, text, extra = {}) {
   const msg = providerMessage(json, text);
   const low = msg.toLowerCase();
   const tail = msg ? `: ${msg}` : "";
+  // 429: a rate or daily quota limit, never "out of credits". Only a body that really is about money
+  // (402, insufficient credits, billing) keeps the credit wording below (0.4.21 Gemini check).
+  if (status === 429 && !CREDIT_TEXT.test(low)) return { status: "amber", detail: `Rate or quota limit, ${quotaReset(p, json, low, extra)}${tail}` };
   const billing = BILLING_WORDS.test(low);
   // 401 is a refused key even when the body mentions a balance. Every other
   // credits / quota / billing refusal is amber, with the provider's top-up page.
@@ -160,7 +201,7 @@ async function checkStatusPage(p) {
 
 
 // ---- the tiny real call (0.4.21) ----
-const PAUSE_WORDS = /out of credits|spending limit|spend limit|payment required|no credits|rate limited|low balance/i;
+const PAUSE_WORDS = /out of credits|spending limit|spend limit|payment required|no credits|rate limited|rate or quota limit|low balance/i;
 export const PROBE_MS = 30 * 60 * 1000;
 const probeOn = () => process.env.CC_HEALTH_PROBE !== "off";
 const needsProbe = (prev, wasPaused) => probeOn() && (wasPaused || !prev.lastProbeOk || Date.now() - prev.lastProbeOk > PROBE_MS);

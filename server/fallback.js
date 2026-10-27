@@ -147,7 +147,7 @@ export function kindFromHealth(status, detail = "") {
     return "server";
   }
   if (status === "amber") {
-    if (/rate limited/.test(d)) return "rate";
+    if (/rate limited|rate or quota limit/.test(d)) return "rate";
     if (/out of credits|spending limit|low balance|payment/.test(d)) return "credits";
     if (/server error/.test(d)) return "server";
     if (/network error/.test(d)) return "unreachable";

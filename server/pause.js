@@ -28,7 +28,7 @@ export const PAUSE_LABEL = "Out of credits";
 export const RATE_LABEL = "Rate limited";
 export const CHECK_AGAIN_TITLE = "A one word test. If you have no credits it costs nothing.";
 
-const CREDIT_RE = /out of credits|spending limit|spend limit|payment required|no credits|rate limited/;
+const CREDIT_RE = /out of credits|spending limit|spend limit|payment required|no credits|rate limited|rate or quota limit/;
 const KEY_RE = /key rejected|invalid api key|incorrect api key/;
 
 // 5 min, 15 min, 1 h, then every hour
@@ -58,7 +58,7 @@ function stampKey(id) {
   return `${currentUserId() || "local"}:${id}`;
 }
 
-const isRate = (detail) => /rate limited/.test(String(detail || "").toLowerCase()) && !/credit|spending limit|payment required|no credits/i.test(String(detail || ""));
+const isRate = (detail) => /rate limited|rate or quota limit/.test(String(detail || "").toLowerCase()) && !/credit|spending limit|payment required|no credits/i.test(String(detail || ""));
 const pauseSince = (st, now) => st?.realFailAt || st?.checkedAt || now;
 
 function firstDue(id, st, step, base, now) {
