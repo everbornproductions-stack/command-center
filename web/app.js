@@ -786,7 +786,8 @@ function setUiMode(mode, opts = {}) {
   const prev = S.uiMode;
   const firstExpert = mode === "expert" && prev !== "expert" && !S.settings?.expertConfirmed;
   if (firstExpert && !opts.confirmed && !opts.fromSetup) {
-    if (!confirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?")) return;
+    askConfirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?").then((yes) => { if (yes) setUiMode(mode, { ...opts, confirmed: true }); });
+    return;
   }
   S.uiMode = mode;
   S.askMode = false;

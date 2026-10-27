@@ -380,7 +380,7 @@ function wireTemplates(root, data) {
   }));
 }
 async function saveAsTemplate(w) {
-  const name = window.prompt("Name this template", String(w.plan?.title || w.typeName || "My template").slice(0, 60));
+  const name = await window.CC.ask("Name this template", String(w.plan?.title || w.typeName || "My template").slice(0, 60));
   if (!name) return;
   try {
     await api("/walkthrough/templates", { method: "POST", body: { walkId: w.id, name } });

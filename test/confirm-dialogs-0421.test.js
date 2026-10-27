@@ -36,3 +36,12 @@ test("source: plain words on Images and Media, and readable small print under Mo
   }
   assert.match(read("web", "styles.css"), /\.answer-more-body \.chip[^{]*\{ font-size: 0\.8125rem; \}/);
 });
+
+test("source: Save as template and the Expert switch use the page's own dialogs (S5)", () => {
+  const walk = read("web", "features", "walkthrough.js");
+  const app = read("web", "app.js");
+  assert.equal(/window\.prompt\(/.test(walk), false);
+  assert.match(walk, /await window\.CC\.ask\("Name this template"/);
+  assert.equal(/(^|[^.\w])(window\.)?confirm\(/m.test(app.replace(/askConfirm\(/g, "")), false);
+  assert.match(app, /askConfirm\("Expert shows every menu[^]*?confirmed: true/);
+});
