@@ -167,7 +167,7 @@ test("the page, the tour, Help, and the guide say Get it done in plain words", (
   const pack = loadHelp();
   const gate = releaseHelpOk({ version: pkg.version, news, articles: pack.articles, catalog: pack.catalog });
   assert.equal(gate.ok, true, gate.problems.join("\n"));
-  assert.equal(pkg.version, "0.4.21");
+  assert.equal(pkg.version, "0.4.22");
 });
 
 test("rules, the handoff prompt, and Stop go through the app", async () => {
