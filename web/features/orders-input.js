@@ -1,6 +1,7 @@
 // Upload and voice on the marching orders box. Words land in the box. Send is still a click.
 import { FILE_ACCEPT, appendText, wireUpload, wireVoice } from "./capture-input.js";
 import { mediaKind, mountModify } from "./media-modify.js";
+import { mountStrip } from "./upload-strip.js";
 
 function renderCommand(el) {
   document.getElementById("ob-row")?.remove();
@@ -12,7 +13,7 @@ function renderCommand(el) {
     <span class="dim" id="ob-status" aria-live="polite"></span>
   </div>
   <div class="dim small" style="margin-top:4px">Upload a file, a screenshot, or a document. Voice writes what you say into the box. Edit the words, then send. Nothing is sent until that click. A picture or video can be retouched or described after you see the plan.</div>
-  <div id="ob-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+  <div id="ob-chips"></div>
   <div id="ob-modify"></div>`;
   const orders = document.querySelector("#orders");
   if (orders) orders.insertAdjacentElement("afterend", el);
@@ -20,17 +21,21 @@ function renderCommand(el) {
   const getBox = () => document.querySelector("#orders");
   wireVoice(el.querySelector("#ob-voice"), { getBox, status });
   const held = [];
+  // The files on the message sit in one strip: swipe on a phone, drag on a desk, tap a picture to open it.
+  const paintStrip = () => {
+    const box = el.querySelector("#ob-chips");
+    if (!box) return;
+    const { apiBlobUrl } = window.CC;
+    mountStrip(box, held, { srcFor: (f) => (f?.id && apiBlobUrl ? apiBlobUrl(`/orders-box/files/${encodeURIComponent(f.id)}`) : "") });
+  };
   const upload = wireUpload(el.querySelector("#ob-upload"), el.querySelector("#ob-file"), {
     url: "/orders-box/files",
     status,
     before: held,
     onSaved(saved) {
-      held.push(saved.id);
+      held.push(saved);
       if (saved.note) appendText(getBox(), saved.note);
-      const span = document.createElement("span");
-      span.className = "chip";
-      span.textContent = saved.name || "file";
-      el.querySelector("#ob-chips")?.appendChild(span);
+      paintStrip();
       if (mediaKind(saved)) {
         const host = document.createElement("div");
         el.querySelector("#ob-modify")?.appendChild(host);
