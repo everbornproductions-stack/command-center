@@ -154,6 +154,8 @@ export const ADDONS = [
   { id: "bevy", name: "Bevy templates", bytes: 80000000, summary: "Starter files for a Bevy game.", cloud: "A connected coding model can draft the game without the templates." },
   { id: "lighthouse", name: "Lighthouse", bytes: 80000000, summary: "Checks a page for speed and access on this PC.", cloud: "A connected model can review the page instead." },
   { id: "playwright", name: "Playwright browsers", bytes: 380000000, summary: "Browser binaries for a local page check.", cloud: "A connected model can review the page instead." },
+  { id: "onnx-classifier", name: "Faster sorting", bytes: 90000000, summary: "Sorts your files on this PC with a small local model.", cloud: "The built-in rules sort your files instead." },
+  { id: "tensorrt", name: "NVIDIA boost", bytes: 1500000000, summary: "Uses your NVIDIA card for High Performance mode.", cloud: "The CPU does the work instead." },
   { id: "postiz", name: "Postiz", bytes: 250000000, summary: "Local Postiz for scheduling posts.", cloud: "Use a connected account. Nothing posts without a click." },
   { id: "chatwoot", name: "Chatwoot", bytes: 300000000, summary: "Local Chatwoot inbox.", cloud: "A connected inbox can answer instead." },
   { id: "docuseal", name: "DocuSeal", bytes: 200000000, summary: "Local DocuSeal for signing.", cloud: "A connected signing service can prepare the draft instead." },
@@ -208,3 +210,4 @@ export function formatBytes(bytes) {
   if (n >= 1000) return `${Math.round(n / 1000)} KB`;
   return `${Math.round(n)} B`;
 }
+

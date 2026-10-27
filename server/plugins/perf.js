@@ -5,6 +5,7 @@ import { scheduler } from "../perf/scheduler.js";
 import { perfState } from "../perf/power.js";
 import { listAddons, installAddon, removeAddon, chooseRoute } from "../perf/addons.js";
 import { demandForView } from "../../web/perf/registry.js";
+import { accelStatus } from "../perf/accel.js";
 import { BASELINE, installerCap, IDLE_RAM_BUDGET } from "../perf/budget.js";
 
 export const id = "perf";
@@ -39,6 +40,7 @@ export async function routes(req, res, url, body, h) {
       return h.json(res, 200, row);
     }
     if (m === "DELETE" && parts[0] === "addons" && parts[1]) return h.json(res, 200, removeAddon(parts[1], h.DATA_DIR));
+    if (m === "GET" && parts[0] === "accel" && parts.length === 1) return h.json(res, 200, await accelStatus(h.DATA_DIR, { wantHigh: url.searchParams.get("high") === "1" }));
     if (m === "GET" && parts[0] === "route" && parts.length === 1) {
       const tool = url.searchParams.get("tool") || "";
       return h.json(res, 200, chooseRoute(h.DATA_DIR, tool));
@@ -59,3 +61,4 @@ export async function routes(req, res, url, body, h) {
     return h.json(res, e.status || 500, { error: e.message || "Performance request failed." });
   }
 }
+

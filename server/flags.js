@@ -14,6 +14,7 @@ const DEFAULTS = {
   momentum: false, // Momentum Mode: action bar that suggests the next step, autosave checkpoint, Resume Momentum, Low Power, Owner tuning
   templates: false, // Custom project templates: Save as template, Start from a template
   videoeditor: false, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
+  onnx: false, // Faster local classifier (ONNX add-on, optional NVIDIA High Performance); falls back to the CPU rules
   finishers: false, // Category finishers: documents, accounting, automations, music, presentations, programs, games
 };
 export function flagOn(name) {
@@ -51,3 +52,4 @@ export function templatesOn(settings = {}) {
   return flagOn("templates");
 }
 export const flagView = () => Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, flagOn(k)]));
+
