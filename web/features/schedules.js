@@ -6,7 +6,9 @@ const { api, toast, esc, money, ago } = window.CC;
 const S = () => window.CC.S;
 
 const st = { data: null, edit: null, token: null, whenTouched: false };
-const DAYS = [["1", "Mon", "Monday"], ["2", "Tue", "Tuesday"], ["3", "Wed", "Wednesday"], ["4", "Thu", "Thursday"], ["5", "Fri", "Friday"], ["6", "Sat", "Saturday"], ["0", "Sun", "Sunday"]];
+// DAYS, whenHtml, readWhen and wireWhen are shared with the create box on the Agents page, so the two
+// forms pick days and a time the same way.
+export const DAYS = [["1", "Mon", "Monday"], ["2", "Tue", "Tuesday"], ["3", "Wed", "Wednesday"], ["4", "Thu", "Thursday"], ["5", "Fri", "Friday"], ["6", "Sat", "Saturday"], ["0", "Sun", "Sunday"]];
 const PRESETS = [
   { id: "weekdays-5", label: "Weekdays at 5 pm", days: ["1", "2", "3", "4", "5"], time: "17:00" },
   { id: "friday-4", label: "Fridays at 4 pm", days: ["5"], time: "16:00" },
@@ -72,7 +74,7 @@ function targetText(s) {
 }
 const pill = (r) => `<span class="pill ${STATUS_CLS[r.status] || ""}">${esc(r.statusLabel || r.status)}</span>`;
 
-function whenHtml(cron) {
+export function whenHtml(cron) {
   const simple = whenFromCron(cron);
   const picked = new Set(simple?.days || ["1", "2", "3", "4", "5"]);
   const time = simple?.time || "17:00";
@@ -84,7 +86,7 @@ function whenHtml(cron) {
     <input type="hidden" id="sf-cron" value="${esc(simple ? cronFromWhen([...picked], time) : cron)}">
     ${custom}`;
 }
-function readWhen(view) {
+export function readWhen(view) {
   const days = [...view.querySelectorAll("#sf-days [data-day][aria-pressed='true']")].map((b) => b.dataset.day);
   const time = view.querySelector("#sf-time")?.value || "09:00";
   const custom = view.querySelector("#sf-custom");
@@ -122,6 +124,33 @@ function form(s) {
   </div>`;
 }
 
+// The day buttons, the time box and the two presets, wired for whichever page shows them.
+export function wireWhen(view, onChange = () => {}) {
+  const mark = () => { st.whenTouched = true; const cron = readWhen(view); const hidden = view.querySelector("#sf-cron"); if (hidden) hidden.value = cron; onChange(cron); };
+  view.querySelectorAll("#sf-days [data-day]").forEach((b) => b.addEventListener("click", () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("primary", on);
+    mark();
+  }));
+  view.querySelector("#sf-time")?.addEventListener("change", mark);
+  view.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+    const p = PRESETS.find((x) => x.id === b.dataset.preset);
+    if (!p) return;
+    st.whenTouched = true;
+    view.querySelectorAll("#sf-days [data-day]").forEach((d) => {
+      const on = p.days.includes(d.dataset.day);
+      d.setAttribute("aria-pressed", on ? "true" : "false");
+      d.classList.toggle("primary", on);
+    });
+    if (view.querySelector("#sf-time")) view.querySelector("#sf-time").value = p.time;
+    const hidden = view.querySelector("#sf-cron");
+    if (hidden) hidden.value = cronFromWhen(p.days, p.time);
+    view.querySelector("#sf-custom")?.remove();
+    onChange(hidden ? hidden.value : cronFromWhen(p.days, p.time));
+  }));
+}
+
 function wireForm(view) {
   const $ = (q) => view.querySelector(q);
   const sync = () => {
@@ -133,27 +162,7 @@ function wireForm(view) {
     $("#sf-url").style.display = $("#sf-after").value === "webhook" ? "" : "none";
   };
   ["#sf-kind", "#sf-trig", "#sf-after"].forEach((q) => $(q).addEventListener("change", sync));
-  const mark = () => { st.whenTouched = true; const cron = readWhen(view); const hidden = $("#sf-cron"); if (hidden) hidden.value = cron; };
-  view.querySelectorAll("#sf-days [data-day]").forEach((b) => b.addEventListener("click", () => {
-    const on = b.getAttribute("aria-pressed") !== "true";
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.classList.toggle("primary", on);
-    mark();
-  }));
-  $("#sf-time")?.addEventListener("change", mark);
-  view.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
-    const p = PRESETS.find((x) => x.id === b.dataset.preset);
-    if (!p) return;
-    st.whenTouched = true;
-    view.querySelectorAll("#sf-days [data-day]").forEach((d) => {
-      const on = p.days.includes(d.dataset.day);
-      d.setAttribute("aria-pressed", on ? "true" : "false");
-      d.classList.toggle("primary", on);
-    });
-    if ($("#sf-time")) $("#sf-time").value = p.time;
-    $("#sf-cron").value = cronFromWhen(p.days, p.time);
-    view.querySelector("#sf-custom")?.remove();
-  }));
+  wireWhen(view);
   sync();
   $("#sf-cancel")?.addEventListener("click", () => { st.edit = null; renderTab(view); });
   $("#sf-save").addEventListener("click", async () => {
