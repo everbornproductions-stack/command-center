@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./helpers.js";
-import { plainMarkdown, titleFrom, hasCode } from "../web/finish-text.js";
+import { plainMarkdown, titleFrom, hasCode, hidePrivateInTitle } from "../web/finish-text.js";
 import { cleanText, previewCard } from "../web/finishpath.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\r\n/g, "\n");
@@ -52,4 +52,16 @@ test("source: Looks good, Finish and the top Finish open the drawer in one step"
   assert.match(d, /Read aloud/);
   assert.match(d, /returnTo/);
   assert.equal(d.includes("—") || d.includes("–"), false);
+});
+
+test("titles never carry private numbers (panel 0.4.21 row 46)", () => {
+  const t = titleFrom("SSN 123-45-6789 for the Fresno loan file, please write a short cover note");
+  assert.ok(!/\d{3}-\d{2}/.test(t) && !/123-4/.test(t), t);
+  assert.match(t, /\[hidden\]/);
+  assert.ok(!/6789/.test(titleFrom("Write the letter for 123-45-6789 today")));
+  assert.ok(!/4111/.test(titleFrom("Refund card 4111 1111 1111 1111 for the order")));
+  assert.ok(!/12345678/.test(titleFrom("Account number 12345678 needs a reply")));
+  // ordinary numbers stay
+  assert.equal(titleFrom("Spring sale 2026 starts April 5"), "Spring sale 2026 starts April 5");
+  assert.equal(hidePrivateInTitle("Top 3 budget tips"), "Top 3 budget tips");
 });
