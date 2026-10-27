@@ -117,6 +117,18 @@ test("Create posts the agent to the existing route and, when days are picked, a 
   assert.match(sched, /export function wireWhen/, "one wiring for both forms");
 });
 
+test("with no agents the Schedules form offers Create an agent... and opens the create box", () => {
+  const sched = read("web/features/schedules.js");
+  assert.equal(sched.includes("No agents yet (Agents tab)"), false, "the dead option is gone");
+  assert.equal(sched.includes("No agents yet"), false, "no dead end left in the select");
+  assert.match(sched, /<option value="__create">Create an agent\.\.\.<\/option>/, "the choice is to make one");
+  assert.match(sched, /S\(\)\.openAgentCreate = true/, "it asks the Agents page to open the box");
+  assert.match(sched, /window\.CC\.go\("agents"\)/, "and takes you there");
+  const agents = read("web/features/agents.js");
+  assert.match(agents, /S\(\)\.openAgentCreate/, "the Agents page reads the request");
+  assert.match(agents, /const n = \$v\("#ac-name"\); n\?\.focus\(\)/, "the Name field is ready to type in");
+});
+
 test("the schedule route accepts what the box posts: target kind agent, that agent id, the cap", { timeout: 120000 }, async () => {
   const s = await startServer({ env: { CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off" } });
   try {

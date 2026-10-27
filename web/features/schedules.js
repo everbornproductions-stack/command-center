@@ -105,7 +105,7 @@ function form(s) {
     <label class="small">Name<input type="text" id="sf-name" value="${esc(e.name)}" maxlength="80"></label>
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">What runs <select id="sf-kind">${["agent", "chat", "mission"].map((k) => `<option value="${k}" ${e.target.kind === k ? "selected" : ""}>${KIND[k]}</option>`).join("")}</select></label>
-      <label class="small" id="sf-agent-wrap">Agent <select id="sf-agent">${st.data.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === e.target.agentId ? "selected" : ""}>${esc(a.name)}</option>`).join("") || `<option value="">No agents yet (Agents tab)</option>`}</select></label>
+      <label class="small" id="sf-agent-wrap">Agent <select id="sf-agent">${st.data.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === e.target.agentId ? "selected" : ""}>${esc(a.name)}</option>`).join("") || `<option value="__create">Create an agent...</option>`}</select></label>
       <label class="small">Project <select id="sf-proj"><option value="">No project</option>${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === e.target.projectId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
     </div>
     <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do each time? (for an agent this is optional)">${esc(e.target.text || "")}</textarea>
@@ -165,6 +165,12 @@ function wireForm(view) {
     $("#sf-url").style.display = $("#sf-after").value === "webhook" ? "" : "none";
   };
   ["#sf-kind", "#sf-trig", "#sf-after"].forEach((q) => $(q).addEventListener("change", sync));
+  // No agent yet: the choice is to make one, not a dead end. The Agents page opens on its create box.
+  $("#sf-agent")?.addEventListener("change", (e) => {
+    if (e.target.value !== "__create") return;
+    S().openAgentCreate = true;
+    window.CC.go("agents");
+  });
   wireWhen(view);
   sync();
   $("#sf-cancel")?.addEventListener("click", () => { st.edit = null; renderTab(view); });
