@@ -249,6 +249,9 @@ async function startServer() {
   // real PDFs for document tasks: the server prints its pages with Electron (server/doc-pdf.js)
   try { globalThis.__ccPdfRenderer = require("./pdf-render.cjs").createPdfRenderer({ BrowserWindow }); }
   catch (e) { log("PDF renderer unavailable:", e && e.message); }
+  // flat graphics (quote cards, banners): the server turns its SVG into a PNG with Electron (server/local-draw.js)
+  try { globalThis.__ccSvgRenderer = require("./svg-render.cjs").createSvgRenderer({ BrowserWindow }); }
+  catch (e) { log("SVG renderer unavailable:", e && e.message); }
   // a file URL on every platform (pathToFileURL still encodes a space, as in "/Applications/Command AI.app/..."; the current bundle is Meldmind.app)
   await import(require("node:url").pathToFileURL(path.join(ROOT, "server", "index.js")).href);
   serverStarted = await waitForServer();

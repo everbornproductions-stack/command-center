@@ -64,6 +64,7 @@ import { scheduler } from "./perf/scheduler.js";
 import { bindPerf, noteActivity } from "./perf/power.js";
 import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
+import { isDrawingOrPageJob, wantsSearch } from "./step-guard.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { sendCheck } from "./send-check.js";
@@ -627,7 +628,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search: numbered results go into the prompt; the answer cites them as [n]
   // A pinned model uses the local hint. A routed chat trusts the classifier, so a mock that says needWeb false does not search.
-  const needWeb = pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb;
+  // a drawing or page-build job searches only when the person said so (0.4.21, dogfood 13)
+  const needWeb = (pinnedModel ? !!heuristicClassify(prompt).needWeb : !!cls?.needWeb) && !(isDrawingOrPageJob(prompt) && !wantsSearch(prompt));
   const web = await prepareWeb({ prompt, kind: "single", provider, model, missionId: id, explicit: typeof search === "boolean" ? search : undefined, needWeb, filter, mode: searchMode === "pro" ? "pro" : undefined });
   m.searched = web != null;
   if (web?.sources?.length) { m.sources = web.sources; m.searchEngine = web.name; m.cost = +(m.cost + (web.cost || 0)).toFixed(6); }
