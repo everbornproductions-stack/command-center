@@ -46,7 +46,7 @@ export function projectFolders(projectId, projects = null) {
   return [...new Set(out)];
 }
 
-function find(root, rel, depth = 4) {
+export function find(root, rel, depth = 4) {
   const direct = path.resolve(root, rel);
   if (direct.startsWith(root + path.sep) && fs.existsSync(direct) && fs.statSync(direct).isFile()) return direct;
   if (rel.includes("/")) return null;
