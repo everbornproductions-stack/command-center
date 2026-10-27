@@ -1,6 +1,7 @@
 // Publishing: buttons under the deliverable (Instagram, HighLevel, Slack, Google Drive), each with a
 // preview + confirm; Connect (OAuth), pasted tokens and the Drive folder in Settings; history in a Publish tab.
 import { plainExplain, plainLabel } from "../plain.js";
+import { warningLines } from "/publish-fit.js";
 const { S, api, toast, esc } = window.CC;
 
 function stripMd(t) { return (t || "").replace(/```[\s\S]*?```/g, "").replace(/[#*>`_]/g, "").replace(/\n{3,}/g, "\n\n").trim(); }
@@ -45,7 +46,7 @@ async function openPreview(el, channel, run) {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });
       previewId = r.previewId; live = !!r.safety?.hasLive; go.textContent = live ? "Publish anyway" : go.textContent.replace(/^Publish anyway$/, "Confirm & " + VERB[channel]);
-      const warnings = (r.warnings || []).map((w) => typeof w === "string" ? w : (w.plain || w.why || JSON.stringify(w)));
+      const warnings = warningLines(r.warnings);
       out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${warnings.length ? `<div style="color:var(--amber)">${warnings.map(esc).join(" · ")}</div>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
       if (r.safety) out.insertAdjacentHTML("beforeend", window.CC.safety?.previewLine?.(r.safety) || "");
       go.disabled = r.problems.length > 0 && !r.dryRun; go.title = go.disabled ? "Fix the problems above, then preview again" : "";
