@@ -263,7 +263,7 @@ async function render(view) {
     const list = chosen();
     if (!list.length) return toast("Pick something first.", true);
     if (!(await window.CC.confirm(`Move ${list.length} item${list.length === 1 ? "" : "s"} to the Trash? You can restore ${list.length === 1 ? "it" : "them"} for 30 days. Files in other places are not touched.`, { danger: true, ok: "Move to Trash" }))) return;
-    try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Deleted."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
+    try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Moved to Trash. You can restore it for 30 days."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
   });
 
   // shelf
@@ -311,12 +311,13 @@ async function render(view) {
     insp.querySelector('[data-a="close"]').addEventListener("click", () => { ui.focus = null; redraw(); });
     insp.querySelector('[data-a="delete"]').addEventListener("click", async () => {
       if (!(await window.CC.confirm(`Move "${it.name}" to the Trash? You can restore it for 30 days.`, { danger: true, ok: "Move to Trash" }))) return;
-      try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Deleted."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
+      try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Moved to Trash. You can restore it for 30 days."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
     });
     insp.querySelector('[data-a="download"]').addEventListener("click", async () => {
       try {
-        if (it.kind === "text") { const r = await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`); downloadBlob(URL.createObjectURL(new Blob([r.text], { type: "text/markdown" })), `${it.name.replace(/\.md$/i, "")}.md`); return; }
+        if (it.kind === "text") { const r = await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`); downloadBlob(URL.createObjectURL(new Blob([r.text], { type: "text/markdown" })), `${it.name.replace(/\.md$/i, "")}.md`); toast("Downloaded."); return; }
         downloadBlob(await apiBlobUrl(fileUrl(it)), it.name);
+        toast("Downloaded.");
       } catch (e) { toast(e.message, true); }
     });
     const pubBox = insp.querySelector("[data-pub]");
