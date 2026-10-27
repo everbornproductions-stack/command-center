@@ -63,6 +63,7 @@ export async function open() {
     ${freeOnlySwitchHtml(!!d.freeOnly?.on).replace('id="cc-freeonly"', 'class="cc-freeonly-box"')}
     <div id="cc-fa-list">${d.pages.map(rowHtml).join("")}</div>
     <div class="row cc-fa-row" id="cc-fa-grok" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><b style="min-width:190px">Grok Bot</b><span class="chip ${gb.ready ? "green" : ""}">${gb.ready ? "Ready" : "Not set up"}</span><span class="dim small" style="flex:1">Your own assistant. It takes any job it can do, and it is a last-resort helper when other AIs fail.</span><button type="button" class="btn sm" id="cc-fa-grokbtn">${gb.ready ? "Open Grok Bot settings" : "Set up Grok Bot"}</button></div>
+    <div id="cc-fa-limits" class="small" style="margin-top:10px"></div>
     <p class="small dim" style="margin-top:10px">Free tiers can use your prompts to improve their products. Turn on Private mode to keep private files away from them.</p>
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" class="btn sm" id="cc-fa-recheck">Look again for Ollama and LM Studio</button><button type="button" class="btn sm primary" id="cc-fa-close">Done</button></div>
   </div>`;
@@ -90,6 +91,17 @@ export async function open() {
   wrap.querySelector("#cc-fa-grokbtn").addEventListener("click", () => { end(); S.focusProvider = "grokbot"; window.CC.go("settings"); });
   wrap.querySelector("#cc-fa-recheck").addEventListener("click", async () => { await open(); });
   wrap.querySelector("#cc-fa-close").focus();
+  fillLimits(wrap.querySelector("#cc-fa-limits"));
+}
+// 0.4.22: "Free AI limits today", used and left for each free AI
+async function fillLimits(box) {
+  if (!box) return;
+  try {
+    const d = await api("/free-bids/limits");
+    const rows = (d.limits || []).filter((l) => l.used || l.out || l.limit);
+    const line = window.CC.freeBids?.limitLine || ((l) => `${l.name}: ${l.used} used`);
+    box.innerHTML = `<b>Free AI limits today</b>${rows.map((l) => `<div>${esc(line(l))}</div>`).join("") || '<div class="dim">No free AI has been used yet today.</div>'}`;
+  } catch { box.textContent = ""; }
 }
 export function close() { document.getElementById("cc-free-ais")?.remove(); card = null; }
 

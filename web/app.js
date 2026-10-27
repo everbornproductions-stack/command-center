@@ -1829,8 +1829,9 @@ function paintAnswerLine(l, text) {
   // 0.4.21: what it cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
   const mm = l.mission || {};
   const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">Cost: ${esc(mm.costText)}${mm.why ? `. ${esc(mm.why)}` : ""}</div>` : "";
-  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
-  box.innerHTML = costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
+  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${window.CC.freeBids?.stepBadgeHtml(x) || ""}${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
+  const savedLine = window.CC.freeBids?.savedHeaderHtml(mm.steps) || ""; // 0.4.22
+  box.innerHTML = savedLine + costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
   $("#cc-ask-council", box)?.addEventListener("click", askCouncil);
 }
 async function askCouncil() {
