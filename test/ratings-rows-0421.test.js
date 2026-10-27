@@ -89,3 +89,8 @@ test("P: a step that said it could not do the job keeps a row but never earns a 
   assert.equal(preferLine({ up: true, ran: rows, top: { provider: "openai", model: "gpt-6", name: "GPT-6" } }), "");
   assert.match(preferLine({ up: true, ran: rows, top: { provider: "groq", model: "gpt-oss-20b", name: "Groq" } }), /prefers Groq/);
 });
+
+test("P: a single chat run with tasks: {} does not throw and gives one row", () => {
+  const rows = contributors({ id: "r", kind: "single", tasks: {}, agents: { x: { provider: "demo-nova", model: "m" } }, primary: "x" });
+  assert.equal(rows.length, 1);
+});
