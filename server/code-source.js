@@ -2,6 +2,7 @@
 // "lines 40 to 60 of app.js") and the project's folder on this PC is known, that file (or the named lines) is attached
 // to every worker, so nobody writes a "patch" for code they never saw. No file found: the task says so instead.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { listProjects } from "./projects.js";
 
@@ -13,15 +14,41 @@ export const MAX_BYTES = 200_000, MAX_CHARS = 24_000;
 
 // the file names a task mentions, without web addresses
 export function namedSources(goal) {
-  const text = String(goal || "").replace(/https?:\/\/\S+/gi, " ").replace(/\b[\w-]+@[\w.-]+\.\w+\b/g, " ");
+  const text = String(goal || "").replace(/https?:\/\/\S+/gi, " ").replace(/\b[\w-]+@[\w.-]+\.\w+\b/g, " ")
+    .replace(/[a-zA-Z]:[\\/](?:[^\\/:*?"<>|\r\n`'\s]+[\\/])*(?=[^\\/:*?"<>|\r\n`'\s]+\.\w)/g, " "); // the folder part of a full path
   const out = [];
   for (const m of text.matchAll(NAME_RE)) {
     const n = m[1].replace(/\\/g, "/");
-    if (/^(?:\d+\.)+\d+$/.test(n) || /^(?:e\.g|i\.e|etc)\./i.test(n) || out.includes(n)) continue;
+    // 0.4.23.1: "Node.js", "Next.js" and the like are products, not files ("Node.js was not found on disk")
+    if (/^(?:\d+\.)+\d+$/.test(n) || /^(?:e\.g|i\.e|etc)\./i.test(n) || /^(?:node|next|nuxt|vue|react|express|three|d3|chart|p5|socket|alpine|ember|backbone|jquery|angular|nest|deno|bun|electron|svelte|astro|remix|gatsby|meteor)\.(?:js|ts)$/i.test(n) || out.includes(n)) continue;
     out.push(n);
     if (out.length >= 4) break;
   }
   return out;
+}
+// 0.4.23.1: a full path typed in the task ("C:\work\app\cronwords.js") is the person's own permission to use that one folder.
+// Only an existing folder, never a system or secret place, never Meldmind's own data.
+const PATH_RE = new RegExp(`(?<![\\w])([a-zA-Z]:[\\\\/](?:[^\\\\/:*?"<>|\\r\\n\`'\\s]+[\\\\/])*[^\\\\/:*?"<>|\\r\\n\`'\\s]+\\.(?:${CODE_EXT}))(?![\\w])`, "g");
+const DENY_DIR = /(^|[\\/])(windows|program files|program files \(x86\)|programdata|\.ssh|\.aws|\.gnupg|appdata|data|node_modules|\.git)([\\/]|$)/i;
+export function namedPaths(goal) {
+  const text = String(goal || "").replace(/https?:\/\/\S+/gi, " ");
+  const out = [];
+  for (const m of text.matchAll(PATH_RE)) {
+    const full = path.resolve(m[1]);
+    const dir = path.dirname(full);
+    const tmp = path.resolve(os.tmpdir());
+    const rel = dir.toLowerCase().startsWith(tmp.toLowerCase()) ? dir.slice(tmp.length) : dir.slice(path.parse(dir).root.length); // the temp folder lives under AppData
+    if (DENY_DIR.test(rel) || SECRET.test(full)) continue;
+    if (!out.some((o) => o.full === full)) out.push({ full, dir, name: path.basename(full) });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+/** Existing folders the task names by full path. */
+export function namedFolders(goal) {
+  const dirs = [];
+  for (const n of namedPaths(goal)) { try { if (fs.statSync(n.dir).isDirectory() && !dirs.includes(n.dir)) dirs.push(n.dir); } catch { /* not a folder here */ } }
+  return dirs;
 }
 // "lines 40 to 60", "line 12", "L40-L60"
 export function namedLines(goal) {

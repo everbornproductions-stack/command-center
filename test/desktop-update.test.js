@@ -221,11 +221,12 @@ test("a check that fails on both feeds is logged and the server bridge keeps the
   assert.equal(s.error, CHECK_FAILED);
   assert.match(s.detail, /latest\.yml HTTP 404/);
   assert.equal(s.downloadUrl, DOWNLOAD_PAGE);
-  assert.equal(seen.failed, 1, "a failed launch check is shown, not only logged");
+  assert.equal(seen.failed, 0, "0.4.23.1: a check nobody asked for opens no window; the in-page strip and the log carry it");
+  assert.ok(logs.some((l) => /update check failed quietly/.test(l)), "it is logged");
   assert.match(logs.join("\n"), /update check failed: latest\.yml HTTP 404/);
   const again = await c.check({ prompt: true });
   assert.equal(again.phase, "failed");
-  assert.equal(seen.failed, 1, "the same failure does not open the dialog on every hourly check");
+  assert.equal(seen.failed, 0, "the same failure never opens a window on an hourly check");
   const r = await c.bridge.check();
   assert.equal(r.version, "0.4.1");
   assert.equal(r.error, CHECK_FAILED);

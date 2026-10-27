@@ -97,6 +97,13 @@ export function finishedLine(live) {
   const l = live || {};
   const total = Object.keys(l.tasks || {}).length;
   if (l.status === "failed" || l.status === "aborted") return "That run stopped before it finished.";
+  // 0.4.23.1: count what really happened, step by step. "All done" only when every step finished clean.
+  const bad = Object.values(l.tasks || {}).filter((t) => t && (t.status === "failed" || t.status === "waiting" || t.notDone || t.notSaved || t.notRun || t.qaFailed));
+  if (bad.length || l.status === "done-with-errors") {
+    if (!total) return "Finished with problems.";
+    const n = bad.length || 1;
+    return `Finished with problems: ${Math.max(0, total - n)} of ${total} step${total === 1 ? "" : "s"} worked, ${n} did not.`;
+  }
   if (total) return `All ${total} step${total === 1 ? "" : "s"} done.`;
   return "Finished.";
 }

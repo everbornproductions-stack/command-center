@@ -12,6 +12,9 @@
 // callback_url only works once Grok Bot can reach it (the hosted hub, or a tunnel Chris sets up). Until
 // then a job stays queued / working and the person can paste the result in by hand.
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { getSecret, setSecret } from "./vault.js";
 import { HOSTED, doc, putDoc, ctx, runAs, currentUserId, getContext } from "./store.js";
 import { emit } from "./events.js";
@@ -37,7 +40,7 @@ export const TAG_LABEL = { "signed-in-browsing": "signed-in browsing", gmail: "G
 export const STATUSES = ["queued", "working", "needs_approval", "done", "failed"];
 export const STATUS_LABEL = { queued: "Queued", working: "Working", needs_approval: "Needs your approval", done: "Done", failed: "Failed" };
 const TERMINAL = new Set(["done", "failed"]);
-export const DEFAULTS = { auto: true, mock: false, councilWaitSec: 90, missionWaitMin: 15, publicUrl: "" };
+export const DEFAULTS = { auto: true, mock: false, councilWaitSec: 90, missionWaitMin: 4, publicUrl: "" };
 const FORBIDDEN_HEADERS = new Set(["host", "content-length", "content-type", "transfer-encoding", "connection", "cookie", "expect", "upgrade"]);
 
 const clip = (s, n) => String(s ?? "").slice(0, n);
@@ -176,6 +179,26 @@ function announce(j, note) {
   statusChanged();
 }
 
+// 0.4.23.1: text that is too long is never cut off mid-sentence without saying so. The cut falls on a paragraph break, the
+// full text is kept in a file on this computer, and the job says how much was left out and where the whole text is.
+export const JOB_TEXT_MAX = 120000;
+export function fitJobText(text, id, label, max = JOB_TEXT_MAX) {
+  const t = String(text ?? "");
+  if (t.length <= max) return t;
+  let where = "";
+  try {
+    const dir = path.join(os.tmpdir(), "meldmind-jobs");
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${id}-${label}.txt`);
+    fs.writeFileSync(file, t, "utf8");
+    where = ` The whole text is in this file on the sending computer: ${file}`;
+  } catch { /* the note still says it was cut */ }
+  const head = t.slice(0, max);
+  const brk = Math.max(head.lastIndexOf("\n\n"), head.lastIndexOf("\n"));
+  const cut = brk > max * 0.6 ? head.slice(0, brk) : head;
+  return `${cut}\n\n[Part of this text was left out: ${(t.length - cut.length).toLocaleString("en-US")} of ${t.length.toLocaleString("en-US")} characters.${where}]`;
+}
+
 // Hand a job to Grok Bot. Throws (status 409) when it is not ready; a refused or unreachable webhook
 // gives back a failed job instead, with a plain reason.
 export async function dispatch({ task, context = "", source = {}, needs = [] } = {}) {
@@ -187,7 +210,7 @@ export async function dispatch({ task, context = "", source = {}, needs = [] } =
   const token = crypto.randomBytes(24).toString("base64url");
   const now = Date.now();
   const j = {
-    id, task: clip(t, 20000), context: clip(context, 40000), workspace: workspaceKey(),
+    id, task: fitJobText(t, id, "task", 60000), context: fitJobText(context, id, "context"), workspace: workspaceKey(),
     source: { kind: ["council", "mission", "click"].includes(source.kind) ? source.kind : "click", runId: source.runId || null, taskId: source.taskId || null, projectId: source.projectId || null },
     needs: needs.filter((x) => TAGS.includes(x)), status: "queued", via: r.via, createdAt: now, updatedAt: now, sentAt: null,
     text: "", artifacts: [], error: null, history: [{ status: "queued", ts: now, note: "created" }], tokenHash: sha(token).toString("hex"),
@@ -392,10 +415,18 @@ export async function handleCallback(req, res, url, send) {
 
 // ---------- the router's view ----------
 // explicit: true (the person asked for Grok Bot), false (left out), undefined (the router decides).
+// 0.4.23.1: jobs that sat unclaimed for 10 minutes mean nothing is pulling the queue. Nothing new goes into a dead queue.
+export const STALE_MS = 10 * 60000;
+export function staleJobs(now = Date.now()) {
+  if (settings().mock) return [];
+  return jobs().filter((j) => j.status === "queued" && !TERMINAL.has(j.status) && now - (j.createdAt || now) > STALE_MS);
+}
+export const STALE_LINE = "Grok Bot is not picking up jobs right now (old jobs are stuck in its queue), so Meldmind did not send it this step.";
 export function wantAgent({ prompt, explicit } = {}) {
   const needs = agentNeeds(prompt), r = readiness(), s = settings();
   if (explicit === false) return { use: false, needs, reason: "left out by you" };
   const asked = explicit === true || mentionsGrokBot(prompt);
+  if (r.ready && staleJobs().length) return { use: false, needs, reason: STALE_LINE, stale: true };
   if (!r.ready) return { use: false, needs, reason: r.detail };
   if (asked) return { use: true, needs, reason: "you asked for Grok Bot" };
   if (!needs.length) return { use: false, needs, reason: "plain text work: another AI does it as well" };
@@ -407,7 +438,8 @@ export function routeAdvice(prompt) {
   const fits = needs.length > 0 || mentionsGrokBot(prompt);
   return { agent: AGENT_ID, name: NAME, fits, needs: needs.map((t) => ({ id: t, label: TAG_LABEL[t] })), ready: r.ready, detail: r.detail, auto: settings().auto };
 }
-export const waitMs = (kind) => (kind === "council" ? settings().councilWaitSec * 1000 : settings().missionWaitMin * 60000);
+// a mission never waits on an outside queue for more than 5 minutes, whatever an old saved setting says
+export const waitMs = (kind) => (kind === "council" ? settings().councilWaitSec * 1000 : Math.min(settings().missionWaitMin, 5) * 60000);
 
 // ---------- the hub card ----------
 export function hubCard() {
@@ -421,6 +453,7 @@ export function hubCard() {
     // the newest hand-off failing (refused or unreachable) turns the light red until the next one goes through
     if (last?.status === "failed" && !last.by && /Could not reach|refused/.test(last.error || "")) { status = "red"; detail = last.error; }
     else if (open.some((j) => j.status === "needs_approval")) { status = "amber"; detail = "needs your approval"; }
+    else if (staleJobs().length) { status = "amber"; detail = "not picking up jobs: old jobs are stuck in its queue"; }
     else if (open.length) detail = `${open.length} job${open.length === 1 ? "" : "s"} in progress`;
   } else if (configured() && demoActive()) status = "amber";
   const activity = [];

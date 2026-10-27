@@ -79,6 +79,7 @@ export function workingModel(live) {
   if (status === "planning" && !total) line = "Planning your run";
   else if (status === "scheduled") line = total ? `Queued at ${at}` : "Waiting to start";
   else if (status === "paused") line = total ? `Paused at ${at}` : "Paused";
+  else if (status === "done-with-errors") line = total ? `Finished with problems (${total} steps)` : "Finished with problems";
   else if (status === "done") line = total ? `All ${total} steps done` : "Done";
   else if (status === "failed" || status === "aborted") line = total ? `Stopped at ${at}` : "Stopped";
   else line = total ? `Working on ${at}` : "Working on it now";

@@ -1454,7 +1454,6 @@ function renderSimpleChat(v) {
   });
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
-  $("#go").addEventListener("click", sendOrders);
   $("#simple-run-mode")?.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     S.simpleRunMode = b.dataset.m; S.autoLine = "";
@@ -1575,7 +1574,6 @@ function renderCommand(v) {
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
-  $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
   $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
@@ -2021,6 +2019,30 @@ function askNotify() {
   if (typeof Notification === "undefined" || Notification.permission !== "default") return;
   try { Notification.requestPermission(); } catch { /* desktop alerts stay off */ }
 }
+// 0.4.23.1: the Send button works with a click, Space, Enter and a press that lands while the page repaints.
+// One handler on the document (the button itself is rebuilt often, which used to eat the click or the key), with a short
+// guard so one press never sends twice.
+let lastSendPress = 0, goDownAt = 0;
+function pressSend() {
+  const now = Date.now();
+  if (now - lastSendPress < 700) return;
+  lastSendPress = now;
+  sendOrders();
+}
+document.addEventListener("click", (e) => { if (e.target?.closest?.("#go") && !e.target.closest("#go").disabled) { e.preventDefault(); pressSend(); } }, true);
+document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
+document.addEventListener("pointerup", (e) => {
+  // the button was rebuilt between press and release, so the browser never made a click: send on the release
+  if (e.button === 0 && goDownAt && Date.now() - goDownAt < 1500 && e.target?.closest?.("#go")) { setTimeout(() => { if (Date.now() - lastSendPress > 700 && goDownAt) pressSend(); goDownAt = 0; }, 60); }
+  else goDownAt = 0;
+}, true);
+document.addEventListener("keydown", (e) => {
+  const b = e.target?.closest?.("#go");
+  if (!b || b.disabled || (e.key !== " " && e.key !== "Enter" && e.code !== "Space")) return;
+  e.preventDefault(); e.stopPropagation();
+  if (!e.repeat) pressSend();
+}, true);
+document.addEventListener("keyup", (e) => { if (e.target?.closest?.("#go") && (e.key === " " || e.code === "Space")) e.preventDefault(); }, true);
 async function sendOrders() {
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);

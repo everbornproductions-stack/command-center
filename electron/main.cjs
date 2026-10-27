@@ -199,7 +199,7 @@ globalThis.__ccHotkey = { desktop: true, apply: (cfg) => { const st = hotkey.app
 
 // Engine watchdog: if the local server stops answering for 15 s, tell the window (it shows a
 // "Restart engine" panel) and offer Restart / Install update in a native dialog, once per outage.
-let watchdog = null, engineDialogOpen = false;
+let watchdog = null, engineDialogOpen = false, engineDialogAt = 0;
 function setupWatchdog() {
   watchdog = createWatchdog({
     thresholdMs: 15000,
@@ -217,13 +217,20 @@ function setupWatchdog() {
   setInterval(() => watchdog.tick().catch(() => {}), 3000).unref();
 }
 async function offerEngineDialog(reason) {
-  if (engineDialogOpen || quittingForUpdate) return;
+  // 0.4.23.1: look at /api/health again before bothering anyone, ask at most once every 10 minutes, and never put a native
+  // box over the window (it used to blank the app and swallow clicks while the engine was fine).
+  if (engineDialogOpen || quittingForUpdate || Date.now() - engineDialogAt < 10 * 60000) return;
   engineDialogOpen = true;
   try {
-    const st = updater ? await updater.check().catch(() => updater.state) : null;
+    const healthy = async () => { try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(4000) }); return r.ok && isOurServer(await r.json(), INSTANCE); } catch { return false; } };
+    if (await healthy()) { log("engine looked stuck but answers now: no dialog"); return; }
+    await new Promise((r) => setTimeout(r, 5000));
+    if (await healthy()) { log("engine looked stuck but answers now: no dialog"); return; }
+    const st = updater ? updater.state : null;
     const canUpdate = !!(st && st.version);
     const buttons = ["Restart app", canUpdate ? `Install update v${st.version}` : "Check for updates", "Wait"];
-    const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+    engineDialogAt = Date.now();
+    const { response } = await dialog.showMessageBox(undefined, {
       type: "warning", title: "Meldmind", buttons, defaultId: 0, cancelId: 2, noLink: true,
       message: "Meldmind's engine is not responding",
       detail: `Reason: ${reason}.\n\nRestarting usually fixes this. Your settings, keys and history are kept.`,

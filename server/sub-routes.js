@@ -253,7 +253,8 @@ export async function askApp(route, prompt, { timeoutMs, signal, env = process.e
   let child;
   try {
     child = spawnImpl(cmd.file, cmd.args, {
-      cwd, env: { ...childEnv(env), MELDMIND_ANSWER_ONLY: "1" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false,
+      cwd, env: { ...childEnv(env), MELDMIND_ANSWER_ONLY: "1", ...(route.id === "claude-code" ? { CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } : {}) }, // 0.4.23.1: the owner's own CLAUDE.md rules never ride into a Meldmind answer
+      stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false,
       detached: process.platform !== "win32", windowsVerbatimArguments: cmd.windowsVerbatimArguments || undefined,
     });
   } catch (e) {

@@ -235,7 +235,9 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
       try { ui.prompt && ui.prompt(next); } catch (e) { log("update prompt failed:", e && e.message); }
       return next;
     }
-    if (s.phase === "failed" && (manual || (prompt && !failureNoted))) {
+    // 0.4.23.1: a check nobody asked for never opens a window when it fails; only a manual check says so
+    if (s.phase === "failed" && !manual && prompt && !failureNoted) { failureNoted = true; log("update check failed quietly:", s.detail || s.error); return s; }
+    if (s.phase === "failed" && manual) {
       failureNoted = true;
       try { (ui.failed || ui.result) && (ui.failed || ui.result)(s); } catch (e) { log("update failure notice failed:", e && e.message); }
       return s;
