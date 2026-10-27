@@ -19,10 +19,20 @@ export function plainMarkdown(text) {
 
 // A short title from the first real line. Skips a leading profile block and heading marks, keeps # in hashtags,
 // and cuts at a word, never in the middle of one.
+// A title is kept in the hub and used as a file name, so private numbers never go into it (panel bug 46).
+// Dashed Social Security numbers, a number after a private label (SSN, account, card ...) and long digit runs
+// (card numbers) become "[hidden]". Years, prices and small counts stay as they are.
+export function hidePrivateInTitle(t) {
+  return String(t ?? "")
+    .replace(/\b\d{3}-\d{2}-\d{4}\b/g, "[hidden]")
+    .replace(/\b(ssn|social security(?: number)?|account(?: number)?|acct|routing(?: number)?|card(?: number)?)\b([:\s#-]*(?:is\s+)?)[\d][\d\s-]{2,}/gi, (_m, label) => `${label} [hidden]`)
+    .replace(/\b(?:\d[ -]?){12,18}\d\b/g, "[hidden]");
+}
+
 export function titleFrom(text, max = 50) {
   const lines = plainMarkdown(text).split("\n").map((l) => l.trim()).filter(Boolean);
   const line = lines.find((l) => !/^(about me|my profile|profile|context)\s*[:\-]?/i.test(l) && !/^(name|role|company|industry|tone)\s*:/i.test(l)) || lines[0] || "";
-  const one = line.replace(/\s+/g, " ").trim();
+  const one = hidePrivateInTitle(line.replace(/\s+/g, " ").trim());
   if (!one) return "Finished work";
   if (one.length <= max) return one.replace(/[.:;,\s]+$/, "") || one;
   const cut = one.slice(0, max + 1);

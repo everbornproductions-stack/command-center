@@ -102,4 +102,19 @@ test("Drive folder: copies the deliverable and only the media job's file; ledger
 
   const past = await s.api("/publish/preview", { method: "POST", body: { channel: "ghl", text: "x", accountIds: ["a1"], when: Date.now() - 60000 } });
   assert.ok(past.json.problems.some((p) => /in the past/.test(p)));
+
+  const warned = await s.api("/publish/preview", { method: "POST", body: { channel: "instagram", text: "Guaranteed results on this post" } });
+  assert.equal(warned.status, 200);
+  assert.ok(Array.isArray(warned.json.warnings));
+  assert.ok(warned.json.warnings.length > 0);
+  assert.ok(warned.json.warnings.some((w) => w.rule === "guaranteed_results"));
+});
+
+test("Instagram preview: a text item says it needs a picture or video; a picture keeps the Photo wording (S12)", async () => {
+  const txt = await s.api("/publish/preview", { method: "POST", body: { channel: "instagram", title: "Caption", text: "Hello #sacramento" } });
+  assert.equal(txt.status, 200);
+  assert.equal(txt.json.summary, "Instagram needs a picture or video, and this is text. Pick Slack, Google Drive, or copy it.");
+  assert.equal(/file on this PC/.test(JSON.stringify(txt.json.problems)), false);
+  const pic = await s.api("/publish/preview", { method: "POST", body: { channel: "instagram", title: "Caption", text: "Hello", mediaUrl: "https://cdn.example/a.jpg" } });
+  assert.match(pic.json.summary, /^Photo to Instagram with a 5-character caption/);
 });

@@ -7,9 +7,10 @@
 //
 // The list sits right under the box. It is a listbox: the box keeps focus and points at the active
 // row with aria-activedescendant. Arrow Down from the end of the box enters the list, Up and Down
-// move, Enter picks, Escape hides it for this text. Ctrl+Enter still sends. The X turns suggestions
-// off (cc.ppSuggestOff), and Settings turns them back on.
-import { applySuggestion, makeBetter, rowsFor, setSuggestionsOff, shouldSuggest, suggestionsOff, templateInputs, undoState, undoText } from "../prompt-suggest.js";
+// move, Enter picks, Escape hides it for this text. Ctrl+Enter still sends. "Hide these" only closes
+// the list for now; "Turn these off" turns suggestions off (cc.ppSuggestOff) and Settings brings
+// them back. Send closes the list (0.4.22 panel row 9).
+import { applySuggestion, makeBetter, rowsForTier, setSuggestionsOff, shouldSuggest, suggestionsOff, templateInputs, undoState, undoText } from "../prompt-suggest.js";
 
 const CC = window.CC;
 const { api, toast, esc } = CC;
@@ -24,8 +25,8 @@ const STYLE = `
 #cc-suggest [role="option"][data-psg-action] { font-weight: 650; }
 #cc-suggest .psg-tag { margin-left: auto; font-size: 0.75rem; color: var(--muted, #8b95a7); border: 1px solid var(--line, #1f2937); border-radius: 999px; padding: 0 8px; }
 #cc-suggest .psg-new { font-size: 0.75rem; color: var(--muted, #8b95a7); }
-#cc-suggest .psg-foot { display: flex; gap: 8px; align-items: center; padding: 4px 8px 2px; }
-#cc-suggest .psg-foot [data-psg-off] { margin-left: auto; }
+#cc-suggest .psg-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px 2px; }
+#cc-suggest .psg-foot [data-psg-hide] { margin-left: auto; }
 #cc-suggest .psg-undo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
 `;
 if (!document.getElementById("cc-suggest-style")) {
@@ -105,7 +106,8 @@ function undo() {
 function paint(data, typed) {
   const h = holder();
   if (!h) return;
-  const rows = rowsFor(data);
+  // 0.4.22 panel row 9: a Pro prompt (an industry pack one too) is not for a Free viewer.
+  const rows = rowsForTier(data, CC.S?.license?.tier);
   if (!rows.length) { clear(); return; }
   rows.push({ type: "better", label: "Make it better", tag: "Rewrite" });
   st.rows = rows;
@@ -118,11 +120,12 @@ function paint(data, typed) {
     return `<li role="option" id="psg-opt-${i}" aria-selected="false" ${attr}${title}><span>${esc(r.label)}</span>${fresh}${tag}</li>`;
   }).join("");
   h.innerHTML = `<div class="psg"><ul id="${LIST_ID}" role="listbox" aria-label="Suggestions for what you typed">${li}</ul>
-    <div class="psg-foot dim small"><span>Picking one keeps your words. Nothing is sent until you click Send.</span><button type="button" class="ghost small" data-psg-off aria-label="Turn off prompt suggestions" title="Turn off prompt suggestions. Turn them back on in Settings.">X</button></div></div>`;
+    <div class="psg-foot dim small"><span>Picking one keeps your words. Nothing is sent until you click Send.</span><button type="button" class="ghost small" data-psg-hide title="Hide these for now. They come back when you type.">Hide these</button><button type="button" class="ghost small" data-psg-off title="Turn prompt suggestions off. Turn them back on in Settings.">Turn these off</button></div></div>`;
   options().forEach((o, i) => {
     o.addEventListener("mousedown", (e) => e.preventDefault());
     o.addEventListener("click", () => choose(i));
   });
+  h.querySelector("[data-psg-hide]").addEventListener("click", hide);
   h.querySelector("[data-psg-off]").addEventListener("click", turnOff);
   setExpanded(true);
   st.active = -1;

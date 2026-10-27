@@ -1,11 +1,13 @@
 // Everborn Command Center server: static UI + JSON API + WebSocket event stream.
 // Local mode (default): one user, data/ folder, binds 127.0.0.1 until phone pairing is turned on. `node server/index.js` and done.
 // Hosted mode (CC_MODE=hosted): Supabase sign-in, one context per user, binds 0.0.0.0. See docs/hosted-hub.md.
+import { BODY_LIMIT_CHARS, BODY_TOO_BIG_LINE } from "./body-limit.js";
 import http from "node:http";
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { safeEqual } from "./safe-equal.js";
 import { WebSocketServer } from "ws";
 import qrcode from "qrcode-generator";
 import { DATA_DIR, WEB_DIR, HQ_DIR } from "./paths.js";
@@ -137,8 +139,7 @@ const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content
 const isZipUpload = (req, url) => req.method === "POST" && url.pathname === "/api/history/preview" && /^application\/(zip|x-zip-compressed|octet-stream)\b/i.test(String(req.headers["content-type"] || ""));
 function tokenOk(presented) {
   if (!LOCAL_TOKEN) return true;
-  const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return safeEqual(String(presented || ""), String(LOCAL_TOKEN));
 }
 // The one tunnel host this app was told to use (Settings or CC_TUNNEL_HOST). Empty means no tunnel is allowed.
 const ownTunnelHost = () => process.env.CC_TUNNEL_HOST || settings().tunnelHost || "";
@@ -239,9 +240,9 @@ function readBody(req) {
     let d = "";
     let tooBig = false;
     // 0.4.21 (F18): a body over the limit is read and dropped, then answered with a plain 413, not a reset connection.
-    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > 18e6) { tooBig = true; d = ""; } });
+    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > BODY_LIMIT_CHARS) { tooBig = true; d = ""; } });
     req.on("end", () => {
-      if (tooBig) return reject(Object.assign(new Error("That is too large to send at once. The limit is about 18 MB. Try a smaller file."), { status: 413 }));
+      if (tooBig) return reject(Object.assign(new Error(BODY_TOO_BIG_LINE), { status: 413 }));
       try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(Object.assign(new Error("bad json"), { status: 400 })); }
     });
     req.on("error", reject);
@@ -944,6 +945,11 @@ async function api(req, res, url) {
   }
   if (method === "POST" && p === "/precost") {
     try { const m = await import("./precost.js"); return json(res, 200, m.preRunLine({ prompt: String(body.prompt || ""), mode: body.mode })); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
+  // 0.4.22 free AIs bid first: used / left today for each free AI, and the two settings
+  if (method === "GET" && p === "/free-bids/limits") {
+    try { const [L, B] = await Promise.all([import("./free-limits.js"), import("./free-bids.js")]); return json(res, 200, { bidsFirst: B.bidSettings().on, parallel: B.bidSettings().parallel, limits: L.limitsView() }); }
     catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
   // 0.4.21 free AIs: the "Get free AIs" card, the live credit check, and a fresh look at Ollama / LM Studio

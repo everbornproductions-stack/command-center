@@ -248,13 +248,13 @@ export const ACTIONS = {
     },
   },
   publish_mindmedia: {
-    id: "publish_mindmedia", label: "Publish to MindMedia", risk: "confirm",
-    prompt: async (a, host) => { const r = await host.lastResult?.(); return `Publish "${(r && r.title) || "this result"}" to MindMedia? Say yes or no.`; },
+    id: "publish_mindmedia", label: "Save to MindMedia", risk: "confirm",
+    prompt: async (a, host) => { const r = await host.lastResult?.(); return `Save "${(r && r.title) || "this result"}" to MindMedia? Say yes or no.`; },
     async run(host) {
       const r = await host.lastResult?.();
-      if (!r) return { ok: false, say: "There is no finished result to publish yet." };
+      if (!r) return { ok: false, say: "There is no finished result to save yet." };
       const out = await host.publish(r);
-      return out === false ? { ok: false, say: "It could not be published." } : { ok: true, doing: "publishing to MindMedia", say: "Published to MindMedia." };
+      return out === false ? { ok: false, say: "It could not be saved." } : { ok: true, doing: "saving to MindMedia", say: "Saved to MindMedia." };
     },
   },
   delete_project: {

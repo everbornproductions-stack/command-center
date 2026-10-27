@@ -20,8 +20,15 @@ test("make intent: recognises a request to make something and leaves questions a
     ["make me a song about summer", "music"],
   ];
   for (const [t, k] of yes) assert.equal(makeIntent(t)?.kind, k, t);
-  const no = ["a good recipe for chili", "how do I make a logo", "write an email to my boss", "make a website for my bakery", "what is a logo", "hello there", "explain a picture of a cell", "a friend with a problem on Monday"];
+  const no = [
+    "a good recipe for chili", "how do I make a logo", "write an email to my boss", "make a website for my bakery", "what is a logo", "hello there", "explain a picture of a cell", "a friend with a problem on Monday",
+    "A week of posts for my flower shop", "a one page cheat sheet for confidence intervals", "a study guide for the bar exam", "flashcards for Spanish verbs", "an outline for my talk on gardens"
+  ];
   for (const t of no) assert.equal(makeIntent(t), null, t);
+  const imageYes = [
+    ["a woman on a beach", "image"], ["draw a fox in the snow", "image"], ["a poster of a fox in the snow", "image"]
+  ];
+  for (const [t, k] of imageYes) assert.equal(makeIntent(t)?.kind, k, t);
   assert.equal(makeIntent("a 5 second video of waves").seconds, 5);
   assert.equal(makeIntent("a woman on a beach").subject, "a woman on a beach");
   assert.deepEqual(followupIntent("another one"), { type: "another" });

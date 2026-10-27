@@ -37,6 +37,7 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
+      # needs git credentials: a later step runs gh release, so this checkout is left as it was (Aikido 0.4.22 review)
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -209,6 +210,7 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
+      # needs git credentials: a later step runs gh release, so this checkout is left as it was (Aikido 0.4.22 review)
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

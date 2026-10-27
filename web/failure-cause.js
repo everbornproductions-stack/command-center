@@ -37,7 +37,9 @@ export function failureCopy(text) {
   const kind = failureKind(text);
   // the server already wrote the plain reason after "Nothing came back." (which AI, and what to do): show it
   const hint = kind === "empty" ? (String(text).replace(/^\s*nothing came back\.\s*/i, "").trim() || HINTS.empty) : HINTS[kind];
-  return { kind, title: TITLES[kind], hint, chip: CHIPS[kind] };
+  // a limit lower than the job's estimate: show the server's own sentence, it names both numbers
+  const estimate = kind === "budget" ? String(text).match(/This job is estimated at about \$[\d.,]+, and your limit is \$[\d.,]+\. Raise the limit or pick Free only\./) : null;
+  return { kind, title: estimate ? estimate[0] : TITLES[kind], hint, chip: CHIPS[kind] };
 }
 
 // oneAI (0.4.21, dogfood 15): a failed Mission also offers "Get a one-AI answer" (one AI answers the same request).

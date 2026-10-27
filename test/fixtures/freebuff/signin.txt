@@ -1,0 +1,5 @@
+ Welcome to Freebuff
+
+ Sign in to continue. Open this link in your browser:
+ https://www.codebuff.com/login?auth_code=abc123.def456&next=cli.
+ Waiting for you to sign in...

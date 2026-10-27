@@ -19,16 +19,22 @@ const READ_WORD = /^(sender|senders|postal|postcode|poster|mailbox|emailaddress|
 
 // "Never send or post" (0.4.21, item P): the send family only, for an agent whose noSend switch is on.
 // It reuses the word splitter and the classifier above: a tool counts as a sender only when its name or
-// its description says send, post, publish, email, message, tweet or upload AND riskyAction() already
-// counts it as an action. Readers (read_email, list_files, search_inbox) are left in the list.
-const SEND_WORD = /\b(send|sends|sending|sent|post|posts|posting|posted|publish|publishes|publishing|published|email|emails|message|messages|messaging|tweet|tweets|tweeting|tweeted|upload|uploads|uploading|uploaded)\b/i;
+// its description says send, post, publish, email, message, tweet, upload, dm, reply, forward, notify,
+// notification, push or slack (and share or comment as a verb) AND riskyAction() already counts it as an
+// action. Readers (read_email, list_files, search_inbox) are left in the list.
+const SEND_WORD = /\b(send|sends|sending|sent|post|posts|posting|posted|publish|publishes|publishing|published|email|emails|message|messages|messaging|tweet|tweets|tweeting|tweeted|upload|uploads|uploading|uploaded|dm|reply|forward|notify|notification|slack|push)\b/i;
+// Two of the new words only count as a verb (0.4.22, panel row 69): "share file" shares content
+// while "share link info" only reads a link, and "write comment" posts while "get comment" and
+// "list comments" only read. A reader-sounding NAME still scans its DESCRIPTION, as before.
+const SEND_SHARE = /\bshares?\s+(?:a\s+|an\s+|the\s+|some\s+|these\s+|those\s+|my\s+|your\s+|our\s+)?(?:files?|photos?|pictures?|images?|videos?|audio|docs?|documents?|messages?|mail|posts?|notes?|cards?|decks?|albums?|folders?|playlists?|stories|attachments?|media|slides?|sheets?|reports?|contacts?|pages?)\b/i;
+const SEND_COMMENT = /\b(?:write|post|add|create|submit|send|publish|place|insert|save|leave)\s+comments?\b/i;
 // One blob hiding a sender inside it: sendmail, sendemail, posttweet, uploadpic.
 const SEND_STEM = /^(send|posts?|publish|emails?|messages?|tweets?|uploads?)/;
 const sendStem = (text) => String(text || "").split(/\s+/).some((t) => t.length > 4 && !READ_WORD.test(t) && SEND_STEM.test(t));
 export function sendTool(tool) {
   const name = String(tool?.name || "");
   const blob = words(`${name} ${tool?.title || ""} ${tool?.description || ""}`);
-  if (!SEND_WORD.test(blob) && !sendStem(words(name))) return false;
+  if (!SEND_WORD.test(blob) && !SEND_SHARE.test(blob) && !SEND_COMMENT.test(blob) && !sendStem(words(name))) return false;
   return riskyAction(tool);
 }
 // The list a noSend agent actually gets: senders out, readers and the rest still there.

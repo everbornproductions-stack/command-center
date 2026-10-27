@@ -1,0 +1,11 @@
+ Choose a model
+╭──────────────────────────────────────────────────────────────╮
+│ › DeepSeek V4.1 Flash        1x   May use data for AI training │
+│   Muse Spark 1.3             1x   May use data for AI training │
+│   MiMo v2.6 Flash Fast       2x                                │
+│   MiMo v2.6 Flash Slow       1x                                │
+│   GLM 5.3 Flash              4x                                │
+│   GPT-6 Luna                 4x                                │
+│   Space Bunny Alpha          1x   Free, prompts are kept       │
+│   Pro Coder Max              $20/mo  Upgrade to unlock         │
+╰──────────────────────────────────────────────────────────────╯

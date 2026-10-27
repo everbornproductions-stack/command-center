@@ -24,6 +24,15 @@ function style() {
   document.head.appendChild(s);
 }
 
+// Some webviews do not focus a button when it is clicked, so remember the last clicked control as the place to return to.
+let lastClicked = null;
+document.addEventListener("click", (e) => { lastClicked = e.target instanceof Element ? e.target.closest("button, a[href], [tabindex]") : null; }, true);
+const opener = () => {
+  const a = document.activeElement;
+  if (a && a !== document.body && a !== document.documentElement) return a;
+  return lastClicked && lastClicked.isConnected ? lastClicked : a;
+};
+
 const KIND_FOR = { command: "text", text: "text", image: "image", media: "video", remix: "video", site: "site" };
 
 async function copy(text) {
@@ -44,7 +53,7 @@ export function openFinishDrawer(opts = {}) {
   const name = String(opts.name || titleFrom(text));
   const shown = plainMarkdown(text);
   const asFiles = hasCode(text);
-  const returnTo = document.activeElement;
+  const returnTo = opener();
   const back = document.createElement("div");
   back.className = "fd-back";
   const first = (opts.files || [])[0];

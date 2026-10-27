@@ -151,7 +151,12 @@ export function assertSpendAllowed({ provider, estimate = 0, free = false, hold 
   const held = reservedTotal();
   const hold1 = hold ? RESERVE_EACH : 0;
   if (snap.spent >= cap || (Number(estimate) > 0 && snap.spent + Number(estimate) > cap) || (hold && snap.spent + held + hold1 > cap)) {
-    const err = new Error("This month's budget is used up. Raise the cap, or wait until next month. Free runs still work.");
+    // nothing spent yet but the first call is bigger than the whole limit: say so, with both numbers
+    const estimateOnly = snap.spent < cap && Number(estimate) > 0 && snap.spent + Number(estimate) > cap;
+    const err = new Error(estimateOnly
+      ? `This job is estimated at about $${Number(estimate).toFixed(2)}, and your limit is $${cap.toFixed(2)}. Raise the limit or pick Free only.`
+      : "This month's budget is used up. Raise the cap, or wait until next month. Free runs still work.");
+    err.estimateOnly = estimateOnly;
     err.status = 402;
     err.code = "budget_cap";
     throw err;

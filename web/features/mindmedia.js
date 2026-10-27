@@ -215,7 +215,7 @@ async function render(view) {
         <button type="button" class="btn sm" id="mmh-bd">Delete</button></div>` : ""}
       ${ui.view === "trash" ? `<div class="mmh-trashnote">Items stay in the Trash for ${d.trashDays || 30} days. Press Restore to put one back.</div>` : ""}
       ${(d.pending || []).length && !ui.view ? `<div class="mmh-pend" role="status" aria-live="polite"><h3>Working on it</h3>${d.pending.map((j) => `<div class="pt"><span aria-hidden="true">${ICON[j.kind] || ICON.file}</span><span class="nm">${esc(j.name)}</span><span class="dim small">${esc(j.status)}</span></div>`).join("")}</div>` : ""}
-      ${!ui.view && (d.needsEnding || []).length && ui.project === "all" && !ui.q && ui.type === "all" ? `<div class="mmh-shelf" role="region" aria-label="Needs an ending"><h3>Needs an ending</h3><div class="dl">Made but not used yet. Keep it, publish it, or discard it.</div>
+      ${!ui.view && (d.needsEnding || []).length && ui.project === "all" && !ui.q && ui.type === "all" ? `<div class="mmh-shelf" role="region" aria-label="Not finished yet"><h3>Not finished yet</h3><div class="dl">Made but not used yet. Keep it, publish it, or discard it.</div>
         ${d.needsEnding.map((it) => `<div class="it" data-k="${esc(key(it))}"><span class="nm">${esc(it.name)}</span><button type="button" class="btn sm" data-e="keep">Keep</button><button type="button" class="btn sm primary" data-e="publish">Publish</button><button type="button" class="btn sm" data-e="discard">Discard</button></div>`).join("")}</div>` : ""}
       ${items.length ? `<div class="mmh-grid">${items.map(cardHtml).join("")}</div>` : `<div class="mmh-empty">${d.total ? "Nothing matches these filters." : "Nothing here yet. Anything you make in Meldmind shows up here: images, video, voice, written results and sites."}</div>`}
     </section>
@@ -263,7 +263,7 @@ async function render(view) {
     const list = chosen();
     if (!list.length) return toast("Pick something first.", true);
     if (!(await window.CC.confirm(`Move ${list.length} item${list.length === 1 ? "" : "s"} to the Trash? You can restore ${list.length === 1 ? "it" : "them"} for 30 days. Files in other places are not touched.`, { danger: true, ok: "Move to Trash" }))) return;
-    try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Deleted."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
+    try { await api("/mindmedia/delete", { method: "POST", body: { items: list.map((i) => ({ projectId: i.projectId, assetId: i.id })) } }); toast("Moved to Trash. You can restore it for 30 days."); ui.selected.clear(); redraw(); } catch (er) { toast(er.message, true); }
   });
 
   // shelf
@@ -311,12 +311,13 @@ async function render(view) {
     insp.querySelector('[data-a="close"]').addEventListener("click", () => { ui.focus = null; redraw(); });
     insp.querySelector('[data-a="delete"]').addEventListener("click", async () => {
       if (!(await window.CC.confirm(`Move "${it.name}" to the Trash? You can restore it for 30 days.`, { danger: true, ok: "Move to Trash" }))) return;
-      try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Deleted."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
+      try { await api("/mindmedia/delete", { method: "POST", body: { items: [{ projectId: it.projectId, assetId: it.id }] } }); toast("Moved to Trash. You can restore it for 30 days."); ui.focus = null; redraw(); } catch (e) { toast(e.message, true); }
     });
     insp.querySelector('[data-a="download"]').addEventListener("click", async () => {
       try {
-        if (it.kind === "text") { const r = await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`); downloadBlob(URL.createObjectURL(new Blob([r.text], { type: "text/markdown" })), `${it.name.replace(/\.md$/i, "")}.md`); return; }
+        if (it.kind === "text") { const r = await api(`/mindmedia/item?projectId=${encodeURIComponent(it.projectId)}&assetId=${encodeURIComponent(it.id)}`); downloadBlob(URL.createObjectURL(new Blob([r.text], { type: "text/markdown" })), `${it.name.replace(/\.md$/i, "")}.md`); toast("Downloaded."); return; }
         downloadBlob(await apiBlobUrl(fileUrl(it)), it.name);
+        toast("Downloaded.");
       } catch (e) { toast(e.message, true); }
     });
     const pubBox = insp.querySelector("[data-pub]");

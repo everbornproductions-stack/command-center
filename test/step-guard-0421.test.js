@@ -87,6 +87,23 @@ test("search leaks: citations and 'supplied search results' are removed", () => 
   assert.equal(G.stripSearchLeaks("Use items[i] and [x] boxes."), "Use items[i] and [x] boxes.");
 });
 
+test("stripSearchLeaks preserves code blocks, inline code, and array indexers while cleaning prose", () => {
+  const codeBlock = "Here is the script:\n```js\nconst arg = process.argv[2];\n  if  (arg)  console.log(arg);\n```\nSee the guide [2].";
+  const cleaned = G.stripSearchLeaks(codeBlock);
+  assert.match(cleaned, /const arg = process\.argv\[2\];/);
+  assert.match(cleaned, /  if  \(arg\)  console\.log\(arg\);/);
+  assert.ok(!/\[2\]/.test(cleaned.split("```")[2] || cleaned), "prose citation [2] should be removed");
+
+  const inlineTest = "Run `node index.js` with `argv[2]` [1].";
+  assert.equal(G.stripSearchLeaks(inlineTest), "Run `node index.js` with `argv[2]`.");
+
+  const indentedBlock = "Intro text.\n\n    const x = process.argv[2];\n      let  y  =  2;\n\nOutro text [3].";
+  const cleanedIndented = G.stripSearchLeaks(indentedBlock);
+  assert.match(cleanedIndented, /    const x = process\.argv\[2\];/);
+  assert.match(cleanedIndented, /      let  y  =  2;/);
+  assert.ok(!/\[3\]/.test(cleanedIndented));
+});
+
 test("web search runs only when the person asked for live information", () => {
   assert.equal(G.wantsSearch("Make a landing page for listing videos, single index.html"), false);
   assert.equal(G.wantsSearch("Write a 5-day Instagram campaign plan for brokers and save it as campaign.md"), false);
@@ -101,4 +118,11 @@ test("the file name a task asks for", () => {
   assert.equal(G.namedFile("A woman on a beach"), "");
   assert.equal(G.namedFile("Visit www.example.com for more"), "");
   assert.equal(G.fileExt("index.html"), "html");
+});
+
+test("stripSearchLeaks: citations go, indexes glued to a word stay (panel 0.4.21 row 3)", () => {
+  assert.equal(G.stripSearchLeaks("Sales rose [1][4] last year [2, 3]."), "Sales rose last year.");
+  assert.equal(G.stripSearchLeaks("Read process.argv[2] and rows[1][2] in prose."), "Read process.argv[2] and rows[1][2] in prose.");
+  assert.equal(G.stripSearchLeaks("It works.[3] Next point."), "It works. Next point.");
+  assert.equal(G.stripSearchLeaks("The   spacing   in  prose collapses [1]."), "The spacing in prose collapses.");
 });

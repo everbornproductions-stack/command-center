@@ -33,6 +33,7 @@ import { recordSend, sendLog } from "../send-log.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
 import { flagOn } from "../flags.js";
 import { checkCalendarApproval, recordCalendarResult } from "../publish/plus.js";
+import { gateForPost } from "./safety.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -111,7 +112,8 @@ function previewOf(h, pl, media) {
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
   if (media && !media.error && media.assetId && ACCEPTS[pl.channel] && !ACCEPTS[pl.channel].includes(media.kind)) problems.unshift(`${CH[pl.channel].name} cannot take a ${media.kind === "file" ? "file like this" : media.kind} item. Pick a place that can, such as Google Drive`);
-  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
+  const igTextOnly = pl.channel === "instagram" && !pl.mediaUrl && (!media || (!media.error && media.kind === "text"));
+  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length && !igTextOnly) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
   if (pl.channel === "instagram" && media && !media.error && media.kind === "text" && !pl.mediaUrl) problems.push("Instagram posts need a picture or video. Paste a public link to one; your words become the caption");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
@@ -120,7 +122,8 @@ function previewOf(h, pl, media) {
   for (const b of compliance.blocked) problems.push(`${b.plain} ${b.why}`);
   const warnings = compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why }));
   if (pl.masked) warnings.unshift({ rule: "private_numbers_hidden", plain: "Private numbers were hidden in this message.", why: "Social Security, card and account numbers keep only their last four digits before anything is shown or posted." });
-  return { ...pv, problems, warnings };
+  const summary = igTextOnly ? "Instagram needs a picture or video, and this is text. Pick Slack, Google Drive, or copy it." : pv.summary;
+  return { ...pv, summary, problems, warnings };
 }
 
 function logPost(h, entry) {
@@ -156,9 +159,10 @@ export async function routes(req, res, url, body, h) {
     const pv = previewOf(h, pl, media);
     const ready = readyFor(h, pl.channel);
     const previewId = "pv-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, createdAt: Date.now() });
+    const safety = gateForPost(h, { title: pl.title, text: pl.text, projectId: pl.projectId }); // Safety check light: red needs "Publish anyway"
+    previews.set(previewId, { userId: userOf(h), channel: pl.channel, payload: pl, problems: pv.problems, ready, safety, createdAt: Date.now() });
     const mediaOut = media && !media.error ? { jobId: media.jobId, assetId: media.assetId, kind: media.kind, url: pl.mediaUrl, files: pl.files.length } : null;
-    return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut });
+    return h.json(res, 200, { ...pv, ready, dryRun: !ready, previewId, media: mediaOut, safety });
   }
   if (req.method === "POST" && p === "/post") {
     if (!CH[body.channel] && body.channel !== undefined) return h.json(res, 400, { error: "unknown channel" });
@@ -173,6 +177,7 @@ export async function routes(req, res, url, body, h) {
     const pv = previews.get(String(body.previewId || ""));
     if (!pv || pv.userId !== userOf(h)) return h.json(res, 409, { error: "Preview first (or the preview expired); nothing was sent", code: "preview_required" });
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
+    if (pv.safety?.hasLive && body.publishAnyway !== true) return h.json(res, 409, { error: "The Safety check found a live secret. Fix it, or press Publish anyway.", code: "safety_red", safety: pv.safety });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.

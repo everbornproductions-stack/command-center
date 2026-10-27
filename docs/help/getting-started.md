@@ -76,7 +76,7 @@ Max quality, Quality, Balanced, Max savings, and Speed apply to Single, Council,
 
 ## Free models on this PC
 
-A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or another local OpenAI-compatible endpoint) is tried first on Max savings. Freebuff is not used. The route preview can mention a batch price. A run you send now pays the live price.
+A connected free model on this PC (Ollama, LM Studio, Aider, OpenCode, or another local OpenAI-compatible endpoint) is tried first on Max savings. Freebuff, the free coder with ads, is set up from the Free AIs card. The route preview can mention a batch price. A run you send now pays the live price.
 
 ## Community track records
 

@@ -72,7 +72,7 @@ async function openRoute(opts) {
 function mount(host, opts = {}) {
   if (!host) return null;
   const kind = normalKind(opts.kind);
-  const text = String(opts.text || "");
+  let text = String(opts.text || "");
   if (!text.trim()) return null;
   ready().then(() => {
     host.querySelector(":scope > .rh-card")?.remove();
@@ -108,6 +108,7 @@ function mount(host, opts = {}) {
       const b = e.target.closest("[data-rh-main],[data-rh-more]"); if (!b) return;
       const id = b.dataset.rhMain || b.dataset.rhMore;
       try {
+        if ((kind === "site" || kind === "mod") && ["download", "publish", "post"].includes(id)) { const sg = await CC.safety?.beforeShare?.({ kind, text, name: opts.name, projectId: opts.projectId, action: id === "download" ? "download" : "publish" }); if (sg === false) return; if (typeof sg === "string") text = sg; } // Safety check step
         if (id === "download") { await save().catch(() => {}); await download(); }
         else if (id === "publish" || id === "post") { const it = await save(); await openRoute({ kind, text, name: opts.name, box: el.querySelector(".rh-pubbox") || el.appendChild(Object.assign(document.createElement("div"), { className: "rh-pubbox" })), ...it }); }
         else if (id === "finish") CC.openFinishDrawer?.({ kind: kind === "site" ? "site" : "command", text, name: opts.name, source: "Finish" });

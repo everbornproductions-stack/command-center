@@ -4,6 +4,7 @@ import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUP
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
+import { costLineText } from "./cost-line.js";
 import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
@@ -785,6 +786,7 @@ function setUiMode(mode, opts = {}) {
   const prev = S.uiMode;
   const firstExpert = mode === "expert" && prev !== "expert" && !S.settings?.expertConfirmed;
   if (firstExpert && !opts.confirmed && !opts.fromSetup) {
+    // Native confirm works in the desktop app (only window.prompt does not), and 8 browser tests drive this switch through it.
     if (!confirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?")) return;
   }
   S.uiMode = mode;
@@ -1828,9 +1830,10 @@ function paintAnswerLine(l, text) {
   const line = simpleAnswerLine(S.councilOffer, answeredBy);
   // 0.4.21: what it cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
   const mm = l.mission || {};
-  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">Cost: ${esc(mm.costText)}${mm.why ? `. ${esc(mm.why)}` : ""}</div>` : "";
-  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
-  box.innerHTML = costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
+  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">${esc(costLineText(mm.costText, mm.why))}</div>` : "";
+  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${window.CC.freeBids?.stepBadgeHtml(x) || ""}${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
+  const savedLine = window.CC.freeBids?.savedHeaderHtml(mm.steps) || ""; // 0.4.22
+  box.innerHTML = savedLine + costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
   $("#cc-ask-council", box)?.addEventListener("click", askCouncil);
 }
 async function askCouncil() {
@@ -2023,6 +2026,8 @@ async function sendOrders() {
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
+  // The words are on their way, so the suggestion list under the box closes (0.4.22 panel row 9).
+  window.CC.promptSuggest?.hide();
   const simple = S.uiMode === "simple";
   // 0.4.21: Auto team is the default in Simple and Expert. It sends like Single unless the send check says the job
   // needs a Mission or a Council. A person who picked a mode keeps it.
@@ -2768,7 +2773,7 @@ function renderSettings(v) {
         ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
-        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff is not used.</span></div><div id="cp-form"></div>`}</div>
+        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff has its own card under Free AIs.</span></div><div id="cp-form"></div>`}</div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>

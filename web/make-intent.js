@@ -26,7 +26,7 @@ const RE_READ = /^\s*(?:please\s+)?(?:read|say|speak|narrate|voice)\b(?:\s+(?:th
 
 // a bare scene: "a woman on a beach", "an old barn at sunset, film photo"
 const SCENE_CUE = /\b(?:on|in|at|under|over|by|near|with|beside|against|through|above|behind|during|holding|wearing|standing|sitting|walking|running|flying|riding|looking|surrounded|floating|resting|sleeping|dancing|playing|of)\b|,/i;
-const SCENE_DENY = /\b(?:recipe|email|letter|essay|poem|story|joke|plan|summary|list|spreadsheet|report|resume|cv|script|speech|code|function|invoice|contract|schedule|budget|reply|response|answer|question|difference|reason|way to|tip|tips|idea|ideas|name|names|slogan|tagline|caption|post|tweet|bio|pitch|proposal|checklist|template|essay|article|blog|newsletter|website|web ?site|app|game|business|company|startup|course|lesson|workout|meal|diet|strategy|review|analysis)\b/i;
+const SCENE_DENY = /\b(?:recipe|email|letter|essay|poem|story|joke|plan|plans|summary|list|spreadsheet|report|resume|cv|script|speech|code|function|invoice|contract|schedule|budget|reply|response|answer|question|difference|reason|way to|tip|tips|idea|ideas|name|names|slogan|tagline|caption|post|posts|tweet|bio|pitch|proposal|checklist|template|article|blog|newsletter|website|web ?site|app|game|business|company|startup|course|lesson|lessons|workout|meal|diet|strategy|review|analysis|sheet|cheatsheet|cheat sheet|guide|notes|flashcard|flashcards|quiz|outline|worksheet|study|week|month|calendar|series)\b/i;
 
 function words(t) { return String(t).trim().split(/\s+/).filter(Boolean); }
 function clean(t) { return String(t).replace(/\s+/g, " ").replace(/^[\s,.:;?!-]+|[\s,.:;?!-]+$/g, "").slice(0, 600); }

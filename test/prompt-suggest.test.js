@@ -6,15 +6,20 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { startServer } from "./helpers.js";
+import { startServer, waitBudget } from "./helpers.js";
+import { bootPage, findBrowser, goChat } from "./pw-helpers.js";
 import { MIN_CHARS, SUGGEST_LIMIT, actionFor, detectIntent, rankSuggestions, subjectOf, suggestSource } from "../server/prompts/suggest.js";
 import { suggestForOrders } from "../server/prompts/rank.js";
-import { MAX_ROWS, OFF_KEY, applySuggestion, fillBlanks, makeBetter, rowsFor, setSuggestionsOff, shouldSuggest, sourceLabel, suggestionsOff, templateInputs, undoState, undoText } from "../web/prompt-suggest.js";
+import { MAX_ROWS, OFF_KEY, applySuggestion, fillBlanks, makeBetter, rowsFor, rowsForTier, setSuggestionsOff, shouldSuggest, sourceLabel, suggestionsOff, templateInputs, undoState, undoText } from "../web/prompt-suggest.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const DASHES = /[\u2013\u2014]/;
 const DRAGON = "need a fun image for a fantasy dragon";
+// 0.4.22 panel row 9. These three lines come back as weekly rows and an industry pack Pro row.
+const EMAIL = "write an email to my landlord about the leak";
+const skip = findBrowser() ? false : "no Chrome installed";
+const WAIT = waitBudget(20000);
 
 // The weekly rows Chris saw, plus the real packs and templates shapes.
 const UNRELATED = [
@@ -178,6 +183,89 @@ test("picking a Pro prompt fills one of its fields from the typed words and leav
   const template = pickSrc.slice(pickSrc.indexOf('item.kind === "template"'), pickSrc.indexOf("const next = applySuggestion"));
   assert.match(template, /templateInputs\(item, typed/);
   assert.doesNotMatch(template, /setBox\(/, "the typed words stay in the box exactly");
+});
+
+// ---------- 0.4.22 panel row 9: Send closes the list, the small control only hides ----------
+test("rowsForTier keeps Pro and Industry prompts away from a Free viewer", () => {
+  const items = [{ title: "Weekly one", source: "weekly" }, { title: "Pro one", source: "pro" }, { title: "Industry one", source: "industry" }, { title: "Saved one", source: "saved" }];
+  const data = { action: { label: "Make an image: dragon" }, items };
+  assert.deepEqual(rowsForTier(data, "free").map((r) => r.label), ["Make an image: dragon", "Weekly one", "Saved one"]);
+  assert.deepEqual(rowsForTier(data, undefined).map((r) => r.label), ["Make an image: dragon", "Weekly one", "Saved one"]);
+  assert.equal(rowsForTier(data, "pro").length, 5);
+  assert.equal(rowsForTier(data, "extreme").length, 5);
+});
+
+test("source: Send hides the list, and Hide these is not Turn these off", () => {
+  const ui = read("web", "features", "prompt-suggest.js");
+  const app = read("web", "app.js");
+  assert.match(ui, /data-psg-hide title="Hide these for now\./, "the small control reads Hide these");
+  assert.match(ui, /h\.querySelector\("\[data-psg-hide\]"\)\.addEventListener\("click", hide\)/, "and it only closes the list");
+  assert.match(ui, />Turn these off</, "turning the feature off for good has its own button");
+  assert.match(ui, /h\.querySelector\("\[data-psg-off\]"\)\.addEventListener\("click", turnOff\)/);
+  assert.doesNotMatch(ui, />X</, "the X that turned the feature off for good is gone");
+  assert.match(app, /window\.CC\.promptSuggest\?\.hide\(\);/, "every Send path closes the list");
+  assert.doesNotMatch(ui, DASHES);
+});
+
+async function chatPage() {
+  // The real page in Simple, with the practice AIs on, waiting for the shell and the suggestion module.
+  const t = await bootPage({ mode: "simple", width: 1280, height: 900 });
+  await t.api("/demo", { body: { on: true } });
+  await t.page.reload({ waitUntil: "domcontentloaded" });
+  await t.page.addStyleTag({ content: "#cc-startup,#cc-look-offer,#demo-bar,#cc-desktop-prompt,#ea-news-overlay,.cc-tour-invite{display:none!important}" });
+  await t.page.waitForFunction(() => window.CC && window.CC.S && window.CC.go && window.CC.S.providers?.length, null, { timeout: WAIT });
+  await goChat(t.page);
+  await t.page.waitForFunction(() => window.CC.featuresReady === true && !!window.CC.promptSuggest, null, { timeout: WAIT });
+  return t;
+}
+
+async function typeAndOpen(page, text) {
+  await page.fill("#orders", text);
+  await page.waitForFunction(() => document.querySelectorAll("#cc-suggest [role=option]").length > 0, null, { timeout: WAIT });
+}
+
+test("browser: after Send the list is closed over the answer", { skip }, async () => {
+  const t = await chatPage();
+  try {
+    await typeAndOpen(t.page, EMAIL);
+    await t.page.click("#go");
+    const end = Date.now() + WAIT;
+    let state = null;
+    for (;;) {
+      state = await t.page.evaluate(() => ({ options: document.querySelectorAll("#cc-suggest [role=option]").length }));
+      if (state.options === 0 || Date.now() > end) break;
+      await t.page.waitForTimeout(200);
+    }
+    assert.equal(state.options, 0, "the suggestion list is closed once the message is sent");
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
+});
+
+test("browser: Hide these only closes the list, Turn these off saves the off switch", { skip }, async () => {
+  const t = await chatPage();
+  try {
+    await typeAndOpen(t.page, EMAIL);
+    await t.page.click("[data-psg-hide]");
+    await t.page.waitForFunction(() => document.querySelectorAll("#cc-suggest [role=option]").length === 0, null, { timeout: WAIT });
+    assert.equal(await t.page.evaluate((k) => localStorage.getItem(k), OFF_KEY), null, "Hide these never turns the feature off for good");
+    await typeAndOpen(t.page, DRAGON);
+    await t.page.click("[data-psg-off]");
+    await t.page.waitForFunction(() => document.querySelectorAll("#cc-suggest [role=option]").length === 0, null, { timeout: WAIT });
+    assert.equal(await t.page.evaluate((k) => localStorage.getItem(k), OFF_KEY), "1", "Turn these off is remembered, Settings brings them back");
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
+});
+
+test("browser: a Free viewer never sees a Pro or Industry suggestion row", { skip }, async () => {
+  const t = await chatPage();
+  try {
+    assert.equal(await t.page.evaluate(() => window.CC.S?.license?.tier || "free"), "free", "this copy runs on the Free tier");
+    await typeAndOpen(t.page, EMAIL);
+    const rows = await t.page.evaluate(() => [...document.querySelectorAll("#cc-suggest [role=option]")].map((o) => ({ label: (o.querySelector("span")?.textContent || "").trim(), tag: (o.querySelector(".psg-tag")?.textContent || "").trim() })));
+    assert.ok(rows.some((r) => r.label === "Short email"), JSON.stringify(rows));
+    for (const r of rows) assert.ok(!["Pro", "Industry"].includes(r.tag), JSON.stringify(r));
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
 });
 
 test("server: /prompts/suggest gives nothing for an empty box and image help for the dragon", async () => {

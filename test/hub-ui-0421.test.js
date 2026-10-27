@@ -77,3 +77,10 @@ test("source: the Project Media Send to menu can Publish through the hub (path 1
   assert.match(read("web", "features", "mindmedia-save.js"), /opts\.publish/);
   assert.match(read("web", "features", "mindmedia.js"), /S\.mmPublish/);
 });
+
+test("source: hub Delete says it went to the Trash and Download confirms (S13)", () => {
+  const t = read("web", "features", "mindmedia.js");
+  assert.equal(t.includes('toast("Deleted.")'), false);
+  assert.equal(t.split('toast("Moved to Trash. You can restore it for 30 days.")').length - 1, 2);
+  assert.equal(t.split('toast("Downloaded.")').length - 1, 2);
+});

@@ -113,7 +113,8 @@ test("a signed-in profile is used only after an explicit opt-in, and a running b
       browser() { opened += 1; throw new Error("should not open"); },
     });
     const app = Apps.addApp({
-      name: "Driver Mail", kind: "website", capabilities: ["analysis"],
+      // 0.4.22 never-list: a card named after a mail app is refused, so this fixture card is an inbox
+      name: "Driver Inbox", kind: "website", capabilities: ["analysis"],
       origin: "https://mail.example/inbox", profile: "chrome", signedIn: true,
     });
     assert.equal(app.signedIn, true);
@@ -277,7 +278,7 @@ test("suggestApp is how the planner assigns an app step, and writing stays with 
   assert.match(drivers, /UIAutomationClient/);
   assert.match(drivers, /IsPasswordProperty/);
   assert.equal(drivers.includes("\u2014"), false);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.21");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version, "0.4.22");
   dropAgents();
 });
 

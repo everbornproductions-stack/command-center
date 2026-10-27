@@ -192,13 +192,75 @@ export function isDrawingOrPageJob(goal) { return DRAW_OR_PAGE.test(String(goal 
 export function wantsSearch(goal) { return isDrawingOrPageJob(goal) ? SEARCH_SAID.test(String(goal || "")) : SEARCH_ASK.test(String(goal || "")); }
 
 const LEAK_SENTENCE = /[^.!?\n]*\b(supplied|provided|given|above)\s+(search\s+)?(results|sources)\b[^.!?\n]*[.!?]?/gi;
-/** Remove "[1]" / "[1][4]" / "[1, 4]" citations and sentences about "the supplied search results". */
+/** Remove "[1]" / "[1][4]" / "[1, 4]" citations and sentences about "the supplied search results", leaving code blocks, inline code, and array indexers untouched. */
 export function stripSearchLeaks(text) {
-  let t = clean(text);
+  const original = String(text ?? "");
+  if (!original) return clean(original);
+
+  // We need to protect:
+  // 1. Fenced code blocks (``` ... ```)
+  // 2. Indented code blocks (4+ spaces or a tab at line start after a blank line or start of text)
+  // 3. Inline code (`...`)
+  // 4. Bracket numbers directly attached to an identifier or closing bracket/paren with no space before it (like argv[2], a[0], row[1][2]).
+  
+  // Let's tokenize or placeholderize protected regions.
+  const placeholders = [];
+  function addPlaceholder(content) {
+    const id = `__STEPGUARD_CODE_${placeholders.length}__`;
+    placeholders.push({ id, content });
+    return id;
+  }
+
+  // First pass: protect fenced code blocks
+  let t = original.replace(/```[\s\S]*?```/g, (match) => addPlaceholder(match));
+
+  // Second pass: protect inline code
+  t = t.replace(/`[^`\n]*`/g, (match) => addPlaceholder(match));
+
+  // Third pass: protect indented code blocks.
+  // An indented code block is lines starting with 4+ spaces or a tab, following a blank line or start of text.
+  // Let's process line by line or via regex.
+  const lines = t.split("\n");
+  let inIndentedBlock = false;
+  const processedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isBlank = line.trim() === "";
+    const isIndented = /^(?: {4,}|\t)/.test(line);
+    const prevBlank = i === 0 || lines[i - 1].trim() === "";
+
+    if (isIndented && (prevBlank || inIndentedBlock)) {
+      inIndentedBlock = true;
+      processedLines.push(addPlaceholder(line));
+    } else {
+      if (isBlank) {
+        inIndentedBlock = false;
+      } else if (!isIndented) {
+        inIndentedBlock = false;
+      }
+      processedLines.push(line);
+    }
+  }
+  t = processedLines.join("\n");
+
+  // Now clean prose outside protected areas:
+  // 1. LEAK_SENTENCE
   t = t.replace(LEAK_SENTENCE, "");
-  t = t.replace(/(?:\s?\[\s?\d{1,2}(?:\s?[,–-]\s?\d{1,2})*\s?\])+/g, "");
+
+  // 2. Citations: a marker after a space or sentence punctuation is a citation; a bracket number glued to a
+  // word, ")" or "]" (argv[2], a[0], row[1][2]) is an index and stays.
+  t = t.replace(/(\s?)((?:\[\s?\d{1,2}(?:\s?[,–-]\s?\d{1,2})*\s?\])+)/g, (m, ws, _marks, off, str) => (!ws && off > 0 && /[\w\])]/.test(str[off - 1]) ? m : ""));
+
+  // 3. Double spaces and trailing whitespace outside code.
   t = t.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n").replace(/ {2,}/g, " ");
-  return t.trim() === clean(text).trim() ? clean(text) : t;
+
+  // Restore placeholders
+  for (const p of placeholders.reverse()) {
+    // Escape special regex replacement characters like $ in p.content
+    t = t.replace(p.id, () => p.content);
+  }
+
+  return t.trim() === clean(original).trim() ? clean(original) : t.trim();
 }
 
 // ---------- the real disk check (0.4.21, dogfood 14) ----------

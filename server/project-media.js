@@ -1340,6 +1340,28 @@ function cleanPost(p) {
 }
 const postPreview = (p) => [p.caption, p.hashtags.join(" ")].filter(Boolean).join("\n\n").slice(0, 600);
 
+// The project's media folder, checked BEFORE anything is written: the folder and every folder below the data folder
+// must be real folders (no links) and must resolve inside the data folder. Returns the checked folder, or throws a 400.
+export function safeMediaDir(projectId) {
+  const refuse = () => {
+    const err = new Error("That project folder is a link to somewhere else, so nothing can be saved into it.");
+    err.status = 400;
+    return err;
+  };
+  const root = path.resolve(DATA_DIR);
+  const pid = String(projectId || "unfiled").replace(/[^a-z0-9-_]/gi, "_");
+  let cur = root;
+  for (const part of ["projects", pid, "media"]) {
+    cur = path.join(cur, part);
+    let st = null;
+    try { st = fs.lstatSync(cur); } catch { /* not made yet */ }
+    if (st && st.isSymbolicLink()) throw refuse();
+  }
+  const dir = projectMediaDir(projectId);
+  if (!realInside(dir, root)) throw refuse();
+  return dir;
+}
+
 export function saveToMindMedia(opts = {}) {
   const pid = hubProjectId(opts.projectId);
   const source = String(opts.source || "Meldmind").slice(0, 60);
@@ -1478,7 +1500,7 @@ export const VIEWS = {
   "approved-unpublished": { label: "Approved, not published", test: (i) => i.status === "Approved" },
   "published-month": { label: "Published this month", test: (i, now) => i.status === "Published" && inThisMonth(lastPublishedAt(i), now) },
   "ai-employees": { label: "Made by AI employees", test: (i) => /^AI employee/i.test(String(i.source || "")) },
-  "needs-ending": { label: "Needs an ending", test: (i) => needsAnEnding(i) },
+  "needs-ending": { label: "Not finished yet", test: (i) => needsAnEnding(i) },
 };
 function lastPublishedAt(i) {
   const posted = (i.destinations || []).filter((d) => d.status === "posted").map((d) => Number(d.at) || 0);

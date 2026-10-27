@@ -43,6 +43,36 @@ test("the run-time filter drops send, post, publish, email, message, tweet and u
   assert.deepEqual(filterSendTools(keep), keep);
 });
 
+// 0.4.22 panel row 69: the switch also keeps the tools that talk to people (dm, reply, forward,
+// share, push, notify, slack, comment) while every read-only name stays in the list.
+test("dm, reply, forward, share, push, slack and comment senders are filtered, readers stay", () => {
+  const senders = [
+    { name: "dm_user", description: "Send a direct message to one person" },
+    { name: "reply_all", description: "Reply to everyone on the thread" },
+    { name: "forward_mail", description: "Forward an email to another person" },
+    { name: "share_file", description: "Share a file with the team" },
+    { name: "push_notification", description: "Push a notification to the phone" },
+    { name: "write_comment", description: "Write a comment on the post" },
+    { name: "slack_notify", description: "Notify the channel in Slack" },
+  ];
+  const readers = [
+    { name: "list_messages", description: "Lists the messages in a channel" },
+    { name: "read_file", description: "Read one file from disk" },
+    { name: "get_comment", description: "Reads one comment by its id" },
+    { name: "search_slack", description: "Searches messages in a Slack workspace" },
+    { name: "list_shared_files", description: "Lists the files shared with the team" },
+    { name: "share_link_info", description: "Reads info about a shared link" },
+    { name: "read_comment", description: "Reads one comment" },
+    { name: "list_comments", description: "Lists the comments on a page" },
+    { name: "get_notifications", description: "Reads the notifications for the account" },
+  ];
+  for (const t of senders) assert.equal(sendTool(t), true, `${t.name} is a sender`);
+  for (const t of readers) assert.equal(sendTool(t), false, `${t.name} stays`);
+  assert.deepEqual(filterSendTools([...senders, ...readers]), readers, "senders out, readers still there");
+  // a reader name with a send word in its description is still judged by that description
+  assert.equal(sendTool({ name: "list_messages", description: "Send a message to the channel" }), true);
+});
+
 test("the filter and the noSend flag are wired into the run, and both cards show the badge", () => {
   const opts = runOptions({ id: "ag-x", name: "Safe Runner", instructions: "Answer plainly.", noSend: true, tools: { mode: "all", allow: [] } }, { prompt: "hello" });
   assert.equal(opts.noSend, true, "the flag rides with the run");

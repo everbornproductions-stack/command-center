@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { projectMediaDir } from "./media-jobs.js";
-import { saveToMindMedia } from "./project-media.js";
+import { saveToMindMedia, safeMediaDir } from "./project-media.js";
 import { extractCodeFiles, safeFileName } from "./code-files.js";
 import { fileExt, namedFile } from "./step-guard.js";
 import { find as findInFolder } from "./code-source.js";
@@ -50,7 +50,7 @@ export function saveNamedFile({ goal = "", name, text, projectId = "", missionId
   if (body.length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big (${Math.round(body.length / 1000)}k characters).` };
   try {
     const pid = String(projectId || "") || "unfiled";
-    const dir = projectMediaDir(pid);
+    const dir = safeMediaDir(pid);
     let file = path.join(dir, want);
     if (!path.resolve(file).startsWith(path.resolve(dir) + path.sep)) return { ok: false, name: want, error: `Not saved: ${want} is not a safe file name.` };
     // never overwrite another run's file: name-2.html, name-3.html

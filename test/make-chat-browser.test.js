@@ -73,7 +73,7 @@ test("Simple chat: a 5 second video request runs a demo job and shows its result
     await t.page.waitForSelector("#simple-answer .mk-tile[data-kind=video]", { timeout: WAIT });
     await t.page.waitForSelector("#simple-answer .mk-tile[data-kind=video][data-state=done] .mk-media img, #simple-answer .mk-tile[data-kind=video][data-state=done] .mk-media video", { timeout: WAIT });
     const r = await t.page.evaluate(() => ({ note: document.querySelector(".mk-tile[data-kind=video] .mk-note")?.textContent || "", dl: !!document.querySelector(".mk-dl") }));
-    assert.match(r.note, /Practice video/);
+    assert.match(r.note, /Sample video/);
     assert.ok(r.dl);
   } finally { await t.close(); }
 });

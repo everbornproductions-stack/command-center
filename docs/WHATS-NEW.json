@@ -1,4 +1,18 @@
 {
+  "0.4.22": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Safety check before you publish or download: Meldmind scans the words and files for leaked keys, passwords and old risky packages, shows plain fixes with a Fix it button, and blocks a live secret unless you choose Publish anyway.",
+      "Free AIs first: free AIs bid for each job, the best fair bid wins, big jobs are split across several free AIs, and the result shows what you saved versus paid AIs. Freebuff can work as a free coder (one-time sign in).",
+      "Clearer words everywhere: one cost line (Free or the price), Sample picture/video/voice instead of Practice, Not finished yet instead of Needs an ending, Save to MindMedia from voice, and a help article for Auto team.",
+      "Prompt ideas hide when you send, and Free users only see prompts that fit their plan.",
+      "Answers that contain code keep it exactly as written, and plain requests like a cheat sheet or a week of posts no longer start a picture.",
+      "Publish previews now show their warnings, and private numbers (SSN, card) are hidden in titles and file names.",
+      "Safer sending and files: the send check and log use the final drafted message, the no-send switch covers more tools, MindMedia folders are checked for symlink tricks, links open only as http, https or mail, and the never-list no longer blocks unrelated apps.",
+      "The app's own spending stop is no longer blamed on an AI, and the message now says whether a job would go over your limit or you have used it up.",
+      "Small fixes: the open page is marked in the sidebar, closing the Finish drawer returns you to the button you used, and Instagram previews are accurate for text-only items."
+    ]
+  },
   "0.4.21": {
     "title": "What's new in Meldmind",
     "bullets": [

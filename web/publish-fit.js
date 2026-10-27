@@ -26,3 +26,14 @@ export function fieldsFor(channel, kind) {
   if (channel === "slack") f.push({ id: "room", label: "Which channel" });
   return f;
 }
+
+// 0.4.22 (panel row 17): the plain lines for the warnings a preview returns. A warning never blocks Publish.
+// Each one is a string or { plain, why }; empty and repeated lines are dropped.
+export function warningLines(list) {
+  const out = [];
+  for (const w of Array.isArray(list) ? list : []) {
+    const t = String(typeof w === "string" ? w : (w?.plain || w?.why || "")).trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}

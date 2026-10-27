@@ -16,6 +16,7 @@ import { augment as webAugment, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { overheadCost } from "./precost.js";
+import { splitWave, decorateSteps } from "./free-bids.js";
 import { freeOnlyOn, hasPaidKey, freeOnlyError, calibratedEstimate, noteActual, stepLine, creditCheck } from "./free-first.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
@@ -30,6 +31,7 @@ import { demoActive as mediaDemoOn } from "./mock.js";
 import { demosHidden as mediaDemosHidden } from "./demo-visibility.js";
 import { guardUsd as mediaGuardUsd } from "./make-it.js";
 import { suggestApp, runLive, planLine } from "./control-apps.js";
+import { freebuffReady, freebuffStep } from "./freebuff-agent.js";
 import { openGrant, endGrant, grantView } from "./getdone.js";
 import { resolveCrew, crewFor, crewSystem } from "./employees.js";
 import { keepEmployeeWork } from "./mindmedia-employees.js";
@@ -901,6 +903,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
       // An allowed app takes a step of its own task type. Writing stays with a text model.
       // Grok Bot and the browser helper already took their agent steps above.
+      // 0.4.22: Freebuff (free coder) takes a code step first when it is set up. A private run never uses it.
+      if (t.capability === "code" && !isPrivate && freebuffReady()) {
+        mission.tasks.push({ ...t, app: true, appId: "freebuff", status: "queued", provider: "app", model: "Freebuff", agentName: "Freebuff · code (free)", estCost: 0, output: null, review: null, cost: 0 });
+        continue;
+      }
       if (t.capability !== "writing" && t.capability !== "agent" && t.capability !== "media") {
         const appPick = suggestApp(t.capability || "");
         if (appPick) {
@@ -1465,6 +1472,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       applyQueuedDirections();
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
+      try { splitWave(wave, { rankFn: openRank, mode, needsWeb: needsWebModel }); } catch { /* 0.4.22 free AIs bid first; the wave runs as planned */ }
       if (!wave.length) {
         // unresolved deps (cycle or failed dep): run the rest without inputs
         const rest = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed");
@@ -1485,6 +1493,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         }
         if (t.save) return saveTask(t);
         if (t.media) return mediaTask(t);
+        if (t.app && t.appId === "freebuff") {
+          // 0.4.22: a limit or any trouble hands the step to the next AI. Nothing is lost.
+          const fb = await freebuffStep(t, { missionId: id });
+          if (fb.ok) { t.output = fb.text; outputs[t.id] = fb.text; t.status = "done"; t.free = true; t.finishedAt = Date.now(); done.add(t.id); emit("task.update", { missionId: id, task: pubTask(t) }); update(); return; }
+          const alt = openRank({ capability: t.capability || "code", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) })[0];
+          if (!alt) { t.status = "failed"; t.error = fb.reason; return; }
+          Object.assign(t, { app: false, appId: null, provider: alt.provider, model: alt.model, agentName: `${alt.providerName} · ${t.capability}`, freebuffSkipped: fb.reason });
+          log(`Freebuff was skipped for "${t.title}": ${fb.reason}`);
+        }
         if (t.app) return appTask(t);
         // 0.4.21 (dogfood 09): a step routed to an agent that is not set up has no entry in PROVIDERS, and
         // reading its name stopped the mission ("Cannot read properties of undefined (reading 'name')").
@@ -1847,7 +1864,7 @@ export function publicMission(m) {
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {
-  return (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean);
+  return decorateSteps(m.tasks, (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean));
 }
 // a step that finished but did not do what it set out to: not saved, not run, or says it could not
 function stepIsNotDone(t) { return stepNotDone(t) || !!t?.notSaved || !!t?.notRun; }
