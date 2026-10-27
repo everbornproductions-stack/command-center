@@ -24,7 +24,7 @@ function contributors(run) {
   const seen = new Set(); return out.filter((c) => { const k = c.stepId ? `s:${c.stepId}` : `m:${c.model}`; return c.model && !seen.has(k) && seen.add(k); });
 }
 
-export const WRONG_REASONS = [["wrong step", "A step was wrong"], ["cut off", "It was cut off"], ["wrong topic", "It was about something else"], ["not what i asked", "Not what I asked for"], ["other", "Something else"]];
+export const WRONG_REASONS = [["wrong step", "A step was wrong"], ["cut off", "It was cut off"], ["wrong topic", "It was about something else"], ["not what i asked", "Not what I asked for"], ["file missing", "The content is good, the file is missing"], ["other", "Something else"]];
 // one thumb for the whole run: "Is this usable?" On a thumbs down the person says why, and which step if one was wrong.
 function resultRow(run, existing, list) {
   const r = existing.find((x) => x.scope === "result");

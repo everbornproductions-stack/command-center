@@ -36,7 +36,7 @@ import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
-import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput } from "./step-guard.js";
+import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile } from "./named-file.js";
 import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
 import fs from "node:fs";
@@ -1250,6 +1250,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // It is handed to a working AI here instead.
         const handOff = handToWorkingAI(t, () => openRank({ capability: t.capability || "reasoning", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) }));
         if (handOff) { Object.assign(t, handOff); t.reassigned = true; }
+        // 0.4.21 (dogfood 08): an earlier step failed or came back empty, so this one is not run on "(missing)"
+        // (that redid the earlier work and billed it twice). It stops here with "Input missing" on the card.
+        const missingIn = missingInputs(t, mission.tasks, outputs);
+        if (missingIn.length) {
+          t.status = "failed"; t.inputMissing = missingIn; t.error = inputMissingLine(missingIn); t.finishedAt = Date.now();
+          log(`"${t.title}" was not run: ${t.error}`);
+          emit("task.update", { missionId: id, task: pubTask(t) }); update();
+          return;
+        }
         const agent = `${id}:${t.id}`;
         t.status = "running"; t.startedAt = Date.now();
         emit("task.update", { missionId: id, task: pubTask(t) });
@@ -1532,7 +1541,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { notDone: stepNotDone(t), id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
+  return { notDone: stepNotDone(t), id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
   return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
