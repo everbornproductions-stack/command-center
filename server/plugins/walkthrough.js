@@ -1,4 +1,4 @@
-﻿// Start a project: idea, questions, a council plan, steps routed by the existing
+// Start a project: idea, questions, a council plan, steps routed by the existing
 // router, review, then export. Example walks are pre-recorded and read-only.
 import { loadHelp } from "../help.js";
 import { EXAMPLES, EXAMPLE_NOTE, exampleByType } from "../walkthrough-examples.js";

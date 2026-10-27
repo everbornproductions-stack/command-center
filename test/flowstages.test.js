@@ -31,17 +31,20 @@ import {
 } from "../server/build-all.js";
 import { progressHtml } from "../web/build-all-ui.js";
 
-test("flag_flowstages defaults to OFF and keeps legacy labels and presentation", () => {
-  assert.equal(isFlowStagesEnabled({ settings: {}, env: {} }), false);
+test("flag_flowstages defaults to on and can be turned off", () => {
+  assert.equal(isFlowStagesEnabled({ settings: {}, env: {} }), true);
+  assert.equal(isFlowStagesEnabled({ settings: {}, env: { CC_FLAG_FLOWSTAGES: "0" } }), false);
+  assert.equal(isFlowStagesEnabled({ settings: { flag_flowstages: false }, env: {} }), false);
   assert.equal(isFlowStagesEnabled({ settings: { flag_flowstages: true }, env: {} }), true);
   assert.equal(isFlowStagesEnabled({ settings: { flags: { flag_flowstages: true } }, env: {} }), true);
   assert.equal(isFlowStagesEnabled({ settings: {}, env: { CC_FLAG_FLOWSTAGES: "1" } }), true);
 
-  assert.deepEqual(labelsFor("simple"), STAGE_LABELS.simple);
-  assert.deepEqual(labelsFor("expert"), STAGE_LABELS.expert);
+  const legacy = { env: { CC_FLAG_FLOWSTAGES: "0" } };
+  assert.deepEqual(labelsFor("simple", legacy), STAGE_LABELS.simple);
+  assert.deepEqual(labelsFor("expert", legacy), STAGE_LABELS.expert);
 
   const walk = { id: "sp-1", type: "website", stage: "idea", status: "ready", idea: "A bakery site" };
-  const legacyView = present(walk, "simple");
+  const legacyView = present(walk, "simple", legacy);
   assert.equal(legacyView.flowStagesEnabled, undefined);
   assert.equal(legacyView.stages[0].label, "Your idea");
 

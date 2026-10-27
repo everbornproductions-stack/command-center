@@ -22,7 +22,7 @@ export const PHONEWEB_QUICK_BUTTONS = [
 ];
 
 export function isPhoneCompanionEnabled(stateObj) {
-  return Boolean(stateObj?.settings?.flag_phoneweb || (typeof window !== "undefined" && window.CC_FLAG_PHONEWEB));
+  return stateObj?.settings?.flag_phoneweb !== false && !(typeof window !== "undefined" && window.CC_FLAG_PHONEWEB === false);
 }
 
 export function resolveClientQueue(items = []) {

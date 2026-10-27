@@ -2,6 +2,19 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## 0.4.19
+
+- Safer links: the app now accepts only its own address, so a look-alike website cannot talk to it.
+- A hand-edited license file no longer unlocks a paid plan. Real licenses keep working.
+- Spending limits really stop a run, and Stop on Build it all for me really stops the project.
+- Community chat updates on its own, tells you honestly when a message did not send, and works for anyone signed in.
+- A News panel on the left or right edge, with links, that you can shrink out of the way.
+- Finished projects stay editable and download as a zip. Asking the chat for a website or project starts the project steps.
+- A Stop button in normal chats keeps what was written so far. Use my plan first now really puts your signed-in plans ahead of paid API models.
+- The light theme shows every card title, and notices sit above dialogs.
+- Every pop-up that asks you to type a name is now a proper box inside the app.
+- The new look, the project bar, the phone companion, agents and Take Over are on by default.
+
 ## 0.4.18
 
 - Pay on the website with Stripe and unlock in the app: sign in with the same email and your plan turns on. Upgrade in the app opens checkout with your email filled in.

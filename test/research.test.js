@@ -447,7 +447,8 @@ test("server: Stop aborts a deep research run before the report is written", asy
     assert.doesNotMatch(citeCheck.text, /\[99\]/);
     assert.match(citeCheck.text, /Solar capacity grew rapidly in utility markets \[1\]\./);
 
-    assert.equal((await s.api("/research")).json.research.flag_agents, false, "flag_agents defaults to OFF");
+    assert.equal((await s.api("/research")).json.research.flag_agents, true, "flag_agents defaults to ON");
+    assert.equal((await s.api("/research/flag", { method: "POST", body: { flag_agents: false } })).json.flag_agents, false);
     const flagRes = await s.api("/research/flag", { method: "POST", body: { flag_agents: true } });
     assert.equal(flagRes.status, 200);
     assert.equal(flagRes.json.flag_agents, true);

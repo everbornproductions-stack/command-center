@@ -39,11 +39,11 @@ T.configure({
   bridgeReady: () => false,
 });
 
-test("flag: takeover is OFF by default and env or a saved setting turns it on", () => {
+test("flag: takeover is ON by default and env or a saved setting turns it off", () => {
   delete process.env.CC_FLAG_TAKEOVER;
-  assert.equal(takeoverOn({}), false);
+  assert.equal(takeoverOn({}), true);
   assert.equal(takeoverOn({ flag_takeover: true }), true);
-  assert.equal(flagView().takeover, false);
+  assert.equal(flagView().takeover, true);
   process.env.CC_FLAG_TAKEOVER = "1";
   assert.equal(takeoverOn({ flag_takeover: false }), true);
   assert.equal(flagView().takeover, true);
@@ -164,8 +164,8 @@ test("web panel: rows escape text and owner panel shows only controls", async ()
   assert.match(P.ownerHtml({ settings: T.OWNER_DEFAULTS, history: [] }), /Owner tools/);
 });
 
-test("server: flag OFF by default, ON by env, owner routes refuse a free account", { timeout: waitBudget(90000) }, async () => {
-  const off = await startServer();
+test("server: flag OFF by env, ON by default, owner routes refuse a free account", { timeout: waitBudget(90000) }, async () => {
+  const off = await startServer({ env: { CC_FLAG_TAKEOVER: "0" } });
   try {
     const r = await off.api("/takeover/state");
     assert.equal(r.status, 403);

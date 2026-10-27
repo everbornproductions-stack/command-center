@@ -1,12 +1,12 @@
 // Look (0.4.19, flag_look): the glass look setting and the saved graphics check.
 //   GET  /api/look   -> { flag, choice, check }
 //   POST /api/look   -> { choice?: auto|glass|classic, check?: { tier, fps, sig } }
-// The flag is off unless CC_FLAG_LOOK=1. LOOK_FLAG_DEFAULT is switched to true in the 0.4.19 build once reviewed.
+// The flag is on unless CC_FLAG_LOOK=0.
 // Scoring and the choice rules are in web/look-core.js (pure, shared with the page).
 import { normalizeChoice, TIERS } from "../../web/look-core.js";
 
 export const id = "look";
-export const LOOK_FLAG_DEFAULT = false;
+export const LOOK_FLAG_DEFAULT = true;
 const KIND = "look.prefs";
 
 export function lookFlag(env = process.env) {

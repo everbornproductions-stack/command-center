@@ -26,13 +26,13 @@ const SET = [
   ["general", { text: "ok thanks" }], ["general", { text: "remember to call mom" }], ["general", { text: "zzz qqq" }],
 ];
 
-test("flag is off by default and env turns it on or off", () => {
+test("flag is on by default and env turns it off or on", () => {
   const was = process.env.CC_FLAG_FINISHROUTER;
   try {
     delete process.env.CC_FLAG_FINISHROUTER;
-    assert.equal(flagOn("finishrouter"), false);
-    assert.equal(flagView().finishrouter, false);
-    assert.equal(flagView().projectmedia, false, "other flags stay");
+    assert.equal(flagOn("finishrouter"), true);
+    assert.equal(flagView().finishrouter, true);
+    assert.equal(flagView().projectmedia, true, "other flags stay");
     process.env.CC_FLAG_FINISHROUTER = "1";
     assert.equal(flagOn("finishrouter"), true);
     assert.equal(flagView().finishrouter, true);

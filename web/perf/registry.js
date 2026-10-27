@@ -1,4 +1,4 @@
-﻿// Feature, builder, and add-on registry.
+// Feature, builder, and add-on registry.
 //
 // Open pull requests adopt this file. Do not add a static import in
 // web/features/index.js, electron/main.cjs, or server/index.js.

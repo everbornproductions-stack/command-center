@@ -32,12 +32,12 @@ const walk = (over = {}) => ({
   ...over,
 });
 
-test("flag is off by default and env turns it on or off", () => {
+test("flag is on by default and env turns it off or on", () => {
   const was = process.env.CC_FLAG_FINISHPATH;
   try {
     delete process.env.CC_FLAG_FINISHPATH;
-    assert.equal(flagOn("finishpath"), false);
-    assert.equal(flagView().finishpath, false);
+    assert.equal(flagOn("finishpath"), true);
+    assert.equal(flagView().finishpath, true);
     process.env.CC_FLAG_FINISHPATH = "1";
     assert.equal(flagOn("finishpath"), true);
     assert.equal(flagView().finishpath, true);

@@ -66,7 +66,7 @@ export function isPhoneWebEnabled(settingsObj = null, env = process.env) {
   if (s && typeof s.flag_phoneweb === "boolean") return s.flag_phoneweb;
   if (s?.flags && typeof s.flags.flag_phoneweb === "boolean") return s.flags.flag_phoneweb;
   const raw = String(env?.CC_FLAG_PHONEWEB || "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "on";
+  return !(raw === "0" || raw === "false" || raw === "off");
 }
 
 function defaultDoc() {

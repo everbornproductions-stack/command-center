@@ -16,9 +16,9 @@ const LB = await import("../server/live-bubble.js");
 const { buildLiveView, createState, makeFlow } = await import("../server/liveview.js");
 const { createScheduler } = await import("../server/perf/scheduler.js");
 
-test("flag: off by default, env turns it on or off", () => {
-  assert.equal(DEFAULT_ON, false);
-  assert.equal(liveBubbleOn({}), false);
+test("flag: on by default, env turns it off or on", () => {
+  assert.equal(DEFAULT_ON, true);
+  assert.equal(liveBubbleOn({}), true);
   assert.equal(liveBubbleOn({ CC_FLAG_LIVEBUBBLE: "1" }), true);
   assert.equal(liveBubbleOn({ CC_FLAG_LIVEBUBBLE: "0" }), false);
 });
@@ -158,7 +158,7 @@ test("no em dashes in the new files", () => {
 });
 
 test("server: routes are absent with the flag off; with it on, free, clear-idle and show-all work", async () => {
-  const off = await startServer({ env: { CC_STATUS_PAGES: "off", CC_DEV_OWNER: "1" } });
+  const off = await startServer({ env: { CC_STATUS_PAGES: "off", CC_DEV_OWNER: "1", CC_FLAG_LIVEBUBBLE: "0" } });
   try {
     assert.notEqual((await off.api("/liveview/free")).status, 200);
     assert.equal("freeAi" in (await off.api("/liveview")).json, false);

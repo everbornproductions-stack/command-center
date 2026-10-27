@@ -23,16 +23,19 @@ import {
 } from "../web/features/phoneweb.js";
 import { idsFor } from "../web/perf/registry.js";
 
-test("unit: flag_phoneweb defaults to OFF and enables via settings or env", () => {
+test("unit: flag_phoneweb defaults to ON and turns off via settings or env", () => {
   assert.equal(FLAG_NAME, "flag_phoneweb");
-  assert.equal(isPhoneWebEnabled({}, {}), false);
+  assert.equal(isPhoneWebEnabled({}, {}), true);
+  assert.equal(isPhoneWebEnabled({}, { CC_FLAG_PHONEWEB: "0" }), false);
+  assert.equal(isPhoneWebEnabled({ flag_phoneweb: false }, {}), false);
   assert.equal(isPhoneWebEnabled({ flag_phoneweb: false }, { CC_FLAG_PHONEWEB: "1" }), false);
   assert.equal(isPhoneWebEnabled({ flag_phoneweb: true }, {}), true);
   assert.equal(isPhoneWebEnabled({ flags: { flag_phoneweb: true } }, {}), true);
   assert.equal(isPhoneWebEnabled({}, { CC_FLAG_PHONEWEB: "1" }), true);
   assert.equal(isPhoneWebEnabled({}, { CC_FLAG_PHONEWEB: "true" }), true);
 
-  assert.equal(isPhoneCompanionEnabled({ settings: {} }), false);
+  assert.equal(isPhoneCompanionEnabled({ settings: {} }), true);
+  assert.equal(isPhoneCompanionEnabled({ settings: { flag_phoneweb: false } }), false);
   assert.equal(isPhoneCompanionEnabled({ settings: { flag_phoneweb: true } }), true);
 });
 
@@ -91,14 +94,14 @@ test("unit: Flow stages, client queue resolution, and registry rules", () => {
   }
 });
 
-test("server: flag_phoneweb is OFF by default and gates companion routes until enabled", { timeout: waitBudget(90000) }, async () => {
-  const s = await startServer();
+test("server: flag_phoneweb is ON by default; when forced off, companion routes are gated until enabled", { timeout: waitBudget(90000) }, async () => {
+  const s = await startServer({ env: { CC_FLAG_PHONEWEB: "0" } });
   try {
     // 0. Only a session with the token can reach the companion API.
     assert.equal((await s.api("/phoneweb/state", { noToken: true })).status, 401);
     assert.equal((await s.api("/phoneweb/direction", { method: "POST", noToken: true, body: { text: "x" } })).status, 401);
 
-    // 1. Default state in tests: flag_phoneweb is OFF.
+    // 1. Forced off: flag_phoneweb is OFF.
     const offState = await s.api("/phoneweb/state");
     assert.equal(offState.status, 200);
     assert.equal(offState.json.enabled, false);

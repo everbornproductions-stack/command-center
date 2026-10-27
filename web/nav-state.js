@@ -1,7 +1,7 @@
 // Navigation state, form draft preservation, Back button history, and Business Profile draft state (Slice A5).
-// Behind flag_navstate (default OFF in tests, ON in the 0.4.19 build once reviewed).
+// Behind flag_navstate (on by default in 0.4.19).
 
-export const DEFAULT_FLAG_NAVSTATE = false;
+export const DEFAULT_FLAG_NAVSTATE = true;
 
 export function isNavStateEnabled(state) {
   const s = state || (typeof window !== "undefined" ? window.CC?.state : null);

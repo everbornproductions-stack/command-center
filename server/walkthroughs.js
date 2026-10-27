@@ -72,7 +72,7 @@ export function isFlowStagesEnabled({ settings, env = process.env, requested } =
   if (s.flag_flowstages === true || s.flags?.flag_flowstages === true) return true;
   if (s.flag_flowstages === false || s.flags?.flag_flowstages === false) return false;
   const e = String(env?.CC_FLAG_FLOWSTAGES || "").trim().toLowerCase();
-  return e === "1" || e === "true" || e === "on";
+  return !(e === "0" || e === "false" || e === "off");
 }
 
 export function resolveStageId(value, customStages = []) {

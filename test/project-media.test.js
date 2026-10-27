@@ -16,15 +16,15 @@ import {
 const EM = "\u2014";
 const EN = "\u2013";
 
-test("pure helpers: flag_projectmedia defaults to OFF, version stacks and smart collections group items", () => {
+test("pure helpers: flag_projectmedia defaults to ON, version stacks and smart collections group items", () => {
   assert.equal(FLAG_NAME, "flag_projectmedia");
   assert.deepEqual(PRESET_TAGS, ["client-ready", "draft", "final", "reference"]);
 
-  // Default is OFF unless enabled in settings or env
+  // Default is ON unless turned off in settings or env
   const prevEnv = process.env.CC_FLAG_PROJECTMEDIA;
   delete process.env.CC_FLAG_PROJECTMEDIA;
   try {
-    assert.equal(isProjectMediaEnabled({}), false);
+    assert.equal(isProjectMediaEnabled({}), true);
     assert.equal(isProjectMediaEnabled({ flag_projectmedia: false }), false);
     assert.equal(isProjectMediaEnabled({ flag_projectmedia: true }), true);
     process.env.CC_FLAG_PROJECTMEDIA = "1";
@@ -130,10 +130,12 @@ test("server integration: flag gating, unified index, version stacks, filters, t
     },
   });
   try {
-    // flag is OFF by default, in the state and on the routes
+    // flag is ON by default; turned off it is off in the state and on the routes
     const flagInit = await srv.api("/projectmedia/flag");
     assert.equal(flagInit.status, 200);
-    assert.equal(flagInit.json.enabled, false);
+    assert.equal(flagInit.json.enabled, true);
+    assert.equal((await srv.api("/state")).json.projectMedia, true);
+    assert.equal((await srv.api("/projectmedia/flag", { method: "POST", body: { on: false } })).json.enabled, false);
     assert.equal((await srv.api("/state")).json.projectMedia, false);
     const blocked = await srv.api("/projectmedia/alpha-proj");
     assert.equal(blocked.status, 404);
