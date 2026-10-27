@@ -240,6 +240,9 @@ test("browser: Settings > Memories lists by group, edits, stars, deletes, turns 
     await t.api("/memories", { method: "POST", body: { text: "Prices are in euros", bucket: "knowledge" } });
     await t.page.evaluate(() => window.CC.go("settings"));
     await t.page.waitForSelector("#mem2-panel [data-mem-bucket]", { timeout: WAIT });
+    // Settings can draw again once more right after it opens (the panel shows Loading... for a moment): wait until the
+    // panel is filled in, with the groups and the Smarter recall line, before reading it
+    await t.page.waitForFunction(() => { const p = document.querySelector("#mem2-panel"); return !!p && p.querySelector("[data-mem-bucket]") && /Needs a key/.test(p.textContent || ""); }, null, { timeout: WAIT });
     const groups = await t.page.$$eval("#mem2-panel [data-mem-bucket]", (els) => els.map((e) => e.dataset.memBucket));
     assert.deepEqual(groups, ["about-me", "project", "knowledge"]);
     assert.match(await t.page.textContent('[data-mem-bucket="about-me"]'), /I run a bakery/);
