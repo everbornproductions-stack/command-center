@@ -4,6 +4,7 @@ import { rank, heuristicClassify } from "./router.js";
 import { councilPlan, planMode, reviewMode, normalizeMode } from "./modes.js";
 import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
+import { isDeadNow, heldByRealFailure } from "./health.js";
 import { runnableOnly } from "./runnable.js";
 import { whyOut } from "./send-check.js";
 
@@ -20,8 +21,13 @@ function takeUnique(list, n) {
 }
 
 function safeRank(rankFn, cls, mode) {
-  try { return runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
+  let list = [];
+  try { list = runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
   catch { return []; }
+  // 0.4.21 (dogfood 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // is never named as the one that will plan or read, while any other AI can take the job.
+  const live = list.filter((m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } });
+  return live.length ? live : list;
 }
 
 function searchRows(search) {
