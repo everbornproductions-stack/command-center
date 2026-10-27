@@ -460,6 +460,7 @@ function paintWalk(w) {
       ${w.example ? `<span class="chip amber">Example data</span>` : ""}
       ${w.templateName ? `<span class="chip" style="max-width:100%;overflow-wrap:anywhere">From template: ${esc(w.templateName)}</span>` : ""}
       ${!w.example && window.CC.S?.flags?.templates ? `<button class="btn sm" type="button" id="sp-save-tpl" style="margin-left:auto">Save as template</button>` : ""}
+      ${!w.example && window.CC.S?.flags?.personasections ? `<button class="btn sm" type="button" id="sp-share-ps">Share to a persona section?</button>` : ""}
     </div>
     ${rail(w)}
     ${flowControlsHtml(w)}
@@ -469,6 +470,7 @@ function paintWalk(w) {
     <div id="sp-stage"></div>`;
   root.querySelector("#sp-back").addEventListener("click", () => renderTab(root.parentElement));
   root.querySelector("#sp-save-tpl")?.addEventListener("click", () => saveAsTemplate(w));
+  root.querySelector("#sp-share-ps")?.addEventListener("click", () => import("/features/persona-sections.js").then((m) => m.openShare({ walkId: w.id })).catch((e) => toast(e.message, true)));
   wireFlowControls(root, w);
   const stage = root.querySelector("#sp-stage");
   if (fromChat) {

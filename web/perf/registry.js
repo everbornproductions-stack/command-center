@@ -93,6 +93,7 @@ export const FEATURES = [
   { id: "workspaces", views: ["workspaces"] },
   { id: "walkthrough", views: ["start"], home: true },
   { id: "performance", views: ["settings"], settings: true },
+  { id: "persona-sections", settings: true },
 
   // Pages added by the integration train. Each file loads when its view opens.
   // home, deliverable, and listen load with Command, and Light mode skips them.

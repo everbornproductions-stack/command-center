@@ -15,6 +15,7 @@ const DEFAULTS = {
   templates: false, // Custom project templates: Save as template, Start from a template
   videoeditor: false, // Video sound and subtitle editor: sound line, subtitles, timing, transitions, preview and export
   finishers: false, // Category finishers: documents, accounting, automations, music, presentations, programs, games
+  personasections: false, // Personas menu, optional Share to a persona section step, template-only sharing with a preview and secret redaction
 };
 export function flagOn(name) {
   const v = process.env["CC_FLAG_" + String(name).toUpperCase()];
