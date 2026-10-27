@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { startServer, freePort } from "./helpers.js";
 import { signalsDestination, sendDueSignals } from "../server/usage.js";
@@ -28,7 +29,7 @@ test("sendDueSignals: off sends nothing, on sends once a day, a bad payload neve
   const args = { consent: () => consent, buildPayload: () => payload, validate: validateQualitySignalPayload, version: "0.4.19", destination: "http://127.0.0.1:9/api/metrics/signals", fetchImpl };
   // loadState needs a store context
   const store = await import("../server/store.js");
-  const DIR = fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "cc-sig-"));
+  const DIR = fs.mkdtempSync(path.join(os.tmpdir(), "cc-sig-"));
   store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
   assert.equal((await sendDueSignals(args)).reason, "off");
   assert.equal(sent.length, 0);
@@ -39,7 +40,7 @@ test("sendDueSignals: off sends nothing, on sends once a day, a bad payload neve
   assert.equal(sent.length, 1);
   const bad = { ...args, buildPayload: () => ({ ...payload, signals: [{ ...payload.signals[0], prompt: "secret" }] }) };
   fs.rmSync(DIR, { recursive: true, force: true });
-  store.setDefaultContext(store.newContext("local", new store.FileStore(fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "cc-sig-")))));
+  store.setDefaultContext(store.newContext("local", new store.FileStore(fs.mkdtempSync(path.join(os.tmpdir(), "cc-sig-")))));
   assert.equal((await sendDueSignals(bad)).reason, "invalid");
   assert.equal(sent.length, 1);
 });

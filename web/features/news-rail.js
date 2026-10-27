@@ -11,7 +11,7 @@ const css = `
 #cc-rail { position: fixed; top: 76px; z-index: 35; width: 280px; max-height: calc(100vh - 190px); display: flex; flex-direction: column; background: var(--panel-solid, #0d1420); color: var(--text, #e6edf7); border: 1px solid var(--line-2, #2a3a52); border-radius: 12px; box-shadow: 0 12px 32px #0008; }
 #cc-rail[data-side="right"] { right: 14px; }
 #cc-rail[data-side="left"] { left: 14px; }
-#cc-rail[data-min="1"] { width: auto; max-height: none; }
+#cc-rail[data-min="1"] { width: auto; max-height: none; top: auto; bottom: 14px; }
 #cc-rail .rail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
 #cc-rail .rail-head .btn { white-space: nowrap; padding: 4px 8px; }
 #cc-rail .rail-title { flex: 1 1 100%; white-space: nowrap; font-weight: 650; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
