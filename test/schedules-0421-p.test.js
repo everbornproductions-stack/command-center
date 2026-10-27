@@ -150,6 +150,15 @@ test("create and edit keep the setup sentence and a short weekly prompt for each
   S.deleteSchedule(schedule.id);
 });
 
+test("source: a new schedule starts with no day, and saving without a day says so", () => {
+  const src = read("web/features/schedules.js");
+  assert.match(src, /new Set\(empty \? \[\]/, "no day is picked for a new schedule");
+  assert.match(src, /whenHtml\(e\.trigger\.cron \|\| "0 17 \* \* 1-5", !s\)/);
+  assert.match(src, /Pick at least one day\./);
+  assert.match(src, /#sf-days \[aria-pressed='true'\]/);
+  assert.match(src, /\[data-preset\]/, "the presets still set the days");
+});
+
 test("source: the schedule screen shows where a note went and has the weekly prompt field", () => {
   const src = read("web/features/schedules.js");
   assert.match(src, /Saved to \$\{esc\(r\.savedPath\)\}/);

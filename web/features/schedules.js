@@ -78,16 +78,19 @@ function savedLine(r) {
   return "";
 }
 
-function whenHtml(cron) {
+// A new schedule starts with no day picked: the person chooses the day, the app never assumes Monday to
+// Friday (0.4.21, dogfood 11). Editing shows the days the schedule already runs on.
+function whenHtml(cron, empty) {
   const simple = whenFromCron(cron);
-  const picked = new Set(simple?.days || ["1", "2", "3", "4", "5"]);
-  const time = simple?.time || "17:00";
+  const picked = new Set(empty ? [] : (simple?.days || ["1", "2", "3", "4", "5"]));
+  const time = empty ? "09:00" : (simple?.time || "17:00");
   const custom = simple ? "" : `<div class="hint" id="sf-custom" role="note">This schedule uses a custom pattern (${esc(cron)}). Pick days and a time to replace it.</div>`;
+  const value = empty ? "" : (simple ? cronFromWhen([...picked], time) : cron);
   return `<div class="small">When</div>
     <div class="row" id="sf-days" role="group" aria-label="Days" style="gap:4px;flex-wrap:wrap">${DAYS.map(([v, short, long]) => `<button type="button" class="btn sm${picked.has(v) ? " primary" : ""}" data-day="${v}" aria-pressed="${picked.has(v) ? "true" : "false"}" aria-label="${long}">${short}</button>`).join("")}</div>
     <label class="small">Time <input type="time" id="sf-time" value="${esc(time)}" aria-label="Time"></label>
     <div class="row" style="gap:6px;flex-wrap:wrap">${PRESETS.map((p) => `<button type="button" class="btn sm" data-preset="${p.id}">${esc(p.label)}</button>`).join("")}</div>
-    <input type="hidden" id="sf-cron" value="${esc(simple ? cronFromWhen([...picked], time) : cron)}">
+    <input type="hidden" id="sf-cron" value="${esc(value)}">
     ${custom}`;
 }
 function readWhen(view) {
@@ -95,7 +98,7 @@ function readWhen(view) {
   const time = view.querySelector("#sf-time")?.value || "09:00";
   const custom = view.querySelector("#sf-custom");
   if (custom && !st.whenTouched) return view.querySelector("#sf-cron").value;
-  if (!days.length) return view.querySelector("#sf-cron").value;
+  if (!days.length) return custom ? view.querySelector("#sf-cron").value : "";
   return cronFromWhen(days, time);
 }
 
@@ -117,7 +120,7 @@ function form(s) {
     ${showRun ? `<label class="small" style="display:block;margin-top:8px">What it does each time<textarea id="sf-runtext" rows="2" style="width:100%" placeholder="The job it repeats on every run. Leave empty and Meldmind works it out from the text above.">${esc(e.target.runText || "")}</textarea></label>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Trigger <select id="sf-trig">${Object.entries(triggers()).map(([k, v]) => `<option value="${k}" ${e.trigger.type === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5")}</span>
+      <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5", !s)}</span>
       <span id="sf-folder-wrap"><label class="small">Folder <input type="text" id="sf-folder" value="${esc(e.trigger.folder || "")}" placeholder="C:\\Users\\you\\Drop" style="width:240px"></label>
         <label class="small">Files <input type="text" id="sf-pattern" value="${esc(e.trigger.pattern || "")}" placeholder="*.txt, *.csv" style="width:110px"></label></span>
     </div>
@@ -177,6 +180,11 @@ function wireForm(view) {
   $("#sf-cancel")?.addEventListener("click", () => { st.edit = null; renderTab(view); });
   $("#sf-save").addEventListener("click", async () => {
     const t = $("#sf-trig").value;
+    // a schedule needs a day: no day picked is refused here with plain words (0.4.21, dogfood 11)
+    if (t === "cron" && !view.querySelector("#sf-custom") && !view.querySelector("#sf-days [aria-pressed='true']")) {
+      toast("Pick at least one day.", true);
+      return;
+    }
     const after = $("#sf-after").value;
     const body = {
       name: $("#sf-name").value,
