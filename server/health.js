@@ -49,13 +49,33 @@ export function noteCall(id, ok, latencyMs, errStatus, body) {
   const cur = getStatus(id);
   if (ok) {
     const slow = latencyMs > 25000;
-    set(id, { status: cur.incident ? "amber" : slow ? "amber" : "green", detail: slow ? `slow (${(latencyMs / 1000).toFixed(0)}s)` : cur.incident ? cur.incident : "ok", latencyMs, lastOk: Date.now() });
+    set(id, { status: cur.incident ? "amber" : slow ? "amber" : "green", detail: slow ? `slow (${(latencyMs / 1000).toFixed(0)}s)` : cur.incident ? cur.incident : "ok", latencyMs, lastOk: Date.now(), realFailAt: 0 });
     return;
   }
   const parts = callParts(errStatus, body);
   if (parts.status === 0) { set(id, { status: "amber", detail: "network error", network: true }); return; }
   const p = PROVIDERS[id] || { id, name: id };
-  set(id, explainProviderError(p, parts.status, parts.json, parts.text));
+  const out = explainProviderError(p, parts.status, parts.json, parts.text);
+  // A real 402/403/429 beats a models-list check: the light stays amber or red and the old "$N left" goes
+  // until a real call works again (0.4.21).
+  if ([402, 403, 429].includes(parts.status)) set(id, { ...out, balance: null, realFailAt: Date.now() });
+  else set(id, out);
+}
+
+export const REAL_FAIL_HOLD_MS = 6 * 60 * 60 * 1000;
+// A new key (or a top-up the person says they made) lets the next check decide again.
+export function clearRealFailure(id) { const c = getStatus(id); if (c.realFailAt) set(id, { realFailAt: 0 }); }
+// True when an AI cannot do work right now: out of credit, rate limited, or its key was refused.
+// Lists and the receipt baseline use this so a dead AI is never named as planner or as the price to beat.
+export function isDeadNow(id) {
+  const c = getStatus(id);
+  if (c.status === "red") return true;
+  return c.status === "amber" && /out of credits|spending limit|payment required|no credits|rate limited/i.test(String(c.detail || ""));
+}
+// True while a real call failed with 402/403/429 and no real call has worked since.
+export function heldByRealFailure(id) {
+  const c = getStatus(id);
+  return !!(c.realFailAt && Date.now() - c.realFailAt < REAL_FAIL_HOLD_MS && c.status !== "green");
 }
 
 // Turn a provider's refusal into words a person can act on, keeping the provider's own message
@@ -162,11 +182,15 @@ export async function probeCompletion(p, listJson) {
   }
 }
 
-export async function checkProvider(id) {
+// `auto` is a background check. It cannot undo a real failure; a check the person asked for can.
+export async function checkProvider(id, { auto = false } = {}) {
   const p = PROVIDERS[id];
   if (!p) return;
   const sec = getSecret(p.id, p.keyEnv);
   const incident = await checkStatusPage(p);
+  // A list of models proves the key is valid, not that there is money behind it. After a real 402/403/429
+  // the light stays as the real call left it.
+  if (auto && sec && heldByRealFailure(id)) { set(id, { incident, checkedNote: "held after a real failure" }); return getStatus(id); }
   if (!sec) { set(id, { status: "grey", detail: incident ? `no key · ${incident}` : "no key", incident }); return getStatus(id); }
   // managed plan (Phase 9): the pool key is not used for checks; the first real call shows whether it works
   if (sec.managed) { set(id, { status: incident ? "amber" : "green", detail: incident ? `managed by Everborn · ${incident}` : "managed by Everborn", incident }); return getStatus(id); }
@@ -243,7 +267,7 @@ export async function checkProvider(id) {
 }
 
 export async function checkAll() {
-  await Promise.allSettled(Object.keys(PROVIDERS).map((id) => checkProvider(id)));
+  await Promise.allSettled(Object.keys(PROVIDERS).map((id) => checkProvider(id, { auto: true })));
   return allStatus();
 }
 

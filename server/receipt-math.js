@@ -5,6 +5,7 @@ import { TEXT_PROVIDERS, estimateCost, findModel, modelPrice, priceSource, provi
 import { hasSecret } from "./vault.js";
 import { doc, putDoc } from "./store.js";
 import { view as livePricingView } from "./live-pricing.js";
+import { isDeadNow } from "./health.js";
 
 export const ESTIMATE_LABEL = "Estimated, based on token counts and list prices.";
 // The built-in table in server/registry.js has no fetch date. Runs priced from it keep this day.
@@ -18,14 +19,15 @@ function candidates() {
   const out = [];
   for (const p of TEXT_PROVIDERS) {
     if (!p || p.kind !== "text") continue;
-    let keyed = false;
+    let keyed = false, dead = false;
     try { keyed = !!hasSecret(p.id, p.keyEnv); } catch { keyed = false; }
+    try { dead = keyed && isDeadNow(p.id); } catch { dead = false; }
     for (const m of p.models || []) {
       if (!m || m.variable) continue;
       const pr = modelPrice(m.id);
       out.push({
         id: m.id, name: m.name, tier: m.tier || "", provider: p.id, providerName: p.name,
-        in: pr.in, out: pr.out, keyed, flagship: m.tier === "flagship",
+        in: pr.in, out: pr.out, keyed, dead, flagship: m.tier === "flagship",
       });
     }
   }
@@ -36,7 +38,9 @@ function candidates() {
 // in the registry, so a receipt still has a baseline (demo mode with no real keys uses the demo flagship).
 export function defaultReference() {
   const flagships = candidates().filter((m) => m.flagship);
-  const pool = flagships.some((m) => m.keyed) ? flagships.filter((m) => m.keyed) : flagships;
+  // an AI that is out of credit is not the price to beat: "saved vs" names one that could really have run
+  const live = flagships.filter((m) => m.keyed && !m.dead);
+  const pool = live.length ? live : flagships.some((m) => m.keyed) ? flagships.filter((m) => m.keyed) : flagships;
   pool.sort((a, b) => (b.in + b.out) - (a.in + a.out) || a.id.localeCompare(b.id));
   return pool[0] || null;
 }

@@ -145,7 +145,7 @@ test("surfaces: Agents tab, Command view, Simple chat, projects", () => {
   assert.match(app, /<div class="panel" id="proj-team"><\/div>/);
   assert.match(app, /renderProjectTeam\(\$\("#proj-team"\), p,/);
   // Simple keeps its short widget list: the hint lives in the chat page itself
-  assert.match(read("web", "mode.js"), /export const SIMPLE_COMMAND = new Set\(\["voice", "desk"\]\);/);
+  assert.match(read("web", "mode.js"), /export const SIMPLE_COMMAND = new Set\(\["voice", "desk", "chat-history"\]\);/);
 });
 
 test("server: team, library, run, Simple chat, project team, and a mission handed to employees", async () => {

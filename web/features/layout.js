@@ -66,7 +66,8 @@ function buildSide() {
         <div class="side-sub" id="side-create-list" hidden></div>
       </div>
     </nav>
-    <div class="side-h" id="side-recent-h">Recent chats</div>
+    <div class="side-h" id="side-recent-h">History</div>
+    <input type="search" class="side-search" id="side-search" placeholder="Search your history" aria-label="Search your history" autocomplete="off">
     <div class="side-recent" id="side-recent" role="list" aria-labelledby="side-recent-h"></div>
     <div class="side-foot">
       <button type="button" class="side-item" id="side-profile" aria-haspopup="menu" aria-expanded="false" aria-controls="side-menu" title="Settings, keys, look, Expert mode and help"><i aria-hidden="true">&#9786;</i><span>Settings and more</span></button>
@@ -74,6 +75,8 @@ function buildSide() {
     <div class="side-menu" id="side-menu" role="menu" aria-label="Settings and more" hidden></div>`;
   app.insertBefore(side, col);
   side.addEventListener("click", onSideClick);
+  let searchTimer = 0;
+  side.addEventListener("input", (e) => { if (e.target.id !== "side-search") return; clearTimeout(searchTimer); searchTimer = setTimeout(() => loadRecent(true), 250); });
   document.addEventListener("click", (e) => { if (st.menuOpen && !e.target.closest("#side-menu, #side-profile")) closeMenu(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && st.menuOpen) { closeMenu(); document.getElementById("side-profile")?.focus(); } });
   return side;
@@ -222,8 +225,11 @@ async function loadRecent(force) {
   st.recentAt = Date.now();
   try {
     const home = await api("/desk/home");
-    st.chats = (home.chats || []).slice(0, 12);
     st.projects = (home.projects || []).slice(0, 6);
+    const q = (document.getElementById("side-search")?.value || "").trim();
+    // the History list: newest first, plain titles, searchable (server/chat-history.js); the old list is the fallback
+    try { st.chats = (await api(`/chathist?limit=${q ? 40 : 14}${q ? `&q=${encodeURIComponent(q)}` : ""}`)).items; }
+    catch { st.chats = (home.chats || []).slice(0, 12); }
   } catch { /* the list stays as it was */ }
   paintRecent();
   paintHomeTiles();
@@ -232,8 +238,8 @@ function paintRecent() {
   const box = document.getElementById("side-recent");
   if (!box) return;
   box.innerHTML = st.chats.length
-    ? st.chats.map((c) => `<button type="button" class="side-chat" role="listitem" data-chat="${esc(c.id)}" title="${esc(c.title)}"><i aria-hidden="true">&#9679;</i><span>${esc(c.title)}</span></button>`).join("")
-    : `<div class="side-empty">Your chats show up here.</div>`;
+    ? st.chats.map((c) => `<button type="button" class="side-chat" role="listitem" data-chat="${esc(c.id)}" title="${esc(c.title)}"><i aria-hidden="true">${c.pinned ? "&#9733;" : "&#9679;"}</i><span>${esc(c.title)}</span></button>`).join("")
+    : `<div class="side-empty">${document.getElementById("side-search")?.value ? "Nothing matches that." : "Your chats show up here. Every chat and mission is saved automatically."}</div>`;
 }
 async function openChat(id) {
   try {

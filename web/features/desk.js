@@ -228,7 +228,6 @@ function renderDeliverable(container, live) {
     ${name ? `<p class="small cc-written" style="margin:6px 0">Written by ${esc(name)}.</p>` : ""}
     ${review?.text ? `<div class="panel"><h3>Double-check</h3><p class="small">${esc(review.line || "")}</p><div class="md">${esc(review.text)}</div></div>` : ""}
     <div class="cc-desk-row">
-      <button type="button" class="btn sm" id="cc-again">Do this again</button>
       <button type="button" class="btn sm" id="cc-check">Double-check this</button>
     </div>
   </div>`;
@@ -237,12 +236,6 @@ function renderDeliverable(container, live) {
     S.navFocus = "#settings-keys";
     S.view = "settings";
     if (window.CC.render) window.CC.render();
-  });
-  container.querySelector("#cc-again").addEventListener("click", async () => {
-    try {
-      const r = await api("/desk/repeat", { method: "POST", body: { id } });
-      toast(r.ok ? "Running that again." : "Could not repeat that.");
-    } catch (e) { toast(e.message, true); }
   });
   container.querySelector("#cc-check").addEventListener("click", async () => {
     try {

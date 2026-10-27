@@ -5,7 +5,7 @@ import { PROVIDERS } from "../registry.js";
 import { completeFallback } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
-import { allStatus } from "../health.js";
+import { allStatus, isDeadNow } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
 import { searchSettings } from "../search.js";
@@ -36,7 +36,8 @@ function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
-  const ranked = runnableOnly(rank({ ...cls, mode: priority })); // an AI that is paused or out of credits is not a reader
+  // an AI that is paused or out of credits is not a reader, and never name one that is out of credit or refused (0.4.21)
+  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => { try { return !isDeadNow(m.provider); } catch { return true; } });
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
   const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
   // the planner is the AI the Mission planner will really pick (reasoning, hard), not just the first reader

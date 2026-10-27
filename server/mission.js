@@ -5,6 +5,7 @@
 //    sub-agents (one per task). A different AI QA-reviews each deliverable when qa is on.
 // 4. An assembler compiles the final deliverable.
 import { PROVIDERS } from "./registry.js";
+import { attachPdf, stepNotDone } from "./mission-pdf.js";
 import { complete, extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
 import { noteCall } from "./health.js";
@@ -1207,7 +1208,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     if (!String(mission.deliverable || "").trim() && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. The AIs finished with an empty result. Press Try again, or add credits in Settings."), { code: "empty" });
-    mission.status = mission.tasks.some((t) => t.status === "failed") || mission.limitReached ? "done-with-errors" : "done";
+    // a PDF task gets a real PDF made here, saved as .pdf and .md in the project folder (server/mission-pdf.js)
+    try { await attachPdf(mission, { goal, log }); } catch (e) { mission.savedPdf = { ok: false, error: `Not saved: ${String(e.message || e).slice(0, 140)}` }; }
+    mission.status = mission.tasks.some((t) => t.status === "failed" || (stepNotDone(t) && !mission.savedPdf?.ok)) || mission.limitReached || (mission.savedPdf && !mission.savedPdf.ok) ? "done-with-errors" : "done";
     try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {
     if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
@@ -1279,10 +1282,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null };
+  return { notDone: stepNotDone(t), id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null };
 }
 export function publicMission(m) {
-  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null };
+  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null };
 }
 function save(m) {
   saveDoc(m);

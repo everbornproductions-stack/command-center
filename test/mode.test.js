@@ -115,7 +115,7 @@ test("the Simple chat page is Chat on top, then the answer, then My day and rece
   assert.equal(SIMPLE_STARTER_COUNT, 3);
   for (const gone of ["cc-zapier-slot", "pp-popular", "graduate-slot"]) assert.equal(simple.includes(gone), false, gone);
   // Only voice (the Mic button) and desk (recent chats) draw on the Simple chat page.
-  assert.deepEqual([...SIMPLE_COMMAND].sort(), ["desk", "voice"]);
+  assert.deepEqual([...SIMPLE_COMMAND].sort(), ["chat-history", "desk", "voice"]);
   assert.match(app, /if \(simple && kind === "command" && !SIMPLE_COMMAND\.has\(f\.id\)\) continue;/);
   assert.match(app, /function simpleDayHtml/);
   assert.match(app, /data-day=/);

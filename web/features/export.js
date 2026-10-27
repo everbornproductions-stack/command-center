@@ -1,4 +1,5 @@
-// Download the answer as PDF or Word. Pro. The file is saved by the browser. Nothing is sent.
+// Download the answer as PDF or Word. Pro. Only the requested document is exported, with a real file name, and the PDF
+// is also kept in the project folder (server/doc-pdf.js). Nothing is sent.
 const { api, toast } = window.CC;
 
 function saveFile(r) {
@@ -15,7 +16,7 @@ async function download(kind, run) {
   try {
     const r = await api(`/export/${kind}`, { method: "POST", body: { missionId: id } });
     saveFile(r);
-    toast(kind === "pdf" ? "PDF downloaded." : "Word document downloaded.");
+    toast(kind === "pdf" ? (r.savedAs ? `${r.filename} downloaded and saved in ${r.savedAs}` : `${r.filename || "PDF"} downloaded.`) : "Word document downloaded.");
   } catch (e) { toast(e.message, true); }
 }
 
