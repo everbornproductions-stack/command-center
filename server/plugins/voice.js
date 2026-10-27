@@ -76,7 +76,7 @@ export async function routes(req, res, url, body, h) {
     if (!picked) return h.json(res, 409, { error: "No connected AI to help with that.", code: "voice_no_model" });
     const complete = (async ({ system, user }) => {
       const t0 = Date.now();
-      const a = await completeFallback({ provider: picked.provider, model: picked.model, maxTokens: 200, system, messages: [{ role: "user", content: user }] }, { role: "voice-intent", small: true, cls: { capability: "fast", difficulty: 1 }, mode: "economy", tools: false });
+      const a = await completeFallback({ allowStandIn: true, provider: picked.provider, model: picked.model, maxTokens: 200, system, messages: [{ role: "user", content: user }] }, { role: "voice-intent", small: true, cls: { capability: "fast", difficulty: 1 }, mode: "economy", tools: false });
       try { recordCall({ provider: a.provider, model: a.model, usage: a.usage || { input: 0, output: 0 }, role: "voice-intent", ms: Date.now() - t0 }); } catch { /* ledger is best effort */ }
       return a.text;
     });

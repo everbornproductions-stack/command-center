@@ -779,7 +779,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     const s0 = Date.now();
     try {
       let planExtra = "";
-      const callPlanner = () => completeFallback({
+      const callPlanner = () => completeFallback({ allowStandIn: true,
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
         system: `You are the chief of staff for a small creative/marketing business. Break the goal into ${Math.min(maxTasks, 6)} or fewer concrete tasks that different AI specialists can do independently, with dependencies where one needs another's output. Reply with JSON only:
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
@@ -1230,7 +1230,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const callOnce = async (t, { provider, model, system, messages, maxTokens, role }) => {
       const agent = `${id}:${t.id}`;
       const s0 = Date.now();
-      const r = await completeFallback({ provider, model, maxTokens, signal: ctl.signal, system, messages },
+      const r = await completeFallback({ allowStandIn: true, provider, model, maxTokens, signal: ctl.signal, system, messages },
         { missionId: id, taskId: t.id, role, tools: false, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble },
         { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, role, t.id) });
       noteCall(r.provider, true, Date.now() - s0);
@@ -1324,7 +1324,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const s3 = Date.now();
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
-          const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${text.slice(0, 12000)}` }] },
+          const r = await completeFallback({ allowStandIn: true, provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${text.slice(0, 12000)}` }] },
             { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held], skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
           const ms = Date.now() - s3;
           noteCall(r.provider, true, ms);
@@ -1463,7 +1463,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
           // Smart fallback (Phase 26): a specialist whose provider is out of credits, rate limited or refusing
           // its key is replaced (same model via OpenRouter first, then the next-best model) and the task says so.
-          for await (const ev of fallbackChat({
+          for await (const ev of fallbackChat({ allowStandIn: true,
             provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal,
             system: workSystem,
             messages: workMessages,
@@ -1539,7 +1539,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               emit("agent.msg", { from: first.provider, to: t.provider, missionId: id, text: `revise: ${String(first.fix).slice(0, 60)}` });
               const s4 = Date.now();
               try {
-                const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${first.fix}\nISSUES: ${(first.issues || []).join("; ")}` }] },
+                const r2 = await completeFallback({ allowStandIn: true, provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${first.fix}\nISSUES: ${(first.issues || []).join("; ")}` }] },
                   { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
                 noteCall(r2.provider, true, Date.now() - s4);
                 const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
@@ -1657,7 +1657,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const asmSystem = toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}${mission.sources.length ? "" : " Do not add [1] style citations and do not mention search results: nothing was searched."}`, tone);
     const asmMessages = [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }];
     try {
-      for await (const ev of fallbackChat({
+      for await (const ev of fallbackChat({ allowStandIn: true,
         provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal,
         system: asmSystem,
         messages: asmMessages,
@@ -1680,7 +1680,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (!tr.truncated) break;
         log(`The final answer was cut off (${tr.reason}). Asking ${PROVIDERS[asm.provider]?.name || asm.provider} to carry on (${i + 1} of ${MAX_CONTINUES}).`);
         const s6 = Date.now();
-        const r = await completeFallback({ provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal, system: asmSystem, messages: [...asmMessages, { role: "assistant", content: text }, { role: "user", content: continuePrompt(text, fext) }] },
+        const r = await completeFallback({ allowStandIn: true, provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal, system: asmSystem, messages: [...asmMessages, { role: "assistant", content: text }, { role: "user", content: continuePrompt(text, fext) }] },
           { missionId: id, role: "continue", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held, skipProviders: skipSet, onTrouble: runTrouble }, { onDelta: (d) => emit("agent.delta", { agent: aAgent, missionId: id, text: d }) });
         spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "continue", ms: Date.now() - s6 }));
         if (!r.text.trim()) break;

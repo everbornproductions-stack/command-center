@@ -107,7 +107,7 @@ export async function draft(text) {
   const t0 = Date.now();
   let answer;
   try {
-    answer = await completeFallback({
+    answer = await completeFallback({ allowStandIn: true,
       provider: picked.provider,
       model: picked.model,
       maxTokens: 400,

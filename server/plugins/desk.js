@@ -175,7 +175,7 @@ export async function routes(req, res, url, body, h) {
     const system = "You are a second reader. Check the answer for mistakes and missing points. Be brief. Do not invent facts. Do not send, post, or buy anything.";
     const messages = [{ role: "user", content: `Question:\n${String(wrote.prompt || "").slice(0, 4000)}\n\nAnswer:\n${String(wrote.text).slice(0, 8000)}` }];
     const r = await completeFallback(
-      { provider: other.provider, model: other.model, maxTokens: 700, system, messages },
+      { allowStandIn: true, provider: other.provider, model: other.model, maxTokens: 700, system, messages },
       { missionId: run.id, tools: false, role: "review", mode: "balanced", cls },
     );
     const e = h.recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: run.id, role: "review" });

@@ -15,7 +15,7 @@
 //    (Google AI Studio, OpenRouter's free route, Groq's free tier) and never go past the daily or
 //    per-minute allowance the app knows about; those calls are recorded at $0 and flagged free.
 //  - Spend caps (alerts plugin) are respected: a provider at 100% of its cap is never a stand-in.
-import { PROVIDERS, findModel, estimateCostAt } from "./registry.js";
+import { PROVIDERS, findModel, estimateCostAt, modelPrice } from "./registry.js";
 import { assertSpendAllowed } from "./cost-guard.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, getContext, runAs } from "./store.js";
@@ -90,29 +90,46 @@ export function saveFallbackSettings(patch = {}) {
 }
 
 // ---------- the trouble table ----------
-const state = () => doc(STATE, () => ({ skip: {} }));
+// Two scopes. The whole provider sits out for credits, a rejected key or a dead host; a 429 or a 503
+// belongs to ONE model of it, keyed "provider:model", so the provider's other models keep working
+// (0.4.21 Gemini check: Gemini 3.8 Flash busy must not bench Gemini 3.6 Flash).
+export const MODEL_KINDS = ["rate", "server"];
+export const modelKey = (pid, model) => `${pid}:${model}`;
+const state = () => doc(STATE, () => ({ skip: {}, models: {} }));
+const modelBox = (st) => (st.models ||= {});
+const stillOn = (e, now = Date.now()) => !!e && (e.until == null ? e.kind !== "cap" : now < e.until);
 const nameOf = (pid) => PROVIDERS[pid]?.name || pid;
 const minutes = (ms) => (ms >= 60000 ? `${Math.round(ms / 60000)} min` : `${Math.round(ms / 1000)} s`);
+// The model's own name ("Gemini 3.8 Flash"), or the id when it is not in the registry.
+export function modelName(pid, model) {
+  return findModel(model)?.name || PROVIDERS[pid]?.models?.find((x) => x.id === model)?.name || model;
+}
 
-export function markTrouble(pid, kind, detail = "", { quiet = false, missionId = null } = {}) {
+export function markTrouble(pid, kind, detail = "", { quiet = false, missionId = null, model = null } = {}) {
   if (!KINDS.includes(kind) || !PROVIDERS[pid]) return null;
   const st = state();
-  const prev = st.skip[pid];
+  const perModel = !!model && MODEL_KINDS.includes(kind);
+  const box = perModel ? modelBox(st) : st.skip;
+  const key = perModel ? modelKey(pid, model) : pid;
+  const prev = box[key];
   const now = Date.now();
   const until = kind === "cap" ? null : now + COOLDOWN_MS[kind];
   const live = !!(prev && prev.kind === kind && (prev.until == null || prev.until > now));
   const announced = live && !!prev.announced; // the feed hears about each skip once, even when the health light marked it first
-  const entry = { kind, detail: String(detail || "").replace(/\s+/g, " ").trim().slice(0, 160), since: live ? prev.since : now, until, count: (prev?.count || 0) + 1, announced: announced || !quiet };
-  st.skip[pid] = entry;
+  const entry = { provider: pid, model: perModel ? model : null, kind, detail: String(detail || "").replace(/\s+/g, " ").trim().slice(0, 160), since: live ? prev.since : now, until, count: (prev?.count || 0) + 1, announced: announced || !quiet };
+  box[key] = entry;
   putDoc(STATE, st);
   emit("fallback.skip", { provider: pid, ...entry });
-  if (!quiet && !announced) emit("log", { text: `${nameOf(pid)} skipped for new work${until ? ` for ${minutes(COOLDOWN_MS[kind])}` : ""}: ${REASON[kind]}${entry.detail ? ` (${entry.detail})` : ""}. It comes back on its own when it works again.`, level: "error", missionId });
+  const who = perModel ? `${nameOf(pid)} ${modelName(pid, model)}` : nameOf(pid);
+  if (!quiet && !announced) emit("log", { text: `${who} skipped for new work${until ? ` for ${minutes(COOLDOWN_MS[kind])}` : ""}: ${REASON[kind]}${entry.detail ? ` (${entry.detail})` : ""}. It comes back on its own when it works again.`, level: "error", missionId });
   return entry;
 }
 export function clearTrouble(pid, why = "") {
   const st = state();
-  if (!st.skip[pid]) return false;
-  delete st.skip[pid];
+  let dropped = false;
+  if (st.skip[pid]) { delete st.skip[pid]; dropped = true; }
+  for (const [k, s] of Object.entries(modelBox(st))) if (s?.provider === pid || k.startsWith(`${pid}:`)) { delete st.skip[k]; delete st.models[k]; dropped = true; }
+  if (!dropped) return false;
   putDoc(STATE, st);
   emit("fallback.clear", { provider: pid, why });
   emit("log", { text: `${nameOf(pid)} is back in the rotation${why ? ` (${why})` : ""}.` });
@@ -122,9 +139,39 @@ const cappedNow = () => doc("alerts.state", () => undefined)?.stop || []; // rea
 // Why a provider is skipped right now, or null. The spend cap comes from the alerts plugin live.
 export function trouble(pid) {
   const s = state().skip[pid];
-  if (s && (s.until == null ? s.kind !== "cap" : Date.now() < s.until)) return { ...s, reason: REASON[s.kind] };
-  if (cappedNow().includes(pid)) return { kind: "cap", detail: "100% of the monthly cap", since: null, until: null, reason: REASON.cap };
+  if (s && (s.until == null ? s.kind !== "cap" : Date.now() < s.until)) return { ...s, provider: pid, reason: REASON[s.kind] };
+  if (cappedNow().includes(pid)) return { kind: "cap", provider: pid, model: null, detail: "100% of the monthly cap", since: null, until: null, reason: REASON.cap };
   return null;
+}
+// One MODEL of a provider on a cooldown (a 429 or a 503 on that model only), or null.
+export function modelTrouble(pid, model) {
+  if (!pid || !model) return null;
+  const s = state().models?.[modelKey(pid, model)];
+  return stillOn(s) ? { ...s, reason: REASON[s.kind] } : null;
+}
+// Every model on a cooldown right now, keyed "provider:model".
+export function troubledModels() {
+  const out = {}, now = Date.now();
+  for (const [key, s] of Object.entries(state().models || {})) if (stillOn(s, now)) out[key] = { ...s, reason: REASON[s.kind] };
+  return out;
+}
+// The AI's own trouble right now: the whole provider, else one of its models. Null when it can work.
+export function troubleFor(pid) {
+  const p = trouble(pid);
+  if (p) return p;
+  for (const t of Object.values(troubledModels())) if (t.provider === pid) return t;
+  return null;
+}
+// "Gemini 3.8 Flash: busy until 8:42 PM" for one model, "Grok: out of credits" for a whole AI.
+const KIND_WORD = { rate: "busy", server: "busy", credits: "out of credits", key: "key rejected", unreachable: "unreachable", cap: "spending limit reached" };
+const clockTime = (ms) => { try { return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch { return null; } };
+export function busyLine(t) {
+  if (!t) return null;
+  const word = KIND_WORD[t.kind] || "busy";
+  const who = t.model ? modelName(t.provider, t.model) : nameOf(t.provider);
+  if (!t.until) return `${who}: ${word}`;
+  const at = clockTime(t.until);
+  return at ? `${who}: ${word} until ${at}` : `${who}: ${word}`;
 }
 export function troubled() {
   const out = {};
@@ -133,7 +180,9 @@ export function troubled() {
 }
 export function sweepExpired() {
   const st = state(); let changed = false;
-  for (const [pid, s] of Object.entries(st.skip)) if (s.until != null && Date.now() >= s.until + 24 * 3600 * 1000) { delete st.skip[pid]; changed = true; }
+  const old = 24 * 3600 * 1000;
+  for (const [pid, s] of Object.entries(st.skip)) if (s.until != null && Date.now() >= s.until + old) { delete st.skip[pid]; changed = true; }
+  for (const [k, s] of Object.entries(modelBox(st))) if (s?.until != null && Date.now() >= s.until + old) { delete st.models[k]; changed = true; }
   if (changed) putDoc(STATE, st);
 }
 
@@ -228,24 +277,45 @@ export function freeTierView() {
 }
 
 // ---------- choosing a stand-in ----------
-const modelName = (pid, model) => findModel(model)?.name || model;
-export function nextChoice({ provider, model, tried = [], cls = {}, mode = "balanced", small = false, settings = fallbackSettings() }) {
+// 0. another model of the SAME provider first: cheapest and free first, never one already tried, never
+//    one on a cooldown, never a paid model when Free only is on. A 429 or a 503 only benches the model
+//    that got it, so the rest of this AI's family is still the first choice before any other provider.
+export function sameProviderChoice({ provider, model, tried = [], freeOnly = freeOnlyOn(), capped = cappedNow() }) {
+  const p = PROVIDERS[provider];
+  if (!p || p.kind !== "text" || p.demo) return null;
+  if (trouble(provider) || capped.includes(provider)) return null; // credits, a bad key or a cap sits the whole AI out
+  const used = new Set(tried.map((t) => t.model));
+  const ban = troubledModels();
+  const list = (p.models || []).filter((m) => m.id !== model && !used.has(m.id) && !ban[modelKey(provider, m.id)] && (!freeOnly || isFreeModel(provider, m.id)));
+  if (!list.length) return null;
+  const price = (m) => { const pr = modelPrice(m.id); return (pr.in || 0) + (pr.out || 0); };
+  const best = list.map((m, i) => [m, i]).sort((a, b) => costTier(provider, a[0].id) - costTier(provider, b[0].id) || price(a[0]) - price(b[0]) || a[1] - b[1])[0][0];
+  return { provider, model: best.id, name: best.name, via: null, priceModel: null, free: !!isFreeModel(provider, best.id), same: true };
+}
+
+export function nextChoice({ provider, model, tried = [], cls = {}, mode = "balanced", small = false, settings = fallbackSettings(), allowStandIn = true, skipSame = false }) {
   const triedProviders = new Set(tried.map((t) => t.provider));
   const triedModels = tried.map((t) => t.model);
   const capped = cappedNow();
   const freeOnly = freeOnlyOn();
-  // 0. a coding job reaches Claude Code (the person's own plan) first
+  // 0. another model of this same AI, before anything else (see above)
+  const same = skipSame ? null : sameProviderChoice({ provider, model, tried, freeOnly, capped }); // an AI that refused earlier in this run is not asked again, not even a sibling model
+  if (same) return same;
+  // no other provider may stand in unless the caller allows it (Auto / unpinned routes do)
+  if (allowStandIn !== true) return null;
+  // 1. a coding job reaches Claude Code (the person's own plan) first
   const code = planFirstForCode({ tried, cls, freeOnly });
   if (code && !freeOnly) return code;
-  // 1. the same model through OpenRouter (a paid route: never while Free only is on)
+  // 2. the same model through OpenRouter (a paid route: never while Free only is on)
   if (!freeOnly && settings.openrouterFirst && !triedProviders.has("openrouter") && openrouterReady() && !capped.includes("openrouter")) {
     const id = openrouterId(provider, model);
     if (id) return { provider: "openrouter", model: id, name: `${modelName(provider, model)} via OpenRouter`, via: "openrouter", priceModel: model };
   }
-  // 2. the next-best model for the job, from a provider not yet tried, not troubled, not capped.
+  // 3. the next-best model for the job, from a provider not yet tried, not troubled, not capped.
   //    Free first: this PC, then free allowances, then paid. Quality and Max quality keep the ranking as it is.
   const skip = troubled();
-  const ok = (m) => !triedProviders.has(m.provider) && !triedModels.includes(m.model) && !skip[m.provider] && !capped.includes(m.provider) && m.provider !== provider && (!freeOnly || isFreeModel(m.provider, m.model));
+  const skipModel = troubledModels();
+  const ok = (m) => !triedProviders.has(m.provider) && !triedModels.includes(m.model) && !skip[m.provider] && !skipModel[modelKey(m.provider, m.model)] && !capped.includes(m.provider) && m.provider !== provider && (!freeOnly || isFreeModel(m.provider, m.model));
   let list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, needWeb: !!cls.needWeb, small, exclude: triedModels }).filter(ok);
   if (!list.length && cls.needWeb) list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, small, exclude: triedModels }).filter(ok);
   const qualityFirst = mode === "quality" || mode === "max";
@@ -276,6 +346,11 @@ export async function* fallbackChat(opts, run = {}) {
   const lastUser = [...(opts.messages || [])].reverse().find((m) => m.role === "user");
   const cls = run.cls || heuristicClassify(typeof lastUser?.content === "string" ? lastUser.content : "");
   const mode = run.mode || "balanced";
+  // 0.4.21 Gemini check: the person pinned an AI (an explicit provider and model). Another provider may
+  // only stand in when the route sets allowStandIn (Auto and the unpinned routes do). Otherwise the
+  // stand-ins are other models of this same AI, and then a plain stop.
+  const allowStandIn = opts.allowStandIn === true;
+  const outOfOptions = () => Object.assign(new Error(`${modelName(provider, model)} is busy or out. Pick another AI or turn on Let Meldmind choose.`), { code: "pinned_out", status: 409 });
   const freeTier = !!PROVIDERS[provider]?.demo || freeNow(provider, model);
   const freeOnly = freeOnlyOn();
   // Free only: a paid first pick is swapped for a free AI before anything is sent (below). It never spends.
@@ -292,34 +367,39 @@ export async function* fallbackChat(opts, run = {}) {
     const to = { provider: next.provider, model: next.model, name: next.name || modelName(next.provider, next.model), providerName: nameOf(next.provider), via: next.via || null };
     const reason = `${REASON[kind]}${detail ? `: ${String(detail).replace(/\s+/g, " ").trim().slice(0, 140)}` : ""}`;
     // last-resort free hops are numbered after the counted ones but never use up maxHops
-    if (next.lastResort) lastResortHops++; else hop++;
-    chain.push({ from, to, kind, reason, via: next.via || null, hop: hop + lastResortHops, at: Date.now(), role: run.role || null, taskId: run.taskId || null, lastResort: !!next.lastResort, why: next.why || null });
+    // (same-provider hops do not count either: this AI's own family goes before any other provider)
+    if (next.lastResort) lastResortHops++; else if (!next.same) hop++;
+    chain.push({ from, to, kind, reason, via: next.via || null, hop: hop + lastResortHops, at: Date.now(), role: run.role || null, taskId: run.taskId || null, lastResort: !!next.lastResort, same: !!next.same, why: next.why || null });
     emit("log", { text: `${from.providerName} could not take this job (${reason}). ${to.name}${to.via ? "" : ` (${to.providerName})`} is standing in.`, missionId: run.missionId || null });
     provider = next.provider; model = next.model; via = next.via || null; priceModel = next.priceModel || null;
     return { type: "fallback", from, to, kind, reason, via: next.via || null, hop: hop + lastResortHops, restart: !!restart, taskId: run.taskId || null, lastResort: !!next.lastResort, why: next.why || null };
   };
 
-  // the next stand-in: the counted ranking first (until maxHops), then the built-in free AIs, which never use up a hop
+  // the next stand-in: the same AI's own models first, then the counted ranking (until maxHops),
+  // then the built-in free AIs, which never use up a hop. No other provider unless allowStandIn is true.
   const stand = () => {
-    const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings }) : null;
+    const skipSame = !!run.skipProviders?.has(provider);
+    if (!allowStandIn) return nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: false, skipSame });
+    const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame }) : null;
     return counted || lastResortChoices({ tried, cls, freeOnly })[0] || null;
   };
 
   // Free only: never start on a paid AI
   if (wantsPaid) {
     tried.push({ provider, model });
-    const next = nextChoice({ provider, model, tried, cls, mode, small, settings }) || lastResortChoices({ tried, cls, freeOnly })[0];
+    const next = nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn }) || (allowStandIn ? lastResortChoices({ tried, cls, freeOnly })[0] : null);
     if (!next) throw freeOnlyError();
     yield switchTo(next, "freeonly", "", false);
   }
   // known trouble before the first call: do not even try
   if (settings.on) {
     // run.skipProviders: an AI that already said no credits / slow down earlier in this run is not asked again
-    const t = trouble(provider) || (run.skipProviders?.has(provider) ? { kind: "credits", detail: "it refused earlier in this run" } : null);
+    const t = trouble(provider) || modelTrouble(provider, model) || (run.skipProviders?.has(provider) ? { kind: "credits", detail: "it refused earlier in this run" } : null);
     if (t) {
       tried.push({ provider, model });
       const next = stand();
       if (next) yield switchTo(next, t.kind, `skipped, ${t.detail || "known problem"}`, false);
+      else if (!allowStandIn || t.model) throw outOfOptions();
       else if (t.kind === "credits" || t.kind === "rate") {
         const info = describePause(provider);
         const e = new Error(info?.message || `${nameOf(provider)} is paused: no credits. Add credits to use it.`);
@@ -361,12 +441,18 @@ export async function* fallbackChat(opts, run = {}) {
       if (kind) failures.push({ provider, kind });
       if (kind === "credits" || kind === "rate") { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
       if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
-      if (kind === "empty") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null }); }
+      // A failure that belongs to one model is remembered on that model only, and never moves the
+      // provider's own health light: the rest of the AI's models stay usable (0.4.21 Gemini check).
+      const oneModel = !!model && (kind === "empty" || kind === "rate" || kind === "server");
+      if (kind === "empty") { if (!oneModel) noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null, model }); }
       else if (kind === "refused") noteCall(provider, false, Date.now() - t0, e); // the AI is fine; this one job went to another
-      else if (kind !== "cap") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null }); }
+      else if (kind !== "cap") { if (!oneModel) noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null, model }); }
       tried.push({ provider, model });
       const next = stand();
-      if (!next) { e.failures = failures; e.plain = nothingCameBack(failures); if (kind === "empty" || kind === "refused") e.message = e.plain; throw e; }
+      if (!next) {
+        if (!allowStandIn) { const stop = outOfOptions(); stop.failures = failures; throw stop; }
+        e.failures = failures; e.plain = nothingCameBack(failures); if (kind === "empty" || kind === "refused") e.message = e.plain; throw e;
+      }
       yield switchTo(next, kind, e.message, text.length > 0);
     }
   }
@@ -404,9 +490,13 @@ export function fallbackView() {
   const month = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
   let standInsMonth = 0, freeMonth = 0;
   for (let i = entries.length - 1; i >= 0; i--) { const e = entries[i]; if (e.ts < month) break; if (e.kind !== "call") continue; if (e.fallback) standInsMonth++; if (e.free) freeMonth++; }
+  const skipRow = (pid, model, t) => ({ provider: pid, providerName: nameOf(pid), model: model || null, modelName: model ? modelName(pid, model) : null, kind: t.kind, reason: t.reason, detail: t.detail || "", since: t.since, until: t.until, leftMs: t.until ? Math.max(0, t.until - now) : null, line: busyLine({ ...t, provider: pid, model }) });
   return {
     settings: fallbackSettings(),
-    skipped: Object.entries(skip).map(([pid, t]) => ({ provider: pid, providerName: nameOf(pid), kind: t.kind, reason: t.reason, detail: t.detail || "", since: t.since, until: t.until, leftMs: t.until ? Math.max(0, t.until - now) : null })),
+    skipped: [
+      ...Object.entries(skip).map(([pid, t]) => skipRow(pid, null, t)),
+      ...Object.values(troubledModels()).map((t) => skipRow(t.provider, t.model, t)),
+    ],
     openrouter: { keyed: !!PROVIDERS.openrouter && hasSecret("openrouter", PROVIDERS.openrouter.keyEnv), ready: openrouterReady() },
     freeTiers: freeTierView(),
     freeOnly: freeOnlyView(),

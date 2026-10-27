@@ -227,7 +227,7 @@ test("run-level skip: after the first 402 an AI is not asked again in the same r
   const skipProviders = new Set();
   const seen = [];
   const run = { missionId: "m-test", role: "work", mode: "balanced", cls: { capability: "writing", difficulty: 1 }, skipProviders, onTrouble: (pid, kind) => seen.push([pid, kind]) };
-  const opts = { provider: "xai", model: "grok-4.3", maxTokens: 50, messages: [{ role: "user", content: "hi" }] };
+  const opts = { provider: "xai", model: "grok-4.3", allowStandIn: true, maxTokens: 50, messages: [{ role: "user", content: "hi" }] };
   const first = await FB.completeFallback(opts, run);
   assert.notEqual(first.provider, "xai", "a stand-in answered");
   assert.deepEqual(seen[0], ["xai", "credits"]);

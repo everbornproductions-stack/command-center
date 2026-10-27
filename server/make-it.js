@@ -107,7 +107,7 @@ async function aiPrompt(kind, request, { previous, change, another }) {
       ? `Current prompt: ${previous || request}\nWrite a different take on the same idea (new composition, same subject and style).`
       : `The person asked for: ${request}\nWrite the generator prompt.`;
   const t0 = Date.now();
-  const r = await completeFallback({ provider: choice.provider, model: choice.model, maxTokens: 220, system, messages: [{ role: "user", content: user }] }, { missionId: "make-it", role: "prompt", small: true, tools: false, cls: { capability: "creative", difficulty: 1 }, mode: "economy" });
+  const r = await completeFallback({ allowStandIn: true, provider: choice.provider, model: choice.model, maxTokens: 220, system, messages: [{ role: "user", content: user }] }, { missionId: "make-it", role: "prompt", small: true, tools: false, cls: { capability: "creative", difficulty: 1 }, mode: "economy" });
   try { recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: "make-it", role: "prompt", ms: Date.now() - t0 }); } catch { /* the ledger line is a nicety */ }
   const out = String(r.text || "").replace(/^["'\s]+|["'\s]+$/g, "").replace(/\s+/g, " ").slice(0, 1200);
   return out.length >= 8 ? { text: out, by: r.model || choice.model } : null;

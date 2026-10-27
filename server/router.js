@@ -8,7 +8,7 @@ import { hasSecret } from "./vault.js";
 import { doc, putDoc, ctx } from "./store.js";
 import { extractJson } from "./providers.js";
 import { getStatus } from "./health.js";
-import { troubled, freeNow, completeFallback } from "./fallback.js";
+import { troubled, troubledModels, modelKey, freeNow, completeFallback } from "./fallback.js";
 import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
@@ -142,6 +142,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // is skipped for new work while another is available; it comes back on the next good health check or call
   const skip = troubled();
   if (Object.keys(skip).length && list.some((m) => !skip[m.provider])) list = list.filter((m) => !skip[m.provider]);
+  // 0.4.21 Gemini check: a 429 or a 503 benches ONE model of a provider ("provider:model"), not all of them
+  const bench = troubledModels();
+  if (Object.keys(bench).length && list.some((m) => bench[modelKey(m.provider, m.model)])) list = list.filter((m) => !bench[modelKey(m.provider, m.model)]);
   // paused (no credits, spending limit, payment required, rate limited) and an MCP that is not signed in
   // stay out of auto-picks while any other model can take the job
   const blocked = (m) => !!describePause(m.provider) || unconnectedMcp(m.provider);
@@ -183,7 +186,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
       else if (tier === 1 && freeNow(m.provider, m.model)) freeFirst = difficulty >= 3 ? 6 : 18;
     }
     const bonus = (free ? 40 : 0) + freeFirst;
-    const skipReason = skip[m.provider]?.reason || null;
+    const skipReason = skip[m.provider]?.reason || bench[modelKey(m.provider, m.model)]?.reason || null;
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
     const fast = speedBoost(mode, m.baseCaps?.fast ?? m.caps?.fast);
@@ -262,7 +265,7 @@ export async function classify(prompt, { onCall } = {}) {
   try {
     const t0 = Date.now();
     // a small job: free tiers first, and a stand-in if the cheap model's provider is out of credits (Phase 26)
-    const r = await completeFallback({
+    const r = await completeFallback({ allowStandIn: true,
       provider: m.provider, model: m.model, maxTokens: 200,
       system: `Classify the user's request. Reply with JSON only: {"capability": one of ${JSON.stringify(CAPABILITIES.filter((c) => c !== "fast"))}, "difficulty": 1|2|3 (1 trivial, 2 normal, 3 hard/long), "needWeb": boolean (true only if the answer depends on live/current information), "summary": "<=8 words"}`,
       messages: [{ role: "user", content: prompt.slice(0, 4000) }],

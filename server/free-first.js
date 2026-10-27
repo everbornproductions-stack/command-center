@@ -13,7 +13,7 @@
 import { PROVIDERS } from "./registry.js";
 import { hasSecret, getSecret } from "./vault.js";
 import { doc, putDoc, currentUserId } from "./store.js";
-import { FREE_TIERS, fallbackSettings, trouble, markTrouble } from "./fallback.js";
+import { FREE_TIERS, fallbackSettings, trouble, markTrouble, modelTrouble } from "./fallback.js";
 import { localFetch } from "./loopback-fetch.js";
 export const GROKBOT_TEXT = "grokbot-text";
 // The subscription apps, Antigravity and Grok Bot are wired in by server/free-first-wire.js (loaded by the server).
@@ -155,7 +155,10 @@ export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn(
   for (const pid of ["groq", "google", "openrouter"]) {
     const tier = FREE_TIERS[pid];
     if (!tier || !settings.freeTiers[pid]?.on || !keyed(pid) || trouble(pid) || describePause(pid)) continue;
-    const model = pid === "groq" ? tier.models[tier.models.length - 1] : tier.models[0]; // gpt-oss-120b, then the first Gemini Flash, then openrouter/free
+    // gpt-oss-120b, then the first free Gemini Flash that is not on a cooldown, then openrouter/free
+    const order = pid === "groq" ? [...tier.models].reverse() : tier.models;
+    const model = order.find((m) => !used(pid, m) && !modelTrouble(pid, m));
+    if (!model) continue;
     add(pid, model, `${nameOf(pid)} free`, "built-in free AI");
   }
   // this PC

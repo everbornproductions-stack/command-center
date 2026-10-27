@@ -363,7 +363,7 @@ async function ask(m, who, { role, system, content, capability, difficulty, sign
   const agent = `${m.id}:${role}`;
   emit("agent.start", { agent, provider: who.provider, model: who.model, role, missionId: m.id, label: `${PROVIDERS[who.provider]?.name || who.provider}: ${role}` });
   const t0 = Date.now();
-  const r = await completeFallback({
+  const r = await completeFallback({ allowStandIn: true,
     provider: who.provider, model: who.model, maxTokens: role === "check" ? 900 : 2200, signal,
     system, messages: [{ role: "user", content }],
   }, { missionId: m.id, role, tools: false, cls: { capability, difficulty }, mode: "quality" });
