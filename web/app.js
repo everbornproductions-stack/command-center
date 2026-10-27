@@ -2024,18 +2024,15 @@ function askNotify() {
 // 0.4.23.1: the Send button works with a click, Space, Enter and a press that lands while the page repaints.
 // The button keeps its own click listener (through pressSend); one handler on the document covers the keys and the repaint case (the button itself is rebuilt often, which used to eat the click or the key), with a short
 // guard so one press never sends twice.
-let lastSendPress = 0, goDownAt = 0;
-function pressSend() {
-  const now = Date.now();
-  if (now - lastSendPress < 700) return;
-  lastSendPress = now;
-  sendOrders();
-}
+let lastGoClick = 0, goDownAt = 0;
+// a real click always sends (sendOrders ignores a press while a run is busy)
+function pressSend() { lastGoClick = Date.now(); sendOrders(); }
 document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
 document.addEventListener("pointerup", (e) => {
   // the button was rebuilt between press and release, so the browser never made a click: send on the release
-  if (e.button === 0 && goDownAt && Date.now() - goDownAt < 1500 && e.target?.closest?.("#go")) { setTimeout(() => { if (Date.now() - lastSendPress > 700 && goDownAt) pressSend(); goDownAt = 0; }, 60); }
-  else goDownAt = 0;
+  const down = goDownAt;
+  if (e.button === 0 && down && Date.now() - down < 1500 && e.target?.closest?.("#go")) setTimeout(() => { if (lastGoClick < down) pressSend(); }, 80);
+  goDownAt = 0;
 }, true);
 document.addEventListener("keydown", (e) => {
   const b = e.target?.closest?.("#go");
