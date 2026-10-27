@@ -2,7 +2,7 @@
 id: safety-and-sending
 title: Check before you send
 summary: Try the send guard on a message, see the send log, test your monthly budget, and check your connections. Nothing is sent by these.
-lastUpdatedVersion: 0.4.21
+lastUpdatedVersion: 0.4.22
 ---
 
 # Check before you send
@@ -30,3 +30,17 @@ Many alike hits are shown as one issue with a short TL;DR. Keys that sit in test
 Press Fix it to patch what can be patched safely, such as moving a key into a setting and adding a Content-Security-Policy tag. Meldmind then scans again and tells you how many are left. If a key was ever shared or published, change it at its website, because it may already be seen.
 
 Turn it off in Settings, Safety check before publish. It is on by default.
+
+## What changed in 0.4.22
+
+Safety check before you publish or download: Meldmind scans the words and files for leaked keys, passwords and old risky packages, shows plain fixes with a Fix it button, and blocks a live secret unless you choose Publish anyway.
+
+Answers that contain code keep it exactly as written, and plain requests like a cheat sheet or a week of posts no longer start a picture.
+
+Publish previews now show their warnings, and private numbers (SSN, card) are hidden in titles and file names.
+
+Safer sending and files: the send check and log use the final drafted message, the no-send switch covers more tools, MindMedia folders are checked for symlink tricks, links open only as http, https or mail, and the never-list no longer blocks unrelated apps.
+
+The app's own spending stop is no longer blamed on an AI, and the message now says whether a job would go over your limit or you have used it up.
+
+Small fixes: the open page is marked in the sidebar, closing the Finish drawer returns you to the button you used, and Instagram previews are accurate for text-only items.
