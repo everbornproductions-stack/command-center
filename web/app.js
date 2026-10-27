@@ -1431,6 +1431,7 @@ function renderSimpleChat(v) {
   paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
+  $("#go").addEventListener("click", pressSend);
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
@@ -1574,6 +1575,7 @@ function renderCommand(v) {
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
+  $("#go").addEventListener("click", pressSend);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
   $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
@@ -2020,7 +2022,7 @@ function askNotify() {
   try { Notification.requestPermission(); } catch { /* desktop alerts stay off */ }
 }
 // 0.4.23.1: the Send button works with a click, Space, Enter and a press that lands while the page repaints.
-// One handler on the document (the button itself is rebuilt often, which used to eat the click or the key), with a short
+// The button keeps its own click listener (through pressSend); one handler on the document covers the keys and the repaint case (the button itself is rebuilt often, which used to eat the click or the key), with a short
 // guard so one press never sends twice.
 let lastSendPress = 0, goDownAt = 0;
 function pressSend() {
@@ -2029,7 +2031,6 @@ function pressSend() {
   lastSendPress = now;
   sendOrders();
 }
-document.addEventListener("click", (e) => { if (e.target?.closest?.("#go") && !e.target.closest("#go").disabled) { e.preventDefault(); pressSend(); } }, true);
 document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
 document.addEventListener("pointerup", (e) => {
   // the button was rebuilt between press and release, so the browser never made a click: send on the release
