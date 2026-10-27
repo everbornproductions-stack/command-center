@@ -197,13 +197,13 @@ test("the bottom bar hides AIs that are not connected and keeps + Add an AI", { 
   } finally { await t.close(); }
 });
 
-test("Expert opens in Single and the news rail starts minimized under 1500px", { skip }, async () => {
+test("Expert opens in Auto team and the news rail starts minimized under 1500px", { skip }, async () => {
   const t = await bootPage({ width: 1366, height: 800, mode: "expert" });
   try {
     await t.page.waitForFunction(() => { if (window.CC.S.uiMode === "expert") return true; document.querySelector("#mode-expert")?.click(); return false; }, null, { timeout: WAIT() * 2, polling: 700 });
     await t.page.evaluate(() => window.CC.go("command"));
     await t.page.waitForSelector("#run-mode", { timeout: WAIT() });
-    assert.equal(await t.page.getAttribute("#run-mode button.on", "data-m"), "single");
+    assert.equal(await t.page.getAttribute("#run-mode button.on", "data-m"), "auto");
     await t.page.waitForFunction(() => !document.querySelector("#cc-rail") || document.querySelector("#cc-rail").dataset.min === "1", null, { timeout: WAIT() });
   } finally { await t.close(); }
 });

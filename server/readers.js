@@ -5,6 +5,7 @@ import { councilPlan, planMode, reviewMode, normalizeMode } from "./modes.js";
 import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
 import { runnableOnly } from "./runnable.js";
+import { whyOut } from "./send-check.js";
 
 function takeUnique(list, n) {
   const out = [];
@@ -102,10 +103,20 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
     seen.add(row.id);
     readers.push(row);
   }
-  const ordered = orderReaders(readers, record);
+  // 0.4.21: an AI that is out of credits is dropped from the readers and listed with an "out of credits" tag
+  const out = [];
+  const live = readers.filter((r) => {
+    if (r.kind !== "ai") return true;
+    let w = null; try { w = whyOut(r.id); } catch { /* unknown AI: keep it */ }
+    if (!w) return true;
+    out.push({ id: r.id, name: r.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : "not available" });
+    return false;
+  });
+  const ordered = orderReaders(live, record);
   return {
     heading: "Who will read this",
     planner: planner ? { id: planner.provider, name: planner.providerName || planner.name || planner.provider } : null,
+    out,
     readers: ordered.map((r) => (planner && r.id === planner.provider ? { ...r, role: "plan" } : r)),
     note: ordered.length ? "Nothing is sent until you click." : "No AI is available yet. Add a key in Settings. Nothing was sent.",
   };

@@ -74,6 +74,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Connect | People | page `userchat` | OK (People section, 0.4.17) |
 | Connect | Together | page `together` | OK (People section, 0.4.17) |
 | Connect | Community | page `community` | OK (People section, 0.4.17) |
+| Connect | AI News | page `ai-news` | OK (0.4.21, the one home for AI News) |
 | Settings | Settings | page `settings` | OK |
 | Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
@@ -128,6 +129,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | Connect | People | page `userchat` | OK (People section, 0.4.17) |
 | Connect | Together | page `together` | OK (People section, 0.4.17) |
 | Connect | Community | page `community` | OK (People section, 0.4.17) |
+| Connect | AI News | page `ai-news` | OK (0.4.21, the one home for AI News) |
 | Settings | Settings | page `settings` | OK |
 | Settings | Find my AIs | page `setup` | OK (named Setup before 0.4.17) |
 | Help | Search help | page `help` | OK |
@@ -176,6 +178,7 @@ Branch `integration/0.4.13`. Covers the top menus (Simple and Expert, compact an
 | More | Together | page `together` | OK |
 | More | Reports | page `reports` | OK |
 | More | Community | page `community` | OK |
+| AI News | AI News | page `ai-news` | OK (0.4.21, its own item in the left menu) |
 | More | Find my AIs | page `setup` | OK |
 | More > Connections | Zapier and Make | page `settings`, scrolled to `[data-feature='zapier']` | OK |
 | More > Connections | Keys and providers | page `settings`, scrolled to `#settings-keys` | OK |

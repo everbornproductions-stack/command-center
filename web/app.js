@@ -21,7 +21,7 @@ import { extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtm
 import { createPaidWatch } from "./paid-watch.js";
 import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
-import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable } from "./live-ops.js";
+import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable, liveSync } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
 import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
 
@@ -350,7 +350,7 @@ function applyState(st) {
   const settings = st.settings || S.settings || {};
   const providers = hideDemoBots(st.providers, { demoKeep: !!settings.demoKeep, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi });
   S.councilOffer = st.councilOffer || S.councilOffer || null;
-  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
+  Object.assign(S, { mode: st.mode, user: st.user, hub: st.hub, license: st.license, update: st.update, version: st.version, rules: st.rules, scheduled: st.scheduled, demo: st.demo, providers, ledger: st.ledger, subscriptions: st.subscriptions || [], subscriptionTotals: st.subscriptionTotals, subscriptionsLocked: !!st.subscriptionsLocked, projects: st.projects, deletedProjects: st.deletedProjects || [], flags: st.flags || {}, hq: st.hq, missions: st.missions, settings: st.settings, projectMedia: st.projectMedia === true, skills: st.skills, vault: st.vault, capabilities: st.capabilities, hqDir: st.hqDir, onboarding: st.onboarding || null, pairing: st.pairing || null, connectSetup: st.connectSetup || null, proPlans: st.proPlans || null, freeOnly: st.freeOnly || S.freeOnly || null, realAi: st.realAi === undefined ? !!S.realAi : !!st.realAi, cli: Array.isArray(st.cli) ? st.cli : (S.cli || []) });
   S.plugins = st.plugins || [];
   S.flags = st.flags || S.flags || {};
   if (!S.project && Array.isArray(S.projects) && S.projects.length) {
@@ -1360,6 +1360,12 @@ function jobReply() {
 function mergedSingleTurns(run) {
   return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
 }
+// 0.4.21: the Free only switch next to Send (the same setting as Settings and the Get free AIs card)
+function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="row small cc-freeonly" id="cc-freeonly-wrap" style="gap:6px;white-space:nowrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" ${on ? "checked" : ""}> Free only (never spend money)</label>`; }
+// 0.4.21: Auto picks the mode and says so in one plain line; the picker is under More options in Simple too
+const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
+function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
+function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}</button>`).join("")}</div></div>`; }
 function renderSimpleChat(v) {
   v.innerHTML = `
   <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}">
@@ -1372,11 +1378,13 @@ function renderSimpleChat(v) {
           <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
           <div class="row simple-send-row">
             <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs and the price for you. Open to see the options.">Auto team</button>
+            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it for you. Open More options to change it.">Auto team</button>
             <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
             <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-            <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
+            <span style="margin-left:auto">${freeOnlyHtml()}</span>
+            <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
           </div>
+          <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
         </div>
         <div class="sc-chips" id="sc-chips" role="group" aria-label="Start with">
           <button type="button" class="btn sm" data-sc-chip="image">Image</button><button type="button" class="btn sm" data-sc-chip="video">Video</button><button type="button" class="btn sm" data-sc-chip="website">Website</button><button type="button" class="btn sm" data-sc-chip="campaign">Campaign</button>
@@ -1384,6 +1392,8 @@ function renderSimpleChat(v) {
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
         <div id="cc-emp-hint" aria-live="polite"></div>
         <div class="sc-more" id="sc-more">
+          ${simpleModeHtml()}
+          <div class="row"><button class="btn sm" type="button" id="cc-get-free-simple">Get free AIs</button></div>
           <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
           <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
           <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
@@ -1407,7 +1417,7 @@ function renderSimpleChat(v) {
   wireProjectPicker();
   paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
@@ -1432,6 +1442,14 @@ function renderSimpleChat(v) {
   // AI employees: the best helper for what was typed, one click to use it for this chat
   wireEmployeeHint({ box: $("#cc-emp-hint"), input: $("#orders"), state: S, api, esc, onPick: () => { const shown = $("#simple-answer") && !$("#simple-answer").hidden; if (shown && S.lastPrompt && S.lastPrompt === $("#orders").value.trim() && !runBusy()) { toast("Running it again with this helper."); sendOrders(); } } });
   $("#go").addEventListener("click", sendOrders);
+  $("#simple-run-mode")?.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.simpleRunMode = b.dataset.m; S.autoLine = "";
+    $$("#simple-run-mode button").forEach((x) => x.classList.toggle("on", x === b));
+    const t = $("#sc-team"); if (t) t.textContent = teamLabel();
+    const line = $("#cc-auto-line"); if (line) line.textContent = "";
+  });
+  $("#cc-get-free-simple")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   $("#copy").addEventListener("click", () => copyDeliverable());
@@ -1469,7 +1487,7 @@ function paintStarters() {
 }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
-  const modeSel = S.cmdMode || "single";
+  const modeSel = S.cmdMode || "auto";
   v.innerHTML = `
   <div class="cmd">
     <div class="orders">
@@ -1479,9 +1497,11 @@ function renderCommand(v) {
         <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
         <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
         <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
+        <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
         <div id="pp-popular"></div>
         <label class="lbl">How to run it</label>
         <div class="seg" id="run-mode" role="group" aria-label="How to run it">
+          <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
           <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
@@ -1506,8 +1526,10 @@ function renderCommand(v) {
         <div id="cmd-extras"></div>
         <div class="row" style="margin-top:auto;padding-top:10px">
           <button class="btn" id="preview">Preview route</button>
+          <button class="btn" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button>
           <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-          <button class="btn primary" id="go" style="margin-left:auto" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
+          <span style="margin-left:auto">${freeOnlyHtml()}</span>
+          <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
         </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
@@ -1539,10 +1561,11 @@ function renderCommand(v) {
   ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendOrders(); });
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
   $("#go").addEventListener("click", sendOrders);
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#preview").addEventListener("click", previewRoute);
+  $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#copy").addEventListener("click", () => copyDeliverable());
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   $("#ops-pause")?.addEventListener("click", async () => {
@@ -1789,7 +1812,11 @@ function paintAnswerLine(l, text) {
     ? { kind: "council", names: (c.members || []).map((m) => m.label || pname(m.provider)) }
     : (l.primary ? pname(l.agents[l.primary]?.provider) : pname(l.mission?.provider || ""));
   const line = simpleAnswerLine(S.councilOffer, answeredBy);
-  box.innerHTML = `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
+  // 0.4.21: what it cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
+  const mm = l.mission || {};
+  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">Cost: ${esc(mm.costText)}${mm.why ? `. ${esc(mm.why)}` : ""}</div>` : "";
+  const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
+  box.innerHTML = costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
   $("#cc-ask-council", box)?.addEventListener("click", askCouncil);
 }
 async function askCouncil() {
@@ -1982,7 +2009,11 @@ async function sendOrders() {
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
   const simple = S.uiMode === "simple";
-  let mode = simple ? "single" : (S.cmdMode || "single"); const costMode = S.costMode || S.settings.defaultMode;
+  // 0.4.21: Auto team is the default in Simple and Expert. It sends like Single unless the send check says the job
+  // needs a Mission or a Council. A person who picked a mode keeps it.
+  const picked = simple ? (S.simpleRunMode || "auto") : (S.cmdMode || "auto");
+  const autoPick = picked === "auto";
+  let mode = autoPick ? "single" : picked; const costMode = S.costMode || S.settings.defaultMode;
   const qa = simple ? S.settings.qa !== false : $("#qa").checked;
   const budgetUsd = simple ? (Number(S.settings.missionBudget) || 2) : (Number($("#budget").value) || 2);
   const projectId = $("#proj")?.value || null;
@@ -2017,10 +2048,13 @@ async function sendOrders() {
   if (!S.providers.some((p) => p.kind === "text" && p.keyed)) { S.view = "settings"; render(); return toastNeedKey(); }
   // 0.4.21: say it BEFORE sending when an AI is out of credits or quota, and let Auto split a coding job (Single stays Single when chosen)
   {
-    const sc = await runSendCheck(api, { prompt, explicit: !simple && S.cmdModeExplicit === true && mode === "single", mode: S.costMode || S.settings.defaultMode });
+    const sc = await runSendCheck(api, { prompt, explicit: !autoPick && picked === "single", mode: S.costMode || S.settings.defaultMode });
     clearSendBanner();
-    if (sc?.banner) showSendBanner(sc, { esc, onSwitch: (to) => { S.forceFree = { provider: to.provider, model: to.model, name: to.name }; toast(`This one goes to ${to.name}.`); }, onSettings: () => { S.view = "settings"; render(); }, onCredits: (url) => { try { window.open(url, "_blank", "noopener"); } catch {} } });
-    if (mode === "single" && sc?.autoMode === "mission" && !S.pendingAvoid && !S.forceFree?.provider) { mode = "mission"; toast(splitNote(sc)); }
+    if (sc?.banner) showSendBanner(sc, { esc, onSwitch: (to) => { S.forceFree = { provider: to.provider, model: to.model, name: to.name }; toast(`This one goes to ${to.name}.`); }, onSettings: () => { S.view = "settings"; render(); }, onCredits: (url) => { try { window.open(url, "_blank", "noopener"); } catch {} }, onFreeAis: () => window.CC.freeAis?.open?.() });
+    S.autoLine = "";
+    if (autoPick && !S.pendingAvoid && !S.forceFree?.provider && (sc?.autoMode === "mission" || sc?.autoMode === "council")) { mode = sc.autoMode; S.autoLine = sc.autoLine || ""; }
+    else if (autoPick && sc?.autoLine) S.autoLine = sc.autoLine;
+    const line = document.getElementById("cc-auto-line"); if (line) line.textContent = S.autoLine;
   }
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
@@ -2597,6 +2631,8 @@ function renderSimpleBasics(v) {
       <p class="dim small" id="basics-kept-note" style="margin:6px 0"></p>
       <button type="button" class="btn sm" id="basics-leaves">What leaves this PC</button>
     </div>
+    <div id="basics-memories-body"></div>
+    <div id="basics-news-body"></div>
     <div class="panel basics-card" id="basics-plan"><h3>Your plan</h3>
       <p class="small" style="margin:0 0 10px">You are on ${esc(planWord())}.</p>
       <button type="button" class="btn sm" id="basics-upgrade">Upgrade</button>
@@ -2611,6 +2647,8 @@ function renderSimpleBasics(v) {
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
+  renderFeature("settings", "memories", "#basics-memories-body");
+  renderFeature("settings", "ai-news", "#basics-news-body");
   $("#basics-private").addEventListener("change", async (e) => {
     const next = !!e.target.checked;
     try {
@@ -3229,10 +3267,13 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
+// 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
+liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
 window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
-import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e));
+// featuresReady: set once the feature modules are in and the screen was drawn again with them (tests wait on it before typing)
+import("/features/index.js").then(() => { if (S.providers.length) render(); }).catch((e) => console.warn("[features]", e)).finally(() => { window.CC.featuresReady = true; });
 boot();
 
 // ----- Setup (first run) -----

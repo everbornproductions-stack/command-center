@@ -38,7 +38,8 @@ import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode, outputShape } from "./modes.js";
 import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
-import { withMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { autoRemember, warm as warmMemories } from "./memories.js";
+import { withMemory, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
@@ -66,6 +67,9 @@ import { prepareWeb, beginDeep } from "./research.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { sendCheck } from "./send-check.js";
+import { freeOnlyOn, hasPaidKey, freeOnlyError, costText, whyHandoff, ensureLocalProviders, creditCheck, freeOnlyView, FREE_PAGES } from "./free-first.js";
+import { readiness as grokReadiness } from "./grokbot.js";
+import "./free-first-wire.js";
 import { nothingCameBack, fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
 import { observe, markPrivateRun, freshBrainDoc } from "./brain.js";
 import { expandJob } from "./prompts/apply.js";
@@ -252,7 +256,13 @@ function providerView() {
       const keyed = hasSecret(p.id, p.keyEnv);
       // A guessed free plan is not a connection. No key means grey, even if a probe ran earlier.
       const needsKey = !p.noKey && !p.demo && p.auth !== "handoff" && p.auth !== "local" && p.auth !== "mcp" && p.auth !== "oauth";
-      const status = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
+      const baseStatus = keyed || !needsKey ? (st[p.id] || { status: "grey" }) : { status: "grey", detail: "no key" };
+      // 0.4.21: a live call that said no credits (or refused the key) beats an old green light and its balance
+      const tr = keyed && p.kind === "text" ? trouble(p.id) : null;
+      const bad = baseStatus.status === "amber" || baseStatus.status === "red";
+      const status = tr?.kind === "credits" ? { ...baseStatus, status: bad ? baseStatus.status : "amber", detail: bad && /credit|spending limit|payment|balance/i.test(baseStatus.detail || "") ? baseStatus.detail : "out of credits (the last call said no credits)", balance: undefined }
+        : tr?.kind === "key" ? { ...baseStatus, status: "red", detail: "key rejected", balance: undefined }
+        : baseStatus;
       return {
       id: p.id, name: p.name, vendor: p.vendor, color: p.color, kind: p.kind, links: p.links, keyHint: p.keyHint, unit: p.unit || null, hasApi: !!p.api, demo: !!p.demo, custom: !!p.custom, noKey: !!p.noKey, workspaceId: p.id === "anthropic" ? getSecret(p.id, p.keyEnv)?.workspaceId || null : undefined, baseUrl: p.custom ? p.baseUrl : undefined, api: p.custom ? p.api : undefined, addedCapabilities: p.custom ? p.addedCapabilities || [] : undefined, addedSource: p.custom ? p.addedSource || "general" : undefined, addedStrengths: p.custom ? learnedStrengths(p.models) : undefined,
       keyed, masked: maskedKey(p.id, p.keyEnv), keyScope: getSecret(p.id, p.keyEnv)?.scope || null, status, connect: connectionOf(p.id), access: accessFor(p), plan: plan.plan, planSource: plan.source,
@@ -394,6 +404,15 @@ function trackRun(kind, promise) {
   p.finally(() => { c[key] = Math.max(0, (c[key] || 1) - 1); }).catch(() => {});
   return p;
 }
+// Memories (0.4.21): a lasting statement in the message is saved with a one-line "Remembered: ..." (the page
+// shows it with Undo), "forget ..." removes it, and Smarter recall ranks the saved ones for this message.
+async function noteMemories(text, projectId) {
+  try {
+    const r = autoRemember(text, { projectId, source: "chat" });
+    if (r.saved.length || r.forgotten.length || r.refused) emit("memory.saved", { saved: r.saved, forgotten: r.forgotten, refused: r.refused, message: r.message });
+    await warmMemories(text, projectId);
+  } catch (e) { emit("log", { text: `Memory skipped: ${e.message}`, level: "warn" }); }
+}
 function guardMaxQuality(mode) {
   if (normalizeMode(mode) !== "max") return;
   guard("maxQuality");
@@ -521,6 +540,7 @@ function fullState() {
     missions: missionList(), skills: skillTable(), vault: vaultInfo(), hqDir: HOSTED ? null : HQ_DIR, recent: bus.recent(120).filter((e) => e.user === c.userId || !e.user), now: Date.now(),
     rules: rulesView(), scheduled: scheduledMissions(), update: updateState(), version: VERSION, license: licenseState(), proPlans: currentPlans(),
     realAi: realAiConnected(), demoBanner: demoBanner(demoActive()), cli: cliNames(),
+    freeOnly: freeOnlyView(),
     onboarding: onboardingState(), pairing: pairingView(), connectSetup: connectSetupPublic(),
     flags: { ...flagView(), takeover: takeoverOn(s), templates: templatesOn(s), flag_navstate: isNavStateEnabled(s) },
     councilOffer: councilOffer({ providers: PROVIDERS, keyed: (id) => hasSecret(id, PROVIDERS[id]?.keyEnv) && !(PROVIDERS[id]?.demo && demosHidden()) }),
@@ -593,6 +613,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       const named = pausedPick || Object.values(PROVIDERS).map((p) => (p.kind === "text" && !p.demo ? describePause(p.id) : null)).find(Boolean);
       if (named && !named.rate && waitOn()) { endGrant(id); return startWaitingChat({ id, prompt, projectId, customAgent, provider: named.provider, model: pausedPick && best ? best.model : null, system, tone, toneId, isPrivate }); }
       if (named) { endGrant(id); return finishPausedChat({ id, prompt, projectId, customAgent, message: named.message, billing: named.billing, provider: named.provider }); }
+      if (freeOnlyOn() && hasPaidKey()) throw freeOnlyError();
       throw new Error("No AI available. Add a key in Settings.");
     }
     provider = best.provider; model = best.model;
@@ -612,10 +633,10 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const lib = await libraryAugment({ prompt, projectId, agentId: agentId || null, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { m.librarySources = publicLibrarySources(lib.sources); m.cost = +(m.cost + (lib.cost || 0)).toFixed(6); }
   // project memory (R5): the project's voice, offers, never-say list and past winners ride along
-  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  const remembered = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId, prompt);
   const imported = withImported(prompt, remembered);
   const ask = imported.ask;
-  m.memory = ask.includes(MEMORY_MARKER);
+  m.memory = carriesMemory(ask);
   if (imported.used.length) m.importedRefs = imported.used;
   const known = trouble(provider);
   const sittingOut = fallbackSettings().on && known && (known.kind === "credits" || known.kind === "rate");
@@ -645,7 +666,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
-        m.cost = +(m.cost + e.cost).toFixed(6);
+        m.cost = +(m.cost + e.cost).toFixed(6); m.free = !!e.free;
         // learning router (Phase 28): the job, its cost and speed, and the task type the router used
         observe({ provider, model, capability: taskType().capability, difficulty: taskType().difficulty, runId: id, ok: true, cost: e.cost, ms, free: e.free });
         if (web?.native && ev.citations?.length) { m.sources = sourcesFromCitations(ev.citations); m.searchEngine = web.name; m.cost = +(m.cost + recordNative(provider, ev.citations, { missionId: id })).toFixed(6); }
@@ -679,6 +700,8 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
     }
   } finally { chatRuns.delete(id); }
   if (!m.deliverable) m.deliverable = text;
+  // 0.4.21: the result card says what this cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
+  try { m.costText = costText({ provider: m.provider, model: m.model, cost: m.cost, free: !!m.free }); const last = (m.fallbacks || []).slice(-1)[0]; m.why = whyHandoff({ provider: m.provider, model: m.model, standIn: last ? { for: last.from?.provider, reason: last.reason } : null, difficulty: (cls || {}).difficulty }); } catch { /* the card just has no cost line */ }
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice && !m.waiting) m.notice = pauseNotice(creditHop);
@@ -766,6 +789,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     const tone = takeNextTone();
     if (job.background && job.runAt === "offpeak") { restoreTone(tone); return json(res, 400, { error: BACKGROUND_MIX }); }
     if (job.searchMode === "deep") {
@@ -795,6 +819,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "goal"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.goal?.trim()) return json(res, 400, { error: "goal required" });
+    await noteMemories(job.goal, job.projectId);
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
     try { if (job.background) guard("backgroundRuns"); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
@@ -863,6 +888,7 @@ async function api(req, res, url) {
     try { job = expandJob(body, "prompt"); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, missing: e.missing, questions: e.questions }); }
     if (!job.prompt?.trim()) return json(res, 400, { error: "prompt required" });
+    await noteMemories(job.prompt, job.projectId);
     try { guardMaxQuality(chatPriority(job.mode)); }
     catch (e) { return json(res, e.status || 402, { error: e.message, code: e.code }); }
     if (job.background && job.runAt === "offpeak") return json(res, 400, { error: BACKGROUND_MIX });
@@ -913,8 +939,25 @@ async function api(req, res, url) {
     try { const m = await import("./precost.js"); return json(res, 200, m.preRunLine({ prompt: String(body.prompt || ""), mode: body.mode })); }
     catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
+  // 0.4.21 free AIs: the "Get free AIs" card, the live credit check, and a fresh look at Ollama / LM Studio
+  if (method === "GET" && (p === "/free-ais" || p === "/credit-check")) {
+    try {
+      const found = await ensureLocalProviders({ force: url.searchParams.get("force") === "1" });
+      if (p === "/credit-check") return json(res, 200, await creditCheck({ force: url.searchParams.get("force") === "1" }));
+      const check = await creditCheck({});
+      const gb = grokReadiness();
+      return json(res, 200, {
+        freeOnly: freeOnlyView(),
+        summary: check.summary,
+        pages: FREE_PAGES.map((pg) => ({ id: pg.id, name: pg.name, url: pg.url, what: pg.what, needs: pg.needs, provider: pg.provider, later: !!pg.later, connected: pg.provider ? hasSecret(pg.provider, PROVIDERS[pg.provider]?.keyEnv) : pg.local ? !!found.rows.find((r) => r.key === pg.local)?.found : false, working: pg.provider ? !check.out.some((o) => o.provider === pg.provider) : true })),
+        local: found.rows.map((r) => ({ key: r.key, name: r.name, found: r.found, models: r.models.length })),
+        grokbot: { ready: gb.ready, detail: gb.detail },
+        out: check.out.map((o) => ({ provider: o.provider, name: o.name, why: o.why })),
+      });
+    } catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
   if (method === "POST" && p === "/send-check") {
-    try { return json(res, 200, sendCheck({ prompt: String(body.prompt || ""), explicit: body.explicit === true, priority: body.mode })); }
+    try { return json(res, 200, await sendCheck({ prompt: String(body.prompt || ""), explicit: body.explicit === true, priority: body.mode, force: body.force === true })); }
     catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
   if (method === "POST" && p === "/followup") {

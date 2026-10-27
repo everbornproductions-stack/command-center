@@ -2,12 +2,13 @@
 import { heuristicClassify, rank } from "../router.js";
 import { councilPlan, planMode } from "../modes.js";
 import { PROVIDERS } from "../registry.js";
-import { completeFallback } from "../fallback.js";
+import { completeFallback, trouble } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
 import { allStatus, isDeadNow } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
+import { connectedAis, whyOut } from "../send-check.js";
 import { searchSettings } from "../search.js";
 import {
   FIRST_COUNCIL, PRIVATE_LINE, TONES, armTone, backupDocument, chatRows, consumeTone, creditsView, homeCard,
@@ -32,19 +33,25 @@ function missions() {
   catch { return []; }
 }
 
+// 0.4.21: an AI that is out of credits, rate limited or has a bad key is tagged in the "Who will read this" list
+const PAUSE_WORD = { credits: "out of credits", rate: "busy", key: "key not accepted", unreachable: "not reachable", server: "having trouble", cap: "at its spending cap" };
+function pausedWhy(pid) { try { const t = trouble(pid); return t ? (PAUSE_WORD[t.kind] || "paused") : ""; } catch { return ""; } }
 function namesFor(mode, prompt) {
   const cls = heuristicClassify(prompt || "");
   const plan = councilPlan(mode === "mission" ? "balanced" : mode === "savings" ? "savings" : "balanced");
   const priority = mode === "mission" ? planMode("balanced") : plan.priority;
-  // an AI that is paused or out of credits is not a reader, and never name one that is out of credit or refused (0.4.21)
-  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => { try { return !isDeadNow(m.provider); } catch { return true; } });
+  // 0.4.21: an AI that is paused or out of credits is not a reader. It is dropped from the list and shown with an "out of credits" tag.
+  const outRows = [];
+  for (const ai of connectedAis()) { const w = whyOut(ai.provider); if (w) outRows.push({ id: ai.provider, name: ai.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : w.kind === "key" ? "key not accepted" : "not available" }); }
+  const outIds = new Set(outRows.map((o) => o.id));
+  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => !outIds.has(m.provider)).filter((m) => { try { return !isDeadNow(m.provider); } catch { return true; } });
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
-  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider) }));
+  const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider), paused: pausedWhy(m.provider) }));
   // the planner is the AI the Mission planner will really pick (reasoning, hard), not just the first reader
-  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority }))[0] : null;
+  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority })).filter((m) => !outIds.has(m.provider))[0] : null;
   const planner = real ? nameOf(real.provider) : readers[0]?.name || "";
-  if (real && !readers.some((r) => r.id === real.provider)) readers.unshift({ id: real.provider, name: nameOf(real.provider) });
-  return { readers, names: readers.map((r) => r.name), planner };
+  if (real && !readers.some((r) => r.id === real.provider)) readers.unshift({ id: real.provider, name: nameOf(real.provider), paused: pausedWhy(real.provider) });
+  return { readers, names: readers.map((r) => r.name), planner, out: outRows };
 }
 
 // Tools that are already on, and services this prompt would actually reach. No MCP start, no search, no spend.
@@ -89,6 +96,7 @@ export async function routes(req, res, url, body, h) {
     if (mode === "council" && !s.councilIntro) view.explain = FIRST_COUNCIL;
     if (s.privateMode) view.private = PRIVATE_LINE;
     view.privateOn = !!s.privateMode;
+    view.out = picked.out || [];
     return h.json(res, 200, view), true;
   }
 

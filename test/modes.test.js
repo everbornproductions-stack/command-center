@@ -54,6 +54,7 @@ test("Quality, Max savings and Speed pick different models when both ChatGPT and
   c.secrets.openai = { key: "sk-test-not-a-real-key" };
   c.secrets.groq = { key: "gsk_test-not-a-real-key" };
   c.docs.settings = { uiMode: "expert", preferFree: false, defaultMode: "balanced" };
+  c.docs["fallback.settings"] = { freeTiers: { groq: { on: false } } }; // 0.4.21: Groq free is on by default; this test is about paid Groq prices
   c.health.openai = { status: "green", detail: "ok", checkedAt: Date.now() };
   c.health.groq = { status: "green", detail: "ok", checkedAt: Date.now() };
   const top = (mode) => rank({ capability: "writing", difficulty: 1, mode })[0];

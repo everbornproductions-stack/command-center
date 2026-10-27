@@ -121,7 +121,7 @@ test("Settings holds settings only, and Help holds the help actions in order", (
   const simple = simpleModel(VIEWS());
   assert.deepEqual(simple.find((g) => g.label === "Help").items.map((i) => i.label), want);
   assert.deepEqual(simple.find((g) => g.label === "Settings").items.map((i) => i.view), ["settings"]);
-  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"]);
+  assert.deepEqual(simple.map((g) => g.label), ["Chat", "Projects", "Create", "Community", "AI News", "More", "Help", "Settings"]);
   const web = helpItems("web").map((i) => i.label);
   assert.equal(web.includes("Get everything connected") || web.includes("Check for updates"), false);
 });

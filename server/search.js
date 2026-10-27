@@ -171,7 +171,7 @@ export function previewSearch({ prompt, needWeb = false, provider, model, explic
 
 // A search query from a prompt: drop the project-memory block, collapse whitespace, keep it short.
 export function queryFor(prompt, engine) {
-  let q = String(prompt || "").split(/\n\s*PROJECT MEMORY for /)[0].replace(/\s+/g, " ").trim();
+  let q = String(prompt || "").split(/\n\s*(?:PROJECT MEMORY for |WHAT I REMEMBER)/)[0].replace(/\s+/g, " ").trim();
   if (engine === "brave") q = q.split(" ").slice(0, 50).join(" ");
   return q.slice(0, 300);
 }

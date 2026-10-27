@@ -11,6 +11,8 @@ const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const { createHotkey } = require("./hotkey.cjs");
+const a11y = require("./accessibility.cjs");
+a11y.early(app); // UI Automation needs an accessibility tree from the first page (0.4.21)
 const PREFERRED_PORT = Number(process.env.CC_PORT || 4747);
 let PORT = PREFERRED_PORT; // the real port is picked in startServer (first free one from 4747 up)
 const INSTANCE = crypto.randomBytes(12).toString("hex");
@@ -454,6 +456,7 @@ process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 
 app.whenReady().then(async () => {
+  a11y.afterReady(app); // Electron only accepts this once ready
   try {
     const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
     g.battery = powerMonitor.isOnBatteryPower();

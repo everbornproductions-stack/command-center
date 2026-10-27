@@ -119,6 +119,31 @@ function unregister(pid) {
 }
 export function registerAll() { if (HOSTED) return 0; const l = list(); l.forEach(register); return l.length; }
 
+// 0.4.21: Ollama / LM Studio found on this PC by server/free-first.js. Added once, no key, no typing.
+// Same base URL already listed (by hand or by an earlier find): only the model list is refreshed.
+export async function addDetectedLocal({ key, name, baseUrl, models }) {
+  if (HOSTED) return { added: false };
+  const url = cleanUrl(baseUrl);
+  const ids = cleanModels(models);
+  if (!ids.length) return { added: false };
+  const items = list();
+  const same = items.find((x) => x.baseUrl === url);
+  if (same) {
+    if (JSON.stringify(same.models) !== JSON.stringify(ids)) { const next = items.map((x) => (x.id === same.id ? { ...x, models: ids, updatedAt: Date.now() } : x)); save(next); register(next.find((x) => x.id === same.id), next.findIndex((x) => x.id === same.id)); }
+    else if (!PROVIDERS[same.id]) register(same, items.indexOf(same));
+    return { added: false, id: same.id };
+  }
+  const pid = `c-${String(key || "local").replace(/[^a-z0-9]+/g, "-")}-pc`;
+  const profile = profileFor({ name, models: ids, capabilities: undefined, previous: null });
+  const entry = { id: pid, name: String(name || "This PC").slice(0, 60), baseUrl: url, api: "openai", models: ids, noKey: true, keysUrl: null, color: undefined, capabilities: profile.capabilities, capabilitiesSource: profile.capabilitiesSource, createdAt: Date.now(), updatedAt: Date.now(), detected: true };
+  await setSecret(pid, { key: NO_KEY });
+  const next = [...items.filter((x) => x.id !== pid), entry];
+  save(next);
+  register(entry, next.indexOf(entry));
+  await checkProvider(pid).catch(() => null);
+  return { added: true, id: pid };
+}
+
 // GET <base>/models with the key and headers; returns model ids.
 export async function discoverModels({ baseUrl, api = "openai", key, headers = {} }) {
   const h = { ...headers };

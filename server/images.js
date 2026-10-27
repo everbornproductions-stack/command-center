@@ -325,6 +325,31 @@ async function picsFromTool(pv, raw) {
   return out;
 }
 
+// ---------- one picture, no gallery row (0.4.21): the mission's image steps use this through server/media/imageai.js ----------
+// Returns [{ bytes, mime }] from one provider with its saved key. Callers do the price check, the ledger line and the saving.
+export async function rawImage(pid, { prompt, size = "square", quality = "medium", model = "", n = 1 } = {}) {
+  const pv = IMAGE_PROVIDERS[pid];
+  if (!pv || pv.demo) throw bad("Pick a real image provider: OpenAI, Google Gemini, xAI, Replicate or fal.");
+  const sec = secretOf(pid);
+  if (!sec?.key) throw bad(noKeyMessage(pv), 400, { code: "no_key" });
+  const job = { op: "generate", model: model && pv.models[model] ? model : pv.defaultModel, n, size: SIZES.includes(size) ? size : "square", quality: QUALITIES.includes(quality) ? quality : "medium", prompt: String(prompt || "").slice(0, MAX_PROMPT) };
+  if (!job.prompt) throw bad("Write what the image should show.");
+  const pics = ((await ADAPTERS[pid](job, sec, null)) || []).filter((p) => p?.bytes?.length).slice(0, n);
+  if (!pics.length) throw bad(`${pv.name} answered without an image.`, 502);
+  return pics.map((p) => ({ bytes: p.bytes, mime: p.mime, ext: MIMES[p.mime] || "png" }));
+}
+// image providers that can make a picture now: a saved key (or MCP), not at a spend cap. Cheapest model first within a quality tier.
+export function readyImageProviders() {
+  return Object.values(IMAGE_PROVIDERS).filter((p) => !p.demo && (keyed(p.id) || mcpReady(p.id)) && !capState(p.id).capped).map((p) => p.id);
+}
+export function imageProviderInfo(pid) {
+  const pv = IMAGE_PROVIDERS[pid];
+  if (!pv) return null;
+  const pr = pv.models[pv.defaultModel].price;
+  const usd = typeof pr === "number" ? pr : pr.medium[0];
+  return { id: pv.id, name: pv.name, keyName: pv.keyName, where: pv.where, usd, model: pv.defaultModel };
+}
+
 // ---------- generate / edit / variation ----------
 export async function makeImages(body = {}) {
   if (HOSTED) throw bad("Image generation runs in the desktop app for now: the gallery lives in the local data folder.", 400);

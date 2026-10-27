@@ -17,7 +17,7 @@ import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { AGENT_ID as BROWSER } from "./browser.js";
 import { pickAgent, agentName, onAnyJobFinished } from "./agents.js";
-import { withMemory, contextFor, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { withMemory, contextFor, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
 import { withImported } from "./history-refs.js";
 import { councilPlan, outputShape, reviewMode } from "./modes.js";
 import { cleanSkip, skipAvoid, takeMembers, toneAdd } from "./desk.js";
@@ -83,11 +83,11 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   }
 
   // project memory (R5): members, reviewers and the chair all see the project's voice, offers and never-say list
-  const memBlock = contextFor(projectId);
+  const memBlock = contextFor(projectId, prompt);
   const memNote = memBlock && !prompt.includes(MEMORY_MARKER) ? `\n\n${memBlock}` : "";
   const answerSystem = toneAdd("Answer the user as a sharp expert. Be concrete and complete but not padded. Markdown allowed.", tone);
   const chairSystem = toneAdd("You chair a council of AI experts. Write the single best final answer for the user, merging the strongest material from the answers below and fixing their errors. Then add a short section '**Where the council disagreed**' (2-5 bullets, or 'None') and '**Credits**' naming which answer contributed what in one line each. No preamble.", tone);
-  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || prompt.includes(MEMORY_MARKER), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
+  const council = { id, kind: "council", prompt, projectId: projectId || null, private: !!isPrivate, memory: !!memBlock || carriesMemory(prompt), classification: cls, members, chair, mode, startedAt: t0, answers: {}, reviews: {}, verdict: null, scoreboard: null, cost: 0, status: "running", sources: [], toolCalls: [], fallbacks: [], agents: [], ...(toneId ? { tone: toneId } : {}) };
   runningCouncils.set(id, council);
   emit("council.update", { council: pub(council) });
   emit("log", { text: `Council convened: ${members.map((m) => seatName(m)).join(", ")}${agentPick.use ? `, plus ${A.name} (${agentPick.reason})` : ""}. Chair: ${PROVIDERS[chair.provider].name}.`, missionId: id });
@@ -139,7 +139,7 @@ export async function runCouncil({ prompt, members, chair, projectId, qa = true,
   // ---- knowledge libraries (Phase 18): the same excerpts for every member and the chair, cited as [L1], [L2] ----
   const lib = await libraryAugment({ prompt, projectId, missionId: id, explicit: Array.isArray(libraries) ? libraries : undefined });
   if (lib) { council.librarySources = publicLibrarySources(lib.sources); council.cost += lib.cost || 0; if (lib.sources.length) emit("council.update", { council: pub(council) }); }
-  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId);
+  let askPrompt = withMemory(`${web?.prompt || prompt}${lib?.block ? `\n\n${lib.block}` : ""}`, projectId, prompt);
   const importedRefs = withImported(prompt, askPrompt);
   askPrompt = importedRefs.ask;
   if (importedRefs.used.length) council.importedRefs = importedRefs.used;

@@ -215,3 +215,4 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
   #cc-live-over .lo-graph { min-height: 220px; }
 }
 @media (prefers-reduced-motion: reduce) { .sc-box #orders.sc-pulse { animation: none; } }
+#cc-side .side-item[hidden] { display: none; }
