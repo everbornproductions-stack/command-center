@@ -159,6 +159,16 @@ test("source: a new schedule starts with no day, and saving without a day says s
   assert.match(src, /\[data-preset\]/, "the presets still set the days");
 });
 
+test("source: a finished run row mounts the same rating row chat has", () => {
+  const src = read("web/features/schedules.js");
+  assert.match(src, /data-mission="\$\{esc\(r\.missionId\)\}"/);
+  assert.match(src, /\["queued", "running"\]\.includes\(r\.status\)/, "only a finished run is rated");
+  assert.match(src, /byKind\("deliverable"\)/, "the ratings feature is looked up like app.js does");
+  assert.match(src, /f\.id === "ratings"/);
+  assert.match(src, /await rated\.deliverable\.render\(box, runForRatings\(m\)\)/);
+  assert.match(src, /api\(`\/missions\/\$\{encodeURIComponent\(box\.dataset\.mission\)\}`\)/, "fetched by the run's mission id");
+});
+
 test("source: the schedule screen shows where a note went and has the weekly prompt field", () => {
   const src = read("web/features/schedules.js");
   assert.match(src, /Saved to \$\{esc\(r\.savedPath\)\}/);

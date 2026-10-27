@@ -78,6 +78,31 @@ function savedLine(r) {
   return "";
 }
 
+// Thumbs up / down on a finished run (0.4.21, dogfood 11): the same row a chat answer has, from the same
+// ratings feature, pointed at this run's mission id.
+const RATING_BOX = (r) => (r.missionId && !["queued", "running"].includes(r.status) ? `<div data-rate="${esc(r.id)}" data-mission="${esc(r.missionId)}"></div>` : "");
+function runForRatings(m) {
+  const run = { id: m.id, kind: m.kind, status: m.status, agents: {}, tasks: {}, mission: null, council: null, deliverable: m.deliverable || "", primary: null };
+  if (m.kind === "council") { run.council = m; run.deliverable = m.verdict?.text || run.deliverable; }
+  else if (m.kind === "mission") run.mission = m;
+  else { run.mission = m; run.agents.x = { provider: m.provider, model: m.model, text: m.deliverable, done: true, role: "answer" }; run.primary = "x"; }
+  return run;
+}
+async function mountRatings(view) {
+  const boxes = [...view.querySelectorAll("[data-rate]")];
+  if (!boxes.length) return;
+  let rated = (window.CC.byKind("deliverable") || []).find((f) => f.id === "ratings");
+  if (!rated) { try { await import("/features/ratings.js"); } catch { return; } rated = (window.CC.byKind("deliverable") || []).find((f) => f.id === "ratings"); }
+  if (!rated?.deliverable?.render) return;
+  for (const box of boxes) {
+    try {
+      const m = await api(`/missions/${encodeURIComponent(box.dataset.mission)}`);
+      if (!m?.id) continue;
+      await rated.deliverable.render(box, runForRatings(m));
+    } catch { /* this run keeps its row without a rating row */ }
+  }
+}
+
 // A new schedule starts with no day picked: the person chooses the day, the app never assumes Monday to
 // Friday (0.4.21, dogfood 11). Editing shows the days the schedule already runs on.
 function whenHtml(cron, empty) {
@@ -238,13 +263,14 @@ async function renderTab(view) {
           </div></div>`).join("") || `<div class="empty">No schedules yet. Create one on the right.</div>`}
       </div>
       <div class="panel"><h3>Run history</h3>
-        ${(d.runs || []).slice(0, 60).map((r) => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div class="row small" style="gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>${savedLine(r)}</div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        ${(d.runs || []).slice(0, 60).map((r) => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div class="row small" style="gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>${savedLine(r)}${RATING_BOX(r)}</div>`).join("") || `<div class="dim small">No runs yet.</div>`}
       </div>
     </div>
     <div class="grid" style="align-content:start">${form(editing)}</div>
   </div>`;
   wireForm(view);
   mountTakeover(view);
+  mountRatings(view);
   view.querySelector("#sch-token-ok")?.addEventListener("click", () => { st.token = null; renderTab(view); });
   const act = (sel, fn) => view.querySelectorAll(sel).forEach((b) => b.addEventListener("click", async () => { try { await fn(b); } catch (e) { toast(e.message, true); } }));
   act("[data-run]", async (b) => { await api(`/schedules/${b.dataset.run}/run`, { method: "POST" }); toast("Run queued"); renderTab(view); });
