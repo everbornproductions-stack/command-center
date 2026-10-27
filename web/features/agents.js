@@ -291,7 +291,7 @@ function wireCreate(view) {
 
 // ---------- the tab ----------
 const agentCard = (a) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
-  <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
+  <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> ${a.noSend ? `<span class="chip" title="No send, post or publish tool is offered to this agent">Never sends or posts</span>` : ""} <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
     <div class="dim">${esc(a.description || a.instructions.slice(0, 90))}</div>
     <div class="dim">${a.tools.mode === "off" ? "no tools" : a.tools.mode === "all" ? "all switched-on tools" : `${a.tools.allow.length} tool(s)`} · ${a.libraryNames.length} librar${a.libraryNames.length === 1 ? "y" : "ies"} · ${a.starters.length} starter(s)</div></div>
   <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-achat="${esc(a.id)}">Share in chat</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">Delete</button></div>`;

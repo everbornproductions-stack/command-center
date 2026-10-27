@@ -69,7 +69,10 @@ function trigText(s) {
   return `POST <span class="mono">${esc(location.origin + s.hookPath)}</span>`;
 }
 function targetText(s) {
-  if (s.target.kind === "agent") return `Agent: ${esc(st.data.agents.find((a) => a.id === s.target.agentId)?.name || "(deleted agent)")}`;
+  if (s.target.kind === "agent") {
+    const a = st.data.agents.find((x) => x.id === s.target.agentId);
+    return `Agent: ${esc(a?.name || "(deleted agent)")}${a?.noSend ? ` <span class="chip" title="This agent gets no send, post or publish tool">Never sends or posts</span>` : ""}`;
+  }
   return `${KIND[s.target.kind]}: ${esc(s.target.text.slice(0, 80))}`;
 }
 const pill = (r) => `<span class="pill ${STATUS_CLS[r.status] || ""}">${esc(r.statusLabel || r.status)}</span>`;

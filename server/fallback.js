@@ -336,7 +336,7 @@ export async function* fallbackChat(opts, run = {}) {
     let text = "", sawTool = false, doneEv = null;
     const t0 = Date.now();
     try {
-      for await (const ev of chatWithTools({ ...opts, provider, model }, { missionId: run.missionId, taskId: run.taskId, tools: run.tools, allow: run.allow })) {
+      for await (const ev of chatWithTools({ ...opts, provider, model }, { missionId: run.missionId, taskId: run.taskId, tools: run.tools, allow: run.allow, noSend: run.noSend === true })) {
         if (ev.type === "delta") { text += ev.text; yield ev; }
         else if (ev.type === "done") doneEv = ev;
         else { if (ev.type === "tool") sawTool = true; yield ev; }
