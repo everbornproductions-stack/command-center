@@ -36,3 +36,9 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - What fixed it: the plan now comes from the Checkout Session (`meldmind_plan` metadata, Payment Link id, then price or product id from the line items, read by the webhook with an optional read-only `STRIPE_READ_KEY`). The amount charged is never used. The email lookup reads the confirmed email from a signed Supabase session (migration 20261026_stripe_unlock_proof.sql, app side server/licence-session.js); anon can no longer run it, and every miss gives the same reply.
 - Rules: never decide what was bought from what was charged. Never let a client-supplied email stand in for proof of who it is. Tests that need a vault secret seal vault.bin the way the app does (DPAPI on Windows) instead of adding a test backdoor.
 - Local noise: test/mcp.test.js (HPE_INVALID_CHUNK_SIZE) fails on Chris's PC with or without this change, and `npm test` stops at the first failing group, so run the other files directly to see the rest.
+
+## 2026-10-27: Test measured the app's own element, not its own (0.4.23 release blocker)
+
+- What failed (Windows release run 40576260314, 604/606): test/chat-start-toast.test.js "look offer does not cover the centre of the page" measured {l:244, r:1354}. It passed locally. The test injects its own `#cc-look-offer`, but on a slow runner the app's real offer (look.js, docked full width in the notices row by design since 0.4.21) appeared first. Same id, so `querySelector` returned the real one. The CSS was not broken.
+- What fixed it: the test removes any app-made offer and measures only its own element (tagged `data-test-offer`).
+- Rule: a test that injects an element must find it by something unique, never an id the app also uses. If a test passes on a fast PC and fails on CI, look for a timing race with the app's own element before touching the CSS.
