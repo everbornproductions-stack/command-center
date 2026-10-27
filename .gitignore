@@ -1,4 +1,5 @@
 data/
+!web/mac/data/
 node_modules/
 dist/
 release/*.exe

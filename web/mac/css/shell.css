@@ -1,0 +1,464 @@
+/* Mac part shell (0.4.23): the window frame, the title bar, the colour tokens and the light /
+   dark theme. Every selector starts with body[data-style="mac"], so with the Mac style off the
+   app is exactly what it was. Reference: docs/design-0423/mockup-v2.html (:root, .win, .tb,
+   .toggle, .pill, .ib, .modeflash). */
+
+/* ---------- colour tokens, light (the default) ---------- */
+body[data-style="mac"] {
+  --mac-glass: rgba(255, 255, 255, .55);
+  --mac-glass2: rgba(255, 255, 255, .75);
+  --mac-solid: #f2f4fa;
+  --mac-solid2: #ffffff;
+  --mac-line: rgba(0, 0, 0, .08);
+  --mac-acc: #0a84ff;
+  --mac-tx: #1d1d1f;
+  --mac-dim: #6e6e73;
+  --mac-ok: #30d158;
+  --mac-bad: #ff453a;
+  --mac-bg1: #c9d8ff;
+  --mac-bg2: #ffd6e8;
+  --mac-bg3: #d6fff1;
+  --mac-bg: #e9ecf5;
+  --mac-tl1: #ff5f57;
+  --mac-tl2: #febc2e;
+  --mac-tl3: #28c840;
+  --mac-radius: 16px;
+  --mac-win-x: 40px;
+  --mac-win-t: 22px;
+  --mac-title-h: 46px;
+  --mac-win-b: 104px;
+  --mac-side-w: 236px;
+  color-scheme: light;
+}
+body[data-style="mac"][data-theme="dark"] {
+  --mac-glass: rgba(30, 30, 36, .55);
+  --mac-glass2: rgba(44, 44, 52, .8);
+  --mac-solid: #1b1c22;
+  --mac-solid2: #26272f;
+  --mac-line: rgba(255, 255, 255, .1);
+  --mac-tx: #f5f5f7;
+  --mac-dim: #a1a1a6;
+  --mac-bg1: #1b2140;
+  --mac-bg2: #3a1730;
+  --mac-bg3: #0f2b2a;
+  --mac-bg: #0c0d12;
+  color-scheme: dark;
+}
+
+/* ---------- the soft colour desktop behind the window ---------- */
+body[data-style="mac"],
+html[data-theme] body[data-style="mac"] {
+  background-color: var(--mac-bg);
+  background-image: radial-gradient(900px 600px at 15% 10%, var(--mac-bg1), transparent 70%), radial-gradient(800px 600px at 90% 20%, var(--mac-bg2), transparent 70%), radial-gradient(900px 700px at 50% 100%, var(--mac-bg3), transparent 70%);
+}
+
+/* ---------- the old top bar: hidden, never removed (other code clicks it) ---------- */
+body[data-style="mac"] .topbar {
+  display: none;
+}
+
+/* ---------- the window: the existing #app, reframed ---------- */
+body[data-style="mac"] #app {
+  position: fixed;
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  left: var(--mac-win-x);
+  right: var(--mac-win-x);
+  bottom: var(--mac-win-b);
+  height: auto;
+  z-index: 1;
+  overflow: hidden;
+  border: 1px solid var(--mac-line);
+  border-top: 0;
+  border-radius: 0 0 var(--mac-radius) var(--mac-radius);
+  background: var(--mac-glass);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .25);
+  grid-template-rows: 0 minmax(0, 1fr) var(--strip-h);
+}
+/* Frosted pane: a blurred layer behind the page, so dropdowns inside the window keep their own
+   fixed positioning (a filter on #app would move them). */
+body[data-style="mac"] #app::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  backdrop-filter: blur(30px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+}
+body[data-style="mac"][data-ui="simple"]:not(.show-ais) #app {
+  grid-template-rows: 0 minmax(0, 1fr) 0;
+}
+/* No blur: solid panels instead of glass (look off, or a window that cannot draw glass). */
+body[data-style="mac"].mac-noblur #app {
+  background: var(--mac-solid);
+}
+body[data-style="mac"].mac-noblur #app::before {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+@media (max-width: 760px) {
+  body[data-style="mac"] {
+    --mac-win-x: 10px;
+    --mac-win-t: 8px;
+    --mac-win-b: 96px;
+  }
+  body[data-style="mac"] #app {
+    grid-template-rows: 0 minmax(0, 1fr) var(--strip-h) 56px;
+  }
+  body[data-style="mac"][data-ui="simple"]:not(.show-ais) #app {
+    grid-template-rows: 0 minmax(0, 1fr) 0 56px;
+  }
+}
+
+/* ---------- the frame that holds every slot ---------- */
+body[data-style="mac"] #mac-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  color: var(--mac-tx);
+  font-family: var(--sans);
+}
+
+/* ---------- title bar ---------- */
+body[data-style="mac"] #mac-titlebar {
+  position: fixed;
+  top: var(--mac-win-t);
+  left: var(--mac-win-x);
+  right: var(--mac-win-x);
+  height: var(--mac-title-h);
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--mac-line);
+  border-radius: var(--mac-radius) var(--mac-radius) 0 0;
+  background: var(--mac-glass2);
+  backdrop-filter: blur(30px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  pointer-events: auto;
+}
+body[data-style="mac"].mac-noblur #mac-titlebar {
+  background: var(--mac-solid2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+body[data-style="mac"] .mac-tl {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+body[data-style="mac"] .mac-tl i {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--mac-tl1);
+}
+body[data-style="mac"] .mac-tl i:nth-child(2) {
+  background: var(--mac-tl2);
+}
+body[data-style="mac"] .mac-tl i:nth-child(3) {
+  background: var(--mac-tl3);
+}
+body[data-style="mac"] .mac-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+body[data-style="mac"] .mac-title small {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--mac-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body[data-style="mac"] .mac-gap {
+  flex: 1 1 auto;
+}
+body[data-style="mac"] .mac-ib {
+  position: relative;
+  flex: none;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(120, 120, 128, .15);
+  color: var(--mac-tx);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+body[data-style="mac"] .mac-ib:hover {
+  background: rgba(120, 120, 128, .3);
+}
+body[data-style="mac"] .mac-ib:focus-visible,
+body[data-style="mac"] .mac-toggle button:focus-visible {
+  outline: 2px solid var(--mac-acc);
+  outline-offset: 2px;
+}
+body[data-style="mac"] .mac-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, .15);
+  color: var(--mac-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+body[data-style="mac"] .mac-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mac-ok);
+}
+
+/* ---------- the Simple / Expert switch ---------- */
+body[data-style="mac"] .mac-toggle {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: 184px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, .18);
+}
+body[data-style="mac"] .mac-toggle button {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-height: 32px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mac-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color .3s;
+}
+body[data-style="mac"] .mac-toggle button.on {
+  color: var(--mac-tx);
+}
+body[data-style="mac"] .mac-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
+  height: calc(100% - 6px);
+  border-radius: 999px;
+  background: var(--mac-glass2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  pointer-events: none;
+  transition: transform .45s cubic-bezier(.5, 1.6, .4, 1);
+}
+body[data-style="mac"] .mac-toggle[data-mode="expert"] .mac-knob {
+  transform: translateX(100%);
+}
+body[data-style="mac"].mac-noblur .mac-knob {
+  background: var(--mac-solid2);
+}
+
+/* ---------- the banner that flashes when the switch moves ---------- */
+body[data-style="mac"] .mac-flash {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  z-index: 61;
+  max-width: calc(100vw - 48px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--mac-glass2);
+  color: var(--mac-tx);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-8px);
+  transition: opacity .35s, transform .35s;
+}
+body[data-style="mac"] .mac-flash.on {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+body[data-style="mac"].mac-noblur .mac-flash {
+  background: var(--mac-solid2);
+}
+
+/* ---------- the window body: the overlay the flow draws into ---------- */
+body[data-style="mac"] #mac-main {
+  position: fixed;
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  left: var(--mac-win-x);
+  right: var(--mac-win-x);
+  bottom: var(--mac-win-b);
+  z-index: 5;
+  overflow: hidden;
+  border-radius: 0 0 var(--mac-radius) var(--mac-radius);
+  pointer-events: none;
+}
+body[data-style="mac"] #mac-main > * {
+  pointer-events: auto;
+}
+body[data-style="mac"] #mac-main > #mac-flow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+body[data-style="mac"] #mac-main > #mac-flow > * {
+  pointer-events: auto;
+}
+body[data-style="mac"] #mac-flow:empty {
+  display: none;
+}
+
+/* ---------- the left sidebar (Expert groups, History) ---------- */
+body[data-style="mac"] #mac-side {
+  position: fixed;
+  left: var(--mac-win-x);
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  bottom: var(--mac-win-b);
+  box-sizing: border-box;
+  width: 0;
+  overflow: hidden;
+  z-index: 20;
+  border-right: 0 solid var(--mac-line);
+  border-radius: 0 0 0 var(--mac-radius);
+  pointer-events: none;
+  transition: width .45s cubic-bezier(.3, 1.2, .4, 1);
+}
+body[data-style="mac"].mac-sideopen #mac-side {
+  width: var(--mac-side-w);
+  border-right-width: 1px;
+  background: var(--mac-glass2);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  pointer-events: auto;
+}
+body[data-style="mac"].mac-noblur #mac-side {
+  background: var(--mac-solid2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- the right settings panel ---------- */
+body[data-style="mac"] #mac-panel {
+  position: fixed;
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  right: var(--mac-win-x);
+  bottom: var(--mac-win-b);
+  box-sizing: border-box;
+  width: 380px;
+  max-width: calc(100vw - (2 * var(--mac-win-x)));
+  z-index: 30;
+  border-left: 1px solid var(--mac-line);
+  border-radius: 0 0 var(--mac-radius) 0;
+  background: var(--mac-glass2);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  transform: translateX(calc(100% + var(--mac-win-x) + 12px));
+  transition: transform .5s cubic-bezier(.3, 1.2, .4, 1);
+}
+body[data-style="mac"] #mac-panel:empty {
+  display: none;
+}
+body[data-style="mac"] #mac-panel.on {
+  transform: none;
+}
+body[data-style="mac"].mac-noblur #mac-panel {
+  background: var(--mac-solid2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- the All tools launchpad ---------- */
+body[data-style="mac"] #mac-launchpad {
+  position: fixed;
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  left: var(--mac-win-x);
+  right: var(--mac-win-x);
+  bottom: var(--mac-win-b);
+  z-index: 40;
+  border-radius: 0 0 var(--mac-radius) var(--mac-radius);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s;
+}
+body[data-style="mac"] #mac-launchpad:empty {
+  display: none;
+}
+body[data-style="mac"] #mac-launchpad.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- the dock at the bottom ---------- */
+body[data-style="mac"] #mac-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+body[data-style="mac"] #mac-dock > * {
+  pointer-events: auto;
+}
+body[data-style="mac"] #mac-dock:empty {
+  display: none;
+}
+
+/* ---------- small screens: keep every target tappable ---------- */
+@media (max-width: 760px) {
+  body[data-style="mac"] .mac-tl {
+    display: none;
+  }
+  body[data-style="mac"] .mac-pill {
+    display: none;
+  }
+  body[data-style="mac"] .mac-toggle {
+    width: 132px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] .mac-knob,
+  body[data-style="mac"] .mac-flash,
+  body[data-style="mac"] #mac-side,
+  body[data-style="mac"] #mac-panel {
+    transition: none;
+  }
+}
+
+/* ---------- lead integration fixes (0.4.23 merge) ---------- */
+/* #mac-root ignores the pointer, so an open settings panel must take clicks again. */
+body[data-style="mac"] #mac-panel.on { pointer-events: auto; }
+/* When the Expert sidebar is showing, the window content starts to its right instead of under it. */
+body[data-style="mac"]:has(#mac-side.mx-side:not([hidden]):not(.mx-collapsed)) #app,
+body[data-style="mac"]:has(#mac-side.mx-side:not([hidden]):not(.mx-collapsed)) #mac-main {
+  left: calc(var(--mac-win-x) + var(--mac-side-w));
+}
+body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #app,
+body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #mac-main {
+  left: calc(var(--mac-win-x) + 34px);
+}

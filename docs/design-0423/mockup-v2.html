@@ -1,0 +1,309 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Meldmind Mac style v2 (Simple / Expert)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg1:#c9d8ff;--bg2:#ffd6e8;--bg3:#d6fff1;--glass:rgba(255,255,255,.55);--glass2:rgba(255,255,255,.75);--line:rgba(0,0,0,.08);--tx:#1d1d1f;--dim:#6e6e73;--acc:#0a84ff;--ok:#30d158;--warn:#ff9f0a;--bad:#ff453a;--vio:#bf5af2}
+body.dark{--bg1:#1b2140;--bg2:#3a1730;--bg3:#0f2b2a;--glass:rgba(30,30,36,.55);--glass2:rgba(44,44,52,.8);--line:rgba(255,255,255,.1);--tx:#f5f5f7;--dim:#a1a1a6}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font:14px/1.4 -apple-system,"SF Pro Text","Segoe UI",Inter,Roboto,sans-serif;color:var(--tx)}
+body{background:radial-gradient(900px 600px at 15% 10%,var(--bg1),transparent),radial-gradient(800px 600px at 90% 20%,var(--bg2),transparent),radial-gradient(900px 700px at 50% 100%,var(--bg3),transparent),#e9ecf5;overflow:hidden;transition:background .5s}
+body.dark{background-color:#0c0d12}
+button{font:inherit;color:inherit;cursor:pointer}
+.win{position:absolute;inset:22px 40px 104px;border-radius:16px;background:var(--glass);backdrop-filter:blur(30px) saturate(1.6);-webkit-backdrop-filter:blur(30px) saturate(1.6);border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.25);overflow:hidden;display:flex;flex-direction:column}
+.tb{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);flex:none}
+.tl{display:flex;gap:8px}.tl i{width:12px;height:12px;border-radius:50%;display:block}.tl i:nth-child(1){background:#ff5f57}.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.ttl{font-weight:600;margin-left:8px}.ttl small{font-weight:400;color:var(--dim);margin-left:6px}
+.sp{flex:1}
+.sbbtn{border:0;background:transparent;font-size:17px;padding:4px 8px;border-radius:6px;opacity:0;pointer-events:none;transition:.3s}
+body.expert .sbbtn{opacity:1;pointer-events:auto}
+.toggle{position:relative;display:flex;background:rgba(120,120,128,.18);border-radius:999px;padding:3px;width:184px}
+.toggle button{flex:1;border:0;background:transparent;padding:5px 0;border-radius:999px;position:relative;z-index:1;font-weight:600;font-size:13px;color:var(--dim);transition:color .3s}
+.toggle button.on{color:var(--tx)}
+.knob{position:absolute;top:3px;left:3px;width:89px;height:calc(100% - 6px);border-radius:999px;background:var(--glass2);box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .45s cubic-bezier(.5,1.6,.4,1)}
+body.expert .knob{transform:translateX(89px)}
+.pill{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(120,120,128,.15);color:var(--dim);display:flex;gap:6px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.ib{border:0;background:rgba(120,120,128,.15);border-radius:8px;padding:4px 9px}
+.body{flex:1;display:flex;min-height:0;position:relative}
+.side{width:0;overflow:hidden;transition:width .45s cubic-bezier(.3,1.2,.4,1);border-right:1px solid var(--line);flex:none}
+body.expert.sideopen .side{width:236px}
+.sidein{width:236px;height:100%;overflow:auto;padding:10px 8px 20px}
+.srch{width:100%;border:0;border-radius:8px;padding:6px 10px;background:rgba(120,120,128,.15);color:var(--tx);margin-bottom:6px}
+.grp{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin:12px 8px 4px}
+.si{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;padding:5px 8px;border-radius:7px;font-size:13px}
+.si:hover{background:rgba(120,120,128,.15)}.si.on{background:var(--acc);color:#fff}
+.si .lk{margin-left:auto;font-size:10px;padding:1px 6px;border-radius:6px;background:rgba(191,90,242,.2);color:var(--vio)}
+.main{flex:1;position:relative;overflow:hidden}
+.scr{position:absolute;inset:0;padding:26px 34px;overflow:auto;opacity:0;transform:translateY(14px) scale(.985);pointer-events:none;transition:opacity .35s,transform .45s cubic-bezier(.3,1.3,.4,1)}
+.scr.on{opacity:1;transform:none;pointer-events:auto}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:-.02em}h2{font-size:19px;margin:0 0 10px}.dim{color:var(--dim)}
+.steps{display:flex;gap:8px;margin:8px 0 18px}.steps span{font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(120,120,128,.15);color:var(--dim)}.steps span.on{background:var(--acc);color:#fff}
+.runbar{display:none;gap:8px;flex-wrap:wrap;margin:6px 0 14px;align-items:center}
+body.expert .runbar{display:flex}
+.seg{display:flex;background:rgba(120,120,128,.15);border-radius:8px;padding:2px}.seg b{font-weight:500;font-size:12px;padding:4px 9px;border-radius:6px;cursor:pointer}.seg b.on{background:var(--glass2);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.cards{position:relative;height:290px;overflow:hidden;margin:0 -34px;touch-action:pan-y}
+.track{display:flex;gap:22px;padding:10px 34px;transition:transform .55s cubic-bezier(.3,1.25,.4,1)}
+.card{flex:none;width:250px;height:260px;border-radius:18px;background:var(--glass2);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.12);overflow:hidden;cursor:pointer;transition:transform .3s}
+.card:hover{transform:translateY(-4px)}.card.sel{outline:3px solid var(--acc)}
+.card .art{height:170px}.card div.t{padding:10px 14px;font-weight:600}.card div.d{padding:0 14px;font-size:12px;color:var(--dim)}
+.dots{display:flex;gap:7px;justify-content:center;margin:6px 0}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(120,120,128,.35);transition:.3s;cursor:pointer}.dots i.on{background:var(--acc);width:20px;border-radius:4px}
+.box{display:flex;gap:8px;align-items:center;background:var(--glass2);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;margin-top:12px}
+.box input{flex:1;border:0;background:transparent;font-size:15px;color:var(--tx);outline:0}
+.go{border:0;background:var(--acc);color:#fff;border-radius:10px;padding:8px 16px;font-weight:600}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.chips b{font-weight:500;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(120,120,128,.15);cursor:pointer}
+.strip{display:flex;gap:10px;overflow:auto;padding:8px 0}.strip i{flex:none;width:120px;height:90px;border-radius:12px;display:block}
+.bars div{margin:12px 0}.bar{height:8px;border-radius:4px;background:rgba(120,120,128,.2);overflow:hidden}.bar i{display:block;height:100%;width:0;border-radius:4px;background:var(--acc);transition:width 1.6s ease}
+.result{display:flex;gap:22px}.big{flex:1;height:330px;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+.rside{width:250px;display:flex;flex-direction:column;gap:10px}
+.vers{display:flex;gap:6px}.vers b{font-weight:500;font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(120,120,128,.15)}.vers b.on{background:var(--acc);color:#fff}
+.btn{border:0;border-radius:10px;padding:9px 14px;background:rgba(120,120,128,.18);font-weight:500}.btn.p{background:var(--acc);color:#fff;font-weight:600;font-size:15px;padding:12px}
+/* live ops */
+.lo{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+.pan{background:var(--glass2);border:1px solid var(--line);border-radius:14px;padding:14px}
+.pan h3{margin:0 0 10px;font-size:14px;display:flex;gap:8px;align-items:center}
+.map{height:210px}
+.map line{stroke:rgba(120,120,128,.4);stroke-width:2}.map line.on{stroke:var(--acc);stroke-dasharray:6 6;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-12}}
+.map circle{stroke:#fff;stroke-width:2}.map text{font-size:11px;fill:var(--tx);text-anchor:middle}
+.map circle.pulse{animation:pl 1.4s ease-in-out infinite}@keyframes pl{50%{r:24}}
+.task{display:grid;grid-template-columns:14px 1fr auto;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.st{width:10px;height:10px;border-radius:50%}.st.done{background:var(--ok)}.st.running{background:var(--acc);animation:pl2 1s infinite}.st.review{background:var(--vio)}.st.waiting{background:rgba(120,120,128,.5)}.st.failed{background:var(--bad)}
+@keyframes pl2{50%{opacity:.35}}
+.chip{font-size:10.5px;padding:1px 7px;border-radius:6px;background:rgba(120,120,128,.18);margin-right:4px}.chip.g{background:rgba(48,209,88,.2);color:#1f9a40}.chip.a{background:rgba(255,159,10,.2);color:#b86e00}.chip.v{background:rgba(191,90,242,.2);color:var(--vio)}
+.task .bar{grid-column:2/4;height:5px}
+.feed{font-size:12px;max-height:150px;overflow:auto;font-family:ui-monospace,Menlo,monospace;color:var(--dim)}
+.feed div{padding:2px 0}
+/* launchpad */
+.lp{position:absolute;inset:0;z-index:40;background:rgba(10,10,20,.35);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);opacity:0;pointer-events:none;transition:opacity .35s;display:flex;flex-direction:column;align-items:center;padding-top:46px}
+.lp.on{opacity:1;pointer-events:auto}
+.lp .srch{width:260px;background:rgba(255,255,255,.25);color:#fff;text-align:center}
+.lpv{width:100%;flex:1;overflow:hidden;margin-top:20px}
+.lpt{display:flex;height:100%;transition:transform .55s cubic-bezier(.3,1.2,.4,1)}
+.lpg{flex:none;width:100%;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:118px;padding:10px 90px;align-content:start;transform:scale(.92);transition:transform .45s}
+.lp.on .lpg{transform:none}
+.app{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;border:0;background:transparent;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.app i{font-style:normal;width:64px;height:64px;border-radius:16px;display:grid;place-items:center;font-size:30px;box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .2s}
+.app:hover i{transform:scale(1.1)}
+.lp .dots{margin-bottom:24px}.lp .grp{color:rgba(255,255,255,.8)}
+/* right panel */
+.rp{position:absolute;top:46px;right:0;bottom:0;width:380px;z-index:30;background:var(--glass2);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-left:1px solid var(--line);transform:translateX(105%);transition:transform .5s cubic-bezier(.3,1.2,.4,1);padding:18px 20px;overflow:auto;box-shadow:-20px 0 40px rgba(0,0,0,.15)}
+.rp.on{transform:none}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);gap:10px}
+.row small{display:block;color:var(--dim)}
+.sw{width:42px;height:25px;border-radius:999px;background:rgba(120,120,128,.3);position:relative;flex:none;cursor:pointer;transition:.3s}.sw::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.3s cubic-bezier(.5,1.6,.4,1)}.sw.on{background:var(--ok)}.sw.on::after{left:19px}
+/* history */
+.hist{position:absolute;top:46px;left:0;bottom:0;width:280px;z-index:25;background:var(--glass2);backdrop-filter:blur(30px);border-right:1px solid var(--line);transform:translateX(-105%);transition:transform .45s cubic-bezier(.3,1.2,.4,1);padding:14px}
+.hist.on{transform:none}.hist div.h{padding:7px 6px;border-radius:7px;font-size:13px}.hist div.h:hover{background:rgba(120,120,128,.15)}
+/* dock */
+.dockw{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;z-index:50;pointer-events:none}
+#dock{pointer-events:auto;display:flex;align-items:flex-end;gap:6px;padding:7px 10px;height:72px;border-radius:22px;background:var(--glass);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.di{position:relative;width:54px;height:54px;border:0;border-radius:13px;font-size:27px;display:grid;place-items:center;transition:width .12s,height .12s,margin .12s;flex:none;box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.di::after{content:attr(data-p);position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);background:var(--glass2);color:var(--tx);font-size:12px;padding:3px 9px;border-radius:7px;white-space:nowrap;opacity:0;transition:.2s;pointer-events:none}
+.di:hover::after{opacity:1}
+.di.ex{display:none}body.expert .di.ex{display:grid;animation:pop .45s cubic-bezier(.3,1.6,.4,1)}
+@keyframes pop{from{transform:scale(0)}}
+.sep{width:1px;align-self:stretch;margin:6px 4px;background:var(--line)}
+.di.bounce{animation:bn .6s}@keyframes bn{30%{transform:translateY(-18px)}60%{transform:translateY(0)}80%{transform:translateY(-6px)}}
+.di.run::before{content:"";position:absolute;bottom:-6px;width:4px;height:4px;border-radius:50%;background:var(--tx)}
+.modeflash{position:absolute;left:50%;top:60px;transform:translateX(-50%) translateY(-10px);z-index:60;background:var(--glass2);padding:8px 18px;border-radius:999px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:.35s;pointer-events:none}
+.modeflash.on{opacity:1;transform:translateX(-50%)}
+.g1{background:linear-gradient(135deg,#5ac8fa,#0a84ff)}.g2{background:linear-gradient(135deg,#ff9f0a,#ff375f)}.g3{background:linear-gradient(135deg,#bf5af2,#5e5ce6)}.g4{background:linear-gradient(135deg,#30d158,#0a84a0)}.g5{background:linear-gradient(135deg,#ffd60a,#ff9f0a)}.g6{background:linear-gradient(135deg,#64d2ff,#30d158)}.g7{background:linear-gradient(135deg,#8e8e93,#48484a)}.g8{background:linear-gradient(135deg,#ff375f,#bf5af2)}
+</style></head><body class="simple">
+<div class="win" id="win">
+ <div class="tb">
+  <div class="tl"><i></i><i></i><i></i></div>
+  <button class="sbbtn" id="sbBtn" title="Show or hide the sidebar">▤</button>
+  <div class="ttl">Meldmind<small id="crumb">Home</small></div>
+  <div class="sp"></div>
+  <span class="pill" title="AIs ready"><span class="dot"></span><span id="ready">3 ready · 1 out of credits</span></span>
+  <span class="pill">Month $1.84</span>
+  <div class="toggle" id="toggle" role="group" aria-label="Simple or Expert"><div class="knob"></div><button id="mSimple" class="on" aria-pressed="true">Simple</button><button id="mExpert" aria-pressed="false">Expert</button></div>
+  <button class="ib" id="themeBtn" title="Light or dark">☾</button>
+  <button class="ib" id="helpBtn" title="Help">?</button>
+ </div>
+ <div class="body">
+  <aside class="side"><div class="sidein" id="sidein"></div></aside>
+  <div class="main" id="main">
+   <section class="scr on" id="s-home">
+    <h1 id="hello">What do you want to make?</h1>
+    <div class="dim">Pick a style. Swipe, drag or use ← →. The most popular one is already picked.</div>
+    <div class="steps"><span class="on">1 Pick a style</span><span>2 Tell us about it</span><span>3 Done</span></div>
+    <div class="runbar"><span class="dim">How to run</span><div class="seg" data-seg><b>Auto</b><b>Single</b><b>Council</b><b class="on">Mission</b><b>Research</b><b>Second opinion</b></div>
+      <span class="dim">Priority</span><div class="seg" data-seg><b>Max quality</b><b>Quality</b><b class="on">Balanced</b><b>Max savings</b><b>Speed</b></div>
+      <div class="seg" data-seg><b class="on">Now</b><b>Off-peak</b></div></div>
+    <div class="cards" id="cards"><div class="track" id="track"></div></div>
+    <div class="dots" id="cdots"></div>
+    <div class="box"><span>🎙</span><input id="ask" value="A website for my bakery, Sweet Crumb"><span class="dim" style="font-size:12px">Free (Groq)</span><button class="go" id="next1">Next</button></div>
+    <div class="chips"><b>↻ Do this again: Flower shop posts</b><b>★ My prompt: Product photo</b><b>Remembered: Sweet Crumb, pastel brand</b></div>
+   </section>
+   <section class="scr" id="s-desc">
+    <h1>Tell us about it</h1><div class="steps"><span>1 Pick a style</span><span class="on">2 Tell us about it</span><span>3 Done</span></div>
+    <div class="box"><input value="Pastel colours, our sourdough and croissants, order online button"><button class="go" id="go">Make it</button></div>
+    <div class="dim" style="margin-top:14px">Your photos (swipe, tap for full screen)</div>
+    <div class="strip"><i class="g5"></i><i class="g2"></i><i class="g8"></i><i class="g6"></i><i class="g1"></i><i class="g3"></i></div>
+   </section>
+   <section class="scr" id="s-work">
+    <h1>Your AIs are working</h1><div class="dim">Auto team picked Mission: 4 steps on 3 AIs. About $0.03.</div>
+    <div class="bars" style="max-width:560px"><div>Planning the page<div class="bar"><i></i></div></div><div>Writing and design<div class="bar"><i></i></div></div><div>Checking quality<div class="bar"><i></i></div></div></div>
+    <button class="btn" id="showSteps">Show steps</button>
+   </section>
+   <section class="scr" id="s-done">
+    <h1>Done</h1><div class="steps"><span>1 Pick a style</span><span>2 Tell us about it</span><span class="on">3 Done</span></div>
+    <div class="result"><div class="big g5" style="display:grid;place-items:center;color:#fff;font-size:34px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.3)">Sweet Crumb Bakery</div>
+     <div class="rside"><div class="vers"><b>Version 1</b><b class="on">Version 2</b></div>
+      <div class="dim">Saved to MindMedia · $0.03 (Groq, Claude) · QA 9/10</div>
+      <button class="btn p" id="pub">Publish</button>
+      <button class="btn">Try again</button><button class="btn">Change this part</button>
+      <button class="btn expo" id="moreWays">More ways (PDF, Word, Copy…)</button>
+      <div class="dim">Is this usable? <button class="ib">👍</button> <button class="ib">👎</button></div></div></div>
+   </section>
+   <section class="scr" id="s-ops">
+    <h1>Live Ops</h1><div class="dim" id="opsline">Mission running · step 3 of 5 · $0.031 so far · Balanced</div>
+    <div class="lo" style="margin-top:14px">
+     <div class="pan"><h3>Who is working <span class="sp"></span><button class="ib" id="opsPause">Pause</button><button class="ib" style="color:var(--bad)">Stop</button></h3>
+      <svg class="map" viewBox="0 0 520 210" width="100%"></svg>
+      <h3 style="margin-top:12px">Live feed <span class="dim" style="font-weight:400">(every event from the engine)</span></h3><div class="feed" id="feed"></div></div>
+     <div><div class="pan"><h3>Steps <span class="dim" style="font-weight:400">newest first</span><span class="sp"></span><button class="ib">See all (5)</button></h3><div id="tasks"></div>
+       <div id="pauseEdit" style="display:none;margin-top:10px"><div class="dim" style="font-size:12px">Done steps stay. Edit the goal or an unfinished step, then resume.</div><div class="box" style="margin-top:6px"><input value="Goal: bakery site, add an opening hours section"><button class="go" id="resume">Save and resume</button></div></div></div>
+      <div class="pan" style="margin-top:14px"><h3>Deliverable <span class="dim" style="font-weight:400">shows when there is a result</span></h3><div class="dim">index.html · saved to C:\Meldmind\Sweet Crumb\index.html (read back OK)</div><div class="box" style="margin-top:8px"><input value="Reply to this AI: make the hero warmer"><button class="go">Send</button></div></div></div>
+    </div>
+   </section>
+   <section class="scr" id="s-page"><h1 id="pgT"></h1><div class="dim" id="pgD"></div><div class="pan" style="margin-top:18px;max-width:640px" id="pgB"></div></section>
+   <div class="hist" id="hist"><input class="srch" placeholder="Search history"><div class="grp">Today</div><div class="h">Sweet Crumb website</div><div class="h">Flower shop: a week of posts</div><div class="h">Beach sunset image</div><div class="grp">Yesterday</div><div class="h">Cold email + follow-up</div><div class="h">Minecraft castle mod</div></div>
+  </div>
+  <div class="lp" id="lp"><input class="srch" placeholder="Search all tools"><div class="lpv" id="lpv"><div class="lpt" id="lpt"></div></div><div class="dots" id="lpdots"></div></div>
+  <div class="rp" id="rp"></div>
+ </div>
+</div>
+<div class="modeflash" id="flash"></div>
+<div class="dockw"><div id="dock"></div></div>
+<script>
+const F=[ // every feature from FEATURE-MAP.md: [group, name, icon, gradient, kind, plain words, lock]
+["Work","Chat","💬","g1","home","Type what you want. Auto picks the team."],
+["Work","Start a project","✨","g3","home","A guided start for something new."],
+["Work","Projects","🗂","g4","page","Each project keeps its files, media and memory."],
+["Work","Live Ops","📡","g2","ops","Watch every AI work, step by step. Pause, edit, resume or stop."],
+["Work","Live view","🛰","g6","page","Who is working, the current step, cost so far and open-in links."],
+["Work","Missions","🎯","g8","mode","Plan, hand to specialists, check, put together."],
+["Work","Councils","🏛","g3","mode","Several AIs answer, review each other, one writes the verdict."],
+["Work","Research","🔎","g1","mode","Searches the web and answers with numbered sources."],
+["Work","Second opinion","⚖️","g7","mode","Two AIs answer; differences in plain words."],
+["Work","Compare","▥","g6","page","One question to 2 to 6 AIs side by side, with cost and speed. Pick a winner."],
+["Work","Refocus","🧭","g4","page","Type a topic, see related past work, rebuild in a click."],
+["My day","Inbox and tasks","📥","g1","page","Inbox summary, replies in your tone, reminders."],
+["My day","Day plan","🗓","g5","page","Morning briefing, find a time, email to a task."],
+["My day","Docs and follow-up","📄","g4","page","Find and sum up a doc, meeting prep, lead follow-up."],
+["Create","Website","🌐","g1","path","Builds a site and shows it in the Build panel."],
+["Create","Image","🖼","g8","path","Makes or edits pictures. 2 to 4 quick options."],
+["Create","Video","🎬","g2","path","Short videos. Switches maker if one fails."],
+["Create","Campaign","📣","g5","path","A week of posts, ready to post."],
+["Create","Game mod / Remix","🎮","g4","path","Pick what to make, preview, build, test, publish."],
+["Create","Builders","🧱","g7","page","Other builders: apps, docs, listings."],
+["Create","Pro prompts","📚","g3","page","The prompt library: ready prompts with blanks to fill."],
+["Create","Publish","🚀","g2","page","Preview first, then post. Practice only if not connected."],
+["Create","Marketplace","🛍","g8","page","Get or list agents and prompts."],
+["Agents","Agents","🤖","g3","page","Your own agents: model, instructions, tools, starters."],
+["Agents","Pipelines","⛓","g6","page","Saved missions. One click, fill 2 or 3 blanks, run.","Pro"],
+["Agents","Schedules","⏰","g5","page","Run on a timer, a webhook or a new file. Spend cap. Approve before send.","Pro"],
+["Agents","Outside agents","🤝","g7","page","Hand work to Grok Bot, Claude Code, Codex and others."],
+["Library","MindMedia","🎞","g8","page","Everything you made, in one place."],
+["Library","History","🕘","g7","hist","Every chat and mission, searchable. Reopen or redo.","Pro search"],
+["Library","Memories","🧠","g3","panel","What Meldmind remembers about you and each project."],
+["Library","Libraries","🗃","g4","page","Your documents, for AIs to read."],
+["Library","Artifacts","🧩","g6","page","Mini apps, charts and drawings from an answer."],
+["Library","Who's best","🏆","g5","page","Which AI wins at what, from your own jobs."],
+["People","Community","👥","g1","page","Talk with other Meldmind users."],
+["People","AI News","📰","g2","page","What's new in AI, in one place."],
+["People","People chat","💌","g8","page","Chat with people you work with."],
+["People","Together","🫂","g4","page","Work on one thing with others."],
+["Business","Teams","🏢","g7","page","Seats and shared spaces. Make this computer the hub.","Extreme"],
+["Business","Credits","💳","g5","page","What each AI has left."],
+["Business","Subscriptions","↻","g6","page","Plans you pay for and what they cover.","Pro"],
+["Business","Reports and usage","📊","g1","page","Spend, savings and usage."],
+["Settings","Find my AIs","🛠","g4","panel","Scans this computer for AIs and keys."],
+["Settings","Connections","🔌","g1","panel","Keys, your apps, tools, integrations."],
+["Settings","Cost and speed","⚡","g5","panel","Free first, Free only, backup AIs, priority."],
+["Settings","Safety and approvals","🛡","g7","panel","What needs a tap, masking, send check."],
+["Settings","Voice","🎙","g8","panel","Push to talk, hands free, wake word."],
+["Settings","Project memory","📝","g3","panel","Brand voice, offers, never say."],
+["Settings","Alerts","🔔","g2","panel","Email or phone when something needs you."],
+["Settings","Look","🎨","g6","panel","Light, dark, glass."],
+["Settings","Account","👤","g7","panel","Licence, updates, Simple or Expert."],
+["Help","Search help","❓","g1","page","Ask anything about Meldmind."],
+["Help","Take the tour","🧭","g4","page","A 1 minute tour."],
+["Help","What's new","🆕","g2","page","Changes in this version."],
+["Help","Try demo mode","🧪","g5","page","Practice with sample AIs, no cost."],
+["Help","User guide","📘","g3","page","The full guide."],
+["Help","Check for updates","⬇️","g6","page","Get the newest version."],
+["Help","Contact and about","✉️","g7","page","Feedback and About Meldmind."]];
+const PANELS={"Connections":[["Keys and providers","OpenAI, Claude, Gemini, Groq, OpenRouter…",1],["Your apps","Apps on this computer",1],["Tools (MCP)","Add tools AIs can use",0],["Grok Bot assistant","Integrations",1],["Browser extension","Send a page to Meldmind",0],["HighLevel","CRM posts and contacts",0],["Zapier and Make","Automations",0],["Open in Claude / ChatGPT / Gemini","Use Meldmind inside them",1]],
+"Cost and speed":[["Free first","This PC, then free AIs, then plans, then paid",1],["Free only","Never spend money",0],["Use my plan first","Subscriptions before paid keys",1],["Backup when credits run out","Move to the next AI",1],["Get free AIs","One-click links to free keys",0]],
+"Safety and approvals":[["Get it done","Ordinary steps run without asking",1],["Ask before sending messages","",1],["Hide private numbers","SSNs and cards are masked everywhere",1],["Send check","Warn when consent is missing",1]],
+"Voice":[["Push to talk","Hold the hotkey",1],["Hands free","Listens until you say stop",0],["Hey Meld wake word","Off by default",0],["Talk back","Reads answers aloud",1]],
+"Memories":[["Memory on","Remember facts across chats",1],["About me: Chris, runs Sweet Crumb","★★★★★",1],["This project: pastel brand, no hype","★★★★",1],["Knowledge: opening hours 7-3","★★★",1]],
+"Project memory":[["Brand voice","Short, direct, no hype",1],["Offers","Free delivery over $30",1],["Never say","No invented numbers",1]],
+"Alerts":[["Email me","From my own domain",0],["Phone approvals","Approve on your phone",1]],
+"Look":[["Dark","",0],["Glass","Frosted windows",1],["Reduce motion","",0]],
+"Account":[["Licence","Pro",1],["Automatic updates","",1],["Start in Expert","",0]],
+"Find my AIs":[["Claude Code on this PC","ready",1],["Ollama","ready",1],["OpenRouter","out of credits",0],["Groq (free)","ready",1]]};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+// sidebar
+let sh='<input class="srch" placeholder="Search features">',g='';
+F.forEach((f,i)=>{if(f[0]!==g){g=f[0];sh+=`<div class="grp">${g}</div>`}sh+=`<button class="si" data-i="${i}"><span>${f[2]}</span>${f[1]}${f[6]?`<span class="lk">${f[6]}</span>`:''}</button>`});
+$('#sidein').innerHTML=sh;
+// launchpad pages of 21
+const PER=21,pages=Math.ceil(F.length/PER);let lph='';
+for(let p=0;p<pages;p++){lph+='<div class="lpg">'+F.slice(p*PER,(p+1)*PER).map((f,j)=>`<button class="app" data-i="${p*PER+j}"><i class="${f[3]}">${f[2]}</i>${f[1]}</button>`).join('')+'</div>'}
+$('#lpt').innerHTML=lph;$('#lpdots').innerHTML=Array.from({length:pages},(_,i)=>`<i data-p="${i}"></i>`).join('');
+let lpPage=0;function lpGo(p){lpPage=Math.max(0,Math.min(pages-1,p));$('#lpt').style.transform=`translateX(${-100*lpPage}%)`;$$('#lpdots i').forEach((d,i)=>d.classList.toggle('on',i===lpPage))}lpGo(0);
+window.lpGo=lpGo;$('#lpdots').onclick=e=>{if(e.target.dataset.p)lpGo(+e.target.dataset.p)};
+swipe($('#lpv'),d=>lpGo(lpPage+d));
+// cards
+const STY=[["Most popular: Clean shop","g5"],["Bold and bright","g2"],["Soft pastel","g8"],["Dark and modern","g3"],["Fresh and green","g4"],["Ocean","g1"],["Minimal","g7"]];
+$('#track').innerHTML=STY.map((s,i)=>`<div class="card${i?'':' sel'}"><div class="art ${s[1]}"></div><div class="t">${s[0]}</div><div class="d">Tap to pick. Built from a Pro prompt.</div></div>`).join('');
+$('#cdots').innerHTML=STY.map((_,i)=>`<i data-c="${i}"></i>`).join('');
+let ci=0;function slide(d){ci=Math.max(0,Math.min(STY.length-3,ci+d));$('#track').style.transform=`translateX(${-272*ci}px)`;$$('#cdots i').forEach((x,i)=>x.classList.toggle('on',i===ci))}window.slide=slide;slide(0);
+$('#cdots').onclick=e=>{if(e.target.dataset.c){ci=0;slide(+e.target.dataset.c)}};
+$$('.card').forEach(c=>c.onclick=()=>{$$('.card').forEach(x=>x.classList.remove('sel'));c.classList.add('sel')});
+swipe($('#cards'),slide);
+function swipe(el,fn){let x0=null;el.addEventListener('pointerdown',e=>x0=e.clientX);el.addEventListener('pointerup',e=>{if(x0!==null&&Math.abs(e.clientX-x0)>40)fn(e.clientX<x0?1:-1);x0=null});let t=0;el.addEventListener('wheel',e=>{if(Math.abs(e.deltaX)>20&&Date.now()-t>500){t=Date.now();fn(e.deltaX>0?1:-1)}})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAll()}if($('#lp').classList.contains('on')){if(e.key==='ArrowRight')lpGo(lpPage+1);if(e.key==='ArrowLeft')lpGo(lpPage-1);return}if(cur==='s-home'){if(e.key==='ArrowRight')slide(1);if(e.key==='ArrowLeft')slide(-1)}});
+// screens
+let cur='s-home';function show(id,crumb){closeAll();$$('.scr').forEach(s=>s.classList.toggle('on',s.id===id));cur=id;$('#crumb').textContent=crumb||''}
+function closeAll(){$('#lp').classList.remove('on');$('#rp').classList.remove('on');$('#hist').classList.remove('on')}
+$('#next1').onclick=()=>show('s-desc','Website · step 2');
+$('#go').onclick=()=>{show('s-work','Website · working');$$('#s-work .bar i').forEach((b,i)=>{b.style.width='0';setTimeout(()=>b.style.width='100%',100+i*500)});clearTimeout(window.wt);window.wt=setTimeout(()=>show('s-done','Website · done'),2300)};
+$('#showSteps').onclick=()=>{clearTimeout(window.wt);openOps()};
+$('#moreWays').onclick=()=>openPanel('Finish',[["Copy","",1],["Print","",1],["Save as PDF","",1],["Save as Word","",1],["Save to MindMedia","Done",1],["Publish","Preview first",1]]);
+function openPanel(name,rows){rows=rows||PANELS[name]||[];$('#rp').innerHTML=`<div style="display:flex;align-items:center"><h2 style="margin:0">${name}</h2><span class="sp"></span><button class="ib" onclick="document.getElementById('rp').classList.remove('on')">Done</button></div><div class="dim" style="margin:4px 0 8px">Advanced settings. Changes save by themselves.</div>`+rows.map(r=>`<div class="row"><div>${r[0]}<small>${r[1]}</small></div><div class="sw${r[2]?' on':''}" onclick="this.classList.toggle('on')"></div></div>`).join('');$('#lp').classList.remove('on');requestAnimationFrame(()=>$('#rp').classList.add('on'))}
+function openFeature(i){const f=F[i];$$('.si').forEach(s=>s.classList.toggle('on',+s.dataset.i===i));
+ if(f[4]==='ops')return openOps();if(f[4]==='panel')return openPanel(f[1]);if(f[4]==='hist'){closeAll();return $('#hist').classList.add('on')}
+ if(f[4]==='home'||f[4]==='path'){show('s-home',f[1]);$('#hello').textContent=f[4]==='path'?`Make a ${f[1].toLowerCase()}`:'What do you want to make?';return}
+ if(f[4]==='mode'){show('s-home',f[1]);$$('.runbar .seg')[0].querySelectorAll('b').forEach(b=>b.classList.toggle('on',b.textContent===f[1].replace(/s$/,'')||b.textContent===f[1]));$('#hello').textContent=f[5];return}
+ show('s-page',f[0]+' · '+f[1]);$('#pgT').textContent=f[2]+' '+f[1];$('#pgD').textContent=f[5]+(f[6]?` (Part of ${f[6]}. The page explains the plan.)`:'');$('#pgB').innerHTML='<div class="dim">This is the real 0.4.21 screen, restyled in glass. Same buttons, same data.</div>';}
+$('#sidein').onclick=e=>{const b=e.target.closest('.si');if(b)openFeature(+b.dataset.i)};
+$('#lpt').onclick=e=>{const b=e.target.closest('.app');if(b){$('#lp').classList.remove('on');openFeature(+b.dataset.i)}};
+// live ops
+const N=[["Planner",60,105,"#5e5ce6"],["Claude",200,40,"#ff9f0a"],["Groq (free)",200,170,"#30d158"],["Gemini",340,40,"#0a84ff"],["OpenRouter",340,170,"#8e8e93"],["QA check",470,105,"#bf5af2"]];
+const E=[[0,1,1],[0,2,1],[1,3,0],[2,5,1],[3,5,0],[0,4,0]];
+$('.map').innerHTML=E.map(e=>`<line x1="${N[e[0]][1]}" y1="${N[e[0]][2]}" x2="${N[e[1]][1]}" y2="${N[e[1]][2]}" class="${e[2]?'on':''}"/>`).join('')+N.map((n,i)=>`<circle cx="${n[1]}" cy="${n[2]}" r="20" fill="${n[3]}" class="${[1,2].includes(i)?'pulse':''}" opacity="${i===4?.35:1}"/><text x="${n[1]}" y="${n[2]+36}">${n[0]}${i===4?' · no credits':''}</text>`).join('');
+const T=[["running","Write the page (index.html)","Claude","code","$0.018",45,""],["review","Check quality","Groq (free)","qa","$0.000",85,'<span class="chip v">QA 9 ✓</span>'],["done","Pick colours and fonts","Groq (free)","design","$0.000",100,'<span class="chip a">re-assigned</span><span class="chip g">QA 8 ✓</span>'],["done","Plan the steps","Gemini","plan","$0.004",100,""],["waiting","Put it together","Claude","assemble","~$0.009",0,""]];
+$('#tasks').innerHTML=T.map(t=>`<div class="task"><span class="st ${t[0]}"></span><div>${t[1]} ${t[6]}<div class="dim" style="font-size:11.5px">${t[0]} · ${t[2]} <span class="chip">${t[3]}</span> 👍 👎</div></div><span class="dim">${t[4]}</span><div class="bar"><i style="width:${t[5]}%;background:${t[0]==='done'?'var(--ok)':'var(--acc)'}"></i></div></div>`).join('');
+const FEED=["16:02:11 plan ready: 5 steps, 3 AIs","16:02:12 OpenRouter 402 out of credits, dropped","16:02:13 t1 colours → OpenRouter failed, re-assigned to Groq","16:02:19 t1 QA 8/10 pass","16:02:20 t2 page → Claude started","16:02:31 file written: index.html (read back OK)","16:02:33 t3 QA → Groq started"];
+function openOps(){show('s-ops','Live Ops');$('#feed').innerHTML='';FEED.forEach((l,i)=>setTimeout(()=>{$('#feed').insertAdjacentHTML('beforeend',`<div>${l}</div>`)},i*180))}
+$('#opsPause').onclick=()=>{const p=$('#pauseEdit').style.display==='none';$('#pauseEdit').style.display=p?'block':'none';$('#opsPause').textContent=p?'Paused':'Pause';$('#opsline').textContent=p?'Mission paused · edit unfinished steps, then resume':'Mission running · step 3 of 5 · $0.031 so far · Balanced'};
+$('#resume').onclick=()=>$('#opsPause').click();
+// dock
+const D=[["Chat","💬","g1",0,()=>openFeature(0)],["Website","🌐","g1",0,()=>openFeature(14)],["Image","🖼","g8",0,()=>openFeature(15)],["Video","🎬","g2",0,()=>openFeature(16)],["Campaign","📣","g5",0,()=>openFeature(17)],["Game mod","🎮","g4",0,()=>openFeature(18)],["Projects","🗂","g4",0,()=>openFeature(2)],null,["Live Ops","📡","g2",1,openOps],["All tools","🔳","g7",1,()=>{closeAll();$('#lp').classList.add('on');lpGo(0)}],["Agents","🤖","g3",1,()=>openFeature(23)],["MindMedia","🎞","g8",0,()=>openFeature(27)],["History","🕘","g7",0,()=>{const o=$('#hist').classList.contains('on');closeAll();if(!o)$('#hist').classList.add('on')}],["Settings","⚙️","g7",1,()=>openPanel('Connections')]];
+$('#dock').innerHTML=D.map((d,i)=>d?`<button class="di ${d[2]}${d[3]?' ex':''}" data-p="${d[0]}" data-d="${i}">${d[1]}</button>`:'<div class="sep"></div>').join('');
+$('#dock').onclick=e=>{const b=e.target.closest('.di');if(!b)return;b.classList.remove('bounce');void b.offsetWidth;b.classList.add('bounce','run');D[+b.dataset.d][4]()};
+$('#dock').addEventListener('mousemove',e=>{$$('.di').forEach(b=>{if(!b.offsetParent)return;const r=b.getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(e.clientX-c),s=Math.max(0,1-d/150);const z=54+34*s;b.style.width=b.style.height=z+'px'})});
+$('#dock').addEventListener('mouseleave',()=>$$('.di').forEach(b=>b.style.width=b.style.height=''));
+// mode toggle
+function setMode(m){const ex=m==='expert';document.body.classList.toggle('expert',ex);document.body.classList.toggle('simple',!ex);document.body.classList.toggle('sideopen',ex);$('#mSimple').classList.toggle('on',!ex);$('#mExpert').classList.toggle('on',ex);$('#mSimple').setAttribute('aria-pressed',!ex);$('#mExpert').setAttribute('aria-pressed',ex);
+ const f=$('#flash');f.textContent=ex?'Expert: every tool, Live Ops and settings':'Simple: pick, describe, done';f.classList.add('on');clearTimeout(f.t);f.t=setTimeout(()=>f.classList.remove('on'),1400);if(!ex&&['s-ops','s-page'].includes(cur))show('s-home','Home');closeAll()}
+window.setMode=setMode;$('#mSimple').onclick=()=>setMode('simple');$('#mExpert').onclick=()=>setMode('expert');
+$('#sbBtn').onclick=()=>document.body.classList.toggle('sideopen');
+$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');$('#themeBtn').textContent=document.body.classList.contains('dark')?'☀':'☾'};
+$('#helpBtn').onclick=()=>openFeature(50);
+$$('[data-seg]').forEach(s=>s.onclick=e=>{if(e.target.tagName==='B'){s.querySelectorAll('b').forEach(b=>b.classList.remove('on'));e.target.classList.add('on')}});
+$('#pub').onclick=()=>openPanel('Publish',[["Preview first","Nothing goes out until you press Post",1],["Your website (Netlify)","Connected",1],["Save to MindMedia","Done",1]]);
+</script></body></html>

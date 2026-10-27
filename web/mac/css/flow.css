@@ -1,0 +1,80 @@
+/* Mac part flow (0.4.23): styles live under body[data-style="mac"] only. */
+body[data-style="mac"] #mac-root > #mac-flow { position: fixed; inset: 0; }
+body[data-style="mac"] #mac-flow { --mf-acc: #0a84ff; --mf-tx: var(--tx, #1d1d1f); --mf-dim: var(--dim, #6e6e73); --mf-glass: var(--glass2, rgba(255,255,255,.85)); --mf-line: var(--line, rgba(0,0,0,.1)); --mf-ok: #30d158; --mf-warn: #ff9f0a;
+  position: absolute; inset: 0; z-index: 5; overflow: auto; padding: 22px 34px 30px; color: var(--mf-tx); background: var(--mac-window-bg, var(--bg, #f5f6fa)); font: 14px/1.4 -apple-system, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif; }
+body[data-style="mac"].dark #mac-flow, body[data-style="mac"][data-theme="dark"] #mac-flow { --mf-tx: var(--tx, #f5f5f7); --mf-dim: var(--dim, #a1a1a6); --mf-glass: var(--glass2, rgba(44,44,52,.85)); --mf-line: var(--line, rgba(255,255,255,.12)); background: var(--mac-window-bg, var(--bg, #14151a)); }
+body[data-style="mac"] #mac-flow[hidden] { display: none; }
+body[data-style="mac"] #mac-flow.mf-off { background: transparent; pointer-events: none; overflow: visible; }
+body[data-style="mac"] #mac-flow.mf-off .mf { display: none; }
+body[data-style="mac"] #mac-flow .mf { max-width: 980px; margin: 0 auto; }
+body[data-style="mac"] #mac-flow .mf-head { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+body[data-style="mac"] #mac-flow .mf-sp { flex: 1; }
+body[data-style="mac"] #mac-flow .mf-crumb { color: var(--mf-dim); font-size: 13px; }
+body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link, body[data-style="mac"] #mac-flow .mf-return { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
+body[data-style="mac"] #mac-flow .mf-back:hover, body[data-style="mac"] #mac-flow .mf-link:hover { background: rgba(120,120,128,.15); }
+body[data-style="mac"] #mac-flow .mf-return { position: fixed; left: 24px; bottom: 120px; pointer-events: auto; background: var(--mf-glass); border: 1px solid var(--mf-line); box-shadow: 0 6px 20px rgba(0,0,0,.18); font-weight: 600; z-index: 6; }
+body[data-style="mac"] #mac-flow .mf-title { font-size: 30px; margin: 6px 0 4px; letter-spacing: -.02em; outline: 0; }
+body[data-style="mac"] #mac-flow .mf-sub { color: var(--mf-dim); margin: 0 0 6px; font-size: 15px; }
+body[data-style="mac"] #mac-flow .mf-note { margin: 8px 0; padding: 8px 12px; border-radius: 10px; background: rgba(255,159,10,.15); }
+body[data-style="mac"] #mac-flow .mf-steps { display: flex; gap: 8px; margin: 8px 0 18px; padding: 0; list-style: none; flex-wrap: wrap; }
+body[data-style="mac"] #mac-flow .mf-steps li { font-size: 13px; padding: 4px 12px; border-radius: 999px; background: rgba(120,120,128,.15); color: var(--mf-dim); }
+body[data-style="mac"] #mac-flow .mf-steps li.on { background: var(--mf-acc); color: #fff; }
+body[data-style="mac"] #mac-flow .mf-art { display: block; height: 130px; }
+body[data-style="mac"] #mac-flow .g1 { background: linear-gradient(135deg,#5ac8fa,#0a84ff); }
+body[data-style="mac"] #mac-flow .g2 { background: linear-gradient(135deg,#ff9f0a,#ff375f); }
+body[data-style="mac"] #mac-flow .g5 { background: linear-gradient(135deg,#ffd60a,#ff9f0a); }
+body[data-style="mac"] #mac-flow .g6 { background: linear-gradient(135deg,#64d2ff,#30d158); }
+body[data-style="mac"] #mac-flow .g8 { background: linear-gradient(135deg,#ff375f,#bf5af2); }
+body[data-style="mac"] #mac-flow .mf-paths, body[data-style="mac"] #mac-flow .mf-cards { display: flex; gap: 20px; overflow-x: auto; padding: 10px 6px 14px; scroll-snap-type: x mandatory; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
+body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { flex: none; width: 230px; min-height: 230px; padding: 0 0 12px; text-align: left; border-radius: 18px; background: var(--mf-glass); border: 1px solid var(--mf-line); box-shadow: 0 10px 30px rgba(0,0,0,.12); overflow: hidden; cursor: pointer; scroll-snap-align: start; transition: transform .3s; color: inherit; font: inherit; position: relative; display: block; }
+body[data-style="mac"] #mac-flow .mf-path:hover, body[data-style="mac"] #mac-flow .mf-card:hover { transform: translateY(-4px); }
+body[data-style="mac"] #mac-flow .mf-path b, body[data-style="mac"] #mac-flow .mf-card b { display: block; padding: 10px 14px 2px; font-size: 17px; }
+body[data-style="mac"] #mac-flow .mf-path small, body[data-style="mac"] #mac-flow .mf-card small { display: block; padding: 0 14px; color: var(--mf-dim); font-size: 13px; }
+body[data-style="mac"] #mac-flow .mf-card.sel { outline: 3px solid var(--mf-acc); }
+body[data-style="mac"] #mac-flow .mf-pop { position: absolute; top: 10px; left: 10px; font-style: normal; font-size: 12px; font-weight: 600; background: #fff; color: #1d1d1f; padding: 2px 9px; border-radius: 999px; }
+body[data-style="mac"] #mac-flow .mf-path:focus-visible, body[data-style="mac"] #mac-flow .mf-card:focus-visible, body[data-style="mac"] #mac-flow .mf-go:focus-visible, body[data-style="mac"] #mac-flow .mf-soft:focus-visible, body[data-style="mac"] #mac-flow .mf-finish:focus-visible, body[data-style="mac"] #mac-flow .mf-chip:focus-visible, body[data-style="mac"] #mac-flow .mf-back:focus-visible, body[data-style="mac"] #mac-flow .mf-link:focus-visible, body[data-style="mac"] #mac-flow .mf-paths:focus-visible { outline: 3px solid var(--mf-acc); outline-offset: 2px; }
+body[data-style="mac"] #mac-flow .mf-box { display: flex; gap: 10px; align-items: center; background: var(--mf-glass); border: 1px solid var(--mf-line); border-radius: 16px; padding: 8px 8px 8px 16px; margin-top: 14px; }
+body[data-style="mac"] #mac-flow .mf-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 17px; color: inherit; outline: 0; padding: 8px 0; }
+body[data-style="mac"] #mac-flow .mf-cost { color: var(--mf-dim); font-size: 14px; white-space: nowrap; }
+body[data-style="mac"] #mac-flow .mf-go, body[data-style="mac"] #mac-flow .mf-finish { border: 0; background: var(--mf-acc); color: #fff; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; min-height: 44px; }
+body[data-style="mac"] #mac-flow .mf-go:disabled { opacity: .45; cursor: default; }
+body[data-style="mac"] #mac-flow .mf-finish { width: 100%; font-size: 18px; padding: 16px; }
+body[data-style="mac"] #mac-flow .mf-soft { border: 0; background: rgba(120,120,128,.18); color: inherit; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 500; cursor: pointer; min-height: 44px; }
+body[data-style="mac"] #mac-flow .mf-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+body[data-style="mac"] #mac-flow .mf-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+body[data-style="mac"] #mac-flow .mf-chips-h { color: var(--mf-dim); font-size: 13px; }
+body[data-style="mac"] #mac-flow .mf-chip { border: 0; background: rgba(120,120,128,.15); color: inherit; font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 36px; }
+body[data-style="mac"] #mac-flow .mf-photos { margin-top: 18px; }
+body[data-style="mac"] #mac-flow .mf-photos-h { color: var(--mf-dim); margin-right: 8px; }
+body[data-style="mac"] #mac-flow .mf-strip { min-height: 4px; }
+body[data-style="mac"] #mac-flow .mf-bars { max-width: 580px; margin-top: 14px; }
+body[data-style="mac"] #mac-flow .mf-bar-row { margin: 16px 0; font-size: 15px; }
+body[data-style="mac"] #mac-flow .mf-bar { height: 10px; border-radius: 5px; background: rgba(120,120,128,.22); overflow: hidden; margin-top: 6px; }
+body[data-style="mac"] #mac-flow .mf-bar i { display: block; height: 100%; border-radius: 5px; background: var(--mf-acc); transition: width .5s ease; }
+body[data-style="mac"] #mac-flow .mf-ask { margin: 14px 0; padding: 12px 16px; border-radius: 12px; background: var(--mf-glass); border: 1px solid var(--mf-line); max-width: 580px; }
+body[data-style="mac"] #mac-flow .mf-result-wrap { display: flex; gap: 24px; align-items: flex-start; margin-top: 8px; flex-wrap: wrap; }
+body[data-style="mac"] #mac-flow .mf-result { flex: 1 1 420px; min-width: 0; }
+body[data-style="mac"] #mac-flow .mf-side { flex: 0 0 270px; display: flex; flex-direction: column; gap: 10px; }
+body[data-style="mac"] #mac-flow .mf-badge { border: 2px solid var(--mf-warn); background: rgba(255,159,10,.14); border-radius: 12px; padding: 10px 12px; }
+body[data-style="mac"] #mac-flow .mf-vers { display: flex; gap: 6px; flex-wrap: wrap; }
+body[data-style="mac"] #mac-flow .mf-ver { border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; background: rgba(120,120,128,.18); color: inherit; cursor: pointer; }
+body[data-style="mac"] #mac-flow .mf-ver.on { background: var(--mf-acc); color: #fff; }
+body[data-style="mac"] #mac-flow .mf-meta { margin: 0; color: var(--mf-dim); font-size: 13px; }
+/* the borrowed result: show the picture, the page or the words big, and keep only the helpers a person needs */
+body[data-style="mac"] #mac-flow #simple-answer { display: block !important; background: transparent; border: 0; box-shadow: none; padding: 0; margin: 0; max-width: none; width: auto; }
+body[data-style="mac"] #mac-flow #simple-answer > h3, body[data-style="mac"] #mac-flow #simple-answer #copy, body[data-style="mac"] #mac-flow #simple-answer #out-head { display: none; }
+body[data-style="mac"] #mac-flow #simple-answer .mk-head, body[data-style="mac"] #mac-flow #simple-answer .mk-how, body[data-style="mac"] #mac-flow #simple-answer .mk-link, body[data-style="mac"] #mac-flow #simple-answer .rh-main-row, body[data-style="mac"] #mac-flow #simple-answer .rh-more, body[data-style="mac"] #mac-flow #simple-answer .rh-card .rh-main-row, body[data-style="mac"] #mac-flow #simple-answer .rh-card > .rh-more { display: none; }
+body[data-style="mac"] #mac-flow #simple-answer .mk-tile { border: 0; padding: 0; background: transparent; }
+body[data-style="mac"] #mac-flow #simple-answer .mk-tile[hidden] { display: none; }
+body[data-style="mac"] #mac-flow #simple-answer .mk-media img, body[data-style="mac"] #mac-flow #simple-answer .mk-media video { max-height: 62vh; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+body[data-style="mac"] #mac-flow #simple-answer .rh-card { border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.15); }
+body[data-style="mac"] #mac-flow #simple-answer .rh-card iframe.rh-site { height: 52vh; }
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-flow { padding: 14px 16px 24px; }
+  body[data-style="mac"] #mac-flow .mf-side { flex-basis: 100%; }
+  body[data-style="mac"] #mac-flow .mf-title { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card, body[data-style="mac"] #mac-flow .mf-bar i { transition: none; }
+}
+body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }

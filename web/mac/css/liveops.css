@@ -1,0 +1,227 @@
+/* Mac part liveops (0.4.23): the Simple "AIs working" card and the Expert Live Ops screen.
+   Every rule starts with body[data-style="mac"], so nothing changes while the Mac style is off. */
+
+/* ---- Simple card: 3 plain bars, one line, one big "Show steps" link ---- */
+body[data-style="mac"] .mac-work {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  padding: 16px;
+  background: var(--panel, #111827cc);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 14px);
+}
+body[data-style="mac"] .mac-work-line {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+body[data-style="mac"] .mac-work-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+body[data-style="mac"] .mac-work-row {
+  display: grid;
+  gap: 5px;
+}
+body[data-style="mac"] .mac-work-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+body[data-style="mac"] .mac-work-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(120, 120, 128, 0.25);
+  overflow: hidden;
+}
+body[data-style="mac"] .mac-work-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--accent, #22d3ee);
+  transition: width 1.6s ease;
+}
+body[data-style="mac"] .mac-work-steps {
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2, #273449);
+  background: var(--card-bg, #0a0f18);
+  color: var(--accent, #22d3ee);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+body[data-style="mac"] .mac-work-steps:hover { border-color: var(--accent, #22d3ee); }
+body[data-style="mac"] .mac-work-steps:focus-visible,
+body[data-style="mac"] .mac-lo-btn:focus-visible,
+body[data-style="mac"] .mac-lo-feedbtn:focus-visible,
+body[data-style="mac"] .mac-lo-title:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--accent, #22d3ee));
+  outline-offset: 2px;
+}
+
+/* ---- Expert Live Ops screen ---- */
+body[data-style="mac"] .mac-lo {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 22px 24px;
+  overflow: auto;
+  background: var(--bg-2, #0e1420);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+body[data-style="mac"] .mac-lo-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+body[data-style="mac"] .mac-lo-title {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+body[data-style="mac"] .mac-lo-line {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+body[data-style="mac"] .mac-lo-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+body[data-style="mac"] .mac-lo-btn {
+  min-height: 36px;
+  padding: 8px 15px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2, #273449);
+  background: var(--card-bg, #0a0f18);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+body[data-style="mac"] .mac-lo-btn:hover { border-color: var(--accent, #22d3ee); }
+body[data-style="mac"] .mac-lo-btn[hidden] { display: none; }
+/* lead integration fix: .mac-lo sets display:flex, so the closed screen must still hide */
+body[data-style="mac"] .mac-lo[hidden] { display: none; }
+body[data-style="mac"] .mac-lo-danger { color: var(--red); }
+body[data-style="mac"] .mac-lo-danger:hover { border-color: var(--red); }
+body[data-style="mac"] .mac-lo-close { margin-left: 4px; }
+
+body[data-style="mac"] .mac-lo-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+body[data-style="mac"] .mac-lo-cols:has(.mac-lo-feed.closed) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+body[data-style="mac"] .mac-lo-main {
+  min-width: 0;
+  overflow: auto;
+}
+body[data-style="mac"] .mac-lo-hint {
+  margin: 0;
+  color: var(--muted);
+}
+body[data-style="mac"] .mac-lo-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+body[data-style="mac"] .mac-lo-feed.closed { padding-left: 0; border-left: 0; }
+body[data-style="mac"] .mac-lo-feedbtn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card-bg, #0a0f18);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+body[data-style="mac"] .mac-lo-feedbox {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+body[data-style="mac"] .mac-lo-feed.closed .mac-lo-feedbox { display: none; }
+
+/* The live feed rides along in its own column, in the screen's own flow (0.4.21 made it a fixed overlay). */
+body[data-style="mac"] .mac-lo-feedbox .feed,
+body[data-style="mac"] .mac-lo-feedbox .feed.open {
+  display: flex;
+  position: static;
+  inset: auto;
+  grid-area: unset;
+  width: auto;
+  height: auto;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-left: 0;
+  background: transparent;
+}
+/* Simple keeps the feed hidden (FEATURE-MAP.md section 3). */
+body[data-style="mac"][data-ui="simple"] .mac-lo-feed { display: none; }
+body[data-style="mac"][data-ui="simple"] .mac-lo-cols { grid-template-columns: minmax(0, 1fr); }
+
+/* The adopted panel no longer sits under .cmd, so its layout rules come from here. */
+body[data-style="mac"] .mac-lo #ops-panel {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  backdrop-filter: none;
+}
+body[data-style="mac"] .mac-lo #ops-panel.idle {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+body[data-style="mac"] .mac-lo #ops-panel .task-answer .md,
+body[data-style="mac"] .mac-lo #ops-panel .ans .body {
+  max-height: none;
+  overflow: visible;
+}
+body[data-style="mac"] .mac-lo #ops-panel .council-cols {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  overflow: visible;
+}
+body[data-style="mac"] .mac-lo #ops-panel .lv-ops-foot { margin-top: 10px; }
+/* The Mac header carries Pause, Resume and Stop; the app's own buttons stay wired but out of sight. */
+body[data-style="mac"] .mac-lo #ops-panel h3 #ops-pause,
+body[data-style="mac"] .mac-lo #ops-panel h3 #ops-resume,
+body[data-style="mac"] .mac-lo #ops-panel h3 #abort { display: none; }
+body[data-style="mac"] .mac-lo .graph-wrap { max-height: 340px; }
+
+@media (max-width: 900px) {
+  body[data-style="mac"] .mac-lo-cols { grid-template-columns: minmax(0, 1fr); }
+  body[data-style="mac"] .mac-lo-feed { padding-left: 0; border-left: 0; }
+}
