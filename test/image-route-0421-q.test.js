@@ -94,3 +94,17 @@ test("diskLine: exists with bytes, or missing", () => {
   assert.equal(L.diskLine(f), "x.txt: exists, 5 bytes");
   assert.equal(L.diskLine(path.join(DIR, "nope.html")), "nope.html: missing");
 });
+
+// ---- item 2: no web search for drawing and page-build jobs ----
+const G = await import("../server/step-guard.js");
+test("a drawing job or a page build does not search unless the person asked", () => {
+  assert.equal(G.wantsSearch(GOAL), false);
+  assert.equal(G.wantsSearch("Build a one-page landing page for our latest listings, current prices and competitors, save as index.html"), false);
+  assert.equal(G.wantsSearch("Make a poster for today's open house"), false);
+  assert.equal(G.wantsSearch("Build a landing page for Meldmind. Search the web for the best layouts first."), true);
+  assert.equal(G.wantsSearch("Design a banner, look up our competitors' colors"), true);
+  // other jobs keep their old behavior
+  assert.equal(G.wantsSearch("What is the latest news on mortgage rates?"), true);
+  assert.equal(G.wantsSearch("Write a welcome email"), false);
+  assert.equal(G.isDrawingOrPageJob("Create a website for my bakery"), true);
+});

@@ -180,8 +180,14 @@ export function judgeStep(text, { goal, title, instructions, deliverable, contex
 
 // ---------- search leaks ----------
 const SEARCH_ASK = /\b(search|google|look\s*up|look it up|find online|on the web|web search|online|browse|latest|current(ly)?|news|trending|today'?s|this week|right now|up[- ]to[- ]date|competitors?|market research|statistics|stats|price of|how much (does|is)|who (is|are) the (best|top)|cite|sources?|with links?)\b/i;
+// 0.4.21 (dogfood 13): a drawing job (quote card, banner, poster) or a page build searches only when the person says so.
+// "latest", "online", "competitors" in the brief of a landing page are part of the page's words, not a search request.
+const SEARCH_SAID = /\b(search(\s+the)?\s+(web|online|internet)|web search|search for|google|look\s*up|look it up|find online|browse|with sources|cite)\b/i;
+const DRAW_OR_PAGE = /\b(?:build|make|create|design|write|draw|generate|produce|render)\b[^.\n]{0,60}?\b(?:landing\s*page|web\s*page|website|home\s*page|one[- ]page|single[- ]page|html\s*page|quote\s*card|text\s*card|social\s*card|banner|poster|flat\s*graphic|graphic|thumbnail)\b|\bindex\.html\b/i;
+/** A pure drawing job or page build. */
+export function isDrawingOrPageJob(goal) { return DRAW_OR_PAGE.test(String(goal || "")); }
 /** Did the person ask for live information? Only then does a mission search the web on its own. */
-export function wantsSearch(goal) { return SEARCH_ASK.test(String(goal || "")); }
+export function wantsSearch(goal) { return isDrawingOrPageJob(goal) ? SEARCH_SAID.test(String(goal || "")) : SEARCH_ASK.test(String(goal || "")); }
 
 const LEAK_SENTENCE = /[^.!?\n]*\b(supplied|provided|given|above)\s+(search\s+)?(results|sources)\b[^.!?\n]*[.!?]?/gi;
 /** Remove "[1]" / "[1][4]" / "[1, 4]" citations and sentences about "the supplied search results". */
