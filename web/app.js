@@ -2024,6 +2024,8 @@ async function sendOrders() {
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
+  // The words are on their way, so the suggestion list under the box closes (0.4.22 panel row 9).
+  window.CC.promptSuggest?.hide();
   const simple = S.uiMode === "simple";
   // 0.4.21: Auto team is the default in Simple and Expert. It sends like Single unless the send check says the job
   // needs a Mission or a Council. A person who picked a mode keeps it.

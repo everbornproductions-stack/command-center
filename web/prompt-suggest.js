@@ -1,3 +1,4 @@
+import { isLocked } from "./tier-lock.js";
 // What happens to the chat box when a suggestion is picked (0.4.17). Pure: no DOM, so the tests
 // can call it. The person's words are never thrown away: a prompt's blank ([topic], [subject]...)
 // is filled from what they typed, or the prompt is added after their words. Undo puts back the
@@ -32,6 +33,12 @@ export function rowsFor(data) {
   if (data?.action) rows.push({ type: "action", label: data.action.label });
   for (const item of (data?.items || []).slice(0, MAX_ROWS)) rows.push({ type: "item", label: item.title, tag: sourceLabel(item), item });
   return rows;
+}
+
+// 0.4.22 (panel row 9): a Pro or Industry prompt is not offered to a Free viewer, so the list never teases
+// something that then hits a lock. The action row and the weekly prompts stay.
+export function rowsForTier(data, tier) {
+  return rowsFor(data).filter((r) => r.type !== "item" || !(["Pro", "Industry"].includes(r.tag) && isLocked("pro", tier)));
 }
 
 const SUBJECT_KEYS = ["idea", "topic", "subject", "goal", "product", "offer", "business", "task", "situation", "brief", "notes", "text"];
