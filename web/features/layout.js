@@ -104,7 +104,7 @@ function applySide() {
   const cur = s.view === "command" && !s.openProject ? "new" : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : s.view === "ai-news" ? "news" : "";
   const newsOn = (() => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } })();
   const ni = side.querySelector("#side-news"); if (ni) ni.hidden = !newsOn;
-  side.querySelectorAll("[data-side]").forEach((el) => { if (el.dataset.side !== "create") el.classList.toggle("active", el.dataset.side === cur); });
+  side.querySelectorAll("[data-side]").forEach((el) => { if (el.dataset.side === "create") return; const on = el.dataset.side === cur; el.classList.toggle("active", on); if (on) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current"); });
   paintRecent();
 }
 
