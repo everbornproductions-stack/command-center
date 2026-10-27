@@ -786,8 +786,8 @@ function setUiMode(mode, opts = {}) {
   const prev = S.uiMode;
   const firstExpert = mode === "expert" && prev !== "expert" && !S.settings?.expertConfirmed;
   if (firstExpert && !opts.confirmed && !opts.fromSetup) {
-    askConfirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?").then((yes) => { if (yes) setUiMode(mode, { ...opts, confirmed: true }); });
-    return;
+    // Native confirm works in the desktop app (only window.prompt does not), and 8 browser tests drive this switch through it.
+    if (!confirm("Expert shows every menu, councils, missions, and settings. You can switch back any time. Continue?")) return;
   }
   S.uiMode = mode;
   S.askMode = false;
