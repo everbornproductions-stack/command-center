@@ -112,10 +112,50 @@ test("the run prompt names the schedule, the plain trigger, the next run and whe
   S.deleteSchedule(schedule.id);
 });
 
-test("source: the schedule screen shows Saved to and Not saved for a run", () => {
+const DOGFOOD = "Set up a small helper agent called 'Everborn Monday ideas' that runs every Monday at 9 AM and writes 3 short Instagram post ideas for Everborn Productions (a small studio making cinematic listing videos for real-estate agents and mortgage brokers) into a note saved in my project. It must not send any email, text or post anything anywhere. Run it once now so I can see the first result, and tell me where the note is saved and when it will run next.";
+
+test("weeklyPrompt keeps the job and drops the setup clauses (dogfood 11 sentence)", () => {
+  const w = S.weeklyPrompt(DOGFOOD);
+  assert.doesNotMatch(w, /set up/i, w);
+  assert.doesNotMatch(w, /every Monday/i, w);
+  assert.doesNotMatch(w, /run it once/i, w);
+  assert.doesNotMatch(w, /must not send/i, w);
+  assert.doesNotMatch(w, /tell me where/i, w);
+  assert.match(w, /3 short Instagram post ideas/);
+  assert.match(w, /Everborn Productions/);
+  assert.match(w, /into a note saved in my project/);
+  assert.ok(w.length < DOGFOOD.length / 2, `short weekly job: ${w.length} of ${DOGFOOD.length}`);
+  assert.equal(S.weeklyPrompt("Summarise the week."), "Summarise the week.", "a normal request is left alone");
+  assert.equal(S.weeklyPrompt(""), "");
+  assert.equal(S.weeklyPrompt("  Write 3 ideas.  "), "Write 3 ideas.");
+});
+
+test("create and edit keep the setup sentence and a short weekly prompt for each run", async () => {
+  const { schedule } = S.createSchedule(cron({ name: "Everborn Monday ideas", target: { kind: "mission", text: DOGFOOD, projectId: "my-project" } }));
+  assert.equal(schedule.target.setupText, DOGFOOD);
+  assert.equal(schedule.target.runText, S.weeklyPrompt(DOGFOOD));
+  const r = S.trigger(schedule.id, { source: "manual" });
+  await S.idle();
+  const p = calls.at(-1).prompt;
+  assert.match(p, /^Writes 3 short Instagram post ideas/);
+  assert.doesNotMatch(p, /Set up a small helper agent/);
+  // a plain request is not split, and the form can set the weekly words by hand
+  const plain = S.createSchedule(cron({ name: "Plain" }));
+  assert.equal(plain.schedule.target.runText, "Summarise the week.");
+  assert.equal(plain.schedule.target.setupText, null);
+  S.deleteSchedule(plain.schedule.id);
+  S.updateSchedule(schedule.id, cron({ name: "Everborn Monday ideas", target: { kind: "mission", text: DOGFOOD, runText: "Write 3 short Everborn post ideas.", projectId: "my-project" } }));
+  assert.equal(S.getSchedule(schedule.id).target.runText, "Write 3 short Everborn post ideas.");
+  assert.equal(S.getSchedule(schedule.id).target.setupText, DOGFOOD);
+  S.deleteSchedule(schedule.id);
+});
+
+test("source: the schedule screen shows where a note went and has the weekly prompt field", () => {
   const src = read("web/features/schedules.js");
   assert.match(src, /Saved to \$\{esc\(r\.savedPath\)\}/);
   assert.match(src, /Not saved: \$\{esc\(r\.saveError\)\}/);
   assert.match(src, /value="note"[^>]*>Save as a note in the project \(and MindMedia\)</);
+  assert.match(src, /What it does each time/);
+  assert.match(src, /id="sf-runtext"/);
   assert.equal(/[–—]/.test(src), false, "no dashes in the schedule screen");
 });

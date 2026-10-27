@@ -103,6 +103,8 @@ function form(s) {
   const kind0 = st.data.agents.length ? "agent" : "chat";
   // A new Mission or Agent schedule saves its answer as a note; a new Chat keeps it here.
   const e = s || { name: "", target: { kind: kind0, text: "", agentId: st.data.agents[0]?.id || "" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, capUsd: st.data.defaultCap, after: { action: kind0 === "chat" ? "none" : "note" } };
+  // The weekly job is only worth its own field when it is shorter than the whole request.
+  const showRun = !s || !!(e.target.runText && e.target.runText !== e.target.text);
   const projects = S().projects || [];
   return `<div class="panel" id="sch-form"><h3>${s ? `Edit ${esc(s.name)}` : "New schedule"}</h3>
     <label class="small">Name<input type="text" id="sf-name" value="${esc(e.name)}" maxlength="80"></label>
@@ -111,7 +113,8 @@ function form(s) {
       <label class="small" id="sf-agent-wrap">Agent <select id="sf-agent">${st.data.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === e.target.agentId ? "selected" : ""}>${esc(a.name)}</option>`).join("") || `<option value="">No agents yet (Agents tab)</option>`}</select></label>
       <label class="small">Project <select id="sf-proj"><option value="">No project</option>${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === e.target.projectId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
     </div>
-    <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do each time? (for an agent this is optional)">${esc(e.target.text || "")}</textarea>
+    <textarea id="sf-text" rows="3" style="width:100%;margin-top:8px" placeholder="What should it do? Type the whole request, setup words and all. (For an agent this is optional.)">${esc(e.target.text || "")}</textarea>
+    ${showRun ? `<label class="small" style="display:block;margin-top:8px">What it does each time<textarea id="sf-runtext" rows="2" style="width:100%" placeholder="The job it repeats on every run. Leave empty and Meldmind works it out from the text above.">${esc(e.target.runText || "")}</textarea></label>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Trigger <select id="sf-trig">${Object.entries(triggers()).map(([k, v]) => `<option value="${k}" ${e.trigger.type === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <span id="sf-cron-wrap">${whenHtml(e.trigger.cron || "0 17 * * 1-5")}</span>
@@ -177,7 +180,7 @@ function wireForm(view) {
     const after = $("#sf-after").value;
     const body = {
       name: $("#sf-name").value,
-      target: { kind: $("#sf-kind").value, agentId: $("#sf-agent").value, text: $("#sf-text").value, projectId: $("#sf-proj").value || null },
+      target: { kind: $("#sf-kind").value, agentId: $("#sf-agent").value, text: $("#sf-text").value, runText: $("#sf-runtext")?.value || "", projectId: $("#sf-proj").value || null },
       trigger: t === "cron" ? { type: t, cron: readWhen(view) } : t === "folder" ? { type: t, folder: $("#sf-folder").value, pattern: $("#sf-pattern").value } : { type: t },
       capUsd: Number($("#sf-cap").value),
       after: after === "webhook" ? { action: "webhook", url: $("#sf-url").value } : { action: after === "note" ? "note" : "none" },

@@ -138,6 +138,44 @@ function checkUrl(u) {
   return url.toString();
 }
 
+// ---------- splitting the setup sentence from the weekly job (0.4.21, dogfood 11) ----------
+// The sentence that made the schedule is a one-off: "Set up a small helper agent ... that runs every Monday
+// at 9 AM and writes 3 ideas ... Run it once now ...". weeklyPrompt keeps only the part that repeats each run.
+// It is pure: the same text always gives the same answer, and a normal request comes back unchanged.
+const SETUP_SENCE_DROP = [
+  /^\s*(?:run it once|run it now|run this once|run it again)\b/i,   // "Run it once now so I can see..."
+  /^\s*(?:tell me|let me know)\b/i,                                  // "... and tell me where the note is saved"
+  /\b(?:never send|must not send|do not send|don'?t send|not send any|no email)\b/i, // the "never send" rule
+];
+const SETUP_CLAUSE = [
+  /^\s*set up\b[\s\S]*?\b(?:that|which)\s+runs?\b\s*/i,             // "Set up a helper agent ... that runs "
+  /^\s*(?:set up|setup)\b\s*/i,                                      // the setup words on their own
+  /\bevery\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekdays?|days?|weeks?|months?|years?)\b(?:\s+at\s+[\d:]+\s*(?:am|pm)?)?(?:\s+and)?/gi, // "every Monday at 9 AM and "
+  /\b(?:that|which)\s+runs?\b[^,.;]*/gi,
+  /\brun it (?:once )?now\b/i,
+  /\bsave (?:it|this|the result) as a note\b\s*/gi,
+  /\bnever send\b[^.]*?\s*/gi,
+];
+export function weeklyPrompt(text) {
+  const raw = String(text || "").replace(/\r/g, "").trim();
+  if (!raw) return "";
+  let changed = false;
+  const kept = [];
+  for (const one of raw.split(/(?<=[.!?])\s+/)) {
+    if (SETUP_SENCE_DROP.some((re) => re.test(one))) { changed = true; continue; }
+    let t = one;
+    for (const re of SETUP_CLAUSE) { const before = t; t = t.replace(re, " "); if (t !== before) changed = true; }
+    t = t.replace(/\s{2,}/g, " ").trim();
+    if (t) kept.push(t);
+  }
+  if (!changed || !kept.length) return raw;
+  let out = kept.join(" ").trim();
+  for (let i = 0; i < 3; i++) out = out.replace(/^\s*(?:and|that|which|so|then|also|but)\s+/i, "").replace(/^[\s,;:.]+/, "").trim();
+  out = out.replace(/\s+([,.;:])/g, "$1").trim();
+  if (!out) return raw;
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 // ---------- the documents ----------
 const all = () => doc(DOC, () => ({ list: [] }));
 const save = (d) => putDoc(DOC, d);
@@ -178,6 +216,10 @@ function clean(input = {}, prev = null, opts = {}) {
     if (opts.agentExists && !opts.agentExists(target.agentId)) throw err(404, "That agent does not exist any more.");
   } else if (!target.text) throw err(400, kind === "mission" ? "Type the mission goal." : "Type what the chat should do.");
   if (kind === "mission") target.mode = normalizeMode(t.mode) || "balanced";
+  // The weekly job, kept short: a setup sentence is split here, and the person can edit it in the form.
+  const runText = str(t.runText, LIMITS.text) || weeklyPrompt(target.text);
+  target.runText = runText;
+  target.setupText = runText && runText !== target.text ? target.text : null;
   const tr = input.trigger || prev?.trigger || {};
   if (!TRIGGERS.includes(tr.type)) throw err(400, "Pick a trigger: a schedule, a webhook or a watched folder.");
   const trigger = { type: tr.type };
@@ -379,7 +421,7 @@ function whereWords(s) {
 }
 
 function promptFor(s, r) {
-  const head = s.target.kind === "agent" ? (s.target.text || "Do your scheduled job.") : s.target.text;
+  const head = s.target.runText || s.target.text || (s.target.kind === "agent" ? "Do your scheduled job." : "");
   const why = r.source === "cron" ? `This run was started by its schedule (${s.trigger.cron}) at ${new Date(r.slot || r.at).toLocaleString()}.`
     : r.source === "webhook" ? "This run was started by a webhook."
     : r.source === "folder" ? `This run was started by a new file in the watched folder: ${r.file?.name}.`
