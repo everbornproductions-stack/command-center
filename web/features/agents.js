@@ -243,7 +243,7 @@ function createBox() {
     <label class="small" style="display:block;margin-top:6px">What it does <textarea id="ac-job" rows="3" style="width:100%" placeholder="In plain words: what it does each time, how it answers, what it must never say"></textarea></label>
     <div class="small" style="margin-top:8px">When it runs</div>
     <select id="ac-when" aria-label="When it runs" style="width:100%"><option value="">Off (I run it myself)</option><option value="on">On a schedule</option></select>
-    <div id="ac-when-box" style="display:none;margin-top:8px">${whenHtml("0 9 * * 1-5")}</div>
+    <div id="ac-when-box" style="display:none;margin-top:8px">${whenHtml("0 9 * * 1", true)}</div>
     <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap;align-items:center">
       <label class="small">Monthly spend limit ($) <input type="number" id="ac-cap" min="0.01" step="0.01" value="1" style="width:90px"></label>
       <label class="row small" style="gap:6px"><input type="checkbox" id="ac-nosend" checked> Never send or post</label>
