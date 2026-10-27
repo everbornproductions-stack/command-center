@@ -142,7 +142,7 @@ function checkUrl(u) {
 // The sentence that made the schedule is a one-off: "Set up a small helper agent ... that runs every Monday
 // at 9 AM and writes 3 ideas ... Run it once now ...". weeklyPrompt keeps only the part that repeats each run.
 // It is pure: the same text always gives the same answer, and a normal request comes back unchanged.
-const SETUP_SENCE_DROP = [
+const SETUP_SENTENCE_DROP = [
   /^\s*(?:run it once|run it now|run this once|run it again)\b/i,   // "Run it once now so I can see..."
   /^\s*(?:tell me|let me know)\b/i,                                  // "... and tell me where the note is saved"
   /\b(?:never send|must not send|do not send|don'?t send|not send any|no email)\b/i, // the "never send" rule
@@ -162,7 +162,7 @@ export function weeklyPrompt(text) {
   let changed = false;
   const kept = [];
   for (const one of raw.split(/(?<=[.!?])\s+/)) {
-    if (SETUP_SENCE_DROP.some((re) => re.test(one))) { changed = true; continue; }
+    if (SETUP_SENTENCE_DROP.some((re) => re.test(one))) { changed = true; continue; }
     let t = one;
     for (const re of SETUP_CLAUSE) { const before = t; t = t.replace(re, " "); if (t !== before) changed = true; }
     t = t.replace(/\s{2,}/g, " ").trim();

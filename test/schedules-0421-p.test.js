@@ -165,8 +165,10 @@ test("source: a finished run row mounts the same rating row chat has", () => {
   assert.match(src, /\["queued", "running"\]\.includes\(r\.status\)/, "only a finished run is rated");
   assert.match(src, /byKind\("deliverable"\)/, "the ratings feature is looked up like app.js does");
   assert.match(src, /f\.id === "ratings"/);
-  assert.match(src, /await rated\.deliverable\.render\(box, runForRatings\(m\)\)/);
-  assert.match(src, /api\(`\/missions\/\$\{encodeURIComponent\(box\.dataset\.mission\)\}`\)/, "fetched by the run's mission id");
+  assert.match(src, /await rated\.deliverable\.render\(box, run\)/);
+  assert.match(src, /runForRatings\(m\)/);
+  assert.match(src, /const mid = box\.dataset\.mission/);
+  assert.match(src, /api\(`\/missions\/\$\{encodeURIComponent\(mid\)\}`\)/, "fetched by the run's mission id");
 });
 
 test("source: the schedule screen shows where a note went and has the weekly prompt field", () => {

@@ -88,6 +88,7 @@ function runForRatings(m) {
   else { run.mission = m; run.agents.x = { provider: m.provider, model: m.model, text: m.deliverable, done: true, role: "answer" }; run.primary = "x"; }
   return run;
 }
+const ratingRuns = new Map(); // mission id -> the run shape the rating row wants (a finished run does not change)
 async function mountRatings(view) {
   const boxes = [...view.querySelectorAll("[data-rate]")];
   if (!boxes.length) return;
@@ -96,9 +97,15 @@ async function mountRatings(view) {
   if (!rated?.deliverable?.render) return;
   for (const box of boxes) {
     try {
-      const m = await api(`/missions/${encodeURIComponent(box.dataset.mission)}`);
-      if (!m?.id) continue;
-      await rated.deliverable.render(box, runForRatings(m));
+      const mid = box.dataset.mission;
+      let run = ratingRuns.get(mid);
+      if (!run) {
+        const m = await api(`/missions/${encodeURIComponent(mid)}`);
+        if (!m?.id) continue;
+        run = runForRatings(m);
+        ratingRuns.set(mid, run);
+      }
+      await rated.deliverable.render(box, run);
     } catch { /* this run keeps its row without a rating row */ }
   }
 }
@@ -270,7 +277,7 @@ async function renderTab(view) {
   </div>`;
   wireForm(view);
   mountTakeover(view);
-  mountRatings(view);
+  mountRatings(view).catch(() => {});
   view.querySelector("#sch-token-ok")?.addEventListener("click", () => { st.token = null; renderTab(view); });
   const act = (sel, fn) => view.querySelectorAll(sel).forEach((b) => b.addEventListener("click", async () => { try { await fn(b); } catch (e) { toast(e.message, true); } }));
   act("[data-run]", async (b) => { await api(`/schedules/${b.dataset.run}/run`, { method: "POST" }); toast("Run queued"); renderTab(view); });
