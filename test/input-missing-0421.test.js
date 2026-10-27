@@ -40,3 +40,11 @@ test("the mission stops the step before it is sent, shares inputMissing on the t
   assert.match(m, /inputMissing: t\.inputMissing \|\| null/);
   assert.match(read("web", "app.js"), /t\.inputMissing\?\.length \? `<span class="chip red"[^`]*>input missing<\/span>`/);
 });
+
+test("the whole-result thumbs down can say the content was good but the file is missing (dogfood 08)", () => {
+  const r = read("web", "features", "ratings.js");
+  assert.match(r, /\["file missing", "The content is good, the file is missing"\]/);
+  const srv = read("server", "plugins", "ratings.js");
+  assert.equal("file missing".replace(/[^\w -]/g, ""), "file missing", "the server keeps the reason as it is");
+  assert.match(srv, /reason: String\(reason \|\| ""\)/);
+});
