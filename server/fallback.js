@@ -19,7 +19,7 @@ import { PROVIDERS, findModel, estimateCostAt, modelPrice } from "./registry.js"
 import { assertSpendAllowed } from "./cost-guard.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, getContext, runAs } from "./store.js";
-import { noteCall } from "./health.js";
+import { noteCall, BUDGET_TEXT } from "./health.js";
 import { bus, emit } from "./events.js";
 import { chatWithTools } from "./mcp.js";
 import { rank, heuristicClassify } from "./router.js";
@@ -138,6 +138,16 @@ export function clearTrouble(pid, why = "") {
 }
 const cappedNow = () => doc("alerts.state", () => undefined)?.stop || []; // read only; the alerts plugin owns that document
 // Why a provider is skipped right now, or null. The spend cap comes from the alerts plugin live.
+// Raising the cap or adding $1: any "out of credits" entry that only echoes the app's own budget text is dropped, for every AI.
+export function clearBudgetTrouble() {
+  const st = state();
+  const gone = [];
+  for (const [k, s] of Object.entries(st.skip || {})) if (s?.kind === "credits" && BUDGET_TEXT.test(String(s.detail || ""))) { delete st.skip[k]; gone.push(s.provider || k); }
+  if (!gone.length) return [];
+  putDoc(STATE, st);
+  for (const pid of gone) emit("fallback.clear", { provider: pid, why: "your budget was raised" });
+  return gone;
+}
 export function trouble(pid) {
   const s = state().skip[pid];
   if (s && (s.until == null ? s.kind !== "cap" : Date.now() < s.until)) return { ...s, provider: pid, reason: REASON[s.kind] };
@@ -190,6 +200,7 @@ export function sweepExpired() {
 // Health lights feed the table: a green light clears it, a red or amber light with a known cause fills it.
 export function kindFromHealth(status, detail = "") {
   const d = String(detail || "").toLowerCase();
+  if (BUDGET_TEXT.test(d)) return null; // the app's own budget stop is never a provider problem
   if (status === "red") {
     if (/key rejected|workspace|api key not valid|invalid api key|incorrect api key/.test(d)) return "key";
     if (/payment|no credits|out of credits|spending limit|low balance/.test(d)) return "credits";
@@ -378,9 +389,12 @@ export async function* fallbackChat(opts, run = {}) {
 
   // the next stand-in: the same AI's own models first, then the counted ranking (until maxHops),
   // then the built-in free AIs, which never use up a hop. No other provider unless allowStandIn is true.
+  const rateHit = new Set(); // a 429 sends the job to another company first, a sibling model of the same key only if nobody else is left
   const stand = () => {
     const skipSame = !!run.skipProviders?.has(provider);
     if (!allowStandIn) return nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: false, skipSame });
+    const other = (hop < settings.maxHops && rateHit.has(provider) && !skipSame) ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame: true }) : null;
+    if (other && !other.same) return other;
     const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame }) : null;
     return counted || lastResortChoices({ tried, cls, freeOnly })[0] || null;
   };
@@ -441,6 +455,7 @@ export async function* fallbackChat(opts, run = {}) {
       const kind = e.code === "empty" ? "empty" : e.code === "refused" ? "refused" : e.code === "cap" ? "cap" : troubleKind(e);
       if (kind) failures.push({ provider, kind });
       if (kind === "credits" || kind === "rate") noteFreeReply(provider, { status: e.status, text: e.message }); // 0.4.22 daily limit tracker
+      if (kind === "rate") rateHit.add(provider);
       if (kind === "credits" || kind === "rate") { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
       if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
       // A failure that belongs to one model is remembered on that model only, and never moves the

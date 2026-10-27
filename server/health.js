@@ -42,10 +42,20 @@ function callParts(errStatus, body) {
   return { status: Number(errStatus), json, text };
 }
 
+// True for the refusal this app writes itself when the monthly budget is used up.
+export const BUDGET_TEXT = /budget is used up|spending limit was reached|budget_cap|estimated at about \$[\d.]+, and your limit/i;
+function isBudgetStop(errStatus, body) {
+  const e = errStatus && typeof errStatus === "object" ? errStatus : body && typeof body === "object" ? body : null;
+  if (e?.code === "budget_cap") return true;
+  return BUDGET_TEXT.test(String(e?.message || (typeof body === "string" ? body : "") || ""));
+}
+
 // Mark from a real call outcome (called by council/mission on success or error).
 // The body is explained the same way as a key check, so a 403 that is really
 // "out of credits" is not stored as "Key rejected".
 export function noteCall(id, ok, latencyMs, errStatus, body) {
+  // the app's own budget stop (402 budget_cap) is not the provider's fault: it never moves a light
+  if (!ok && isBudgetStop(errStatus, body)) return;
   const cur = getStatus(id);
   if (ok) {
     const slow = latencyMs > 25000;
