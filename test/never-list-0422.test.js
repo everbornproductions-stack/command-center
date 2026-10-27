@@ -15,6 +15,7 @@ store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
 const Discovery = await import("../server/apps.js");
 const Control = await import("../server/control-apps.js");
 const Agents = await import("../server/external-agents.js");
+const Drivers = await import("../server/app-drivers.js");
 
 function setTier(tier) {
   store.putDoc("license", { tier, status: "active", lastOkAt: Date.now(), checkedAt: Date.now(), key: "TEST-KEY" });
@@ -73,11 +74,11 @@ test("app control refuses every name on the never-list, with the one plain sente
     assert.equal(/licence/i.test(err.message), false, name);
   }
   // the same list, matched case-insensitively on the exe name and on the window title
-  const exe = Control.addApp({ name: "Helper", kind: "desktop", capabilities: ["analysis"], exe: "powershell.exe" });
+  const exe = Control.addApp({ name: "Helper", kind: "desktop", capabilities: ["analysis"], exe: "PowerShell.EXE" });
   assert.throws(
     () => Control.setAllowed(exe.id, true),
-    (e) => e.code === "never_list" && /powershell\.exe/.test(e.message),
-    "the exe name is checked too",
+    (e) => e.code === "never_list" && /powershell\.exe/i.test(e.message),
+    "the exe name is checked too, in any case",
   );
   const ok = Control.addApp({ name: "Helper Two", kind: "desktop", capabilities: ["analysis"], exe: "Helper.exe" });
   assert.doesNotThrow(() => Control.setAllowed(ok.id, true));
@@ -113,4 +114,41 @@ test("there is one list: app control does not carry a second copy of it", () => 
   }
   assert.match(read("server/apps.js"), /neverRefusal/);
   assert.match(read("server/control-apps.js"), /neverListHit/);
+});
+
+// ---------- part 2: a door never opens on a host that points back at this computer ----------
+const REFUSED_HOSTS = [
+  "nip.io", "app.nip.io", "192.168.0.1.nip.io", "sslip.io", "host.sslip.io",
+  "localtest.me", "app.localtest.me", "lvh.me", "myapp.lvh.me",
+  "192.168.1.10", "10.0.0.5", "172.16.0.9", "127.0.0.1", "169.254.1.1", "0.0.0.0",
+  "localhost", "app.localhost", "printer.local", "",
+];
+const OPEN_HOSTS = ["example.com", "app.example.com", "invoices.example", "8.8.8.8", "172.32.0.1"];
+
+test("a door under nip.io, sslip.io, localtest.me, lvh.me or a private address is refused", () => {
+  for (const host of REFUSED_HOSTS) {
+    assert.equal(Drivers.isRefusedDoorHost(host), true, `refused: ${JSON.stringify(host)}`);
+    if (!host) continue;
+    assert.notEqual(Drivers.blockedUrl(`https://${host}/app`), "", `door refused: ${host}`);
+  }
+  for (const host of OPEN_HOSTS) {
+    assert.equal(Drivers.isRefusedDoorHost(host), false, `open: ${host}`);
+    assert.equal(Drivers.blockedUrl(`https://${host}/app`), "", `door allowed: ${host}`);
+  }
+  // still https only, and payment pages still use their own words
+  assert.notEqual(Drivers.blockedUrl("http://example.com/"), "");
+  assert.match(Drivers.blockedUrl("https://buy.stripe.com/pay"), /payment/i);
+});
+
+test("app control will not save a door under a refused host, and says so without dashes", () => {
+  resetApps();
+  for (const url of ["https://login.localtest.me/", "https://host.sslip.io/app", "https://10.0.0.5/app", "http://example.com/"]) {
+    assert.throws(
+      () => Control.addApp({ name: "Back door", kind: "website", origin: url }),
+      (e) => e.status === 400 && /public/i.test(e.message) && !/[\u2014\u2013-]/.test(e.message),
+      url,
+    );
+  }
+  const ok = Control.addApp({ name: "Front door", kind: "website", origin: "https://forms.example" });
+  assert.equal(ok.origin, "https://forms.example");
 });

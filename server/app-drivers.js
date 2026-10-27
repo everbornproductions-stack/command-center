@@ -59,24 +59,32 @@ function privateV4(host) {
     || (a === 192 && b === 168) || (a === 192 && b === 0 && Number(m[3]) === 0) || (a === 198 && (b === 18 || b === 19));
 }
 
-// A door is public https only: no file:, no http:, no login in the address, no localhost,
-// no single-word machine names, no .local/.lan/.internal names, no private or IPv6 literal ranges.
+// A door host that reaches this computer, or hides the address it really uses, is refused.
+// Whole host names only: a machine name on this network, a private address, or a name that turns
+// into one (anything under nip.io, sslip.io, localtest.me or lvh.me points back at this machine).
+export function isRefusedDoorHost(rawHost) {
+  let host = String(rawHost || "").trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
+  if (!host) return true;
+  if (host.includes(":")) {
+    // an IPv6 literal passes only for a global unicast address (2000::/3); a plain host:port keeps its name
+    if (/^[0-9a-f:.]+$/.test(host)) return !/^[23][0-9a-f]{0,3}:/.test(host);
+    host = host.replace(/:\d+$/, "");
+  }
+  if (privateV4(host)) return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false; // a public address is a real door
+  if (/^[0-9.]+$/.test(host) || /^0x/i.test(host)) return true;
+  if (!host.includes(".")) return true; // a single word names a machine on this network
+  if (/(^|\.)(localhost|local|lan|internal|intranet|home|corp|private|arpa|localdomain)$/.test(host)) return true;
+  if (/^localhost\./.test(host)) return true;
+  if (/(^|\.)(nip\.io|sslip\.io|localtest\.me|lvh\.me|xip\.io|traefik\.me|vcap\.me)$/.test(host)) return true;
+  return false;
+}
+
+// A door is public https only: no file:, no http:, no login in the address, no local host.
 function privateReason(u) {
   if (u.protocol !== "https:") return PRIVATE_REFUSAL;
   if (u.username || u.password) return PRIVATE_REFUSAL;
-  const host = u.hostname.toLowerCase().replace(/\.$/, "");
-  if (!host) return PRIVATE_REFUSAL;
-  // only a global unicast IPv6 literal (2000::/3) passes
-  if (host.startsWith("[")) return /^\[[23][0-9a-f]{0,3}:/.test(host) ? "" : PRIVATE_REFUSAL;
-  if (privateV4(host)) return PRIVATE_REFUSAL;
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return "";
-  if (/^[0-9.]+$/.test(host) || /^0x/i.test(host)) return PRIVATE_REFUSAL;
-  if (!host.includes(".")) return PRIVATE_REFUSAL;
-  if (/(^|\.)(localhost|local|lan|internal|intranet|home|corp|private|arpa|localdomain)$/.test(host)) return PRIVATE_REFUSAL;
-  if (/(^|\.)localhost\./.test(host)) return PRIVATE_REFUSAL;
-  // names that turn into any address (a.b.c.d.nip.io is 127.0.0.1 style) are refused by their words
-  if (/(^|\.)(nip\.io|sslip\.io|localtest\.me|lvh\.me|xip\.io|traefik\.me|vcap\.me)$/.test(host)) return PRIVATE_REFUSAL;
-  return "";
+  return isRefusedDoorHost(u.hostname) ? PRIVATE_REFUSAL : "";
 }
 
 export function blockedUrl(raw) {
