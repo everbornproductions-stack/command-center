@@ -119,3 +119,10 @@ test("the file name a task asks for", () => {
   assert.equal(G.namedFile("Visit www.example.com for more"), "");
   assert.equal(G.fileExt("index.html"), "html");
 });
+
+test("stripSearchLeaks: citations go, indexes glued to a word stay (panel 0.4.21 row 3)", () => {
+  assert.equal(G.stripSearchLeaks("Sales rose [1][4] last year [2, 3]."), "Sales rose last year.");
+  assert.equal(G.stripSearchLeaks("Read process.argv[2] and rows[1][2] in prose."), "Read process.argv[2] and rows[1][2] in prose.");
+  assert.equal(G.stripSearchLeaks("It works.[3] Next point."), "It works. Next point.");
+  assert.equal(G.stripSearchLeaks("The   spacing   in  prose collapses [1]."), "The spacing in prose collapses.");
+});

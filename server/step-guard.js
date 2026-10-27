@@ -247,14 +247,9 @@ export function stripSearchLeaks(text) {
   // 1. LEAK_SENTENCE
   t = t.replace(LEAK_SENTENCE, "");
 
-  // 2. Citations: only a marker after a space or after sentence punctuation (like "text [2]." or "text.[3]" or " [1]").
-  t = t.replace(/([.!?\s])(?:\s*\[\s?\d{1,2}(?:\s?[,–-]\s?\d{1,2})*\s?\])+/g, "$1");
-
-  // Also handle citations at the very beginning of text if any (e.g. "[1] Hello").
-  t = t.replace(/^(?:\s*\[\s?\d{1,2}(?:\s?[,–-]\s?\d{1,2})*\s?\])+/, "");
-
-  // Clean up any extra spaces left right before punctuation (e.g. " [1]." -> ".")
-  t = t.replace(/ +([.!?,;:])/, "$1");
+  // 2. Citations: a marker after a space or sentence punctuation is a citation; a bracket number glued to a
+  // word, ")" or "]" (argv[2], a[0], row[1][2]) is an index and stays.
+  t = t.replace(/(\s?)((?:\[\s?\d{1,2}(?:\s?[,–-]\s?\d{1,2})*\s?\])+)/g, (m, ws, _marks, off, str) => (!ws && off > 0 && /[\w\])]/.test(str[off - 1]) ? m : ""));
 
   // 3. Double spaces and trailing whitespace outside code.
   t = t.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n").replace(/ {2,}/g, " ");
