@@ -243,6 +243,10 @@ test("browser: Settings > Memories lists by group, edits, stars, deletes, turns 
     // Settings can draw again once more right after it opens (the panel shows Loading... for a moment): wait until the
     // panel is filled in, with the groups and the Smarter recall line, before reading it
     await t.page.waitForFunction(() => { const p = document.querySelector("#mem2-panel"); return !!p && p.querySelector("[data-mem-bucket]") && /Needs a key/.test(p.textContent || ""); }, null, { timeout: WAIT });
+    // Settings can draw once more a moment after the first fill (dogfood 10 run: "MemoriesLoading..." right after the wait passed):
+    // let it settle, then wait for the filled panel again before reading it
+    await t.page.waitForTimeout(900);
+    await t.page.waitForFunction(() => { const p = document.querySelector("#mem2-panel"); return !!p && p.querySelector("[data-mem-bucket]") && /Needs a key/.test(p.textContent || ""); }, null, { timeout: WAIT });
     const groups = await t.page.$$eval("#mem2-panel [data-mem-bucket]", (els) => els.map((e) => e.dataset.memBucket));
     assert.deepEqual(groups, ["about-me", "project", "knowledge"]);
     assert.match(await t.page.textContent('[data-mem-bucket="about-me"]'), /I run a bakery/);
