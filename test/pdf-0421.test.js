@@ -224,7 +224,8 @@ test("the receipt baseline and the 'now prefers' line never name an AI that is o
   assert.notEqual(second.provider, first.provider, "saved vs an AI that is out of credit is not offered");
   assert.equal(H.isDeadNow(first.provider), true);
   assert.equal(H.isDeadNow(second.provider), false);
-  const src = fs.readFileSync(new URL("../web/features/ratings.js", import.meta.url), "utf8");
+  // 0.4.21 P: the row and preference rules moved to the pure helper web/features/ratings-rows.js
+  const src = fs.readFileSync(new URL("../web/features/ratings-rows.js", import.meta.url), "utf8");
   assert.match(src, /didRun/, "the preference line needs an AI that ran in this job");
   assert.match(src, /!t\.notDone/, "a step that said it could not do the job is not rated as good work");
   const desk = fs.readFileSync(new URL("../server/plugins/desk.js", import.meta.url), "utf8");

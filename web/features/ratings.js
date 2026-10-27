@@ -1,29 +1,9 @@
 // Thumbs up / down under every finished deliverable, per AI that contributed.
+import { contributors, preferLine } from "./ratings-rows.js";
+
 const { S, api, toast, esc, pname, pcolor } = window.CC;
 
-function contributors(run) {
-  // which AI/model produced the thing being rated. A mission lists every step on its own (code and QA steps too),
-  // each with its step id, so two steps by the same AI are two thumbs (0.4.21).
-  const out = [];
-  if (run.kind === "council" && run.council) {
-    for (const a of Object.values(run.council.answers || {})) if (a.text) out.push({ provider: a.provider, model: a.model, label: `${pname(a.provider)} (answer ${a.letter})` });
-    if (run.council.verdict?.model) out.push({ provider: run.council.verdict.provider, model: run.council.verdict.model, label: `${pname(run.council.verdict.provider)} (verdict)` });
-  } else if (run.kind === "mission" && run.mission) {
-    for (const t of run.mission.tasks || []) {
-      if (t.save) continue; // Meldmind's own save step is not an AI to rate
-      if (!(t.output || t.status === "done" || t.status === "failed") || !t.model || (t.status !== "failed" && !!t.notDone)) continue; // a step that said it could not do the job is not rated as good work
-      const kind = t.media?.kind ? `media/${t.media.kind}` : null;
-      out.push({ provider: t.provider, model: t.model, stepId: t.id, stepKind: kind, label: `${pname(t.provider)} · ${t.title}${kind ? ` (${kind.replace("media/", "")})` : ""}`, capability: kind ? "media" : t.capability });
-      if (t.review?.model && !t.review.unchecked) out.push({ provider: t.review.provider, model: t.review.model, stepId: `${t.id}:qa`, label: `${pname(t.review.provider)} · checked "${t.title}"`, capability: "analysis" });
-    }
-    if (run.mission.assembler) out.push({ provider: run.mission.assembler.provider, model: run.mission.assembler.model, stepId: "assembly", label: `${pname(run.mission.assembler.provider)} (assembly)`, capability: "writing" });
-  } else {
-    const a = run.primary ? run.agents[run.primary] : null;
-    if (a) out.push({ provider: a.provider, model: a.model, label: pname(a.provider) });
-  }
-  // dedupe: a step id is its own row; older rows without one are one per model
-  const seen = new Set(); return out.filter((c) => { const k = c.stepId ? `s:${c.stepId}` : `m:${c.model}`; return c.model && !seen.has(k) && seen.add(k); });
-}
+export { contributors, preferLine };
 
 export const WRONG_REASONS = [["wrong step", "A step was wrong"], ["cut off", "It was cut off"], ["wrong topic", "It was about something else"], ["not what i asked", "Not what I asked for"], ["file missing", "The content is good, the file is missing"], ["other", "Something else"]];
 // one thumb for the whole run: "Is this usable?" On a thumbs down the person says why, and which step if one was wrong.
@@ -40,11 +20,14 @@ function resultRow(run, existing, list) {
       <label id="rt-step-wrap">Which step <select id="rt-step">${steps.map((c) => `<option value="${esc(c.stepId)}">${esc(c.label)}</option>`).join("")}</select></label>
       <button class="btn sm primary" type="button" id="rt-why-send">Send</button></div></div>`;
 }
-function wireResult(el, run, list) {
+function wireResult(el, run, list, existing) {
   const box = el.querySelector("#rt-result");
   if (!box) return;
   const save = async (body) => { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, scope: "result", ...body } }); toast(body.up ? "Thanks. Marked as usable." : "Noted. Thank you."); render(el, run); } catch (e) { toast(e.message, true); } };
-  box.querySelector("[data-result-up]")?.addEventListener("click", () => save({ up: true }));
+  box.querySelector("[data-result-up]")?.addEventListener("click", () => {
+    save({ up: true });
+    showPreference(el, run.classification?.capability || run.mission?.classification?.capability || run.council?.classification?.capability || "writing", list, existing, true);
+  });
   const why = box.querySelector("#rt-why");
   box.querySelector("[data-result-down]")?.addEventListener("click", () => { why.hidden = false; box.querySelector("#rt-reason")?.focus(); });
   const reason = box.querySelector("#rt-reason"), stepWrap = box.querySelector("#rt-step-wrap");
@@ -54,13 +37,14 @@ function wireResult(el, run, list) {
     const wrong = reason.value === "wrong step" ? box.querySelector("#rt-step")?.value || "" : "";
     const note = el.querySelector("#rt-note")?.value || "";
     await save({ up: false, reason: reason.value, wrongStep: wrong || undefined, note });
+    showPreference(el, run.classification?.capability || run.mission?.classification?.capability || run.council?.classification?.capability || "writing", list, existing, false);
     // the step that was wrong also gets its own thumbs down
     const c = wrong && list.find((x) => x.stepId === wrong);
     if (c) { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: c.provider, model: c.model, capability: c.capability || "writing", stepId: c.stepId, stepKind: c.stepKind || undefined, up: false, note: "wrong step" } }); } catch { /* the whole-result thumb is already saved */ } }
   });
 }
 
-async function showPreference(el, cap, ran = []) {
+async function showPreference(el, cap, ran = [], existing = [], explicitUp = null) {
   const box = el.querySelector("#rt-prefer");
   if (!box) return;
   try {
@@ -68,14 +52,15 @@ async function showPreference(el, cap, ran = []) {
     if ((sum.count || 0) < 5) { box.textContent = ""; return; }
     const pick = await api(`/brain/pick?capability=${encodeURIComponent(cap || "writing")}`);
     const top = pick.ranked?.[0];
-    // only an AI that ran in this job and finished it can be named; never one that failed or never ran
-    const didRun = top && ran.some((c) => c.provider === top.provider && (!top.model || c.model === top.model));
-    box.textContent = top?.name && didRun ? `Meldmind now prefers ${top.name} for this kind of work.` : "";
+    const hasDown = existing.some((x) => x.up === false);
+    const hasUp = explicitUp !== null ? explicitUp : existing.some((x) => x.up === true);
+    const up = hasUp && !hasDown;
+    box.textContent = preferLine({ up, ran, top });
   } catch { box.textContent = ""; }
 }
 async function render(el, run) {
   if (!run || !run.id) { el.innerHTML = ""; return; }
-  const list = contributors(run);
+  const list = contributors(run, pname);
   // 0.4.21 (dogfood 10): a run that was stopped or errored keeps its rating rows, and says it did not finish
   const st = run.status || run.mission?.status || "";
   const unfinished = ["aborted", "failed", "done-with-errors", "cancelled"].includes(st);
@@ -98,10 +83,17 @@ async function render(el, run) {
     const text = `"${(run.mission?.title || run.mission?.prompt || run.council?.prompt || "this result").slice(0, 90)}" by ${good.join(", ")}${note ? `: ${note}` : ""}`;
     try { await api("/memory/winner", { method: "POST", body: { projectId: pid, text } }); toast("Saved to this project's past winners"); } catch (e) { toast(e.message, true); }
   });
-  showPreference(el, cap, list);
-  wireResult(el, run, list);
+  showPreference(el, cap, list, existing);
+  wireResult(el, run, list, existing);
   el.querySelectorAll("[data-model]").forEach((row) => {
-    const send = async (up) => { try { await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: row.dataset.provider, model: row.dataset.model, capability: row.dataset.cap, up, note: el.querySelector("#rt-note").value, stepId: row.dataset.step || undefined, stepKind: row.dataset.stepkind || undefined } }); toast(up ? "Thanks. The router will favour it for this kind of work." : "Noted. The router will lean away from it for this."); render(el, run); } catch (e) { toast(e.message, true); } };
+    const send = async (up) => {
+      try {
+        await api("/ratings", { method: "POST", body: { missionId: run.id, kind: run.kind, provider: row.dataset.provider, model: row.dataset.model, capability: row.dataset.cap, up, note: el.querySelector("#rt-note").value, stepId: row.dataset.step || undefined, stepKind: row.dataset.stepkind || undefined } });
+        toast(up ? "Thanks. The router will favour it for this kind of work." : "Noted. The router will lean away from it for this.");
+        showPreference(el, cap, list, existing, up);
+        render(el, run);
+      } catch (e) { toast(e.message, true); }
+    };
     row.querySelector("[data-up]").addEventListener("click", () => send(true));
     row.querySelector("[data-down]").addEventListener("click", () => send(false));
   });
