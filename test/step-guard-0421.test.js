@@ -87,6 +87,23 @@ test("search leaks: citations and 'supplied search results' are removed", () => 
   assert.equal(G.stripSearchLeaks("Use items[i] and [x] boxes."), "Use items[i] and [x] boxes.");
 });
 
+test("stripSearchLeaks preserves code blocks, inline code, and array indexers while cleaning prose", () => {
+  const codeBlock = "Here is the script:\n```js\nconst arg = process.argv[2];\n  if  (arg)  console.log(arg);\n```\nSee the guide [2].";
+  const cleaned = G.stripSearchLeaks(codeBlock);
+  assert.match(cleaned, /const arg = process\.argv\[2\];/);
+  assert.match(cleaned, /  if  \(arg\)  console\.log\(arg\);/);
+  assert.ok(!/\[2\]/.test(cleaned.split("```")[2] || cleaned), "prose citation [2] should be removed");
+
+  const inlineTest = "Run `node index.js` with `argv[2]` [1].";
+  assert.equal(G.stripSearchLeaks(inlineTest), "Run `node index.js` with `argv[2]`.");
+
+  const indentedBlock = "Intro text.\n\n    const x = process.argv[2];\n      let  y  =  2;\n\nOutro text [3].";
+  const cleanedIndented = G.stripSearchLeaks(indentedBlock);
+  assert.match(cleanedIndented, /    const x = process\.argv\[2\];/);
+  assert.match(cleanedIndented, /      let  y  =  2;/);
+  assert.ok(!/\[3\]/.test(cleanedIndented));
+});
+
 test("web search runs only when the person asked for live information", () => {
   assert.equal(G.wantsSearch("Make a landing page for listing videos, single index.html"), false);
   assert.equal(G.wantsSearch("Write a 5-day Instagram campaign plan for brokers and save it as campaign.md"), false);
