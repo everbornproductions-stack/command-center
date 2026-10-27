@@ -98,6 +98,15 @@ function isConnected(builderId, s) {
 function serviceLine(builder) {
   return { name: builder.title, receives: builder.publishNote || "Nothing is called until you click Publish." };
 }
+// The words that would really go out (0.4.22 panel, row 37): the built draft, not the box the person
+// typed in. The draft is what carries the STOP line and the notes, so the guard and the send log read
+// the same text. With no draft text the typed words are still used, so a message without a STOP line
+// keeps its warning.
+function outgoingText(job, input) {
+  const draft = job?.draft || {};
+  const body = draft.message ?? draft.body ?? draft.text;
+  return String(body || input?.text || "");
+}
 
 const CONNECT = {
   highlevel: { vault: "ghl", fields: ["locationId"] },
@@ -250,7 +259,7 @@ export async function routes(req, res, url, body, h) {
     }
   }
   if (builderId === "hl-campaign") {
-    const g = checkOutgoing({ text: input.text, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime });
+    const g = checkOutgoing({ text: outgoingText(job, input), channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime });
     if (!g.ok) return h.json(res, 422, { error: `Not sent. ${g.blocked[0].plain} ${g.blocked[0].why}`, code: "compliance_block", warnings: g.warnings, posted: false });
     if (g.needsAck && body?.sendAnyway !== true) return h.json(res, 409, { error: "Review the warnings first. Press Fix it, or Send anyway if you are sure. Nothing was sent.", code: "compliance_review", warnings: g.warnings, posted: false });
   }
@@ -280,8 +289,9 @@ export async function routes(req, res, url, body, h) {
   job.step = "published";
   job.posted = !!result.posted;
   if (result.posted) {
-    const warnRules = builderId === "hl-campaign" ? checkOutgoing({ text: input.text, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime }).warnings.map((w) => w.rule) : [];
-    recordSend({ channel: builderId.startsWith("hl-") ? "highlevel" : builderId, kind: builderId, to: Array.isArray(input.recipients) ? `${input.recipients.length} people` : "", title: job.draft?.title || builderId, text: input.text || job.draft?.message || "", rules: warnRules, sendAnyway: body?.sendAnyway === true });
+    const sentText = outgoingText(job, input);
+    const warnRules = builderId === "hl-campaign" ? checkOutgoing({ text: sentText, channel: input.channel, consent: body?.checks?.tcpa === true, sendTime: input.sendTime }).warnings.map((w) => w.rule) : [];
+    recordSend({ channel: builderId.startsWith("hl-") ? "highlevel" : builderId, kind: builderId, to: Array.isArray(input.recipients) ? `${input.recipients.length} people` : "", title: job.draft?.title || builderId, text: sentText, rules: warnRules, sendAnyway: body?.sendAnyway === true });
   }
   job.approved = true;
   job.resultReason = result.reason;
