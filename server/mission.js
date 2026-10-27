@@ -36,14 +36,16 @@ import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
-import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
-import { saveNamedFile } from "./named-file.js";
+import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
+import { saveNamedFile, writeProjectFile, codeFor, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
+import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
+import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
 import fs from "node:fs";
 import path from "node:path";
 import { extractHeadline, overlayPng, isPng } from "./overlay.js";
-import { namedSources, attachSources, sourceBlock, projectFolders } from "./code-source.js";
+import { namedSources, attachSources, sourceBlock, projectFolders, find as findInFolder } from "./code-source.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -651,6 +653,8 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const memBlock = contextFor(projectId, goal);
   context = withMemory(context, projectId, `${goal}\n${context}`);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
+  // the folders a code step may write into: only the project's own, never another project's
+  const codeFolders = () => (projectId ? projectFolders(projectId) : []);
   const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: carriesMemory(context), ...(toneId ? { tone: toneId } : {}) };
   // AI employees picked for this mission: each step goes to the best fit and runs with its job script
   const crew = resolveCrew(restore ? restore.employees : employees);
@@ -814,6 +818,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     plan.tasks = plan.tasks.slice(0, maxTasks).map((t, i) => ({ ...t, id: t.id || `t${i + 1}`, deps: (t.deps || []).filter(Boolean) }));
     mission.plan = { title: plan.title, assembly: plan.assembly };
     mission.title = plan.title;
+    // 0.4.21 (dogfood 12): a code step that names a file can only save it when the project folder is known. Say so before any work starts.
+    if (plan.tasks.some((t) => stepFileNames(t).some((n) => !/\.html?$/i.test(n))) && !codeFolders().length) {
+      mission.planNote = `Heads up before we start: ${NOT_SAVED_LINE} Link your project folder to this project to have files written there.`;
+      log(mission.planNote);
+    }
 
     // ---- 2. Assign ----
     // a task that needs live information is limited to models with their own web access, unless the
@@ -825,6 +834,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (isLocalSaveStep(t)) {
         const { agent: _a, needs: _n, ...rest } = t;
         mission.tasks.push({ ...rest, capability: "save", save: true, status: "queued", provider: "meldmind", model: "MindMedia", agentName: "Meldmind · save to MindMedia", estCost: 0, output: null, review: null, cost: 0 });
+        continue;
+      }
+      // 0.4.21 (dogfood 12): "run the tests" is done here, on this PC, by node. No AI can run a command from a chat reply.
+      if (isRunStep(t)) {
+        const { agent: _a, needs: _n, ...rest } = t;
+        mission.tasks.push({ ...rest, capability: "run", run: true, status: "queued", provider: "meldmind", model: "node", agentName: "Meldmind · runs node tests here", estCost: 0, output: null, review: null, cost: 0 });
         continue;
       }
       // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
@@ -888,7 +903,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app || t.save || t.workaround) continue;
+        if (t.agent || t.media || t.app || t.save || t.run || t.workaround) continue;
         const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
@@ -896,7 +911,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (crew.length) {
       let n = 0;
       for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app || t.save || t.workaround) continue;
+        if (t.agent || t.media || t.app || t.save || t.run || t.workaround) continue;
         const c = crewFor(crew, t, n++);
         t.employee = { id: c.id, name: c.name };
       }
@@ -938,10 +953,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const fin = await MA.awaitJob(job.id, { timeoutMs: MA.waitMs("mission"), signal: ctl.signal, onUpdate: (j) => { t.agentJob.status = j.status; emit("task.update", { missionId: id, task: pubTask(t) }); update(); } });
         if (fin) t.agentJob.status = fin.status;
         if (fin?.status === "done") {
-          t.output = fin.text || `${ANAME} reported this step done.`; t.artifacts = fin.artifacts || []; outputs[t.id] = t.output; t.status = "done";
+          // 0.4.21 (dogfood 12): "done" with no words and no files did nothing. It is not a finished step; the next AI takes it.
+          const said = String(fin.text || "").replace(/[\s\u200b]+/g, " ").trim();
+          if (isEmptyOutput(said) && !(fin.artifacts || []).length) {
+            t.agentEmpty = true; t.status = "failed"; t.error = `Nothing came back. ${ANAME} said it was done but sent back nothing.`;
+            t.attempts = [...(t.attempts || []), { provider: AID, model: AID, kind: "empty", reason: "The AI sent back nothing." }];
+            emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: t.error });
+            observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: false });
+            log(`"${t.title}" failed: ${t.error} Handing it to the next AI.`);
+          } else {
+          t.output = said || `${ANAME} reported this step done and made ${(fin.artifacts || []).length} file${(fin.artifacts || []).length === 1 ? "" : "s"}.`; t.artifacts = fin.artifacts || []; outputs[t.id] = t.output; t.status = "done";
           t.work = { cost: 0, ms: Date.now() - s, free: true };
           observe({ provider: AID, model: AID, capability: "agent", difficulty: t.difficulty, runId: id, ok: true, cost: 0, ms: Date.now() - s });
           emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
+          }
         } else if (fin?.status === "failed") {
           throw new Error(fin.error || `${ANAME} reported a failure`);
         } else if (ctl.signal.aborted) {
@@ -962,6 +987,96 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: err.message });
       }
       if (t.status !== "failed") done.add(t.id);
+      t.finishedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      update();
+    };
+    // ---- 0.4.21 (dogfood 12): real file writes and real test runs ----
+    // A step that is empty gets the next AI. An agent that reports "done" with no words and no files did nothing.
+    const toolRecord = (t, rec) => {
+      const full = { taskId: t.id, by: "meldmind", ok: true, ...rec };
+      mission.toolCalls.push(full);
+      t.toolRecords = [...(t.toolRecords || []), rec];
+      t.toolCalls = (t.toolCalls || 0) + 1;
+    };
+    // the code of a code step goes to the file the step names, inside the project folder only
+    const codeWrite = (t) => {
+      if (t.save || t.run || t.media || t.agent) return;
+      const folders = codeFolders();
+      const names = stepFileNames(t).filter((n) => folders.length || !/\.html?$/i.test(n)); // a page with no folder is still kept as a MindMedia item at the end
+      if (!names.length) return;
+      t.wantFiles = names;
+      t.writes = [];
+      const text = String(t.output || "");
+      const prim = primaryName(t, names);
+      let jobs = names.map((n) => ({ name: n, code: codeFor(text, n) })).filter((j) => j.code);
+      if (!jobs.length) { const c = codeFor(text, prim, { onlyName: true }); if (c) jobs = [{ name: prim, code: c }]; }
+      const bad = [];
+      const lines = [];
+      if (!jobs.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
+      for (const j of jobs) {
+        let old = null;
+        for (const root of folders) { try { const hit = findInFolder(path.resolve(root), j.name); if (hit) { old = fs.readFileSync(hit, "utf8"); break; } } catch { /* unreadable: treated as new */ } }
+        if (old && /\.(?:m?js|cjs|ts)$/i.test(j.name)) {
+          const cmp = compareExports(old, j.code);
+          if (!cmp.ok) { // the old file stays as it is; QA fails the step with the plain reason
+            t.exportLoss = [...(t.exportLoss || []), ...cmp.removed];
+            bad.push(`Not saved: ${j.name} was not changed, because the new code dropped ${cmp.removed.join(", ")}.`);
+            continue;
+          }
+        }
+        const r = writeProjectFile({ folders, name: j.name, text: j.code });
+        if (!r.ok) { bad.push(r.error); continue; }
+        toolRecord(t, { tool: "write_file", path: r.path, bytes: r.bytes });
+        t.writes.push({ name: j.name, path: r.path, bytes: r.bytes, existed: r.existed });
+        lines.push(`Wrote ${j.name} (${r.bytes} bytes)`);
+        log(`Wrote ${j.name} (${r.bytes} bytes) in your project folder.`);
+      }
+      if (lines.length) { t.wroteLine = lines.join(". "); t.output = `${t.output}\n\n${lines.join("\n")}`; outputs[t.id] = t.output; }
+      if (bad.length) {
+        t.notSaved = { files: names, line: [...new Set(bad)].join(" ") };
+        t.output = `${t.output}\n\n${t.notSaved.line}`; outputs[t.id] = t.output;
+        log(`"${t.title}": ${t.notSaved.line}`, { level: "error" });
+      }
+      emit("task.update", { missionId: id, task: pubTask(t) }); update();
+    };
+    // Claims need proof: "saved" with no write record, "test output" with no run record, or a lost export, fail the step
+    const deterministicQa = (t) => {
+      if (t.save || t.run || t.media || t.agent) return null;
+      let issue = t.exportLoss?.length ? exportLossLine(t.exportLoss) : "";
+      if (!issue) { const c = claimCheck(t.output, (mission.toolCalls || []).filter((r) => r.taskId === t.id)); if (!c.ok) issue = c.reason; }
+      if (!issue) return null;
+      return { provider: "meldmind", model: "check", pass: false, score: 1, issues: [issue], fix: null, unchecked: false, deterministic: true, tries: [] };
+    };
+    // "Run tests and report exact output": node runs the test file here and the real output goes on to the next step
+    const runTask = async (t) => {
+      t.status = "running"; t.startedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      const text = `${t.title}\n${t.instructions || ""}\n${t.deliverable || ""}`;
+      const folders = codeFolders();
+      const depWrites = (t.deps || []).flatMap((d) => mission.tasks.find((x) => x.id === d)?.writes || []);
+      let found = findNodeCommand(text);
+      if (!found && !asksOtherCommand(text)) {
+        const w = [...depWrites].reverse().find((x) => /(?:\.test|\.spec|^test[-_])[^/]*\.(?:m?js|cjs)$/i.test(x.name)) || null;
+        if (w) found = { test: false, file: w.name };
+      }
+      let res;
+      if (!found) res = { ran: false, line: NOT_RUN_LINE };
+      else {
+        const fileName = found.file;
+        let cwd = null, rel = fileName;
+        const wrote = depWrites.find((x) => x.name === fileName || path.basename(x.name) === path.basename(fileName));
+        if (wrote) { cwd = folders.find((f) => wrote.path.startsWith(path.resolve(f) + path.sep)) || null; if (cwd) rel = path.relative(path.resolve(cwd), wrote.path).replace(/\\/g, "/"); }
+        if (!cwd) for (const f of folders) { try { const hit = findInFolder(path.resolve(f), fileName); if (hit) { cwd = path.resolve(f); rel = path.relative(cwd, hit).replace(/\\/g, "/"); break; } } catch { /* next folder */ } }
+        res = cwd ? await runNodeTest({ cmd: `node ${found.test ? "--test " : ""}${rel}`, cwd }) : { ran: false, line: folders.length ? `Not run: ${fileName} was not found in your project folder.` : "Not run: Meldmind does not know your project folder, so it cannot run anything." };
+      }
+      t.output = runReport(res);
+      outputs[t.id] = t.output;
+      t.status = "done"; t.error = null;
+      t.work = { cost: 0, ms: Date.now() - t.startedAt, free: true };
+      if (res.ran) { toolRecord(t, { tool: "run", cmd: res.cmd, exit: res.exit, output: res.output }); log(`Ran ${res.cmd} here: exit ${res.exit === null ? "none" : res.exit}.`); }
+      else { t.notRun = { line: res.line }; log(`"${t.title}": ${res.line}`, { level: "error" }); }
+      done.add(t.id);
       t.finishedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
@@ -1225,6 +1340,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     };
     // Returns the review record kept on the step: { pass, score, issues, fix, provider, model, unchecked?, tries }
     const qaStep = async (t, text, { skip = [] } = {}) => {
+      if (t.review?.deterministic) return null; // already failed on a claim with no proof: no need to ask an AI
       const reviewers = qaReviewers(t, skip);
       if (!reviewers.length) return null; // no reviewer connected: the step is simply not checked
       const tries = [];
@@ -1240,7 +1356,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (!consumed) return;
       mission.appliedDirections = [...(mission.appliedDirections || []), ...consumed.items];
       for (const t of mission.tasks) {
-        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app && !t.save) {
+        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app && !t.save && !t.run) {
           t.instructions = `${t.instructions || ""}\n\n${consumed.promptBlock}`.trim();
         }
       }
@@ -1282,7 +1398,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       const settled = await Promise.allSettled(wave.map(async (t) => {
         if (shouldPause(mission)) { rewindTask(t); throw new MissionPause(); }
-        if (t.agent) return agentTask(t);
+        if (t.run) return runTask(t);
+        if (t.agent) {
+          await agentTask(t);
+          if (!t.agentEmpty) return;
+          // an agent that sent back nothing: the step goes on to a working AI, never "done"
+          t.agent = false; t.agentEmpty = false; t.status = "queued"; t.error = null; t.agentJob = null; t.retried = true;
+          t.capability = ["reasoning", "code", "writing", "research", "creative", "analysis", "math", "fast"].includes(mission.classification?.capability) ? mission.classification.capability : "reasoning";
+          done.delete(t.id);
+        }
         if (t.save) return saveTask(t);
         if (t.media) return mediaTask(t);
         if (t.app) return appTask(t);
@@ -1306,6 +1430,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("agent.start", { agent, provider: t.provider, model: t.model, role: "work", missionId: id, taskId: t.id, label: `${stepAgentName(t.provider) || "An AI"}: ${t.title}` });
         for (const d of t.deps) { const dep = mission.tasks.find((x) => x.id === d); if (dep && dep.provider !== t.provider) emit("agent.msg", { from: dep.provider, to: t.provider, missionId: id, text: `handing off "${dep.title}"` }); }
         const inputs = t.deps.map((d) => `### Input from task "${mission.tasks.find((x) => x.id === d)?.title}"\n${outputs[d] || "(missing)"}`).join("\n\n");
+        // 0.4.21 (dogfood 12): editing a file that already exists keeps its exports
+        if (!/Do not change exported names/.test(t.instructions || "")) {
+          const fl = codeFolders();
+          const existing = fl.length && stepFileNames(t).some((n) => { try { return !!findInFolder(path.resolve(fl[0]), n) || fl.some((f) => !!findInFolder(path.resolve(f), n)); } catch { return false; } });
+          if (existing) t.instructions = `${t.instructions || ""}\n${KEEP_EXPORTS_LINE}`.trim();
+        }
         // a task that needs live information gets its own search, numbered after the mission's sources
         let taskWeb = "";
         if (searchOn && t.needWeb && !ctl.signal.aborted) {
@@ -1376,6 +1506,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         }
         // 0.4.21: an empty, refused, cut-off or off-topic answer is a failure to retry, never "done"
         if (t.status === "review" || t.status === "done") await settleStep(t, { system: workSystem, messages: workMessages, stop: stopReason, inputs });
+        // 0.4.21 (dogfood 12): the code goes into the project folder, and what really happened is checked against what the step says
+        if (t.status === "review" || t.status === "done") {
+          try { codeWrite(t); } catch (e) { t.notSaved = { files: t.wantFiles || [], line: `Not saved: ${String(e.message || e).slice(0, 120)}` }; }
+          const det = deterministicQa(t);
+          if (det) { t.review = det; log(`QA failed "${t.title}": ${det.issues[0]}`, { level: "error" }); emit("task.update", { missionId: id, task: pubTask(t) }); }
+        }
         emit("task.update", { missionId: id, task: pubTask(t) });
 
         // ---- QA by a different AI ----
@@ -1417,6 +1553,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // a check that failed after its retry never counts as a pass
           if (t.review && t.review.pass !== true) { t.qaFailed = true; log(`QA did not pass "${t.title}"${t.review.unchecked ? " (the check could not be done)" : ""}.`); }
           t.status = "done";
+        } else if (t.status === "done" && t.review?.deterministic) {
+          t.qaFailed = true; // QA is off, but a claim with no proof still fails the step
         }
         if (t.status === "done") {
           done.add(t.id);
@@ -1459,7 +1597,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     finishChecks();
     // a PDF task gets a real PDF made here, saved as .pdf and .md in the project folder (server/mission-pdf.js)
     try { await attachPdf(mission, { goal, log }); } catch (e) { mission.savedPdf = { ok: false, error: `Not saved: ${String(e.message || e).slice(0, 140)}` }; }
-    mission.status = mission.tasks.some((t) => t.status === "failed" || (stepNotDone(t) && !mission.savedPdf?.ok)) || mission.limitReached || (mission.savedPdf && !mission.savedPdf.ok) || mission.incomplete || mission.banner ? "done-with-errors" : "done";
+    mission.status = mission.tasks.some((t) => t.status === "failed" || (stepIsNotDone(t) && !mission.savedPdf?.ok)) || mission.limitReached || (mission.savedPdf && !mission.savedPdf.ok) || mission.incomplete || mission.banner ? "done-with-errors" : "done";
     try { keepEmployeeWork(mission); } catch (e) { console.error("[mission] mindmedia employee save:", e.message); }
   } catch (err) {
     if (err instanceof MissionPause || err?.code === "paused" || mission.pauseRequested) {
@@ -1560,11 +1698,30 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const fext = fileExt(want) || (mission.classification?.capability === "code" ? "html" : "");
     const tr = checkTruncation(mission.deliverable || "", { ext: fext, capability: mission.classification?.capability, stop: mission.assemblerStop });
     if (tr.truncated) mission.deliverableTruncated = tr.reason;
-    if (want) {
-      mission.deliverable = stripSaveClaims(mission.deliverable || "");
+    // 0.4.21 (dogfood 12): files really written into the project folder by the code steps, and the steps that could not
+    const wrote = mission.tasks.flatMap((t) => (t.writes || []).map((w) => ({ ...w, taskId: t.id })));
+    const unsaved = mission.tasks.filter((t) => t.notSaved);
+    const hit = want && wrote.find((w) => path.basename(w.name).toLowerCase() === path.basename(want).toLowerCase());
+    if (want) mission.deliverable = stripSaveClaims(mission.deliverable || "");
+    if (hit) {
+      mission.savedFile = { ok: true, name: hit.name, requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.name), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true };
+      log(`Wrote ${hit.name} (${hit.bytes} bytes) in your project folder.`);
+    } else if (want && !/\.html?$/i.test(want) && unsaved.some((t) => (t.notSaved.files || []).some((n) => path.basename(n).toLowerCase() === path.basename(want).toLowerCase()))) {
+      mission.savedFile = { ok: false, name: want, error: unsaved.find((t) => (t.notSaved.files || []).some((n) => path.basename(n).toLowerCase() === path.basename(want).toLowerCase())).notSaved.line };
+      log(mission.savedFile.error, { level: "error" });
+    } else if (want) {
       if (mission.deliverableTruncated) mission.savedFile = { ok: false, name: want, error: `Not saved: the result was cut off (${tr.reason}), so ${want} was not written.` };
       else mission.savedFile = saveNamedFile({ goal, name: want, text: mission.deliverable, projectId, missionId: id });
       log(mission.savedFile?.ok ? `Saved ${mission.savedFile.name} in the project folder.` : String(mission.savedFile?.error || `Not saved: ${want}.`), mission.savedFile?.ok ? {} : { level: "error" });
+    }
+    // the final answer says plainly what was written, what was not, and what was not run
+    {
+      const tail = [];
+      for (const w of wrote) tail.push(`Wrote ${w.name} (${w.bytes} bytes)`);
+      for (const t of unsaved) tail.push(t.notSaved.line);
+      for (const t of mission.tasks) if (t.notRun) tail.push(t.notRun.line);
+      const add = [...new Set(tail)].filter((l) => !String(mission.deliverable || "").includes(l));
+      if (add.length) mission.deliverable = `${String(mission.deliverable || "").trimEnd()}\n\n---\n${add.join("\n")}`.trim();
     }
     // a card is never titled as a file when no file was written
     if (!mission.savedFile?.ok && /\.[a-z0-9]{2,5}$/i.test(String(mission.title || "").trim())) { mission.title = String(mission.title).trim().replace(/\.[a-z0-9]{2,5}$/i, ""); if (mission.plan) mission.plan.title = mission.title; }
@@ -1572,6 +1729,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (banner) { mission.banner = banner; log(`NOT A REAL RESULT: ${banner.text}`, { level: "error" }); }
     const reasons = [];
     for (const t of mission.tasks) {
+      if (t.notSaved) reasons.push({ taskId: t.id, title: t.title, kind: "not-saved", reason: t.notSaved.line, provider: t.provider });
+      if (t.notRun) reasons.push({ taskId: t.id, title: t.title, kind: "not-run", reason: t.notRun.line, provider: null });
       if (t.status === "failed") reasons.push({ taskId: t.id, title: t.title, kind: t.guard?.kind || "failed", reason: t.error || "The step failed.", provider: t.provider });
       else if (t.qaFailed) reasons.push({ taskId: t.id, title: t.title, kind: t.review?.unchecked ? "qa-unchecked" : "qa-failed", reason: t.review?.unchecked ? "QA could not check this step, so it is not counted as passed." : `QA did not pass this step${t.review?.score != null ? ` (score ${t.review.score} of 10)` : ""}${t.review?.issues?.[0] ? `: ${t.review.issues[0]}` : ""}.`, provider: t.provider });
     }
@@ -1582,18 +1741,34 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { notDone: stepNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
+  return { notSaved: t.notSaved || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
+  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {
   return (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean);
 }
+// a step that finished but did not do what it set out to: not saved, not run, or says it could not
+function stepIsNotDone(t) { return stepNotDone(t) || !!t?.notSaved || !!t?.notRun; }
+// the files a code step names ("save in place as cronwords.js", "add cronwords.test.js"), by the step's own words
+function stepFileNames(t) {
+  if (!t || t.capability !== "code" || t.save || t.run || t.media || t.agent) return [];
+  return namedSources(`${t.title || ""}\n${t.instructions || ""}\n${t.deliverable || ""}`).filter(isWritableName);
+}
+// which of several named files this step is mostly about: the one in its title, else a test file for a test step, else the first non-test file
+function primaryName(t, names) {
+  if (names.length === 1) return names[0];
+  const title = String(t.title || "").toLowerCase();
+  const isTest = (n) => /(?:\.test|\.spec)\.|^test[-_]/i.test(path.basename(n));
+  return names.find((n) => title.includes(path.basename(n).toLowerCase()))
+    || (/\btests?\b/.test(title) ? names.find(isTest) : names.find((n) => !isTest(n)))
+    || names[0];
+}
 function totalCostText(m) {
   const c = Number(m.cost) || 0;
-  const rows = (m.tasks || []).filter((t) => !t.agent && !t.media && !t.app && !t.save);
+  const rows = (m.tasks || []).filter((t) => !t.agent && !t.media && !t.app && !t.save && !t.run);
   if (c > 0) return `$${c < 0.01 ? c.toFixed(4) : c.toFixed(2)} (${[...new Set(rows.filter((t) => t.cost > 0).map((t) => PROVIDERS[t.provider]?.name || t.provider))].join(", ") || "paid AIs"})`;
   return rows.length ? "$0 (free AIs only)" : "$0";
 }

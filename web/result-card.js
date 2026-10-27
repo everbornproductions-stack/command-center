@@ -53,10 +53,25 @@ export function fileBoxHtml(m, esc = escDefault) {
     <div class="rc-preview" data-rc-pane hidden style="margin-top:8px"></div></div>`;
 }
 
+// before any work starts: no project folder, so code can only be shown (0.4.21, dogfood 12)
+export function planNoteHtml(m, esc = escDefault) {
+  if (!m?.planNote) return "";
+  return `<div class="rc-plannote small" role="note" style="border:1px solid var(--amber, #d68910);padding:8px 12px;border-radius:8px;margin:8px 0">${esc(m.planNote)}</div>`;
+}
+// the files Meldmind wrote and the commands it ran, from the step records
+export function toolRecordsHtml(m, esc = escDefault) {
+  const rows = [];
+  for (const t of m?.tasks || []) for (const r of t.toolRecords || []) {
+    if (r.tool === "write_file") rows.push(`<li>Wrote <b>${esc(String(r.path || "").split(/[\\/]/).pop())}</b> (${esc(r.bytes)} bytes)</li>`);
+    else if (r.tool === "run") rows.push(`<li>Ran <span class="mono">${esc(r.cmd)}</span>, exit ${esc(r.exit === null || r.exit === undefined ? "none" : r.exit)}</li>`);
+  }
+  return rows.length ? `<div class="rc-tools small" style="margin:8px 0"><b>What Meldmind did here</b><ul style="margin:4px 0 4px 18px;padding:0">${rows.join("")}</ul></div>` : "";
+}
+
 // the card: banner first, then why it is incomplete, the file, the checks
 export function cardHtml(m, esc = escDefault) {
   if (!m) return "";
-  return `${bannerHtml(m, esc)}${incompleteHtml(m, esc)}${fileBoxHtml(m, esc)}${qaScoresHtml(m, esc)}`;
+  return `${planNoteHtml(m, esc)}${bannerHtml(m, esc)}${incompleteHtml(m, esc)}${fileBoxHtml(m, esc)}${toolRecordsHtml(m, esc)}${qaScoresHtml(m, esc)}`;
 }
 
 // a preview pane for a saved file: a web page in a sandboxed frame at phone or desktop width, anything else as text
