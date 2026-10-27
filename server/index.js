@@ -6,6 +6,7 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { safeEqual } from "./safe-equal.js";
 import { WebSocketServer } from "ws";
 import qrcode from "qrcode-generator";
 import { DATA_DIR, WEB_DIR, HQ_DIR } from "./paths.js";
@@ -137,8 +138,7 @@ const isJson = (req) => /^application\/json\b/i.test(String(req.headers["content
 const isZipUpload = (req, url) => req.method === "POST" && url.pathname === "/api/history/preview" && /^application\/(zip|x-zip-compressed|octet-stream)\b/i.test(String(req.headers["content-type"] || ""));
 function tokenOk(presented) {
   if (!LOCAL_TOKEN) return true;
-  const a = Buffer.from(String(presented || "")), b = Buffer.from(LOCAL_TOKEN);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return safeEqual(String(presented || ""), String(LOCAL_TOKEN));
 }
 // The one tunnel host this app was told to use (Settings or CC_TUNNEL_HOST). Empty means no tunnel is allowed.
 const ownTunnelHost = () => process.env.CC_TUNNEL_HOST || settings().tunnelHost || "";

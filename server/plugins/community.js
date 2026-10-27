@@ -2,6 +2,7 @@
 // Local documents are the copy on this computer. Supabase is updated when it can be reached.
 // Email is an opt-in copy only. This plugin never sends mail.
 import crypto from "node:crypto";
+import { safeEqual } from "../safe-equal.js";
 import { licenseState } from "../license.js";
 import { readChangelog } from "./tour.js";
 import * as Chat from "../community-chat.js";
@@ -569,7 +570,7 @@ export async function routes(req, res, url, body, h) {
   if (method === "POST" && p === "/newsletter/unsubscribe") {
     const token = String(body?.token || "");
     const current = loadList(h);
-    if (!token || token !== current.token) return h.json(res, 200, { ok: true, optedIn: current.optedIn });
+    if (!token || !safeEqual(String(token), String(current.token || ""))) return h.json(res, 200, { ok: true, optedIn: current.optedIn });
     const row = { ...current, optedIn: false, pending: false, updatedAt: Date.now() };
     saveList(h, row);
     await Cloud.pushUnsubscribe(token);

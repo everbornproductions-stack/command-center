@@ -14,6 +14,7 @@
 // The runner, the alert and the sender are plugged in by server/plugins/schedules.js (configure), so this
 // module can be driven by a fake clock in tests: tick(now) does the cron and folder work for that moment.
 import crypto from "node:crypto";
+import { safeEqual } from "./safe-equal.js";
 import fs from "node:fs";
 import path from "node:path";
 import { HOSTED, doc, putDoc, getContext, runAs } from "./store.js";
@@ -511,8 +512,7 @@ export const isHook = (pathname) => String(pathname || "").startsWith(HOOK_PREFI
 const hookHits = new Map(); // id -> [ts]
 export function hookTokenOk(s, presented) {
   if (!s?.hookHash || typeof presented !== "string" || !presented || presented.length > 200) return false;
-  const a = Buffer.from(sha(presented), "hex"), b = Buffer.from(s.hookHash, "hex");
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return safeEqual(sha(presented), String(s.hookHash));
 }
 export function hookRateOk(id, now = io.now()) {
   const list = (hookHits.get(id) || []).filter((t) => now - t < 60000);
