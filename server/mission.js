@@ -16,6 +16,7 @@ import { augment as webAugment, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { overheadCost } from "./precost.js";
+import { splitWave, decorateSteps } from "./free-bids.js";
 import { freeOnlyOn, hasPaidKey, freeOnlyError, calibratedEstimate, noteActual, stepLine, creditCheck } from "./free-first.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
@@ -1465,6 +1466,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       applyQueuedDirections();
       const wave = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed" && t.deps.every((d) => done.has(d)));
+      try { splitWave(wave, { rankFn: openRank, mode, needsWeb: needsWebModel }); } catch { /* 0.4.22 free AIs bid first; the wave runs as planned */ }
       if (!wave.length) {
         // unresolved deps (cycle or failed dep): run the rest without inputs
         const rest = mission.tasks.filter((t) => !done.has(t.id) && t.status !== "failed");
@@ -1847,7 +1849,7 @@ export function publicMission(m) {
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {
-  return (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean);
+  return decorateSteps(m.tasks, (m.tasks || []).map((t) => { const l = stepLine(t); return l ? { id: t.id, title: t.title, ai: PROVIDERS[t.provider]?.name || t.agentName || t.provider, provider: t.provider, model: t.model, cost: t.cost || 0, costText: l.costText, why: l.why, status: t.status } : null; }).filter(Boolean));
 }
 // a step that finished but did not do what it set out to: not saved, not run, or says it could not
 function stepIsNotDone(t) { return stepNotDone(t) || !!t?.notSaved || !!t?.notRun; }

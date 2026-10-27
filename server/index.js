@@ -946,6 +946,11 @@ async function api(req, res, url) {
     try { const m = await import("./precost.js"); return json(res, 200, m.preRunLine({ prompt: String(body.prompt || ""), mode: body.mode })); }
     catch (e) { return json(res, e.status || 500, { error: e.message }); }
   }
+  // 0.4.22 free AIs bid first: used / left today for each free AI, and the two settings
+  if (method === "GET" && p === "/free-bids/limits") {
+    try { const [L, B] = await Promise.all([import("./free-limits.js"), import("./free-bids.js")]); return json(res, 200, { bidsFirst: B.bidSettings().on, parallel: B.bidSettings().parallel, limits: L.limitsView() }); }
+    catch (e) { return json(res, e.status || 500, { error: e.message }); }
+  }
   // 0.4.21 free AIs: the "Get free AIs" card, the live credit check, and a fresh look at Ollama / LM Studio
   if (method === "GET" && (p === "/free-ais" || p === "/credit-check")) {
     try {
