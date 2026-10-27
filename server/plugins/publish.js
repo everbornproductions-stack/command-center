@@ -31,6 +31,8 @@ import { holdOutbound } from "../phone-approvals.js";
 import { checkOutgoing, maskSensitive } from "../compliance-guard.js";
 import { recordSend, sendLog } from "../send-log.js";
 import { assetForPublish, recordPublishResult } from "../project-media.js";
+import { flagOn } from "../flags.js";
+import { checkCalendarApproval, recordCalendarResult } from "../publish/plus.js";
 
 export const id = "publish";
 const HIST = "publish.history", PREFS = "publish.prefs", JOBS = "media.jobs";
@@ -167,6 +169,9 @@ export async function routes(req, res, url, body, h) {
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
+    // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.
+    const calId = flagOn("publish") && body.calendarId ? String(body.calendarId) : null;
+    if (calId) { const g = checkCalendarApproval(h, calId, pv.payload); if (!g.ok) return h.json(res, g.status, { error: g.error, code: g.code }); }
     previews.delete(String(body.previewId)); // one preview, one post
     const pl = pv.payload, ch = CH[pv.channel];
     // checked again on the stored payload, so a changed rule or a hand-made request cannot skip it
@@ -187,6 +192,7 @@ export async function routes(req, res, url, body, h) {
     logPost(h, entry);
     // the item remembers where it went, with the link and the time (MindMedia)
     try { recordPublishResult({ projectId: pl.mediaProjectId, assetId: pl.mediaAssetId, mediaJobId: pl.mediaJobId, entry }); } catch (e) { console.error("[publish] mindmedia write-back", e.message); }
+    if (calId) { try { recordCalendarResult(h, calId, entry); } catch (e) { console.error("[publish] calendar", e.message); } }
     return h.json(res, entry.status === "failed" ? 502 : 200, entry);
   }
   if (req.method === "GET" && p === "/history") return h.json(res, 200, h.doc(HIST, () => ({ items: [] })).items.slice(0, 100));

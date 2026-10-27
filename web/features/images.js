@@ -4,7 +4,7 @@
 import { mountBar } from "../next-actions-ui.js";
 const { S, api, apiBlobUrl, toast, esc, money, go } = window.CC;
 
-const OP_LABEL = { generate: "New image", edit: "Edit", variation: "Variation" };
+const OP_LABEL = { generate: "New image", edit: "Edit", variation: "Variation", photo: "Photo edit" };
 const st = { providers: [], items: [], source: null, prefill: null, est: null };
 const urls = new Map(); // "<id>:<i>" -> blob: URL (the files need the session token, so <img src> gets a blob)
 
@@ -126,14 +126,15 @@ function galleryHtml() {
     <img data-img="${r.id}:${f.i}" alt="${esc(r.params?.prompt || "")}" title="${esc(r.params?.prompt || "")}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#0003">
     <div style="padding:6px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.params?.prompt || "")}</div>
     <div class="dim">${esc(OP_LABEL[r.op] || r.op)} · ${esc(r.provider)}${r.cost ? ` · ${money(r.cost / r.files.length, 3)}` : ""}</div>
-    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button><button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">Delete</button><button class="btn sm" data-act="personas" data-id="${r.id}" title="See how real people would react to this design idea">Test with personas</button></div></div></div>`)).join("")}</div>`;
+    <div class="row" style="gap:4px;margin-top:4px"><button class="btn sm" data-act="edit" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled title=\"demo sketches cannot be sources\"" : ""}>Edit</button><button class="btn sm" data-act="variation" data-id="${r.id}" data-i="${f.i}" ${r.demo ? "disabled" : ""}>Variation</button>${S.flags?.photoeditor ? `<button class="btn sm" data-act="photo" data-id="${r.id}" data-i="${f.i}" title="Change light and color. Your original stays as it is.">Adjust photo</button>` : ""}<button class="btn sm" data-act="save" data-id="${r.id}" data-i="${f.i}" data-name="${esc(f.name)}">Save</button><button class="btn sm" data-act="del" data-id="${r.id}" title="Delete this batch">Delete</button><button class="btn sm" data-act="personas" data-id="${r.id}" title="See how real people would react to this design idea">Test with personas</button></div></div></div>`)).join("")}</div>`;
 }
 
 async function renderTab(view) {
   await Promise.all([loadProviders(), loadGallery()]);
   // CC._imagePrefill: "Make an image: ..." from the chat box suggestions (0.4.17). Price still shows first.
   const pre = st.prefill || window.CC._imagePrefill || {}; st.prefill = null; window.CC._imagePrefill = null;
-  view.innerHTML = `${formHtml(pre)}<div class="panel" style="margin-top:12px"><h3>Gallery <span class="right">${st.items.length ? `${st.items.length} batch${st.items.length === 1 ? "" : "es"}` : "No images yet"} · also listed on the Media tab</span></h3><div id="im-gal">${galleryHtml()}</div></div>`;
+  view.innerHTML = `${S.flags?.photoeditor ? `<div id="pe-host"></div>` : ""}${formHtml(pre)}<div class="panel" style="margin-top:12px"><h3>Gallery <span class="right">${st.items.length ? `${st.items.length} batch${st.items.length === 1 ? "" : "es"}` : "No images yet"} · also listed on the Media tab</span></h3><div id="im-gal">${galleryHtml()}</div></div>`;
+  window.CC.refreshImages = () => renderGallery(view);
   const form = wireForm(view, () => renderGallery(view));
   if (pre.op) form.setOp(pre.op);
   wireGallery(view, form);
@@ -149,6 +150,12 @@ function wireGallery(view, form) {
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const { act, id } = b.dataset, i = Number(b.dataset.i) || 0;
     if (act === "edit" || act === "variation") { st.source = { imageId: id, index: i, label: `${id}${i ? ` #${i + 1}` : ""}` }; form.setOp(act); view.querySelector("#im-form").scrollIntoView({ behavior: "smooth" }); return; }
+    if (act === "photo") {
+      const r = st.items.find((x) => x.id === id);
+      try { const mod = await import("/features/photo-editor.js"); const url = await blob(id, i); await mod.openPhotoEditor({ host: view.querySelector("#pe-host"), imageId: id, index: i, url, projectId: r?.projectId || null }); }
+      catch (er) { toast(er.message, true); }
+      return;
+    }
     if (act === "personas") {
       const r = st.items.find((x) => x.id === id);
       const box = view.querySelector("#im-prompt");
