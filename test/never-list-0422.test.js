@@ -107,6 +107,37 @@ test("a normal program is not on the never-list and whole words keep it that way
   assert.ok(Discovery.neverListHit("wt.exe"));
 });
 
+// 0.4.22 panel (row 70): the seven names the report still found driveable.
+const PANEL_NAMES = ["Docker Desktop", "Betterbird", "Wire", "Task Manager", "Services", "Hyper-V Manager", "Windows Admin Center"];
+
+test("the seven panel names are on the never-list, and Notepad and Calculator still open", () => {
+  resetApps();
+  for (const name of PANEL_NAMES) {
+    const hit = Discovery.neverListHit(name);
+    assert.ok(hit, `${name} must be on the never-list`);
+    assert.equal(/[\u2014\u2013-]/.test(hit.why), false, `no dashes in the reason for ${name}`);
+    const err = refusalOf(name);
+    assert.ok(err, `${name} must be refused`);
+    assert.equal(err.code, "never_list", name);
+    assert.equal(
+      err.message,
+      `Meldmind does not control ${name}. It could move money or change your computer, so it is always off.`,
+      name,
+    );
+  }
+  // the same words are found in an exe name and in a window title, in any case
+  assert.ok(Discovery.neverListHit("docker-desktop.exe"), "the exe name is checked");
+  assert.ok(Discovery.neverListHit("Docker Desktop"), "the display name is checked");
+  assert.ok(Discovery.neverListHit("hyper-v manager"), "case does not matter");
+  // whole words keep a normal program out of the list
+  for (const name of ["Notepad", "Calculator"]) {
+    assert.equal(Discovery.neverListHit(name), null, name);
+    const app = Control.addApp({ name, kind: "desktop", capabilities: ["analysis"] });
+    assert.doesNotThrow(() => Control.setAllowed(app.id, true), name);
+  }
+  assert.equal(Discovery.neverListHit("Wiresaw"), null, "a word that only holds these letters is not a match");
+});
+
 test("there is one list: app control does not carry a second copy of it", () => {
   for (const file of ["server/control-apps.js", "server/desktop-doors.js", "server/app-catalog.js"]) {
     const src = read(file);

@@ -148,6 +148,15 @@ const NEVER = [
   // those letters, and "slack" never blocks a program called "Stackable".
   [/\b(cmd|pwsh|wt)\b/i, "It opens a command line or a remote shell."],
   [/\btaskmgr\b/i, "It changes the system."],
+  // 0.4.22 (panel row 70): the names the panel still found driveable. Same whole-word match on the
+  // exe name, the window title and the display name.
+  [/\bdocker\b/i, "It changes the system."],
+  [/\bbetterbird\b/i, "It holds your email."],
+  [/\bwire\b/i, "It holds private messages."],
+  [/\btask manager\b/i, "It changes the system."],
+  [/\bservices\b/i, "It changes the system."],
+  [/\bhyper-v\b|\bhyperv\b/i, "It changes the system."],
+  [/\bwindows admin center\b/i, "It changes the system."],
 ];
 
 // One list, one match. Each row is tested against one piece of text at a time (the exe name,
