@@ -26,13 +26,19 @@ export function contributors(run, pnameFn = (id) => id) {
     const tasks = run.mission?.tasks || run.tasks || [];
     for (const t of tasks) {
       if (!t || t.save) continue; // Meldmind's own save step is not an AI to rate
+      // every step that ran gets its own row (code, QA, agent, failed and empty steps too); a step that never started has nothing to rate
+      const ran = !!(t.output || t.provider || ["done", "failed", "review", "revised", "skipped-input"].includes(t.status) || t.notDone);
+      if (!ran) continue;
+      // a step that said it could not do the job keeps its row, but is never counted as good work by the preference line (!t.notDone)
+      const good = !t.notDone && t.status !== "failed";
       const kind = t.media?.kind ? `media/${t.media.kind}` : null;
       out.push({
         provider: t.provider || "meldmind",
-        model: t.model || t.id || "step",
+        model: t.model || t.provider || "step",
         stepId: t.id,
         stepKind: kind,
-        label: `${pnameFn(t.provider || "meldmind")} · ${t.title || t.id}${kind ? ` (${kind.replace("media/", "")})` : ""}`,
+        good,
+        label: `${pnameFn(t.provider || "meldmind")} · ${t.title || t.id}${kind ? ` (${kind.replace("media/", "")})` : ""}${t.notDone ? " (said it could not do it)" : t.status === "failed" ? " (failed)" : ""}`,
         capability: kind ? "media" : (t.capability || "writing")
       });
       if (t.review && !t.review.unchecked && (t.review.model || t.review.provider)) {
@@ -71,7 +77,7 @@ export function preferLine({ up, rated, ran = [], top = null } = {}) {
   if (!up) return ""; // after a thumbs down, show nothing
   if (!top || !top.name) return "";
   // must name an AI that really ran a step in this run
-  const didRun = ran.some((c) => c.provider === top.provider && (!top.model || c.model === top.model));
+  const didRun = ran.some((c) => c.good !== false && c.provider === top.provider && (!top.model || c.model === top.model));
   if (!didRun) return "";
   return `Meldmind now prefers ${top.name} for this kind of work.`;
 }

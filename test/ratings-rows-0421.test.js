@@ -76,3 +76,16 @@ test("preferLine: rules for when 'Meldmind now prefers X' appears or stays silen
     "Meldmind now prefers Claude 3 for this kind of work."
   );
 });
+
+test("P: a step that said it could not do the job keeps a row but never earns a 'prefers' line; a step that never started has no row", () => {
+  const run = { kind: "mission", mission: { tasks: [
+    { id: "t1", title: "Fix", provider: "groq", model: "gpt-oss-20b", status: "done", output: "x" },
+    { id: "t2", title: "Tests", provider: "openai", model: "gpt-6", status: "done", output: "I can't", notDone: true },
+    { id: "t3", title: "Later", status: "pending" },
+  ] } };
+  const rows = contributors(run);
+  assert.deepEqual(rows.map((r) => r.stepId), ["t1", "t2"]);
+  assert.equal(rows[1].good, false);
+  assert.equal(preferLine({ up: true, ran: rows, top: { provider: "openai", model: "gpt-6", name: "GPT-6" } }), "");
+  assert.match(preferLine({ up: true, ran: rows, top: { provider: "groq", model: "gpt-oss-20b", name: "Groq" } }), /prefers Groq/);
+});
