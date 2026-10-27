@@ -399,8 +399,8 @@ export async function* fallbackChat(opts, run = {}) {
       tried.push({ provider, model });
       const next = stand();
       if (next) yield switchTo(next, t.kind, `skipped, ${t.detail || "known problem"}`, false);
-      else if (!allowStandIn || t.model) throw outOfOptions();
-      else if (t.kind === "credits" || t.kind === "rate") {
+      else if (!allowStandIn) throw outOfOptions();
+      else if (!t.model && (t.kind === "credits" || t.kind === "rate")) { // a benched MODEL alone is not a pause: the call is tried anyway
         const info = describePause(provider);
         const e = new Error(info?.message || `${nameOf(provider)} is paused: no credits. Add credits to use it.`);
         e.code = "paused";

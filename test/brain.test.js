@@ -319,7 +319,7 @@ test("server: jobs are recorded per model and task type, thumbs land, account tr
     // 5. account trouble (402) is smart fallback's business: no failure for the model, the stand-in gets the job
     const before = statsOf(readBrain(s), "grok-4.3");
     m.behave.xai = 402;
-    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3" })), "single after 402");
+    run = await waitRun(s, runSettled(await chatRunId(s.api.bind(s), { prompt: "Write a short thank-you note.", provider: "xai", model: "grok-4.3", allowStandIn: true })), "single after 402");
     assert.equal(run.status, "done");
     assert.equal(statsOf(readBrain(s), "grok-4.3").fail || 0, before.fail || 0, "402 is not held against the model");
     await s.api("/fallback/clear", { method: "POST", body: {} });

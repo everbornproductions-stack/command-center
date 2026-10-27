@@ -101,7 +101,8 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const readers = [];
   const seen = new Set();
   // 0.4.21 Gemini check: every model of this AI that is on a cooldown, named with its end time
-  const bench = troubledModels();
+  let bench = {};
+  try { bench = troubledModels(); } catch { bench = {}; } // pure helper: no user context means nothing is benched
   const busyFor = (pid) => {
     const rows = Object.values(bench).filter((t) => t.provider === pid).map((t) => busyLine(t)).filter(Boolean);
     return rows.length ? rows.join(". ") : null;

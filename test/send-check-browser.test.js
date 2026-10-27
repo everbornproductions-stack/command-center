@@ -49,7 +49,7 @@ test("browser: the banner names the AI that is out and the fix; Auto splits codi
     const seen = posts(t.page);
     // Grok runs out of quota (a pinned chat finds out and the app remembers it)
     m.behave.xai = "quota";
-    const r = await t.api("/chat", { body: { prompt: "Write a tagline.", provider: "xai", model: "grok-4.3" } });
+    const r = await t.api("/chat", { body: { prompt: "Write a tagline.", provider: "xai", model: "grok-4.3", allowStandIn: true } });
     assert.equal(r.status, 202);
     const end = Date.now() + waitBudget(30000);
     for (;;) { const f = (await t.api("/fallback")).json; if (f.skipped.some((x) => x.provider === "xai")) break; assert.ok(Date.now() < end, "xai remembered as out"); await sleep(250); }

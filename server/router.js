@@ -142,9 +142,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // is skipped for new work while another is available; it comes back on the next good health check or call
   const skip = troubled();
   if (Object.keys(skip).length && list.some((m) => !skip[m.provider])) list = list.filter((m) => !skip[m.provider]);
-  // 0.4.21 Gemini check: a 429 or a 503 benches ONE model of a provider ("provider:model"), not all of them
   const bench = troubledModels();
-  if (Object.keys(bench).length && list.some((m) => bench[modelKey(m.provider, m.model)])) list = list.filter((m) => !bench[modelKey(m.provider, m.model)]);
   // paused (no credits, spending limit, payment required, rate limited) and an MCP that is not signed in
   // stay out of auto-picks while any other model can take the job
   const blocked = (m) => !!describePause(m.provider) || unconnectedMcp(m.provider);
@@ -155,6 +153,9 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // 0.4.21 Free only (never spend money): only this PC and free-allowance AIs are ranked. Nothing paid, even when it is the only AI.
   const freeOnly = freeOnlyOn();
   if (freeOnly) list = list.filter((m) => isFreeModel(m.provider, m.model));
+  // 0.4.21 Gemini check: a 429 or a 503 benches ONE model of a provider ("provider:model"), not all of them.
+  // Checked after Free only, so a bench never empties the list while a model that can answer is left.
+  if (Object.keys(bench).length && list.some((m) => !bench[modelKey(m.provider, m.model)])) list = list.filter((m) => !bench[modelKey(m.provider, m.model)]);
   // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
   // Prefer-free is skipped so a cheaper model does not replace that flagship.
   if (mode === "max") list = bestModelEach(list, capability);

@@ -145,7 +145,12 @@ test("the log and mission.planner name the AI that really planned, and the plan 
     assert.equal(readers.status, 200, readers.text);
     assert.match(readers.json.line, /will read the full prompt/);
     assert.ok(readers.json.planner || readers.json.readers.length, readers.text);
-    assert.doesNotMatch(readers.json.line, new RegExp(said[2]), `the paused AI is still named: ${readers.json.line}`);
+    // 0.4.21 (Gemini check): a 429 benches only the model that refused. The same AI may still be named when another
+    // of its models can run, but never with the refused model.
+    const refusedModel = run.fallbacks.find((f) => f.from.provider === deadId).from.model;
+    const named = readers.json.readers.find((r) => r.id === deadId);
+    assert.ok(!named || named.model !== refusedModel, `the refused model is still named: ${readers.json.line}`);
+    if (readers.json.planner) assert.notEqual(readers.json.planner.model, refusedModel, "the planner is not the refused model");
   } finally { await s.stop(); await m.close(); }
 });
 

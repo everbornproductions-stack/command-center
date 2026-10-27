@@ -65,7 +65,7 @@ test("server: known-out AIs are skipped before sending, empty answers fail plain
 
     // 2. Grok answers 429 no-quota: the job still finishes on Groq, Grok is remembered, and the next send skips it BEFORE calling
     m.behave.xai = "quota";
-    let id = await chat(s, { prompt: "Write a tagline for a bakery.", provider: "xai", model: "grok-4.3" });
+    let id = await chat(s, { prompt: "Write a tagline for a bakery.", provider: "xai", model: "grok-4.3", allowStandIn: true });
     let run = await finished(s, id);
     assert.equal(run.status, "done", run.error); assert.match(run.deliverable, /^Answer from /);
     const fb = (await s.api("/fallback")).json;
@@ -73,7 +73,7 @@ test("server: known-out AIs are skipped before sending, empty answers fail plain
     assert.ok(fb.skipped[0].leftMs > 10 * 60 * 1000, "with a real cool-down");
     m.behave.xai = "ok";
     const from = m.seen.length;
-    id = await chat(s, { prompt: "Another tagline.", provider: "xai", model: "grok-4.3" });
+    id = await chat(s, { prompt: "Another tagline.", provider: "xai", model: "grok-4.3", allowStandIn: true });
     run = await finished(s, id);
     assert.equal(run.status, "done"); assert.equal(m.calls("xai", from).length, 0, "no call to an AI known to be out");
 
@@ -92,7 +92,7 @@ test("server: known-out AIs are skipped before sending, empty answers fail plain
     // clear the Grok trouble so both are tried
     for (const p of ["xai"]) await s.api("/fallback/clear", { method: "POST", body: { provider: p } }).catch(() => {});
     m.behave.xai = "empty";
-    id = await chat(s, { prompt: "Say hello.", provider: "groq", model: "openai/gpt-oss-120b" });
+    id = await chat(s, { prompt: "Say hello.", provider: "groq", model: "openai/gpt-oss-120b", allowStandIn: true });
     run = await finished(s, id);
     assert.equal(run.status, "failed", "never done with nothing in it");
     assert.equal((run.deliverable || "").trim(), "");
