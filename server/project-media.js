@@ -1340,6 +1340,28 @@ function cleanPost(p) {
 }
 const postPreview = (p) => [p.caption, p.hashtags.join(" ")].filter(Boolean).join("\n\n").slice(0, 600);
 
+// The project's media folder, checked BEFORE anything is written: the folder and every folder below the data folder
+// must be real folders (no links) and must resolve inside the data folder. Returns the checked folder, or throws a 400.
+export function safeMediaDir(projectId) {
+  const refuse = () => {
+    const err = new Error("That project folder is a link to somewhere else, so nothing can be saved into it.");
+    err.status = 400;
+    return err;
+  };
+  const root = path.resolve(DATA_DIR);
+  const pid = String(projectId || "unfiled").replace(/[^a-z0-9-_]/gi, "_");
+  let cur = root;
+  for (const part of ["projects", pid, "media"]) {
+    cur = path.join(cur, part);
+    let st = null;
+    try { st = fs.lstatSync(cur); } catch { /* not made yet */ }
+    if (st && st.isSymbolicLink()) throw refuse();
+  }
+  const dir = projectMediaDir(projectId);
+  if (!realInside(dir, root)) throw refuse();
+  return dir;
+}
+
 export function saveToMindMedia(opts = {}) {
   const pid = hubProjectId(opts.projectId);
   const source = String(opts.source || "Meldmind").slice(0, 60);

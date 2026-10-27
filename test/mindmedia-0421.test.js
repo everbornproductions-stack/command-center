@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { startServer, tmpDir, ROOT } from "./helpers.js";
 
 // in-process helpers use their own temp data folder (never data/)
@@ -246,4 +247,24 @@ test("keepEmployeeWork saves a done employee step as Review, honours Send on its
   assert.match(byName["Caption ideas"].source, /^AI employee: /);
   assert.equal(all.views.find((v) => v.id === "needs-ok").count, 1);
   assert.equal(all.views.find((v) => v.id === "ai-employees").count, 2);
+});
+
+test("save as files refuses a linked media folder and writes nothing outside the data folder (0.4.22 C2)", async () => {
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cc-outside-"));
+  const srv = await startServer({ seed: (dir) => {
+    fs.mkdirSync(path.join(dir, "projects", "linked-proj"), { recursive: true });
+    fs.symlinkSync(outside, path.join(dir, "projects", "linked-proj", "media"), "dir");
+  } });
+  try {
+    const post = (p, body) => srv.api(p, { method: "POST", body });
+    const md = "**app.py**\n```python\nprint('hi')\n```\n";
+    const bad = await post("/mindmedia/code-files", { text: md, projectId: "linked-proj" });
+    assert.equal(bad.status, 400, JSON.stringify(bad.json));
+    assert.match(bad.json.error, /link to somewhere else/);
+    assert.deepEqual(fs.readdirSync(outside), [], "nothing may be written outside the data folder");
+    const ok = await post("/mindmedia/code-files", { text: md, projectId: "plain-proj" });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    assert.equal(fs.readFileSync(path.join(srv.dir, "projects", "plain-proj", "media", ok.json.folder, "app.py"), "utf8"), "print('hi')\n");
+    assert.deepEqual(fs.readdirSync(outside), []);
+  } finally { await srv.stop(); fs.rmSync(outside, { recursive: true, force: true }); }
 });

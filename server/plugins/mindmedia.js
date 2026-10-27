@@ -16,7 +16,7 @@
 import path from "node:path";
 import { DATA_DIR } from "../paths.js";
 import { exportReport } from "../research.js";
-import { isInsideDataDir, listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, restoreFromTrash, pendingJobs, recentlyFinished, setHostedLink, smartName, STATUSES } from "../project-media.js";
+import { isInsideDataDir, safeMediaDir, listMindMedia, saveToMindMedia, updateAssetMeta, moveToProject, endingAction, assetForPublish, bulkAction, restoreFromTrash, pendingJobs, recentlyFinished, setHostedLink, smartName, STATUSES } from "../project-media.js";
 import fs from "node:fs";
 import { extractCodeFiles } from "../code-files.js";
 import { zipStore } from "../remix-output.js";
@@ -83,7 +83,9 @@ export async function routes(req, res, url, body, h) {
       const pid = String(body?.projectId || "") || "unfiled";
       const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
       const folderName = `code-${stamp}-${Math.random().toString(36).slice(2, 5)}`;
-      const dir = path.join(projectMediaDir(pid), folderName);
+      let mediaRoot;
+      try { mediaRoot = safeMediaDir(pid); } catch (e) { return h.json(res, e.status || 400, { error: e.message }); }
+      const dir = path.join(mediaRoot, folderName);
       const written = [];
       for (const f of found) {
         const full = path.join(dir, ...f.name.split("/"));

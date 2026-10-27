@@ -4,8 +4,7 @@
 // is "Not made". A file is only reported after it is read back from disk.
 import fs from "node:fs";
 import path from "node:path";
-import { projectMediaDir } from "./media-jobs.js";
-import { saveToMindMedia } from "./project-media.js";
+import { saveToMindMedia, safeMediaDir } from "./project-media.js";
 import { projectFolders } from "./code-source.js";
 import { insideFolder } from "./named-file.js";
 import { diskLine, onDisk } from "./step-guard.js";
@@ -151,7 +150,10 @@ export async function drawLocally({ goal = "", svg, name, projectId = "", missio
   let rel = want;
   const folders = projectId ? (() => { try { return projectFolders(projectId); } catch { return []; } })() : [];
   if (folders.length && insideFolder(folders[0], want)) dir = path.resolve(folders[0]);
-  else { dir = projectMediaDir(pid); rel = path.basename(want); }
+  else {
+    try { dir = safeMediaDir(pid); } catch (e) { return { ok: false, pngMade: false, png: null, svg: null, line: `${NOT_MADE}: ${String(e.message || e).slice(0, 120)}`, disk: "" }; }
+    rel = path.basename(want);
+  }
   const pngTarget = uniquePath(path.join(dir, rel));
   const safe = path.resolve(pngTarget).startsWith(path.resolve(dir) + path.sep);
   if (!safe) return { ok: false, pngMade: false, png: null, svg: null, line: `${NOT_MADE}: ${want} is not a safe file name.`, disk: "" };
