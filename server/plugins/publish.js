@@ -112,7 +112,8 @@ function previewOf(h, pl, media) {
   const problems = [...pv.problems];
   if (media?.error) problems.unshift(media.error);
   if (media && !media.error && media.assetId && ACCEPTS[pl.channel] && !ACCEPTS[pl.channel].includes(media.kind)) problems.unshift(`${CH[pl.channel].name} cannot take a ${media.kind === "file" ? "file like this" : media.kind} item. Pick a place that can, such as Google Drive`);
-  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
+  const igTextOnly = pl.channel === "instagram" && !pl.mediaUrl && (!media || (!media.error && media.kind === "text"));
+  if (pl.channel === "instagram" && media && !media.error && !media.urls.length && !pl.mediaUrl && media.files.length && !igTextOnly) problems.push("The attached media is a file on this PC; Instagram needs a public https link. Use Host this file in MindMedia, or paste a link to the picture or video");
   if (pl.channel === "instagram" && media && !media.error && media.kind === "text" && !pl.mediaUrl) problems.push("Instagram posts need a picture or video. Paste a public link to one; your words become the caption");
   if (pl.channel === "ghl" && pl.when && pl.when < Date.now()) problems.push("The scheduled time is in the past");
   if (pl.channel === "slack" && pl.mediaUrl && !/^https:\/\//.test(pl.mediaUrl)) problems.push("Only an https media link can go into a Slack message");
@@ -121,7 +122,8 @@ function previewOf(h, pl, media) {
   for (const b of compliance.blocked) problems.push(`${b.plain} ${b.why}`);
   const warnings = compliance.warnings.filter((w) => w.level === "warn").map((w) => ({ rule: w.rule, plain: w.plain, why: w.why }));
   if (pl.masked) warnings.unshift({ rule: "private_numbers_hidden", plain: "Private numbers were hidden in this message.", why: "Social Security, card and account numbers keep only their last four digits before anything is shown or posted." });
-  return { ...pv, problems, warnings };
+  const summary = igTextOnly ? "Instagram needs a picture or video, and this is text. Pick Slack, Google Drive, or copy it." : pv.summary;
+  return { ...pv, summary, problems, warnings };
 }
 
 function logPost(h, entry) {
