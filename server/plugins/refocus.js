@@ -164,7 +164,7 @@ async function collect(h, topic, { wide = false } = {}) {
     plan: found.plan,
     skippedPrivate: found.skippedPrivate,
     drive: { connected: drive.connected, count: drive.items.length, error: drive.error, receives: false },
-    whoWillRead: whoWillRead({ prompt: goalFrom(topic, found.plan), mode, record }),
+    whoWillRead: whoWillRead({ prompt: goalFrom(topic, found.plan), mode, record, kind: "mission" }),
     sent: false,
   };
 }

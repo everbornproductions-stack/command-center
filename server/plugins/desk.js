@@ -9,7 +9,7 @@ import { allStatus, isDeadNow, heldByRealFailure } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
 import { connectedAis, whyOut } from "../send-check.js";
-import { searchSettings } from "../search.js";
+import { searchWillRun } from "../readers.js";
 import {
   FIRST_COUNCIL, PRIVATE_LINE, TONES, armTone, backupDocument, chatRows, consumeTone, creditsView, homeCard,
   projectRemoval, readBackup, readersFor, repeatBody, secondReader, takeMembers, writerLine, writerOf,
@@ -63,7 +63,9 @@ function audienceFor(mode, prompt) {
   const services = [];
   const pick = pickAgent({ prompt });
   if (pick.use && pick.agent) services.push({ id: pick.agent.id, name: pick.agent.name });
-  if (searchSettings().on?.[mode]) services.push({ id: "search", name: "Web search" });
+  // 0.4.21 (dogfood 11, 12): "Web search will receive the prompt" only when a search will really run for
+  // these words. needWeb false and no ask from the person means no search row.
+  if (searchWillRun({ prompt, kind: mode, classification: heuristicClassify(prompt) })) services.push({ id: "search", name: "Web search" });
   return { tools, services };
 }
 
