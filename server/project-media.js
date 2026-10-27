@@ -1478,7 +1478,7 @@ export const VIEWS = {
   "approved-unpublished": { label: "Approved, not published", test: (i) => i.status === "Approved" },
   "published-month": { label: "Published this month", test: (i, now) => i.status === "Published" && inThisMonth(lastPublishedAt(i), now) },
   "ai-employees": { label: "Made by AI employees", test: (i) => /^AI employee/i.test(String(i.source || "")) },
-  "needs-ending": { label: "Needs an ending", test: (i) => needsAnEnding(i) },
+  "needs-ending": { label: "Not finished yet", test: (i) => needsAnEnding(i) },
 };
 function lastPublishedAt(i) {
   const posted = (i.destinations || []).filter((d) => d.status === "posted").map((d) => Number(d.at) || 0);

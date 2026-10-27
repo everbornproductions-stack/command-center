@@ -4,6 +4,7 @@ import { installNav, placeNavItem, markNav, markLocks, closeNav, groupFor, GROUP
 import { DAY_VIEWS, EXPERT_SETTINGS, SIMPLE_COMMAND, SIMPLE_STARTER_COUNT, isFreshInstall, resolveMode, resolveProjectMode, shouldAskMode, simpleAllows } from "./mode.js";
 import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory } from "./nav-state.js";
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
+import { costLineText } from "./cost-line.js";
 import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
 import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
@@ -1828,7 +1829,7 @@ function paintAnswerLine(l, text) {
   const line = simpleAnswerLine(S.councilOffer, answeredBy);
   // 0.4.21: what it cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
   const mm = l.mission || {};
-  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">Cost: ${esc(mm.costText)}${mm.why ? `. ${esc(mm.why)}` : ""}</div>` : "";
+  const costLine = mm.costText ? `<div class="small dim" id="cc-cost-line">${esc(costLineText(mm.costText, mm.why))}</div>` : "";
   const stepsLine = (mm.steps || []).length > 1 ? `<details class="small" id="cc-steps-line"><summary class="dim">Which AI did each step</summary>${mm.steps.map((x) => `<div>${window.CC.freeBids?.stepBadgeHtml(x) || ""}${esc(x.title)}: ${esc(x.ai || "")}, ${esc(x.costText)}${x.why ? `. ${esc(x.why)}` : ""}</div>`).join("")}</details>` : "";
   const savedLine = window.CC.freeBids?.savedHeaderHtml(mm.steps) || ""; // 0.4.22
   box.innerHTML = savedLine + costLine + stepsLine + `<span class="dim">${esc(line.text)}</span>${line.offer ? ` <button type="button" class="btn sm" id="cc-ask-council">${esc(line.offer)}</button>` : ""}`;
