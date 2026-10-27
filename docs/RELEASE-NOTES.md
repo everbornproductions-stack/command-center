@@ -2,6 +2,16 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## 0.4.23
+
+- The Safety check now catches Stripe, SendGrid, Twilio and Supabase secret keys, checks built files (dist, build, .min.js) for keys, treats a real live key in a test folder as live, and turns red for a Social Security or card number in the words you send.
+- Publish and Remix publish scan your project folder again on this computer right before anything goes out, instead of trusting an earlier check, and the result says what was checked.
+- Opening web pages for research is safer: every redirect is checked again, pages on this computer or a private network are refused, and very large pages are cut off.
+- Code an AI wrote for a mission test now runs fenced in to your project folder: it cannot write or read other files or start other programs. If your computer cannot fence it in, it does not run.
+- A busy free AI (rate limit) is rested for about 15 minutes instead of until midnight, and the budget message names what is left when both amounts would look the same.
+- The start screen never stays longer than 12 seconds and fades out on every path, links that open a new window only open inside the app for its own pages, and Freebuff only works in Meldmind project folders.
+- Small fixes: the sign-in email box is required again, titles keep their spaces and plain numbers, the last "Practice" labels now say Sample or Test only, and the test run on Windows reports every failing file instead of stopping at the first.
+
 ## 0.4.22
 
 - Safety check before you publish or download: Meldmind scans the words and files for leaked keys, passwords and old risky packages, shows plain fixes with a Fix it button, and blocks a live secret unless you choose Publish anyway.

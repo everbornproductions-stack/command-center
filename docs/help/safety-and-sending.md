@@ -2,7 +2,7 @@
 id: safety-and-sending
 title: Check before you send
 summary: Try the send guard on a message, see the send log, test your monthly budget, and check your connections. Nothing is sent by these.
-lastUpdatedVersion: 0.4.22
+lastUpdatedVersion: 0.4.23
 ---
 
 # Check before you send
@@ -25,11 +25,27 @@ Before you publish or download a website, app, game mod or script that you made 
 
 It shows a traffic light. Green means all clear. Amber means a few things are worth a look, and you can still publish. Red means a live secret, like a real key or password, is written in your files. Then Publish asks you to press Publish anyway, so it is never a surprise.
 
-Many alike hits are shown as one issue with a short TL;DR. Keys that sit in test files are marked low, and made-up example keys are left out with the reason shown. A key is only ever shown as its first 3 characters and ****. For code patterns the exact line is shown, and it may be a false alarm.
+Many alike hits are shown as one issue with a short TL;DR. Keys that sit in test files are marked low, unless they are a real live key such as a Stripe sk_live key, which counts as live anywhere, and made-up example keys are left out with the reason shown. A key is only ever shown as its first 3 characters and ****. For code patterns the exact line is shown, and it may be a false alarm.
 
 Press Fix it to patch what can be patched safely, such as moving a key into a setting and adding a Content-Security-Policy tag. Meldmind then scans again and tells you how many are left. If a key was ever shared or published, change it at its website, because it may already be seen.
 
 Turn it off in Settings, Safety check before publish. It is on by default.
+
+## What changed in 0.4.23
+
+The Safety check now catches Stripe, SendGrid, Twilio and Supabase secret keys, checks built files (dist, build, .min.js) for keys, treats a real live key in a test folder as live, and turns red for a Social Security or card number in the words you send.
+
+Publish and Remix publish scan your project folder again on this computer right before anything goes out, instead of trusting an earlier check, and the result says what was checked.
+
+Opening web pages for research is safer: every redirect is checked again, pages on this computer or a private network are refused, and very large pages are cut off.
+
+Code an AI wrote for a mission test now runs fenced in to your project folder: it cannot write or read other files or start other programs. If your computer cannot fence it in, it does not run.
+
+A busy free AI (rate limit) is rested for about 15 minutes instead of until midnight, and the budget message names what is left when both amounts would look the same.
+
+The start screen never stays longer than 12 seconds and fades out on every path, links that open a new window only open inside the app for its own pages, and Freebuff only works in Meldmind project folders.
+
+Small fixes: the sign-in email box is required again, titles keep their spaces and plain numbers, the last "Practice" labels now say Sample or Test only, and the test run on Windows reports every failing file instead of stopping at the first.
 
 ## What changed in 0.4.22
 

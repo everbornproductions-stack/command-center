@@ -178,6 +178,8 @@ export async function routes(req, res, url, body, h) {
     if (!pv || pv.userId !== userOf(h)) return h.json(res, 409, { error: "Preview first (or the preview expired); nothing was sent", code: "preview_required" });
     if (body.channel && body.channel !== pv.channel) return h.json(res, 409, { error: "That preview was for a different channel", code: "preview_mismatch" });
     if (pv.safety?.hasLive && body.publishAnyway !== true) return h.json(res, 409, { error: "The Safety check found a live secret. Fix it, or press Publish anyway.", code: "safety_red", safety: pv.safety });
+    // 0.4.23 (audit X1): a Social Security or card number in the words to send stops the post too, also a practice run.
+    if (pv.safety?.hasPrivate && body.publishAnyway !== true) return h.json(res, 409, { error: "The Safety check found a Social Security or card number in the words to send. Take it out, or press Publish anyway.", code: "safety_private", safety: pv.safety });
     const ready = readyFor(h, pv.channel);
     if (ready && pv.problems.length) return h.json(res, 400, { error: `Fix these first, then preview again: ${pv.problems.join("; ")}`, code: "preview_problems" });
     // Calendar sends (flag publish): the stored preview must be the post that was approved by hand on the calendar.

@@ -3,7 +3,7 @@
 // spawn is injectable so tests need no real process.
 import fs from "node:fs";
 import path from "node:path";
-import { spawn as realSpawn } from "node:child_process";
+import { spawn as realSpawn, spawnSync } from "node:child_process";
 
 export const NOT_RUN_LINE = "Not run: Meldmind only runs node tests in your project folder.";
 export const RUN_TIMEOUT_MS = 30000;
@@ -36,13 +36,37 @@ export function parseNodeCommand(cmd) {
   return { test, file, cmd: `node ${test ? "--test " : ""}${file}` };
 }
 
+// 0.4.23 (audit C1): AI-written code runs fenced in. Node's permission model lets the file read and write
+// ONLY inside the project folder, and start no other program, no worker and no native add-on. "node --test x"
+// runs the file directly (a node:test file runs its tests in-process and exits non-zero on a failure), because
+// the test runner would need to start a child process. When this Node cannot fence
+// the code in (too old, or a build without the permission model), nothing runs and the answer says so.
+export const SANDBOX_NOT_RUN_LINE = "Not run: this computer's Node cannot fence the test in to your project folder, so Meldmind did not run AI-written code.";
+let sandboxProbe = null;
+export function sandboxFlags(root, { test = false } = {}) {
+  const flags = ["--permission", `--allow-fs-read=${root}`, `--allow-fs-write=${root}`];
+  return flags;
+}
+const childEnv = () => ({ PATH: process.env.PATH || "", SystemRoot: process.env.SystemRoot || "", HOME: process.env.HOME || "", TMPDIR: process.env.TMPDIR || "", TEMP: process.env.TEMP || "", ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) });
+export function sandboxSupported(exec = process.execPath, run = spawnSync) {
+  if (sandboxProbe && sandboxProbe.exec === exec) return sandboxProbe.ok;
+  let ok = false;
+  try {
+    const r = run(exec, ["--permission", "-e", "process.exit(process.permission && !process.permission.has('child') ? 0 : 3)"], { env: childEnv(), windowsHide: true, timeout: 15000, stdio: "ignore" });
+    ok = r.status === 0;
+  } catch { ok = false; }
+  sandboxProbe = { exec, ok };
+  return ok;
+}
+export const resetSandboxProbe = () => { sandboxProbe = null; };
+
 const trim = (s) => (s.length > MAX_OUTPUT ? `${s.slice(0, MAX_OUTPUT)}\n... (cut at ${MAX_OUTPUT} characters)` : s);
 
 /**
  * Run it. Returns { ran: false, line } when it is not allowed or the file is missing, else
  * { ran: true, cmd, exit, output, timedOut, ms }. Never throws.
  */
-export function runNodeTest({ cmd, cwd, spawn = realSpawn, timeoutMs = RUN_TIMEOUT_MS, exec = process.execPath } = {}) {
+export function runNodeTest({ cmd, cwd, spawn = realSpawn, timeoutMs = RUN_TIMEOUT_MS, exec = process.execPath, sandboxOk = sandboxSupported } = {}) {
   const p = parseNodeCommand(cmd);
   if (p.error) return Promise.resolve({ ran: false, line: p.error });
   if (!cwd || !fs.existsSync(cwd)) return Promise.resolve({ ran: false, line: "Not run: the project folder is not known." });
@@ -50,7 +74,8 @@ export function runNodeTest({ cmd, cwd, spawn = realSpawn, timeoutMs = RUN_TIMEO
   const file = path.resolve(root, p.file);
   if (!file.startsWith(root + path.sep)) return Promise.resolve({ ran: false, line: NOT_RUN_LINE });
   if (!fs.existsSync(file)) return Promise.resolve({ ran: false, line: `Not run: ${p.file} was not found in your project folder.` });
-  const argv = p.test ? ["--test", file] : [file];
+  if (!sandboxOk(exec)) return Promise.resolve({ ran: false, line: SANDBOX_NOT_RUN_LINE });
+  const argv = [...sandboxFlags(root, { test: p.test }), file];
   const t0 = Date.now();
   return new Promise((resolve) => {
     let out = "", done = false, timedOut = false, child;
@@ -61,7 +86,7 @@ export function runNodeTest({ cmd, cwd, spawn = realSpawn, timeoutMs = RUN_TIMEO
     };
     const timer = setTimeout(() => { timedOut = true; out += `\nStopped after ${Math.round(timeoutMs / 1000)} seconds.`; try { child?.kill("SIGKILL"); } catch { /* already gone */ } finish(null); }, timeoutMs);
     try {
-      child = spawn(exec, argv, { cwd: root, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env.PATH || "", SystemRoot: process.env.SystemRoot || "", HOME: process.env.HOME || "", TMPDIR: process.env.TMPDIR || "", TEMP: process.env.TEMP || "" } });
+      child = spawn(exec, argv, { cwd: root, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: childEnv() });
     } catch (err) { out += String(err.message || err); return finish(null); }
     child.stdout?.on("data", (d) => { if (out.length < MAX_OUTPUT * 4) out += d; });
     child.stderr?.on("data", (d) => { if (out.length < MAX_OUTPUT * 4) out += d; });

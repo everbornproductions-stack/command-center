@@ -20,7 +20,7 @@ export const WELCOME = {
   textTitle: "Text size",
   aiTitle: "Connect your first AI",
   tryIt: "Try it now",
-  tryLine: "Practice answers from pretend AIs. Nothing is spent. You can add your own AI account later.",
+  tryLine: "Sample answers from pretend AIs. Nothing is spent. You can add your own AI account later.",
   keyLabel: "Or paste an OpenRouter key",
   keyLine: "One OpenRouter key reaches Claude, ChatGPT, Gemini, Grok and more. It is kept sealed on this computer.",
   getKey: "Get a key",

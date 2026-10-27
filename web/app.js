@@ -3265,7 +3265,7 @@ function renderGate(message = "") {
     <div class="muted small" style="text-align:center;margin-bottom:18px">${unreachable ? `Cannot reach the hub at <span class="mono">${esc(hubAddress())}</span>.` : `Sign in to your hub at <span class="mono">${esc(hubAddress())}</span>`}</div>
     ${tipHtml(localStorage)}
     ${unreachable ? "" : `<label class="lbl">Email</label>
-    <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" requiredplaceholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
+    <form id="gate-form" class="row" style="gap:8px"><input type="email" id="gate-email" aria-label="Email" required placeholder="you@example.com" style="flex:1" autocomplete="email" value="${esc(localStorage.getItem("cc.email") || "")}"><button class="btn primary" type="submit" id="gate-go">Email me a sign-in link</button></form>
     <div class="small muted" style="margin-top:10px">No password. We email you a link; open it on this device and you are in. New here? The same link creates your account.</div>
     ${(CONFIG.sso || []).length ? `<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">${CONFIG.sso.map((p) => `<button class="btn" type="button" data-sso="${esc(p.id)}" style="flex:1">Continue with ${esc(p.name)}</button>`).join("")}</div>
     <div class="small muted" style="margin-top:6px">Your team may ask you to use your work Google or Microsoft account.</div>` : ""}`}

@@ -1,5 +1,7 @@
 // Remix any app (Phase 96). Preview first. A click saves the project and the CREDITS file.
 // The address is never opened. Installed files are never read. Nothing is posted.
+import { runSafetyCheck, lightOf } from "../safety-check.js";
+import { enabled as safetyEnabled } from "./safety.js";
 import { finishRemix, testRun, zipStore, standardFiles } from "../remix-output.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -409,6 +411,11 @@ export async function routes(req, res, url, body, h) {
     const live = target === "vercel" ? "CC_VERCEL_API_URL" : target === "itch" ? "CC_ITCH_API_URL" : "";
     if (live && liveApiAllowed(live) && !h.HOSTED && h.DATA_DIR && /^remix-[a-z0-9]+$/.test(projectId)) {
       const folder = creditsFile(h.DATA_DIR, projectId).folder;
+      // 0.4.23 (audit X3): the folder that is about to go out is scanned here on the server, every time.
+      if (safetyEnabled(h) && fs.existsSync(folder)) {
+        const scan = runSafetyCheck({ dir: folder });
+        if ((scan.hasLive || scan.hasPrivate) && body?.publishAnyway !== true) return h.json(res, 409, { error: `${scan.summary} ${scan.checkedLine}`.trim(), code: "safety_red", safety: lightOf(scan), sent: false });
+      }
       const key = token || getSecret(vaultId)?.key || "";
       const name = String(body?.projectName || projectId).slice(0, 80);
       const out = target === "vercel" ? await publishVercel({ token: key, folder, name }) : await publishItch({ token: key, folder, name });

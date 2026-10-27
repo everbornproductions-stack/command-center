@@ -41,6 +41,7 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
+    timeout-minutes: 120 # 0.4.23 (audit X19): a hung job stops instead of burning the Actions budget
     steps:
       # needs git credentials: a later step runs gh release, so this checkout is left as it was (Aikido 0.4.22 review)
       - uses: actions/checkout@v4
@@ -216,6 +217,7 @@ jobs:
     # A manual run builds Windows only unless build_mac is ticked.
     if: ${{ vars.BUILD_MAC == 'true' || (github.event_name == 'workflow_dispatch' && inputs.build_mac == true) }}
     runs-on: macos-latest
+    timeout-minutes: 90 # 0.4.23 (audit X19)
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:

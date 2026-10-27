@@ -35,21 +35,56 @@ export function searchPreflight({ provider, model } = {}) {
   return { ok: true, level: "ok", engine: pick.engine, message: `${pick.name} will search, then Meldmind opens the pages.` };
 }
 
-/** Default fetcher: real network through localFetch, with a timeout. Returns { status, ok, contentType, body }. */
-export async function defaultFetcher(url, { signal, timeoutMs = 9000 } = {}) {
+export const MAX_REDIRECTS = 5;
+export const MAX_PAGE_BYTES = 2 * 1024 * 1024;
+
+// Read at most `cap` bytes of a reply body, then stop (0.4.23, audit X4: no size cap before).
+async function readCapped(res, cap = MAX_PAGE_BYTES) {
+  const reader = res.body?.getReader?.();
+  if (!reader) return (await res.text().catch(() => "")).slice(0, cap);
+  const chunks = []; let n = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const room = cap - n;
+      if (value.length >= room) { chunks.push(value.subarray(0, room)); n = cap; break; }
+      chunks.push(value); n += value.length;
+    }
+  } finally { try { await reader.cancel(); } catch {} }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf8");
+}
+
+/** Default fetcher: real network through localFetch, with a timeout. Returns { status, ok, contentType, body }.
+ *  0.4.23 (audit X4): redirects are followed by hand, at most MAX_REDIRECTS hops, and EVERY hop's address is
+ *  checked again with isPublicHttpUrl, so a public page cannot bounce the reader to 169.254.169.254 or a
+ *  private address. The body is capped at MAX_PAGE_BYTES. `fetchImpl` is for tests only. */
+export async function defaultFetcher(url, { signal, timeoutMs = 9000, fetchImpl = localFetch } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   const onAbort = () => ctl.abort();
   signal?.addEventListener("abort", onAbort);
+  const done = () => { clearTimeout(t); signal?.removeEventListener("abort", onAbort); };
   // 0.4.22 (Aikido SSRF review): a source address is opened only when it is a public web address.
-  if (!isPublicHttpUrl(url)) { clearTimeout(t); signal?.removeEventListener("abort", onAbort); return { status: 403, ok: false, contentType: "", body: "" }; }
+  if (!isPublicHttpUrl(url)) { done(); return { status: 403, ok: false, contentType: "", body: "" }; }
   try {
-    const res = await localFetch(url, { headers: { accept: "text/html, text/plain;q=0.9", "user-agent": "Mozilla/5.0 (compatible; Meldmind)" }, signal: ctl.signal, redirect: "follow" });
-    const body = await res.text().catch(() => "");
-    return { status: res.status, ok: res.ok, contentType: res.headers?.get?.("content-type") || "", body };
+    let at = String(url);
+    for (let hop = 0; ; hop++) {
+      const res = await fetchImpl(at, { headers: { accept: "text/html, text/plain;q=0.9", "user-agent": "Mozilla/5.0 (compatible; Meldmind)" }, signal: ctl.signal, redirect: "manual" });
+      const loc = res.status >= 300 && res.status < 400 ? res.headers?.get?.("location") : null;
+      if (!loc) {
+        const body = await readCapped(res);
+        return { status: res.status, ok: res.ok, contentType: res.headers?.get?.("content-type") || "", body, url: at };
+      }
+      try { await res.body?.cancel?.(); } catch {}
+      if (hop >= MAX_REDIRECTS) return { status: 508, ok: false, contentType: "", body: "", reason: "too many redirects" };
+      let next;
+      try { next = new URL(loc, at).href; } catch { return { status: 502, ok: false, contentType: "", body: "" }; }
+      if (!isPublicHttpUrl(next)) return { status: 403, ok: false, contentType: "", body: "", blockedRedirect: true };
+      at = next;
+    }
   } finally {
-    clearTimeout(t);
-    signal?.removeEventListener("abort", onAbort);
+    done();
   }
 }
 

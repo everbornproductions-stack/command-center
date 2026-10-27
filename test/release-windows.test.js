@@ -91,10 +91,13 @@ test("npm test runs helper-process files one at a time and a hang fails the test
   const serialAt = runner.indexOf("run([serialName], [\"--test-concurrency=1\"])");
   const winAt = runner.indexOf("process.platform === \"win32\"");
   const helperAt = runner.indexOf("for (const name of helpers)");
-  const restAt = runner.indexOf("process.exit(run(rest, []))");
+  const restAt = runner.indexOf("note(run(rest, []), \"the other test files\")");
   assert.ok(serialAt > 0 && winAt > serialAt, "the stdio and demo file runs before the other files");
   assert.ok(helperAt > winAt && restAt > helperAt, "on Windows each helper-process file runs alone, then the pure files");
   assert.match(runner, /isHelper/);
+  // 0.4.23 (audit X2): one failing file no longer stops the run; the exit code comes at the end.
+  assert.doesNotMatch(runner, /if \(code !== 0\) process\.exit\(code\)/);
+  assert.match(runner, /process\.exit\(failed\.length \? 1 : 0\)/);
   assert.match(runner, /startServer\(/);
   assert.doesNotMatch(runner, /--test-concurrency=2/);
   assert.doesNotMatch(runner, /--test-skip|testNamePattern/);

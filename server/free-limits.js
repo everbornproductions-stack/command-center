@@ -42,15 +42,20 @@ export function noteUse(id, { now = Date.now(), count = 1 } = {}) {
 }
 
 // Mark an AI out until its next reset. Returns the entry, or null for an unknown id.
-export function markOut(id, reason = "", { now = Date.now() } = {}) {
+export const SHORT_BENCH_MS = 15 * 60 * 1000;
+// A plain 429 or "rate limit" is usually a per-minute limit, so it benches the AI for about 15 minutes, not until
+// midnight (0.4.23, audit X8). Only words that say the DAY's allowance is gone ("quota", "daily limit",
+// "resource exhausted") bench it until the next reset. `short: true` asks for the short bench.
+export const DAILY_PHRASE = /\b(quota|daily limit|per day|resource[_ ]exhausted)\b/i;
+export function markOut(id, reason = "", { now = Date.now(), short = false } = {}) {
   if (!id) return null;
   const d = load(now);
   const e = entry(d, id);
-  e.out = nextReset(now);
+  e.out = short ? Math.min(nextReset(now), now + SHORT_BENCH_MS) : nextReset(now);
   e.reason = String(reason || "").replace(/\s+/g, " ").trim().slice(0, 120) || "hit its daily limit";
   putDoc(DOC, d);
   // the existing trouble table shows the plain reason; the bids already skip this AI through limitLeft
-  try { if (PROVIDERS[id]) markTrouble(id, "credits", `${e.reason}. It comes back tomorrow.`, { quiet: true }); } catch { /* the tracker alone still works */ }
+  try { if (PROVIDERS[id]) markTrouble(id, "credits", `${e.reason}. ${short ? "It is tried again in about 15 minutes." : "It comes back tomorrow."}`, { quiet: true }); } catch { /* the tracker alone still works */ }
   return { ...e };
 }
 
@@ -59,7 +64,8 @@ export function noteReply(id, { status = 0, text = "" } = {}, { now = Date.now()
   if (!(id in FREE_TIERS) && !(id in EXTRA_LIMITS)) return false; // a paid AI's 429 is the trouble table's job alone
   const hit = Number(status) === 429 || OUT_PHRASE.test(String(text || ""));
   if (!hit) return false;
-  markOut(id, Number(status) === 429 ? "hit its daily limit (429)" : "hit its daily limit", { now });
+  const daily = DAILY_PHRASE.test(String(text || ""));
+  markOut(id, daily ? (Number(status) === 429 ? "hit its daily limit (429)" : "hit its daily limit") : "is busy for a few minutes (rate limit)", { now, short: !daily });
   return true;
 }
 

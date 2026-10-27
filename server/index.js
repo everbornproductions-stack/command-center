@@ -220,6 +220,9 @@ const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; cha
 function json(res, status, body) {
   if (status >= 400 && body && typeof body.error === "string" && looksRaw(body.error)) body = { ...body, error: plainMessage(body.error) }; // no raw JavaScript error reaches the person
   const buf = Buffer.from(JSON.stringify(body), "utf8");
+  // 0.4.23 (audit X2): every JSON reply carries its exact content-length and never a transfer-encoding header,
+  // so no client can read it as a chunked body (test/reply-framing-0423.test.js checks it over a raw socket).
+  try { res.removeHeader("transfer-encoding"); } catch { /* headers already sent */ }
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": buf.length });
   if (buf.length <= 60000) {
     res.end(buf);
