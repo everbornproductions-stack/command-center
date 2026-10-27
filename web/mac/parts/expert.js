@@ -126,6 +126,10 @@ function renderSide() {
   const q = st.q.trim();
   const limits = CC.S?.license?.limits;
   const open = openGroups();
+  // A redraw (view change, mode tick) must not drop focus from the search box, or typing lands nowhere.
+  const old = side.querySelector(".mx-srch");
+  const typing = !!old && document.activeElement === old;
+  const caret = typing ? [old.selectionStart, old.selectionEnd] : null;
   side.textContent = "";
   const inner = el("div", "mx-sidein");
   const head = el("div", "mx-sidehead");
@@ -189,6 +193,7 @@ function renderSide() {
   rb.setAttribute("aria-label", "Show the sidebar");
   rb.addEventListener("click", () => setCollapsed(false));
   side.append(rb);
+  if (typing) { box.focus(); try { box.setSelectionRange(caret[0] ?? box.value.length, caret[1] ?? box.value.length); } catch { /* not a text box */ } }
 }
 
 function setCollapsed(on) {
