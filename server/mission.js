@@ -41,7 +41,8 @@ import { saveNamedFile, writeProjectFile, codeFor, isWritableName, NOT_SAVED_LIN
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
-import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
+import { dryRunBanner, preflight, mediaStatus, neededMedia } from "./media-preflight.js";
+import { localizeImagePlan, drawLocally, namedImage, localDrawNote } from "./local-draw.js";
 import fs from "node:fs";
 import path from "node:path";
 import { extractHeadline, overlayPng, isPng } from "./overlay.js";
@@ -834,6 +835,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       mission.planNote = `Heads up before we start: ${NOT_SAVED_LINE} Link your project folder to this project to have files written there.`;
       log(mission.planNote);
     }
+    // 0.4.21 (dogfood 13): no image AI connected. A flat graphic is drawn here (no "render with Pillow" step that cannot run);
+    // any other image job says at planning time that it cannot be made and what to add.
+    if (neededMedia(goal).includes("image")) {
+      const ist = mediaStatus("image", goal);
+      if (ist?.local) {
+        const fixed = localizeImagePlan(plan, goal);
+        if (fixed.changed) { plan = fixed.plan; log("The plan had a step that renders the picture with a program. Meldmind draws this flat graphic itself instead."); }
+        mission.planNote = [mission.planNote, ist.message].filter(Boolean).join(" ");
+        log(ist.message);
+      } else if (ist && !ist.ok) {
+        mission.planNote = [mission.planNote, ist.message].filter(Boolean).join(" ");
+        log(ist.message, { level: "error" });
+      }
+    }
 
     // ---- 2. Assign ----
     // a task that needs live information is limited to models with their own web access, unless the
@@ -862,7 +877,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       // a media step (R2): a video, image or voice file through a media provider; the estimate is shown and a
       // paid one waits for the person's OK (no key: a dry run with a placeholder file)
-      const media = t.capability === "media" ? mediaPlan(t) : null;
+      const media = t.capability === "media" ? mediaPlan(t, goal) : null;
       if (media) {
         mission.tasks.push({ ...t, capability: "media", media, status: "queued", provider: media.provider, model: media.provider, agentName: `${media.providerName} · ${media.kind}${media.dryRun ? " (dry run)" : ""}`, estCost: 0, output: null, review: null, cost: 0 });
         continue;
@@ -1135,6 +1150,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // voice speaks the script it was handed; video and image use the planner's prompt
       const words = t.media.kind === "voice" && inputs ? inputs.replace(/[#*>`|_]/g, "").replace(/\s+/g, " ").trim() : (t.media.prompt || t.instructions || t.title);
       try {
+        if (t.media.local) {
+          const r = await drawLocally({ goal: `${goal}\n${t.media.prompt || ""}`, name: namedImage(goal) || namedImage(t.media.prompt), projectId, missionId: id });
+          t.media.provider = "local-draw"; t.media.dryRun = false; t.media.usd = 0;
+          t.media.files = [r.png, r.svg].filter(Boolean).map((f) => ({ name: f.name, path: f.path, bytes: f.bytes }));
+          t.media.disk = r.disk; t.media.pngMade = r.pngMade;
+          t.output = r.line;
+          outputs[t.id] = t.output;
+          if (r.ok) { t.media.status = "done"; t.status = "done"; t.error = null; }
+          else { t.media.status = "failed"; t.status = "failed"; t.error = r.line; }
+          if (t.status === "done") done.add(t.id);
+          t.finishedAt = Date.now();
+          emit("task.update", { missionId: id, task: pubTask(t) }); update();
+          return;
+        }
         // any connected maker, another one when the first fails, never a quiet placeholder (practice only in demo mode)
         const practice = mediaDemoOn() && !mediaDemosHidden() && !MSW.status(t.media.kind).ok;
         const sw = practice ? null : await MSW.missionMediaStep({ kind: t.media.kind, prompt: words, projectId, missionId: id, missionTaskId: t.id, guardUsd: mediaGuardUsd() });
@@ -1821,12 +1850,13 @@ async function lateResult(job) {
 
 // ---- media steps (R2): a video, image or voice file made by a media provider ----
 const MEDIA_LINE = `\nA step that must produce a finished video clip, image or voice-over file (not a script, brief or prompt for one) gets capability "media" and "media": {"kind": "video|image|voice", "prompt": "what to generate, under 80 words"}; for voice, put it after the step that writes the words (deps) and the file speaks that step's output. Use "media" only when the goal asks for the file itself. Its cost is shown first and a paid one waits for the person's OK.`;
-function mediaPlan(t) {
+function mediaPlan(t, goal = "") {
   const kind = String(t.media?.kind || "").toLowerCase();
   if (!MEDIA.KINDS.includes(kind)) return null;
   try {
     const prompt = String(t.media?.prompt || t.instructions || t.title || "").slice(0, MEDIA.MAX_PROMPT);
     const st = MSW.status(kind);
+    if (kind === "image" && !st.provider && mediaStatus("image", goal || prompt)?.local) return { kind, prompt, provider: "local-draw", providerName: "Meldmind drawing", usd: 0, note: localDrawNote(), dryRun: false, local: true, jobId: null, status: null, files: [] };
     if (st.provider) return { kind, prompt, provider: st.provider, providerName: st.providerName, usd: st.usd ?? MEDIA.estimate({ provider: st.provider, kind, params: { prompt, text: prompt } }).usd, note: st.alternatives.length ? `If it fails, ${st.alternatives.join(" or ")} steps in.` : "", dryRun: false, jobId: null, status: null, files: [] };
     const provider = MEDIA.chooseProvider(kind);
     const est = MEDIA.estimate({ provider, kind, params: { prompt, text: prompt } });

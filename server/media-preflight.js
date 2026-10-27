@@ -3,6 +3,7 @@
 import * as MEDIA from "./media-jobs.js";
 import { status as switchStatus } from "./media-switch.js";
 import { IMAGE_PROVIDERS, readyImageProviders, imageProviderInfo } from "./images.js";
+import { isFlatGraphic, localDrawNote, cantMakeImageLine, canRenderPng } from "./local-draw.js";
 
 const IMAGE_ASK = /\b(image|images|picture|pictures|photo|photos|logo|illustration|poster|banner|thumbnail|mockup|graphic|artwork|1080x1080|instagram (post|image)|social (post|image))\b/i;
 const VIDEO_ASK = /\b(video|videos|reel|reels|clip|clips|animation|animated)\b/i;
@@ -29,10 +30,15 @@ const AIS_TEXT = { image: "an image AI key (OpenAI, Google Gemini, xAI, Replicat
 
 /** One kind: can it be made now, by whom, and what to say if not. Uses M's media switch (server/media-switch.js), the
  * one list of picture/video/voice makers across both media stacks, so the preflight and the step agree. */
-export function mediaStatus(kind) {
+export function mediaStatus(kind, goal = "") {
   if (!MEDIA.KINDS.includes(kind)) return null;
   let st;
   try { st = switchStatus(kind); } catch { return oldStatus(kind); }
+  // 0.4.21 (dogfood 13): no image AI. A flat graphic is drawn here; anything else gets an honest "I can't make this" with what to add.
+  if (kind === "image" && !st.ok && !st.missing?.length) {
+    if (isFlatGraphic(goal)) return { ...st, ok: true, local: true, pngHere: canRenderPng(), provider: "local-draw", providerName: "Meldmind drawing", usd: 0, ready: [], alternatives: [], message: localDrawNote() };
+    return { ...st, message: cantMakeImageLine(st.message) };
+  }
   if (!st.ok && !/placeholder/.test(st.message || "")) st = { ...st, message: `${st.message} Until then you only get a placeholder, not a real ${kind}.` };
   return st;
 }
@@ -73,7 +79,7 @@ function oldStatus(kind) {
 /** For a goal: which media it needs, whether each can be made, and one banner line if any cannot. */
 export function preflight(goal, { kinds } = {}) {
   const wanted = (kinds && kinds.length ? kinds : neededMedia(goal)).filter((k) => MEDIA.KINDS.includes(k));
-  const items = wanted.map(mediaStatus).filter(Boolean);
+  const items = wanted.map((k) => mediaStatus(k, goal)).filter(Boolean);
   const blocked = items.filter((i) => !i.ok);
   return { kinds: wanted, items, blocked: blocked.length > 0, lines: items.map((i) => i.message), banner: blocked.length ? blocked.map((b) => b.message).join(" ") : "" };
 }
