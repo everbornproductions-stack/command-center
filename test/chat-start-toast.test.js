@@ -44,11 +44,13 @@ test("look offer does not cover the centre of the page", { skip: findBrowser() ?
   const t = await bootPage({ width: 1366, height: 768, mode: "simple", hidePopups: false });
   try {
     await t.page.evaluate(() => {
-      const bar = document.createElement("div"); bar.id = "cc-look-offer";
+      // The app may show its own offer (docked full width in the notices row) on a slow machine; it shares the id, so drop it and measure only ours.
+      document.querySelectorAll("#cc-look-offer").forEach((e) => e.remove());
+      const bar = document.createElement("div"); bar.id = "cc-look-offer"; bar.dataset.testOffer = "1";
       bar.innerHTML = '<span>Try the new look?</span><button class="btn">Yes</button>';
       document.body.appendChild(bar);
     });
-    const q = await t.page.evaluate(() => { const r = document.querySelector("#cc-look-offer").getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, w: innerWidth, h: innerHeight }; });
+    const q = await t.page.evaluate(() => { const r = document.querySelector("#cc-look-offer[data-test-offer]").getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, w: innerWidth, h: innerHeight }; });
     assert.ok(q.r < q.w / 2, `offer stays in the left corner: ${JSON.stringify(q)}`);
     assert.ok(q.t > q.h / 2, "offer is in the lower half");
   } finally { await t.close(); }
