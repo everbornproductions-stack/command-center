@@ -121,7 +121,8 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
       const r = await api("/publish/preview", { method: "POST", body: bodyOf() });
       previewId = r.previewId;
       const probs = r.problems || [];
-      out.innerHTML = `${esc(r.summary || "")}${fitFixes(probs, channel).map((f, i) => `<div class="mm-warn">${esc(f.text)}${f.fix ? ` <button type="button" class="btn sm" data-fix="${i}:fix">${esc(f.fix.label)}</button>` : ""}${f.alt ? ` <button type="button" class="btn sm" data-fix="${i}:alt">${esc(f.alt.label)}</button>` : ""}</div>`).join("")}${r.dryRun ? `<div class="mm-note">Practice only, nothing is sent. This place is not connected, so Meldmind only records the practice run.</div>` : ""}`;
+      const warnings = (r.warnings || []).map((w) => typeof w === "string" ? w : (w.plain || w.why || JSON.stringify(w)));
+      out.innerHTML = `${esc(r.summary || "")}${warnings.map((w) => `<div class="mm-warn">${esc(w)}</div>`).join("")}${fitFixes(probs, channel).map((f, i) => `<div class="mm-warn">${esc(f.text)}${f.fix ? ` <button type="button" class="btn sm" data-fix="${i}:fix">${esc(f.fix.label)}</button>` : ""}${f.alt ? ` <button type="button" class="btn sm" data-fix="${i}:alt">${esc(f.alt.label)}</button>` : ""}</div>`).join("")}${r.dryRun ? `<div class="mm-note">Practice only, nothing is sent. This place is not connected, so Meldmind only records the practice run.</div>` : ""}`;
       out.querySelectorAll("[data-fix]").forEach((b) => b.addEventListener("click", () => {
         const f = fitFixes(probs, channel)[Number(b.dataset.fix.split(":")[0])];
         const id = (b.dataset.fix.endsWith(":alt") ? f.alt : f.fix)?.id;

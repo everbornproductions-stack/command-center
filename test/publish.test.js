@@ -102,4 +102,10 @@ test("Drive folder: copies the deliverable and only the media job's file; ledger
 
   const past = await s.api("/publish/preview", { method: "POST", body: { channel: "ghl", text: "x", accountIds: ["a1"], when: Date.now() - 60000 } });
   assert.ok(past.json.problems.some((p) => /in the past/.test(p)));
+
+  const warned = await s.api("/publish/preview", { method: "POST", body: { channel: "instagram", text: "Guaranteed results on this post" } });
+  assert.equal(warned.status, 200);
+  assert.ok(Array.isArray(warned.json.warnings));
+  assert.ok(warned.json.warnings.length > 0);
+  assert.ok(warned.json.warnings.some((w) => w.rule === "guaranteed_results"));
 });

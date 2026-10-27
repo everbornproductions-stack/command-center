@@ -45,7 +45,8 @@ async function openPreview(el, channel, run) {
     try {
       const r = await api("/publish/preview", { method: "POST", body: payload() });
       previewId = r.previewId; live = !!r.safety?.hasLive; go.textContent = live ? "Publish anyway" : go.textContent.replace(/^Publish anyway$/, "Confirm & " + VERB[channel]);
-      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
+      const warnings = (r.warnings || []).map((w) => typeof w === "string" ? w : (w.plain || w.why || JSON.stringify(w)));
+      out.innerHTML = `${esc(r.summary)}${r.media ? ` <span class="chip">media ${esc(r.media.kind)}${r.media.files ? ` · ${r.media.files} file${r.media.files === 1 ? "" : "s"}` : ""}</span>` : ""}${warnings.length ? `<div style="color:var(--amber)">${warnings.map(esc).join(" · ")}</div>` : ""}${r.problems.length ? `<div style="color:var(--amber)">${r.problems.map(esc).join(" · ")}</div>` : ""}${r.dryRun ? ' <span class="chip amber">not connected · practice only, nothing is sent</span>' : ' <span class="chip green">ready</span>'}`;
       if (r.safety) out.insertAdjacentHTML("beforeend", window.CC.safety?.previewLine?.(r.safety) || "");
       go.disabled = r.problems.length > 0 && !r.dryRun; go.title = go.disabled ? "Fix the problems above, then preview again" : "";
     } catch (e) { previewId = null; go.disabled = true; toast(e.message, true); }
