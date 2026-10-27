@@ -20,7 +20,7 @@ import { PROVIDERS } from "./registry.js";
 import { streamChat } from "./providers.js";
 import { localFetch } from "./loopback-fetch.js";
 import { networkCause } from "./health.js";
-import { riskyAction } from "./action-policy.js";
+import { filterSendTools, riskyAction } from "./action-policy.js";
 import { highlevelToolEntries, runHighlevelAction } from "./highlevel-tools.js";
 
 export const SERVERS_DOC = "mcp.servers";
@@ -406,8 +406,12 @@ export function chatWithTools(opts, run = {}) {
       tools.push(entry);
     }
   }
-  if (!tools.length) return streamChat(opts);
-  return loop(opts, tools, { ...run, maxRounds: settings.maxRounds });
+  // "Never send or post" (0.4.21, item P): an agent with noSend on is never offered a tool whose name or
+  // description is about sending, posting, publishing, email, messages, tweets or uploads.
+  const offered = run.noSend === true ? filterSendTools(tools) : tools;
+  if (offered.length !== tools.length) emit("log", { text: `${tools.length - offered.length} tool(s) left out: this agent is set to never send or post.`, missionId: run.missionId || null });
+  if (!offered.length) return streamChat(opts);
+  return loop(opts, offered, { ...run, maxRounds: settings.maxRounds });
 }
 const sumUsage = (a, b) => ({ input: (a.input || 0) + (b.input || 0), output: (a.output || 0) + (b.output || 0), estimated: !!(a.estimated || b.estimated), cost: typeof a.cost === "number" && typeof b.cost === "number" ? a.cost + b.cost : (typeof a.cost === "number" && !b.input && !b.output ? a.cost : undefined), actualModel: b.actualModel || a.actualModel });
 async function* loop(opts, tools, { missionId = null, taskId = null, maxRounds = 8, onRound = null, tools: _t, ...rest } = {}) {

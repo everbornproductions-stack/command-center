@@ -3,10 +3,11 @@
 // import as JSON, sharing with a workspace, what others shared with me, and Marketplace listing drafts.
 // The Command view gets a row of saved prompts and agents. A run is a single chat: it shows in the Command view.
 import { missionTeamHtml } from "../employees-ui.js";
+import { DAYS, whenHtml, readWhen, wireWhen } from "./schedules.js";
 const { api, toast, esc, md } = window.CC;
 const S = () => window.CC.S;
 
-const st = { data: null, edit: null, editPrompt: null, workspaces: [], loaded: false, browse: false, find: "", cat: "" };
+const st = { data: null, edit: null, editPrompt: null, workspaces: [], loaded: false, browse: false, find: "", cat: "", created: null };
 const currentProject = () => document.getElementById("proj")?.value || S().project || null;
 const VAR_RE = /\{\{\s*([A-Za-z][\w .-]{0,39}?)\s*\}\}/g;
 const varsOf = (t) => { const out = []; for (const m of String(t || "").matchAll(VAR_RE)) if (!out.includes(m[1])) out.push(m[1]); return out; };
@@ -231,9 +232,66 @@ function wireCards(root) {
   root.querySelectorAll("[data-emp-add]").forEach((b) => b.addEventListener("click", () => addEmp(b.dataset.empAdd)));
 }
 
+// ---------- create your own agent, at the top of the page ----------
+// Name, job, when it runs (the same day buttons and time box as the Schedules form), a monthly spend
+// limit and the "Never send or post" switch. Saving goes through the existing routes: one for the agent,
+// and one more for the schedule when a day and time are picked.
+function createBox() {
+  return `<div class="panel" id="ag-create"><h3>Create your own agent</h3>
+    <div class="small muted">Give it a name and a job. It runs with your own AI keys, and every call goes to your spend limit.</div>
+    <label class="small" style="display:block;margin-top:8px">Name <input type="text" id="ac-name" maxlength="60" style="width:100%" placeholder="Nightly report"></label>
+    <label class="small" style="display:block;margin-top:6px">What it does <textarea id="ac-job" rows="3" style="width:100%" placeholder="In plain words: what it does each time, how it answers, what it must never say"></textarea></label>
+    <div class="small" style="margin-top:8px">When it runs</div>
+    <select id="ac-when" aria-label="When it runs" style="width:100%"><option value="">Off (I run it myself)</option><option value="on">On a schedule</option></select>
+    <div id="ac-when-box" style="display:none;margin-top:8px">${whenHtml("0 9 * * 1-5")}</div>
+    <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <label class="small">Monthly spend limit ($) <input type="number" id="ac-cap" min="0.01" step="0.01" value="1" style="width:90px"></label>
+      <label class="row small" style="gap:6px"><input type="checkbox" id="ac-nosend" checked> Never send or post</label>
+    </div>
+    <div class="small dim" style="margin-top:4px">"Never send or post" is a real switch: no send, post, publish or upload tool is offered to this agent, and it never sends anything on its own.</div>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn primary" id="ac-go">Create</button></div>
+    ${st.created ? `<div class="small" id="ac-note" role="status" style="margin-top:8px">${esc(st.created)}</div>` : ""}
+  </div>`;
+}
+
+function wireCreate(view) {
+  const q = (s) => view.querySelector(s);
+  const when = q("#ac-when");
+  when?.addEventListener("change", () => { const box = q("#ac-when-box"); if (box) box.style.display = when.value === "on" ? "" : "none"; });
+  wireWhen(view);
+  q("#ac-name")?.addEventListener("input", () => { if (st.created) { st.created = null; q("#ac-note")?.remove(); } });
+  q("#ac-go")?.addEventListener("click", async () => {
+    const name = q("#ac-name").value.trim();
+    const job = q("#ac-job").value.trim();
+    if (!name) return toast("Give your agent a name.", true);
+    if (!job) return toast("Say what it does.", true);
+    const cap = Number(q("#ac-cap").value);
+    if (!(cap > 0)) return toast("Set a monthly spend limit above zero.", true);
+    const withWhen = when.value === "on";
+    const days = [...view.querySelectorAll("#sf-days [data-day][aria-pressed='true']")].map((b) => b.dataset.day);
+    if (withWhen && !days.length) return toast("Pick at least one day.", true);
+    let made;
+    try { made = await api("/agents", { method: "POST", body: { name, instructions: job, tools: { mode: "all", allow: [] }, noSend: q("#ac-nosend").checked } }); }
+    catch (e) { return toast(e.message, true); }
+    let note = `Created ${made.name}. It is in My agents on this page.`;
+    if (withWhen) {
+      const cron = readWhen(view);
+      const time = q("#sf-time")?.value || "09:00";
+      try {
+        await api("/schedules", { method: "POST", body: { name: `${made.name} schedule`, target: { kind: "agent", agentId: made.id, text: "" }, trigger: { type: "cron", cron }, capUsd: cap, after: { action: "none" } } });
+        note += ` It runs ${DAYS.filter(([v]) => days.includes(v)).map(([, s]) => s).join(", ")} at ${time}, up to $${cap} a month.`;
+      } catch (e) { note += ` The schedule was not made: ${e.message}`; }
+    }
+    st.created = note;
+    q("#ac-name").value = "";
+    q("#ac-job").value = "";
+    await refresh();
+  });
+}
+
 // ---------- the tab ----------
 const agentCard = (a) => `<div class="row small" style="gap:6px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
-  <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
+  <div style="flex:1;min-width:180px"><b>${esc(a.name)}</b> ${a.noSend ? `<span class="chip" title="No send, post or publish tool is offered to this agent">Never sends or posts</span>` : ""} <span class="dim">${esc(a.modelName || "")}${a.providerName ? ` · ${esc(a.providerName)}` : ""}</span>
     <div class="dim">${esc(a.description || a.instructions.slice(0, 90))}</div>
     <div class="dim">${a.tools.mode === "off" ? "no tools" : a.tools.mode === "all" ? "all switched-on tools" : `${a.tools.allow.length} tool(s)`} · ${a.libraryNames.length} librar${a.libraryNames.length === 1 ? "y" : "ies"} · ${a.starters.length} starter(s)</div></div>
   <button class="btn sm primary" data-arun="${esc(a.id)}">Run</button><button class="btn sm" data-aedit="${esc(a.id)}">Edit</button><button class="btn sm" data-ashare="${esc(a.id)}">Share</button><button class="btn sm" data-achat="${esc(a.id)}">Share in chat</button><button class="btn sm" data-alist="${esc(a.id)}" title="Prepare a Marketplace listing draft">List</button><button class="btn sm" data-aexp="${esc(a.id)}">Export</button><button class="btn sm" data-adel="${esc(a.id)}" title="Delete">Delete</button></div>`;
@@ -252,7 +310,9 @@ async function refresh() { await load(); const v = document.querySelector("#view
 async function renderTab(view) {
   if (!st.loaded) { view.innerHTML = `<div class="empty">Loading…</div>`; await load(); }
   const d = st.data;
-  view.innerHTML = `${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+  const jumpHere = !!S().openAgentCreate;
+  if (jumpHere) S().openAgentCreate = false;
+  view.innerHTML = `${createBox()}${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
     <div class="grid" style="align-content:start">
       ${st.edit ? agentEditor(st.edit) : ""}
       <div class="panel"><h3>My agents <span class="right"><button class="btn sm primary" id="ag-new">+ New agent</button></span></h3>
@@ -274,7 +334,9 @@ async function renderTab(view) {
         <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>
     </div></div>`;
   wireEmployees(view);
+  wireCreate(view);
   const $v = (s) => view.querySelector(s);
+  if (jumpHere) { const n = $v("#ac-name"); n?.focus(); n?.scrollIntoView({ block: "center" }); }
   const findA = (id) => d.agents.find((x) => x.id === id), findP = (id) => d.prompts.find((x) => x.id === id);
   const splitRef = (v) => { const [workspaceId, kind, itemId] = v.split("|"); return { workspaceId, kind, itemId }; };
   $v("#ag-new").addEventListener("click", () => { st.edit = { name: "", instructions: "", tools: { mode: "off", allow: [] }, libraries: [], starters: [] }; renderTab(view); });

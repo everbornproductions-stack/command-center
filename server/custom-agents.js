@@ -125,7 +125,9 @@ export function cleanAgent(input = {}, opts = {}) {
   if (!instructions) throw err(400, "Write the agent's instructions (what it is for and how it should answer).");
   if (instructions.length > LIMITS.instructions) throw err(400, `Instructions are too long (${LIMITS.instructions} characters at most).`);
   const starters = (Array.isArray(input.starters) ? input.starters : []).map((s) => str(s, LIMITS.starter)).filter(Boolean).slice(0, LIMITS.starters);
-  return { name, description: str(input.description, LIMITS.description), ...checkModel(input.provider, input.model, opts), instructions, tools: checkTools(input.tools, opts), libraries: checkLibraries(input.libraries, opts), starters };
+  // "Never send or post" (0.4.21): a real setting on the agent, not words in its instructions. The run
+  // keeps send, post, publish and upload tools out of its list (server/action-policy.js filterSendTools).
+  return { name, description: str(input.description, LIMITS.description), ...checkModel(input.provider, input.model, opts), instructions, tools: checkTools(input.tools, opts), libraries: checkLibraries(input.libraries, opts), starters, noSend: input.noSend === true };
 }
 export function cleanPrompt(input = {}, { lenient = false, notes } = {}) {
   const name = str(input.name, LIMITS.name);
@@ -214,11 +216,15 @@ export function runOptions(a, { prompt, projectId = null, search } = {}) {
   const text = str(prompt, LIMITS.text);
   if (!text) throw err(400, "Type what you want the agent to do, or pick a starter.");
   const pinned = a.provider && PROVIDERS[a.provider] ? { provider: a.provider, model: a.model } : {};
+  const neverSend = a.noSend === true;
   return {
     prompt: text, projectId, ...pinned, search: typeof search === "boolean" ? search : undefined,
     system: systemFor(a), agent: { id: a.id || null, name: a.name },
     tools: a.tools?.mode === "off" ? false : undefined,
     toolAllow: a.tools?.mode === "some" ? a.tools.allow : undefined,
+    // "Never send or post": the tool list is filtered at run time (server/mcp.js) and nothing this run
+    // starts is allowed to send or post on its own.
+    ...(neverSend ? { noSend: true, sendMessages: false } : {}),
     // the agent's own libraries plus the chat's and the workspace's (Phase 18 attach rules); a shared snapshot uses its list
     agentId: a.id || undefined, libraries: a.id ? undefined : (liveLibraries(a).length ? liveLibraries(a) : undefined),
   };
@@ -227,7 +233,7 @@ export function runOptions(a, { prompt, projectId = null, search } = {}) {
 // ---------- export / import ----------
 const portableAgent = (a) => ({
   ref: a.id, name: a.name, description: a.description, provider: a.provider, model: a.model, instructions: a.instructions,
-  tools: { mode: a.tools?.mode || "off", allow: a.tools?.allow || [] },
+  tools: { mode: a.tools?.mode || "off", allow: a.tools?.allow || [] }, noSend: a.noSend === true,
   libraries: (L.available() ? liveLibraries(a) : []).map((id) => ({ id, name: L.getLibrary(id)?.name || id })), starters: a.starters || [],
 });
 const portablePrompt = (p) => ({ ref: p.id, name: p.name, description: p.description, text: p.text, agentRef: p.agentId || null });

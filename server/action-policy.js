@@ -17,6 +17,23 @@ const HIDDEN = /^(send|post|publish|charge|purchase|delete|reply|forward|submit|
 const hiddenStem = (text) => String(text || "").split(/\s+/).some((t) => t.length > 4 && !READ_WORD.test(t) && HIDDEN.test(t));
 const READ_WORD = /^(sender|senders|postal|postcode|poster|mailbox|emailaddress|payload|payee|payer)$/i;
 
+// "Never send or post" (0.4.21, item P): the send family only, for an agent whose noSend switch is on.
+// It reuses the word splitter and the classifier above: a tool counts as a sender only when its name or
+// its description says send, post, publish, email, message, tweet or upload AND riskyAction() already
+// counts it as an action. Readers (read_email, list_files, search_inbox) are left in the list.
+const SEND_WORD = /\b(send|sends|sending|sent|post|posts|posting|posted|publish|publishes|publishing|published|email|emails|message|messages|messaging|tweet|tweets|tweeting|tweeted|upload|uploads|uploading|uploaded)\b/i;
+// One blob hiding a sender inside it: sendmail, sendemail, posttweet, uploadpic.
+const SEND_STEM = /^(send|posts?|publish|emails?|messages?|tweets?|uploads?)/;
+const sendStem = (text) => String(text || "").split(/\s+/).some((t) => t.length > 4 && !READ_WORD.test(t) && SEND_STEM.test(t));
+export function sendTool(tool) {
+  const name = String(tool?.name || "");
+  const blob = words(`${name} ${tool?.title || ""} ${tool?.description || ""}`);
+  if (!SEND_WORD.test(blob) && !sendStem(words(name))) return false;
+  return riskyAction(tool);
+}
+// The list a noSend agent actually gets: senders out, readers and the rest still there.
+export const filterSendTools = (list) => (Array.isArray(list) ? list : []).filter((t) => !sendTool(t));
+
 export function riskyAction(tool) {
   const name = String(tool?.name || "");
   if (/^execute_zapier_write_action$/i.test(name)) return true;
