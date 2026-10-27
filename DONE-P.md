@@ -1,22 +1,13 @@
-# Item P-rate Summary
+# DONE-P (P-qaest)
 
-## Changes Made:
-1. **Extracted Pure Functions into `web/features/ratings-rows.js`**:
-   - Implemented `contributors(run, pnameFn)` returning one rating row per step/task (by step id), including code steps, QA steps, agent steps (Antigravity), failed or empty steps, and the assembly row, without deduplicating by provider or model.
-   - Implemented `preferLine({up, rated, ran, top})` enforcing that the "Meldmind now prefers X" line only displays after a thumbs up when the named AI actually ran in the run and got the thumbs up. After a thumbs down, or if the top pick never ran, no preference line is shown.
-2. **Updated `web/features/ratings.js`**:
-   - Integrated `contributors` and `preferLine` from `web/features/ratings-rows.js`.
-   - Updated UI rating workflow to pass rating states correctly to `preferLine`.
-3. **Added Tests in `test/ratings-rows-0421.test.js`**:
-   - Tested `contributors(run)` ensuring a 3-step run gives 3 step rows + assembly, with no deduplication and proper handling of all step types.
-   - Tested `preferLine({up, rated, ran, top})` covering various scenarios including the dogfood 12 case (thumbs down on Groq, Antigravity, Claude, and top pick GPT-6 Astra never ran => no prefers line).
+## Changes
+- server/mission.js: with QA on, every AI step ends with a review or a plain "Not reviewed" record (`t.review.unchecked`), including when no reviewer can run (before, `qaStep` returned nothing and the step had no review) and when the QA call throws. The plan estimate now adds the classifier, planner, assembler and one QA review per AI step, each priced as the AI that really runs it after dead AIs are skipped (`openPick`/`openRank`). `mission.estimateParts` shows the split.
+- server/precost.js: `overheadCost` (token counts per call), `canTakeWork`, `liveFirst`. The pre-send line now skips dead AIs.
+- server/free-first.js: `calibratedEstimate` takes `overhead`; with it, the blanket 1.6 QA factor drops to 1.15. Calibration from real runs (`noteActual`) is unchanged.
+- test/qa-estimate-0421-p.test.js: 4 tests (estimate within 2x of a simulated real cost, stand-in price, dead AI skipped, 1-task mission with QA shows a review).
 
-## File Paths:
-- `web/features/ratings-rows.js` (new)
-- `web/features/ratings.js` (updated)
-- `test/ratings-rows-0421.test.js` (new)
-- `DONE-P.md` (new)
-
-## Tests Run:
-- `node --test test/ratings-rows-0421.test.js test/ratings.test.js` -> All tests passed successfully (6/6 pass).
-- `node --test test/user-facing-words.test.js` -> Passed successfully.
+## Tests
+- qa-estimate-0421-p 4/4, user-facing-words 2/2, versions 4/4, mission-guard-0421 6/6, codewrite-0421 14/14, step-guard-0421 11/11, plan-0421-p 5/5, dogfood10-0421 5/5.
+- free-first: tests 1 to 9 pass; test 10 hangs. It hangs the same way on an unchanged HEAD copy, so it is not from this change.
+- Not run: the full `npm test` and `npm run smoke`, which CLAUDE.md requires before a commit. Run them before merging.
+- Logs: /tmp/qaest-*.log

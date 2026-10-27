@@ -2,7 +2,8 @@
 // It reads the same ranking the router uses, so the line matches the AI that will probably answer.
 // If build K's costText is present in the app (server/free-first.js), the wording matches it:
 // "$0 (free: Groq)". Nothing here calls an AI or spends anything.
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, estimateCost } from "./registry.js";
+import { isDeadNow, heldByRealFailure } from "./health.js";
 import { rank, heuristicClassify } from "./router.js";
 
 const nameOf = (pid) => PROVIDERS[pid]?.name || pid;
@@ -28,5 +29,30 @@ export function preRunLine({ prompt = "", mode = "balanced" } = {}) {
     rows = rank({ capability: cls.capability, difficulty: cls.difficulty, mode, estIn: Math.ceil(text.length / 3) + 500, estOut: 800 });
   } catch { rows = []; }
   const real = rows.filter((r) => r.available !== false && !PROVIDERS[r.provider]?.demo);
-  return lineFor(real[0] || null);
+  return lineFor(liveFirst(real)[0] || null);
+}
+
+// An AI that is out of credits or held after a real failure takes no new work, so the price shown is the one of
+// the AI that will really answer (a stand-in is often far dearer than the dead first choice).
+export function canTakeWork(row) { try { return !isDeadNow(row.provider) && !heldByRealFailure(row.provider); } catch { return true; } }
+export function liveFirst(list) { const live = (list || []).filter(canTakeWork); return live.length ? live : list || []; }
+
+// What a mission spends besides the work steps: the classifier, the planner, the assembler and one QA review per
+// AI step. Each call has a realistic token count and is priced as the AI that will really run it ({ model, free }).
+export const OVERHEAD_TOKENS = {
+  classify: { in: 500, out: 120 },
+  plan: { in: 900, out: 1000 },
+  assemble: { inBase: 500, inPerStep: 700, out: 1200 },
+  qa: { in: 1100, out: 180 },
+};
+const callUsd = (row, tin, tout) => (!row || row.free || row.localFree || row.plan || !row.model ? 0 : estimateCost(row.model, tin, tout));
+export function overheadCost({ steps = 1, qa = true, classifier = null, planner = null, assembler = null, reviewers = [] } = {}) {
+  const n = Math.max(1, steps), T = OVERHEAD_TOKENS;
+  const parts = {
+    classify: callUsd(classifier, T.classify.in, T.classify.out),
+    plan: callUsd(planner, T.plan.in, T.plan.out),
+    assemble: callUsd(assembler, T.assemble.inBase + T.assemble.inPerStep * n, T.assemble.out),
+    qa: qa ? (reviewers.length ? reviewers : [null]).reduce((a, r) => a + callUsd(r, T.qa.in, T.qa.out), 0) : 0,
+  };
+  return { ...parts, total: parts.classify + parts.plan + parts.assemble + parts.qa };
 }

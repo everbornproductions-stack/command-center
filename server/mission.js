@@ -15,6 +15,7 @@ import { ctx, doc, putDoc } from "./store.js";
 import { augment as webAugment, sourcesBlock } from "./search.js";
 import { prepareWeb } from "./research.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
+import { overheadCost } from "./precost.js";
 import { freeOnlyOn, hasPaidKey, freeOnlyError, calibratedEstimate, noteActual, stepLine, creditCheck } from "./free-first.js";
 import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
@@ -897,7 +898,19 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     }
     // 0.4.21: dogfood estimates ran 3 to 5 times low. A step-count multiplier (or the observed actual / estimate ratio
     // once there are real runs) sits on top of the old QA factor. The raw number is kept to learn from.
-    const cal = calibratedEstimate(mission.tasks.reduce((a, t) => a + t.estCost, 0), { qa, steps: mission.tasks.length });
+    // 0.4.21 (dogfood 11, 12): the estimate also covers the classifier, planner, assembler and one QA review per AI
+    // step, each priced as the AI that will really run it once dead AIs are left out.
+    const aiSteps = mission.tasks.filter((t) => !t.agent && !t.media && !t.app && !t.save && !t.run && !t.workaround);
+    const small = (opts) => openPick({ ...opts, small: true });
+    const ovh = overheadCost({
+      steps: aiSteps.length || 1, qa: qa && aiSteps.length > 0,
+      classifier: small({ capability: "fast", difficulty: 1, mode: "economy" }),
+      planner: mission.planner?.model ? (openRank({ capability: "reasoning", difficulty: 3, mode: planning }).find((m) => m.model === mission.planner.model) || mission.planner) : null,
+      assembler: openPick({ capability: "writing", difficulty: 3, mode: planning }) || planner,
+      reviewers: aiSteps.map((t) => openRank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true }).find((m) => m.provider !== t.provider) || small({ capability: "analysis", difficulty: 2, mode: looking })),
+    });
+    const cal = calibratedEstimate(mission.tasks.reduce((a, t) => a + t.estCost, 0), { qa, steps: mission.tasks.length, overhead: ovh.total });
+    mission.estimateParts = { classify: +ovh.classify.toFixed(5), plan: +ovh.plan.toFixed(5), assemble: +ovh.assemble.toFixed(5), qa: +ovh.qa.toFixed(5) };
     const est = cal.value;
     mission.estimateRaw = +cal.raw.toFixed(6); mission.estimateFactor = +cal.factor.toFixed(2);
     mission.estimatedCost = +est.toFixed(4);
@@ -1354,7 +1367,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const qaStep = async (t, text, { skip = [] } = {}) => {
       if (t.review?.deterministic) return null; // already failed on a claim with no proof: no need to ask an AI
       const reviewers = qaReviewers(t, skip);
-      if (!reviewers.length) return null; // no reviewer connected: the step is simply not checked
+      // no reviewer can run: the step says so in plain words, and is never counted as passed
+      if (!reviewers.length) return { provider: null, model: null, pass: false, unchecked: true, score: null, issues: ["Not reviewed: no AI was ready to check this step."], fix: null, tries: [] };
       const tries = [];
       for (const rv of reviewers) {
         const out = await askReviewer(t, rv, text);
@@ -1562,6 +1576,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             if (err instanceof MissionPause || err?.code === "paused") throw err;
             throwIfPause(mission, ctl, t);
           }
+          // QA is on: every AI step ends with a review or an honest "not reviewed", never silence
+          if (!t.review) t.review = { provider: null, model: null, pass: false, unchecked: true, score: null, issues: ["Not reviewed: the check could not be done."], fix: null, tries: [] };
           // a check that failed after its retry never counts as a pass
           if (t.review && t.review.pass !== true) { t.qaFailed = true; log(`QA did not pass "${t.title}"${t.review.unchecked ? " (the check could not be done)" : ""}.`); }
           t.status = "done";

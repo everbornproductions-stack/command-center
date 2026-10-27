@@ -293,11 +293,15 @@ export function calibration() {
   const med = sorted[Math.floor(sorted.length / 2)];
   return { observed: Math.min(8, Math.max(1, +med.toFixed(2))), n: r.length };
 }
-export function calibratedEstimate(rawSum, { qa = true, steps = 1 } = {}) {
-  const base = qa ? 1.6 : 1.1;
+// `overhead` is the priced classifier, planner, assembler and QA calls (server/precost.js overheadCost). When it is
+// given, QA is already in the number, so the old blanket 1.6 for QA drops to a small retry allowance.
+export function calibratedEstimate(rawSum, { qa = true, steps = 1, overhead = null } = {}) {
+  const hasOverhead = overhead != null;
+  const base = hasOverhead ? 1.15 : qa ? 1.6 : 1.1;
+  const sum = (Number(rawSum) || 0) + (hasOverhead ? Number(overhead) || 0 : 0);
   const cal = calibration();
   const factor = cal.observed ? Math.max(cal.observed, 1) : stepFactor(steps);
-  return { raw: rawSum * base, value: rawSum * base * factor, factor, observed: cal.observed };
+  return { raw: sum * base, value: sum * base * factor, factor, observed: cal.observed };
 }
 // After a run: remember actual / raw estimate (paid runs only; $0 runs say nothing about the price table).
 export function noteActual(rawEstimate, actual) {
