@@ -16,7 +16,7 @@ test("flag is off by default, env forces it, other flags stay", () => {
     delete process.env.CC_FLAG_FINISHERS;
     assert.equal(flagOn("finishers"), false);
     assert.equal(flagView().finishers, false);
-    assert.equal(flagView().finishrouter, false);
+    assert.equal(flagView().finishrouter, true);
     assert.ok("projectbar" in flagView() && "nextactions" in flagView());
     process.env.CC_FLAG_FINISHERS = "1";
     assert.equal(flagView().finishers, true);

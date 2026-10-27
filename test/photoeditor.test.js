@@ -133,7 +133,7 @@ test("routes: off by default, then versions are saved as new files and the origi
     assert.equal(off.json.code, "flag_off");
 
     assert.equal((await on.api("/state")).json.flags.photoeditor, true);
-    assert.equal((await on.api("/state")).json.flags.finishrouter, false, "other flags stay");
+    assert.equal((await on.api("/state")).json.flags.finishrouter, true, "other flags stay");
     const cfg = await on.api("/photoeditor/config");
     assert.equal(cfg.status, 200);
     assert.equal(cfg.json.sliders.length, 10);

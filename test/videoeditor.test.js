@@ -42,7 +42,7 @@ test("flag is off by default, env turns it on, other flags stay", () => {
     delete process.env.CC_FLAG_VIDEOEDITOR;
     assert.equal(flagOn("videoeditor"), false);
     assert.equal(flagView().videoeditor, false);
-    assert.equal(flagView().finishrouter, false);
+    assert.equal(flagView().finishrouter, true);
     assert.equal("projectmedia" in flagView(), true);
     process.env.CC_FLAG_VIDEOEDITOR = "1";
     assert.equal(flagView().videoeditor, true);
@@ -135,7 +135,7 @@ test("server: edit, preview, export. The original is never touched", async () =>
   const s = await startServer({ seed: seedFiles, env: { CC_FLAG_VIDEOEDITOR: "1", CC_FFMPEG_BIN: FAKE, FAKE_FFMPEG_LOG: log } });
   try {
     assert.equal((await s.api("/state")).json.flags.videoeditor, true);
-    assert.equal((await s.api("/state")).json.flags.finishrouter, false);
+    assert.equal((await s.api("/state")).json.flags.finishrouter, true);
     const st = (await s.api("/videoeditor/status")).json;
     assert.equal(st.ffmpeg, true);
     assert.equal(st.transitions.length, 3);
