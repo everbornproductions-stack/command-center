@@ -26,7 +26,7 @@ const RUNS = "schedules.runs";
 export const LIMITS = { schedules: 50, name: 80, text: 20000, runs: 500, queue: 5, hookBody: 64 * 1024, hooksPerMinute: 30, fileText: 50 * 1024, output: 20000, lookbackMin: 5 };
 export const TARGETS = ["agent", "chat", "mission"];
 export const TRIGGERS = ["cron", "webhook", "folder"];
-export const AFTER = ["none", "webhook"];
+export const AFTER = ["none", "webhook", "note"];
 export const STATUSES = ["queued", "running", "needs_approval", "done", "failed", "stopped", "rejected"];
 export const STATUS_LABEL = { queued: "Queued", running: "Running", needs_approval: "Needs your approval", done: "Done", failed: "Failed", stopped: "Stopped (spend cap)", rejected: "Not sent" };
 export const DEFAULT_CAP = 1;
@@ -189,9 +189,10 @@ function clean(input = {}, prev = null, opts = {}) {
   const capIn = input.capUsd ?? prev?.capUsd ?? DEFAULT_CAP;
   const capUsd = +Number(capIn).toFixed(6);
   if (!Number.isFinite(capUsd) || capUsd <= 0 || capUsd > 10000) throw err(400, "Set a monthly spend cap for this schedule (more than $0, up to $10000).");
-  const a = input.after || prev?.after || { action: "none" };
+  // "after the run": a new Mission or Agent schedule saves its answer as a note unless the person says otherwise.
+  const a = input.after || prev?.after || { action: kind === "mission" || kind === "agent" ? "note" : "none" };
   const action = AFTER.includes(a.action) ? a.action : "none";
-  const after = action === "webhook" ? { action, url: checkUrl(a.url) } : { action: "none" };
+  const after = action === "webhook" ? { action, url: checkUrl(a.url) } : { action };
   return { name, target, trigger, capUsd, after };
 }
 
@@ -288,7 +289,7 @@ export function trigger(id, { source = "manual", context = "", note = "", file =
   if (!s) throw err(404, "No such schedule.");
   if (!s.enabled && source !== "manual") throw err(409, s.pausedReason === "cap" ? "This schedule is paused: it reached its spend cap." : "This schedule is paused.");
   const spent = spentThisMonth(id);
-  const base = { id: newId("sr"), scheduleId: id, scheduleName: s.name, source, note: str(note, 300), file, slot, at: io.now(), status: "queued", cost: 0, missionId: null, error: null, after: s.after, preview: "", output: "" };
+  const base = { id: newId("sr"), scheduleId: id, scheduleName: s.name, source, note: str(note, 300), file, slot, at: io.now(), status: "queued", cost: 0, missionId: null, error: null, after: s.after, preview: "", output: "", savedPath: null, mindMediaId: null, saveError: null };
   if (spent >= s.capUsd) {
     putRun({ ...base, status: "stopped", error: `Spend cap reached: $${spent.toFixed(4)} of $${s.capUsd} this month.`, finishedAt: io.now() });
     if (s.enabled) { pause(s, "cap"); capAlert(s, spent); }
@@ -307,6 +308,42 @@ export function trigger(id, { source = "manual", context = "", note = "", file =
   return publicRun(r);
 }
 
+// ---------- keeping the result as a note (0.4.21, dogfood 11) ----------
+// A note lives in the project folder, like the project's files and media folders: projects/<id>/notes.
+const safePid = (id) => String(id || "unfiled").replace(/[^a-z0-9-_]/gi, "_") || "unfiled";
+export const noteFolderRel = (projectId) => `projects/${safePid(projectId)}/notes`;
+export const noteFolder = (projectId) => path.join(DATA_DIR, noteFolderRel(projectId));
+const pad2 = (n) => String(n).padStart(2, "0");
+// Everborn Monday ideas -> Everborn-Monday-ideas-2026-10-26.md, never a name that can leave the folder.
+export function noteName(scheduleName, when = io.now()) {
+  const d = new Date(when);
+  const base = String(scheduleName || "").replace(/\s+/g, "-").replace(/[^A-Za-z0-9._-]/g, "").replace(/^[.-]+/, "").slice(0, 60) || "note";
+  return `${base}-${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}.md`;
+}
+// One entry for "after the run: save as a note": the markdown file in the project folder and the MindMedia
+// item. Both must succeed; when either fails the file this call wrote is removed, so a run never reports a
+// save that did not happen.
+export async function saveRunNote(s, r, text, now = r?.finishedAt || io.now()) {
+  const pid = safePid(s.target.projectId);
+  const dir = noteFolder(pid);
+  fs.mkdirSync(dir, { recursive: true });
+  const first = noteName(s.name, now);
+  let file = path.join(dir, first);
+  for (let i = 2; fs.existsSync(file) && i < 100; i++) file = path.join(dir, first.replace(/\.md$/, `-${i}.md`));
+  const abs = path.resolve(file);
+  let wrote = false;
+  try {
+    if (path.dirname(abs) !== path.resolve(dir)) throw new Error("That note would be saved outside the project folder.");
+    fs.writeFileSync(abs, String(text ?? ""), "utf8");
+    wrote = true;
+    const { saveToMindMedia } = await import("./project-media.js");
+    const out = saveToMindMedia({ kind: "text", text: String(text ?? ""), name: path.basename(abs, ".md"), projectId: s.target.projectId || "", source: "schedule" });
+    return { savedPath: `${noteFolderRel(pid)}/${path.basename(abs)}`, mindMediaId: out?.items?.[0]?.id || null };
+  } catch (e) {
+    if (wrote) { try { fs.rmSync(abs, { force: true }); } catch {} }
+    throw e;
+  }
+}
 function promptFor(s, r) {
   const head = s.target.kind === "agent" ? (s.target.text || "Do your scheduled job.") : s.target.text;
   const why = r.source === "cron" ? `This run was started by its schedule (${s.trigger.cron}) at ${new Date(r.slot || r.at).toLocaleString()}.`
@@ -345,6 +382,16 @@ async function drain(id) {
       const fin = { ...cur, status: !ok ? "failed" : holds ? "needs_approval" : "done", cost: +(Number(out?.cost) || 0).toFixed(6), missionId: out?.missionId || null, error: ok ? null : str(out?.error || "The run failed.", 500), preview: text.slice(0, 400), output: text, finishedAt: io.now(), context: undefined };
       putRun(fin);
       if (holds) emit("log", { text: `Schedule "${s.name}": the result is ready and waits for your approval before it is sent to ${new URL(s.after.url).host}.` });
+      // "after the run: save as a note" (0.4.21, dogfood 11). The run only says it was saved when both
+      // the note file and the MindMedia item are really there.
+      if (ok && s.after?.action === "note") {
+        try {
+          const saved = await saveRunNote(s, getRun(runId), text);
+          putRun({ ...getRun(runId), ...saved, saveError: null });
+        } catch (e) {
+          putRun({ ...getRun(runId), savedPath: null, mindMediaId: null, saveError: str(e.message, 300) });
+        }
+      }
       const after = spentThisMonth(id);
       if (after >= s.capUsd) { const now = getSchedule(id); if (now?.enabled) { pause(now, "cap"); capAlert(now, after); } }
     }

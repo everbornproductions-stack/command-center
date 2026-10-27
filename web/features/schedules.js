@@ -71,6 +71,12 @@ function targetText(s) {
   return `${KIND[s.target.kind]}: ${esc(s.target.text.slice(0, 80))}`;
 }
 const pill = (r) => `<span class="pill ${STATUS_CLS[r.status] || ""}">${esc(r.statusLabel || r.status)}</span>`;
+// "after the run: save as a note": the run says where the note landed, or exactly why it did not.
+function savedLine(r) {
+  if (r.savedPath) return `<div class="small" data-saved="${esc(r.id)}">Saved to ${esc(r.savedPath)}</div>`;
+  if (r.saveError) return `<div class="small" data-saved="${esc(r.id)}">Not saved: ${esc(r.saveError)}</div>`;
+  return "";
+}
 
 function whenHtml(cron) {
   const simple = whenFromCron(cron);
@@ -94,7 +100,9 @@ function readWhen(view) {
 }
 
 function form(s) {
-  const e = s || { name: "", target: { kind: st.data.agents.length ? "agent" : "chat", text: "", agentId: st.data.agents[0]?.id || "" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, capUsd: st.data.defaultCap, after: { action: "none" } };
+  const kind0 = st.data.agents.length ? "agent" : "chat";
+  // A new Mission or Agent schedule saves its answer as a note; a new Chat keeps it here.
+  const e = s || { name: "", target: { kind: kind0, text: "", agentId: st.data.agents[0]?.id || "" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, capUsd: st.data.defaultCap, after: { action: kind0 === "chat" ? "none" : "note" } };
   const projects = S().projects || [];
   return `<div class="panel" id="sch-form"><h3>${s ? `Edit ${esc(s.name)}` : "New schedule"}</h3>
     <label class="small">Name<input type="text" id="sf-name" value="${esc(e.name)}" maxlength="80"></label>
@@ -114,7 +122,7 @@ function form(s) {
     ${S().mode === "hosted" ? `<div class="small dim" style="margin-top:6px">Watched folders stay on the desktop app.</div>` : ""}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <label class="small">Monthly spend cap ($) <input type="number" id="sf-cap" min="0.01" step="0.01" value="${esc(e.capUsd)}" style="width:90px"></label>
-      <label class="small">After the run <select id="sf-after"><option value="none" ${e.after.action === "none" ? "selected" : ""}>Keep the result here</option><option value="webhook" ${e.after.action === "webhook" ? "selected" : ""}>Send it to a web address (asks you first)</option></select></label>
+      <label class="small">After the run <select id="sf-after"><option value="none" ${e.after.action === "none" ? "selected" : ""}>Keep the result here</option><option value="note" ${e.after.action === "note" ? "selected" : ""}>Save as a note in the project (and MindMedia)</option><option value="webhook" ${e.after.action === "webhook" ? "selected" : ""}>Send it to a web address (asks you first)</option></select></label>
       <input type="text" id="sf-url" value="${esc(e.after.url || "")}" placeholder="https://..." style="width:240px">
     </div>
     <div class="small dim" style="margin-top:6px">Each run uses your own keys; every call is in the ledger and counts toward your spend caps. When this schedule reaches its own cap it stops and you get an alert. A result that is sent anywhere waits in "Needs your approval" until you click Approve.</div>
@@ -133,6 +141,14 @@ function wireForm(view) {
     $("#sf-url").style.display = $("#sf-after").value === "webhook" ? "" : "none";
   };
   ["#sf-kind", "#sf-trig", "#sf-after"].forEach((q) => $(q).addEventListener("change", sync));
+  // a new schedule follows its target: Mission and Agent save a note, Chat keeps the result here
+  $("#sf-kind").addEventListener("change", () => {
+    if (st.edit) return;
+    const after = $("#sf-after");
+    if (after.value !== "none" && after.value !== "note") return;
+    after.value = ["mission", "agent"].includes($("#sf-kind").value) ? "note" : "none";
+    sync();
+  });
   const mark = () => { st.whenTouched = true; const cron = readWhen(view); const hidden = $("#sf-cron"); if (hidden) hidden.value = cron; };
   view.querySelectorAll("#sf-days [data-day]").forEach((b) => b.addEventListener("click", () => {
     const on = b.getAttribute("aria-pressed") !== "true";
@@ -158,12 +174,13 @@ function wireForm(view) {
   $("#sf-cancel")?.addEventListener("click", () => { st.edit = null; renderTab(view); });
   $("#sf-save").addEventListener("click", async () => {
     const t = $("#sf-trig").value;
+    const after = $("#sf-after").value;
     const body = {
       name: $("#sf-name").value,
       target: { kind: $("#sf-kind").value, agentId: $("#sf-agent").value, text: $("#sf-text").value, projectId: $("#sf-proj").value || null },
       trigger: t === "cron" ? { type: t, cron: readWhen(view) } : t === "folder" ? { type: t, folder: $("#sf-folder").value, pattern: $("#sf-pattern").value } : { type: t },
       capUsd: Number($("#sf-cap").value),
-      after: $("#sf-after").value === "webhook" ? { action: "webhook", url: $("#sf-url").value } : { action: "none" },
+      after: after === "webhook" ? { action: "webhook", url: $("#sf-url").value } : { action: after === "note" ? "note" : "none" },
     };
     try {
       const r = await api(st.edit ? `/schedules/${st.edit}` : "/schedules", { method: "POST", body });
@@ -199,7 +216,7 @@ async function renderTab(view) {
         ${d.items.map((s) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
           <div class="row"><b>${esc(s.name)}</b><span class="pill ${s.enabled ? "green" : s.pausedReason === "cap" ? "red" : ""}" style="margin-left:8px">${s.enabled ? "On" : s.pausedReason === "cap" ? "Paused: spend cap" : "Paused"}</span><span class="right mono small">${money(s.spent, 4)} of ${money(s.capUsd, 2)} this month</span></div>
           <div class="small muted">${targetText(s)}</div>
-          <div class="small dim">${TRIG[s.trigger.type]}: ${trigText(s)}${s.after.action === "webhook" ? ` · then send to ${esc(s.after.url)} after your OK` : ""}</div>
+          <div class="small dim">${TRIG[s.trigger.type]}: ${trigText(s)}${s.after.action === "webhook" ? ` · then send to ${esc(s.after.url)} after your OK` : s.after.action === "note" ? " · then save the result as a note" : ""}</div>
           ${s.missedLabel ? `<div class="small" style="color:var(--amber);margin-top:4px" role="status">${esc(s.missedLabel)} <button class="btn sm" type="button" data-catch="${esc(s.id)}">Run now</button></div>` : ""}
           <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
             <button class="btn sm" data-run="${esc(s.id)}">Run now</button>
@@ -210,7 +227,7 @@ async function renderTab(view) {
           </div></div>`).join("") || `<div class="empty">No schedules yet. Create one on the right.</div>`}
       </div>
       <div class="panel"><h3>Run history</h3>
-        ${(d.runs || []).slice(0, 60).map((r) => `<div class="row small" style="padding:5px 0;border-bottom:1px solid var(--line);gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>`).join("") || `<div class="dim small">No runs yet.</div>`}
+        ${(d.runs || []).slice(0, 60).map((r) => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div class="row small" style="gap:8px">${pill(r)}<span>${esc(r.scheduleName)}</span><span class="dim">${esc(r.source)}${r.file ? `: ${esc(r.file.name)}` : ""}</span><span class="dim">${ago(r.at)}</span>${r.error ? `<span class="dim" title="${esc(r.error)}">${esc(r.error.slice(0, 80))}</span>` : ""}${r.sent ? `<span class="dim">sent to ${esc(r.sent.to)}</span>` : ""}<span class="mono" style="margin-left:auto">${money(r.cost || 0, 4)}</span></div>${savedLine(r)}</div>`).join("") || `<div class="dim small">No runs yet.</div>`}
       </div>
     </div>
     <div class="grid" style="align-content:start">${form(editing)}</div>
