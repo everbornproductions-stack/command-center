@@ -57,13 +57,23 @@ test("browser: Simple shows the mode picker under More options, the Free only sw
     const labels = await t.page.$$eval("#simple-run-mode button", (b) => b.map((x) => x.textContent.trim()));
     assert.deepEqual(labels, ["Auto", "Single", "Council", "Mission"]);
     // the switch is the same setting everywhere
-    // a re-render can swap the switch out right after the click (slow Windows CI): click again until the state follows
+    // free-ais.js loads after featuresReady (perf registry), and only then is the switch listener on the page. A click
+    // before that ticks the box but saves nothing (Windows CI). Wait for the listener, then click until the saved
+    // setting follows, with one generous overall budget.
+    await t.page.waitForFunction(() => window.CC && window.CC.freeAis && typeof window.CC.freeAis.setFreeOnly === "function", null, { timeout: waitBudget(30000) });
     const flipTo = async (on) => {
-      for (let n = 0; n < 5; n++) {
+      const end = Date.now() + waitBudget(30000);
+      while (Date.now() < end) {
+        await t.page.waitForSelector("#cc-freeonly", { state: "visible", timeout: Math.max(1000, end - Date.now()) });
+        // if an earlier click ticked the box without saving, put the box back to the saved state first (no event)
+        await t.page.evaluate((v) => { const b = document.getElementById("cc-freeonly"); if (b && b.checked === v) b.checked = !v; }, on);
         await t.page.click("#cc-freeonly");
-        const ok = await t.page.waitForFunction((v) => window.CC.S.freeOnly && window.CC.S.freeOnly.on === v, on, { timeout: 4000 }).then(() => true, () => false);
-        if (ok) return;
-        if ((await t.api("/state")).json.freeOnly?.on === on) { await t.page.evaluate(() => window.CC.refresh && window.CC.refresh()); return; }
+        const saved = Date.now() + waitBudget(5000);
+        while (Date.now() < saved && (await t.api("/state")).json.freeOnly?.on !== on) await sleep(150);
+        if ((await t.api("/state")).json.freeOnly?.on === on) {
+          await t.page.waitForFunction((v) => window.CC.S.freeOnly && window.CC.S.freeOnly.on === v, on, { timeout: Math.max(1000, end - Date.now()) });
+          return;
+        }
       }
       throw new Error(`Free only switch did not turn ${on ? "on" : "off"}`);
     };
