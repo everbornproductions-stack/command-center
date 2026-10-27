@@ -9,7 +9,7 @@ const store = await import("../server/store.js");
 store.setDefaultContext(store.newContext("local", new store.FileStore(DIR)));
 const { PROVIDERS } = await import("../server/registry.js");
 const { AUTH_TYPES, accessFor } = await import("../server/provider-access.js");
-const { isCreditStatus, describePause, RECHECK_MS, PAUSE_LABEL } = await import("../server/pause.js");
+const { isCreditStatus, describePause, BACKOFF_MS, PAUSE_LABEL } = await import("../server/pause.js");
 const { planInfo, setPlan, applyPreferFree, QUALITY_CLOSE, SCORE_CLOSE } = await import("../server/plans.js");
 const { chooseTip, TIP_MARGIN, TIP_WINDOW_MS } = await import("../server/tips.js");
 const { rank } = await import("../server/router.js");
@@ -47,8 +47,9 @@ test("credit and rate lights pause; a rejected key, an incident, and a low balan
   assert.equal(isCreditStatus("amber", "minor incident: elevated errors"), false);
   assert.equal(isCreditStatus("amber", "slow (30s)"), false);
   assert.equal(isCreditStatus("amber", "low balance"), false);
-  assert.equal(RECHECK_MS, 15 * 60 * 1000);
-  assert.equal(PAUSE_LABEL, "Paused: no credits");
+  // 0.4.21 (on purpose): the fixed 15 minute recheck became a backoff of 5 min, 15 min, 1 h then hourly, and the label is "Out of credits"
+  assert.deepEqual(BACKOFF_MS, [5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000]);
+  assert.equal(PAUSE_LABEL, "Out of credits");
 });
 
 test("a paused provider drops out of auto-picks while another model has a key", () => {

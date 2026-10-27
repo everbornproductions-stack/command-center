@@ -635,6 +635,8 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const skipped = cleanSkip(skip);
   const skipSet = new Set(skipped);
   const held = skipAvoid(skipped);
+  // After the first 402 / 429 from an AI, every later step of this run leaves that AI out (all of its models).
+  const runTrouble = (pid) => { if (skipSet.has(pid)) return; skipSet.add(pid); held.push(...skipAvoid([pid])); };
   const openRank = (opts) => rank(opts).filter((m) => m && !skipSet.has(m.provider));
   const openPick = (opts) => openRank(opts)[0] || null;
   const planning = planMode(mode);
@@ -775,7 +777,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
 Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${SAVE_LINE}${agentLine}${planExtra}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
-      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
+      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning, skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const r = await callPlanner();
       const ms = Date.now() - s0;
       noteCall(r.provider, true, ms);
@@ -1104,7 +1106,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const agent = `${id}:${t.id}`;
       const s0 = Date.now();
       const r = await completeFallback({ provider, model, maxTokens, signal: ctl.signal, system, messages },
-        { missionId: id, taskId: t.id, role, tools: false, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, mode, avoid: held },
+        { missionId: id, taskId: t.id, role, tools: false, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble },
         { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, role, t.id) });
       noteCall(r.provider, true, Date.now() - s0);
       const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role, ms: Date.now() - s0 });
@@ -1198,7 +1200,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
           const r = await completeFallback({ provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${text.slice(0, 12000)}` }] },
-            { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held] }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
+            { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held], skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
           const ms = Date.now() - s3;
           noteCall(r.provider, true, ms);
           const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
@@ -1325,7 +1327,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal,
             system: workSystem,
             messages: workMessages,
-          }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held })) {
+          }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held, skipProviders: skipSet, onTrouble: runTrouble })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
             else if (ev.type === "fallback") {
               text = ""; stoodIn(ev, agent, "work", t.id);
@@ -1392,7 +1394,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               const s4 = Date.now();
               try {
                 const r2 = await completeFallback({ provider: t.provider, model: t.model, maxTokens: tokenCap(t), signal: ctl.signal, system: toneAdd(`Revise your deliverable. Apply the QA correction and output the full corrected deliverable in Markdown, nothing else.`, tone), messages: [{ role: "user", content: `TASK: ${t.title}\n\nYOUR DRAFT:\n${t.output}\n\nQA CORRECTION:\n${first.fix}\nISSUES: ${(first.issues || []).join("; ")}` }] },
-                  { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
+                  { missionId: id, taskId: t.id, role: "revise", tools: false, cls: { capability: t.capability, difficulty: t.difficulty }, mode, avoid: held, skipProviders: skipSet, onTrouble: runTrouble }, { onDelta: (d) => emit("agent.delta", { agent, missionId: id, taskId: t.id, text: d }), onFallback: (ev) => stoodIn(ev, agent, "revise", t.id) });
                 noteCall(r2.provider, true, Date.now() - s4);
                 const e2 = recordCall({ provider: r2.provider, model: r2.model, usage: r2.usage, missionId: id, taskId: t.id, role: "revise", ms: Date.now() - s4 });
                 spend(e2); t.cost = +(t.cost + e2.cost).toFixed(5);
@@ -1511,7 +1513,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal,
         system: asmSystem,
         messages: asmMessages,
-      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held })) {
+      }, { missionId: id, role: "assemble", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held, skipProviders: skipSet, onTrouble: runTrouble })) {
         if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent: aAgent, missionId: id, text: ev.text }); }
         else if (ev.type === "fallback") { text = ""; stoodIn(ev, aAgent, "assemble"); asm.provider = ev.to.provider; asm.model = ev.to.model; mission.assembler = { provider: asm.provider, model: asm.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; update(); }
         else if (ev.type === "done") {
@@ -1531,7 +1533,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         log(`The final answer was cut off (${tr.reason}). Asking ${PROVIDERS[asm.provider]?.name || asm.provider} to carry on (${i + 1} of ${MAX_CONTINUES}).`);
         const s6 = Date.now();
         const r = await completeFallback({ provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal, system: asmSystem, messages: [...asmMessages, { role: "assistant", content: text }, { role: "user", content: continuePrompt(text, fext) }] },
-          { missionId: id, role: "continue", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held }, { onDelta: (d) => emit("agent.delta", { agent: aAgent, missionId: id, text: d }) });
+          { missionId: id, role: "continue", tools: false, cls: { capability: "writing", difficulty: 3 }, mode: planning, avoid: held, skipProviders: skipSet, onTrouble: runTrouble }, { onDelta: (d) => emit("agent.delta", { agent: aAgent, missionId: id, text: d }) });
         spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "continue", ms: Date.now() - s6 }));
         if (!r.text.trim()) break;
         text = joinContinuation(text, r.text);

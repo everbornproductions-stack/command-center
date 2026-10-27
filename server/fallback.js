@@ -314,7 +314,8 @@ export async function* fallbackChat(opts, run = {}) {
   }
   // known trouble before the first call: do not even try
   if (settings.on) {
-    const t = trouble(provider);
+    // run.skipProviders: an AI that already said no credits / slow down earlier in this run is not asked again
+    const t = trouble(provider) || (run.skipProviders?.has(provider) ? { kind: "credits", detail: "it refused earlier in this run" } : null);
     if (t) {
       tried.push({ provider, model });
       const next = stand();
@@ -358,6 +359,7 @@ export async function* fallbackChat(opts, run = {}) {
       // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
       const kind = e.code === "empty" ? "empty" : e.code === "refused" ? "refused" : e.code === "cap" ? "cap" : troubleKind(e);
       if (kind) failures.push({ provider, kind });
+      if (kind === "credits" || kind === "rate") { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
       if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
       if (kind === "empty") { noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null }); }
       else if (kind === "refused") noteCall(provider, false, Date.now() - t0, e); // the AI is fine; this one job went to another

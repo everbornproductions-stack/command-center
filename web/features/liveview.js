@@ -371,7 +371,7 @@ function tutorialsHtml(list) {
 }
 function freeHtml(f) {
   if (!f) return "";
-  const bubbles = (f.members || []).map((m) => `<span class="lv-free-bubble ${m.ok ? "ok" : "down"}" title="${esc(m.detail || "")}"><span class="dot ${m.ok ? "green" : "grey"}"></span>${esc(m.name)}</span>`).join("");
+  const bubbles = (f.members || []).map((m) => `<span class="lv-free-bubble ${m.ok ? "ok" : "down"}" title="${esc(m.detail || "")}"><span class="dot ${m.ok ? "green" : m.paused ? "red" : "grey"}"></span>${esc(m.name)}${m.paused ? `: ${esc(m.detail || "Out of credits")}` : ""}</span>`).join("");
   const empty = f.state === "ok" ? "" : `<p class="dim small lv-free-empty">${esc(f.state === "checking" ? "Checking the free AIs." : (f.empty || "No free AI is answering right now."))}</p>`;
   return `<div class="panel lv-free" id="lv-free"><div class="lv-free-head"><b>Free AI</b><span class="chip ${f.state === "ok" ? "green" : ""}">${esc(f.label || "")}</span><button type="button" class="btn sm" id="lv-free-refresh" style="margin-left:auto">Refresh</button></div>
     ${bubbles ? `<div class="lv-free-bubbles">${bubbles}</div>` : ""}${empty}

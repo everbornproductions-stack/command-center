@@ -105,7 +105,7 @@ function beforeSend({ mode, prompt }) {
           <h3 id="cc-readers-title">${esc(info.title || "Who will read this")}</h3>
           <p>${esc(info.line || "")}</p>
           <div id="cc-reader-list">${rows || `<p class="dim">No AI is connected yet. Add a key in Settings.</p>`}</div>
-          ${(info.out || []).length ? `<div id="cc-reader-out" class="small" aria-label="Not used right now">${info.out.map((o) => `<div class="row cc-reader-out" data-id="${esc(o.id)}"><span class="dim">${esc(o.name)}</span><span class="chip amber">${esc(o.tag || "out of credits")}</span><span class="dim small">not used</span></div>`).join("")}</div>` : ""}
+          ${(info.out || []).length ? `<div id="cc-reader-out" class="small" aria-label="Not used right now">${info.out.map((o) => `<div class="row cc-reader-out" data-id="${esc(o.id)}"><span class="dim">${esc(o.name)}</span><span class="chip ${o.kind === "credits" ? "red" : "amber"}">${esc(o.kind === "credits" ? "Out of credits" : (o.tag || "out of credits"))}</span><span class="dim small">not used${o.next ? `. ${esc(o.next)}` : ""}</span></div>`).join("")}</div>` : ""}
           ${info.media?.blocked ? `<p class="cc-readers-media" role="alert" style="border:2px solid var(--red, #c0392b);padding:6px 10px;border-radius:8px"><b>Heads up.</b> ${esc(info.media.banner)}</p>` : (info.media?.lines || []).map((l) => `<p class="dim small">${esc(l)}</p>`).join("")}
           <p>${esc(info.toolsLine || "No tools are on.")}</p>
           <p>${esc(info.servicesLine || "No connected service will receive this prompt.")}</p>

@@ -14,7 +14,7 @@ import { projectIntent } from "./project-intent.js";
 import { askText, askConfirm } from "./ask-dialog.js";
 import { NEW_PROJECT, projectNameError, projectOptionsHtml } from "./project-picker.js";
 import { barShows, barHtml, lastRunFor } from "./projectbar.js";
-import { PAUSE_LABEL, isPausedStatus, pausedNow, quietProvider } from "./access-label.js";
+import { PAUSE_LABEL, CHECK_AGAIN_TITLE, isPausedStatus, pausedNow, quietProvider, pauseLabelFor, pauseLabel, pauseNext, creditsText } from "./access-label.js";
 import { attachPack } from "./features/prompt-order.js";
 import { maskNotice, riskyHits } from "./copy-guard.js";
 import { extremeExtrasHtml, founderSpotsHtml, planCompareHtml, upgradeButtonsHtml } from "./plan-compare.js";
@@ -394,8 +394,8 @@ function handle(ev) {
       const p = P(ev.provider);
       if (p) {
         p.status = { status: ev.status, detail: ev.detail, latencyMs: ev.latencyMs, balance: ev.balance };
-        if (p.access && isPausedStatus(ev.status, ev.detail)) { p.access.paused = true; p.access.label = PAUSE_LABEL; }
-        else if (p.access?.label === PAUSE_LABEL) { p.access.paused = false; p.access.label = p.keyed ? null : p.access.label; }
+        if (p.access && isPausedStatus(ev.status, ev.detail)) { const label = pauseLabelFor(ev.detail); p.access.paused = true; p.access.label = label; p.access.pause = { ...(p.access.pause || {}), label }; }
+        else if (p.access?.paused) { p.access.paused = false; p.access.pause = null; p.access.label = p.keyed ? null : p.access.label; }
       }
       renderStrip();
       if (!quietProvider(p)) graph?.setStatus(ev.provider, ev.status);
@@ -634,6 +634,7 @@ function renderStrip() {
     if (p.kind === "text") {
       line = p.keyed ? `${money(bp?.month || 0)} this month` : "no key";
       if (p.status?.balance?.left != null) line = `${money(p.status.balance.left)} left`;
+      else if (p.keyed && creditsText(p)) line = creditsText(p);
       meter = S.settings.budgetMonthly ? Math.min(100, ((bp?.month || 0) / S.settings.budgetMonthly) * 100) : 0;
     } else if (sub) {
       if (sub.credits != null && sub.creditsTotal) { line = `${fmtN(sub.credits)} / ${fmtN(sub.creditsTotal)} ${sub.unit || ""}`; meter = (sub.credits / sub.creditsTotal) * 100; }
@@ -641,7 +642,7 @@ function renderStrip() {
       else if (sub.renews) line = `renews ${sub.renews.slice(5)}`;
       else line = p.status?.detail && p.status.detail !== "no key" ? p.status.detail : "tracked";
     }
-    if (pausedNow(p)) line = PAUSE_LABEL;
+    if (pausedNow(p)) line = pauseLabel(p);
     else if (p.access?.label) line = p.access.label;
     const needsOwnKey = p.kind === "text" && !p.keyed && !p.noKey && !p.demo && !["handoff", "local", "mcp", "oauth"].includes(p.access?.auth);
     if (needsOwnKey) line = "No key";
@@ -649,11 +650,12 @@ function renderStrip() {
     if (active) badge = `${S.activeByProvider[p.id]} working`;
     const isConnected = !!(p.keyed || p.access?.connected || p.connect?.mcp?.configured);
     const connBadge = isNavStateEnabled(S) && !active && isConnected ? `<span class="badge ok tile-connected">Connected</span>` : "";
-    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "amber" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
-    const lightWord = pausedNow(p) ? "paused" : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
+    const stLight = needsOwnKey ? "grey" : pausedNow(p) ? "red" : p.kind !== "text" && st === "grey" && sub ? (sub.signal === "low" || sub.signal === "attention" ? "red" : sub.signal === "renewing" ? "amber" : "green") : st;
+    const lightWord = pausedNow(p) ? pauseLabel(p).toLowerCase() : (p.access?.label || { green: "working", amber: "warning", red: "problem", grey: "no key" }[stLight] || stLight);
     return `<div class="tile ${active ? "active" : ""}" data-working="${active ? "1" : "0"}" style="--c:${p.color}" data-p="${p.id}" title="${esc(p.status?.detail || "")}" role="button" tabindex="0" aria-label="${esc(`${p.name}: ${lightWord}, ${line}${badge ? `, ${badge}` : ""}. Open its settings`)}">
       <div class="top"><span class="light ${stLight}" aria-hidden="true"></span><span class="name">${esc(p.name)}</span></div>
       <div class="sub">${esc(line)}</div>
+      ${pausedNow(p) ? `<div class="sub dim">${esc([pauseNext(p), creditsText(p)].filter(Boolean).join(" · "))}</div>` : ""}
       <div class="meter"><i style="width:${meter.toFixed(0)}%;background:${p.color}"></i></div>
       ${badge ? `<span class="badge">${badge}</span>` : connBadge}
     </div>`;
@@ -2614,13 +2616,32 @@ function planWord() {
   if (tier === "pro") return "Pro";
   return "Free";
 }
+// A red AI: when it checks again by itself, what is left, and a "Check again" button (the one click may send a 1 word test).
+function recheckHtml(p) {
+  if (!pausedNow(p)) return "";
+  const extra = [pauseNext(p), creditsText(p)].filter(Boolean).join(" · ");
+  return `${extra ? `<span class="dim small">${esc(extra)}</span>` : ""}<button type="button" class="btn sm" data-recheck="${esc(p.id)}" title="${esc(CHECK_AGAIN_TITLE)}">Check again</button>`;
+}
+function bindRecheck(root) {
+  $$("[data-recheck]", root).forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.recheck;
+    b.disabled = true; b.textContent = "Checking...";
+    try {
+      const r = await api(`/providers/${id}/recheck`, { method: "POST" });
+      toast(r.recovered ? `${pname(id)} is back.` : `${pname(id)} is still ${pauseLabelFor(r.status?.detail).toLowerCase()}. ${r.pause?.nextCheckText || ""}`.trim(), !r.recovered);
+    } catch (e) { toast(e.message, true); }
+    await refresh();
+  }));
+}
 function renderSimpleBasics(v) {
   const keyed = (S.providers || []).filter((p) => p.keyed && !p.demo);
-  const aiLine = keyed.length ? `Connected: ${keyed.slice(0, 3).map((p) => p.name).join(", ")}.` : "No AI connected yet. You can try a practice answer until you add one.";
+  const readyAis = keyed.filter((p) => !pausedNow(p)), outAis = keyed.filter((p) => pausedNow(p));
+  const aiLine = [readyAis.length ? `Connected: ${readyAis.slice(0, 3).map((p) => p.name).join(", ")}.` : "", outAis.length ? `${pauseLabel(outAis[0])}: ${outAis.map((p) => p.name).join(", ")}. ${pauseNext(outAis[0])}`.trim() : ""].filter(Boolean).join(" ") || "No AI connected yet. You can try a practice answer until you add one.";
   const on = !!S.settings?.privateMode;
   v.innerHTML = `<div class="settings-basics">
     <div class="panel basics-card" id="basics-ai"><h3>Your AI</h3>
       <p class="small" style="margin:0 0 10px">${esc(aiLine)}</p>
+      ${outAis.length ? `<div class="row" style="gap:8px;margin:0 0 10px;flex-wrap:wrap">${outAis.map((p) => `<span class="chip red">${esc(p.name)}: ${esc(pauseLabel(p))}</span>${recheckHtml(p)}`).join("")}</div>` : ""}
       <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
     </div>
     <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
@@ -2646,6 +2667,7 @@ function renderSimpleBasics(v) {
     </div>
     <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
   </div>`;
+  bindRecheck(v);
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
@@ -2685,7 +2707,7 @@ function renderSettings(v) {
   const textP = S.providers.filter((p) => p.kind === "text"), mediaP = S.providers.filter((p) => p.kind !== "text" && p.kind !== "agent");
   const card = (p) => `<div class="pcard-set" style="--c:${p.color}" id="prov-${p.id}">
     <div class="hd"><span class="dot ${p.id === "google" && !p.keyed ? "grey" : (p.status?.status || "grey")}"></span><span class="nm">${esc(p.name)}</span><span class="vd">${esc(p.vendor)}</span>
-      <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}</div>
+      <span class="chip ${p.access?.paused || p.status?.status === "red" ? "red" : ""}" style="margin-left:auto" title="${esc(p.access?.label || p.status?.detail || "")}">${esc(p.access?.label || p.status?.detail || "no key")}</span>${p.access?.paused && p.access.billing ? `<a class="small" href="${esc(p.access.billing)}" target="_blank" rel="noopener">Billing</a>` : ""}${recheckHtml(p)}</div>
     ${p.custom ? `<div class="row small dim" style="margin-top:6px;gap:8px"><span class="mono">${esc(p.baseUrl || "")}</span><span>· ${p.api === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible"}</span><button class="ghost small" data-cp-edit="${p.id}" style="margin-left:auto">Edit</button><button class="ghost small" data-cp-del="${p.id}">Delete</button></div>` : ""}
     ${p.id === "google" && !p.keyed ? `<div class="dim small" style="margin-top:8px">Not connected. A free allowance needs your own AI Studio key.</div>` : ""}
     ${p.connect?.council ? `<div class="dim small" style="margin-top:8px">${esc(p.connect.note)}</div>` : ""}
@@ -2810,6 +2832,7 @@ function renderSettings(v) {
     try { const r = await api("/keys", { method: "POST", body: { provider: id, key, secret, workspaceId } }); keyToast(id, r); await refresh(); }
     catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "Save & test"; }
   }));
+  bindRecheck(v);
   $$("[data-test]", v).forEach((b) => b.addEventListener("click", async () => { b.textContent = "…"; const r = await api(`/check/${b.dataset.test}`, { method: "POST" }); toast(`${pname(b.dataset.test)}: ${r.status} · ${r.detail}`, r.status === "red"); await refresh(); }));
   $$("[data-rm-key]", v).forEach((b) => b.addEventListener("click", async () => { if (!(await askConfirm(`Remove the ${pname(b.dataset.rmKey)} key from the vault?`, { danger: true, ok: "Remove" }))) return; await api(`/keys/${b.dataset.rmKey}`, { method: "DELETE" }); await refresh(); }));
   $$("[data-conn]", v).forEach((b) => b.addEventListener("click", async () => {

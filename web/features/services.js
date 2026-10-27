@@ -121,6 +121,13 @@ function refreshButton() {
     : `<button class="btn sm" id="sv-refresh">Refresh</button>`;
 }
 
+// A red AI: its label, when it checks again by itself, and a "Check again" button (the click may send a 1 word test)
+function pausedRow(pid) {
+  const p = (S().providers || []).find((x) => x.id === pid);
+  if (!p?.access?.paused) return "";
+  const pz = p.access.pause || {};
+  return `<div class="row small" style="gap:6px;flex-wrap:wrap;margin-bottom:4px"><span class="sv-lvl attention">${esc(pz.label || "Out of credits")}</span>${pz.nextCheckText ? `<span class="dim">${esc(pz.nextCheckText)}</span>` : ""}<button type="button" class="btn sm" data-recheck="${esc(pid)}" title="${esc(pz.checkAgainTitle || "A one word test. If you have no credits it costs nothing.")}">Check again</button></div>`;
+}
 function apisPanel(v) {
   const rows = v.apis;
   const admin = v.admin || {};
@@ -131,7 +138,7 @@ function apisPanel(v) {
       <td><div class="sv-cell">${creditsCell(r)}</div></td>
       <td><div class="sv-cell"><span class="mono">${money(r.mtd.value)}</span>${tag(r.mtd.source === "api" ? "api" : "ledger", null, r.mtd.label)}${r.mtd.source === "api" && Math.abs(r.mtd.value - r.ledgerMtd) > 0.005 ? `<span class="dim small">${money(r.ledgerMtd)} through this app</span>` : ""}${r.inTok != null ? `<span class="dim small">${Number(r.inTok).toLocaleString()} in · ${Number(r.outTok || 0).toLocaleString()} out tokens</span>` : ""}</div></td>
       <td><div class="sv-cell">${r.cap ? `<span class="mono">${r.capPct}% of ${money(r.cap, 0)}</span>${tag("user")}` : `<span class="dim">no cap</span>`}</div></td>
-      <td><span class="sv-lvl ${r.level}">${r.level === "ok" ? "ok" : r.level === "amber" ? "watch" : "attention"}</span>${r.why.length ? `<div class="dim small">${r.why.map(esc).join("<br>")}</div>` : ""}</td>
+      <td>${pausedRow(r.provider)}<span class="sv-lvl ${r.level}">${r.level === "ok" ? "ok" : r.level === "amber" ? "watch" : "attention"}</span>${r.why.length ? `<div class="dim small">${r.why.map(esc).join("<br>")}</div>` : ""}</td>
       <td class="right small">${r.links.billing ? `<a href="${esc(r.links.billing)}" target="_blank" rel="noopener">billing</a>` : ""}${r.links.usage && r.links.usage !== r.links.billing ? ` · <a href="${esc(r.links.usage)}" target="_blank" rel="noopener">usage</a>` : ""}</td>
     </tr>`).join("")}</tbody></table>` : `<div class="dim small">No AI keys yet. Add one in Settings and its credits and spend show here.</div>`}
     <div class="dim small" style="margin-top:8px">Credits are read live from OpenRouter and DeepSeek, and from xAI with a management key. OpenAI and Anthropic show live spend with an admin key. Everywhere else, type the balance once in Update balance: Meldmind then subtracts each job and shows "tracked since" that day. Without that, the number is estimated from your budget or credit amount minus this app's spend, and says so. Balances refresh when this page opens and every 15 minutes while the app is in use. Spend caps are set in Settings, Spend caps and alerts: amber at 80%, and at 100% the router sends that AI no new work. Chats made through the APIs do not appear in claude.ai, ChatGPT or grok.com history.</div>
@@ -294,6 +301,7 @@ function draw(el) {
     if (amount === "") return toast("Type the credits left first.", true);
     run(() => api("/services/balance", { method: "POST", body: { provider: d.dataset.balance, amount, date: d.querySelector("[data-balance-date]").value || undefined } }), "Saved. Meldmind keeps this balance up to date from now on.");
   }));
+  $$("[data-recheck]").forEach((b) => b.addEventListener("click", () => run(() => api(`/providers/${b.dataset.recheck}/recheck`, { method: "POST" }), (r) => (r.recovered ? "Back in use." : `Still out of credits. ${r.pause?.nextCheckText || ""}`.trim()))));
   $$("[data-balance-undo]").forEach((b) => b.addEventListener("click", () => run(() => api("/services/balance/undo", { method: "POST", body: { provider: b.dataset.balanceUndo } }), (r) => `Undone: ${r.undone}`)));
   $("#sv-agent-setup")?.addEventListener("click", async () => { try { agentSetup = await api("/services/agent-setup", { method: "POST", body: {} }); } catch (e) { toast(e.message, true); } draw(el); });
   $$("[data-copy]").forEach((b) => b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(agentSetup?.[b.dataset.copy] || ""); toast("Copied"); } catch { toast("Could not copy. Select the text and copy it.", true); } }));

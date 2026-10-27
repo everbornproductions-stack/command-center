@@ -3,7 +3,7 @@
 import { PROVIDERS } from "./registry.js";
 import { hasSecret } from "./vault.js";
 import { connectionOf } from "./connect.js";
-import { describePause, PAUSE_LABEL } from "./pause.js";
+import { describePause, creditLine, CHECK_AGAIN_TITLE } from "./pause.js";
 
 export const AUTH_TYPES = ["key", "oauth", "mcp", "handoff", "local"];
 
@@ -40,7 +40,7 @@ export function accessFor(p) {
   let connect = false;
   let connected = false;
   if (paused) {
-    label = PAUSE_LABEL;
+    label = paused.label;
     connected = true;
   } else if (auth === "handoff") {
     label = "Handoff";
@@ -70,6 +70,8 @@ export function accessFor(p) {
     connect,
     connected,
     paused: !!paused,
+    pause: paused ? { label: paused.label, kind: paused.kind, nextCheckAt: paused.nextCheckAt, nextCheckText: paused.nextCheckText, checkAgainTitle: CHECK_AGAIN_TITLE } : null,
+    credits: p.kind === "text" && keyed ? creditLine(p.id) : null,
     billing: paused?.billing || p.links?.billing || null,
     note: p.authNote || null,
     mcpUrl: p.mcpUrl || null,

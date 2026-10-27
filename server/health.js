@@ -58,8 +58,15 @@ export function noteCall(id, ok, latencyMs, errStatus, body) {
   const out = explainProviderError(p, parts.status, parts.json, parts.text);
   // A real 402/403/429 beats a models-list check: the light stays amber or red and the old "$N left" goes
   // until a real call works again (0.4.21).
-  if ([402, 403, 429].includes(parts.status)) set(id, { ...out, balance: null, realFailAt: Date.now() });
+  if ([402, 403, 429].includes(parts.status)) set(id, { ...out, balance: null, realFailAt: Date.now(), retryAfterMs: parts.status === 429 && Number(errStatus?.retryAfterMs) > 0 ? Number(errStatus.retryAfterMs) : null });
   else set(id, out);
+}
+
+// Credits are back (a balance above zero, a quota reset, or a free probe that answered): green again, so the
+// AI rejoins routing. The normal provider.status event fires, which also clears the smart-fallback skip.
+export function markRecovered(id, detail = "ok") {
+  set(id, { status: "green", detail, realFailAt: 0, retryAfterMs: null, lastOk: Date.now(), lastProbeOk: Date.now() });
+  return getStatus(id);
 }
 
 export const REAL_FAIL_HOLD_MS = 6 * 60 * 60 * 1000;
@@ -165,14 +172,17 @@ function probeModel(p, listJson) {
   const live = liveModels[p.id]?.[0] || (Array.isArray(listJson?.data) ? listJson.data[0]?.id : null);
   return live || null;
 }
+// Free routes a probe may use when an AI has no balance to read. A probe here can not cost money: it only
+// names a model that is free (kept in step with FREE_TIERS in fallback.js by a test).
+export const FREE_PROBE = { openrouter: "openrouter/free", google: "gemini-3.8-flash", groq: "openai/gpt-oss-20b" };
 // { ok } when a one-word answer came back, { refused, status, json, text } when the provider said no
 // (key, credits, rate limit), and { inconclusive } for anything else (no model, network, a mock without chat).
-export async function probeCompletion(p, listJson) {
-  const model = probeModel(p, listJson);
+export async function probeCompletion(p, listJson, { free = false, maxTokens = 16 } = {}) {
+  const model = free ? FREE_PROBE[p.id] : probeModel(p, listJson);
   if (!model || p.kind !== "text") return { inconclusive: true };
   try {
     const { complete } = await import("./providers.js");
-    await complete({ provider: p.id, model, messages: [{ role: "user", content: "Reply with the word ok." }], maxTokens: 16, signal: AbortSignal.timeout(20000) });
+    await complete({ provider: p.id, model, messages: [{ role: "user", content: "Reply with the word ok." }], maxTokens, signal: AbortSignal.timeout(20000) });
     return { ok: true };
   } catch (e) {
     const status = Number(e?.status) || 0;
@@ -183,14 +193,16 @@ export async function probeCompletion(p, listJson) {
 }
 
 // `auto` is a background check. It cannot undo a real failure; a check the person asked for can.
-export async function checkProvider(id, { auto = false } = {}) {
+// keyOnly (an automatic recheck of an AI with no free route): the models list may show the key was refused, and
+// nothing else changes. It never sends a completion.
+export async function checkProvider(id, { auto = false, keyOnly = false } = {}) {
   const p = PROVIDERS[id];
   if (!p) return;
   const sec = getSecret(p.id, p.keyEnv);
   const incident = await checkStatusPage(p);
   // A list of models proves the key is valid, not that there is money behind it. After a real 402/403/429
   // the light stays as the real call left it.
-  if (auto && sec && heldByRealFailure(id)) { set(id, { incident, checkedNote: "held after a real failure" }); return getStatus(id); }
+  if (auto && sec && heldByRealFailure(id) && !keyOnly) { set(id, { incident, checkedNote: "held after a real failure" }); return getStatus(id); }
   if (!sec) { set(id, { status: "grey", detail: incident ? `no key · ${incident}` : "no key", incident }); return getStatus(id); }
   // managed plan (Phase 9): the pool key is not used for checks; the first real call shows whether it works
   if (sec.managed) { set(id, { status: incident ? "amber" : "green", detail: incident ? `managed by Everborn · ${incident}` : "managed by Everborn", incident }); return getStatus(id); }
@@ -220,6 +232,11 @@ export async function checkProvider(id, { auto = false } = {}) {
     else if (p.id === "perplexity") r = { ok: true, status: 200 }; // no cheap list endpoint; verified on first real call
     else r = await fetchJson(`${p.baseUrl}/models`, { ...(sec.headers || {}), ...(sec.key && sec.key !== "no-key" ? { authorization: `Bearer ${sec.key}` } : {}) });
     const latencyMs = Date.now() - t0;
+    if (keyOnly) {
+      if (!r.ok && r.status === 401) set(id, { ...explainProviderError(p, r.status, r.json, r.text), incident, latencyMs });
+      else set(id, { incident, checkedNote: r.ok ? "key still works, waiting for a real call" : "held after a real failure" });
+      return getStatus(id);
+    }
     if (!r.ok) {
       // One write, so the light never flashes a refused key before the body is read.
       set(id, { ...explainProviderError(p, r.status, r.json, r.text), incident, latencyMs });
@@ -250,8 +267,10 @@ export async function checkProvider(id, { auto = false } = {}) {
     // An AI that was paused (no credits, rate limited) stays paused until a call really works.
     const prev = getStatus(id);
     const wasPaused = (prev.status === "amber" || prev.status === "red") && PAUSE_WORDS.test(prev.detail || "");
+    // An automatic recheck of a paused AI with no free route never sends a billable completion.
+    if (auto && wasPaused && !FREE_PROBE[p.id]) { set(id, {}); return getStatus(id); }
     if (needsProbe(prev, wasPaused)) {
-      const pr = await probeCompletion(p, r.json);
+      const pr = await probeCompletion(p, r.json, { free: auto && wasPaused, maxTokens: wasPaused ? 1 : 16 });
       if (pr.ok) set(id, { lastProbeOk: Date.now() });
       else if (pr.refused) { set(id, { ...explainProviderError(p, pr.status, pr.json, pr.text), incident, latencyMs: Date.now() - t0 }); return getStatus(id); }
       else if (wasPaused) { set(id, {}); return getStatus(id); }
