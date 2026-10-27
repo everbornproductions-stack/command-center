@@ -5,11 +5,11 @@ import { PROVIDERS } from "../registry.js";
 import { completeFallback, trouble } from "../fallback.js";
 import { guardFeature } from "../feature-gate.js";
 import { ctx } from "../store.js";
-import { allStatus, isDeadNow } from "../health.js";
+import { allStatus, isDeadNow, heldByRealFailure } from "../health.js";
 import { enabledTools } from "../mcp.js";
 import { pickAgent } from "../agents.js";
 import { connectedAis, whyOut } from "../send-check.js";
-import { searchSettings } from "../search.js";
+import { searchWillRun } from "../readers.js";
 import {
   FIRST_COUNCIL, PRIVATE_LINE, TONES, armTone, backupDocument, chatRows, consumeTone, creditsView, homeCard,
   projectRemoval, readBackup, readersFor, repeatBody, secondReader, takeMembers, writerLine, writerOf,
@@ -44,11 +44,14 @@ function namesFor(mode, prompt) {
   const outRows = [];
   for (const ai of connectedAis()) { const w = whyOut(ai.provider); if (w) outRows.push({ id: ai.provider, name: ai.name, kind: w.kind, tag: w.kind === "credits" ? "out of credits" : w.kind === "rate" ? "busy right now" : w.kind === "key" ? "key not accepted" : "not available" }); }
   const outIds = new Set(outRows.map((o) => o.id));
-  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => !outIds.has(m.provider)).filter((m) => { try { return !isDeadNow(m.provider); } catch { return true; } });
+  // 0.4.21 (dogfood 11, 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // is never named as the planner. The reader list and the "will write the plan" line pick one that can run now.
+  const notDead = (m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } };
+  const ranked = runnableOnly(rank({ ...cls, mode: priority })).filter((m) => !outIds.has(m.provider)).filter(notDead);
   const members = takeMembers(ranked, { limit: mode === "mission" ? 4 : plan.members });
   const readers = members.map((m) => ({ id: m.provider, name: nameOf(m.provider), paused: pausedWhy(m.provider) }));
   // the planner is the AI the Mission planner will really pick (reasoning, hard), not just the first reader
-  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority })).filter((m) => !outIds.has(m.provider))[0] : null;
+  const real = mode === "mission" ? runnableOnly(rank({ capability: "reasoning", difficulty: 3, needWeb: false, mode: priority })).filter((m) => !outIds.has(m.provider)).filter(notDead)[0] : null;
   const planner = real ? nameOf(real.provider) : readers[0]?.name || "";
   if (real && !readers.some((r) => r.id === real.provider)) readers.unshift({ id: real.provider, name: nameOf(real.provider), paused: pausedWhy(real.provider) });
   return { readers, names: readers.map((r) => r.name), planner, out: outRows };
@@ -60,7 +63,9 @@ function audienceFor(mode, prompt) {
   const services = [];
   const pick = pickAgent({ prompt });
   if (pick.use && pick.agent) services.push({ id: pick.agent.id, name: pick.agent.name });
-  if (searchSettings().on?.[mode]) services.push({ id: "search", name: "Web search" });
+  // 0.4.21 (dogfood 11, 12): "Web search will receive the prompt" only when a search will really run for
+  // these words. needWeb false and no ask from the person means no search row.
+  if (searchWillRun({ prompt, kind: mode, classification: heuristicClassify(prompt) })) services.push({ id: "search", name: "Web search" });
   return { tools, services };
 }
 

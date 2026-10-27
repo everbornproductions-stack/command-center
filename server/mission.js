@@ -8,7 +8,7 @@ import { PROVIDERS } from "./registry.js";
 import { attachPdf, stepNotDone } from "./mission-pdf.js";
 import { complete, extractJson } from "./providers.js";
 import { recordCall } from "./ledger.js";
-import { noteCall } from "./health.js";
+import { noteCall, isDeadNow, heldByRealFailure } from "./health.js";
 import { emit } from "./events.js";
 import { classify, rank } from "./router.js";
 import { ctx, doc, putDoc } from "./store.js";
@@ -639,7 +639,11 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   const held = skipAvoid(skipped);
   // After the first 402 / 429 from an AI, every later step of this run leaves that AI out (all of its models).
   const runTrouble = (pid) => { if (skipSet.has(pid)) return; skipSet.add(pid); held.push(...skipAvoid([pid])); };
-  const openRank = (opts) => rank(opts).filter((m) => m && !skipSet.has(m.provider));
+  // 0.4.21 (dogfood 11, 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // takes no new work while another AI can run, so the plan line and every step name the AIs that will really run.
+  const canTakeWork = (m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } };
+  const keepAlive = (list) => { const live = (list || []).filter(canTakeWork); return live.length ? live : list; };
+  const openRank = (opts) => keepAlive(rank(opts).filter((m) => m && !skipSet.has(m.provider)));
   const openPick = (opts) => openRank(opts)[0] || null;
   const planning = planMode(mode);
   const looking = reviewMode(mode);
@@ -771,7 +775,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
     mission.planner = { provider: planner.provider, model: planner.model };
     const pAgent = `${id}:planner`;
     emit("agent.start", { agent: pAgent, provider: planner.provider, model: planner.model, role: "plan", missionId: id, label: `${planner.providerName} planning` });
-    log(`${planner.providerName} is drawing up the plan.`);
+    log(`Drawing up the plan.`);
     const s0 = Date.now();
     try {
       let planExtra = "";
@@ -783,6 +787,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
       }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning, skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const r = await callPlanner();
+      // 0.4.21 (dogfood 11, 12): name the AI that really drew the plan up. When smart fallback stood in
+      // (ChatGPT 429, OpenRouter 402, Gemini 429, then Claude Opus) the log says who really did it.
+      const plannedBy = PROVIDERS[r.provider]?.name || r.provider;
+      const stoodFor = mission.planner?.standIn ? PROVIDERS[mission.planner.standIn.for]?.name || mission.planner.standIn.for : null;
+      log(stoodFor ? `${plannedBy} is drawing up the plan (standing in for ${stoodFor}).` : `${plannedBy} is drawing up the plan.`);
       const ms = Date.now() - s0;
       noteCall(r.provider, true, ms);
       spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "plan", ms }));
@@ -896,7 +905,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const mediaTasks = mission.tasks.filter((t) => t.media);
     const mediaUsd = +mediaTasks.reduce((a, t) => a + (t.media.dryRun ? 0 : Number(t.media.usd) || 0), 0).toFixed(4);
     const appNames = mission.tasks.filter((t) => t.app).map((t) => t.model);
-    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => stepAgentName(p) || p).concat(appNames).concat(agentTasks ? [`${MA?.name || "The agent"} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}. Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
+    const plannedBy = mission.planner ? (PROVIDERS[mission.planner.provider]?.name || mission.planner.provider) : null;
+    log(`Plan: ${mission.tasks.length} tasks → ${[...used.keys()].map((p) => stepAgentName(p) || p).concat(appNames).concat(agentTasks ? [`${MA?.name || "The agent"} (${agentTasks}, results are async and can take minutes)`] : []).concat(mediaTasks.map((t) => `${t.media.providerName} (${t.media.kind}${t.media.dryRun ? ", dry run, nothing spent" : `, about $${t.media.usd}, waits for your OK`})`)).join(", ")}.${plannedBy ? ` Planned by ${plannedBy}.` : ""} Estimated $${est.toFixed(3)}${mediaUsd ? ` plus about $${mediaUsd} of media if you approve it` : ""}.`);
     if (mediaTasks.length) {
       const pf = preflight(goal, { kinds: [...new Set(mediaTasks.map((t) => t.media.kind))] });
       mission.preflight = { blocked: pf.blocked, lines: pf.lines, banner: pf.banner };

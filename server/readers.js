@@ -4,6 +4,8 @@ import { rank, heuristicClassify } from "./router.js";
 import { councilPlan, planMode, reviewMode, normalizeMode } from "./modes.js";
 import { pickAgent } from "./agents.js";
 import { searchSettings, resolveEngine } from "./search.js";
+import { wantsSearch } from "./step-guard.js";
+import { isDeadNow, heldByRealFailure } from "./health.js";
 import { runnableOnly } from "./runnable.js";
 import { whyOut } from "./send-check.js";
 import { describePause } from "./pause.js";
@@ -21,8 +23,13 @@ function takeUnique(list, n) {
 }
 
 function safeRank(rankFn, cls, mode) {
-  try { return runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
+  let list = [];
+  try { list = runnableOnly(rankFn({ ...cls, mode: normalizeMode(mode) || "balanced" }) || []); } // only AIs that can run now
   catch { return []; }
+  // 0.4.21 (dogfood 12): an AI that is out of credits, rate limited or holding after a real 402/429/403
+  // is never named as the one that will plan or read, while any other AI can take the job.
+  const live = list.filter((m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } });
+  return live.length ? live : list;
 }
 
 function searchRows(search) {
@@ -40,14 +47,27 @@ function searchRows(search) {
   return rows;
 }
 
-function liveSearch() {
+// 0.4.21 (dogfood 11, 12): will a web search really run for these words? The dialog must say the same thing
+// as the run: needWeb false and nobody asking for search means no search row. A Mission searches only when the
+// words or the request ask for it (and its switch or the classifier agrees); Single and Council also search on
+// their own saved switch. No key, no search: a row only appears when an engine would really run it.
+export function searchWillRun({ prompt = "", kind = "single", classification, search, settings } = {}) {
+  if (search === false) return false;
+  if (search === true) return true;
+  if (search && typeof search === "object") return !!(search.council || search.mission);
+  const cls = classification || heuristicClassify(String(prompt || ""));
+  let on = false;
+  try { on = !!(settings || searchSettings()).on?.[kind]; } catch { on = false; }
+  if (kind === "mission") return wantsSearch(String(prompt || "")) && (on || !!cls?.needWeb);
+  return on || !!cls?.needWeb;
+}
+
+// The engine a search would really use, as the row the dialog shows.
+function liveSearch(kind = "single") {
   try {
-    const s = searchSettings();
-    const on = s.on || {};
-    if (!on.council && !on.mission) return false;
     const eng = resolveEngine({});
     if (!eng?.engine) return false;
-    return { council: !!on.council, mission: !!on.mission, id: `search:${eng.engine}`, name: eng.name || "Web search" };
+    return { council: kind !== "mission", mission: kind !== "council", id: `search:${eng.engine}`, name: eng.name || "Web search" };
   } catch { return false; }
 }
 
@@ -66,7 +86,7 @@ export function orderReaders(readers, record) {
 
 // rankFn, search, and agent can be passed in tests. Otherwise the live router, search
 // settings, and agent picker are used. Nothing in this function leaves the computer.
-export function whoWillRead({ prompt = "", mode = "balanced", classification, rankFn, search, agent, record } = {}) {
+export function whoWillRead({ prompt = "", mode = "balanced", classification, rankFn, search, agent, record, kind = "single" } = {}) {
   const priority = normalizeMode(mode) || "balanced";
   const cls = classification || heuristicClassify(String(prompt || ""));
   const useRank = rankFn || rank;
@@ -98,7 +118,7 @@ export function whoWillRead({ prompt = "", mode = "balanced", classification, ra
   const picked = agent !== undefined ? agent : (() => { try { return pickAgent({ prompt: String(prompt || "") }); } catch { return { use: false }; } })();
   const extra = agentRow(picked);
   if (extra && !seen.has(extra.id)) { seen.add(extra.id); readers.push(extra); }
-  const look = search !== undefined ? search : liveSearch();
+  const look = search !== undefined ? search : (searchWillRun({ prompt, kind, classification: cls }) ? liveSearch(kind) : false);
   for (const row of searchRows(look)) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
