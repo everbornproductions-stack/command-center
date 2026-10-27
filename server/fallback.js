@@ -25,6 +25,7 @@ import { chatWithTools } from "./mcp.js";
 import { rank, heuristicClassify } from "./router.js";
 import { allEntries } from "./ledger.js";
 import { describePause } from "./pause.js";
+import { noteReply as noteFreeReply } from "./free-limits.js";
 import { freeOnlyOn, freeOnlyView, freeOnlyError, isFreeModel, costTier, lastResortChoices, planFirstForCode } from "./free-first.js";
 
 export const KIND = "fallback.settings";
@@ -439,6 +440,7 @@ export async function* fallbackChat(opts, run = {}) {
       // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
       const kind = e.code === "empty" ? "empty" : e.code === "refused" ? "refused" : e.code === "cap" ? "cap" : troubleKind(e);
       if (kind) failures.push({ provider, kind });
+      if (kind === "credits" || kind === "rate") noteFreeReply(provider, { status: e.status, text: e.message }); // 0.4.22 daily limit tracker
       if (kind === "credits" || kind === "rate") { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
       if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
       // A failure that belongs to one model is remembered on that model only, and never moves the
