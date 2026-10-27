@@ -1,6 +1,7 @@
 // Everborn Command Center server: static UI + JSON API + WebSocket event stream.
 // Local mode (default): one user, data/ folder, binds 127.0.0.1 until phone pairing is turned on. `node server/index.js` and done.
 // Hosted mode (CC_MODE=hosted): Supabase sign-in, one context per user, binds 0.0.0.0. See docs/hosted-hub.md.
+import { BODY_LIMIT_CHARS, BODY_TOO_BIG_LINE } from "./body-limit.js";
 import http from "node:http";
 import net from "node:net";
 import fs from "node:fs";
@@ -239,9 +240,9 @@ function readBody(req) {
     let d = "";
     let tooBig = false;
     // 0.4.21 (F18): a body over the limit is read and dropped, then answered with a plain 413, not a reset connection.
-    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > 18e6) { tooBig = true; d = ""; } });
+    req.on("data", (c) => { if (tooBig) return; d += c; if (d.length > BODY_LIMIT_CHARS) { tooBig = true; d = ""; } });
     req.on("end", () => {
-      if (tooBig) return reject(Object.assign(new Error("That is too large to send at once. The limit is about 18 MB. Try a smaller file."), { status: 413 }));
+      if (tooBig) return reject(Object.assign(new Error(BODY_TOO_BIG_LINE), { status: 413 }));
       try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(Object.assign(new Error("bad json"), { status: 400 })); }
     });
     req.on("error", reject);

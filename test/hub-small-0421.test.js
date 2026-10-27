@@ -51,3 +51,17 @@ test("source: empty Show builders, Suggest builders and Log say what to fill in"
   assert.match(read("web", "features", "webbuilders.js"), /Tell me what you are working on first/);
   assert.match(read("web", "app.js"), /Type how many credits you used first/);
 });
+
+test("the too-large message and the real body limit are pinned together (0.4.22 C10)", async () => {
+  const { BODY_LIMIT_CHARS, FILE_LIMIT_MB, BODY_TOO_BIG_LINE } = await import("../server/body-limit.js");
+  assert.equal(BODY_LIMIT_CHARS, 18e6);
+  assert.equal(FILE_LIMIT_MB, 13);
+  assert.ok(BODY_TOO_BIG_LINE.includes(`${FILE_LIMIT_MB} MB`));
+  assert.equal(BODY_TOO_BIG_LINE.includes("18 MB"), false);
+  const srv = await startServer({});
+  try {
+    const big = await srv.api("/mindmedia/save", { method: "POST", body: { kind: "text", text: "x".repeat(BODY_LIMIT_CHARS + 1000), name: "big" } });
+    assert.equal(big.status, 413);
+    assert.equal(big.json.error, BODY_TOO_BIG_LINE);
+  } finally { await srv.stop(); }
+});
