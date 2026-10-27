@@ -1,7 +1,7 @@
 // Remix. One path: what to make, a starting point, preview, Build, Test, Publish.
 // Extra choices stay under More options. Nothing runs until the main button is pressed.
 import { mountBar } from "../next-actions-ui.js";
-import { scopeLabel, statusLine, pushLog, cleanText } from "../next-actions.js";
+import { scopeLabel, statusLine, pushLog, cleanText, remixBuiltView, remixMissionFailed } from "../next-actions.js";
 const { api, toast, esc } = window.CC;
 const nextOn = () => !!window.CC.S?.flags?.nextactions;
 
@@ -35,6 +35,10 @@ let tested = null;
 let published = null;
 let logLines = [];
 let liveRoot = null;
+// 0.4.21 (dogfood 09): what Build sent (so Try again can send it once more), and the mission that failed.
+let lastRunBody = null;
+let buildFailed = false;
+let missedFail = null;
 
 function fieldValue(root, id) {
   return root.querySelector(id)?.value?.trim() || "";
@@ -369,16 +373,50 @@ async function build(root) {
   if (formKey(body) !== previewKey) return toast("Look at the preview again before you build.", true);
   try {
     logLines = [];
-    built = await api("/remix/run", { method: "POST", body: { ...body, ...(nextOn() ? { scopeCount: scopeCount(root) } : {}), ...(window.CC.S?.flags?.projectbar && window.CC.S.project ? { workingProjectId: window.CC.S.project } : {}), confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked } });
+    buildFailed = false;
+    lastRunBody = { ...body, ...(nextOn() ? { scopeCount: scopeCount(root) } : {}), ...(window.CC.S?.flags?.projectbar && window.CC.S.project ? { workingProjectId: window.CC.S.project } : {}), confirm: true, acknowledgeClose: !!root.querySelector("#remix-ack")?.checked };
+    built = await api("/remix/run", { method: "POST", body: lastRunBody });
     const box = root.querySelector("#remix-built");
-    if (box) box.innerHTML = `<p><b>${esc(built.projectName || "Project")}</b> is saved on this computer.</p><p class="small">${esc(built.ai?.reason || "")}</p>`;
+    const view = remixBuiltView(null, { projectName: built.projectName || "Project" });
+    if (box) box.innerHTML = `<p>${esc(view.message)}</p><p class="small">${esc(built.ai?.reason || "")}</p>`;
     builtExtras(root, built);
     step = "built";
     info = await api("/remix");
     const past = root.querySelector("#remix-past");
     if (past) past.innerHTML = pastHtml();
     wirePast(root);
-    toast("Saved on this computer.");
+    // a mission that failed before this answer arrived is shown instead of the saved line
+    const early = missedFail && missedFail.projectId === built.projectId ? missedFail : null;
+    missedFail = null;
+    if (early) showBuildFailure(root, early);
+    else toast("Saved on this computer.");
+    return true;
+  } catch (e) { toast(e.message, true); return false; }
+}
+
+// 0.4.21 (dogfood 09): a build whose mission failed says which AI failed and why, with one way to try
+// again without it. The saved folder is not offered here: nothing finished.
+function showBuildFailure(root, mission) {
+  if (buildFailed || !root?.isConnected) return;
+  const view = remixBuiltView(mission, { projectName: built?.projectName || "Project" });
+  const box = root.querySelector("#remix-built");
+  if (!view.failed || !box) return;
+  buildFailed = true;
+  box.innerHTML = `<p>${esc(view.message)}</p><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm primary" id="remix-retry">${esc(view.action)}</button></div>`;
+  box.querySelector("#remix-retry")?.addEventListener("click", () => retryBuild(root, view.avoid));
+}
+
+// The same build once more, leaving out the AI that failed. The server passes the list on to the mission router.
+async function retryBuild(root, avoid) {
+  if (!lastRunBody) return toast("Press Build to start again.", true);
+  try {
+    logLines = [];
+    buildFailed = false;
+    built = await api("/remix/run", { method: "POST", body: { ...lastRunBody, avoidProviders: Array.isArray(avoid) ? avoid : [] } });
+    const box = root.querySelector("#remix-built");
+    if (box) box.innerHTML = `<p>Building again with another AI.</p><p class="small">${esc(built.ai?.reason || "")}</p>`;
+    builtExtras(root, built);
+    toast("Building again with another AI.");
     return true;
   } catch (e) { toast(e.message, true); return false; }
 }
@@ -522,6 +560,9 @@ async function render(view) {
   published = null;
   view.innerHTML = shell(info?.gate);
   const root = view.querySelector("#remix-root");
+  lastRunBody = null;
+  buildFailed = false;
+  missedFail = null;
   const past = root.querySelector("#remix-past");
   if (past) past.innerHTML = pastHtml();
   wirePast(root);
@@ -601,13 +642,22 @@ async function render(view) {
   root.querySelector("#remix-name")?.focus();
 }
 
-// Status log beside the action: the saved project's mission updates, newest last.
+// Status log beside the action: the saved project's mission updates, newest last. A mission that failed
+// replaces the box: no saved claim, no open folder, one way to try again with another AI.
 function onEvent(ev) {
-  if (!nextOn() || ev?.type !== "mission.update" || !liveRoot?.isConnected || !built?.projectId) return;
+  if (ev?.type !== "mission.update") return;
   const m = ev.mission;
-  if (!m || m.projectId !== built.projectId) return;
-  logLines = pushLog(logLines, statusLine(m));
-  paintLog(liveRoot);
+  if (!m) return;
+  if (!built?.projectId) {
+    if (remixMissionFailed(m)) missedFail = m;
+    return;
+  }
+  if (m.projectId !== built.projectId) return;
+  if (nextOn()) {
+    logLines = pushLog(logLines, statusLine(m));
+    paintLog(liveRoot);
+  }
+  if (remixMissionFailed(m)) showBuildFailure(liveRoot, m);
 }
 
 CC.register({
