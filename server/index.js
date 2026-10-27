@@ -439,6 +439,8 @@ async function keepMissionResult(m, opts) {
   try {
     const text = String(m?.deliverable || "").trim();
     if (!m || m.private || opts?.private || !text || !["done", "done-with-errors"].includes(m.status)) return;
+    // 0.4.21 (dogfood 10): a run that already saved its own post (the local MindMedia step) keeps ONE item, not that post plus a text copy
+    if ((m.tasks || []).some((t) => t.save && t.status === "done" && t.saved)) return;
     const { saveToMindMedia } = await import("./project-media.js");
     saveToMindMedia({ kind: "text", text, name: String(m.title || m.plan?.title || m.goal || "Mission").replace(/\s+/g, " ").trim().slice(0, 100), status: "Review", source: "Mission", dedupeKey: `mission:${m.id}`, projectId: m.projectId || "" });
   } catch { /* keeping is a bonus; the answer is still in the chat */ }

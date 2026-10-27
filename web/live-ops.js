@@ -37,6 +37,8 @@ export function showDeliverable(live, text) {
   if (text) return true;
   if (l.status === "waiting") return true; // out of API credits: the waiting box is the deliverable for now
   if (l.kind === "research" && (l.status === "aborted" || l.status === "failed")) return true;
+  // a stopped or errored mission keeps its rating rows and an "unfinished" note (0.4.21, dogfood 10)
+  if (l.kind === "mission" && (l.status === "aborted" || l.status === "failed")) return true;
   return false;
 }
 

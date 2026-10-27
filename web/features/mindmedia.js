@@ -130,7 +130,7 @@ function cardHtml(it) {
   const card = `<button type="button" class="mmh-card" data-k="${esc(key(it))}" aria-pressed="${pressed ? "true" : "false"}" aria-label="${esc(it.name)}, ${esc(it.kind)}, ${esc(it.status)}">
     ${ui.select ? `<input type="checkbox" class="mmh-pick" tabindex="-1" aria-hidden="true" ${sel ? "checked" : ""}>` : ""}
     <div class="mmh-thumb" data-th></div>
-    <div class="mmh-meta"><b>${esc(it.name)}</b><span>${window.CC.mmStatusChip(it.status)}</span><small>${esc(it.source || "")} &middot; ${esc(it.projectName || "")} &middot; ${esc(when(it.createdAt))}</small></div></button>`;
+    <div class="mmh-meta"><b>${esc(it.name)}</b><span>${window.CC.mmStatusChip(it.status)}</span><small>${esc(it.source || "")} &middot; ${esc(it.projectName || "")} &middot; ${esc(when(it.createdAt))}</small>${it.post ? `<small class="mmh-post">Post: ${esc(String(it.post.caption || "").slice(0, 90))}${it.post.hashtags?.length ? ` ${esc(it.post.hashtags.join(" "))}` : ""}${it.post.imageMissing ? " (no picture yet)" : ""}</small>` : ""}</div></button>`;
   return ui.view === "trash" ? `<div>${card}<button type="button" class="btn sm" data-restore="${esc(key(it))}" style="margin-top:4px">Restore</button></div>` : card;
 }
 

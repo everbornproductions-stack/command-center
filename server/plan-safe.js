@@ -91,7 +91,7 @@ export function handToWorkingAI(step, ranked = []) {
 }
 
 // A capability the router does not know (the planner wrote "antigravity" or "grok bot" there) becomes plain reasoning.
-const CAPS = new Set(["reasoning", "code", "writing", "research", "creative", "analysis", "math", "fast", "media", "agent"]);
+const CAPS = new Set(["reasoning", "code", "writing", "research", "creative", "analysis", "math", "fast", "media", "agent", "save"]);
 export function cleanCapability(c, fallback = "reasoning") {
   const s = String(c || "").toLowerCase().trim();
   return CAPS.has(s) ? s : fallback;

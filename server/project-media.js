@@ -347,6 +347,7 @@ function collectNativeAssets(projectId, state, allJobs) {
       provenance: up.provenance || null,
       folderPath: up.folderPath || null,
       textPreview: up.textPreview || "",
+      post: up.post || null,
       jobId: null,
       fileIndex: 0,
       kind,
@@ -715,7 +716,7 @@ function matchesFilter(item, query = {}, now = Date.now()) {
         item.linkedFrom?.projectName || "",
         item.source || "",
         item.status || "",
-        item.kind === "text" ? String(item.textPreview || "") : "",
+        item.kind === "text" || item.post ? String(item.textPreview || "") : "",
       ].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -1329,6 +1330,16 @@ function cleanProvenance(p) {
   };
 }
 
+// One post = a picture (or no picture yet), its caption and its hashtags, kept as a single item (0.4.21, dogfood 10).
+function cleanPost(p) {
+  if (!p || typeof p !== "object") return null;
+  const caption = String(p.caption || "").slice(0, 4000);
+  const hashtags = (Array.isArray(p.hashtags) ? p.hashtags : []).map((h) => String(h).trim()).filter((h) => /^#[A-Za-z0-9_]{1,50}$/.test(h)).slice(0, 30);
+  if (!caption && !hashtags.length) return null;
+  return { caption, hashtags, imageMissing: !!p.imageMissing, note: String(p.note || "").slice(0, 300) };
+}
+const postPreview = (p) => [p.caption, p.hashtags.join(" ")].filter(Boolean).join("\n\n").slice(0, 600);
+
 export function saveToMindMedia(opts = {}) {
   const pid = hubProjectId(opts.projectId);
   const source = String(opts.source || "Meldmind").slice(0, 60);
@@ -1353,6 +1364,7 @@ export function saveToMindMedia(opts = {}) {
     throw err;
   }
   const provenance = cleanProvenance(opts.provenance);
+  const post = cleanPost(opts.post);
   const baseName = String(opts.name || opts.title || "").trim().slice(0, 140);
   const created = [];
 
@@ -1362,6 +1374,7 @@ export function saveToMindMedia(opts = {}) {
     const prev = state.uploads.find((u) => u.dedupeKey === dedupeKey && safeProjectId(u.projectId) === pid);
     if (prev && !getAssetMeta(state, pid, `upload:${prev.id}`).deleted) {
       if (hasText && prev.filePath) { try { fs.writeFileSync(prev.filePath, opts.text, "utf8"); prev.sizeBytes = Buffer.byteLength(opts.text); } catch { /* keep the old text */ } }
+      if (post) { prev.post = post; prev.textPreview = postPreview(post); }
       prev.updatedAt = Date.now();
       saveMediaDoc(state);
       return finishSave(pid, [`upload:${prev.id}`], { reused: true });
@@ -1375,7 +1388,8 @@ export function saveToMindMedia(opts = {}) {
       prompt: String(provenance?.prompt || opts.prompt || "").slice(0, 2000),
       provider: "upload", model: provenance?.model || "",
       source, status, provenance, folderPath: folderPath || null, dedupeKey: dedupeKey || undefined,
-      textPreview: kind === "text" ? String(opts.text || "").slice(0, 300) : undefined,
+      textPreview: post ? postPreview(post) : (kind === "text" ? String(opts.text || "").slice(0, 300) : undefined),
+      post: post || undefined,
       createdAt: Date.now(),
     });
     const assetId = `upload:${upId}`;

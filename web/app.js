@@ -1788,9 +1788,12 @@ function renderOutput() {
     if (l.kind === "research" && l.status === "aborted") o.innerHTML = `<div class="empty">Deep research stopped.</div>`;
     else if (l.kind === "research" && l.status === "failed") o.innerHTML = `<div class="empty">${esc(l.mission?.error || "Deep research failed.")}</div>`;
     else if (l.kind === "research" && l.status === "running") o.innerHTML = `<div class="empty">Deep research is running. Stop ends it. You can keep using the chat.</div>`;
+    else if (["aborted", "failed"].includes(l.status) && l.kind === "mission") o.innerHTML = `<div class="empty">${l.status === "aborted" ? "Stopped before it finished. Nothing was assembled." : "This run did not finish. Nothing was assembled."}</div>`;
     else o.innerHTML = l.kind === "mission" ? `<div class="empty">The deliverable appears here once the assembler starts.</div>` : `<div class="empty">Waiting…</div>`;
     paintFollow("");
     paintFailure();
+    // 0.4.21 (dogfood 10): a stopped or errored run keeps its rating rows
+    if (["aborted", "failed", "done-with-errors"].includes(l.status)) renderExtras("deliverable", "#deliv-extras", l);
     return;
   }
   o.innerHTML = text ? md(text) : "";

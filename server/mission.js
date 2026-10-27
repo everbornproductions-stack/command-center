@@ -38,6 +38,7 @@ import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile } from "./named-file.js";
+import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus } from "./media-preflight.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -772,7 +773,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
         system: `You are the chief of staff for a small creative/marketing business. Break the goal into ${Math.min(maxTasks, 6)} or fewer concrete tasks that different AI specialists can do independently, with dependencies where one needs another's output. Reply with JSON only:
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
-Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${agentLine}${planExtra}`,
+Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${SAVE_LINE}${agentLine}${planExtra}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
       }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const r = await callPlanner();
@@ -819,6 +820,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // search engine is on: then any model can do it, because the task gets its own search results
     const used = new Map();
     for (const t of plan.tasks) {
+      // 0.4.21 (dogfood 10): "save it to my MindMedia / my library" is a local step done by Meldmind itself. It never goes to
+      // Grok Bot or the browser helper (the planner had invented a "signed-in MindMedia account").
+      if (isLocalSaveStep(t)) {
+        const { agent: _a, needs: _n, ...rest } = t;
+        mission.tasks.push({ ...rest, capability: "save", save: true, status: "queued", provider: "meldmind", model: "MindMedia", agentName: "Meldmind · save to MindMedia", estCost: 0, output: null, review: null, cost: 0 });
+        continue;
+      }
       // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
       const fit = agentOn ? MA.want({ prompt: `${t.title}. ${t.instructions || ""}`, explicit: MA.id === GROKBOT ? grokbot : browser }) : null;
       if (agentOn && (t.capability === "agent" || (fit.use && fit.needs.length))) {
@@ -880,7 +888,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (est > budgetUsd) {
       log(`Estimate exceeds the $${budgetUsd} budget. Switching every task to Max savings.`);
       for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app || t.workaround) continue;
+        if (t.agent || t.media || t.app || t.save || t.workaround) continue;
         const e = openPick({ capability: t.capability, difficulty: t.difficulty, mode: "savings", needWeb: needsWebModel(t) });
         if (e) { t.provider = e.provider; t.model = e.model; t.agentName = `${e.providerName} · ${t.capability}`; t.estCost = e.estCost; }
       }
@@ -888,7 +896,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (crew.length) {
       let n = 0;
       for (const t of mission.tasks) {
-        if (t.agent || t.media || t.app || t.workaround) continue;
+        if (t.agent || t.media || t.app || t.save || t.workaround) continue;
         const c = crewFor(crew, t, n++);
         t.employee = { id: c.id, name: c.name };
       }
@@ -938,7 +946,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           throw new Error(fin.error || `${ANAME} reported a failure`);
         } else if (ctl.signal.aborted) {
           throwIfPause(mission, ctl, t);
-          try { cancelAgentJob(job.id, "mission aborted"); } catch {}
+          try { cancelAgentJob(job.id, "mission aborted"); } catch { /* already finished or gone: nothing to cancel */ }
           t.status = "failed"; t.error = "Mission aborted";
         } else {
           // still out: dependents go on without it; its result is added to this mission when it comes back
@@ -954,6 +962,38 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         emit("agent.error", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, error: err.message });
       }
       if (t.status !== "failed") done.add(t.id);
+      t.finishedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      update();
+    };
+    // 0.4.21 (dogfood 10): a local "save to MindMedia" step. No network, no agent. The caption, hashtags and the picture
+    // made by the earlier steps become ONE post item (Draft); a placeholder or missing picture is never used as the post image.
+    const saveTask = async (t) => {
+      t.status = "running"; t.startedAt = Date.now();
+      emit("task.update", { missionId: id, task: pubTask(t) });
+      try {
+        const depTasks = (t.deps || []).map((d) => mission.tasks.find((x) => x.id === d)).filter(Boolean);
+        const textDeps = depTasks.filter((d) => !d.media && !d.save && d.status === "done" && d.output && !d.notDone);
+        const mediaDep = depTasks.find((d) => d.media?.kind === "image");
+        const realFile = mediaDep && mediaDep.status === "done" && !mediaDep.media.dryRun ? (mediaDep.media.files || [])[0] : null;
+        const raw = textDeps.map((d) => d.output).join("\n\n");
+        const { caption, hashtags } = splitPost(raw || "", { keepEmoji: /emoji/i.test(goal) });
+        let image = null;
+        if (realFile?.name) {
+          const abs = path.join(MEDIA.projectMediaDir(projectId), realFile.name);
+          if (fs.existsSync(abs)) image = { name: realFile.name, path: abs, mime: realFile.mime };
+        }
+        const imageNote = !mediaDep ? "" : image ? "" : mediaDep.media?.dryRun ? "No picture was made (only a practice frame), so the post has no picture yet." : "No picture came back from the picture step, so the post has no picture yet.";
+        const out = savePost({ projectId, missionId: id, title: mission.title || t.title, caption, hashtags, image, imageNote });
+        t.output = out.text;
+        if (out.ok) { t.status = "done"; t.error = null; t.saved = { link: out.link, where: out.where, id: out.saved?.id || null }; }
+        else { t.status = "failed"; t.error = out.error || out.text; }
+      } catch (err) {
+        if (err instanceof MissionPause || err?.code === "paused") throw err;
+        throwIfPause(mission, ctl, t);
+        t.status = "failed"; t.error = `Not saved to MindMedia: ${plainMessage(err)}`; t.output = t.error;
+      }
+      if (t.status !== "failed") { outputs[t.id] = t.output; done.add(t.id); }
       t.finishedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       update();
@@ -1200,7 +1240,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (!consumed) return;
       mission.appliedDirections = [...(mission.appliedDirections || []), ...consumed.items];
       for (const t of mission.tasks) {
-        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app) {
+        if (!done.has(t.id) && t.status !== "failed" && !t.agent && !t.media && !t.app && !t.save) {
           t.instructions = `${t.instructions || ""}\n\n${consumed.promptBlock}`.trim();
         }
       }
@@ -1243,6 +1283,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const settled = await Promise.allSettled(wave.map(async (t) => {
         if (shouldPause(mission)) { rewindTask(t); throw new MissionPause(); }
         if (t.agent) return agentTask(t);
+        if (t.save) return saveTask(t);
         if (t.media) return mediaTask(t);
         if (t.app) return appTask(t);
         // 0.4.21 (dogfood 09): a step routed to an agent that is not set up has no entry in PROVIDERS, and
@@ -1541,7 +1582,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { notDone: stepNotDone(t), id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
+  return { notDone: stepNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
   return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
@@ -1552,7 +1593,7 @@ export function stepsReport(m) {
 }
 function totalCostText(m) {
   const c = Number(m.cost) || 0;
-  const rows = (m.tasks || []).filter((t) => !t.agent && !t.media && !t.app);
+  const rows = (m.tasks || []).filter((t) => !t.agent && !t.media && !t.app && !t.save);
   if (c > 0) return `$${c < 0.01 ? c.toFixed(4) : c.toFixed(2)} (${[...new Set(rows.filter((t) => t.cost > 0).map((t) => PROVIDERS[t.provider]?.name || t.provider))].join(", ") || "paid AIs"})`;
   return rows.length ? "$0 (free AIs only)" : "$0";
 }
@@ -1563,9 +1604,13 @@ function save(m) {
 // ---- an agent's result (Grok Bot or the browser helper) that came back after its mission moved on (or after a restart) ----
 // It lands on its task and is added to the deliverable under the task's title.
 const lateWhileRunning = new Map(); // mission id -> jobs that finished after the wait, while the mission still ran
-onAnyJobFinished(lateResult);
+// 0.4.21 (dogfood 10): Stop must never take the app down. A late result that cannot be filed is logged and dropped; it is
+// never an unhandled rejection. A job the mission itself cancelled because the person pressed Stop is not a late result.
+onAnyJobFinished((job) => { Promise.resolve().then(() => lateResult(job)).catch((e) => { try { emit("log", { text: `A late agent result could not be filed (${plainMessage(e)}).`, level: "error" }); } catch { /* nothing more to do */ } }); });
+const stoppedByMission = (job) => job?.status === "failed" && /\bmission aborted\b/i.test(String(job.error || ""));
 async function lateResult(job) {
   if (job.source?.kind !== "mission" || !job.source.runId) return;
+  if (stoppedByMission(job)) return;
   if (lateWhileRunning.has(job.source.runId)) { lateWhileRunning.get(job.source.runId).push(job); return; }
   const m = await ctx().store.getMission(job.source.runId);
   const t = m?.tasks?.find((x) => x.agentJob?.jobId === job.id);
@@ -1626,6 +1671,12 @@ function mediaOnTask(t, job) {
   t.media.status = job.status; t.media.usd = job.estimate?.usd ?? t.media.usd; t.media.dryRun = !!job.dryRun;
   t.media.files = MEDIA.publicJob(job).files;
   t.output = MEDIA.resultLine(job);
+  // 0.4.21 (dogfood 10): a practice frame is not the picture. Say so plainly, with the one setup step, so later steps
+  // (and the person) never treat it as the real post image.
+  if (job.dryRun || job.status === "dry-run") {
+    t.practice = true;
+    t.output += ` No ${t.media.kind === "voice" ? "voice-over" : t.media.kind} was made: this is only a practice file, not a real one. ${MSW.setupMessage(t.media.kind)}`;
+  }
   if (job.status === "failed") { t.status = "failed"; t.error = job.error || "media job failed"; }
   else if (["awaiting_ok", "queued", "processing"].includes(job.status)) t.status = "waiting";
   else { t.status = "done"; t.error = null; }

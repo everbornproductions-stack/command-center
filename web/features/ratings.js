@@ -10,6 +10,7 @@ function contributors(run) {
     if (run.council.verdict?.model) out.push({ provider: run.council.verdict.provider, model: run.council.verdict.model, label: `${pname(run.council.verdict.provider)} (verdict)` });
   } else if (run.kind === "mission" && run.mission) {
     for (const t of run.mission.tasks || []) {
+      if (t.save) continue; // Meldmind's own save step is not an AI to rate
       if (!(t.output || t.status === "done" || t.status === "failed") || !t.model || (t.status !== "failed" && !!t.notDone)) continue; // a step that said it could not do the job is not rated as good work
       const kind = t.media?.kind ? `media/${t.media.kind}` : null;
       out.push({ provider: t.provider, model: t.model, stepId: t.id, stepKind: kind, label: `${pname(t.provider)} · ${t.title}${kind ? ` (${kind.replace("media/", "")})` : ""}`, capability: kind ? "media" : t.capability });
@@ -75,11 +76,14 @@ async function showPreference(el, cap, ran = []) {
 async function render(el, run) {
   if (!run || !run.id) { el.innerHTML = ""; return; }
   const list = contributors(run);
-  if (!list.length) { el.innerHTML = ""; return; }
+  // 0.4.21 (dogfood 10): a run that was stopped or errored keeps its rating rows, and says it did not finish
+  const st = run.status || run.mission?.status || "";
+  const unfinished = ["aborted", "failed", "done-with-errors", "cancelled"].includes(st);
+  if (!list.length && !(unfinished && run.kind === "mission")) { el.innerHTML = ""; return; }
   let existing = []; try { existing = await api(`/ratings/mission/${run.id}`); } catch {}
   const pid = run.mission?.projectId || run.council?.projectId || null;
   const cap = run.classification?.capability || run.mission?.classification?.capability || run.council?.classification?.capability || "writing";
-  el.innerHTML = `<div class="route" style="margin-top:12px"><div class="small muted" style="margin-bottom:6px">Rate the result. This teaches the router who to pick next time.</div>
+  el.innerHTML = `<div class="route" style="margin-top:12px">${unfinished ? `<div class="small" id="rt-unfinished" role="status" style="margin-bottom:6px"><b>${st === "aborted" || st === "cancelled" ? "Stopped before it finished." : st === "failed" ? "This run did not finish." : "Finished with problems."}</b> ${list.length ? "You can still rate the steps that ran." : "No step finished, but you can still say whether this was usable."}</div>` : ""}<div class="small muted" style="margin-bottom:6px">Rate the result. This teaches the router who to pick next time.</div>
     ${list.map((c) => { const r = existing.find((x) => !x.scope && (c.stepId ? x.stepId === c.stepId : x.model === c.model)); return `<div class="row small" style="padding:4px 0" data-model="${esc(c.model)}" data-provider="${esc(c.provider)}" data-cap="${esc(c.capability || cap)}" data-step="${esc(c.stepId || "")}" data-stepkind="${esc(c.stepKind || "")}">
       <span class="dot" style="background:${pcolor(c.provider)}"></span><span style="flex:1">${esc(c.label)}</span>
       <button class="ghost" data-up title="Good">${r?.up ? "👍" : "👍🏻"} Good</button><button class="ghost" data-down title="Not good">${r && !r.up ? "👎" : "👎🏻"} Not good</button>

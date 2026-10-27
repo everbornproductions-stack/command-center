@@ -10,6 +10,8 @@ files:
   - web/**
   - extension/**
   - package.json
+  # server/welcome-mail.js reads emails/welcome.html and welcome.txt at runtime; without them the welcome email says ENOENT
+  - emails/**
   - "!data/**"
   - "!dist/**"
   - "!docs/**"

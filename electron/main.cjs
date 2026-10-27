@@ -454,6 +454,10 @@ const LOG = path.join(userData, "everborn-command.log");
 function log(...a) { try { fs.mkdirSync(userData, { recursive: true }); fs.appendFileSync(LOG, new Date().toISOString() + " " + a.join(" ") + "\n"); } catch {} console.log(...a); }
 process.on("uncaughtException", (e) => log("uncaught:", e && e.stack || e));
 process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
+// 0.4.21 (dogfood 10): the app once closed about 5 s after Stop with nothing in this log. These lines leave a trail
+// (who asked to quit, and the exit code) so the next time the log says why.
+app.on("before-quit", () => log("before-quit (quitting for update:", String(quittingForUpdate) + ")"));
+process.on("exit", (code) => { try { fs.appendFileSync(LOG, new Date().toISOString() + " process exit code=" + code + "\n"); } catch {} });
 
 app.whenReady().then(async () => {
   a11y.afterReady(app); // Electron only accepts this once ready
