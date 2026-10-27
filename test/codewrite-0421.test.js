@@ -112,7 +112,8 @@ test("run: spawn is injectable, runs without a shell in the project folder, and 
     };
     const r = await runNodeTest({ cmd: "node x.test.js", cwd: dir, spawn: fake });
     assert.equal(seen.opts.shell, false); assert.equal(seen.opts.cwd, path.resolve(dir));
-    assert.equal(seen.argv[0], path.join(path.resolve(dir), "x.test.js"));
+    assert.equal(seen.argv.at(-1), path.join(path.resolve(dir), "x.test.js"));
+    assert.equal(seen.argv[0], "--permission", "0.4.23 (C1): AI-written code runs fenced in to the project folder");
     assert.ok(r.output.length < 4100, "output trimmed to about 4000 characters");
     let child;
     const hang = () => { const { EventEmitter } = require_events(); child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.kill = () => { child.killed = true; }; return child; };

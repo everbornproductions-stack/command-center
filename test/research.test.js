@@ -222,13 +222,13 @@ test("server: any model, citations, pro search, filters, deep research, free dai
   let free;
   try {
   pro = await startServer({ env: {
-    CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "pro", CC_RESEARCH_DEEP_MONTHLY: "1",
+    CC_PAGES_LOOPBACK: "1", CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "pro", CC_RESEARCH_DEEP_MONTHLY: "1",
     CC_SEARCH_URL_DUCKDUCKGO: `${m.base}/ddg`,
     CC_BASE_URL_GROQ: `${m.base}/groq/v1`, CC_BASE_URL_XAI: `${m.base}/xai/v1`, CC_BASE_URL_GOOGLE: `${m.base}/v1beta`,
     GROQ_API_KEY: "", XAI_API_KEY: "", GEMINI_API_KEY: "",
   } });
   free = await startServer({ env: {
-    CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "free", CC_RESEARCH_FREE_DAILY: "1",
+    CC_PAGES_LOOPBACK: "1", CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "free", CC_RESEARCH_FREE_DAILY: "1",
     CC_SEARCH_URL_DUCKDUCKGO: `${m.base}/ddg`,
     CC_BASE_URL_GROQ: `${m.base}/groq/v1`,
     GROQ_API_KEY: "",
@@ -373,7 +373,7 @@ test("server: Stop aborts a deep research run before the report is written", asy
   let s;
   try {
     s = await startServer({ env: {
-      CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "pro", CC_RESEARCH_DEEP_MONTHLY: "4",
+      CC_PAGES_LOOPBACK: "1", CC_DEV_OWNER: "1", CC_STATUS_PAGES: "off", CC_RESEARCH_TIER: "pro", CC_RESEARCH_DEEP_MONTHLY: "4",
       CC_SEARCH_URL_DUCKDUCKGO: `${m.base}/ddg`,
       CC_BASE_URL_GROQ: `${m.base}/groq/v1`, CC_BASE_URL_XAI: `${m.base}/xai/v1`,
       GROQ_API_KEY: "", XAI_API_KEY: "",

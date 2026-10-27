@@ -178,7 +178,9 @@ const KEY_LIKE = [
 ];
 export const looksLikeKey = (text) => KEY_LIKE.some((re) => re.test(String(text || "")));
 export function prepareTask(text) {
-  const masked = maskPrivate(String(text ?? "")).replace(/\r\n?/g, "\n").trim();
+  // 0.4.23 (audit X5): control characters (ESC, backspace, NUL ...) are dropped, so typed text cannot drive the
+  // terminal Freebuff runs in. New lines and tabs stay.
+  const masked = maskPrivate(String(text ?? "")).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "").trim();
   if (!masked) { const e = new Error("Type what you want the free coder to do."); e.status = 400; throw e; }
   if (looksLikeKey(masked)) { const e = new Error("That request has something that looks like a password or a key. Take it out first. Nothing was sent."); e.status = 400; e.code = "secret"; throw e; }
   return masked.slice(0, 20000);

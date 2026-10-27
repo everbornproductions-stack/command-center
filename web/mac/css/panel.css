@@ -1,0 +1,172 @@
+/* Mac part panel (0.4.23): the 380px glass drawer that slides in from the right.
+   Every selector starts with body[data-style="mac"], so nothing here changes the app
+   when the Mac style is off. Light and dark come from the theme tokens the app
+   already flips (--panel, --line, --text, --dim, --accent), with plain fallbacks. */
+
+body[data-style="mac"] .mac-panel {
+  --mac-panel-w: 380px;
+  --mac-panel-bg: var(--mac-glass2, var(--panel, rgba(14, 20, 32, 0.82)));
+  --mac-panel-line: var(--mac-line, var(--line, rgba(255, 255, 255, 0.12)));
+  --mac-panel-text: var(--mac-tx, var(--text, #e5e7eb));
+  --mac-panel-dim: var(--mac-dim, var(--dim, #8b95a7));
+  --mac-panel-accent: var(--mac-acc, var(--accent, #22d3ee));
+  --mac-panel-soft: rgba(127, 127, 127, 0.16);
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  width: var(--mac-panel-w);
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+  overflow: hidden;
+  color: var(--mac-panel-text);
+  background: var(--mac-panel-bg);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-left: 1px solid var(--mac-panel-line);
+  box-shadow: -20px 0 40px rgba(0, 0, 0, 0.28);
+  transform: translateX(105%);
+  visibility: hidden;
+  transition: transform 0.45s cubic-bezier(0.3, 1.2, 0.4, 1), visibility 0s linear 0.45s;
+}
+
+body[data-style="mac"] .mac-panel.on {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.45s cubic-bezier(0.3, 1.2, 0.4, 1), visibility 0s linear 0s;
+}
+
+body[data-style="mac"] .mp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body[data-style="mac"] .mp-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+body[data-style="mac"] .mp-done {
+  margin-left: auto;
+  min-height: 40px;
+  min-width: 74px;
+  padding: 8px 16px;
+  border: 1px solid var(--mac-panel-line);
+  border-radius: 999px;
+  background: var(--mac-panel-soft);
+  color: var(--mac-panel-text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+body[data-style="mac"] .mp-done:hover {
+  border-color: var(--mac-panel-accent);
+}
+
+body[data-style="mac"] .mp-sub {
+  margin: 6px 0 10px;
+  font-size: 0.85rem;
+  color: var(--mac-panel-dim);
+}
+
+body[data-style="mac"] .mp-find {
+  margin-bottom: 8px;
+}
+
+body[data-style="mac"] .mp-find input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--mac-panel-line);
+  border-radius: 10px;
+  background: var(--mac-panel-soft);
+  color: var(--mac-panel-text);
+  font-size: 0.95rem;
+}
+
+body[data-style="mac"] .mp-find input::placeholder {
+  color: var(--mac-panel-dim);
+}
+
+body[data-style="mac"] .mp-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+body[data-style="mac"] .mp-sec {
+  margin: 0 0 14px;
+}
+
+body[data-style="mac"] .mp-sec-t {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 10px 0 4px;
+  padding: 6px 0 4px;
+  background: var(--mac-panel-bg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mac-panel-dim);
+}
+
+body[data-style="mac"] .mp-row {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--mac-panel-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+body[data-style="mac"] .mp-row:hover {
+  background: var(--mac-panel-soft);
+}
+
+body[data-style="mac"] .mp-row-t {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+body[data-style="mac"] .mp-row-l {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--mac-panel-dim);
+}
+
+body[data-style="mac"] .mp-empty {
+  margin: 14px 2px;
+  font-size: 0.9rem;
+  color: var(--mac-panel-dim);
+}
+
+body[data-style="mac"] .mac-panel :focus-visible {
+  outline: 2px solid var(--mac-panel-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] .mac-panel,
+  body[data-style="mac"] .mac-panel.on {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  body[data-style="mac"] .mac-panel {
+    --mac-panel-w: 100vw;
+  }
+}

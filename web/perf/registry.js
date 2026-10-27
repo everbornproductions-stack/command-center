@@ -55,6 +55,7 @@ export const FEATURES = [
   { id: "voice-talk", shell: true },
   { id: "bracket-strip", shell: true },
   { id: "layout", shell: true },
+  { id: "mac", shell: true },
   { id: "versions", shell: true },
 
   { id: "mindmedia", views: ["mindmedia"] },

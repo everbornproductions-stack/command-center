@@ -1,0 +1,129 @@
+/* Mac part dock (0.4.23): styles live under body[data-style="mac"] only. */
+body[data-style="mac"] .dockw {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  display: flex;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: none;
+}
+
+body[data-style="mac"] #mac-dock,
+body[data-style="mac"] #dock {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 7px 10px;
+  height: 72px;
+  border-radius: 22px;
+  background: var(--mac-glass, var(--glass, rgba(255, 255, 255, 0.75)));
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid var(--mac-line, var(--line, rgba(0, 0, 0, 0.1)));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+body[data-style="mac"] .di {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 13px;
+  font-size: 27px;
+  display: grid;
+  place-items: center;
+  transition: width 0.12s, height 0.12s, margin 0.12s;
+  flex: none;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+
+body[data-style="mac"] .di::after {
+  content: attr(data-p);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--mac-glass2, var(--glass2, rgba(20, 20, 30, 0.85)));
+  color: var(--mac-tx, var(--tx, #fff));
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: 0.2s;
+  pointer-events: none;
+}
+
+body[data-style="mac"] .di:hover::after {
+  opacity: 1;
+}
+
+body[data-style="mac"] .di.ex {
+  display: none;
+}
+
+body[data-style="mac"].expert .di.ex,
+body[data-style="mac"][data-ui-mode="expert"] .di.ex {
+  display: grid;
+  animation: pop 0.45s cubic-bezier(0.3, 1.6, 0.4, 1);
+}
+
+@keyframes pop {
+  from { transform: scale(0); }
+}
+
+body[data-style="mac"] .sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 4px;
+  background: var(--mac-line, var(--line, rgba(0, 0, 0, 0.1)));
+}
+
+body[data-style="mac"] .di.bounce {
+  animation: bn 0.6s;
+}
+
+@keyframes bn {
+  30% { transform: translateY(-18px); }
+  60% { transform: translateY(0); }
+  80% { transform: translateY(-6px); }
+}
+
+body[data-style="mac"] .di.run::before {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--mac-tx, var(--tx, #333));
+}
+
+/* Gradients */
+body[data-style="mac"] .g1 { background: linear-gradient(135deg, #5ac8fa, #0a84ff); color: #fff; }
+body[data-style="mac"] .g2 { background: linear-gradient(135deg, #ff9f0a, #ff375f); color: #fff; }
+body[data-style="mac"] .g3 { background: linear-gradient(135deg, #bf5af2, #5e5ce6); color: #fff; }
+body[data-style="mac"] .g4 { background: linear-gradient(135deg, #30d158, #0a84a0); color: #fff; }
+body[data-style="mac"] .g5 { background: linear-gradient(135deg, #ffd60a, #ff9f0a); color: #fff; }
+body[data-style="mac"] .g6 { background: linear-gradient(135deg, #64d2ff, #30d158); color: #fff; }
+body[data-style="mac"] .g7 { background: linear-gradient(135deg, #8e8e93, #48484a); color: #fff; }
+body[data-style="mac"] .g8 { background: linear-gradient(135deg, #ff375f, #bf5af2); color: #fff; }
+
+/* Reduced motion & mobile hiding */
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] .di,
+  body[data-style="mac"] .di.bounce {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body[data-style="mac"] .dockw {
+    display: none !important;
+  }
+}

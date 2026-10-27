@@ -17,7 +17,9 @@ const ADVISORIES = (() => {
 
 export const FIX_NOTE = "If this key was ever shared or published, change it at its website, because it may already be seen.";
 const MAX_FILES = 600, MAX_BYTES = 400 * 1024, MAX_FILES_PER_GROUP = 20;
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage", "media", "vendor", "__pycache__", ".venv"]);
+// 0.4.23 (audit X1): dist/ and build/ are read again, because they are what gets published; bundled files are
+// checked for secrets and private data only (code rules stay off there, they are noise in minified code).
+const SKIP_DIRS = new Set(["node_modules", ".git", ".next", "coverage", "media", "vendor", "__pycache__", ".venv"]);
 const BINARY_EXT = /\.(png|jpe?g|gif|webp|ico|bmp|svgz|mp[34]|mov|webm|wav|ogg|pdf|zip|gz|tgz|7z|rar|exe|dll|so|dylib|woff2?|ttf|otf|eot|class|jar|bin|dat|db|sqlite)$/i;
 const JS_EXT = /\.(?:js|mjs|cjs|ts|jsx|tsx)$/i;
 const NODE_ENV_EXT = /\.(?:js|mjs|cjs|ts)$/i;
@@ -95,7 +97,18 @@ const KEY_SHAPES = [
   { kind: "github", label: "GitHub token", name: "GITHUB_TOKEN", re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})/g },
   { kind: "slack", label: "Slack token", name: "SLACK_TOKEN", re: /xox[abprs]-[A-Za-z0-9-]{10,}/g },
   { kind: "aws", label: "Amazon access key", name: "AWS_ACCESS_KEY_ID", re: /(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])/g },
+  // 0.4.23 (audit X1): Stripe, SendGrid, Twilio and Supabase shapes. A Stripe publishable key (pk_) is meant to be public.
+  { kind: "stripe", label: "Stripe secret key", name: "STRIPE_SECRET_KEY", strong: true, re: /(?<![A-Za-z0-9_])(?:sk|rk)_live_[A-Za-z0-9]{16,}/g },
+  { kind: "stripe-test", label: "Stripe test key", name: "STRIPE_SECRET_KEY", re: /(?<![A-Za-z0-9_])(?:sk|rk)_test_[A-Za-z0-9]{16,}/g },
+  { kind: "sendgrid", label: "SendGrid key", name: "SENDGRID_API_KEY", strong: true, re: /\bSG\.[A-Za-z0-9_-]{16,32}\.[A-Za-z0-9_-]{20,64}/g },
+  { kind: "twilio", label: "Twilio key", name: "TWILIO_API_KEY", strong: true, re: /(?<![A-Za-z0-9])SK[0-9a-f]{32}(?![A-Za-z0-9])/g },
+  { kind: "supabase", label: "Supabase secret key", name: "SUPABASE_SERVICE_ROLE_KEY", strong: true, re: /\bsb_secret_[A-Za-z0-9_-]{20,}/g },
 ];
+// Strong shapes name a live production key outright, so a test/ folder does not downgrade them: the folder may
+// still be published (0.4.23, audit X1: a sk_live_ key under test/ came back all clear).
+const STRONG_KINDS = new Set(KEY_SHAPES.filter((k) => k.strong).map((k) => k.kind));
+// A Supabase service_role JWT (anyone holding it skips every row rule).
+const SUPA_JWT_RE = /\beyJ[A-Za-z0-9_-]{10,}\.(eyJ[A-Za-z0-9_-]{20,})\.[A-Za-z0-9_-]{20,}/g;
 const PRIVATE_KEY_RE = /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/g;
 const ASSIGN_RE = /([A-Za-z_][\w.-]*?(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key)[\w-]*)(["']?\s*[:=]\s*)(["'])([^"'\s]{8,})\3/gi;
 const ENV_LINE_RE = /^([A-Z][A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)[A-Z0-9_]*)[ \t]*=[ \t]*([^\s#"']{16,})[ \t]*$/gm;
@@ -110,7 +123,8 @@ function scanSecrets(file) {
   const lineText = (start) => { const e = text.indexOf("\n", start); return text.slice(start, e < 0 ? text.length : e); };
   const push = (h) => {
     const { line, start: ls } = at(h.start);
-    const test = isTestPath(p), example = isExamplePath(p);
+    const example = isExamplePath(p);
+    const test = isTestPath(p) && !(STRONG_KINDS.has(h.kind) && !h.placeholder);
     let ignoreReason = "";
     if (h.placeholder || example) ignoreReason = example && !h.placeholder ? "Example file, values here are meant to be fake" : "Looks like a placeholder, not a real key";
     hits.push({ ...h, path: p, line, col: h.start - ls, lineText: lineText(ls), test, ignoreReason, live: !ignoreReason && !test });
@@ -118,6 +132,11 @@ function scanSecrets(file) {
   };
   for (const s of KEY_SHAPES) {
     for (const m of text.matchAll(s.re)) push({ kind: s.kind, label: s.label, name: s.name, start: m.index, end: m.index + m[0].length, value: m[0], placeholder: looksPlaceholder(m[0]) });
+  }
+  for (const m of text.matchAll(SUPA_JWT_RE)) {
+    let role = "";
+    try { role = JSON.parse(Buffer.from(m[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")).role || ""; } catch {}
+    if (role === "service_role") push({ kind: "supabase", label: "Supabase service key", name: "SUPABASE_SERVICE_ROLE_KEY", start: m.index, end: m.index + m[0].length, value: m[0], placeholder: false });
   }
   for (const m of text.matchAll(PRIVATE_KEY_RE)) push({ kind: "private-key", label: "Private key block", name: "PRIVATE_KEY", start: m.index, end: m.index + m[0].length, value: m[0], placeholder: false, noFix: true });
   for (const m of text.matchAll(ASSIGN_RE)) {
@@ -139,6 +158,36 @@ function scanSecrets(file) {
   }
   return hits;
 }
+
+// ---------- (b2) private data: SSN and card numbers (0.4.23, audit X1) ----------
+// Checked in words about to be sent (post text) and in page/text files; never in code or test files, where a
+// sample card like 4242 4242 4242 4242 is normal. Values are masked like secrets.
+const SSN_RE = /(?<![\d-])(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?![\d-])/g;
+const CARD_RE = /(?<![\d])(?:\d[ -]?){12,18}\d(?![\d])/g;
+const TEST_CARDS = new Set(["4242424242424242", "4000056655665556", "5555555555554444", "4111111111111111", "378282246310005"]);
+export function luhn(digits) {
+  let sum = 0, alt = false;
+  for (let i = digits.length - 1; i >= 0; i--) { let d = digits.charCodeAt(i) - 48; if (alt) { d *= 2; if (d > 9) d -= 9; } sum += d; alt = !alt; }
+  return sum % 10 === 0;
+}
+const TEXT_EXT = /\.(?:txt|md|markdown|html?|csv|json|eml|rtf|xml|ya?ml)$/i;
+export function scanPrivateData(file, { outgoing = false } = {}) {
+  const { path: p, text } = file, out = [];
+  if (!outgoing && (!TEXT_EXT.test(p) || isTestPath(p) || isExamplePath(p))) return out;
+  const at = lineIndex(text);
+  const lineText = (start) => { const e = text.indexOf("\n", start); return text.slice(start, e < 0 ? text.length : e); };
+  const add = (label, m) => { const { line, start } = at(m.index); out.push({ label, path: p, line, col: m.index - start, value: m[0], lineText: lineText(start) }); };
+  for (const m of text.matchAll(SSN_RE)) add("Social Security number", m);
+  for (const m of text.matchAll(CARD_RE)) {
+    const d = m[0].replace(/[ -]/g, "");
+    if (d.length < 13 || d.length > 19 || /^(\d)\1+$/.test(d) || !luhn(d)) continue;
+    if (!outgoing && TEST_CARDS.has(d)) continue;
+    if (!/^[2-6]/.test(d)) continue;
+    add("Card number", m);
+  }
+  return out;
+}
+const maskPrivate = (v) => `****${String(v).replace(/[^\d]/g, "").slice(-4)}`;
 
 // A line with every secret value replaced, so it can be shown.
 function redactLine(lineText, hits) {
@@ -314,7 +363,7 @@ function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").re
 function secretFindings(files) {
   const out = [];
   for (const f of files) {
-    if (f.tooBig || isBundled(f.path)) continue;
+    if (f.tooBig) continue;
     const hits = scanSecrets(f);
     for (const h of hits) {
       const same = hits.filter((x) => x.line === h.line);
@@ -325,8 +374,20 @@ function secretFindings(files) {
         gid: live ? "secret-live" : test ? "secret-test" : "secret-ignored",
         severity: live ? "high" : "low",
         ignoreReason: h.ignoreReason,
-        fixable: live && !h.noFix && !isEnvPath(h.path),
+        fixable: live && !h.noFix && !isEnvPath(h.path) && !isBundled(h.path),
       });
+    }
+  }
+  return out;
+}
+
+function privateFindings(files, outgoingPaths) {
+  const out = [];
+  for (const f of files) {
+    if (f.tooBig) continue;
+    for (const h of scanPrivateData(f, { outgoing: outgoingPaths.has(f.path) })) {
+      let line = h.lineText; line = line.split(h.value).join(maskPrivate(h.value));
+      out.push({ rule: "private-data", path: h.path, line: h.line, snippet: snippetOf(line, h.col), label: h.label, gid: "private-data", severity: "high", ignoreReason: "", fixable: false });
     }
   }
   return out;
@@ -347,6 +408,7 @@ const SECRET_TEXT = {
   "secret-live": { title: "Live secret found", tldr: "A real-looking key, token or password is written inside your files. Anyone who gets the files can use it. Move it out of the code. If it was ever shared or published, change it at its website." },
   "secret-test": { title: "Secret-looking text in test files", tldr: "These look like practice values inside test files, so the risk is low. Glance at them once to be sure none is real." },
   "secret-ignored": { title: "Placeholder keys", tldr: "These look like made-up or example values, so they were left out." },
+  "private-data": { title: "Private numbers found (Social Security or card)", tldr: "A Social Security number or a card number is in what you are about to share. Anyone who sees it could misuse it. Take it out before you send or publish." },
 };
 
 function collect(opts = {}) {
@@ -355,13 +417,15 @@ function collect(opts = {}) {
   files = normalizeFiles(files);
   const findings = [];
   const skipped = { bundled: 0, big: 0 };
-  const scannable = [];
+  const scannable = [], bundled = [];
   for (const f of files) {
-    if (isBundled(f.path)) { skipped.bundled++; continue; }
     if (f.tooBig) { skipped.big++; continue; }
+    if (isBundled(f.path)) { skipped.bundled++; bundled.push(f); continue; }
     scannable.push(f);
   }
-  for (const s of secretFindings(scannable)) findings.push(s);
+  // Secrets and private data are looked for in built files too (dist/, build/, *.min.js): that is what ships.
+  for (const s of secretFindings([...scannable, ...bundled])) findings.push(s);
+  for (const s of privateFindings([...scannable, ...bundled], new Set(opts.outgoing || []))) findings.push(s);
   const hasCP = (f) => /child_process/.test(f.text);
   for (const f of scannable) for (const c of scanCode(f, hasCP(f))) findings.push(toFinding(c));
   for (const c of scanSite(scannable.filter((f) => !isTestPath(f.path)))) findings.push(toFinding(c));
@@ -391,23 +455,26 @@ function buildResult({ files, findings, skipped }, now) {
     if (g.files.length < MAX_FILES_PER_GROUP) g.files.push({ path: f.path, line: f.line, snippet: f.snippet });
     if (f.fixable && !isIgnored) { g.fixable = true; g.fixId = f.rule === "secret" ? "secrets" : f.rule === "site-csp" ? "csp" : "https"; }
   }
-  if (skipped.bundled) ignored.set("skipped-bundled", { id: "skipped-bundled", rule: "skipped", severity: "low", title: "Built or downloaded code", tldr: "Files that came from a tool or a download, not from you.", count: skipped.bundled, files: [], ignored: true, ignoreReason: "Built or downloaded code is not checked", fixable: false, fixId: "" });
+  if (skipped.bundled) ignored.set("skipped-bundled", { id: "skipped-bundled", rule: "skipped", severity: "low", title: "Built or downloaded code", tldr: "Files that came from a tool or a download, not from you. They were checked for keys and private numbers only.", count: skipped.bundled, files: [], ignored: true, ignoreReason: "Built code: checked for keys only", fixable: false, fixId: "" });
   if (skipped.big) ignored.set("skipped-big", { id: "skipped-big", rule: "skipped", severity: "low", title: "Very large files", tldr: "Files too big to read here.", count: skipped.big, files: [], ignored: true, ignoreReason: "Too large to check", fixable: false, fixId: "" });
   const sorted = [...groups.values()].sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.count - a.count);
   const real = sorted.filter((g) => g.severity !== "low");
   const lows = sorted.length - real.length;
   const live = sorted.some((g) => g.id === "secret-live");
-  const light = live ? "red" : real.length ? "amber" : "green";
+  const privateData = sorted.find((g) => g.id === "private-data");
+  const light = live || privateData ? "red" : real.length ? "amber" : "green";
   const n = real.reduce((a, g) => a + g.count, 0);
   const nf = files.length;
   const lowNote = lows ? ` ${lows} low-risk note${lows === 1 ? "" : "s"} below, nothing to worry about.` : "";
-  const summary = live
+  const summary = !live && privateData
+    ? `A Social Security or card number is in what you are about to share. Take it out first.`
+    : live
     ? `A live secret is written in your files. Fix it before you publish, because anyone who gets the files can use it.${n > 1 ? ` ${n - sorted.find((g) => g.id === "secret-live").count} other thing${n - sorted.find((g) => g.id === "secret-live").count === 1 ? "" : "s"} to look at too.` : ""}`
     : real.length ? `${n} thing${n === 1 ? "" : "s"} worth a look in ${nf} file${nf === 1 ? "" : "s"}. You can still publish.${lowNote}`
     : nf ? `No problems found in ${nf} file${nf === 1 ? "" : "s"}. Nothing left your PC.${lowNote}`
     : "There was nothing to check yet. Nothing left your PC.";
   const t = now === undefined ? Date.now() : (now instanceof Date ? now.getTime() : Number(now));
-  return { light, groups: sorted, ignored: [...ignored.values()], summary, checkedAt: new Date(t).toISOString(), filesChecked: nf, counts: { issues: n, low: lows, ignored: [...ignored.values()].reduce((a, g) => a + g.count, 0) }, hasLive: live };
+  return { light, groups: sorted, ignored: [...ignored.values()], summary, checkedAt: new Date(t).toISOString(), filesChecked: nf, counts: { issues: n, low: lows, ignored: [...ignored.values()].reduce((a, g) => a + g.count, 0) }, hasLive: live, hasPrivate: !!privateData, checkedLine: `Checked ${nf} file${nf === 1 ? "" : "s"}${skipped.bundled ? ` (${skipped.bundled} built, keys only)` : ""}.` };
 }
 
 export function runSafetyCheck(opts = {}) {
@@ -522,5 +589,5 @@ export function applySafetyFix({ files, fixId = "all", now } = {}) {
 
 // What Publish needs: the light, in a small shape with no snippets.
 export function lightOf(result) {
-  return result ? { light: result.light, summary: result.summary, checkedAt: result.checkedAt, hasLive: !!result.hasLive, issues: result.counts?.issues ?? 0 } : null;
+  return result ? { light: result.light, summary: result.summary, checkedAt: result.checkedAt, hasLive: !!result.hasLive, hasPrivate: !!result.hasPrivate, issues: result.counts?.issues ?? 0, filesChecked: result.filesChecked ?? 0, checkedLine: result.checkedLine || "" } : null;
 }

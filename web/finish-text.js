@@ -25,8 +25,15 @@ export function plainMarkdown(text) {
 export function hidePrivateInTitle(t) {
   return String(t ?? "")
     .replace(/\b\d{3}-\d{2}-\d{4}\b/g, "[hidden]")
-    .replace(/\b(ssn|social security(?: number)?|account(?: number)?|acct|routing(?: number)?|card(?: number)?)\b([:\s#-]*(?:is\s+)?)[\d][\d\s-]{2,}/gi, (_m, label) => `${label} [hidden]`)
-    .replace(/\b(?:\d[ -]?){12,18}\d\b/g, "[hidden]");
+    // 0.4.23 (audit X13): the label rule keeps the space after the number, and a long digit run is hidden only
+    // when it passes the card checksum (Luhn), so plain numbers such as "2026 2027 2028 2029" stay.
+    .replace(/\b(ssn|social security(?: number)?|account(?: number)?|acct|routing(?: number)?|card(?: number)?)\b([:\s#-]*(?:is\s+)?)[\d](?:[\d-]|\s(?=\d))+/gi, (_m, label) => `${label} [hidden]`)
+    .replace(/\b(?:\d[ -]?){12,18}\d\b/g, (m) => (cardChecksum(m.replace(/[ -]/g, "")) ? "[hidden]" : m));
+}
+function cardChecksum(d) {
+  let sum = 0, alt = false;
+  for (let i = d.length - 1; i >= 0; i--) { let n = d.charCodeAt(i) - 48; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
+  return d.length >= 13 && sum % 10 === 0;
 }
 
 export function titleFrom(text, max = 50) {

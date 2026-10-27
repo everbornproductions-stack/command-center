@@ -1,0 +1,130 @@
+/* Mac part cards (0.4.23) */
+body[data-style="mac"] .cards {
+  position: relative;
+  height: 290px;
+  overflow: hidden;
+  margin: 0 -12px;
+  touch-action: pan-y;
+  outline: none;
+}
+
+body[data-style="mac"] .cards:focus-visible {
+  box-shadow: 0 0 0 2px var(--mac-acc, #007aff);
+  border-radius: 12px;
+}
+
+body[data-style="mac"] .track {
+  display: flex;
+  gap: 16px;
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] .track {
+    transition: none;
+  }
+}
+
+body[data-style="mac"] .card {
+  position: relative;
+  flex: 0 0 240px;
+  min-width: 220px;
+  height: 260px;
+  background: var(--mac-glass2, rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--mac-line, rgba(0, 0, 0, 0.1));
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  box-sizing: border-box;
+}
+
+body[data-style="mac"] .card:hover {
+  border-color: var(--mac-acc, #007aff);
+  transform: translateY(-2px);
+}
+
+body[data-style="mac"] .card.sel {
+  border: 2px solid var(--mac-acc, #007aff);
+  box-shadow: 0 8px 24px rgba(0, 122, 255, 0.15);
+}
+
+body[data-style="mac"] .card .art {
+  height: 120px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.3);
+}
+
+/* Gradient classes matching mockup */
+body[data-style="mac"] .art.g1 { background: linear-gradient(135deg, #007aff, #5ac8fa); }
+body[data-style="mac"] .art.g2 { background: linear-gradient(135deg, #ff9500, #ffcc00); }
+body[data-style="mac"] .art.g3 { background: linear-gradient(135deg, #1c1c1e, #3a3a3c); }
+body[data-style="mac"] .art.g4 { background: linear-gradient(135deg, #34c759, #30b0c7); }
+body[data-style="mac"] .art.g5 { background: linear-gradient(135deg, #af52de, #ff2d55); }
+body[data-style="mac"] .art.g7 { background: linear-gradient(135deg, #8e8e93, #aeaeb2); }
+body[data-style="mac"] .art.g8 { background: linear-gradient(135deg, #ff2d55, #ff9500); }
+body[data-style="mac"] .art.g9 { background: linear-gradient(135deg, #5856d6, #af52de); }
+
+body[data-style="mac"] .card .badge {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--mac-acc, #007aff);
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+body[data-style="mac"] .card .t {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--mac-tx, #1d1d1f);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-style="mac"] .card .d {
+  font-size: 12px;
+  color: var(--mac-dim, #86868b);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+body[data-style="mac"] .dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 12px;
+}
+
+body[data-style="mac"] .dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mac-line, rgba(0, 0, 0, 0.2));
+  cursor: pointer;
+  transition: width 0.2s, background 0.2s;
+}
+
+body[data-style="mac"] .dots i.on {
+  width: 20px;
+  border-radius: 4px;
+  background: var(--mac-acc, #007aff);
+}

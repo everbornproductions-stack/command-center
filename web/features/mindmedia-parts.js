@@ -59,7 +59,7 @@ window.CC.resultCard = function resultCard({ what = "Your result", detail = "", 
   return el;
 };
 
-// Places that fit this item, with a plain "Practice only" note when a place is not connected.
+// Places that fit this item, with a plain "Test only" note when a place is not connected.
 window.CC.publishPanel = async function publishPanel(box, opts = {}) {
   const { projectId = "", assetId = "", kind = "file", title = "", text = "", onResult } = opts;
   box.classList.add("mm-pub");
@@ -71,7 +71,7 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
   let channel = "", previewId = "";
   const nameOf = (c) => ({ drive: "Google Drive", ghl: "HighLevel", instagram: "Instagram", slack: "Slack" }[c.id] || c.name);
   box.innerHTML = `<div class="mm-note">Where should this go? Nothing is sent until you press the final button.</div>
-    ${fits.map((c) => `<button type="button" class="mm-ch" data-ch="${esc(c.id)}" aria-pressed="false"><b>${esc(nameOf(c))}</b><small>${c.ready ? "Connected" : "Practice only, nothing is sent"}</small></button>`).join("")}
+    ${fits.map((c) => `<button type="button" class="mm-ch" data-ch="${esc(c.id)}" aria-pressed="false"><b>${esc(nameOf(c))}</b><small>${c.ready ? "Connected" : "Test only, nothing is sent"}</small></button>`).join("")}
     <div class="mm-more" hidden>
       ${kind === "text" ? `<label class="lbl" for="mm-pub-text">Words to send</label><textarea id="mm-pub-text">${esc(text.slice(0, 2200))}</textarea>` : `<label class="lbl" for="mm-pub-text">Caption (optional)</label><textarea id="mm-pub-text">${esc(text.slice(0, 2200))}</textarea>`}
       <div class="mm-fields"></div>
@@ -122,14 +122,14 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
       previewId = r.previewId;
       const probs = r.problems || [];
       const warnings = warningLines(r.warnings);
-      out.innerHTML = `${esc(r.summary || "")}${warnings.map((w) => `<div class="mm-warn">${esc(w)}</div>`).join("")}${fitFixes(probs, channel).map((f, i) => `<div class="mm-warn">${esc(f.text)}${f.fix ? ` <button type="button" class="btn sm" data-fix="${i}:fix">${esc(f.fix.label)}</button>` : ""}${f.alt ? ` <button type="button" class="btn sm" data-fix="${i}:alt">${esc(f.alt.label)}</button>` : ""}</div>`).join("")}${r.dryRun ? `<div class="mm-note">Practice only, nothing is sent. This place is not connected, so Meldmind only records the practice run.</div>` : ""}`;
+      out.innerHTML = `${esc(r.summary || "")}${warnings.map((w) => `<div class="mm-warn">${esc(w)}</div>`).join("")}${fitFixes(probs, channel).map((f, i) => `<div class="mm-warn">${esc(f.text)}${f.fix ? ` <button type="button" class="btn sm" data-fix="${i}:fix">${esc(f.fix.label)}</button>` : ""}${f.alt ? ` <button type="button" class="btn sm" data-fix="${i}:alt">${esc(f.alt.label)}</button>` : ""}</div>`).join("")}${r.dryRun ? `<div class="mm-note">Test only, nothing is sent. This place is not connected, so Meldmind only records a test run.</div>` : ""}`;
       out.querySelectorAll("[data-fix]").forEach((b) => b.addEventListener("click", () => {
         const f = fitFixes(probs, channel)[Number(b.dataset.fix.split(":")[0])];
         const id = (b.dataset.fix.endsWith(":alt") ? f.alt : f.fix)?.id;
         if (id === "drive") { box.querySelector('[data-ch="drive"]')?.click(); return; }
         box.querySelector({ link: "#mm-pub-link", time: "#mm-pub-time", room: "#mm-pub-room", account: "[data-acc]" }[id])?.focus();
       }));
-      go.textContent = r.dryRun ? "Practice run" : "Send now";
+      go.textContent = r.dryRun ? "Test run" : "Send now";
       go.disabled = probs.length > 0 && !r.dryRun;
     } catch (e) { stale(); out.innerHTML = `<span class="mm-warn">${esc(e.message)}</span>`; }
   });
@@ -138,7 +138,7 @@ window.CC.publishPanel = async function publishPanel(box, opts = {}) {
     go.disabled = true;
     try {
       const r = await api("/publish/post", { method: "POST", body: { channel, previewId, confirmed: true } });
-      const msg = r.status === "posted" ? `Sent${/^https:\/\//.test(r.result?.url || "") ? `: ${r.result.url}` : "."}` : r.status === "dry-run" ? "Practice run recorded. Nothing was sent." : `Did not send: ${r.error}`;
+      const msg = r.status === "posted" ? `Sent${/^https:\/\//.test(r.result?.url || "") ? `: ${r.result.url}` : "."}` : r.status === "dry-run" ? "Test run recorded. Nothing was sent." : `Did not send: ${r.error}`;
       if (r.status === "failed") {
         // plain reason, a retry, and the way to fix a connection (0.4.21, H9)
         const nm = nameOf(fits.find((c) => c.id === channel) || { id: channel, name: channel });

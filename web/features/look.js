@@ -214,6 +214,20 @@ function splashHold(loadMs, quiet) {
   return Math.min(SPLASH_MAX_MS, Math.max(2 * base, 2 * load));
 }
 
+// Time still to wait, given the hold measured from navigation and the time already passed.
+function splashLeft(hold, sinceNav) {
+  const t = Number.isFinite(sinceNav) && sinceNav > 0 ? sinceNav : 0;
+  return Math.max(0, Math.min(SPLASH_MAX_MS, hold) - t);
+}
+// 0.4.23 (S15): when the look is off or /api/look fails, the screen fades out instead of vanishing.
+function fadeStartup() {
+  const el = document.getElementById("cc-startup");
+  if (!el) return;
+  el.dataset.owned = "1";
+  el.classList.add("mm-out");
+  setTimeout(() => el.remove(), SPLASH_FADE_MS + 100);
+}
+
 function showStartup() {
   try { if (sessionStorage.getItem(SPLASH_KEY)) return null; sessionStorage.setItem(SPLASH_KEY, "1"); } catch {}
   if (/[?&]nosplash\b/.test(location.search)) return null;
@@ -246,8 +260,11 @@ function showStartup() {
   el.addEventListener("click", early);
   el.addEventListener("touchstart", early, { passive: true });
   document.addEventListener("keydown", early, true);
-  const hold = splashHold(performance.now(), quiet);
-  setTimeout(() => { held = true; close(); }, hold);
+  // 0.4.23 (audit S15): the hold is counted from navigation (performance.now() is time since the page started),
+  // not from when /api/look answered, so the 12 s cap is a real cap: a slow start can no longer show 17 to 24 s.
+  const sinceNav = performance.now();
+  const hold = splashHold(sinceNav, quiet);
+  setTimeout(() => { held = true; close(); }, splashLeft(hold, sinceNav));
   return el;
 }
 
@@ -287,8 +304,8 @@ function panel(el) {
 }
 
 async function init() {
-  try { cfg = await api("/look"); } catch { document.getElementById("cc-startup")?.remove(); return; }
-  if (!cfg?.flag) { document.getElementById("cc-startup")?.remove(); return; }
+  try { cfg = await api("/look"); } catch { fadeStartup(); return; }
+  if (!cfg?.flag) { fadeStartup(); return; }
   info = graphicsInfo();
   const chk = savedCheck();
   if (chk) tier = chk.tier; else tier = finalTier(scoreGraphics(info).tier, null, info.backdrop).tier;
@@ -311,7 +328,7 @@ async function init() {
   startWatcher();
 }
 
-window.CC.look = { splashHold, apply, refreshLights, frameTest, choice: currentChoice, graphicsInfo };
+window.CC.look = { splashHold, splashLeft, apply, refreshLights, frameTest, choice: currentChoice, graphicsInfo };
 
 CC.register({
   id: "look",

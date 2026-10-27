@@ -79,8 +79,12 @@ test("the limit tracker marks an AI out on a 429 and resets the next day", () =>
   L.noteUse("openrouter", { now: t0, count: 5 });
   assert.equal(L.limitLeft("openrouter", { now: t0 }), 45);
   assert.equal(L.noteReply("openrouter", { status: 200, text: "fine" }, { now: t0 }), false);
+  // 0.4.23 (audit X8): a plain 429 benches for about 15 minutes; "quota" words bench until the next day
   assert.equal(L.noteReply("openrouter", { status: 429, text: "" }, { now: t0 }), true);
   assert.equal(L.limitLeft("openrouter", { now: t0 }), 0);
+  assert.equal(L.limitLeft("openrouter", { now: t0 + 16 * 60 * 1000 }), 45, "back after about 15 minutes");
+  assert.equal(L.noteReply("openrouter", { status: 429, text: "You exceeded your current quota" }, { now: t0 }), true);
+  assert.equal(L.limitLeft("openrouter", { now: t0 + 16 * 60 * 1000 }), 0);
   assert.equal(L.limitLeft("openrouter", { now: new Date(2026, 9, 27, 23, 59, 0).getTime() }), 0);
   const view = L.limitsView({ now: t0 }).find((v) => v.id === "openrouter");
   assert.equal(view.out, true);

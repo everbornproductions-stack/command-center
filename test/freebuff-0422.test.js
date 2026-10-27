@@ -278,7 +278,7 @@ test("tmux driver uses argument arrays (no shell string) and keeps secrets out o
 // ---------- plugin routes ----------
 function call(routes, method, url, body) {
   return new Promise(async (resolve) => {
-    const h = { json: (_res, status, payload) => resolve({ status, json: payload }) };
+    const h = { DATA_DIR: DIR, json: (_res, status, payload) => resolve({ status, json: payload }) };
     const u = new URL(url, "http://x");
     const r = await routes({ method }, {}, u, body, h);
     if (r === false) resolve({ status: 404, json: null });
@@ -293,7 +293,12 @@ test("plugin routes: status, start, ask, stop and errors", async () => {
   assert.equal(r.json.running, false);
   r = await call(routes, "POST", "/api/freebuff/ask", { text: "" });
   assert.equal(r.status, 400);
+  // 0.4.23 (audit X5): the page may only name a folder inside Meldmind's projects folder
   r = await call(routes, "POST", "/api/freebuff/start", { folder: path.join(DIR, "r1") });
+  assert.equal(r.status, 400);
+  assert.equal(r.json.code, "folder");
+  fs.mkdirSync(path.join(DIR, "projects", "r1"), { recursive: true });
+  r = await call(routes, "POST", "/api/freebuff/start", { folder: path.join(DIR, "projects", "r1") });
   assert.equal(r.status, 200);
   assert.equal(r.json.phase, "ready");
   r = await call(routes, "POST", "/api/freebuff/ask", { text: "add two numbers" });

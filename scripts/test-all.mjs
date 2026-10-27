@@ -33,8 +33,11 @@ function run(names, extra) {
   return result.status === null ? 1 : result.status;
 }
 
-const serialCode = run([serialName], ["--test-concurrency=1"]);
-if (serialCode !== 0) process.exit(serialCode);
+// 0.4.23 (audit X2/X20): a failing file no longer hides the rest. Every file runs, then the script exits
+// non-zero if any of them failed, and names them.
+const failed = [];
+const note = (code, what) => { if (code !== 0) failed.push(what); };
+note(run([serialName], ["--test-concurrency=1"]), serialName);
 
 const rest = files.filter((f) => f !== serialName);
 if (process.platform === "win32") {
@@ -42,11 +45,10 @@ if (process.platform === "win32") {
   const pure = rest.filter((f) => !isHelper(f));
   // One helper-process file at a time, so a child left alive cannot sit
   // under the next file. The per-test timeout still ends a hang.
-  for (const name of helpers) {
-    const code = run([name], ["--test-concurrency=1"]);
-    if (code !== 0) process.exit(code);
-  }
-  process.exit(run(pure, []));
+  for (const name of helpers) note(run([name], ["--test-concurrency=1"]), name);
+  note(run(pure, []), "the other test files");
+} else {
+  note(run(rest, []), "the other test files");
 }
-
-process.exit(run(rest, []));
+if (failed.length) console.error(`\nFailed: ${failed.join(", ")}`);
+process.exit(failed.length ? 1 : 0);

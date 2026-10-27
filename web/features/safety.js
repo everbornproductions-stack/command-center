@@ -75,7 +75,8 @@ async function beforeShare(ctx = {}) {
   return dialogFor(ctx, ctx.action === "publish" ? "publish" : "download");
 }
 
-function previewLineFor(safety) { return safety ? `<div class="sc-prev">Safety check: ${lightHtml(safety.light)}. ${CC.esc(safety.summary)}</div>` : ""; }
+// 0.4.23 (panel Top 10 #1, audit A1): say what was looked at ("Checked the words to send and 12 project files.").
+function previewLineFor(safety) { return safety ? `<div class="sc-prev">Safety check: ${lightHtml(safety.light)}. ${CC.esc(safety.summary)}${safety.checkedLine ? ` <span class="dim">${CC.esc(safety.checkedLine)}</span>` : ""}</div>` : ""; }
 
 // ---- Settings: the toggle ----
 function renderSettings(el) {

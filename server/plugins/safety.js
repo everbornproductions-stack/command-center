@@ -33,14 +33,22 @@ function remember(h, projectId, result) {
   h.putDoc(LAST, d);
 }
 
-// For the Publish preview: the words about to be posted are scanned too, and the project's last check is read.
-// Returns null when the person turned the check off.
+// For the Publish preview: the words about to be posted are scanned (keys, SSN and card numbers), and the
+// project folder is scanned AGAIN here on the server (0.4.23, audit X3). A stored "last check" is never trusted
+// on its own, because the page can post any files it likes to /check. Returns null when the check is off.
 export function gateForPost(h, { title, text, projectId } = {}) {
   if (!enabled(h)) return null;
-  const now = runSafetyCheck({ files: [{ path: "post.txt", text: `${title || ""}\n${text || ""}` }] });
-  const last = lastFor(h, projectId);
-  const worst = last && RANK[last.light] > RANK[now.light] ? last : lightOf(now);
-  return { light: worst.light, summary: worst.summary, hasLive: !!(now.hasLive || last?.hasLive), checkedAt: worst.checkedAt };
+  const post = runSafetyCheck({ files: [{ path: "post.txt", text: `${title || ""}\n${text || ""}` }], outgoing: ["post.txt"] });
+  let folder = null;
+  const dir = !h.HOSTED && projectId ? projectDir(h, projectId) : null;
+  if (dir && fs.existsSync(dir)) { folder = runSafetyCheck({ dir }); remember(h, projectId, folder); }
+  const worst = folder && RANK[folder.light] > RANK[post.light] ? folder : post;
+  const filesChecked = (folder?.filesChecked || 0) + 1;
+  return {
+    light: worst.light, summary: worst.summary, hasLive: !!(post.hasLive || folder?.hasLive), hasPrivate: !!(post.hasPrivate || folder?.hasPrivate),
+    checkedAt: worst.checkedAt, filesChecked, rescanned: !!folder,
+    checkedLine: folder ? `Checked the words to send and ${folder.filesChecked} project file${folder.filesChecked === 1 ? "" : "s"}.` : "Checked the words to send.",
+  };
 }
 
 function inputFiles(h, body) {
@@ -73,8 +81,9 @@ export async function routes(req, res, url, body, h) {
   if (req.method === "POST" && p === "/check") {
     const src = inputFiles(h, body);
     if (src.error) return h.json(res, 400, { error: src.error });
-    const result = runSafetyCheck({ files: src.files });
-    remember(h, body.projectId, result);
+    const result = runSafetyCheck({ files: src.files, outgoing: typeof body?.text === "string" && !Array.isArray(body?.files) ? src.files.map((f) => f.path) : [] });
+    // Only a scan of the real project folder is kept as that project's last check (0.4.23, audit X3).
+    if (src.dir) remember(h, body.projectId, result);
     return h.json(res, 200, result);
   }
   if (req.method === "POST" && p === "/fix") {
@@ -84,7 +93,7 @@ export async function routes(req, res, url, body, h) {
     const out = applySafetyFix({ files: src.files, fixId });
     let written = false;
     if (src.dir && out.changed.length) { writeBack(src.dir, out.changed); written = true; }
-    remember(h, body.projectId, out.result);
+    if (src.dir) remember(h, body.projectId, out.result);
     return h.json(res, 200, {
       message: out.message, left: out.left, fixed: out.fixed, note: out.note || "", result: out.result, written,
       changed: out.changed.map((c) => c.path),
