@@ -1,21 +1,29 @@
 // Speech-to-text for tap to talk on the desktop app. Web Speech has no Google key inside
 // Electron, so the recording is sent here and forwarded to a provider the person already
-// has a key for. Order: OpenAI, Groq, ElevenLabs Scribe, Gemini. Keys are never logged.
+// has a key for. Free first: Groq, Gemini, ElevenLabs Scribe (free allowance). OpenAI is paid, so it
+// is only tried last, and only when the person turned on "Use my OpenAI credits for voice".
+// Any failure (429, no credits, bad key, outage) moves on to the next tier. Keys are never logged.
 import { PROVIDERS, geminiBase } from "./registry.js";
 import { providerMessage } from "./health.js";
 
-export const NO_SPEECH_KEY = "No speech-to-text key is saved. Add an OpenAI, Groq, ElevenLabs, or Google Gemini key in Settings.";
+export const NO_SPEECH_KEY = "Voice typing is free, but it needs a free key. Add a Groq or Google Gemini key in Settings (both have a free plan). OpenAI and ElevenLabs keys work too.";
+export const PAID_OFF_NOTE = "Your OpenAI key is saved but not used for voice, because it costs credits. Add a free Groq or Google Gemini key in Settings, or turn on \"Use my OpenAI credits for voice\".";
+export const ALL_BUSY = "Voice typing could not reach a free service right now. Wait a minute and try again.";
 
 export const SPEECH_CHAIN = [
-  { id: "openai", kind: "openai", model: "gpt-4o-mini-transcribe", fallbackModel: "whisper-1" },
   { id: "groq", kind: "openai", model: "whisper-large-v3-turbo" },
-  { id: "elevenlabs", kind: "eleven", model: "scribe_v1" },
   { id: "google", kind: "gemini", model: "gemini-3.8-flash" },
+  { id: "elevenlabs", kind: "eleven", model: "scribe_v1" },
+  { id: "openai", kind: "openai", model: "gpt-4o-mini-transcribe", fallbackModel: "whisper-1", paid: true },
 ];
 
-export function pickSpeechTarget(has) {
-  for (const c of SPEECH_CHAIN) if (has(c.id)) return c;
-  return null;
+// Every tier this person can use, in order. Paid tiers only when they opted in.
+export function speechTargets(has, allowPaid = false) {
+  return SPEECH_CHAIN.filter((c) => has(c.id) && (allowPaid || !c.paid));
+}
+
+export function pickSpeechTarget(has, allowPaid = false) {
+  return speechTargets(has, allowPaid)[0] || null;
 }
 
 const ALLOWED_MIME = /^(audio\/[a-z0-9.+-]+|video\/webm)$/i;
@@ -136,15 +144,30 @@ async function geminiTranscribe(target, audio, key, fetchImpl) {
   return { text, provider: "google", model: target.model };
 }
 
-export async function transcribeAudio(audio, { hasSecret, getSecret, fetchImpl = fetch } = {}) {
-  if (!audio?.buf?.length) throw fail(400, "No audio in that recording.", "voice_audio");
-  const has = typeof hasSecret === "function" ? hasSecret : () => false;
-  const target = pickSpeechTarget(has);
-  if (!target) throw fail(409, NO_SPEECH_KEY, "voice_no_speech_key");
-  const secret = typeof getSecret === "function" ? getSecret(target.id) : null;
-  const key = secret?.key;
-  if (!key) throw fail(409, NO_SPEECH_KEY, "voice_no_speech_key");
+async function runTarget(target, audio, key, fetchImpl) {
   if (target.kind === "eleven") return elevenTranscribe(target, audio, key, fetchImpl);
   if (target.kind === "gemini") return geminiTranscribe(target, audio, key, fetchImpl);
   return openaiTranscribe(target, audio, key, fetchImpl);
+}
+
+export async function transcribeAudio(audio, { hasSecret, getSecret, fetchImpl = fetch, allowPaid = false } = {}) {
+  if (!audio?.buf?.length) throw fail(400, "No audio in that recording.", "voice_audio");
+  const has = typeof hasSecret === "function" ? hasSecret : () => false;
+  const targets = speechTargets(has, allowPaid);
+  if (!targets.length) {
+    const paidOnly = !allowPaid && SPEECH_CHAIN.some((c) => c.paid && has(c.id));
+    throw fail(409, paidOnly ? PAID_OFF_NOTE : NO_SPEECH_KEY, "voice_no_speech_key");
+  }
+  let tried = 0;
+  for (const target of targets) {
+    const key = (typeof getSecret === "function" ? getSecret(target.id) : null)?.key;
+    if (!key) continue;
+    tried += 1;
+    try {
+      const out = await runTarget(target, audio, key, fetchImpl);
+      if (out.text || target === targets.at(-1)) return out;
+    } catch { /* quota, no credits, bad key or outage: try the next tier */ }
+  }
+  if (!tried) throw fail(409, NO_SPEECH_KEY, "voice_no_speech_key");
+  throw fail(502, ALL_BUSY, "voice_transcribe");
 }

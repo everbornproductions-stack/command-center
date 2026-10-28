@@ -65,3 +65,10 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Fix: mission summaries are remembered per file and per summarizer, bumped on save, with the directory listing trusted for 30 s and a sliced warm-up after boot; ledger summary reused for 5 s; `electron/instance.cjs` takes over from a lock holder that fails three health probes, ends leftover Meldmind processes of the same install, and makes the window wait for the engine with 1, 2, 4, 8, 15 s pauses instead of reloading; same-document navigations are not counted.
 - Rules: anything the server does per request on the main thread must be O(1) after warm-up, never a directory scan or a whole-file parse. Count loads, not hash changes. The first log line after a restart that says "port 4747 is busy" means a ghost is alive.
 - Not proven from the log: out-of-credits spam (0 matching lines in the log) and provider polling (every 5 minutes, async). They were not the cause here.
+
+## 2026-10-27: Never default a feature to a paid API (free voice input, 0.4.24)
+
+- What happened: tap-to-talk on the desktop app tried OpenAI first. An account with no credits got "ChatGPT could not transcribe (429). You have no credits remaining." and voice input was dead, even though free Groq and Gemini keys could have done the job.
+- Fix: voice transcription is free first (Groq, Gemini, ElevenLabs free allowance). OpenAI is only tried last, and only when the person turns on "Use my OpenAI credits for voice" in Settings. Any 429, quota, bad key or outage moves on to the next tier instead of showing an error.
+- Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
+- Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.
