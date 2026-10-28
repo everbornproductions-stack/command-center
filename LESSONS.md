@@ -51,3 +51,9 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Rule: the old tests that said "nothing is written without a linked folder" locked in the bug. When a test asserts the broken behavior, change the test and say so in the PR.
 
 - 0.4.23.1 CI note: a document-level capture handler for the Send click ran before a browser test's own listener on the button and broke `mac-flow-0423` and `make-chat-browser`. Keep the button's own click listener; use the document handler only for keys and repaint races.
+
+## 2026-10-27: Turning a look on by default breaks every test that boots the app (0.4.24)
+
+- What happened: flipping `macOn()` to default-on made 16 browser tests fail locally. They measure the classic layout, and the Mac overlay (`#mac-root`) sits on top of it and intercepts clicks. Separately, the version bump to 0.4.24 failed CI on five test files that pin `package.json` version and on the What's new test, because a new version needs a `docs/WHATS-NEW.json` entry.
+- What fixed it: `bootPage` in test/pw-helpers.js stores `cc.mac = "0"` for tests of the classic layout unless a choice is already stored (so `bootMac` still wins), and `mac: "default"` boots like a new user. Version pins moved to 0.4.24, the guide PDF was rebuilt (`node scripts/build-guide.mjs`), and 0.4.24 got What's new and release-notes entries.
+- Rules: when a default changes, run the whole browser suite locally first, not only the test files for that feature. When bumping the version, grep tests for the old number, rebuild the bundled guide PDF, and add the What's new entry in the same commit. A fresh worktree needs `npm ci` before the guide build.
