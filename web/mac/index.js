@@ -51,6 +51,11 @@ export async function startMac(CC = window.CC) {
     } catch (e) { console.warn(`[mac] part ${p} failed:`, e); }
   }
   mac.bus.emit("mode", CC.uiMode?.() || "simple");
+  // Remember the look in settings.json so it survives a restart and a cleared browser store.
+  if (CC.S?.settings && !CC.S.settings.uiStyle) {
+    CC.S.settings.uiStyle = "mac";
+    CC.api?.("/settings", { method: "POST", body: { uiStyle: "mac" } }).catch(() => {});
+  }
   return mac;
 }
 

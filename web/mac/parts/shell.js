@@ -72,7 +72,7 @@ export default {
     CLEANUPS.push(() => { disposed = true; clearTimeout(FLASH_TIMER); });
 
     // ---- theme: light or dark, remembered on this computer ----
-    const storedTheme = () => { try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
+    const storedTheme = () => { const saved = CC.S?.settings?.theme; if (saved === "light" || saved === "dark") return saved; try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
     function applyTheme(value, emit) {
       const theme = value === "light" ? "light" : "dark";
       document.body.dataset.theme = theme;
@@ -81,7 +81,7 @@ export default {
       themeBtn?.setAttribute("aria-label", dark ? "Switch to light" : "Switch to dark");
       const glyph = themeBtn?.querySelector("[data-glyph]");
       if (glyph) glyph.textContent = dark ? "☀" : "☾";
-      if (emit) bus.emit("theme", theme);
+      if (emit) { bus.emit("theme", theme); CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {}); }
     }
 
     // ---- the title bar paint jobs ----
